@@ -378,7 +378,7 @@ function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <Card>
       <CardContent className="text-center">
-        <div className="text-3xl font-bold text-indigo-400">{value}</div>
+        <div className="text-2xl md:text-3xl font-bold text-indigo-400">{value}</div>
         <div className="text-sm text-gray-400">{label}</div>
       </CardContent>
     </Card>

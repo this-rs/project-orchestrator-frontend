@@ -25,7 +25,7 @@ export function CollapsibleMarkdown({ content, maxHeight = 120, className }: Col
         className="relative"
         style={!expanded && needsCollapse ? { maxHeight, overflow: 'hidden' } : undefined}
       >
-        <div className="prose prose-invert prose-sm max-w-none">
+        <div className="prose prose-invert prose-sm max-w-none break-words overflow-x-auto">
           <ReactMarkdown>{content}</ReactMarkdown>
         </div>
         {!expanded && needsCollapse && (

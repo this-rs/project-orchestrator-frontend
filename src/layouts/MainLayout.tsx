@@ -194,21 +194,33 @@ function Breadcrumb({ pathname }: { pathname: string }) {
       <NavLink to="/" className="text-gray-400 hover:text-gray-200 shrink-0">
         Home
       </NavLink>
-      {parts.map((part, index) => (
-        <span key={`${part}-${index}`} className="flex items-center gap-2 min-w-0">
+      {parts.length > 2 && (
+        <span className="flex items-center gap-2 min-w-0 sm:hidden">
           <span className="text-gray-600 shrink-0">/</span>
-          <NavLink
-            to={`/${parts.slice(0, index + 1).join('/')}`}
-            className={`truncate max-w-[120px] sm:max-w-[200px] md:max-w-none ${
-              index === parts.length - 1
-                ? 'text-gray-200 font-medium'
-                : 'text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            {part.charAt(0).toUpperCase() + part.slice(1)}
-          </NavLink>
+          <span className="text-gray-500">...</span>
         </span>
-      ))}
+      )}
+      {parts.map((part, index) => {
+        const isFirst = index === 0
+        const isLast = index === parts.length - 1
+        const isMiddle = !isFirst && !isLast
+        const hideOnMobile = isMiddle && parts.length > 2
+        return (
+          <span key={`${part}-${index}`} className={`flex items-center gap-2 min-w-0 ${hideOnMobile ? 'hidden sm:flex' : ''}`}>
+            <span className="text-gray-600 shrink-0">/</span>
+            <NavLink
+              to={`/${parts.slice(0, index + 1).join('/')}`}
+              className={`truncate max-w-[120px] sm:max-w-[200px] md:max-w-none ${
+                isLast
+                  ? 'text-gray-200 font-medium'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              {part.charAt(0).toUpperCase() + part.slice(1)}
+            </NavLink>
+          </span>
+        )
+      })}
     </nav>
   )
 }
