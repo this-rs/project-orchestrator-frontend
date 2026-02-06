@@ -131,7 +131,7 @@ export function TasksPage() {
               options={statusOptions}
               value={statusFilter}
               onChange={(e) => handleStatusFilterChange(e.target.value as TaskStatus | 'all')}
-              className="w-40"
+              className="w-full sm:w-40"
             />
           )}
           <ViewToggle value={viewMode} onChange={setViewMode} />
@@ -227,8 +227,8 @@ function TaskCard({
       <Card className="hover:border-indigo-500 transition-colors">
         <div className="flex">
           <div className={`w-1 shrink-0 rounded-l-xl ${taskStatusBarColor[task.status] || 'bg-gray-400'}`} />
-          <div className="flex-1 p-4">
-            <div className="flex items-start justify-between">
+          <div className="flex-1 p-3 md:p-4">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-semibold text-gray-100 truncate">
@@ -242,7 +242,7 @@ function TaskCard({
                   {task.assigned_to && <span>Assigned: {task.assigned_to}</span>}
                 </div>
                 {tags.length > 0 && (
-                  <div className="flex gap-1 mt-2">
+                  <div className="flex flex-wrap gap-1 mt-2">
                     {tags.map((tag, index) => (
                       <Badge key={`${tag}-${index}`} variant="default">
                         {tag}
@@ -251,7 +251,7 @@ function TaskCard({
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-2 ml-4 shrink-0">
+              <div className="flex items-center gap-2 sm:ml-4 shrink-0">
                 {task.priority !== undefined && (
                   <div className="text-right">
                     <div className="text-xs text-gray-500">Priority</div>

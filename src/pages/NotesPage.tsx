@@ -119,13 +119,13 @@ export function NotesPage() {
             options={typeOptions}
             value={typeFilter}
             onChange={(e) => handleTypeFilterChange(e.target.value as NoteType | 'all')}
-            className="w-36"
+            className="w-full sm:w-36"
           />
           <Select
             options={statusOptions}
             value={statusFilter}
             onChange={(e) => handleStatusFilterChange(e.target.value as NoteStatus | 'all')}
-            className="w-36"
+            className="w-full sm:w-36"
           />
           <Button onClick={openCreateNote}>Create Note</Button>
         </>
@@ -185,8 +185,8 @@ function NoteCard({ note, onDelete }: { note: Note; onDelete: () => void }) {
   return (
     <Card className={`border-l-4 ${typeColors[note.note_type] || 'border-l-gray-500'}`}>
       <CardContent>
-        <div className="flex items-start justify-between mb-2">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Badge variant="default">{note.note_type}</Badge>
             <NoteStatusBadge status={note.status} />
             <ImportanceBadge importance={note.importance} />
@@ -203,10 +203,10 @@ function NoteCard({ note, onDelete }: { note: Note; onDelete: () => void }) {
           </div>
         </div>
 
-        <p className="text-gray-200 whitespace-pre-wrap">{note.content}</p>
+        <p className="text-gray-200 whitespace-pre-wrap break-words overflow-hidden">{note.content}</p>
 
         {tags.length > 0 && (
-          <div className="flex gap-1 mt-3">
+          <div className="flex flex-wrap gap-1 mt-3">
             {tags.map((tag, index) => (
               <Badge key={`${tag}-${index}`} variant="default">{tag}</Badge>
             ))}
@@ -219,7 +219,7 @@ function NoteCard({ note, onDelete }: { note: Note; onDelete: () => void }) {
           </div>
         )}
 
-        <div className="mt-3 flex items-center gap-4 text-xs text-gray-500">
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
           <span>Created by {note.created_by}</span>
           <span>{new Date(note.created_at).toLocaleDateString()}</span>
           {note.last_confirmed_at && (

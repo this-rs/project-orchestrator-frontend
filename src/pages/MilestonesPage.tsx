@@ -137,19 +137,19 @@ export function MilestonesPage() {
       }
     >
       {/* Filters */}
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-4 sm:flex-wrap">
         <Select
           options={workspaceOptions}
           value={workspaceFilter}
           onChange={(e) => setWorkspaceFilter(e.target.value)}
-          className="w-44"
+          className="w-full sm:w-44"
         />
         {viewMode === 'list' && (
           <Select
             options={statusOptions}
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-40"
+            className="w-full sm:w-40"
           />
         )}
         {hasFilters && (
@@ -230,8 +230,8 @@ function MilestoneCard({
       <Card className="hover:border-indigo-500 transition-colors">
         <div className="flex">
           <div className={`w-1 shrink-0 rounded-l-xl ${milestoneStatusBarColor[statusKey] || 'bg-gray-400'}`} />
-          <div className="flex-1 p-4">
-            <div className="flex items-start justify-between mb-2">
+          <div className="flex-1 p-3 md:p-4">
+            <div className="flex items-start justify-between gap-2 mb-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-semibold text-gray-100 truncate">{milestone.title}</h3>
@@ -243,7 +243,7 @@ function MilestoneCard({
                 {milestone.description && (
                   <p className="text-sm text-gray-400 line-clamp-2">{milestone.description}</p>
                 )}
-                <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-gray-500">
                   {milestone.workspace_name && (
                     <span>Workspace: {milestone.workspace_name}</span>
                   )}
@@ -252,7 +252,7 @@ function MilestoneCard({
                   )}
                 </div>
                 {tags.length > 0 && (
-                  <div className="flex gap-1 mt-2">
+                  <div className="flex flex-wrap gap-1 mt-2">
                     {tags.slice(0, 4).map((tag, index) => (
                       <Badge key={`${tag}-${index}`} variant="default">{tag}</Badge>
                     ))}
