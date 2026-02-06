@@ -133,17 +133,18 @@ export function MilestoneKanbanBoard({ milestones, onMilestoneStatusChange, onMi
 
   if (isMobile) {
     return (
-      <div className="space-y-4">
+      <div className="flex gap-3 overflow-x-auto pb-4 -mx-4 px-4 snap-x snap-mandatory">
         {columns.map((col) => (
-          <MilestoneKanbanColumn
-            key={col.id}
-            id={col.id}
-            title={col.title}
-            milestones={milestonesByStatus[col.id]}
-            color={col.color}
-            onMilestoneClick={onMilestoneClick}
-            fullWidth
-          />
+          <div key={col.id} className="w-[80vw] shrink-0 snap-start">
+            <MilestoneKanbanColumn
+              id={col.id}
+              title={col.title}
+              milestones={milestonesByStatus[col.id]}
+              color={col.color}
+              onMilestoneClick={onMilestoneClick}
+              fullWidth
+            />
+          </div>
         ))}
       </div>
     )
@@ -205,7 +206,7 @@ function MilestoneKanbanColumn({
 
       <div
         ref={setNodeRef}
-        className={`flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 border-white/[0.06] min-h-[200px] ${fullWidth ? '' : 'max-h-[calc(100vh-280px)] overflow-y-auto'} transition-colors duration-150 ${
+        className={`flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 border-white/[0.06] min-h-[200px] ${fullWidth ? 'max-h-[calc(100dvh-200px)]' : 'max-h-[calc(100vh-280px)]'} overflow-y-auto transition-colors duration-150 ${
           isOver ? colors.dropHighlight : 'bg-[#1a1d27]/30'
         }`}
       >

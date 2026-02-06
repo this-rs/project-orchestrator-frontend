@@ -99,24 +99,25 @@ export function PlanKanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], on
 
   if (isMobile) {
     return (
-      <div className="space-y-4">
+      <div className="flex gap-3 overflow-x-auto pb-4 -mx-4 px-4 snap-x snap-mandatory">
         {visibleColumns.map((col) => {
           const data = columnDataMap[col.id]
           return (
-            <PlanKanbanColumn
-              key={col.id}
-              id={col.id}
-              title={col.title}
-              plans={data.items}
-              color={col.color}
-              total={data.total}
-              hasMore={data.hasMore}
-              loadingMore={data.loadingMore}
-              onLoadMore={data.loadMore}
-              loading={data.loading}
-              onPlanClick={onPlanClick}
-              fullWidth
-            />
+            <div key={col.id} className="w-[80vw] shrink-0 snap-start">
+              <PlanKanbanColumn
+                id={col.id}
+                title={col.title}
+                plans={data.items}
+                color={col.color}
+                total={data.total}
+                hasMore={data.hasMore}
+                loadingMore={data.loadingMore}
+                onLoadMore={data.loadMore}
+                loading={data.loading}
+                onPlanClick={onPlanClick}
+                fullWidth
+              />
+            </div>
           )
         })}
       </div>
@@ -205,7 +206,7 @@ function PlanKanbanColumn({
 
       <div
         ref={setNodeRef}
-        className={`flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 border-white/[0.06] min-h-[200px] ${fullWidth ? '' : 'max-h-[calc(100vh-280px)] overflow-y-auto'} transition-colors duration-150 ${
+        className={`flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 border-white/[0.06] min-h-[200px] ${fullWidth ? 'max-h-[calc(100dvh-200px)]' : 'max-h-[calc(100vh-280px)]'} overflow-y-auto transition-colors duration-150 ${
           isOver ? colors.dropHighlight : 'bg-[#1a1d27]/30'
         }`}
       >

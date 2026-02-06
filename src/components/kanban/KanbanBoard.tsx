@@ -100,24 +100,25 @@ export function KanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], onTask
 
   if (isMobile) {
     return (
-      <div className="space-y-4">
+      <div className="flex gap-3 overflow-x-auto pb-4 -mx-4 px-4 snap-x snap-mandatory">
         {visibleColumns.map((col) => {
           const data = columnDataMap[col.id]
           return (
-            <KanbanColumn
-              key={col.id}
-              id={col.id}
-              title={col.title}
-              tasks={data.items}
-              color={col.color}
-              total={data.total}
-              hasMore={data.hasMore}
-              loadingMore={data.loadingMore}
-              onLoadMore={data.loadMore}
-              loading={data.loading}
-              onTaskClick={onTaskClick}
-              fullWidth
-            />
+            <div key={col.id} className="w-[80vw] shrink-0 snap-start">
+              <KanbanColumn
+                id={col.id}
+                title={col.title}
+                tasks={data.items}
+                color={col.color}
+                total={data.total}
+                hasMore={data.hasMore}
+                loadingMore={data.loadingMore}
+                onLoadMore={data.loadMore}
+                loading={data.loading}
+                onTaskClick={onTaskClick}
+                fullWidth
+              />
+            </div>
           )
         })}
       </div>
