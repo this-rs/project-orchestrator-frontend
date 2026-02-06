@@ -233,8 +233,8 @@ function MilestoneCard({
           <div className="flex-1 p-3 md:p-4">
             <div className="flex items-start justify-between gap-2 mb-2">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-gray-100 truncate">{milestone.title}</h3>
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <h3 className="font-semibold text-gray-100 truncate min-w-0 max-w-full sm:max-w-none">{milestone.title}</h3>
                   <InteractiveMilestoneStatusBadge
                     status={milestone.status?.toLowerCase() as MilestoneStatus}
                     onStatusChange={onStatusChange}

@@ -16,7 +16,7 @@ export function PageShell({ title, description, actions, filters, children }: Pa
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-100">{title}</h1>
           {description && <p className="text-gray-400 mt-1">{description}</p>}
         </div>
-        {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+        {actions && <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>}
       </div>
       {filters && <div className="mb-6">{filters}</div>}
       {children}
