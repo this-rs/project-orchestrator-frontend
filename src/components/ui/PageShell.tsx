@@ -10,7 +10,7 @@ interface PageShellProps {
 
 export function PageShell({ title, description, actions, filters, children }: PageShellProps) {
   return (
-    <div>
+    <div className="pt-6">
       <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-gray-100">{title}</h1>

@@ -111,7 +111,7 @@ export function MainLayout() {
         </header>
 
         {/* Page content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto px-6 pb-6">
           <Outlet />
         </div>
       </main>

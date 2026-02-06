@@ -161,7 +161,7 @@ export function MilestoneDetailPage() {
   ]
 
   return (
-    <div className="space-y-6">
+    <div className="pt-6 space-y-6">
       <PageHeader
         title={milestone.title}
         description={milestone.description}

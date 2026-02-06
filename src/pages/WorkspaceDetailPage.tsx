@@ -131,7 +131,7 @@ export function WorkspaceDetailPage() {
   ]
 
   return (
-    <div className="space-y-6">
+    <div className="pt-6 space-y-6">
       <PageHeader
         title={workspace.name}
         description={workspace.description}

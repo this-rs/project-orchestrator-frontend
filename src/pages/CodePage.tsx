@@ -57,7 +57,7 @@ export function CodePage() {
   }
 
   return (
-    <div>
+    <div className="pt-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-100">Code Explorer</h1>
         <div className="flex gap-2">
