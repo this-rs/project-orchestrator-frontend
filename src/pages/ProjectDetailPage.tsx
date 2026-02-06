@@ -153,7 +153,7 @@ export function ProjectDetailPage() {
           </CardHeader>
           <CardContent>
             <ProgressBar value={roadmap.progress.percentage} showLabel size="lg" />
-            <div className="mt-4 grid grid-cols-4 gap-4 text-center">
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 text-center">
               <div>
                 <div className="text-2xl font-bold text-gray-200">{roadmap.progress.total_tasks}</div>
                 <div className="text-xs text-gray-500">Total</div>
@@ -232,7 +232,7 @@ export function ProjectDetailPage() {
       {/* Milestones & Releases */}
       {roadmap && (
         <section id="roadmap" className="scroll-mt-20">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">

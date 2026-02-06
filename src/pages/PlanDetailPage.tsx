@@ -222,7 +222,7 @@ export function PlanDetailPage() {
 
       {/* Task Stats */}
       <section id="overview" className="scroll-mt-20">
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 md:gap-4">
         <StatCard label="Pending" value={tasksByStatus.pending.length} color="gray" />
         <StatCard label="In Progress" value={tasksByStatus.in_progress.length} color="blue" />
         <StatCard label="Blocked" value={tasksByStatus.blocked.length} color="yellow" />
@@ -270,7 +270,7 @@ export function PlanDetailPage() {
       </section>
 
       {/* Constraints & Decisions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         <section id="constraints" className="scroll-mt-20">
         <Card>
           <CardHeader>
@@ -333,7 +333,7 @@ export function PlanDetailPage() {
             <div className="text-sm text-gray-400 mb-4">
               {(graph.nodes || []).length} nodes, {(graph.edges || []).length} edges
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
               {(graph.nodes || []).map((node) => (
                 <div
                   key={node.id}
