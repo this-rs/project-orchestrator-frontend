@@ -79,8 +79,8 @@ export function Pagination({
 
       {/* Page size selector and navigation */}
       <div className="flex items-center gap-4">
-        {/* Page size selector */}
-        <div className="flex items-center gap-2">
+        {/* Page size selector — hidden on mobile */}
+        <div className="hidden sm:flex items-center gap-2">
           <span className="text-sm text-gray-400">Per page:</span>
           <select
             value={pageSize}
@@ -102,7 +102,7 @@ export function Pagination({
             <button
               onClick={() => onPageChange(currentPage - 1)}
               disabled={!canGoPrev}
-              className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+              className={`px-3 py-2 md:py-1 rounded text-sm font-medium transition-colors ${
                 canGoPrev
                   ? 'bg-white/[0.08] text-gray-200 hover:bg-white/[0.12]'
                   : 'bg-white/[0.03] text-gray-500 cursor-not-allowed'
@@ -111,8 +111,11 @@ export function Pagination({
               Prev
             </button>
 
-            {/* Page numbers */}
-            <div className="flex items-center gap-1">
+            {/* Page numbers — hidden on mobile, show current/total instead */}
+            <span className="sm:hidden text-sm text-gray-400">
+              {currentPage} / {totalPages}
+            </span>
+            <div className="hidden sm:flex items-center gap-1">
               {getPageNumbers().map((page, index) =>
                 page === 'ellipsis' ? (
                   <span key={`ellipsis-${index}`} className="px-2 text-gray-500">
@@ -138,7 +141,7 @@ export function Pagination({
             <button
               onClick={() => onPageChange(currentPage + 1)}
               disabled={!canGoNext}
-              className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+              className={`px-3 py-2 md:py-1 rounded text-sm font-medium transition-colors ${
                 canGoNext
                   ? 'bg-white/[0.08] text-gray-200 hover:bg-white/[0.12]'
                   : 'bg-white/[0.03] text-gray-500 cursor-not-allowed'

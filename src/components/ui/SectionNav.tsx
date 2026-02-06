@@ -21,7 +21,7 @@ export function SectionNav({ sections, activeSection }: SectionNavProps) {
           <button
             key={section.id}
             onClick={() => scrollTo(section.id)}
-            className={`px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
+            className={`px-2 py-2 text-xs md:px-3 md:py-2.5 md:text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
               activeSection === section.id
                 ? 'border-indigo-500 text-white'
                 : 'border-transparent text-gray-400 hover:text-gray-200'
