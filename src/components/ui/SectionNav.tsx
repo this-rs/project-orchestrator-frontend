@@ -1,0 +1,39 @@
+interface Section {
+  id: string
+  label: string
+  count?: number
+}
+
+interface SectionNavProps {
+  sections: Section[]
+  activeSection: string
+}
+
+export function SectionNav({ sections, activeSection }: SectionNavProps) {
+  const scrollTo = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  return (
+    <div className="sticky top-0 z-10 bg-[#1a1d27]/90 backdrop-blur-sm border-b border-white/[0.06] -mx-6 px-6 mb-6">
+      <nav className="flex gap-1 overflow-x-auto">
+        {sections.map((section) => (
+          <button
+            key={section.id}
+            onClick={() => scrollTo(section.id)}
+            className={`px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
+              activeSection === section.id
+                ? 'border-indigo-500 text-white'
+                : 'border-transparent text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            {section.label}
+            {section.count !== undefined && (
+              <span className="ml-1.5 text-gray-500">({section.count})</span>
+            )}
+          </button>
+        ))}
+      </nav>
+    </div>
+  )
+}
