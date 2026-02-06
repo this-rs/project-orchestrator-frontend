@@ -12,6 +12,7 @@ import {
 import { useDroppable } from '@dnd-kit/core'
 import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core'
 import type { MilestoneStatus } from '@/types'
+import { useIsMobile } from '@/hooks'
 import { MilestoneKanbanCard, MilestoneKanbanCardOverlay } from './MilestoneKanbanCard'
 import type { MilestoneWithProgress } from './MilestoneKanbanCard'
 
@@ -65,7 +66,7 @@ const colorMap: Record<string, { border: string; bg: string; text: string; dropH
 
 export function MilestoneKanbanBoard({ milestones, onMilestoneStatusChange, onMilestoneClick, loading }: MilestoneKanbanBoardProps) {
   const [activeMilestone, setActiveMilestone] = useState<MilestoneWithProgress | null>(null)
-
+  const isMobile = useIsMobile()
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
@@ -130,6 +131,25 @@ export function MilestoneKanbanBoard({ milestones, onMilestoneStatusChange, onMi
     )
   }
 
+  if (isMobile) {
+    return (
+      <div className="flex gap-3 overflow-x-auto pb-4 -mx-4 px-4 snap-x snap-mandatory">
+        {columns.map((col) => (
+          <div key={col.id} className="w-[80vw] shrink-0 snap-start">
+            <MilestoneKanbanColumn
+              id={col.id}
+              title={col.title}
+              milestones={milestonesByStatus[col.id]}
+              color={col.color}
+              onMilestoneClick={onMilestoneClick}
+              fullWidth
+            />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <DndContext
       sensors={sensors}
@@ -163,18 +183,20 @@ function MilestoneKanbanColumn({
   milestones,
   color,
   onMilestoneClick,
+  fullWidth = false,
 }: {
   id: MilestoneStatus
   title: string
   milestones: MilestoneWithProgress[]
   color: string
   onMilestoneClick?: (milestoneId: string) => void
+  fullWidth?: boolean
 }) {
   const { isOver, setNodeRef } = useDroppable({ id })
   const colors = colorMap[color] || colorMap.blue
 
   return (
-    <div className="flex flex-col min-w-[200px] flex-1">
+    <div className={`flex flex-col flex-1 ${fullWidth ? 'min-w-0' : 'min-w-[200px]'}`}>
       <div className={`flex items-center gap-2 px-3 py-2 rounded-t-lg ${colors.bg} border-l-4 ${colors.border}`}>
         <h3 className={`text-sm font-semibold ${colors.text}`}>{title}</h3>
         <span className="text-xs text-gray-500 bg-[#1a1d27] rounded-full px-2 py-0.5">
@@ -184,7 +206,7 @@ function MilestoneKanbanColumn({
 
       <div
         ref={setNodeRef}
-        className={`flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 border-white/[0.06] min-h-[200px] max-h-[calc(100vh-280px)] overflow-y-auto transition-colors duration-150 ${
+        className={`flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 border-white/[0.06] min-h-[200px] ${fullWidth ? 'max-h-[calc(100dvh-200px)]' : 'max-h-[calc(100vh-280px)]'} overflow-y-auto transition-colors duration-150 ${
           isOver ? colors.dropHighlight : 'bg-[#1a1d27]/30'
         }`}
       >

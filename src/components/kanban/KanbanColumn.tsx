@@ -16,6 +16,7 @@ interface KanbanColumnProps {
   onLoadMore?: () => void
   loading?: boolean
   onTaskClick?: (taskId: string) => void
+  fullWidth?: boolean
 }
 
 const colorMap: Record<string, { border: string; bg: string; text: string; dropHighlight: string }> = {
@@ -70,6 +71,7 @@ export function KanbanColumn({
   onLoadMore,
   loading = false,
   onTaskClick,
+  fullWidth = false,
 }: KanbanColumnProps) {
   const { isOver, setNodeRef } = useDroppable({ id })
   const colors = colorMap[color] || colorMap.gray
@@ -83,7 +85,7 @@ export function KanbanColumn({
   const displayCount = total !== undefined ? total : tasks.length
 
   return (
-    <div className="flex flex-col min-w-[200px] flex-1">
+    <div className={`flex flex-col flex-1 ${fullWidth ? 'min-w-0' : 'min-w-[200px]'}`}>
       {/* Header */}
       <div className={`flex items-center gap-2 px-3 py-2 rounded-t-lg ${colors.bg} border-l-4 ${colors.border}`}>
         <h3 className={`text-sm font-semibold ${colors.text}`}>{title}</h3>
@@ -95,7 +97,7 @@ export function KanbanColumn({
       {/* Drop zone */}
       <div
         ref={setNodeRef}
-        className={`flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 border-white/[0.06] min-h-[200px] max-h-[calc(100vh-280px)] overflow-y-auto transition-colors duration-150 ${
+        className={`flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 border-white/[0.06] min-h-[200px] ${fullWidth ? 'max-h-[calc(100dvh-200px)]' : 'max-h-[calc(100vh-280px)]'} overflow-y-auto transition-colors duration-150 ${
           isOver ? colors.dropHighlight : 'bg-[#1a1d27]/30'
         }`}
       >

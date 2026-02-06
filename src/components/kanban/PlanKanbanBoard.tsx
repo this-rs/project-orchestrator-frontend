@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core'
 import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core'
 import type { Plan, PlanStatus, PaginatedResponse } from '@/types'
-import { useKanbanColumnData, useInfiniteScroll } from '@/hooks'
+import { useKanbanColumnData, useInfiniteScroll, useIsMobile } from '@/hooks'
 import type { ColumnData } from '@/hooks'
 import { kanbanColorMap } from './KanbanColumn'
 import { PlanKanbanCard, PlanKanbanCardOverlay } from './PlanKanbanCard'
@@ -36,7 +36,8 @@ const columns: { id: PlanStatus; title: string; color: string }[] = [
 
 export function PlanKanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], onPlanStatusChange, onPlanClick }: PlanKanbanBoardProps) {
   const [activePlan, setActivePlan] = useState<Plan | null>(null)
-
+  const isMobile = useIsMobile()
+  const visibleColumns = useMemo(() => columns.filter((col) => !hiddenStatuses.includes(col.id)), [hiddenStatuses])
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
@@ -96,6 +97,33 @@ export function PlanKanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], on
     [activePlan, onPlanStatusChange],
   )
 
+  if (isMobile) {
+    return (
+      <div className="flex gap-3 overflow-x-auto pb-4 -mx-4 px-4 snap-x snap-mandatory">
+        {visibleColumns.map((col) => {
+          const data = columnDataMap[col.id]
+          return (
+            <div key={col.id} className="w-[80vw] shrink-0 snap-start">
+              <PlanKanbanColumn
+                id={col.id}
+                title={col.title}
+                plans={data.items}
+                color={col.color}
+                total={data.total}
+                hasMore={data.hasMore}
+                loadingMore={data.loadingMore}
+                onLoadMore={data.loadMore}
+                loading={data.loading}
+                onPlanClick={onPlanClick}
+                fullWidth
+              />
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
     <DndContext
       sensors={sensors}
@@ -104,7 +132,7 @@ export function PlanKanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], on
       onDragEnd={handleDragEnd}
     >
       <div className="flex gap-4 overflow-x-auto pb-4">
-        {columns.filter((col) => !hiddenStatuses.includes(col.id)).map((col) => {
+        {visibleColumns.map((col) => {
           const data = columnDataMap[col.id]
           return (
             <PlanKanbanColumn
@@ -142,6 +170,7 @@ function PlanKanbanColumn({
   onLoadMore,
   loading = false,
   onPlanClick,
+  fullWidth = false,
 }: {
   id: PlanStatus
   title: string
@@ -153,6 +182,7 @@ function PlanKanbanColumn({
   onLoadMore?: () => void
   loading?: boolean
   onPlanClick?: (planId: string) => void
+  fullWidth?: boolean
 }) {
   const { isOver, setNodeRef } = useDroppable({ id })
   const colors = kanbanColorMap[color] || kanbanColorMap.gray
@@ -166,7 +196,7 @@ function PlanKanbanColumn({
   const displayCount = total !== undefined ? total : plans.length
 
   return (
-    <div className="flex flex-col min-w-[200px] flex-1">
+    <div className={`flex flex-col flex-1 ${fullWidth ? 'min-w-0' : 'min-w-[200px]'}`}>
       <div className={`flex items-center gap-2 px-3 py-2 rounded-t-lg ${colors.bg} border-l-4 ${colors.border}`}>
         <h3 className={`text-sm font-semibold ${colors.text}`}>{title}</h3>
         <span className="text-xs text-gray-500 bg-[#1a1d27] rounded-full px-2 py-0.5">
@@ -176,7 +206,7 @@ function PlanKanbanColumn({
 
       <div
         ref={setNodeRef}
-        className={`flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 border-white/[0.06] min-h-[200px] max-h-[calc(100vh-280px)] overflow-y-auto transition-colors duration-150 ${
+        className={`flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 border-white/[0.06] min-h-[200px] ${fullWidth ? 'max-h-[calc(100dvh-200px)]' : 'max-h-[calc(100vh-280px)]'} overflow-y-auto transition-colors duration-150 ${
           isOver ? colors.dropHighlight : 'bg-[#1a1d27]/30'
         }`}
       >

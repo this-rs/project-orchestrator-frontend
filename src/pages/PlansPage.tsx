@@ -236,7 +236,7 @@ export function PlansPage() {
               options={statusOptions}
               value={statusFilter}
               onChange={(e) => handleStatusFilterChange(e.target.value as PlanStatus | 'all')}
-              className="w-40"
+              className="w-full sm:w-40"
             />
           )}
           <ViewToggle value={viewMode} onChange={setViewMode} />
@@ -334,15 +334,15 @@ function PlanCard({
       <Card className="hover:border-indigo-500 transition-colors">
         <div className="flex">
           <div className={`w-1 shrink-0 rounded-l-xl ${planStatusBarColor[plan.status] || 'bg-gray-400'}`} />
-          <div className="flex-1 p-4 flex items-center justify-between">
+          <div className="flex-1 p-3 md:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3 mb-1">
-                <h3 className="text-lg font-semibold text-gray-100 truncate">{plan.title}</h3>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-1">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-100 truncate min-w-0 max-w-full sm:max-w-none">{plan.title}</h3>
                 <InteractivePlanStatusBadge status={plan.status} onStatusChange={onStatusChange} />
               </div>
               <p className="text-sm text-gray-400 line-clamp-1">{plan.description}</p>
             </div>
-            <div className="flex items-center gap-3 ml-4">
+            <div className="flex items-center gap-3 sm:ml-4 shrink-0">
               <div className="text-right">
                 <div className="text-sm text-gray-400">Priority</div>
                 <div className="text-lg font-bold text-indigo-400">{plan.priority}</div>

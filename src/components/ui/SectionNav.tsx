@@ -15,13 +15,13 @@ export function SectionNav({ sections, activeSection }: SectionNavProps) {
   }
 
   return (
-    <div className="sticky top-0 z-10 bg-[#1a1d27]/90 backdrop-blur-sm border-b border-white/[0.06] -mx-6 px-6 mb-6">
+    <div className="sticky top-0 z-10 bg-[#1a1d27]/90 backdrop-blur-sm border-b border-white/[0.06] -mx-4 px-4 md:-mx-6 md:px-6 mb-6">
       <nav className="flex gap-1 overflow-x-auto">
         {sections.map((section) => (
           <button
             key={section.id}
             onClick={() => scrollTo(section.id)}
-            className={`px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
+            className={`px-2 py-2 text-xs md:px-3 md:py-2.5 md:text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
               activeSection === section.id
                 ? 'border-indigo-500 text-white'
                 : 'border-transparent text-gray-400 hover:text-gray-200'

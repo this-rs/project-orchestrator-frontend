@@ -74,13 +74,13 @@ export function LinkEntityDialog({
       />
 
       <div className="relative bg-[#232733] rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/[0.06] max-w-lg w-full animate-in fade-in zoom-in-95 duration-150">
-        <div className="px-6 py-4 border-b border-white/[0.06]">
+        <div className="px-4 py-3 md:px-6 md:py-4 border-b border-white/[0.06]">
           <h3 id="link-dialog-title" className="text-lg font-semibold text-gray-100">
             {title}
           </h3>
         </div>
 
-        <div className="px-6 py-4">
+        <div className="px-4 py-3 md:px-6 md:py-4">
           {/* Search */}
           <div className="relative mb-3">
             <svg
@@ -107,7 +107,7 @@ export function LinkEntityDialog({
           </div>
 
           {/* Options list */}
-          <div className="max-h-[40vh] overflow-y-auto space-y-1">
+          <div className="max-h-[50vh] md:max-h-[40vh] overflow-y-auto space-y-1">
             {fetching ? (
               <div className="flex items-center justify-center py-8">
                 <Spinner />
@@ -138,7 +138,7 @@ export function LinkEntityDialog({
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-white/[0.06]">
+        <div className="flex justify-end gap-3 px-4 py-3 md:px-6 md:py-4 border-t border-white/[0.06]">
           <Button variant="secondary" size="sm" onClick={onClose} disabled={loading}>
             Cancel
           </Button>

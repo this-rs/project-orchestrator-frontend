@@ -41,7 +41,7 @@ export function OverflowMenu({ actions, className = '' }: OverflowMenuProps) {
           e.stopPropagation()
           setIsOpen(!isOpen)
         }}
-        className="flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors"
+        className="flex items-center justify-center w-10 h-10 md:w-8 md:h-8 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors"
         aria-label="More actions"
       >
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">

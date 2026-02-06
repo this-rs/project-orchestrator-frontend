@@ -11,12 +11,12 @@ interface PageShellProps {
 export function PageShell({ title, description, actions, filters, children }: PageShellProps) {
   return (
     <div className="pt-6">
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4 md:mb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-100">{title}</h1>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-100">{title}</h1>
           {description && <p className="text-gray-400 mt-1">{description}</p>}
         </div>
-        {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+        {actions && <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>}
       </div>
       {filters && <div className="mb-6">{filters}</div>}
       {children}

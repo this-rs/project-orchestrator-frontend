@@ -164,7 +164,7 @@ export function WorkspaceDetailPage() {
         )}
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-6">
           <StatCard label="Projects" value={projects.length} />
           <StatCard label="Milestones" value={milestones.length} />
           <StatCard label="Resources" value={resources.length} />
@@ -281,7 +281,7 @@ export function WorkspaceDetailPage() {
       </section>
 
       {/* Resources & Components */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         <section id="resources" className="scroll-mt-20">
         <Card>
           <CardHeader>
@@ -378,7 +378,7 @@ function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <Card>
       <CardContent className="text-center">
-        <div className="text-3xl font-bold text-indigo-400">{value}</div>
+        <div className="text-2xl md:text-3xl font-bold text-indigo-400">{value}</div>
         <div className="text-sm text-gray-400">{label}</div>
       </CardContent>
     </Card>

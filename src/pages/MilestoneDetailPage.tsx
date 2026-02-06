@@ -222,7 +222,7 @@ export function MilestoneDetailPage() {
           </CardHeader>
           <CardContent>
             <ProgressBar value={progress.percentage} showLabel size="lg" />
-            <div className="mt-4 grid grid-cols-2 gap-4">
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
               <div className="text-center p-3 bg-white/[0.06] rounded-lg">
                 <div className="text-2xl font-bold text-green-400">{progress.completed}</div>
                 <div className="text-xs text-gray-500">Completed</div>

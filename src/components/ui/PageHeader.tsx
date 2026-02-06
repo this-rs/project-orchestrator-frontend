@@ -25,9 +25,9 @@ export function PageHeader({
   return (
     <div className="space-y-3">
       {/* Line 1: Title + Actions */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-gray-100 truncate">{title}</h1>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight text-gray-100 truncate">{title}</h1>
           {overflowActions && overflowActions.length > 0 && (
             <OverflowMenu actions={overflowActions} />
           )}

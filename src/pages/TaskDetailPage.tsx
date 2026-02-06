@@ -159,7 +159,7 @@ export function TaskDetailPage() {
         ]}
       >
         {tags.length > 0 && (
-          <div className="flex gap-1">
+          <div className="flex flex-wrap gap-1">
             {tags.map((tag, index) => (
               <Badge key={`${tag}-${index}`}>{tag}</Badge>
             ))}
@@ -236,7 +236,7 @@ export function TaskDetailPage() {
 
       {/* Blockers & Blocking */}
       <section id="dependencies" className="scroll-mt-20">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">

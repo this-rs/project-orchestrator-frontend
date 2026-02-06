@@ -11,7 +11,7 @@ import {
 } from '@dnd-kit/core'
 import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core'
 import type { TaskStatus, PaginatedResponse } from '@/types'
-import { useKanbanColumnData } from '@/hooks'
+import { useKanbanColumnData, useIsMobile } from '@/hooks'
 import type { ColumnData } from '@/hooks'
 import { KanbanColumn } from './KanbanColumn'
 import { KanbanCardOverlay } from './KanbanCard'
@@ -35,6 +35,8 @@ const columns: { id: TaskStatus; title: string; color: string }[] = [
 
 export function KanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], onTaskStatusChange, onTaskClick }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<KanbanTask | null>(null)
+  const isMobile = useIsMobile()
+  const visibleColumns = columns.filter((col) => !hiddenStatuses.includes(col.id))
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -96,6 +98,33 @@ export function KanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], onTask
     [activeTask, onTaskStatusChange],
   )
 
+  if (isMobile) {
+    return (
+      <div className="flex gap-3 overflow-x-auto pb-4 -mx-4 px-4 snap-x snap-mandatory">
+        {visibleColumns.map((col) => {
+          const data = columnDataMap[col.id]
+          return (
+            <div key={col.id} className="w-[80vw] shrink-0 snap-start">
+              <KanbanColumn
+                id={col.id}
+                title={col.title}
+                tasks={data.items}
+                color={col.color}
+                total={data.total}
+                hasMore={data.hasMore}
+                loadingMore={data.loadingMore}
+                onLoadMore={data.loadMore}
+                loading={data.loading}
+                onTaskClick={onTaskClick}
+                fullWidth
+              />
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
     <DndContext
       sensors={sensors}
@@ -104,7 +133,7 @@ export function KanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], onTask
       onDragEnd={handleDragEnd}
     >
       <div className="flex gap-4 overflow-x-auto pb-4">
-        {columns.filter((col) => !hiddenStatuses.includes(col.id)).map((col) => {
+        {visibleColumns.map((col) => {
           const data = columnDataMap[col.id]
           return (
             <KanbanColumn

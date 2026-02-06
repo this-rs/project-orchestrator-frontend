@@ -46,7 +46,7 @@ export function CreateConstraintForm({ onSubmit, loading }: Props) {
   return {
     fields: (
       <>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <Select
             label="Type"
             options={typeOptions}
