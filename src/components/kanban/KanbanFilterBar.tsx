@@ -41,13 +41,13 @@ export function KanbanFilterBar({
   )
 
   return (
-    <div className="flex flex-wrap items-center gap-3 p-3 bg-[#1a1d27]/50 rounded-lg border border-white/[0.06] mb-4">
+    <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3 p-3 bg-[#1a1d27]/50 rounded-lg border border-white/[0.06] mb-4">
       {/* Plan filter */}
       <Select
         options={planOptions}
         value={filters.plan_id || ''}
         onChange={(e) => onFilterChange('plan_id', e.target.value || undefined)}
-        className="w-44"
+        className="w-full sm:w-44"
       />
 
       {/* Assigned filter */}
@@ -56,7 +56,7 @@ export function KanbanFilterBar({
         placeholder="Assigned to..."
         value={filters.assigned_to || ''}
         onChange={(e) => onFilterChange('assigned_to', e.target.value || undefined)}
-        className="w-36 px-2.5 py-1.5 text-sm bg-[#0f1117] border border-white/[0.1] rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+        className="w-full sm:w-36 px-2.5 py-1.5 text-sm bg-[#0f1117] border border-white/[0.1] rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500"
       />
 
       {/* Priority range */}
@@ -80,7 +80,7 @@ export function KanbanFilterBar({
       </div>
 
       {/* Divider */}
-      <div className="w-px h-6 bg-white/[0.06]" />
+      <div className="hidden sm:block w-px h-6 bg-white/[0.06]" />
 
       {/* Hide completed/failed toggles */}
       <label className="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer">
@@ -109,7 +109,7 @@ export function KanbanFilterBar({
           onChange={(e) => {
             if (e.target.value) onToggleExcludeProject(e.target.value)
           }}
-          className="w-40 px-2.5 py-1.5 text-sm bg-[#0f1117] border border-white/[0.1] rounded-lg text-gray-400 focus:outline-none focus:border-indigo-500"
+          className="w-full sm:w-40 px-2.5 py-1.5 text-sm bg-[#0f1117] border border-white/[0.1] rounded-lg text-gray-400 focus:outline-none focus:border-indigo-500"
         >
           <option value="">Exclude project...</option>
           {projectOptions.map((p) => (
@@ -126,7 +126,7 @@ export function KanbanFilterBar({
       ))}
 
       {/* Spacer */}
-      <div className="flex-1" />
+      <div className="hidden sm:block flex-1" />
 
       {/* Active filter count + clear */}
       {activeFilterCount > 0 && (

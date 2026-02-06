@@ -12,6 +12,7 @@ import {
 import { useDroppable } from '@dnd-kit/core'
 import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core'
 import type { MilestoneStatus } from '@/types'
+import { useIsMobile } from '@/hooks'
 import { MilestoneKanbanCard, MilestoneKanbanCardOverlay } from './MilestoneKanbanCard'
 import type { MilestoneWithProgress } from './MilestoneKanbanCard'
 
@@ -65,6 +66,8 @@ const colorMap: Record<string, { border: string; bg: string; text: string; dropH
 
 export function MilestoneKanbanBoard({ milestones, onMilestoneStatusChange, onMilestoneClick, loading }: MilestoneKanbanBoardProps) {
   const [activeMilestone, setActiveMilestone] = useState<MilestoneWithProgress | null>(null)
+  const isMobile = useIsMobile()
+  const [mobileActiveColumn, setMobileActiveColumn] = useState<MilestoneStatus>('open')
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -130,6 +133,42 @@ export function MilestoneKanbanBoard({ milestones, onMilestoneStatusChange, onMi
     )
   }
 
+  if (isMobile) {
+    const activeCol = columns.find((c) => c.id === mobileActiveColumn) ?? columns[0]
+    return (
+      <>
+        <div className="flex gap-1.5 overflow-x-auto pb-3 -mx-1 px-1">
+          {columns.map((col) => {
+            const count = milestonesByStatus[col.id].length
+            const colors = colorMap[col.color] || colorMap.blue
+            const isActive = col.id === mobileActiveColumn
+            return (
+              <button
+                key={col.id}
+                onClick={() => setMobileActiveColumn(col.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+                  isActive
+                    ? `${colors.bg} ${colors.text} ring-1 ring-current`
+                    : 'bg-white/[0.06] text-gray-400'
+                }`}
+              >
+                {col.title} ({count})
+              </button>
+            )
+          })}
+        </div>
+        <MilestoneKanbanColumn
+          id={activeCol.id}
+          title={activeCol.title}
+          milestones={milestonesByStatus[activeCol.id]}
+          color={activeCol.color}
+          onMilestoneClick={onMilestoneClick}
+          fullWidth
+        />
+      </>
+    )
+  }
+
   return (
     <DndContext
       sensors={sensors}
@@ -163,18 +202,20 @@ function MilestoneKanbanColumn({
   milestones,
   color,
   onMilestoneClick,
+  fullWidth = false,
 }: {
   id: MilestoneStatus
   title: string
   milestones: MilestoneWithProgress[]
   color: string
   onMilestoneClick?: (milestoneId: string) => void
+  fullWidth?: boolean
 }) {
   const { isOver, setNodeRef } = useDroppable({ id })
   const colors = colorMap[color] || colorMap.blue
 
   return (
-    <div className="flex flex-col min-w-[200px] flex-1">
+    <div className={`flex flex-col flex-1 ${fullWidth ? 'min-w-0' : 'min-w-[200px]'}`}>
       <div className={`flex items-center gap-2 px-3 py-2 rounded-t-lg ${colors.bg} border-l-4 ${colors.border}`}>
         <h3 className={`text-sm font-semibold ${colors.text}`}>{title}</h3>
         <span className="text-xs text-gray-500 bg-[#1a1d27] rounded-full px-2 py-0.5">
@@ -184,7 +225,7 @@ function MilestoneKanbanColumn({
 
       <div
         ref={setNodeRef}
-        className={`flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 border-white/[0.06] min-h-[200px] max-h-[calc(100vh-280px)] overflow-y-auto transition-colors duration-150 ${
+        className={`flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 border-white/[0.06] min-h-[200px] ${fullWidth ? 'max-h-[calc(100dvh-200px)]' : 'max-h-[calc(100vh-280px)]'} overflow-y-auto transition-colors duration-150 ${
           isOver ? colors.dropHighlight : 'bg-[#1a1d27]/30'
         }`}
       >
