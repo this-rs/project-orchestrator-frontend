@@ -38,8 +38,6 @@ export function PlanKanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], on
   const [activePlan, setActivePlan] = useState<Plan | null>(null)
   const isMobile = useIsMobile()
   const visibleColumns = useMemo(() => columns.filter((col) => !hiddenStatuses.includes(col.id)), [hiddenStatuses])
-  const [mobileActiveColumn, setMobileActiveColumn] = useState<PlanStatus>(visibleColumns[0]?.id ?? 'draft')
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
@@ -100,44 +98,28 @@ export function PlanKanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], on
   )
 
   if (isMobile) {
-    const activeCol = visibleColumns.find((c) => c.id === mobileActiveColumn) ?? visibleColumns[0]
-    const data = columnDataMap[activeCol.id]
     return (
-      <>
-        <div className="flex gap-1.5 overflow-x-auto pb-3 -mx-1 px-1">
-          {visibleColumns.map((col) => {
-            const colData = columnDataMap[col.id]
-            const colColors = kanbanColorMap[col.color] || kanbanColorMap.gray
-            const isActive = col.id === mobileActiveColumn
-            return (
-              <button
-                key={col.id}
-                onClick={() => setMobileActiveColumn(col.id)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-                  isActive
-                    ? `${colColors.bg} ${colColors.text} ring-1 ring-current`
-                    : 'bg-white/[0.06] text-gray-400'
-                }`}
-              >
-                {col.title} ({colData.total ?? colData.items.length})
-              </button>
-            )
-          })}
-        </div>
-        <PlanKanbanColumn
-          id={activeCol.id}
-          title={activeCol.title}
-          plans={data.items}
-          color={activeCol.color}
-          total={data.total}
-          hasMore={data.hasMore}
-          loadingMore={data.loadingMore}
-          onLoadMore={data.loadMore}
-          loading={data.loading}
-          onPlanClick={onPlanClick}
-          fullWidth
-        />
-      </>
+      <div className="space-y-4">
+        {visibleColumns.map((col) => {
+          const data = columnDataMap[col.id]
+          return (
+            <PlanKanbanColumn
+              key={col.id}
+              id={col.id}
+              title={col.title}
+              plans={data.items}
+              color={col.color}
+              total={data.total}
+              hasMore={data.hasMore}
+              loadingMore={data.loadingMore}
+              onLoadMore={data.loadMore}
+              loading={data.loading}
+              onPlanClick={onPlanClick}
+              fullWidth
+            />
+          )
+        })}
+      </div>
     )
   }
 
@@ -223,7 +205,7 @@ function PlanKanbanColumn({
 
       <div
         ref={setNodeRef}
-        className={`flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 border-white/[0.06] min-h-[200px] ${fullWidth ? 'max-h-[calc(100dvh-200px)]' : 'max-h-[calc(100vh-280px)]'} overflow-y-auto transition-colors duration-150 ${
+        className={`flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 border-white/[0.06] min-h-[200px] ${fullWidth ? '' : 'max-h-[calc(100vh-280px)] overflow-y-auto'} transition-colors duration-150 ${
           isOver ? colors.dropHighlight : 'bg-[#1a1d27]/30'
         }`}
       >

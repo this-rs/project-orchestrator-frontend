@@ -67,8 +67,6 @@ const colorMap: Record<string, { border: string; bg: string; text: string; dropH
 export function MilestoneKanbanBoard({ milestones, onMilestoneStatusChange, onMilestoneClick, loading }: MilestoneKanbanBoardProps) {
   const [activeMilestone, setActiveMilestone] = useState<MilestoneWithProgress | null>(null)
   const isMobile = useIsMobile()
-  const [mobileActiveColumn, setMobileActiveColumn] = useState<MilestoneStatus>('open')
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
@@ -134,38 +132,20 @@ export function MilestoneKanbanBoard({ milestones, onMilestoneStatusChange, onMi
   }
 
   if (isMobile) {
-    const activeCol = columns.find((c) => c.id === mobileActiveColumn) ?? columns[0]
     return (
-      <>
-        <div className="flex gap-1.5 overflow-x-auto pb-3 -mx-1 px-1">
-          {columns.map((col) => {
-            const count = milestonesByStatus[col.id].length
-            const colors = colorMap[col.color] || colorMap.blue
-            const isActive = col.id === mobileActiveColumn
-            return (
-              <button
-                key={col.id}
-                onClick={() => setMobileActiveColumn(col.id)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-                  isActive
-                    ? `${colors.bg} ${colors.text} ring-1 ring-current`
-                    : 'bg-white/[0.06] text-gray-400'
-                }`}
-              >
-                {col.title} ({count})
-              </button>
-            )
-          })}
-        </div>
-        <MilestoneKanbanColumn
-          id={activeCol.id}
-          title={activeCol.title}
-          milestones={milestonesByStatus[activeCol.id]}
-          color={activeCol.color}
-          onMilestoneClick={onMilestoneClick}
-          fullWidth
-        />
-      </>
+      <div className="space-y-4">
+        {columns.map((col) => (
+          <MilestoneKanbanColumn
+            key={col.id}
+            id={col.id}
+            title={col.title}
+            milestones={milestonesByStatus[col.id]}
+            color={col.color}
+            onMilestoneClick={onMilestoneClick}
+            fullWidth
+          />
+        ))}
+      </div>
     )
   }
 
@@ -225,7 +205,7 @@ function MilestoneKanbanColumn({
 
       <div
         ref={setNodeRef}
-        className={`flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 border-white/[0.06] min-h-[200px] ${fullWidth ? 'max-h-[calc(100dvh-200px)]' : 'max-h-[calc(100vh-280px)]'} overflow-y-auto transition-colors duration-150 ${
+        className={`flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 border-white/[0.06] min-h-[200px] ${fullWidth ? '' : 'max-h-[calc(100vh-280px)] overflow-y-auto'} transition-colors duration-150 ${
           isOver ? colors.dropHighlight : 'bg-[#1a1d27]/30'
         }`}
       >

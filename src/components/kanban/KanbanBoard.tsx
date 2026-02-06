@@ -13,7 +13,7 @@ import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core'
 import type { TaskStatus, PaginatedResponse } from '@/types'
 import { useKanbanColumnData, useIsMobile } from '@/hooks'
 import type { ColumnData } from '@/hooks'
-import { KanbanColumn, kanbanColorMap } from './KanbanColumn'
+import { KanbanColumn } from './KanbanColumn'
 import { KanbanCardOverlay } from './KanbanCard'
 import type { KanbanTask } from './KanbanCard'
 
@@ -37,7 +37,6 @@ export function KanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], onTask
   const [activeTask, setActiveTask] = useState<KanbanTask | null>(null)
   const isMobile = useIsMobile()
   const visibleColumns = columns.filter((col) => !hiddenStatuses.includes(col.id))
-  const [activeColumn, setActiveColumn] = useState<TaskStatus>(visibleColumns[0]?.id ?? 'pending')
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -100,44 +99,28 @@ export function KanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], onTask
   )
 
   if (isMobile) {
-    const activeCol = visibleColumns.find((c) => c.id === activeColumn) ?? visibleColumns[0]
-    const data = columnDataMap[activeCol.id]
     return (
-      <>
-        <div className="flex gap-1.5 overflow-x-auto pb-3 -mx-1 px-1">
-          {visibleColumns.map((col) => {
-            const colData = columnDataMap[col.id]
-            const colors = kanbanColorMap[col.color] || kanbanColorMap.gray
-            const isActive = col.id === activeColumn
-            return (
-              <button
-                key={col.id}
-                onClick={() => setActiveColumn(col.id)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-                  isActive
-                    ? `${colors.bg} ${colors.text} ring-1 ring-current`
-                    : 'bg-white/[0.06] text-gray-400'
-                }`}
-              >
-                {col.title} ({colData.total ?? colData.items.length})
-              </button>
-            )
-          })}
-        </div>
-        <KanbanColumn
-          id={activeCol.id}
-          title={activeCol.title}
-          tasks={data.items}
-          color={activeCol.color}
-          total={data.total}
-          hasMore={data.hasMore}
-          loadingMore={data.loadingMore}
-          onLoadMore={data.loadMore}
-          loading={data.loading}
-          onTaskClick={onTaskClick}
-          fullWidth
-        />
-      </>
+      <div className="space-y-4">
+        {visibleColumns.map((col) => {
+          const data = columnDataMap[col.id]
+          return (
+            <KanbanColumn
+              key={col.id}
+              id={col.id}
+              title={col.title}
+              tasks={data.items}
+              color={col.color}
+              total={data.total}
+              hasMore={data.hasMore}
+              loadingMore={data.loadingMore}
+              onLoadMore={data.loadMore}
+              loading={data.loading}
+              onTaskClick={onTaskClick}
+              fullWidth
+            />
+          )
+        })}
+      </div>
     )
   }
 
