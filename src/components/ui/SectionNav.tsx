@@ -15,7 +15,7 @@ export function SectionNav({ sections, activeSection }: SectionNavProps) {
   }
 
   return (
-    <div className="sticky top-0 z-10 bg-[#1a1d27]/90 backdrop-blur-sm border-b border-white/[0.06] -mx-6 px-6 mb-6">
+    <div className="sticky top-0 z-10 bg-[#1a1d27]/90 backdrop-blur-sm border-b border-white/[0.06] -mx-4 px-4 md:-mx-6 md:px-6 mb-6">
       <nav className="flex gap-1 overflow-x-auto">
         {sections.map((section) => (
           <button

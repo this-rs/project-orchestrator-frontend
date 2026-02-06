@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useAtom } from 'jotai'
 import { sidebarCollapsedAtom } from '@/atoms'
@@ -28,65 +29,89 @@ const navGroups = [
   },
 ]
 
+function SidebarContent({ collapsed }: { collapsed: boolean }) {
+  return (
+    <>
+      {/* Logo */}
+      <div className="flex items-center h-16 px-4 border-b border-white/[0.06]">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
+            <span className="text-white font-bold">PO</span>
+          </div>
+          {!collapsed && (
+            <span className="font-semibold text-gray-100">Project Orchestrator</span>
+          )}
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 py-4 overflow-y-auto">
+        <div className="space-y-5 px-2">
+          {navGroups.map((group) => (
+            <div key={group.label}>
+              {collapsed ? (
+                <div className="h-px bg-white/[0.06] mx-2 mb-2" />
+              ) : (
+                <div className="text-[10px] uppercase tracking-widest text-gray-500 px-3 mb-1.5">
+                  {group.label}
+                </div>
+              )}
+              <ul className="space-y-0.5">
+                {group.items.map((item) => (
+                  <li key={item.name}>
+                    <NavLink
+                      to={item.href}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                          isActive
+                            ? 'bg-indigo-500/15 text-indigo-400 font-medium border-l-[3px] border-indigo-500 -ml-[3px]'
+                            : 'text-gray-400 hover:bg-white/[0.06] hover:text-gray-200'
+                        }`
+                      }
+                    >
+                      <item.icon className="w-5 h-5 flex-shrink-0" />
+                      {!collapsed && <span>{item.name}</span>}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </nav>
+    </>
+  )
+}
+
 export function MainLayout() {
   const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const location = useLocation()
 
+  // Close mobile menu on navigation
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [location.pathname])
+
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = ''
+      }
+    }
+  }, [mobileMenuOpen])
+
   return (
-    <div className="flex h-screen bg-[#0f1117]">
-      {/* Sidebar */}
+    <div className="flex h-dvh bg-[#0f1117]">
+      {/* Desktop Sidebar */}
       <aside
         className={`${
           collapsed ? 'w-16' : 'w-64'
-        } flex flex-col bg-[#1a1d27] border-r border-white/[0.06] transition-all duration-200`}
+        } hidden md:flex flex-col bg-[#1a1d27] border-r border-white/[0.06] transition-all duration-200`}
       >
-        {/* Logo */}
-        <div className="flex items-center h-16 px-4 border-b border-white/[0.06]">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-              <span className="text-white font-bold">PO</span>
-            </div>
-            {!collapsed && (
-              <span className="font-semibold text-gray-100">Project Orchestrator</span>
-            )}
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 py-4 overflow-y-auto">
-          <div className="space-y-5 px-2">
-            {navGroups.map((group) => (
-              <div key={group.label}>
-                {collapsed ? (
-                  <div className="h-px bg-white/[0.06] mx-2 mb-2" />
-                ) : (
-                  <div className="text-[10px] uppercase tracking-widest text-gray-500 px-3 mb-1.5">
-                    {group.label}
-                  </div>
-                )}
-                <ul className="space-y-0.5">
-                  {group.items.map((item) => (
-                    <li key={item.name}>
-                      <NavLink
-                        to={item.href}
-                        className={({ isActive }) =>
-                          `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                            isActive
-                              ? 'bg-indigo-500/15 text-indigo-400 font-medium border-l-[3px] border-indigo-500 -ml-[3px]'
-                              : 'text-gray-400 hover:bg-white/[0.06] hover:text-gray-200'
-                          }`
-                        }
-                      >
-                        <item.icon className="w-5 h-5 flex-shrink-0" />
-                        {!collapsed && <span>{item.name}</span>}
-                      </NavLink>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </nav>
+        <SidebarContent collapsed={collapsed} />
 
         {/* Collapse button */}
         <div className="p-4 border-t border-white/[0.06]">
@@ -103,15 +128,55 @@ export function MainLayout() {
         </div>
       </aside>
 
+      {/* Mobile Sidebar Overlay */}
+      <div
+        className={`fixed inset-0 z-50 md:hidden transition-opacity duration-200 ${
+          mobileMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+      >
+        {/* Backdrop */}
+        <div
+          className="absolute inset-0 bg-black/60"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+
+        {/* Sidebar panel */}
+        <aside
+          className={`absolute left-0 top-0 bottom-0 w-64 flex flex-col bg-[#1a1d27] border-r border-white/[0.06] transition-transform duration-200 ${
+            mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          <SidebarContent collapsed={false} />
+
+          {/* Close button */}
+          <div className="p-4 border-t border-white/[0.06]">
+            <button
+              onClick={() => setMobileMenuOpen(false)}
+              className="w-full flex items-center justify-center p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors"
+            >
+              <ChevronLeftIcon className="w-5 h-5" />
+            </button>
+          </div>
+        </aside>
+      </div>
+
       {/* Main content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Breadcrumb */}
-        <header className="h-16 flex items-center px-6 border-b border-white/[0.06] bg-[#1a1d27]/80 backdrop-blur-sm">
+        <header className="h-16 flex items-center px-4 md:px-6 border-b border-white/[0.06] bg-[#1a1d27]/80 backdrop-blur-sm">
+          {/* Hamburger button (mobile only) */}
+          <button
+            className="mr-3 p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors md:hidden"
+            onClick={() => setMobileMenuOpen(true)}
+          >
+            <HamburgerIcon className="w-5 h-5" />
+          </button>
+
           <Breadcrumb pathname={location.pathname} />
         </header>
 
         {/* Page content */}
-        <div className="flex-1 overflow-y-auto px-6 pb-6">
+        <div className="flex-1 overflow-y-auto px-4 md:px-6 pb-6">
           <Outlet />
         </div>
       </main>
@@ -125,20 +190,20 @@ function Breadcrumb({ pathname }: { pathname: string }) {
   const parts = pathname.split('/').filter(Boolean)
 
   return (
-    <nav className="flex items-center gap-2 text-sm">
-      <NavLink to="/" className="text-gray-400 hover:text-gray-200">
+    <nav className="flex items-center gap-2 text-sm min-w-0">
+      <NavLink to="/" className="text-gray-400 hover:text-gray-200 shrink-0">
         Home
       </NavLink>
       {parts.map((part, index) => (
-        <span key={part} className="flex items-center gap-2">
-          <span className="text-gray-600">/</span>
+        <span key={`${part}-${index}`} className="flex items-center gap-2 min-w-0">
+          <span className="text-gray-600 shrink-0">/</span>
           <NavLink
             to={`/${parts.slice(0, index + 1).join('/')}`}
-            className={
+            className={`truncate max-w-[120px] sm:max-w-[200px] md:max-w-none ${
               index === parts.length - 1
                 ? 'text-gray-200 font-medium'
                 : 'text-gray-400 hover:text-gray-200'
-            }
+            }`}
           >
             {part.charAt(0).toUpperCase() + part.slice(1)}
           </NavLink>
@@ -149,6 +214,14 @@ function Breadcrumb({ pathname }: { pathname: string }) {
 }
 
 // Icons
+function HamburgerIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  )
+}
+
 function FolderIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
