@@ -79,8 +79,7 @@ export function NestedTaskRow({
   refreshTrigger?: number
 }) {
   const [expanded, setExpanded] = useState(false)
-  const [steps, setSteps] = useState<Step[] | null>(null)
-  const [loadingSteps, setLoadingSteps] = useState(false)
+  const [steps, setSteps] = useState<Step[]>([])
 
   const fetchSteps = useCallback(async () => {
     try {
@@ -91,25 +90,19 @@ export function NestedTaskRow({
     }
   }, [task.id])
 
+  // Eager fetch on mount + WS refresh
   useEffect(() => {
-    if (steps !== null) {
-      fetchSteps()
-    }
+    fetchSteps()
   }, [refreshTrigger, fetchSteps])
 
-  const toggleExpand = async (e: React.MouseEvent) => {
+  const toggleExpand = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (!expanded && steps === null) {
-      setLoadingSteps(true)
-      await fetchSteps()
-      setLoadingSteps(false)
-    }
     setExpanded(!expanded)
   }
 
-  const completedSteps = steps?.filter((s) => s.status === 'completed').length ?? 0
-  const totalSteps = steps?.length ?? 0
+  const completedSteps = steps.filter((s) => s.status === 'completed').length
+  const totalSteps = steps.length
 
   return (
     <div className="bg-white/[0.04] rounded-lg overflow-hidden">
@@ -127,7 +120,7 @@ export function NestedTaskRow({
         >
           {task.title || task.description}
         </Link>
-        {steps !== null && totalSteps > 0 && (
+        {totalSteps > 0 && (
           <span className="text-[10px] text-gray-500 flex-shrink-0">
             {completedSteps}/{totalSteps}
           </span>
@@ -136,9 +129,7 @@ export function NestedTaskRow({
       </div>
       {expanded && (
         <div className="pl-9 pr-2 pb-2 space-y-1">
-          {loadingSteps ? (
-            <div className="text-xs text-gray-500 py-1">Loading...</div>
-          ) : steps && steps.length > 0 ? (
+          {steps.length > 0 ? (
             steps.map((step, index) => (
               <CompactStepRow key={step.id || index} step={step} index={index} />
             ))
@@ -163,8 +154,7 @@ export function ExpandablePlanRow({
   refreshTrigger?: number
 }) {
   const [expanded, setExpanded] = useState(false)
-  const [tasks, setTasks] = useState<Task[] | null>(null)
-  const [loadingTasks, setLoadingTasks] = useState(false)
+  const [tasks, setTasks] = useState<Task[]>([])
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -175,24 +165,16 @@ export function ExpandablePlanRow({
     }
   }, [plan.id])
 
+  // Eager fetch on mount + WS refresh
   useEffect(() => {
-    if (tasks !== null) {
-      fetchTasks()
-    }
+    fetchTasks()
   }, [refreshTrigger, fetchTasks])
 
-  const toggleExpand = async (e: React.MouseEvent) => {
+  const toggleExpand = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (!expanded && tasks === null) {
-      setLoadingTasks(true)
-      await fetchTasks()
-      setLoadingTasks(false)
-    }
     setExpanded(!expanded)
   }
-
-  const taskCount = tasks?.length ?? null
 
   return (
     <div className="bg-white/[0.06] rounded-lg overflow-hidden">
@@ -213,16 +195,14 @@ export function ExpandablePlanRow({
             <p className="text-sm text-gray-400 line-clamp-1 mt-1">{plan.description}</p>
           )}
         </Link>
-        {taskCount !== null && taskCount > 0 && (
-          <span className="text-xs text-gray-500 flex-shrink-0">{taskCount} tasks</span>
+        {tasks.length > 0 && (
+          <span className="text-xs text-gray-500 flex-shrink-0">{tasks.length} tasks</span>
         )}
         <InteractivePlanStatusBadge status={plan.status} onStatusChange={onStatusChange} />
       </div>
       {expanded && (
         <div className="pl-8 pr-3 pb-3 space-y-1.5">
-          {loadingTasks ? (
-            <div className="text-xs text-gray-500 py-2">Loading tasks...</div>
-          ) : tasks && tasks.length > 0 ? (
+          {tasks.length > 0 ? (
             tasks.map((task) => (
               <NestedTaskRow key={task.id} task={task} refreshTrigger={refreshTrigger} />
             ))
@@ -245,8 +225,7 @@ export function ExpandableTaskRow({
   refreshTrigger?: number
 }) {
   const [expanded, setExpanded] = useState(false)
-  const [steps, setSteps] = useState<Step[] | null>(null)
-  const [loadingSteps, setLoadingSteps] = useState(false)
+  const [steps, setSteps] = useState<Step[]>([])
 
   const fetchSteps = useCallback(async () => {
     try {
@@ -257,25 +236,19 @@ export function ExpandableTaskRow({
     }
   }, [task.id])
 
+  // Eager fetch on mount + WS refresh
   useEffect(() => {
-    if (steps !== null) {
-      fetchSteps()
-    }
+    fetchSteps()
   }, [refreshTrigger, fetchSteps])
 
-  const toggleExpand = async (e: React.MouseEvent) => {
+  const toggleExpand = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (!expanded && steps === null) {
-      setLoadingSteps(true)
-      await fetchSteps()
-      setLoadingSteps(false)
-    }
     setExpanded(!expanded)
   }
 
-  const completedSteps = steps?.filter((s) => s.status === 'completed').length ?? 0
-  const totalSteps = steps?.length ?? 0
+  const completedSteps = steps.filter((s) => s.status === 'completed').length
+  const totalSteps = steps.length
 
   return (
     <div className="bg-white/[0.06] rounded-lg overflow-hidden">
@@ -293,7 +266,7 @@ export function ExpandableTaskRow({
         >
           <span className="font-medium text-gray-200">{task.title || task.description}</span>
         </Link>
-        {steps !== null && totalSteps > 0 && (
+        {totalSteps > 0 && (
           <span className="text-xs text-gray-500 flex-shrink-0">
             {completedSteps}/{totalSteps}
           </span>
@@ -302,9 +275,7 @@ export function ExpandableTaskRow({
       </div>
       {expanded && (
         <div className="pl-11 pr-3 pb-3 space-y-1.5">
-          {loadingSteps ? (
-            <div className="text-xs text-gray-500 py-2">Loading steps...</div>
-          ) : steps && steps.length > 0 ? (
+          {steps.length > 0 ? (
             steps.map((step, index) => (
               <CompactStepRow key={step.id || index} step={step} index={index} />
             ))
