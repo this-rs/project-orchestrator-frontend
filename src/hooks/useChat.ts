@@ -43,13 +43,13 @@ export function useChat() {
           if (lastBlock && lastBlock.type === 'text') {
             lastMsg.blocks[lastMsg.blocks.length - 1] = {
               ...lastBlock,
-              content: lastBlock.content + event.text,
+              content: lastBlock.content + event.content,
             }
           } else {
             lastMsg.blocks.push({
               id: nextBlockId(),
               type: 'text',
-              content: event.text,
+              content: event.content,
             })
           }
           break
@@ -60,13 +60,13 @@ export function useChat() {
           if (lastBlock && lastBlock.type === 'thinking') {
             lastMsg.blocks[lastMsg.blocks.length - 1] = {
               ...lastBlock,
-              content: lastBlock.content + event.text,
+              content: lastBlock.content + event.content,
             }
           } else {
             lastMsg.blocks.push({
               id: nextBlockId(),
               type: 'thinking',
-              content: event.text,
+              content: event.content,
             })
           }
           break
@@ -76,36 +76,40 @@ export function useChat() {
           lastMsg.blocks.push({
             id: nextBlockId(),
             type: 'tool_use',
-            content: event.tool_name,
+            content: event.tool,
             metadata: {
-              tool_call_id: event.tool_call_id,
-              tool_name: event.tool_name,
-              tool_input: event.tool_input,
+              tool_call_id: event.id,
+              tool_name: event.tool,
+              tool_input: event.input,
             },
           })
           break
 
-        case 'tool_result':
+        case 'tool_result': {
+          const resultStr = typeof event.result === 'string'
+            ? event.result
+            : JSON.stringify(event.result)
           lastMsg.blocks.push({
             id: nextBlockId(),
             type: 'tool_result',
-            content: event.result,
+            content: resultStr,
             metadata: {
-              tool_call_id: event.tool_call_id,
+              tool_call_id: event.id,
               is_error: event.is_error,
             },
           })
           break
+        }
 
         case 'permission_request':
           lastMsg.blocks.push({
             id: nextBlockId(),
             type: 'permission_request',
-            content: event.description,
+            content: `Tool "${event.tool}" wants to execute`,
             metadata: {
-              tool_call_id: event.tool_call_id,
-              tool_name: event.tool_name,
-              tool_input: event.tool_input,
+              tool_call_id: event.id,
+              tool_name: event.tool,
+              tool_input: event.input,
             },
           })
           break
@@ -115,7 +119,7 @@ export function useChat() {
             id: nextBlockId(),
             type: 'input_request',
             content: event.prompt,
-            metadata: { request_id: event.request_id },
+            metadata: { request_id: event.prompt, options: event.options },
           })
           break
 
@@ -129,17 +133,6 @@ export function useChat() {
 
         case 'result':
           setIsStreaming(false)
-          if (event.cost_usd || event.duration_ms) {
-            lastMsg.blocks.push({
-              id: nextBlockId(),
-              type: 'text',
-              content: '',
-              metadata: {
-                cost_usd: event.cost_usd,
-                duration_ms: event.duration_ms,
-              },
-            })
-          }
           break
       }
 
@@ -184,7 +177,7 @@ export function useChat() {
       subscribe(response.session_id)
     } else {
       // Follow-up message
-      const message: ClientMessage = { type: 'user_message', text }
+      const message: ClientMessage = { type: 'user_message', content: text }
       await chatApi.sendMessage(sessionId, message)
       subscribe(sessionId)
     }
@@ -196,9 +189,9 @@ export function useChat() {
     await chatApi.sendMessage(sessionId, message)
   }, [sessionId])
 
-  const respondInput = useCallback(async (requestId: string, response: string) => {
+  const respondInput = useCallback(async (_requestId: string, response: string) => {
     if (!sessionId) return
-    const message: ClientMessage = { type: 'input_response', request_id: requestId, response }
+    const message: ClientMessage = { type: 'input_response', content: response }
     await chatApi.sendMessage(sessionId, message)
   }, [sessionId])
 

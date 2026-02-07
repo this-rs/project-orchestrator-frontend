@@ -34,6 +34,17 @@ export const chatApi = {
     api.post<{ status: string }>(`/chat/sessions/${sessionId}/interrupt`),
 }
 
+const SSE_EVENT_TYPES = [
+  'assistant_text',
+  'thinking',
+  'tool_use',
+  'tool_result',
+  'permission_request',
+  'input_request',
+  'result',
+  'error',
+] as const
+
 export function subscribeToChatStream(
   sessionId: string,
   onEvent: (event: ChatEvent) => void,
@@ -42,13 +53,16 @@ export function subscribeToChatStream(
   const url = `/api/chat/sessions/${sessionId}/stream`
   const eventSource = new EventSource(url)
 
-  eventSource.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data) as ChatEvent
-      onEvent(data)
-    } catch {
-      // ignore malformed events
-    }
+  // Backend sends named events (event: assistant_text, etc.)
+  for (const eventType of SSE_EVENT_TYPES) {
+    eventSource.addEventListener(eventType, (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data) as ChatEvent
+        onEvent(data)
+      } catch {
+        // ignore malformed events
+      }
+    })
   }
 
   eventSource.onerror = (error) => {

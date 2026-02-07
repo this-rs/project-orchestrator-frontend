@@ -33,13 +33,13 @@ export interface CreateSessionResponse {
 // ============================================================================
 
 export type ChatEvent =
-  | { type: 'assistant_text'; text: string }
-  | { type: 'thinking'; text: string }
-  | { type: 'tool_use'; tool_call_id: string; tool_name: string; tool_input: Record<string, unknown> }
-  | { type: 'tool_result'; tool_call_id: string; result: string; is_error?: boolean }
-  | { type: 'permission_request'; tool_call_id: string; tool_name: string; tool_input: Record<string, unknown>; description: string }
-  | { type: 'input_request'; request_id: string; prompt: string }
-  | { type: 'result'; text: string; session_id: string; cost_usd?: number; duration_ms?: number }
+  | { type: 'assistant_text'; content: string }
+  | { type: 'thinking'; content: string }
+  | { type: 'tool_use'; id: string; tool: string; input: Record<string, unknown> }
+  | { type: 'tool_result'; id: string; result: unknown; is_error?: boolean }
+  | { type: 'permission_request'; id: string; tool: string; input: Record<string, unknown> }
+  | { type: 'input_request'; prompt: string; options?: string[] }
+  | { type: 'result'; session_id: string; duration_ms: number; cost_usd?: number }
   | { type: 'error'; message: string }
 
 // ============================================================================
@@ -47,9 +47,9 @@ export type ChatEvent =
 // ============================================================================
 
 export type ClientMessage =
-  | { type: 'user_message'; text: string }
+  | { type: 'user_message'; content: string }
   | { type: 'permission_response'; tool_call_id: string; allowed: boolean }
-  | { type: 'input_response'; request_id: string; response: string }
+  | { type: 'input_response'; content: string }
 
 // ============================================================================
 // UI DISPLAY TYPES
