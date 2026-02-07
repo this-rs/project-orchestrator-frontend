@@ -38,18 +38,20 @@ export function useChat() {
       }
 
       switch (event.type) {
+        case 'stream_delta':
         case 'assistant_text': {
+          const text = event.type === 'stream_delta' ? event.text : event.content
           const lastBlock = lastMsg.blocks[lastMsg.blocks.length - 1]
           if (lastBlock && lastBlock.type === 'text') {
             lastMsg.blocks[lastMsg.blocks.length - 1] = {
               ...lastBlock,
-              content: lastBlock.content + event.content,
+              content: lastBlock.content + text,
             }
           } else {
             lastMsg.blocks.push({
               id: nextBlockId(),
               type: 'text',
-              content: event.content,
+              content: text,
             })
           }
           break

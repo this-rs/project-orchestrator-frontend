@@ -36,6 +36,7 @@ export const chatApi = {
 
 const SSE_EVENT_TYPES = [
   'assistant_text',
+  'stream_delta',
   'thinking',
   'tool_use',
   'tool_result',

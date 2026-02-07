@@ -34,6 +34,7 @@ export interface CreateSessionResponse {
 
 export type ChatEvent =
   | { type: 'assistant_text'; content: string }
+  | { type: 'stream_delta'; text: string }
   | { type: 'thinking'; content: string }
   | { type: 'tool_use'; id: string; tool: string; input: Record<string, unknown> }
   | { type: 'tool_result'; id: string; result: unknown; is_error?: boolean }
