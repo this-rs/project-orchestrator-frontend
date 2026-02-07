@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
-import { useAtom } from 'jotai'
-import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom } from '@/atoms'
+import { useAtom, useAtomValue } from 'jotai'
+import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom } from '@/atoms'
 import { ToastContainer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
-import { useMediaQuery } from '@/hooks'
+import { useMediaQuery, useCrudEventRefresh } from '@/hooks'
 
 const navGroups = [
   {
@@ -94,6 +94,10 @@ export function MainLayout() {
   const isSmUp = useMediaQuery('(min-width: 640px)')
   const chatOpen = chatMode === 'open'
   const chatFullscreen = chatMode === 'fullscreen'
+  const wsStatus = useAtomValue(eventBusStatusAtom)
+
+  // Connect to WebSocket CRUD event bus and auto-refresh pages
+  useCrudEventRefresh()
 
   // Close mobile menu on navigation
   useEffect(() => {
@@ -184,14 +188,26 @@ export function MainLayout() {
 
           <Breadcrumb pathname={location.pathname} />
 
-          {/* Chat toggle */}
-          <button
-            onClick={() => setChatMode(chatMode === 'closed' ? 'open' : 'closed')}
-            className={`ml-auto p-2 rounded-lg transition-colors ${chatMode !== 'closed' ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.06]'}`}
-            title="Toggle chat"
-          >
-            <ChatIcon className="w-5 h-5" />
-          </button>
+          {/* WS status + Chat toggle */}
+          <div className="ml-auto flex items-center gap-1.5">
+            <span
+              className={`w-2 h-2 rounded-full transition-colors ${
+                wsStatus === 'connected'
+                  ? 'bg-emerald-400'
+                  : wsStatus === 'reconnecting'
+                    ? 'bg-amber-400 animate-pulse'
+                    : 'bg-gray-600'
+              }`}
+              title={`WebSocket: ${wsStatus}`}
+            />
+            <button
+              onClick={() => setChatMode(chatMode === 'closed' ? 'open' : 'closed')}
+              className={`p-2 rounded-lg transition-colors ${chatMode !== 'closed' ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.06]'}`}
+              title="Toggle chat"
+            >
+              <ChatIcon className="w-5 h-5" />
+            </button>
+          </div>
         </header>
 
         {/* Page content */}
