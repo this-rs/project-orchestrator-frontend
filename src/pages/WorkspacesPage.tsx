@@ -107,7 +107,7 @@ export function WorkspacesPage() {
             {workspaces.map((workspace) => (
               <WorkspaceCard
                 selected={multiSelect.isSelected(workspace.slug)}
-                onToggleSelect={() => multiSelect.toggle(workspace.slug)}
+                onToggleSelect={(shiftKey) => multiSelect.toggle(workspace.slug, shiftKey)}
                 key={workspace.id}
                 workspace={workspace}
                 onDelete={() => confirmDialog.open({
@@ -141,7 +141,7 @@ export function WorkspacesPage() {
   )
 }
 
-function WorkspaceCard({ workspace, onDelete, selected, onToggleSelect }: { workspace: Workspace; onDelete: () => void; selected?: boolean; onToggleSelect?: () => void }) {
+function WorkspaceCard({ workspace, onDelete, selected, onToggleSelect }: { workspace: Workspace; onDelete: () => void; selected?: boolean; onToggleSelect?: (shiftKey: boolean) => void }) {
   return (
     <Link to={`/workspaces/${workspace.slug}`}>
       <Card className={`h-full transition-colors ${selected ? 'border-indigo-500/40 bg-indigo-500/[0.05]' : 'hover:border-indigo-500'}`}>

@@ -107,7 +107,7 @@ export function ProjectsPage() {
             {projects.map((project) => (
               <ProjectCard
                 selected={multiSelect.isSelected(project.slug)}
-                onToggleSelect={() => multiSelect.toggle(project.slug)}
+                onToggleSelect={(shiftKey) => multiSelect.toggle(project.slug, shiftKey)}
                 key={project.id}
                 project={project}
                 onDelete={() => confirmDialog.open({
@@ -141,7 +141,7 @@ export function ProjectsPage() {
   )
 }
 
-function ProjectCard({ project, onDelete, selected, onToggleSelect }: { project: Project; onDelete: () => void; selected?: boolean; onToggleSelect?: () => void }) {
+function ProjectCard({ project, onDelete, selected, onToggleSelect }: { project: Project; onDelete: () => void; selected?: boolean; onToggleSelect?: (shiftKey: boolean) => void }) {
   return (
     <Link to={`/projects/${project.slug}`}>
       <Card className={`h-full transition-colors ${selected ? 'border-indigo-500/40 bg-indigo-500/[0.05]' : 'hover:border-indigo-500'}`}>

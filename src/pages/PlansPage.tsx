@@ -312,7 +312,7 @@ export function PlansPage() {
             {plans.map((plan) => (
               <PlanCard
                 selected={multiSelect.isSelected(plan.id)}
-                onToggleSelect={() => multiSelect.toggle(plan.id)}
+                onToggleSelect={(shiftKey) => multiSelect.toggle(plan.id, shiftKey)}
                 key={plan.id}
                 plan={plan}
                 onStatusChange={async (newStatus) => {
@@ -372,7 +372,7 @@ function PlanCard({
   onStatusChange: (status: PlanStatus) => Promise<void>
   onDelete: () => void
   selected?: boolean
-  onToggleSelect?: () => void
+  onToggleSelect?: (shiftKey: boolean) => void
 }) {
   return (
     <Link to={`/plans/${plan.id}`}>

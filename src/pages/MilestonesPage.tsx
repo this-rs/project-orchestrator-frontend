@@ -210,7 +210,7 @@ export function MilestonesPage() {
             {paginatedMilestones.map((milestone) => (
               <MilestoneCard
                 selected={multiSelect.isSelected(milestone.id)}
-                onToggleSelect={() => multiSelect.toggle(milestone.id)}
+                onToggleSelect={(shiftKey) => multiSelect.toggle(milestone.id, shiftKey)}
                 key={milestone.id}
                 milestone={milestone}
                 onStatusChange={(newStatus) => handleStatusChange(milestone.id, newStatus)}
@@ -261,7 +261,7 @@ function MilestoneCard({
   onStatusChange: (status: MilestoneStatus) => Promise<void>
   onDelete: () => void
   selected?: boolean
-  onToggleSelect?: () => void
+  onToggleSelect?: (shiftKey: boolean) => void
 }) {
   const tags = milestone.tags || []
 

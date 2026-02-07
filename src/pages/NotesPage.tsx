@@ -174,7 +174,7 @@ export function NotesPage() {
             {notes.map((note) => (
               <NoteCard
                 selected={multiSelect.isSelected(note.id)}
-                onToggleSelect={() => multiSelect.toggle(note.id)}
+                onToggleSelect={(shiftKey) => multiSelect.toggle(note.id, shiftKey)}
                 key={note.id}
                 note={note}
                 onDelete={() => confirmDialog.open({
@@ -208,7 +208,7 @@ export function NotesPage() {
   )
 }
 
-function NoteCard({ note, onDelete, selected, onToggleSelect }: { note: Note; onDelete: () => void; selected?: boolean; onToggleSelect?: () => void }) {
+function NoteCard({ note, onDelete, selected, onToggleSelect }: { note: Note; onDelete: () => void; selected?: boolean; onToggleSelect?: (shiftKey: boolean) => void }) {
   const tags = note.tags || []
   const anchors = note.anchors || []
   const typeColors: Record<NoteType, string> = {

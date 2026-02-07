@@ -1,6 +1,6 @@
 interface SelectZoneProps {
   selected: boolean
-  onToggle: () => void
+  onToggle: (shiftKey: boolean) => void
 }
 
 export function SelectZone({ selected, onToggle }: SelectZoneProps) {
@@ -9,7 +9,7 @@ export function SelectZone({ selected, onToggle }: SelectZoneProps) {
       onClick={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        onToggle()
+        onToggle(e.shiftKey)
       }}
       className={`
         flex items-center justify-center w-9 shrink-0 cursor-pointer

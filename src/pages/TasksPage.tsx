@@ -207,7 +207,7 @@ export function TasksPage() {
             {tasks.map((task) => (
               <TaskCard
                 selected={multiSelect.isSelected(task.id)}
-                onToggleSelect={() => multiSelect.toggle(task.id)}
+                onToggleSelect={(shiftKey) => multiSelect.toggle(task.id, shiftKey)}
                 key={task.id}
                 task={task}
                 onStatusChange={async (newStatus) => {
@@ -264,7 +264,7 @@ function TaskCard({
   onStatusChange: (status: TaskStatus) => Promise<void>
   onDelete: () => void
   selected?: boolean
-  onToggleSelect?: () => void
+  onToggleSelect?: (shiftKey: boolean) => void
 }) {
   const tags = task.tags || []
   return (
