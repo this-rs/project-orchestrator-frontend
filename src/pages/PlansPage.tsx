@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useAtom } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import { Link, useNavigate } from 'react-router-dom'
-import { plansAtom, plansLoadingAtom, planStatusFilterAtom } from '@/atoms'
+import { plansAtom, plansLoadingAtom, planStatusFilterAtom, planRefreshAtom } from '@/atoms'
 import { plansApi, workspacesApi } from '@/services'
 import {
   Card,
@@ -48,6 +48,7 @@ export function PlansPage() {
   const [plans, setPlans] = useAtom(plansAtom)
   const [loading, setLoading] = useAtom(plansLoadingAtom)
   const [statusFilter, setStatusFilter] = useAtom(planStatusFilterAtom)
+  const planRefresh = useAtomValue(planRefreshAtom)
   const [total, setTotal] = useState(0)
   const { page, pageSize, offset, setPage, paginationProps } = usePagination()
   const [viewMode, setViewMode] = useViewMode()
@@ -130,7 +131,7 @@ export function PlansPage() {
       }
     }
     fetchPlans()
-  }, [setPlans, setLoading, page, pageSize, offset, statusFilter, viewMode])
+  }, [setPlans, setLoading, page, pageSize, offset, statusFilter, viewMode, planRefresh])
 
   // Stable fetchFn for PlanKanbanBoard
   const kanbanFetchFn = useCallback(

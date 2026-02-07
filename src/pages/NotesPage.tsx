@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useAtom } from 'jotai'
-import { notesAtom, notesLoadingAtom, noteTypeFilterAtom, noteStatusFilterAtom } from '@/atoms'
+import { useAtom, useAtomValue } from 'jotai'
+import { notesAtom, notesLoadingAtom, noteTypeFilterAtom, noteStatusFilterAtom, noteRefreshAtom } from '@/atoms'
 import { notesApi } from '@/services'
 import { Card, CardContent, Button, LoadingPage, EmptyState, Select, NoteStatusBadge, ImportanceBadge, Badge, Pagination, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
 import { usePagination, useConfirmDialog, useFormDialog, useToast, useMultiSelect } from '@/hooks'
@@ -32,6 +32,7 @@ export function NotesPage() {
   const [loading, setLoading] = useAtom(notesLoadingAtom)
   const [typeFilter, setTypeFilter] = useAtom(noteTypeFilterAtom)
   const [statusFilter, setStatusFilter] = useAtom(noteStatusFilterAtom)
+  const noteRefresh = useAtomValue(noteRefreshAtom)
   const [total, setTotal] = useState(0)
   const { page, pageSize, offset, setPage, paginationProps } = usePagination()
   const confirmDialog = useConfirmDialog()
@@ -78,7 +79,7 @@ export function NotesPage() {
       }
     }
     fetchNotes()
-  }, [setNotes, setLoading, page, pageSize, offset, typeFilter, statusFilter])
+  }, [setNotes, setLoading, page, pageSize, offset, typeFilter, statusFilter, noteRefresh])
 
   const handleTypeFilterChange = (newFilter: NoteType | 'all') => {
     setTypeFilter(newFilter)

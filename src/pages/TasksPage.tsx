@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useAtom } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import { Link, useNavigate } from 'react-router-dom'
-import { tasksAtom, tasksLoadingAtom, taskStatusFilterAtom } from '@/atoms'
+import { tasksAtom, tasksLoadingAtom, taskStatusFilterAtom, taskRefreshAtom } from '@/atoms'
 import { tasksApi } from '@/services'
 import {
   Card,
@@ -36,6 +36,7 @@ export function TasksPage() {
   const [tasks, setTasks] = useAtom(tasksAtom)
   const [loading, setLoading] = useAtom(tasksLoadingAtom)
   const [statusFilter, setStatusFilter] = useAtom(taskStatusFilterAtom)
+  const taskRefresh = useAtomValue(taskRefreshAtom)
   const [viewMode, setViewMode] = useViewMode()
   const [total, setTotal] = useState(0)
   const { page, pageSize, offset, setPage, paginationProps } = usePagination()
@@ -65,7 +66,7 @@ export function TasksPage() {
       }
     }
     fetchTasks()
-  }, [setTasks, setLoading, page, pageSize, offset, statusFilter, viewMode])
+  }, [setTasks, setLoading, page, pageSize, offset, statusFilter, viewMode, taskRefresh])
 
   // Stable fetchFn for kanban board — wraps tasksApi.list with kanban filters
   const kanbanApiParams = kanbanFilters.buildApiParams()

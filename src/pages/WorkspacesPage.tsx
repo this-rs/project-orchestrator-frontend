@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useAtom } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import { Link } from 'react-router-dom'
-import { workspacesAtom, workspacesLoadingAtom } from '@/atoms'
+import { workspacesAtom, workspacesLoadingAtom, workspaceRefreshAtom } from '@/atoms'
 import { workspacesApi } from '@/services'
 import { Card, CardContent, Button, LoadingPage, EmptyState, Pagination, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
 import { usePagination, useConfirmDialog, useFormDialog, useToast, useMultiSelect } from '@/hooks'
@@ -17,6 +17,7 @@ export function WorkspacesPage() {
   const formDialog = useFormDialog()
   const toast = useToast()
   const [formLoading, setFormLoading] = useState(false)
+  const wsRefresh = useAtomValue(workspaceRefreshAtom)
 
   const fetchWorkspaces = async () => {
     setLoading(true)
@@ -34,7 +35,7 @@ export function WorkspacesPage() {
 
   useEffect(() => {
     fetchWorkspaces()
-  }, [setWorkspaces, setLoading, page, pageSize, offset])
+  }, [setWorkspaces, setLoading, page, pageSize, offset, wsRefresh])
 
   const form = CreateWorkspaceForm({
     onSubmit: async (data) => {

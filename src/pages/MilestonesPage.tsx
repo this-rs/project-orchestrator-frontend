@@ -1,5 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useAtomValue } from 'jotai'
 import { Link, useNavigate } from 'react-router-dom'
+import { milestoneRefreshAtom } from '@/atoms'
 import { Card, LoadingPage, EmptyState, Badge, ProgressBar, InteractiveMilestoneStatusBadge, Pagination, ViewToggle, Select, ConfirmDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
 import { workspacesApi } from '@/services'
 import { usePagination, useViewMode, useConfirmDialog, useToast, useMultiSelect } from '@/hooks'
@@ -29,6 +31,7 @@ export function MilestonesPage() {
   // Filters
   const [workspaceFilter, setWorkspaceFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
+  const msRefresh = useAtomValue(milestoneRefreshAtom)
 
   useEffect(() => {
     async function fetchMilestones() {
@@ -77,7 +80,7 @@ export function MilestonesPage() {
       }
     }
     fetchMilestones()
-  }, [])
+  }, [msRefresh])
 
   // Filtered milestones
   const filteredMilestones = useMemo(() => {
