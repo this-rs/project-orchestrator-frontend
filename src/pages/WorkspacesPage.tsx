@@ -3,8 +3,8 @@ import { useAtom } from 'jotai'
 import { Link } from 'react-router-dom'
 import { workspacesAtom, workspacesLoadingAtom } from '@/atoms'
 import { workspacesApi } from '@/services'
-import { Card, CardContent, Button, LoadingPage, EmptyState, Pagination, ConfirmDialog, FormDialog, OverflowMenu, PageShell } from '@/components/ui'
-import { usePagination, useConfirmDialog, useFormDialog, useToast } from '@/hooks'
+import { Card, CardContent, Button, LoadingPage, EmptyState, Pagination, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectCheckbox, BulkActionBar } from '@/components/ui'
+import { usePagination, useConfirmDialog, useFormDialog, useToast, useMultiSelect } from '@/hooks'
 import { CreateWorkspaceForm } from '@/components/forms'
 import type { Workspace } from '@/types'
 
@@ -55,6 +55,26 @@ export function WorkspacesPage() {
     formDialog.open({ title: 'Create Workspace' })
   }
 
+  const multiSelect = useMultiSelect(workspaces, (w) => w.slug)
+
+  const handleBulkDelete = () => {
+    const count = multiSelect.selectionCount
+    confirmDialog.open({
+      title: `Delete ${count} workspace${count > 1 ? 's' : ''}`,
+      description: `This will permanently delete ${count} workspace${count > 1 ? 's' : ''}. Projects will not be deleted.`,
+      onConfirm: async () => {
+        const items = multiSelect.selectedItems
+        for (const item of items) {
+          await workspacesApi.delete(item.slug)
+        }
+        setWorkspaces((prev) => prev.filter((w) => !multiSelect.selectedIds.has(w.slug)))
+        setTotal((prev) => prev - items.length)
+        multiSelect.clear()
+        toast.success(`Deleted ${count} workspace${count > 1 ? 's' : ''}`)
+      },
+    })
+  }
+
   if (loading) return <LoadingPage />
 
   return (
@@ -71,9 +91,21 @@ export function WorkspacesPage() {
         />
       ) : (
         <>
+          {workspaces.length > 0 && (
+            <div className="flex items-center gap-2 mb-3">
+              <button
+                onClick={multiSelect.toggleAll}
+                className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
+              >
+                {multiSelect.isAllSelected ? 'Deselect All' : 'Select All'}
+              </button>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
             {workspaces.map((workspace) => (
               <WorkspaceCard
+                selected={multiSelect.isSelected(workspace.slug)}
+                onToggleSelect={() => multiSelect.toggle(workspace.slug)}
                 key={workspace.id}
                 workspace={workspace}
                 onDelete={() => confirmDialog.open({
@@ -94,6 +126,11 @@ export function WorkspacesPage() {
         </>
       )}
 
+      <BulkActionBar
+        count={multiSelect.selectionCount}
+        onDelete={handleBulkDelete}
+        onClear={multiSelect.clear}
+      />
       <FormDialog {...formDialog.dialogProps} onSubmit={form.submit} loading={formLoading}>
         {form.fields}
       </FormDialog>
@@ -102,14 +139,19 @@ export function WorkspacesPage() {
   )
 }
 
-function WorkspaceCard({ workspace, onDelete }: { workspace: Workspace; onDelete: () => void }) {
+function WorkspaceCard({ workspace, onDelete, selected, onToggleSelect }: { workspace: Workspace; onDelete: () => void; selected?: boolean; onToggleSelect?: () => void }) {
   return (
     <Link to={`/workspaces/${workspace.slug}`}>
       <Card className="h-full hover:border-indigo-500 transition-colors">
         <div className="h-0.5 bg-indigo-500/50" />
         <CardContent>
           <div className="flex items-start justify-between mb-2">
-            <h3 className="text-lg font-semibold text-gray-100">{workspace.name}</h3>
+            <div className="flex items-center gap-1">
+              {onToggleSelect && (
+                <SelectCheckbox checked={!!selected} onChange={onToggleSelect} />
+              )}
+              <h3 className="text-lg font-semibold text-gray-100">{workspace.name}</h3>
+            </div>
             <OverflowMenu
               actions={[
                 { label: 'Delete', variant: 'danger', onClick: () => onDelete() },

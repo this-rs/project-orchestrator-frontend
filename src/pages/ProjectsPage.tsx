@@ -3,8 +3,8 @@ import { useAtom } from 'jotai'
 import { Link } from 'react-router-dom'
 import { projectsAtom, projectsLoadingAtom } from '@/atoms'
 import { projectsApi } from '@/services'
-import { Card, CardContent, Button, LoadingPage, EmptyState, Badge, Pagination, ConfirmDialog, FormDialog, OverflowMenu, PageShell } from '@/components/ui'
-import { usePagination, useConfirmDialog, useFormDialog, useToast } from '@/hooks'
+import { Card, CardContent, Button, LoadingPage, EmptyState, Badge, Pagination, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectCheckbox, BulkActionBar } from '@/components/ui'
+import { usePagination, useConfirmDialog, useFormDialog, useToast, useMultiSelect } from '@/hooks'
 import { CreateProjectForm } from '@/components/forms'
 import type { Project } from '@/types'
 
@@ -55,6 +55,26 @@ export function ProjectsPage() {
     formDialog.open({ title: 'Create Project' })
   }
 
+  const multiSelect = useMultiSelect(projects, (p) => p.slug)
+
+  const handleBulkDelete = () => {
+    const count = multiSelect.selectionCount
+    confirmDialog.open({
+      title: `Delete ${count} project${count > 1 ? 's' : ''}`,
+      description: `This will permanently delete ${count} project${count > 1 ? 's' : ''}.`,
+      onConfirm: async () => {
+        const items = multiSelect.selectedItems
+        for (const item of items) {
+          await projectsApi.delete(item.slug)
+        }
+        setProjects((prev) => prev.filter((p) => !multiSelect.selectedIds.has(p.slug)))
+        setTotal((prev) => prev - items.length)
+        multiSelect.clear()
+        toast.success(`Deleted ${count} project${count > 1 ? 's' : ''}`)
+      },
+    })
+  }
+
   if (loading) return <LoadingPage />
 
   return (
@@ -71,9 +91,21 @@ export function ProjectsPage() {
         />
       ) : (
         <>
+          {projects.length > 0 && (
+            <div className="flex items-center gap-2 mb-3">
+              <button
+                onClick={multiSelect.toggleAll}
+                className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
+              >
+                {multiSelect.isAllSelected ? 'Deselect All' : 'Select All'}
+              </button>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
             {projects.map((project) => (
               <ProjectCard
+                selected={multiSelect.isSelected(project.slug)}
+                onToggleSelect={() => multiSelect.toggle(project.slug)}
                 key={project.id}
                 project={project}
                 onDelete={() => confirmDialog.open({
@@ -94,6 +126,11 @@ export function ProjectsPage() {
         </>
       )}
 
+      <BulkActionBar
+        count={multiSelect.selectionCount}
+        onDelete={handleBulkDelete}
+        onClear={multiSelect.clear}
+      />
       <FormDialog {...formDialog.dialogProps} onSubmit={form.submit} loading={formLoading}>
         {form.fields}
       </FormDialog>
@@ -102,14 +139,19 @@ export function ProjectsPage() {
   )
 }
 
-function ProjectCard({ project, onDelete }: { project: Project; onDelete: () => void }) {
+function ProjectCard({ project, onDelete, selected, onToggleSelect }: { project: Project; onDelete: () => void; selected?: boolean; onToggleSelect?: () => void }) {
   return (
     <Link to={`/projects/${project.slug}`}>
       <Card className="h-full hover:border-indigo-500 transition-colors">
         <div className="h-0.5 bg-blue-500/50" />
         <CardContent>
           <div className="flex items-start justify-between mb-2">
-            <h3 className="text-lg font-semibold text-gray-100">{project.name}</h3>
+            <div className="flex items-center gap-1">
+              {onToggleSelect && (
+                <SelectCheckbox checked={!!selected} onChange={onToggleSelect} />
+              )}
+              <h3 className="text-lg font-semibold text-gray-100">{project.name}</h3>
+            </div>
             <OverflowMenu
               actions={[
                 { label: 'Delete', variant: 'danger', onClick: () => onDelete() },
