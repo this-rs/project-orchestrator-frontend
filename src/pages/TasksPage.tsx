@@ -279,7 +279,7 @@ function TaskCard({
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-gray-100 truncate min-w-0 max-w-full sm:max-w-none">
+                  <h3 className="font-semibold text-gray-100 truncate min-w-0">
                     {task.title || (task.description || '').slice(0, 60)}
                   </h3>
                   <InteractiveTaskStatusBadge status={task.status} onStatusChange={onStatusChange} />

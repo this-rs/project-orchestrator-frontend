@@ -20,7 +20,7 @@ export function ChatPanel() {
 
   const panelClasses = isFullscreen
     ? 'fixed inset-0 z-30'
-    : 'fixed top-0 right-0 bottom-0 w-[400px] z-30'
+    : 'fixed top-0 right-0 bottom-0 w-full sm:w-[400px] z-30'
 
   const handleSend = (text: string) => {
     if (isNewConversation && !selectedProject) return

@@ -4,6 +4,7 @@ import { useAtom } from 'jotai'
 import { sidebarCollapsedAtom, chatPanelModeAtom } from '@/atoms'
 import { ToastContainer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
+import { useMediaQuery } from '@/hooks'
 
 const navGroups = [
   {
@@ -89,6 +90,7 @@ export function MainLayout() {
   const [chatMode, setChatMode] = useAtom(chatPanelModeAtom)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const location = useLocation()
+  const isSmUp = useMediaQuery('(min-width: 640px)')
   const chatOpen = chatMode === 'open'
   const chatFullscreen = chatMode === 'fullscreen'
 
@@ -167,7 +169,7 @@ export function MainLayout() {
       {/* Main content */}
       <main
         className="flex-1 flex flex-col overflow-hidden transition-[margin] duration-300"
-        style={{ marginRight: chatOpen && !chatFullscreen ? 400 : 0 }}
+        style={{ marginRight: chatOpen && !chatFullscreen && isSmUp ? 400 : 0 }}
       >
         {/* Breadcrumb */}
         <header className="h-16 flex items-center px-4 md:px-6 border-b border-white/[0.06] bg-[#1a1d27]/80 backdrop-blur-sm">
