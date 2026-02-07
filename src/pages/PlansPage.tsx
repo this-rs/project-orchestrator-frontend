@@ -16,8 +16,10 @@ import {
   FormDialog,
   OverflowMenu,
   PageShell,
+  SelectCheckbox,
+  BulkActionBar,
 } from '@/components/ui'
-import { usePagination, useViewMode, useConfirmDialog, useFormDialog, useToast } from '@/hooks'
+import { usePagination, useViewMode, useConfirmDialog, useFormDialog, useToast, useMultiSelect } from '@/hooks'
 import { CreatePlanForm } from '@/components/forms'
 import { PlanKanbanBoard, PlanKanbanFilterBar } from '@/components/kanban'
 import type { PlanKanbanFilters } from '@/components/kanban'
@@ -219,6 +221,26 @@ export function PlansPage() {
     loading: formLoading,
   })
 
+  const multiSelect = useMultiSelect(plans, (p) => p.id)
+
+  const handleBulkDelete = () => {
+    const count = multiSelect.selectionCount
+    confirmDialog.open({
+      title: `Delete ${count} plan${count > 1 ? 's' : ''}`,
+      description: `This will permanently delete ${count} plan${count > 1 ? 's' : ''} and all their tasks.`,
+      onConfirm: async () => {
+        const items = multiSelect.selectedItems
+        for (const item of items) {
+          await plansApi.delete(item.id)
+        }
+        setPlans((prev) => prev.filter((p) => !multiSelect.selectedIds.has(p.id)))
+        setTotal((prev) => prev - items.length)
+        multiSelect.clear()
+        toast.success(`Deleted ${count} plan${count > 1 ? 's' : ''}`)
+      },
+    })
+  }
+
   const openCreatePlan = () => formDialog.open({ title: 'Create Plan', size: 'lg' })
 
   if (loading && viewMode === 'list' && plans.length === 0) {
@@ -274,9 +296,21 @@ export function PlansPage() {
         />
       ) : (
         <>
+          {viewMode === 'list' && plans.length > 0 && (
+            <div className="flex items-center gap-2 mb-3">
+              <button
+                onClick={multiSelect.toggleAll}
+                className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
+              >
+                {multiSelect.isAllSelected ? 'Deselect All' : 'Select All'}
+              </button>
+            </div>
+          )}
           <div className="space-y-4">
             {plans.map((plan) => (
               <PlanCard
+                selected={multiSelect.isSelected(plan.id)}
+                onToggleSelect={() => multiSelect.toggle(plan.id)}
                 key={plan.id}
                 plan={plan}
                 onStatusChange={async (newStatus) => {
@@ -304,6 +338,11 @@ export function PlansPage() {
         </>
       )}
 
+      <BulkActionBar
+        count={multiSelect.selectionCount}
+        onDelete={handleBulkDelete}
+        onClear={multiSelect.clear}
+      />
       <FormDialog {...formDialog.dialogProps} onSubmit={planForm.submit} loading={formLoading}>
         {planForm.fields}
       </FormDialog>
@@ -324,16 +363,23 @@ function PlanCard({
   plan,
   onStatusChange,
   onDelete,
+  selected,
+  onToggleSelect,
 }: {
   plan: Plan
   onStatusChange: (status: PlanStatus) => Promise<void>
   onDelete: () => void
+  selected?: boolean
+  onToggleSelect?: () => void
 }) {
   return (
     <Link to={`/plans/${plan.id}`}>
       <Card className="hover:border-indigo-500 transition-colors">
         <div className="flex">
-          <div className={`w-1 shrink-0 rounded-l-xl ${planStatusBarColor[plan.status] || 'bg-gray-400'}`} />
+          {onToggleSelect && (
+            <SelectCheckbox checked={!!selected} onChange={onToggleSelect} />
+          )}
+          <div className={`w-1 shrink-0 ${!onToggleSelect ? 'rounded-l-xl' : ''} ${planStatusBarColor[plan.status] || 'bg-gray-400'}`} />
           <div className="flex-1 p-3 md:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-1">

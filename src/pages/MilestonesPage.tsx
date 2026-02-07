@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Card, LoadingPage, EmptyState, Badge, ProgressBar, InteractiveMilestoneStatusBadge, Pagination, ViewToggle, Select, ConfirmDialog, OverflowMenu, PageShell } from '@/components/ui'
+import { Card, LoadingPage, EmptyState, Badge, ProgressBar, InteractiveMilestoneStatusBadge, Pagination, ViewToggle, Select, ConfirmDialog, OverflowMenu, PageShell, SelectCheckbox, BulkActionBar } from '@/components/ui'
 import { workspacesApi } from '@/services'
-import { usePagination, useViewMode, useConfirmDialog, useToast } from '@/hooks'
+import { usePagination, useViewMode, useConfirmDialog, useToast, useMultiSelect } from '@/hooks'
 import { MilestoneKanbanBoard } from '@/components/kanban'
 import type { MilestoneWithProgress } from '@/components/kanban'
 import type { MilestoneStatus, Workspace } from '@/types'
@@ -119,6 +119,25 @@ export function MilestonesPage() {
     [allMilestones],
   )
 
+  const multiSelect = useMultiSelect(paginatedMilestones, (m) => m.id)
+
+  const handleBulkDelete = () => {
+    const count = multiSelect.selectionCount
+    confirmDialog.open({
+      title: `Delete ${count} milestone${count > 1 ? 's' : ''}`,
+      description: `This will permanently delete ${count} milestone${count > 1 ? 's' : ''}.`,
+      onConfirm: async () => {
+        const items = multiSelect.selectedItems
+        for (const item of items) {
+          await workspacesApi.deleteMilestone(item.id)
+        }
+        setAllMilestones((prev) => prev.filter((m) => !multiSelect.selectedIds.has(m.id)))
+        multiSelect.clear()
+        toast.success(`Deleted ${count} milestone${count > 1 ? 's' : ''}`)
+      },
+    })
+  }
+
   if (loading) return <LoadingPage />
 
   const workspaceOptions = [
@@ -175,9 +194,21 @@ export function MilestonesPage() {
         />
       ) : (
         <>
+          {viewMode === 'list' && paginatedMilestones.length > 0 && (
+            <div className="flex items-center gap-2 mb-3">
+              <button
+                onClick={multiSelect.toggleAll}
+                className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
+              >
+                {multiSelect.isAllSelected ? 'Deselect All' : 'Select All'}
+              </button>
+            </div>
+          )}
           <div className="space-y-4">
             {paginatedMilestones.map((milestone) => (
               <MilestoneCard
+                selected={multiSelect.isSelected(milestone.id)}
+                onToggleSelect={() => multiSelect.toggle(milestone.id)}
                 key={milestone.id}
                 milestone={milestone}
                 onStatusChange={(newStatus) => handleStatusChange(milestone.id, newStatus)}
@@ -199,6 +230,11 @@ export function MilestonesPage() {
         </>
       )}
 
+      <BulkActionBar
+        count={multiSelect.selectionCount}
+        onDelete={handleBulkDelete}
+        onClear={multiSelect.clear}
+      />
       <ConfirmDialog {...confirmDialog.dialogProps} />
     </PageShell>
   )
@@ -216,10 +252,14 @@ function MilestoneCard({
   milestone,
   onStatusChange,
   onDelete,
+  selected,
+  onToggleSelect,
 }: {
   milestone: MilestoneWithProgress
   onStatusChange: (status: MilestoneStatus) => Promise<void>
   onDelete: () => void
+  selected?: boolean
+  onToggleSelect?: () => void
 }) {
   const tags = milestone.tags || []
 
@@ -229,7 +269,10 @@ function MilestoneCard({
     <Link to={`/milestones/${milestone.id}`}>
       <Card className="hover:border-indigo-500 transition-colors">
         <div className="flex">
-          <div className={`w-1 shrink-0 rounded-l-xl ${milestoneStatusBarColor[statusKey] || 'bg-gray-400'}`} />
+          {onToggleSelect && (
+            <SelectCheckbox checked={!!selected} onChange={onToggleSelect} />
+          )}
+          <div className={`w-1 shrink-0 ${!onToggleSelect ? 'rounded-l-xl' : ''} ${milestoneStatusBarColor[statusKey] || 'bg-gray-400'}`} />
           <div className="flex-1 p-3 md:p-4">
             <div className="flex items-start justify-between gap-2 mb-2">
               <div className="flex-1 min-w-0">
