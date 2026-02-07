@@ -15,8 +15,10 @@ import {
   ConfirmDialog,
   OverflowMenu,
   PageShell,
+  SelectZone,
+  BulkActionBar,
 } from '@/components/ui'
-import { usePagination, useKanbanFilters, useViewMode, useConfirmDialog, useToast } from '@/hooks'
+import { usePagination, useKanbanFilters, useViewMode, useConfirmDialog, useToast, useMultiSelect } from '@/hooks'
 import { KanbanBoard, KanbanFilterBar } from '@/components/kanban'
 import type { TaskWithPlan, TaskStatus, PaginatedResponse } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
@@ -116,6 +118,28 @@ export function TasksPage() {
     [navigate],
   )
 
+  const multiSelect = useMultiSelect(tasks, (t) => t.id)
+
+  const handleBulkDelete = () => {
+    const count = multiSelect.selectionCount
+    confirmDialog.open({
+      title: `Delete ${count} task${count > 1 ? 's' : ''}`,
+      description: `This will permanently delete ${count} task${count > 1 ? 's' : ''} and all their steps and decisions.`,
+      onConfirm: async () => {
+        const items = multiSelect.selectedItems
+        confirmDialog.setProgress({ current: 0, total: items.length })
+        for (let i = 0; i < items.length; i++) {
+          await tasksApi.delete(items[i].id)
+          confirmDialog.setProgress({ current: i + 1, total: items.length })
+        }
+        setTasks((prev) => prev.filter((t) => !multiSelect.selectedIds.has(t.id)))
+        setTotal((prev) => prev - items.length)
+        multiSelect.clear()
+        toast.success(`Deleted ${count} task${count > 1 ? 's' : ''}`)
+      },
+    })
+  }
+
   if (loading && viewMode === 'list' && tasks.length === 0) {
     return <LoadingPage />
   }
@@ -169,9 +193,21 @@ export function TasksPage() {
         />
       ) : (
         <>
+          {viewMode === 'list' && tasks.length > 0 && (
+            <div className="flex items-center gap-2 mb-3">
+              <button
+                onClick={multiSelect.toggleAll}
+                className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
+              >
+                {multiSelect.isAllSelected ? 'Deselect All' : 'Select All'}
+              </button>
+            </div>
+          )}
           <div className="space-y-3">
             {tasks.map((task) => (
               <TaskCard
+                selected={multiSelect.isSelected(task.id)}
+                onToggleSelect={(shiftKey) => multiSelect.toggle(task.id, shiftKey)}
                 key={task.id}
                 task={task}
                 onStatusChange={async (newStatus) => {
@@ -199,6 +235,11 @@ export function TasksPage() {
         </>
       )}
 
+      <BulkActionBar
+        count={multiSelect.selectionCount}
+        onDelete={handleBulkDelete}
+        onClear={multiSelect.clear}
+      />
       <ConfirmDialog {...confirmDialog.dialogProps} />
     </PageShell>
   )
@@ -216,17 +257,24 @@ function TaskCard({
   task,
   onStatusChange,
   onDelete,
+  selected,
+  onToggleSelect,
 }: {
   task: TaskWithPlan
   onStatusChange: (status: TaskStatus) => Promise<void>
   onDelete: () => void
+  selected?: boolean
+  onToggleSelect?: (shiftKey: boolean) => void
 }) {
   const tags = task.tags || []
   return (
     <Link to={`/tasks/${task.id}`}>
-      <Card className="hover:border-indigo-500 transition-colors">
+      <Card className={`transition-colors ${selected ? 'border-indigo-500/40 bg-indigo-500/[0.05]' : 'hover:border-indigo-500'}`}>
         <div className="flex">
-          <div className={`w-1 shrink-0 rounded-l-xl ${taskStatusBarColor[task.status] || 'bg-gray-400'}`} />
+          {onToggleSelect && (
+            <SelectZone selected={!!selected} onToggle={onToggleSelect} />
+          )}
+          <div className={`w-1 shrink-0 ${!onToggleSelect ? 'rounded-l-xl' : ''} ${taskStatusBarColor[task.status] || 'bg-gray-400'}`} />
           <div className="flex-1 p-3 md:p-4">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
               <div className="flex-1 min-w-0">

@@ -11,13 +11,16 @@ interface ConfirmConfig {
 
 export function useConfirmDialog() {
   const [config, setConfig] = useState<ConfirmConfig | null>(null)
+  const [progress, setProgress] = useState<{ current: number; total: number } | null>(null)
 
   const open = useCallback((cfg: ConfirmConfig) => {
     setConfig(cfg)
+    setProgress(null)
   }, [])
 
   const close = useCallback(() => {
     setConfig(null)
+    setProgress(null)
   }, [])
 
   const dialogProps: ConfirmDialogProps = {
@@ -28,7 +31,8 @@ export function useConfirmDialog() {
     description: config?.description,
     confirmLabel: config?.confirmLabel,
     variant: config?.variant,
+    progress,
   }
 
-  return { open, close, dialogProps }
+  return { open, close, setProgress, dialogProps }
 }

@@ -9,7 +9,7 @@ export function useToast() {
 
   const show = useCallback(
     (type: ToastMessage['type'], message: string) => {
-      const id = crypto.randomUUID()
+      const id = Math.random().toString(36).slice(2) + Date.now().toString(36)
       set((prev: ToastMessage[]) => [...prev, { id, type, message }])
       setTimeout(() => {
         set((prev: ToastMessage[]) => prev.filter((t) => t.id !== id))

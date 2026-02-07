@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { useAtom } from 'jotai'
 import { notesAtom, notesLoadingAtom, noteTypeFilterAtom, noteStatusFilterAtom } from '@/atoms'
 import { notesApi } from '@/services'
-import { Card, CardContent, Button, LoadingPage, EmptyState, Select, NoteStatusBadge, ImportanceBadge, Badge, Pagination, ConfirmDialog, FormDialog, OverflowMenu, PageShell } from '@/components/ui'
-import { usePagination, useConfirmDialog, useFormDialog, useToast } from '@/hooks'
+import { Card, CardContent, Button, LoadingPage, EmptyState, Select, NoteStatusBadge, ImportanceBadge, Badge, Pagination, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
+import { usePagination, useConfirmDialog, useFormDialog, useToast, useMultiSelect } from '@/hooks'
 import { CreateNoteForm } from '@/components/forms'
 import type { Note, NoteType, NoteStatus } from '@/types'
 
@@ -107,6 +107,28 @@ export function NotesPage() {
 
   const openCreateNote = () => formDialog.open({ title: 'Create Note', size: 'lg' })
 
+  const multiSelect = useMultiSelect(notes, (n) => n.id)
+
+  const handleBulkDelete = () => {
+    const count = multiSelect.selectionCount
+    confirmDialog.open({
+      title: `Delete ${count} note${count > 1 ? 's' : ''}`,
+      description: `This will permanently delete ${count} note${count > 1 ? 's' : ''}.`,
+      onConfirm: async () => {
+        const items = multiSelect.selectedItems
+        confirmDialog.setProgress({ current: 0, total: items.length })
+        for (let i = 0; i < items.length; i++) {
+          await notesApi.delete(items[i].id)
+          confirmDialog.setProgress({ current: i + 1, total: items.length })
+        }
+        setNotes((prev) => prev.filter((n) => !multiSelect.selectedIds.has(n.id)))
+        setTotal((prev) => prev - items.length)
+        multiSelect.clear()
+        toast.success(`Deleted ${count} note${count > 1 ? 's' : ''}`)
+      },
+    })
+  }
+
   if (loading) return <LoadingPage />
 
   return (
@@ -138,9 +160,21 @@ export function NotesPage() {
         />
       ) : (
         <>
+          {notes.length > 0 && (
+            <div className="flex items-center gap-2 mb-3">
+              <button
+                onClick={multiSelect.toggleAll}
+                className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
+              >
+                {multiSelect.isAllSelected ? 'Deselect All' : 'Select All'}
+              </button>
+            </div>
+          )}
           <div className="space-y-4">
             {notes.map((note) => (
               <NoteCard
+                selected={multiSelect.isSelected(note.id)}
+                onToggleSelect={(shiftKey) => multiSelect.toggle(note.id, shiftKey)}
                 key={note.id}
                 note={note}
                 onDelete={() => confirmDialog.open({
@@ -161,6 +195,11 @@ export function NotesPage() {
         </>
       )}
 
+      <BulkActionBar
+        count={multiSelect.selectionCount}
+        onDelete={handleBulkDelete}
+        onClear={multiSelect.clear}
+      />
       <FormDialog {...formDialog.dialogProps} onSubmit={noteForm.submit} loading={formLoading}>
         {noteForm.fields}
       </FormDialog>
@@ -169,7 +208,7 @@ export function NotesPage() {
   )
 }
 
-function NoteCard({ note, onDelete }: { note: Note; onDelete: () => void }) {
+function NoteCard({ note, onDelete, selected, onToggleSelect }: { note: Note; onDelete: () => void; selected?: boolean; onToggleSelect?: (shiftKey: boolean) => void }) {
   const tags = note.tags || []
   const anchors = note.anchors || []
   const typeColors: Record<NoteType, string> = {
@@ -183,8 +222,12 @@ function NoteCard({ note, onDelete }: { note: Note; onDelete: () => void }) {
   }
 
   return (
-    <Card className={`border-l-4 ${typeColors[note.note_type] || 'border-l-gray-500'}`}>
-      <CardContent>
+    <Card className={`border-l-4 ${typeColors[note.note_type] || 'border-l-gray-500'} transition-colors ${selected ? 'border-l-indigo-500 bg-indigo-500/[0.05]' : ''}`}>
+      <div className="flex">
+        {onToggleSelect && (
+          <SelectZone selected={!!selected} onToggle={onToggleSelect} />
+        )}
+        <CardContent className="flex-1">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="default">{note.note_type}</Badge>
@@ -227,6 +270,7 @@ function NoteCard({ note, onDelete }: { note: Note; onDelete: () => void }) {
           )}
         </div>
       </CardContent>
+      </div>
     </Card>
   )
 }
