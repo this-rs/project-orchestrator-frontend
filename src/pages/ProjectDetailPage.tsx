@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
-import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LoadingPage, Badge, ProgressBar, PageHeader, SectionNav } from '@/components/ui'
+import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LoadingPage, Badge, ProgressBar, PageHeader, SectionNav, InteractivePlanStatusBadge } from '@/components/ui'
 import { projectsApi, plansApi } from '@/services'
 import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
 import { chatSuggestedProjectIdAtom, projectRefreshAtom, planRefreshAtom, milestoneRefreshAtom } from '@/atoms'
 import { CreateMilestoneForm, CreateReleaseForm } from '@/components/forms'
-import type { Project, Plan, ProjectRoadmap } from '@/types'
+import type { Project, Plan, ProjectRoadmap, PlanStatus } from '@/types'
 
 export function ProjectDetailPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -221,15 +221,20 @@ export function ProjectDetailPage() {
                 <Link
                   key={plan.id}
                   to={`/plans/${plan.id}`}
-                  className="flex items-center justify-between p-3 bg-white/[0.06] rounded-lg hover:bg-white/[0.06] transition-colors"
+                  className="flex items-center justify-between p-3 bg-white/[0.06] rounded-lg hover:bg-white/[0.08] transition-colors"
                 >
-                  <div>
+                  <div className="min-w-0 flex-1 mr-3">
                     <span className="font-medium text-gray-200">{plan.title}</span>
                     <p className="text-sm text-gray-400 line-clamp-1">{plan.description}</p>
                   </div>
-                  <Badge variant={plan.status === 'completed' ? 'success' : plan.status === 'in_progress' ? 'info' : 'default'}>
-                    {plan.status}
-                  </Badge>
+                  <InteractivePlanStatusBadge
+                    status={plan.status}
+                    onStatusChange={async (newStatus: PlanStatus) => {
+                      await plansApi.updateStatus(plan.id, newStatus)
+                      setPlans((prev) => prev.map((p) => (p.id === plan.id ? { ...p, status: newStatus } : p)))
+                      toast.success('Status updated')
+                    }}
+                  />
                 </Link>
               ))}
             </div>
