@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, C
 import { api, workspacesApi, plansApi, tasksApi } from '@/services'
 import { PlanKanbanBoard } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
-import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom } from '@/atoms'
+import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import type { WorkspaceMilestone, MilestoneProgress, Plan, Project, Task, Step, MilestoneStatus, PlanStatus, StepStatus, PaginatedResponse } from '@/types'
 
 export function MilestoneDetailPage() {
@@ -24,6 +24,7 @@ export function MilestoneDetailPage() {
   const milestoneRefresh = useAtomValue(milestoneRefreshAtom)
   const planRefresh = useAtomValue(planRefreshAtom)
   const taskRefresh = useAtomValue(taskRefreshAtom)
+  const projectRefresh = useAtomValue(projectRefreshAtom)
 
   useEffect(() => {
     async function fetchData() {
@@ -92,7 +93,7 @@ export function MilestoneDetailPage() {
       }
     }
     fetchData()
-  }, [milestoneId, milestoneRefresh, planRefresh, taskRefresh])
+  }, [milestoneId, milestoneRefresh, planRefresh, taskRefresh, projectRefresh])
 
   // Helper: fetch tasks via workspace plans (no GET endpoint for milestone tasks)
   const refreshTasksFromPlans = useCallback(async (workspacePlans: Plan[]) => {

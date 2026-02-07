@@ -21,7 +21,7 @@ import {
 import { projectsApi, plansApi, tasksApi } from '@/services'
 import { PlanKanbanBoard } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
-import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom } from '@/atoms'
+import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import type {
   Milestone,
   MilestoneProgress,
@@ -51,6 +51,7 @@ export function ProjectMilestoneDetailPage() {
   const milestoneRefresh = useAtomValue(milestoneRefreshAtom)
   const planRefresh = useAtomValue(planRefreshAtom)
   const taskRefresh = useAtomValue(taskRefreshAtom)
+  const projectRefresh = useAtomValue(projectRefreshAtom)
 
   const refreshData = useCallback(async () => {
     if (!milestoneId) return
@@ -94,7 +95,7 @@ export function ProjectMilestoneDetailPage() {
     } finally {
       if (isInitialLoad) setLoading(false)
     }
-  }, [milestoneId, milestoneRefresh, planRefresh, taskRefresh])
+  }, [milestoneId, milestoneRefresh, planRefresh, taskRefresh, projectRefresh])
 
   useEffect(() => {
     refreshData()
