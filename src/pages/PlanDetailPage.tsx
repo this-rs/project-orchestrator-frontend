@@ -270,6 +270,7 @@ export function PlanDetailPage() {
                   key={task.id}
                   task={task}
                   onStatusChange={(newStatus) => handleTaskStatusChange(task.id, newStatus)}
+                  refreshTrigger={taskRefresh}
                 />
               ))}
             </div>
@@ -374,28 +375,40 @@ export function PlanDetailPage() {
 function TaskRow({
   task,
   onStatusChange,
+  refreshTrigger,
 }: {
   task: Task
   onStatusChange: (status: TaskStatus) => Promise<void>
+  refreshTrigger?: number
 }) {
   const [expanded, setExpanded] = useState(false)
   const [steps, setSteps] = useState<Step[] | null>(null)
   const [loadingSteps, setLoadingSteps] = useState(false)
   const tags = task.tags || []
 
+  const fetchSteps = useCallback(async () => {
+    try {
+      const response = await tasksApi.get(task.id) as unknown as { steps?: Step[] }
+      setSteps(response.steps || [])
+    } catch {
+      setSteps([])
+    }
+  }, [task.id])
+
+  // Re-fetch steps on WS refresh if already loaded
+  useEffect(() => {
+    if (steps !== null) {
+      fetchSteps()
+    }
+  }, [refreshTrigger])
+
   const toggleExpand = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     if (!expanded && steps === null) {
       setLoadingSteps(true)
-      try {
-        const response = await tasksApi.get(task.id) as unknown as { steps?: Step[] }
-        setSteps(response.steps || [])
-      } catch {
-        setSteps([])
-      } finally {
-        setLoadingSteps(false)
-      }
+      await fetchSteps()
+      setLoadingSteps(false)
     }
     setExpanded(!expanded)
   }
