@@ -1,5 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useAtomValue } from 'jotai'
 import { Link, useNavigate } from 'react-router-dom'
+import { milestoneRefreshAtom } from '@/atoms'
 import { Card, LoadingPage, EmptyState, Badge, ProgressBar, InteractiveMilestoneStatusBadge, Pagination, ViewToggle, Select, ConfirmDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
 import { workspacesApi } from '@/services'
 import { usePagination, useViewMode, useConfirmDialog, useToast, useMultiSelect } from '@/hooks'
@@ -29,10 +31,13 @@ export function MilestonesPage() {
   // Filters
   const [workspaceFilter, setWorkspaceFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
+  const msRefresh = useAtomValue(milestoneRefreshAtom)
 
   useEffect(() => {
     async function fetchMilestones() {
-      setLoading(true)
+      // Only show loading spinner on initial load, not on WS-triggered refreshes
+      const isInitialLoad = allMilestones.length === 0
+      if (isInitialLoad) setLoading(true)
       try {
         const workspacesData = await workspacesApi.list()
         const workspacesList = workspacesData.items || []
@@ -73,11 +78,11 @@ export function MilestonesPage() {
         console.error('Failed to fetch milestones:', error)
         toast.error('Failed to load milestones')
       } finally {
-        setLoading(false)
+        if (isInitialLoad) setLoading(false)
       }
     }
     fetchMilestones()
-  }, [])
+  }, [msRefresh])
 
   // Filtered milestones
   const filteredMilestones = useMemo(() => {

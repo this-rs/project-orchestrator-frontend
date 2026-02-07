@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useAtomValue } from 'jotai'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, TaskStatusBadge, InteractiveStepStatusBadge, ProgressBar, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import { tasksApi } from '@/services'
 import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
+import { taskRefreshAtom } from '@/atoms'
 import { CreateStepForm, CreateDecisionForm } from '@/components/forms'
 import type { Task, Step, Decision, Commit, TaskStatus, StepStatus } from '@/types'
 
@@ -23,6 +25,7 @@ export function TaskDetailPage() {
   const decisionFormDialog = useFormDialog()
   const linkDialog = useLinkDialog()
   const toast = useToast()
+  const taskRefresh = useAtomValue(taskRefreshAtom)
   const [formLoading, setFormLoading] = useState(false)
   const [task, setTask] = useState<Task | null>(null)
   const [steps, setSteps] = useState<Step[]>([])
@@ -35,7 +38,9 @@ export function TaskDetailPage() {
   useEffect(() => {
     async function fetchData() {
       if (!taskId) return
-      setLoading(true)
+      // Only show loading spinner on initial load, not on WS-triggered refreshes
+      const isInitialLoad = !task
+      if (isInitialLoad) setLoading(true)
       try {
         // The API returns { task, steps, decisions, depends_on, modifies_files }
         const response = await tasksApi.get(taskId) as unknown as TaskApiResponse
@@ -58,11 +63,11 @@ export function TaskDetailPage() {
       } catch (error) {
         console.error('Failed to fetch task:', error)
       } finally {
-        setLoading(false)
+        if (isInitialLoad) setLoading(false)
       }
     }
     fetchData()
-  }, [taskId])
+  }, [taskId, taskRefresh])
 
   const stepForm = CreateStepForm({
     onSubmit: async (data) => {

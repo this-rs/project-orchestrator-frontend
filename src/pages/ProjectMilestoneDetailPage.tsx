@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useAtomValue } from 'jotai'
 import {
   Card,
   CardHeader,
@@ -20,6 +21,7 @@ import {
 import { projectsApi, plansApi, tasksApi } from '@/services'
 import { PlanKanbanBoard } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
+import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom } from '@/atoms'
 import type {
   Milestone,
   MilestoneProgress,
@@ -46,10 +48,15 @@ export function ProjectMilestoneDetailPage() {
   const confirmDialog = useConfirmDialog()
   const linkDialog = useLinkDialog()
   const toast = useToast()
+  const milestoneRefresh = useAtomValue(milestoneRefreshAtom)
+  const planRefresh = useAtomValue(planRefreshAtom)
+  const taskRefresh = useAtomValue(taskRefreshAtom)
 
   const refreshData = useCallback(async () => {
     if (!milestoneId) return
-    setLoading(true)
+    // Only show loading spinner on initial load, not on WS-triggered refreshes
+    const isInitialLoad = !milestone
+    if (isInitialLoad) setLoading(true)
     try {
       const [response, progressData] = await Promise.all([
         projectsApi.getMilestone(milestoneId),
@@ -85,9 +92,9 @@ export function ProjectMilestoneDetailPage() {
     } catch (error) {
       console.error('Failed to fetch milestone:', error)
     } finally {
-      setLoading(false)
+      if (isInitialLoad) setLoading(false)
     }
-  }, [milestoneId])
+  }, [milestoneId, milestoneRefresh, planRefresh, taskRefresh])
 
   useEffect(() => {
     refreshData()
@@ -253,6 +260,7 @@ export function ProjectMilestoneDetailPage() {
                 fetchFn={kanbanFetchFn}
                 onPlanStatusChange={handlePlanStatusChange}
                 onPlanClick={(planId) => navigate(`/plans/${planId}`)}
+                refreshTrigger={planRefresh}
               />
             ) : (
               <div className="space-y-2">

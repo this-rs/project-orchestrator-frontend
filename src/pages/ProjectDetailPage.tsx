@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { useSetAtom } from 'jotai'
+import { useSetAtom, useAtomValue } from 'jotai'
 import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LoadingPage, Badge, ProgressBar, PageHeader, SectionNav } from '@/components/ui'
 import { projectsApi, plansApi } from '@/services'
 import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
-import { chatSuggestedProjectIdAtom } from '@/atoms'
+import { chatSuggestedProjectIdAtom, projectRefreshAtom, planRefreshAtom } from '@/atoms'
 import { CreateMilestoneForm, CreateReleaseForm } from '@/components/forms'
 import type { Project, Plan, ProjectRoadmap } from '@/types'
 
@@ -17,6 +17,8 @@ export function ProjectDetailPage() {
   const linkDialog = useLinkDialog()
   const toast = useToast()
   const setSuggestedProjectId = useSetAtom(chatSuggestedProjectIdAtom)
+  const projectRefresh = useAtomValue(projectRefreshAtom)
+  const planRefresh = useAtomValue(planRefreshAtom)
   const [formLoading, setFormLoading] = useState(false)
   const [project, setProject] = useState<Project | null>(null)
   const [plans, setPlans] = useState<Plan[]>([])
@@ -27,7 +29,9 @@ export function ProjectDetailPage() {
   useEffect(() => {
     async function fetchData() {
       if (!slug) return
-      setLoading(true)
+      // Only show loading spinner on initial load, not on WS-triggered refreshes
+      const isInitialLoad = !project
+      if (isInitialLoad) setLoading(true)
       try {
         // First get the project
         const projectData = await projectsApi.get(slug)
@@ -51,11 +55,11 @@ export function ProjectDetailPage() {
       } catch (error) {
         console.error('Failed to fetch project:', error)
       } finally {
-        setLoading(false)
+        if (isInitialLoad) setLoading(false)
       }
     }
     fetchData()
-  }, [slug])
+  }, [slug, projectRefresh, planRefresh])
 
   const handleSync = async () => {
     if (!slug) return

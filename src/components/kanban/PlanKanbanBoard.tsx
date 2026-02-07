@@ -24,6 +24,7 @@ interface PlanKanbanBoardProps {
   hiddenStatuses?: PlanStatus[]
   onPlanStatusChange: (planId: string, newStatus: PlanStatus) => Promise<void>
   onPlanClick?: (planId: string) => void
+  refreshTrigger?: number
 }
 
 const columns: { id: PlanStatus; title: string; color: string }[] = [
@@ -34,7 +35,7 @@ const columns: { id: PlanStatus; title: string; color: string }[] = [
   { id: 'cancelled', title: 'Cancelled', color: 'red' },
 ]
 
-export function PlanKanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], onPlanStatusChange, onPlanClick }: PlanKanbanBoardProps) {
+export function PlanKanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], onPlanStatusChange, onPlanClick, refreshTrigger = 0 }: PlanKanbanBoardProps) {
   const [activePlan, setActivePlan] = useState<Plan | null>(null)
   const isMobile = useIsMobile()
   const visibleColumns = useMemo(() => columns.filter((col) => !hiddenStatuses.includes(col.id)), [hiddenStatuses])
@@ -44,11 +45,11 @@ export function PlanKanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], on
     useSensor(KeyboardSensor),
   )
 
-  const draftCol = useKanbanColumnData<Plan>({ status: 'draft', fetchFn, filters, enabled: !hiddenStatuses.includes('draft') })
-  const approvedCol = useKanbanColumnData<Plan>({ status: 'approved', fetchFn, filters, enabled: !hiddenStatuses.includes('approved') })
-  const inProgressCol = useKanbanColumnData<Plan>({ status: 'in_progress', fetchFn, filters, enabled: !hiddenStatuses.includes('in_progress') })
-  const completedCol = useKanbanColumnData<Plan>({ status: 'completed', fetchFn, filters, enabled: !hiddenStatuses.includes('completed') })
-  const cancelledCol = useKanbanColumnData<Plan>({ status: 'cancelled', fetchFn, filters, enabled: !hiddenStatuses.includes('cancelled') })
+  const draftCol = useKanbanColumnData<Plan>({ status: 'draft', fetchFn, filters, enabled: !hiddenStatuses.includes('draft'), refreshTrigger })
+  const approvedCol = useKanbanColumnData<Plan>({ status: 'approved', fetchFn, filters, enabled: !hiddenStatuses.includes('approved'), refreshTrigger })
+  const inProgressCol = useKanbanColumnData<Plan>({ status: 'in_progress', fetchFn, filters, enabled: !hiddenStatuses.includes('in_progress'), refreshTrigger })
+  const completedCol = useKanbanColumnData<Plan>({ status: 'completed', fetchFn, filters, enabled: !hiddenStatuses.includes('completed'), refreshTrigger })
+  const cancelledCol = useKanbanColumnData<Plan>({ status: 'cancelled', fetchFn, filters, enabled: !hiddenStatuses.includes('cancelled'), refreshTrigger })
 
   const columnDataMap: Record<PlanStatus, ColumnData<Plan>> = {
     draft: draftCol,

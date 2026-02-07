@@ -20,6 +20,7 @@ interface UseKanbanColumnDataOptions<T> {
   filters?: Record<string, unknown>
   enabled?: boolean
   getId?: (item: T) => string
+  refreshTrigger?: number
 }
 
 export function useKanbanColumnData<T>({
@@ -29,6 +30,7 @@ export function useKanbanColumnData<T>({
   filters = {},
   enabled = true,
   getId = (item: T) => (item as { id: string }).id,
+  refreshTrigger = 0,
 }: UseKanbanColumnDataOptions<T>): ColumnData<T> {
   const [items, setItems] = useState<T[]>([])
   const [total, setTotal] = useState(0)
@@ -74,7 +76,7 @@ export function useKanbanColumnData<T>({
 
     fetchInitial()
     return () => { cancelled = true }
-  }, [status, fetchFn, pageSize, filtersKey, enabled])
+  }, [status, fetchFn, pageSize, filtersKey, enabled, refreshTrigger])
 
   const hasMore = items.length < total
 

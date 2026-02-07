@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
-import { useAtom } from 'jotai'
-import { notesAtom, notesLoadingAtom, noteTypeFilterAtom, noteStatusFilterAtom } from '@/atoms'
+import { useEffect, useState, useRef } from 'react'
+import { useAtom, useAtomValue } from 'jotai'
+import { notesAtom, notesLoadingAtom, noteTypeFilterAtom, noteStatusFilterAtom, noteRefreshAtom } from '@/atoms'
 import { notesApi } from '@/services'
 import { Card, CardContent, Button, LoadingPage, EmptyState, Select, NoteStatusBadge, ImportanceBadge, Badge, Pagination, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
 import { usePagination, useConfirmDialog, useFormDialog, useToast, useMultiSelect } from '@/hooks'
@@ -32,6 +32,7 @@ export function NotesPage() {
   const [loading, setLoading] = useAtom(notesLoadingAtom)
   const [typeFilter, setTypeFilter] = useAtom(noteTypeFilterAtom)
   const [statusFilter, setStatusFilter] = useAtom(noteStatusFilterAtom)
+  const noteRefresh = useAtomValue(noteRefreshAtom)
   const [total, setTotal] = useState(0)
   const { page, pageSize, offset, setPage, paginationProps } = usePagination()
   const confirmDialog = useConfirmDialog()
@@ -56,9 +57,12 @@ export function NotesPage() {
     }
   }
 
+  const initialLoadDone = useRef(false)
   useEffect(() => {
     async function fetchNotes() {
-      setLoading(true)
+      // Only show loading spinner on initial load, not on WS-triggered refreshes
+      const silent = initialLoadDone.current
+      if (!silent) setLoading(true)
       try {
         const params: { limit: number; offset: number; note_type?: string; status?: string } = { limit: pageSize, offset }
         if (typeFilter !== 'all') {
@@ -74,11 +78,12 @@ export function NotesPage() {
         console.error('Failed to fetch notes:', error)
         toast.error('Failed to load notes')
       } finally {
-        setLoading(false)
+        if (!silent) setLoading(false)
       }
+      initialLoadDone.current = true
     }
     fetchNotes()
-  }, [setNotes, setLoading, page, pageSize, offset, typeFilter, statusFilter])
+  }, [setNotes, setLoading, page, pageSize, offset, typeFilter, statusFilter, noteRefresh])
 
   const handleTypeFilterChange = (newFilter: NoteType | 'all') => {
     setTypeFilter(newFilter)

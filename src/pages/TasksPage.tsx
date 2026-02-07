@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useAtom } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import { Link, useNavigate } from 'react-router-dom'
-import { tasksAtom, tasksLoadingAtom, taskStatusFilterAtom } from '@/atoms'
+import { tasksAtom, tasksLoadingAtom, taskStatusFilterAtom, taskRefreshAtom } from '@/atoms'
 import { tasksApi } from '@/services'
 import {
   Card,
@@ -36,6 +36,7 @@ export function TasksPage() {
   const [tasks, setTasks] = useAtom(tasksAtom)
   const [loading, setLoading] = useAtom(tasksLoadingAtom)
   const [statusFilter, setStatusFilter] = useAtom(taskStatusFilterAtom)
+  const taskRefresh = useAtomValue(taskRefreshAtom)
   const [viewMode, setViewMode] = useViewMode()
   const [total, setTotal] = useState(0)
   const { page, pageSize, offset, setPage, paginationProps } = usePagination()
@@ -48,7 +49,9 @@ export function TasksPage() {
   useEffect(() => {
     if (viewMode !== 'list') return
     async function fetchTasks() {
-      setLoading(true)
+      // Only show loading spinner on initial load, not on WS-triggered refreshes
+      const isInitialLoad = tasks.length === 0
+      if (isInitialLoad) setLoading(true)
       try {
         const params: { limit: number; offset: number; status?: string } = { limit: pageSize, offset }
         if (statusFilter !== 'all') {
@@ -61,11 +64,11 @@ export function TasksPage() {
         console.error('Failed to fetch tasks:', error)
         toast.error('Failed to load tasks')
       } finally {
-        setLoading(false)
+        if (isInitialLoad) setLoading(false)
       }
     }
     fetchTasks()
-  }, [setTasks, setLoading, page, pageSize, offset, statusFilter, viewMode])
+  }, [setTasks, setLoading, page, pageSize, offset, statusFilter, viewMode, taskRefresh])
 
   // Stable fetchFn for kanban board — wraps tasksApi.list with kanban filters
   const kanbanApiParams = kanbanFilters.buildApiParams()
@@ -181,6 +184,7 @@ export function TasksPage() {
           hiddenStatuses={hiddenStatuses}
           onTaskStatusChange={handleTaskStatusChange}
           onTaskClick={handleTaskClick}
+          refreshTrigger={taskRefresh}
         />
       ) : tasks.length === 0 ? (
         <EmptyState

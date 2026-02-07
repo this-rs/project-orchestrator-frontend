@@ -23,6 +23,7 @@ interface KanbanBoardProps {
   hiddenStatuses?: TaskStatus[]
   onTaskStatusChange: (taskId: string, newStatus: TaskStatus) => Promise<void>
   onTaskClick?: (taskId: string) => void
+  refreshTrigger?: number
 }
 
 const columns: { id: TaskStatus; title: string; color: string }[] = [
@@ -33,7 +34,7 @@ const columns: { id: TaskStatus; title: string; color: string }[] = [
   { id: 'failed', title: 'Failed', color: 'red' },
 ]
 
-export function KanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], onTaskStatusChange, onTaskClick }: KanbanBoardProps) {
+export function KanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], onTaskStatusChange, onTaskClick, refreshTrigger = 0 }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<KanbanTask | null>(null)
   const isMobile = useIsMobile()
   const visibleColumns = columns.filter((col) => !hiddenStatuses.includes(col.id))
@@ -44,11 +45,11 @@ export function KanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], onTask
     useSensor(KeyboardSensor),
   )
 
-  const pendingCol = useKanbanColumnData<KanbanTask>({ status: 'pending', fetchFn, filters, enabled: !hiddenStatuses.includes('pending') })
-  const inProgressCol = useKanbanColumnData<KanbanTask>({ status: 'in_progress', fetchFn, filters, enabled: !hiddenStatuses.includes('in_progress') })
-  const blockedCol = useKanbanColumnData<KanbanTask>({ status: 'blocked', fetchFn, filters, enabled: !hiddenStatuses.includes('blocked') })
-  const completedCol = useKanbanColumnData<KanbanTask>({ status: 'completed', fetchFn, filters, enabled: !hiddenStatuses.includes('completed') })
-  const failedCol = useKanbanColumnData<KanbanTask>({ status: 'failed', fetchFn, filters, enabled: !hiddenStatuses.includes('failed') })
+  const pendingCol = useKanbanColumnData<KanbanTask>({ status: 'pending', fetchFn, filters, enabled: !hiddenStatuses.includes('pending'), refreshTrigger })
+  const inProgressCol = useKanbanColumnData<KanbanTask>({ status: 'in_progress', fetchFn, filters, enabled: !hiddenStatuses.includes('in_progress'), refreshTrigger })
+  const blockedCol = useKanbanColumnData<KanbanTask>({ status: 'blocked', fetchFn, filters, enabled: !hiddenStatuses.includes('blocked'), refreshTrigger })
+  const completedCol = useKanbanColumnData<KanbanTask>({ status: 'completed', fetchFn, filters, enabled: !hiddenStatuses.includes('completed'), refreshTrigger })
+  const failedCol = useKanbanColumnData<KanbanTask>({ status: 'failed', fetchFn, filters, enabled: !hiddenStatuses.includes('failed'), refreshTrigger })
 
   const columnDataMap: Record<TaskStatus, ColumnData<KanbanTask>> = {
     pending: pendingCol,

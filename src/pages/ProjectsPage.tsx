@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
-import { useAtom } from 'jotai'
+import { useEffect, useState, useRef } from 'react'
+import { useAtom, useAtomValue } from 'jotai'
 import { Link } from 'react-router-dom'
-import { projectsAtom, projectsLoadingAtom } from '@/atoms'
+import { projectsAtom, projectsLoadingAtom, projectRefreshAtom } from '@/atoms'
 import { projectsApi } from '@/services'
 import { Card, CardContent, Button, LoadingPage, EmptyState, Badge, Pagination, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
 import { usePagination, useConfirmDialog, useFormDialog, useToast, useMultiSelect } from '@/hooks'
@@ -17,9 +17,10 @@ export function ProjectsPage() {
   const formDialog = useFormDialog()
   const toast = useToast()
   const [formLoading, setFormLoading] = useState(false)
+  const projRefresh = useAtomValue(projectRefreshAtom)
 
-  const fetchProjects = async () => {
-    setLoading(true)
+  const fetchProjects = async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const response = await projectsApi.list({ limit: pageSize, offset })
       setProjects(response.items || [])
@@ -28,13 +29,16 @@ export function ProjectsPage() {
       console.error('Failed to fetch projects:', error)
       toast.error('Failed to load projects')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
+  const initialLoadDone = useRef(false)
   useEffect(() => {
-    fetchProjects()
-  }, [setProjects, setLoading, page, pageSize, offset])
+    const silent = initialLoadDone.current
+    fetchProjects(silent)
+    initialLoadDone.current = true
+  }, [setProjects, setLoading, page, pageSize, offset, projRefresh])
 
   const form = CreateProjectForm({
     onSubmit: async (data) => {

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useAtom } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import { Link, useNavigate } from 'react-router-dom'
-import { plansAtom, plansLoadingAtom, planStatusFilterAtom } from '@/atoms'
+import { plansAtom, plansLoadingAtom, planStatusFilterAtom, planRefreshAtom } from '@/atoms'
 import { plansApi, workspacesApi } from '@/services'
 import {
   Card,
@@ -48,6 +48,7 @@ export function PlansPage() {
   const [plans, setPlans] = useAtom(plansAtom)
   const [loading, setLoading] = useAtom(plansLoadingAtom)
   const [statusFilter, setStatusFilter] = useAtom(planStatusFilterAtom)
+  const planRefresh = useAtomValue(planRefreshAtom)
   const [total, setTotal] = useState(0)
   const { page, pageSize, offset, setPage, paginationProps } = usePagination()
   const [viewMode, setViewMode] = useViewMode()
@@ -113,7 +114,9 @@ export function PlansPage() {
   useEffect(() => {
     if (viewMode !== 'list') return
     async function fetchPlans() {
-      setLoading(true)
+      // Only show loading spinner on initial load, not on WS-triggered refreshes
+      const isInitialLoad = plans.length === 0
+      if (isInitialLoad) setLoading(true)
       try {
         const params: { limit: number; offset: number; status?: string } = { limit: pageSize, offset }
         if (statusFilter !== 'all') {
@@ -126,11 +129,11 @@ export function PlansPage() {
         console.error('Failed to fetch plans:', error)
         toast.error('Failed to load plans')
       } finally {
-        setLoading(false)
+        if (isInitialLoad) setLoading(false)
       }
     }
     fetchPlans()
-  }, [setPlans, setLoading, page, pageSize, offset, statusFilter, viewMode])
+  }, [setPlans, setLoading, page, pageSize, offset, statusFilter, viewMode, planRefresh])
 
   // Stable fetchFn for PlanKanbanBoard
   const kanbanFetchFn = useCallback(
@@ -285,6 +288,7 @@ export function PlansPage() {
           hiddenStatuses={hiddenStatuses}
           onPlanStatusChange={handlePlanStatusChange}
           onPlanClick={(planId) => navigate(`/plans/${planId}`)}
+          refreshTrigger={planRefresh}
         />
       ) : plans.length === 0 ? (
         <EmptyState
