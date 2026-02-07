@@ -1,23 +1,41 @@
-import { useAtom, useAtomValue } from 'jotai'
-import { chatPanelModeAtom, chatProjectContextAtom } from '@/atoms'
+import { useAtom } from 'jotai'
+import { chatPanelModeAtom } from '@/atoms'
 import { useChat } from '@/hooks'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
 import { SessionList } from './SessionList'
+import { ProjectSelect } from './ProjectSelect'
 import { useState } from 'react'
+import type { Project } from '@/types'
 
 export function ChatPanel() {
   const [mode, setMode] = useAtom(chatPanelModeAtom)
-  const projectContext = useAtomValue(chatProjectContextAtom)
   const [showSessions, setShowSessions] = useState(false)
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const chat = useChat()
 
   const isOpen = mode !== 'closed'
   const isFullscreen = mode === 'fullscreen'
+  const isNewConversation = !chat.sessionId
 
   const panelClasses = isFullscreen
     ? 'fixed inset-0 z-30'
     : 'fixed top-0 right-0 bottom-0 w-[400px] z-30'
+
+  const handleSend = (text: string) => {
+    if (isNewConversation && !selectedProject) return
+    chat.sendMessage(
+      text,
+      isNewConversation
+        ? { cwd: selectedProject!.root_path, projectSlug: selectedProject!.slug }
+        : undefined,
+    )
+  }
+
+  const handleNewSession = () => {
+    chat.newSession()
+    setSelectedProject(null)
+  }
 
   return (
     <div
@@ -39,16 +57,16 @@ export function ChatPanel() {
             <span className="text-sm font-medium text-gray-300 truncate block">
               {chat.sessionId ? 'Chat' : 'New Chat'}
             </span>
-            {projectContext && (
+            {!isNewConversation && selectedProject && (
               <span className="text-[10px] text-gray-500 truncate block">
-                {projectContext.name}
+                {selectedProject.name}
               </span>
             )}
           </div>
         </div>
         <div className="flex items-center gap-1">
           <button
-            onClick={chat.newSession}
+            onClick={handleNewSession}
             className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
             title="New chat"
           >
@@ -94,6 +112,14 @@ export function ChatPanel() {
         />
       ) : (
         <>
+          {/* Project selector — only for new conversations */}
+          {isNewConversation && (
+            <ProjectSelect
+              value={selectedProject?.id || null}
+              onChange={setSelectedProject}
+            />
+          )}
+
           <ChatMessages
             messages={chat.messages}
             isStreaming={chat.isStreaming}
@@ -101,9 +127,10 @@ export function ChatPanel() {
             onRespondInput={chat.respondInput}
           />
           <ChatInput
-            onSend={chat.sendMessage}
+            onSend={handleSend}
             onInterrupt={chat.interrupt}
             isStreaming={chat.isStreaming}
+            disabled={isNewConversation && !selectedProject}
           />
         </>
       )}

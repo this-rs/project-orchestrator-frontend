@@ -4,7 +4,7 @@ import { useSetAtom } from 'jotai'
 import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LoadingPage, Badge, ProgressBar, PageHeader, SectionNav } from '@/components/ui'
 import { projectsApi, plansApi } from '@/services'
 import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
-import { chatProjectContextAtom } from '@/atoms'
+import { chatSuggestedProjectIdAtom } from '@/atoms'
 import { CreateMilestoneForm, CreateReleaseForm } from '@/components/forms'
 import type { Project, Plan, ProjectRoadmap } from '@/types'
 
@@ -16,7 +16,7 @@ export function ProjectDetailPage() {
   const releaseFormDialog = useFormDialog()
   const linkDialog = useLinkDialog()
   const toast = useToast()
-  const setChatProjectContext = useSetAtom(chatProjectContextAtom)
+  const setSuggestedProjectId = useSetAtom(chatSuggestedProjectIdAtom)
   const [formLoading, setFormLoading] = useState(false)
   const [project, setProject] = useState<Project | null>(null)
   const [plans, setPlans] = useState<Plan[]>([])
@@ -32,11 +32,7 @@ export function ProjectDetailPage() {
         // First get the project
         const projectData = await projectsApi.get(slug)
         setProject(projectData)
-        setChatProjectContext({
-          slug: projectData.slug,
-          rootPath: projectData.root_path,
-          name: projectData.name,
-        })
+        setSuggestedProjectId(projectData.id)
 
         // Fetch plans filtered by project_id (client-side filter as backend filter doesn't work)
         const allPlansData = await plansApi.list({ limit: 100 })

@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
-import { useAtom, useAtomValue } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatProjectContextAtom } from '@/atoms'
+import { useAtom } from 'jotai'
+import { chatSessionIdAtom, chatStreamingAtom } from '@/atoms'
 import { chatApi, subscribeToChatStream } from '@/services'
 import type { ChatMessage, ChatEvent, ClientMessage } from '@/types'
 
@@ -14,17 +14,20 @@ function nextMessageId() {
   return `msg-${++messageIdCounter}`
 }
 
+export interface SendMessageOptions {
+  cwd: string
+  projectSlug?: string
+}
+
 export function useChat() {
   const [sessionId, setSessionId] = useAtom(chatSessionIdAtom)
   const [isStreaming, setIsStreaming] = useAtom(chatStreamingAtom)
-  const projectContext = useAtomValue(chatProjectContextAtom)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const unsubscribeRef = useRef<(() => void) | null>(null)
 
   const handleEvent = useCallback((event: ChatEvent) => {
     setMessages((prev) => {
       const updated = [...prev]
-      // Find or create the current assistant message (the last one with role 'assistant')
       let lastMsg = updated[updated.length - 1]
       if (!lastMsg || lastMsg.role !== 'assistant') {
         lastMsg = { id: nextMessageId(), role: 'assistant', blocks: [], timestamp: new Date() }
@@ -36,7 +39,6 @@ export function useChat() {
 
       switch (event.type) {
         case 'assistant_text': {
-          // Merge consecutive text blocks
           const lastBlock = lastMsg.blocks[lastMsg.blocks.length - 1]
           if (lastBlock && lastBlock.type === 'text') {
             lastMsg.blocks[lastMsg.blocks.length - 1] = {
@@ -54,7 +56,6 @@ export function useChat() {
         }
 
         case 'thinking': {
-          // Merge consecutive thinking blocks
           const lastBlock = lastMsg.blocks[lastMsg.blocks.length - 1]
           if (lastBlock && lastBlock.type === 'thinking') {
             lastMsg.blocks[lastMsg.blocks.length - 1] = {
@@ -84,8 +85,7 @@ export function useChat() {
           })
           break
 
-        case 'tool_result': {
-          // Try to find matching tool_use block and add result as a separate block
+        case 'tool_result':
           lastMsg.blocks.push({
             id: nextBlockId(),
             type: 'tool_result',
@@ -96,7 +96,6 @@ export function useChat() {
             },
           })
           break
-        }
 
         case 'permission_request':
           lastMsg.blocks.push({
@@ -129,7 +128,6 @@ export function useChat() {
           break
 
         case 'result':
-          // Final event: streaming is done
           setIsStreaming(false)
           if (event.cost_usd || event.duration_ms) {
             lastMsg.blocks.push({
@@ -150,7 +148,6 @@ export function useChat() {
   }, [setIsStreaming])
 
   const subscribe = useCallback((sid: string) => {
-    // Clean up previous subscription
     if (unsubscribeRef.current) {
       unsubscribeRef.current()
     }
@@ -165,8 +162,7 @@ export function useChat() {
     )
   }, [handleEvent, setIsStreaming])
 
-  const sendMessage = useCallback(async (text: string) => {
-    // Add user message to the list
+  const sendMessage = useCallback(async (text: string, options?: SendMessageOptions) => {
     setMessages((prev) => [
       ...prev,
       {
@@ -178,16 +174,16 @@ export function useChat() {
     ])
 
     if (!sessionId) {
-      // Create a new session — use project root_path as cwd, fallback to ~
+      // First message — create session with project context
       const response = await chatApi.createSession({
         message: text,
-        cwd: projectContext?.rootPath || '~',
-        project_slug: projectContext?.slug,
+        cwd: options!.cwd,
+        project_slug: options?.projectSlug,
       })
       setSessionId(response.session_id)
       subscribe(response.session_id)
     } else {
-      // Send follow-up message to existing session
+      // Follow-up message
       const message: ClientMessage = { type: 'user_message', text }
       await chatApi.sendMessage(sessionId, message)
       subscribe(sessionId)
@@ -234,7 +230,6 @@ export function useChat() {
     setSessionId(sid)
     setIsStreaming(false)
     setMessages([])
-    // TODO: could load session history from backend if available
   }, [setSessionId, setIsStreaming])
 
   return {
