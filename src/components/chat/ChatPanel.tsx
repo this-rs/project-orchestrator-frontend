@@ -1,5 +1,5 @@
-import { useAtom } from 'jotai'
-import { chatPanelModeAtom } from '@/atoms'
+import { useAtom, useAtomValue } from 'jotai'
+import { chatPanelModeAtom, chatProjectContextAtom } from '@/atoms'
 import { useChat } from '@/hooks'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
@@ -8,6 +8,7 @@ import { useState } from 'react'
 
 export function ChatPanel() {
   const [mode, setMode] = useAtom(chatPanelModeAtom)
+  const projectContext = useAtomValue(chatProjectContextAtom)
   const [showSessions, setShowSessions] = useState(false)
   const chat = useChat()
 
@@ -34,9 +35,16 @@ export function ChatPanel() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <span className="text-sm font-medium text-gray-300 truncate">
-            {chat.sessionId ? 'Chat' : 'New Chat'}
-          </span>
+          <div className="min-w-0">
+            <span className="text-sm font-medium text-gray-300 truncate block">
+              {chat.sessionId ? 'Chat' : 'New Chat'}
+            </span>
+            {projectContext && (
+              <span className="text-[10px] text-gray-500 truncate block">
+                {projectContext.name}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-1">
           <button

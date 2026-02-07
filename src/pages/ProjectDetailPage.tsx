@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useSetAtom } from 'jotai'
 import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LoadingPage, Badge, ProgressBar, PageHeader, SectionNav } from '@/components/ui'
 import { projectsApi, plansApi } from '@/services'
 import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
+import { chatProjectContextAtom } from '@/atoms'
 import { CreateMilestoneForm, CreateReleaseForm } from '@/components/forms'
 import type { Project, Plan, ProjectRoadmap } from '@/types'
 
@@ -14,6 +16,7 @@ export function ProjectDetailPage() {
   const releaseFormDialog = useFormDialog()
   const linkDialog = useLinkDialog()
   const toast = useToast()
+  const setChatProjectContext = useSetAtom(chatProjectContextAtom)
   const [formLoading, setFormLoading] = useState(false)
   const [project, setProject] = useState<Project | null>(null)
   const [plans, setPlans] = useState<Plan[]>([])
@@ -29,6 +32,11 @@ export function ProjectDetailPage() {
         // First get the project
         const projectData = await projectsApi.get(slug)
         setProject(projectData)
+        setChatProjectContext({
+          slug: projectData.slug,
+          rootPath: projectData.root_path,
+          name: projectData.name,
+        })
 
         // Fetch plans filtered by project_id (client-side filter as backend filter doesn't work)
         const allPlansData = await plansApi.list({ limit: 100 })
@@ -248,7 +256,7 @@ export function ProjectDetailPage() {
                   {(roadmap.milestones || []).map(({ milestone, progress }) => (
                     <Link
                       key={milestone.id}
-                      to={`/milestones/${milestone.id}`}
+                      to={`/project-milestones/${milestone.id}`}
                       className="block p-3 bg-white/[0.06] rounded-lg hover:bg-white/[0.06] transition-colors"
                     >
                       <div className="flex items-center justify-between mb-2">

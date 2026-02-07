@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
-import { useAtom } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom } from '@/atoms'
+import { useAtom, useAtomValue } from 'jotai'
+import { chatSessionIdAtom, chatStreamingAtom, chatProjectContextAtom } from '@/atoms'
 import { chatApi, subscribeToChatStream } from '@/services'
 import type { ChatMessage, ChatEvent, ClientMessage } from '@/types'
 
@@ -17,6 +17,7 @@ function nextMessageId() {
 export function useChat() {
   const [sessionId, setSessionId] = useAtom(chatSessionIdAtom)
   const [isStreaming, setIsStreaming] = useAtom(chatStreamingAtom)
+  const projectContext = useAtomValue(chatProjectContextAtom)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const unsubscribeRef = useRef<(() => void) | null>(null)
 
@@ -177,8 +178,12 @@ export function useChat() {
     ])
 
     if (!sessionId) {
-      // Create a new session (first message)
-      const response = await chatApi.createSession({ message: text, cwd: '/' })
+      // Create a new session — use project root_path as cwd, fallback to ~
+      const response = await chatApi.createSession({
+        message: text,
+        cwd: projectContext?.rootPath || '~',
+        project_slug: projectContext?.slug,
+      })
       setSessionId(response.session_id)
       subscribe(response.session_id)
     } else {
