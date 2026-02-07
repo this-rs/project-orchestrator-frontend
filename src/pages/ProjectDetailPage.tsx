@@ -62,7 +62,7 @@ export function ProjectDetailPage() {
       }
     }
     fetchData()
-  }, [slug, projectRefresh, planRefresh, milestoneRefresh])
+  }, [slug, projectRefresh, planRefresh, milestoneRefresh, taskRefresh])
 
   const handleSync = async () => {
     if (!slug) return
