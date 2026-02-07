@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, C
 import { plansApi, tasksApi, projectsApi } from '@/services'
 import { KanbanBoard } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
-import { chatSuggestedProjectIdAtom, planRefreshAtom, taskRefreshAtom } from '@/atoms'
+import { chatSuggestedProjectIdAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import { CreateTaskForm, CreateConstraintForm } from '@/components/forms'
 import type { Plan, DependencyGraph, Task, Constraint, Step, PlanStatus, TaskStatus, StepStatus, PaginatedResponse, Project } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
@@ -27,6 +27,7 @@ export function PlanDetailPage() {
   const setSuggestedProjectId = useSetAtom(chatSuggestedProjectIdAtom)
   const planRefresh = useAtomValue(planRefreshAtom)
   const taskRefresh = useAtomValue(taskRefreshAtom)
+  const projectRefresh = useAtomValue(projectRefreshAtom)
   const [linkedProject, setLinkedProject] = useState<Project | null>(null)
   const [formLoading, setFormLoading] = useState(false)
 
@@ -67,7 +68,7 @@ export function PlanDetailPage() {
       }
     }
     fetchData()
-  }, [planId, planRefresh, taskRefresh])
+  }, [planId, planRefresh, taskRefresh, projectRefresh])
 
   const handleTaskStatusChange = useCallback(
     async (taskId: string, newStatus: TaskStatus) => {
@@ -269,6 +270,7 @@ export function PlanDetailPage() {
                   key={task.id}
                   task={task}
                   onStatusChange={(newStatus) => handleTaskStatusChange(task.id, newStatus)}
+                  refreshTrigger={taskRefresh}
                 />
               ))}
             </div>
@@ -373,28 +375,40 @@ export function PlanDetailPage() {
 function TaskRow({
   task,
   onStatusChange,
+  refreshTrigger,
 }: {
   task: Task
   onStatusChange: (status: TaskStatus) => Promise<void>
+  refreshTrigger?: number
 }) {
   const [expanded, setExpanded] = useState(false)
   const [steps, setSteps] = useState<Step[] | null>(null)
   const [loadingSteps, setLoadingSteps] = useState(false)
   const tags = task.tags || []
 
+  const fetchSteps = useCallback(async () => {
+    try {
+      const response = await tasksApi.listSteps(task.id)
+      setSteps(Array.isArray(response) ? response : [])
+    } catch {
+      setSteps([])
+    }
+  }, [task.id])
+
+  // Re-fetch steps on WS refresh if already loaded
+  useEffect(() => {
+    if (steps !== null) {
+      fetchSteps()
+    }
+  }, [refreshTrigger, fetchSteps])
+
   const toggleExpand = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     if (!expanded && steps === null) {
       setLoadingSteps(true)
-      try {
-        const response = await tasksApi.get(task.id) as unknown as { steps?: Step[] }
-        setSteps(response.steps || [])
-      } catch {
-        setSteps([])
-      } finally {
-        setLoadingSteps(false)
-      }
+      await fetchSteps()
+      setLoadingSteps(false)
     }
     setExpanded(!expanded)
   }

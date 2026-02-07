@@ -1,12 +1,13 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, ConfirmDialog, LinkEntityDialog, ProgressBar, InteractivePlanStatusBadge, TaskStatusBadge, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
+import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, ConfirmDialog, LinkEntityDialog, ProgressBar, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
+import { ExpandablePlanRow, ExpandableTaskRow } from '@/components/expandable'
 import { api, workspacesApi, plansApi, tasksApi } from '@/services'
 import { PlanKanbanBoard } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
-import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom } from '@/atoms'
-import type { WorkspaceMilestone, MilestoneProgress, Plan, Project, Task, Step, MilestoneStatus, PlanStatus, StepStatus, PaginatedResponse } from '@/types'
+import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
+import type { WorkspaceMilestone, MilestoneProgress, Plan, Project, Task, MilestoneStatus, PlanStatus, PaginatedResponse } from '@/types'
 
 export function MilestoneDetailPage() {
   const { milestoneId } = useParams<{ milestoneId: string }>()
@@ -24,6 +25,7 @@ export function MilestoneDetailPage() {
   const milestoneRefresh = useAtomValue(milestoneRefreshAtom)
   const planRefresh = useAtomValue(planRefreshAtom)
   const taskRefresh = useAtomValue(taskRefreshAtom)
+  const projectRefresh = useAtomValue(projectRefreshAtom)
 
   useEffect(() => {
     async function fetchData() {
@@ -92,7 +94,7 @@ export function MilestoneDetailPage() {
       }
     }
     fetchData()
-  }, [milestoneId, milestoneRefresh, planRefresh, taskRefresh])
+  }, [milestoneId, milestoneRefresh, planRefresh, taskRefresh, projectRefresh])
 
   // Helper: fetch tasks via workspace plans (no GET endpoint for milestone tasks)
   const refreshTasksFromPlans = useCallback(async (workspacePlans: Plan[]) => {
@@ -274,6 +276,7 @@ export function MilestoneDetailPage() {
                     setPlans(prev => prev.map(p => p.id === plan.id ? { ...p, status: newStatus } : p))
                     toast.success('Status updated')
                   }}
+                  refreshTrigger={taskRefresh}
                 />
               ))}
             </div>
@@ -314,7 +317,7 @@ export function MilestoneDetailPage() {
           ) : (
             <div className="space-y-2">
               {milestoneTasks.map((task) => (
-                <ExpandableTaskRow key={task.id} task={task} />
+                <ExpandableTaskRow key={task.id} task={task} refreshTrigger={taskRefresh} />
               ))}
             </div>
           )}
@@ -351,264 +354,6 @@ export function MilestoneDetailPage() {
 
       <LinkEntityDialog {...linkDialog.dialogProps} />
       <ConfirmDialog {...confirmDialog.dialogProps} />
-    </div>
-  )
-}
-
-// ── Chevron icon ──────────────────────────────────────────────────────────────
-
-function ChevronIcon({ expanded, className }: { expanded: boolean; className?: string }) {
-  return (
-    <svg
-      className={`w-4 h-4 transition-transform duration-150 ${expanded ? 'rotate-90' : ''} ${className || ''}`}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-    </svg>
-  )
-}
-
-// ── Expandable Plan Row (Plan → Tasks → Steps) ───────────────────────────────
-
-function ExpandablePlanRow({
-  plan,
-  onStatusChange,
-}: {
-  plan: Plan
-  onStatusChange: (newStatus: PlanStatus) => Promise<void>
-}) {
-  const [expanded, setExpanded] = useState(false)
-  const [tasks, setTasks] = useState<Task[] | null>(null)
-  const [loadingTasks, setLoadingTasks] = useState(false)
-
-  const toggleExpand = async (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (!expanded && tasks === null) {
-      setLoadingTasks(true)
-      try {
-        const data = await tasksApi.list({ plan_id: plan.id, limit: 100 })
-        setTasks(data.items || [])
-      } catch {
-        setTasks([])
-      } finally {
-        setLoadingTasks(false)
-      }
-    }
-    setExpanded(!expanded)
-  }
-
-  const taskCount = tasks?.length ?? null
-
-  return (
-    <div className="bg-white/[0.06] rounded-lg overflow-hidden">
-      <div className="flex items-center gap-2 p-3">
-        <button
-          onClick={toggleExpand}
-          className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-300 transition-colors"
-          title={expanded ? 'Replier' : 'Voir les tasks'}
-        >
-          <ChevronIcon expanded={expanded} />
-        </button>
-        <Link
-          to={`/plans/${plan.id}`}
-          className="flex-1 min-w-0 hover:text-indigo-400 transition-colors"
-        >
-          <span className="font-medium text-gray-200">{plan.title}</span>
-          {plan.description && (
-            <p className="text-sm text-gray-400 line-clamp-1 mt-1">{plan.description}</p>
-          )}
-        </Link>
-        {taskCount !== null && taskCount > 0 && (
-          <span className="text-xs text-gray-500 flex-shrink-0">{taskCount} tasks</span>
-        )}
-        <InteractivePlanStatusBadge
-          status={plan.status}
-          onStatusChange={onStatusChange}
-        />
-      </div>
-      {expanded && (
-        <div className="pl-8 pr-3 pb-3 space-y-1.5">
-          {loadingTasks ? (
-            <div className="text-xs text-gray-500 py-2">Loading tasks...</div>
-          ) : tasks && tasks.length > 0 ? (
-            tasks.map((task) => (
-              <NestedTaskRow key={task.id} task={task} />
-            ))
-          ) : (
-            <div className="text-xs text-gray-500 py-1">No tasks</div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Nested Task Row (inside a plan, expandable to show steps) ─────────────────
-
-function NestedTaskRow({ task }: { task: Task }) {
-  const [expanded, setExpanded] = useState(false)
-  const [steps, setSteps] = useState<Step[] | null>(null)
-  const [loadingSteps, setLoadingSteps] = useState(false)
-
-  const toggleExpand = async (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (!expanded && steps === null) {
-      setLoadingSteps(true)
-      try {
-        const response = await tasksApi.get(task.id) as unknown as { steps?: Step[] }
-        setSteps(response.steps || [])
-      } catch {
-        setSteps([])
-      } finally {
-        setLoadingSteps(false)
-      }
-    }
-    setExpanded(!expanded)
-  }
-
-  const completedSteps = steps?.filter(s => s.status === 'completed').length ?? 0
-  const totalSteps = steps?.length ?? 0
-
-  return (
-    <div className="bg-white/[0.04] rounded-lg overflow-hidden">
-      <div className="flex items-center gap-2 p-2">
-        <button
-          onClick={toggleExpand}
-          className="flex-shrink-0 w-5 h-5 flex items-center justify-center text-gray-500 hover:text-gray-300 transition-colors"
-          title={expanded ? 'Replier' : 'Voir les steps'}
-        >
-          <ChevronIcon expanded={expanded} className="!w-3 !h-3" />
-        </button>
-        <Link
-          to={`/tasks/${task.id}`}
-          className="flex-1 min-w-0 text-sm text-gray-300 hover:text-indigo-400 transition-colors truncate"
-        >
-          {task.title || task.description}
-        </Link>
-        {steps !== null && totalSteps > 0 && (
-          <span className="text-[10px] text-gray-500 flex-shrink-0">{completedSteps}/{totalSteps}</span>
-        )}
-        <TaskStatusBadge status={task.status} />
-      </div>
-      {expanded && (
-        <div className="pl-9 pr-2 pb-2 space-y-1">
-          {loadingSteps ? (
-            <div className="text-xs text-gray-500 py-1">Loading...</div>
-          ) : steps && steps.length > 0 ? (
-            steps.map((step, index) => (
-              <CompactStepRow key={step.id || index} step={step} index={index} />
-            ))
-          ) : (
-            <div className="text-xs text-gray-500 py-1">No steps</div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Expandable Task Row (top-level tasks section) ─────────────────────────────
-
-function ExpandableTaskRow({ task }: { task: Task }) {
-  const [expanded, setExpanded] = useState(false)
-  const [steps, setSteps] = useState<Step[] | null>(null)
-  const [loadingSteps, setLoadingSteps] = useState(false)
-
-  const toggleExpand = async (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (!expanded && steps === null) {
-      setLoadingSteps(true)
-      try {
-        const response = await tasksApi.get(task.id) as unknown as { steps?: Step[] }
-        setSteps(response.steps || [])
-      } catch {
-        setSteps([])
-      } finally {
-        setLoadingSteps(false)
-      }
-    }
-    setExpanded(!expanded)
-  }
-
-  const completedSteps = steps?.filter(s => s.status === 'completed').length ?? 0
-  const totalSteps = steps?.length ?? 0
-
-  return (
-    <div className="bg-white/[0.06] rounded-lg overflow-hidden">
-      <div className="flex items-center gap-2 p-3">
-        <button
-          onClick={toggleExpand}
-          className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-300 transition-colors"
-          title={expanded ? 'Replier' : 'Voir les steps'}
-        >
-          <ChevronIcon expanded={expanded} />
-        </button>
-        <Link
-          to={`/tasks/${task.id}`}
-          className="flex-1 min-w-0 hover:text-indigo-400 transition-colors"
-        >
-          <span className="font-medium text-gray-200">{task.title || task.description}</span>
-        </Link>
-        {steps !== null && totalSteps > 0 && (
-          <span className="text-xs text-gray-500 flex-shrink-0">{completedSteps}/{totalSteps}</span>
-        )}
-        <TaskStatusBadge status={task.status} />
-      </div>
-      {expanded && (
-        <div className="pl-11 pr-3 pb-3 space-y-1.5">
-          {loadingSteps ? (
-            <div className="text-xs text-gray-500 py-2">Loading steps...</div>
-          ) : steps && steps.length > 0 ? (
-            steps.map((step, index) => (
-              <CompactStepRow key={step.id || index} step={step} index={index} />
-            ))
-          ) : (
-            <div className="text-xs text-gray-500 py-1">No steps</div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Compact Step Row (read-only) ──────────────────────────────────────────────
-
-const stepStatusColors: Record<StepStatus, string> = {
-  pending: 'bg-white/[0.15]',
-  in_progress: 'bg-blue-600',
-  completed: 'bg-green-600',
-  skipped: 'bg-yellow-600',
-}
-
-const stepStatusLabels: Record<StepStatus, string> = {
-  pending: 'Pending',
-  in_progress: 'In progress',
-  completed: 'Done',
-  skipped: 'Skipped',
-}
-
-function CompactStepRow({ step, index }: { step: Step; index: number }) {
-  return (
-    <div className="flex items-start gap-2 py-1.5 px-2 rounded bg-white/[0.03]">
-      <div
-        className={`w-5 h-5 rounded-full ${stepStatusColors[step.status]} flex items-center justify-center text-[10px] font-medium text-white flex-shrink-0 mt-0.5`}
-      >
-        {step.status === 'completed' ? '✓' : index + 1}
-      </div>
-      <p className="text-sm text-gray-300 flex-1 min-w-0">{step.description}</p>
-      <span className={`text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 ${
-        step.status === 'completed' ? 'bg-green-500/20 text-green-400' :
-        step.status === 'in_progress' ? 'bg-blue-500/20 text-blue-400' :
-        step.status === 'skipped' ? 'bg-yellow-500/20 text-yellow-400' :
-        'bg-white/[0.08] text-gray-500'
-      }`}>
-        {stepStatusLabels[step.status]}
-      </span>
     </div>
   )
 }
