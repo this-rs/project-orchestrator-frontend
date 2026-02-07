@@ -29,7 +29,9 @@ export function ProjectDetailPage() {
   useEffect(() => {
     async function fetchData() {
       if (!slug) return
-      setLoading(true)
+      // Only show loading spinner on initial load, not on WS-triggered refreshes
+      const isInitialLoad = !project
+      if (isInitialLoad) setLoading(true)
       try {
         // First get the project
         const projectData = await projectsApi.get(slug)
@@ -53,7 +55,7 @@ export function ProjectDetailPage() {
       } catch (error) {
         console.error('Failed to fetch project:', error)
       } finally {
-        setLoading(false)
+        if (isInitialLoad) setLoading(false)
       }
     }
     fetchData()

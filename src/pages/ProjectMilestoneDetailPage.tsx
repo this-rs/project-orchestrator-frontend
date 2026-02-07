@@ -54,7 +54,9 @@ export function ProjectMilestoneDetailPage() {
 
   const refreshData = useCallback(async () => {
     if (!milestoneId) return
-    setLoading(true)
+    // Only show loading spinner on initial load, not on WS-triggered refreshes
+    const isInitialLoad = !milestone
+    if (isInitialLoad) setLoading(true)
     try {
       const [response, progressData] = await Promise.all([
         projectsApi.getMilestone(milestoneId),
@@ -90,7 +92,7 @@ export function ProjectMilestoneDetailPage() {
     } catch (error) {
       console.error('Failed to fetch milestone:', error)
     } finally {
-      setLoading(false)
+      if (isInitialLoad) setLoading(false)
     }
   }, [milestoneId, milestoneRefresh, planRefresh, taskRefresh])
 

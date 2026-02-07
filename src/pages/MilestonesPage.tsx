@@ -35,7 +35,9 @@ export function MilestonesPage() {
 
   useEffect(() => {
     async function fetchMilestones() {
-      setLoading(true)
+      // Only show loading spinner on initial load, not on WS-triggered refreshes
+      const isInitialLoad = allMilestones.length === 0
+      if (isInitialLoad) setLoading(true)
       try {
         const workspacesData = await workspacesApi.list()
         const workspacesList = workspacesData.items || []
@@ -76,7 +78,7 @@ export function MilestonesPage() {
         console.error('Failed to fetch milestones:', error)
         toast.error('Failed to load milestones')
       } finally {
-        setLoading(false)
+        if (isInitialLoad) setLoading(false)
       }
     }
     fetchMilestones()

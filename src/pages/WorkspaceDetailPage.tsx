@@ -40,7 +40,9 @@ export function WorkspaceDetailPage() {
   useEffect(() => {
     async function fetchData() {
       if (!slug) return
-      setLoading(true)
+      // Only show loading spinner on initial load, not on WS-triggered refreshes
+      const isInitialLoad = !workspace
+      if (isInitialLoad) setLoading(true)
       try {
         const overviewData = await workspacesApi.getOverview(slug) as unknown as WorkspaceOverviewResponse
 
@@ -66,7 +68,7 @@ export function WorkspaceDetailPage() {
       } catch (error) {
         console.error('Failed to fetch workspace:', error)
       } finally {
-        setLoading(false)
+        if (isInitialLoad) setLoading(false)
       }
     }
     fetchData()

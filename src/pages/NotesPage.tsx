@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { notesAtom, notesLoadingAtom, noteTypeFilterAtom, noteStatusFilterAtom, noteRefreshAtom } from '@/atoms'
 import { notesApi } from '@/services'
@@ -57,9 +57,12 @@ export function NotesPage() {
     }
   }
 
+  const initialLoadDone = useRef(false)
   useEffect(() => {
     async function fetchNotes() {
-      setLoading(true)
+      // Only show loading spinner on initial load, not on WS-triggered refreshes
+      const silent = initialLoadDone.current
+      if (!silent) setLoading(true)
       try {
         const params: { limit: number; offset: number; note_type?: string; status?: string } = { limit: pageSize, offset }
         if (typeFilter !== 'all') {
@@ -75,8 +78,9 @@ export function NotesPage() {
         console.error('Failed to fetch notes:', error)
         toast.error('Failed to load notes')
       } finally {
-        setLoading(false)
+        if (!silent) setLoading(false)
       }
+      initialLoadDone.current = true
     }
     fetchNotes()
   }, [setNotes, setLoading, page, pageSize, offset, typeFilter, statusFilter, noteRefresh])

@@ -38,7 +38,9 @@ export function TaskDetailPage() {
   useEffect(() => {
     async function fetchData() {
       if (!taskId) return
-      setLoading(true)
+      // Only show loading spinner on initial load, not on WS-triggered refreshes
+      const isInitialLoad = !task
+      if (isInitialLoad) setLoading(true)
       try {
         // The API returns { task, steps, decisions, depends_on, modifies_files }
         const response = await tasksApi.get(taskId) as unknown as TaskApiResponse
@@ -61,7 +63,7 @@ export function TaskDetailPage() {
       } catch (error) {
         console.error('Failed to fetch task:', error)
       } finally {
-        setLoading(false)
+        if (isInitialLoad) setLoading(false)
       }
     }
     fetchData()

@@ -114,7 +114,9 @@ export function PlansPage() {
   useEffect(() => {
     if (viewMode !== 'list') return
     async function fetchPlans() {
-      setLoading(true)
+      // Only show loading spinner on initial load, not on WS-triggered refreshes
+      const isInitialLoad = plans.length === 0
+      if (isInitialLoad) setLoading(true)
       try {
         const params: { limit: number; offset: number; status?: string } = { limit: pageSize, offset }
         if (statusFilter !== 'all') {
@@ -127,7 +129,7 @@ export function PlansPage() {
         console.error('Failed to fetch plans:', error)
         toast.error('Failed to load plans')
       } finally {
-        setLoading(false)
+        if (isInitialLoad) setLoading(false)
       }
     }
     fetchPlans()

@@ -33,7 +33,9 @@ export function PlanDetailPage() {
   useEffect(() => {
     async function fetchData() {
       if (!planId) return
-      setLoading(true)
+      // Only show loading spinner on initial load, not on WS-triggered refreshes
+      const isInitialLoad = !plan
+      if (isInitialLoad) setLoading(true)
       try {
         const [planResponse, tasksData, constraintsData, graphData] = await Promise.all([
           plansApi.get(planId),
@@ -61,7 +63,7 @@ export function PlanDetailPage() {
       } catch (error) {
         console.error('Failed to fetch plan:', error)
       } finally {
-        setLoading(false)
+        if (isInitialLoad) setLoading(false)
       }
     }
     fetchData()

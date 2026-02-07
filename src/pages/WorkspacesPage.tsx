@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { Link } from 'react-router-dom'
 import { workspacesAtom, workspacesLoadingAtom, workspaceRefreshAtom } from '@/atoms'
@@ -19,8 +19,8 @@ export function WorkspacesPage() {
   const [formLoading, setFormLoading] = useState(false)
   const wsRefresh = useAtomValue(workspaceRefreshAtom)
 
-  const fetchWorkspaces = async () => {
-    setLoading(true)
+  const fetchWorkspaces = async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const response = await workspacesApi.list({ limit: pageSize, offset })
       setWorkspaces(response.items || [])
@@ -29,12 +29,15 @@ export function WorkspacesPage() {
       console.error('Failed to fetch workspaces:', error)
       toast.error('Failed to load workspaces')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
+  const initialLoadDone = useRef(false)
   useEffect(() => {
-    fetchWorkspaces()
+    const silent = initialLoadDone.current
+    fetchWorkspaces(silent)
+    initialLoadDone.current = true
   }, [setWorkspaces, setLoading, page, pageSize, offset, wsRefresh])
 
   const form = CreateWorkspaceForm({

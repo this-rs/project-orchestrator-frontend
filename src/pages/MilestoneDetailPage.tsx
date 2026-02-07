@@ -28,7 +28,9 @@ export function MilestoneDetailPage() {
   useEffect(() => {
     async function fetchData() {
       if (!milestoneId) return
-      setLoading(true)
+      // Only show loading spinner on initial load, not on WS-triggered refreshes
+      const isInitialLoad = !milestone
+      if (isInitialLoad) setLoading(true)
       try {
         const [milestoneData, progressData] = await Promise.all([
           workspacesApi.getMilestone(milestoneId),
@@ -86,7 +88,7 @@ export function MilestoneDetailPage() {
       } catch (error) {
         console.error('Failed to fetch milestone:', error)
       } finally {
-        setLoading(false)
+        if (isInitialLoad) setLoading(false)
       }
     }
     fetchData()

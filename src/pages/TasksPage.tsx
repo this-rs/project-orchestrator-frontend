@@ -49,7 +49,9 @@ export function TasksPage() {
   useEffect(() => {
     if (viewMode !== 'list') return
     async function fetchTasks() {
-      setLoading(true)
+      // Only show loading spinner on initial load, not on WS-triggered refreshes
+      const isInitialLoad = tasks.length === 0
+      if (isInitialLoad) setLoading(true)
       try {
         const params: { limit: number; offset: number; status?: string } = { limit: pageSize, offset }
         if (statusFilter !== 'all') {
@@ -62,7 +64,7 @@ export function TasksPage() {
         console.error('Failed to fetch tasks:', error)
         toast.error('Failed to load tasks')
       } finally {
-        setLoading(false)
+        if (isInitialLoad) setLoading(false)
       }
     }
     fetchTasks()
