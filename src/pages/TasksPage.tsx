@@ -15,7 +15,7 @@ import {
   ConfirmDialog,
   OverflowMenu,
   PageShell,
-  SelectCheckbox,
+  SelectZone,
   BulkActionBar,
 } from '@/components/ui'
 import { usePagination, useKanbanFilters, useViewMode, useConfirmDialog, useToast, useMultiSelect } from '@/hooks'
@@ -269,10 +269,10 @@ function TaskCard({
   const tags = task.tags || []
   return (
     <Link to={`/tasks/${task.id}`}>
-      <Card className="hover:border-indigo-500 transition-colors">
+      <Card className={`transition-colors ${selected ? 'border-indigo-500/40 bg-indigo-500/[0.05]' : 'hover:border-indigo-500'}`}>
         <div className="flex">
           {onToggleSelect && (
-            <SelectCheckbox checked={!!selected} onChange={onToggleSelect} />
+            <SelectZone selected={!!selected} onToggle={onToggleSelect} />
           )}
           <div className={`w-1 shrink-0 ${!onToggleSelect ? 'rounded-l-xl' : ''} ${taskStatusBarColor[task.status] || 'bg-gray-400'}`} />
           <div className="flex-1 p-3 md:p-4">

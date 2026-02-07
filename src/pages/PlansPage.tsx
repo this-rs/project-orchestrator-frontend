@@ -16,7 +16,7 @@ import {
   FormDialog,
   OverflowMenu,
   PageShell,
-  SelectCheckbox,
+  SelectZone,
   BulkActionBar,
 } from '@/components/ui'
 import { usePagination, useViewMode, useConfirmDialog, useFormDialog, useToast, useMultiSelect } from '@/hooks'
@@ -376,10 +376,10 @@ function PlanCard({
 }) {
   return (
     <Link to={`/plans/${plan.id}`}>
-      <Card className="hover:border-indigo-500 transition-colors">
+      <Card className={`transition-colors ${selected ? 'border-indigo-500/40 bg-indigo-500/[0.05]' : 'hover:border-indigo-500'}`}>
         <div className="flex">
           {onToggleSelect && (
-            <SelectCheckbox checked={!!selected} onChange={onToggleSelect} />
+            <SelectZone selected={!!selected} onToggle={onToggleSelect} />
           )}
           <div className={`w-1 shrink-0 ${!onToggleSelect ? 'rounded-l-xl' : ''} ${planStatusBarColor[plan.status] || 'bg-gray-400'}`} />
           <div className="flex-1 p-3 md:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">

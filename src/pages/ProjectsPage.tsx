@@ -3,7 +3,7 @@ import { useAtom } from 'jotai'
 import { Link } from 'react-router-dom'
 import { projectsAtom, projectsLoadingAtom } from '@/atoms'
 import { projectsApi } from '@/services'
-import { Card, CardContent, Button, LoadingPage, EmptyState, Badge, Pagination, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectCheckbox, BulkActionBar } from '@/components/ui'
+import { Card, CardContent, Button, LoadingPage, EmptyState, Badge, Pagination, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
 import { usePagination, useConfirmDialog, useFormDialog, useToast, useMultiSelect } from '@/hooks'
 import { CreateProjectForm } from '@/components/forms'
 import type { Project } from '@/types'
@@ -144,34 +144,36 @@ export function ProjectsPage() {
 function ProjectCard({ project, onDelete, selected, onToggleSelect }: { project: Project; onDelete: () => void; selected?: boolean; onToggleSelect?: () => void }) {
   return (
     <Link to={`/projects/${project.slug}`}>
-      <Card className="h-full hover:border-indigo-500 transition-colors">
-        <div className="h-0.5 bg-blue-500/50" />
-        <CardContent>
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex items-center gap-1">
-              {onToggleSelect && (
-                <SelectCheckbox checked={!!selected} onChange={onToggleSelect} />
-              )}
-              <h3 className="text-lg font-semibold text-gray-100">{project.name}</h3>
-            </div>
-            <OverflowMenu
-              actions={[
-                { label: 'Delete', variant: 'danger', onClick: () => onDelete() },
-              ]}
-            />
-          </div>
-          {project.description && (
-            <p className="text-sm text-gray-400 line-clamp-2 mb-3">{project.description}</p>
+      <Card className={`h-full transition-colors ${selected ? 'border-indigo-500/40 bg-indigo-500/[0.05]' : 'hover:border-indigo-500'}`}>
+        <div className="flex h-full">
+          {onToggleSelect && (
+            <SelectZone selected={!!selected} onToggle={onToggleSelect} />
           )}
-          <div className="flex items-center justify-between text-xs text-gray-500">
-            <span>
-              {project.last_synced
-                ? `Synced ${new Date(project.last_synced).toLocaleDateString()}`
-                : 'Never synced'}
-            </span>
-            {project.last_synced && <Badge variant="success">Synced</Badge>}
+          <div className="flex-1 min-w-0">
+            <div className="h-0.5 bg-blue-500/50" />
+            <CardContent>
+              <div className="flex items-start justify-between mb-2">
+                <h3 className="text-lg font-semibold text-gray-100">{project.name}</h3>
+                <OverflowMenu
+                  actions={[
+                    { label: 'Delete', variant: 'danger', onClick: () => onDelete() },
+                  ]}
+                />
+              </div>
+              {project.description && (
+                <p className="text-sm text-gray-400 line-clamp-2 mb-3">{project.description}</p>
+              )}
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <span>
+                  {project.last_synced
+                    ? `Synced ${new Date(project.last_synced).toLocaleDateString()}`
+                    : 'Never synced'}
+                </span>
+                {project.last_synced && <Badge variant="success">Synced</Badge>}
+              </div>
+            </CardContent>
           </div>
-        </CardContent>
+        </div>
       </Card>
     </Link>
   )

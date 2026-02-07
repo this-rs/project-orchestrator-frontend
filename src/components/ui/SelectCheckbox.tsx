@@ -1,24 +1,41 @@
-interface SelectCheckboxProps {
-  checked: boolean
-  onChange: () => void
+interface SelectZoneProps {
+  selected: boolean
+  onToggle: () => void
 }
 
-export function SelectCheckbox({ checked, onChange }: SelectCheckboxProps) {
+export function SelectZone({ selected, onToggle }: SelectZoneProps) {
   return (
     <div
       onClick={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        onChange()
+        onToggle()
       }}
-      className="flex items-center justify-center w-10 h-10 md:w-8 md:h-8 shrink-0 self-center cursor-pointer"
+      className={`
+        flex items-center justify-center w-9 shrink-0 cursor-pointer
+        transition-colors duration-150 rounded-l-xl
+        ${selected ? 'bg-indigo-500/20' : 'hover:bg-white/[0.06]'}
+      `}
     >
-      <input
-        type="checkbox"
-        checked={checked}
-        readOnly
-        className="h-4 w-4 rounded border-white/[0.1] bg-[#0f1117] text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0 pointer-events-none"
-      />
+      <div
+        className={`
+          w-5 h-5 rounded-full flex items-center justify-center
+          transition-all duration-150 border-2
+          ${selected
+            ? 'border-indigo-500 bg-indigo-500'
+            : 'border-white/[0.08] hover:border-white/20'
+          }
+        `}
+      >
+        {selected && (
+          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        )}
+      </div>
     </div>
   )
 }
+
+// Keep backward-compatible export name
+export const SelectCheckbox = SelectZone

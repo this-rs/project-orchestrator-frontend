@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Card, LoadingPage, EmptyState, Badge, ProgressBar, InteractiveMilestoneStatusBadge, Pagination, ViewToggle, Select, ConfirmDialog, OverflowMenu, PageShell, SelectCheckbox, BulkActionBar } from '@/components/ui'
+import { Card, LoadingPage, EmptyState, Badge, ProgressBar, InteractiveMilestoneStatusBadge, Pagination, ViewToggle, Select, ConfirmDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
 import { workspacesApi } from '@/services'
 import { usePagination, useViewMode, useConfirmDialog, useToast, useMultiSelect } from '@/hooks'
 import { MilestoneKanbanBoard } from '@/components/kanban'
@@ -269,10 +269,10 @@ function MilestoneCard({
 
   return (
     <Link to={`/milestones/${milestone.id}`}>
-      <Card className="hover:border-indigo-500 transition-colors">
+      <Card className={`transition-colors ${selected ? 'border-indigo-500/40 bg-indigo-500/[0.05]' : 'hover:border-indigo-500'}`}>
         <div className="flex">
           {onToggleSelect && (
-            <SelectCheckbox checked={!!selected} onChange={onToggleSelect} />
+            <SelectZone selected={!!selected} onToggle={onToggleSelect} />
           )}
           <div className={`w-1 shrink-0 ${!onToggleSelect ? 'rounded-l-xl' : ''} ${milestoneStatusBarColor[statusKey] || 'bg-gray-400'}`} />
           <div className="flex-1 p-3 md:p-4">

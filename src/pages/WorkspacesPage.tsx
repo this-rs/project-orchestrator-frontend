@@ -3,7 +3,7 @@ import { useAtom } from 'jotai'
 import { Link } from 'react-router-dom'
 import { workspacesAtom, workspacesLoadingAtom } from '@/atoms'
 import { workspacesApi } from '@/services'
-import { Card, CardContent, Button, LoadingPage, EmptyState, Pagination, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectCheckbox, BulkActionBar } from '@/components/ui'
+import { Card, CardContent, Button, LoadingPage, EmptyState, Pagination, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
 import { usePagination, useConfirmDialog, useFormDialog, useToast, useMultiSelect } from '@/hooks'
 import { CreateWorkspaceForm } from '@/components/forms'
 import type { Workspace } from '@/types'
@@ -144,29 +144,31 @@ export function WorkspacesPage() {
 function WorkspaceCard({ workspace, onDelete, selected, onToggleSelect }: { workspace: Workspace; onDelete: () => void; selected?: boolean; onToggleSelect?: () => void }) {
   return (
     <Link to={`/workspaces/${workspace.slug}`}>
-      <Card className="h-full hover:border-indigo-500 transition-colors">
-        <div className="h-0.5 bg-indigo-500/50" />
-        <CardContent>
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex items-center gap-1">
-              {onToggleSelect && (
-                <SelectCheckbox checked={!!selected} onChange={onToggleSelect} />
-              )}
-              <h3 className="text-lg font-semibold text-gray-100">{workspace.name}</h3>
-            </div>
-            <OverflowMenu
-              actions={[
-                { label: 'Delete', variant: 'danger', onClick: () => onDelete() },
-              ]}
-            />
-          </div>
-          {workspace.description && (
-            <p className="text-sm text-gray-400 line-clamp-2">{workspace.description}</p>
+      <Card className={`h-full transition-colors ${selected ? 'border-indigo-500/40 bg-indigo-500/[0.05]' : 'hover:border-indigo-500'}`}>
+        <div className="flex h-full">
+          {onToggleSelect && (
+            <SelectZone selected={!!selected} onToggle={onToggleSelect} />
           )}
-          <div className="mt-4 text-xs text-gray-500">
-            Created {new Date(workspace.created_at).toLocaleDateString()}
+          <div className="flex-1 min-w-0">
+            <div className="h-0.5 bg-indigo-500/50" />
+            <CardContent>
+              <div className="flex items-start justify-between mb-2">
+                <h3 className="text-lg font-semibold text-gray-100">{workspace.name}</h3>
+                <OverflowMenu
+                  actions={[
+                    { label: 'Delete', variant: 'danger', onClick: () => onDelete() },
+                  ]}
+                />
+              </div>
+              {workspace.description && (
+                <p className="text-sm text-gray-400 line-clamp-2">{workspace.description}</p>
+              )}
+              <div className="mt-4 text-xs text-gray-500">
+                Created {new Date(workspace.created_at).toLocaleDateString()}
+              </div>
+            </CardContent>
           </div>
-        </CardContent>
+        </div>
       </Card>
     </Link>
   )

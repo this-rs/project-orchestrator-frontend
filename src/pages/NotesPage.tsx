@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAtom } from 'jotai'
 import { notesAtom, notesLoadingAtom, noteTypeFilterAtom, noteStatusFilterAtom } from '@/atoms'
 import { notesApi } from '@/services'
-import { Card, CardContent, Button, LoadingPage, EmptyState, Select, NoteStatusBadge, ImportanceBadge, Badge, Pagination, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectCheckbox, BulkActionBar } from '@/components/ui'
+import { Card, CardContent, Button, LoadingPage, EmptyState, Select, NoteStatusBadge, ImportanceBadge, Badge, Pagination, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
 import { usePagination, useConfirmDialog, useFormDialog, useToast, useMultiSelect } from '@/hooks'
 import { CreateNoteForm } from '@/components/forms'
 import type { Note, NoteType, NoteStatus } from '@/types'
@@ -222,12 +222,12 @@ function NoteCard({ note, onDelete, selected, onToggleSelect }: { note: Note; on
   }
 
   return (
-    <Card className={`border-l-4 ${typeColors[note.note_type] || 'border-l-gray-500'}`}>
+    <Card className={`border-l-4 ${typeColors[note.note_type] || 'border-l-gray-500'} transition-colors ${selected ? 'border-l-indigo-500 bg-indigo-500/[0.05]' : ''}`}>
       <div className="flex">
         {onToggleSelect && (
-          <SelectCheckbox checked={!!selected} onChange={onToggleSelect} />
+          <SelectZone selected={!!selected} onToggle={onToggleSelect} />
         )}
-      <CardContent className="flex-1">
+        <CardContent className="flex-1">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="default">{note.note_type}</Badge>
