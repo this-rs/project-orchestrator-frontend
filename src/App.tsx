@@ -6,6 +6,7 @@ import {
   WorkspaceDetailPage,
   MilestonesPage,
   MilestoneDetailPage,
+  ProjectMilestoneDetailPage,
   ProjectsPage,
   ProjectDetailPage,
   PlansPage,
@@ -27,6 +28,7 @@ function App() {
             <Route path="workspaces/:slug" element={<WorkspaceDetailPage />} />
             <Route path="milestones" element={<MilestonesPage />} />
             <Route path="milestones/:milestoneId" element={<MilestoneDetailPage />} />
+            <Route path="project-milestones/:milestoneId" element={<ProjectMilestoneDetailPage />} />
             <Route path="projects" element={<ProjectsPage />} />
             <Route path="projects/:slug" element={<ProjectDetailPage />} />
             <Route path="plans" element={<PlansPage />} />
