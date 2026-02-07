@@ -5,5 +5,6 @@ import type { ChatPanelMode } from '@/types'
 export const chatSuggestedProjectIdAtom = atom<string | null>(null)
 
 export const chatPanelModeAtom = atom<ChatPanelMode>('closed')
+export const chatPanelWidthAtom = atom<number>(400)
 export const chatSessionIdAtom = atom<string | null>(null)
 export const chatStreamingAtom = atom<boolean>(false)

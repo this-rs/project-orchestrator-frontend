@@ -1,26 +1,58 @@
 import { useAtom } from 'jotai'
-import { chatPanelModeAtom } from '@/atoms'
+import { chatPanelModeAtom, chatPanelWidthAtom } from '@/atoms'
 import { useChat } from '@/hooks'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
 import { SessionList } from './SessionList'
 import { ProjectSelect } from './ProjectSelect'
-import { useState } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import type { Project } from '@/types'
+
+const MIN_WIDTH = 320
+const MAX_WIDTH = 800
 
 export function ChatPanel() {
   const [mode, setMode] = useAtom(chatPanelModeAtom)
+  const [panelWidth, setPanelWidth] = useAtom(chatPanelWidthAtom)
   const [showSessions, setShowSessions] = useState(false)
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
   const chat = useChat()
+  const panelRef = useRef<HTMLDivElement>(null)
 
   const isOpen = mode !== 'closed'
   const isFullscreen = mode === 'fullscreen'
   const isNewConversation = !chat.sessionId
 
-  const panelClasses = isFullscreen
-    ? 'fixed inset-0 z-30'
-    : 'fixed top-0 right-0 bottom-0 w-full sm:w-[400px] z-30'
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }, [])
+
+  useEffect(() => {
+    if (!isDragging) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = window.innerWidth - e.clientX
+      setPanelWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, newWidth)))
+    }
+
+    const handleMouseUp = () => {
+      setIsDragging(false)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isDragging, setPanelWidth])
 
   const handleSend = (text: string) => {
     if (isNewConversation && !selectedProject) return
@@ -39,8 +71,17 @@ export function ChatPanel() {
 
   return (
     <div
-      className={`${panelClasses} bg-[#1a1d27] border-l border-white/[0.06] flex flex-col transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+      ref={panelRef}
+      className={`fixed z-30 bg-[#1a1d27] border-l border-white/[0.06] flex flex-col ${isDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isOpen ? 'translate-x-0' : 'translate-x-full'} ${isFullscreen ? 'inset-0' : 'top-0 right-0 bottom-0 w-full'}`}
+      style={!isFullscreen ? { maxWidth: panelWidth } : undefined}
     >
+      {/* Resize handle */}
+      {!isFullscreen && (
+        <div
+          onMouseDown={handleMouseDown}
+          className={`absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-10 hover:bg-indigo-500/40 transition-colors ${isDragging ? 'bg-indigo-500/50' : ''}`}
+        />
+      )}
       {/* Header */}
       <div className="h-14 flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0">
         <div className="flex items-center gap-2 min-w-0">
