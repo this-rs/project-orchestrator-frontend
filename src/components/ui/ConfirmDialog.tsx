@@ -60,11 +60,11 @@ export function ConfirmDialog({
     setLoading(true)
     try {
       await onConfirm()
-      onClose()
     } catch (error) {
       console.error('Confirm action failed:', error)
     } finally {
       setLoading(false)
+      onClose()
     }
   }
 
