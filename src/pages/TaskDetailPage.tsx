@@ -4,7 +4,7 @@ import { useAtomValue } from 'jotai'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, TaskStatusBadge, InteractiveStepStatusBadge, ProgressBar, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import { tasksApi } from '@/services'
 import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
-import { taskRefreshAtom } from '@/atoms'
+import { taskRefreshAtom, projectRefreshAtom, planRefreshAtom } from '@/atoms'
 import { CreateStepForm, CreateDecisionForm } from '@/components/forms'
 import type { Task, Step, Decision, Commit, TaskStatus, StepStatus } from '@/types'
 
@@ -26,6 +26,8 @@ export function TaskDetailPage() {
   const linkDialog = useLinkDialog()
   const toast = useToast()
   const taskRefresh = useAtomValue(taskRefreshAtom)
+  const projectRefresh = useAtomValue(projectRefreshAtom)
+  const planRefresh = useAtomValue(planRefreshAtom)
   const [formLoading, setFormLoading] = useState(false)
   const [task, setTask] = useState<Task | null>(null)
   const [steps, setSteps] = useState<Step[]>([])
@@ -67,7 +69,7 @@ export function TaskDetailPage() {
       }
     }
     fetchData()
-  }, [taskId, taskRefresh])
+  }, [taskId, taskRefresh, projectRefresh, planRefresh])
 
   const stepForm = CreateStepForm({
     onSubmit: async (data) => {
