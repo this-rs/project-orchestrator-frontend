@@ -1,4 +1,6 @@
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import rehypeHighlight from 'rehype-highlight'
 import type { ChatMessage } from '@/types'
 import { ThinkingBlock } from './ThinkingBlock'
 import { ToolCallBlock } from './ToolCallBlock'
@@ -33,8 +35,10 @@ export function ChatMessageBubble({ message, isStreaming, onRespondPermission, o
               // Skip empty metadata-only blocks (result cost info)
               if (!block.content && block.metadata) return null
               return (
-                <div key={block.id} className="prose prose-invert prose-sm max-w-none break-words overflow-x-auto [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                  <ReactMarkdown>{block.content}</ReactMarkdown>
+                <div key={block.id} className="chat-markdown prose prose-invert prose-sm max-w-none break-words overflow-x-auto [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+                    {block.content}
+                  </ReactMarkdown>
                 </div>
               )
             }
