@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, C
 import { plansApi, tasksApi, projectsApi } from '@/services'
 import { KanbanBoard } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
-import { chatSuggestedProjectIdAtom, planRefreshAtom, taskRefreshAtom } from '@/atoms'
+import { chatSuggestedProjectIdAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import { CreateTaskForm, CreateConstraintForm } from '@/components/forms'
 import type { Plan, DependencyGraph, Task, Constraint, Step, PlanStatus, TaskStatus, StepStatus, PaginatedResponse, Project } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
@@ -27,6 +27,7 @@ export function PlanDetailPage() {
   const setSuggestedProjectId = useSetAtom(chatSuggestedProjectIdAtom)
   const planRefresh = useAtomValue(planRefreshAtom)
   const taskRefresh = useAtomValue(taskRefreshAtom)
+  const projectRefresh = useAtomValue(projectRefreshAtom)
   const [linkedProject, setLinkedProject] = useState<Project | null>(null)
   const [formLoading, setFormLoading] = useState(false)
 
@@ -67,7 +68,7 @@ export function PlanDetailPage() {
       }
     }
     fetchData()
-  }, [planId, planRefresh, taskRefresh])
+  }, [planId, planRefresh, taskRefresh, projectRefresh])
 
   const handleTaskStatusChange = useCallback(
     async (taskId: string, newStatus: TaskStatus) => {
