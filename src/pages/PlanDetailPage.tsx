@@ -1,9 +1,11 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useSetAtom } from 'jotai'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, TaskStatusBadge, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import { plansApi, tasksApi, projectsApi } from '@/services'
 import { KanbanBoard } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
+import { chatSuggestedProjectIdAtom } from '@/atoms'
 import { CreateTaskForm, CreateConstraintForm } from '@/components/forms'
 import type { Plan, DependencyGraph, Task, Constraint, Step, PlanStatus, TaskStatus, StepStatus, PaginatedResponse, Project } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
@@ -22,6 +24,7 @@ export function PlanDetailPage() {
   const constraintFormDialog = useFormDialog()
   const linkDialog = useLinkDialog()
   const toast = useToast()
+  const setSuggestedProjectId = useSetAtom(chatSuggestedProjectIdAtom)
   const [linkedProject, setLinkedProject] = useState<Project | null>(null)
   const [formLoading, setFormLoading] = useState(false)
 
@@ -48,6 +51,7 @@ export function PlanDetailPage() {
             const allProjects = await projectsApi.list()
             const proj = (allProjects.items || []).find(p => p.id === planData.project_id)
             setLinkedProject(proj || null)
+            if (proj) setSuggestedProjectId(proj.id)
           } catch { setLinkedProject(null) }
         } else {
           setLinkedProject(null)

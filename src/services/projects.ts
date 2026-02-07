@@ -2,6 +2,7 @@ import { api, buildQuery } from './api'
 import type {
   Project,
   Plan,
+  Task,
   Milestone,
   Release,
   ProjectRoadmap,
@@ -48,7 +49,7 @@ export const projectsApi = {
     api.post<Milestone>(`/projects/${projectId}/milestones`, data),
 
   getMilestone: (milestoneId: string) =>
-    api.get<Milestone & { tasks: { id: string; title: string; status: string }[] }>(
+    api.get<{ milestone: Milestone; tasks: Task[] }>(
       `/milestones/${milestoneId}`
     ),
 
