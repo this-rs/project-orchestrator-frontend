@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { useSetAtom } from 'jotai'
+import { useSetAtom, useAtomValue } from 'jotai'
 import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LoadingPage, Badge, ProgressBar, PageHeader, SectionNav } from '@/components/ui'
 import { projectsApi, plansApi } from '@/services'
 import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
-import { chatSuggestedProjectIdAtom } from '@/atoms'
+import { chatSuggestedProjectIdAtom, projectRefreshAtom, planRefreshAtom } from '@/atoms'
 import { CreateMilestoneForm, CreateReleaseForm } from '@/components/forms'
 import type { Project, Plan, ProjectRoadmap } from '@/types'
 
@@ -17,6 +17,8 @@ export function ProjectDetailPage() {
   const linkDialog = useLinkDialog()
   const toast = useToast()
   const setSuggestedProjectId = useSetAtom(chatSuggestedProjectIdAtom)
+  const projectRefresh = useAtomValue(projectRefreshAtom)
+  const planRefresh = useAtomValue(planRefreshAtom)
   const [formLoading, setFormLoading] = useState(false)
   const [project, setProject] = useState<Project | null>(null)
   const [plans, setPlans] = useState<Plan[]>([])
@@ -55,7 +57,7 @@ export function ProjectDetailPage() {
       }
     }
     fetchData()
-  }, [slug])
+  }, [slug, projectRefresh, planRefresh])
 
   const handleSync = async () => {
     if (!slug) return

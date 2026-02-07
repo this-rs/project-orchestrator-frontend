@@ -1,9 +1,11 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useAtomValue } from 'jotai'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, ConfirmDialog, LinkEntityDialog, ProgressBar, InteractivePlanStatusBadge, TaskStatusBadge, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import { api, workspacesApi, plansApi, tasksApi } from '@/services'
 import { PlanKanbanBoard } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
+import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom } from '@/atoms'
 import type { WorkspaceMilestone, MilestoneProgress, Plan, Project, Task, Step, MilestoneStatus, PlanStatus, StepStatus, PaginatedResponse } from '@/types'
 
 export function MilestoneDetailPage() {
@@ -19,6 +21,9 @@ export function MilestoneDetailPage() {
   const confirmDialog = useConfirmDialog()
   const linkDialog = useLinkDialog()
   const toast = useToast()
+  const milestoneRefresh = useAtomValue(milestoneRefreshAtom)
+  const planRefresh = useAtomValue(planRefreshAtom)
+  const taskRefresh = useAtomValue(taskRefreshAtom)
 
   useEffect(() => {
     async function fetchData() {
@@ -85,7 +90,7 @@ export function MilestoneDetailPage() {
       }
     }
     fetchData()
-  }, [milestoneId])
+  }, [milestoneId, milestoneRefresh, planRefresh, taskRefresh])
 
   // Helper: fetch tasks via workspace plans (no GET endpoint for milestone tasks)
   const refreshTasksFromPlans = useCallback(async (workspacePlans: Plan[]) => {
@@ -254,6 +259,7 @@ export function MilestoneDetailPage() {
               fetchFn={kanbanFetchFn}
               onPlanStatusChange={handlePlanStatusChange}
               onPlanClick={(planId) => navigate(`/plans/${planId}`)}
+              refreshTrigger={planRefresh}
             />
           ) : (
             <div className="space-y-2">

@@ -182,6 +182,7 @@ export function TasksPage() {
           hiddenStatuses={hiddenStatuses}
           onTaskStatusChange={handleTaskStatusChange}
           onTaskClick={handleTaskClick}
+          refreshTrigger={taskRefresh}
         />
       ) : tasks.length === 0 ? (
         <EmptyState

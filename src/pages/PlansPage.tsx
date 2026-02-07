@@ -286,6 +286,7 @@ export function PlansPage() {
           hiddenStatuses={hiddenStatuses}
           onPlanStatusChange={handlePlanStatusChange}
           onPlanClick={(planId) => navigate(`/plans/${planId}`)}
+          refreshTrigger={planRefresh}
         />
       ) : plans.length === 0 ? (
         <EmptyState

@@ -1,11 +1,11 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { useSetAtom } from 'jotai'
+import { useSetAtom, useAtomValue } from 'jotai'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, TaskStatusBadge, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import { plansApi, tasksApi, projectsApi } from '@/services'
 import { KanbanBoard } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
-import { chatSuggestedProjectIdAtom } from '@/atoms'
+import { chatSuggestedProjectIdAtom, planRefreshAtom, taskRefreshAtom } from '@/atoms'
 import { CreateTaskForm, CreateConstraintForm } from '@/components/forms'
 import type { Plan, DependencyGraph, Task, Constraint, Step, PlanStatus, TaskStatus, StepStatus, PaginatedResponse, Project } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
@@ -25,6 +25,8 @@ export function PlanDetailPage() {
   const linkDialog = useLinkDialog()
   const toast = useToast()
   const setSuggestedProjectId = useSetAtom(chatSuggestedProjectIdAtom)
+  const planRefresh = useAtomValue(planRefreshAtom)
+  const taskRefresh = useAtomValue(taskRefreshAtom)
   const [linkedProject, setLinkedProject] = useState<Project | null>(null)
   const [formLoading, setFormLoading] = useState(false)
 
@@ -63,7 +65,7 @@ export function PlanDetailPage() {
       }
     }
     fetchData()
-  }, [planId])
+  }, [planId, planRefresh, taskRefresh])
 
   const handleTaskStatusChange = useCallback(
     async (taskId: string, newStatus: TaskStatus) => {
@@ -256,6 +258,7 @@ export function PlanDetailPage() {
               fetchFn={kanbanFetchFn}
               onTaskStatusChange={handleTaskStatusChange}
               onTaskClick={(taskId) => navigate(`/tasks/${taskId}`)}
+              refreshTrigger={taskRefresh}
             />
           ) : (
             <div className="space-y-2">
