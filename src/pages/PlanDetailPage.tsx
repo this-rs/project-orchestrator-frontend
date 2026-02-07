@@ -388,8 +388,8 @@ function TaskRow({
 
   const fetchSteps = useCallback(async () => {
     try {
-      const response = await tasksApi.get(task.id) as unknown as { steps?: Step[] }
-      setSteps(response.steps || [])
+      const response = await tasksApi.listSteps(task.id)
+      setSteps(Array.isArray(response) ? response : [])
     } catch {
       setSteps([])
     }
@@ -400,7 +400,7 @@ function TaskRow({
     if (steps !== null) {
       fetchSteps()
     }
-  }, [refreshTrigger])
+  }, [refreshTrigger, fetchSteps])
 
   const toggleExpand = async (e: React.MouseEvent) => {
     e.preventDefault()

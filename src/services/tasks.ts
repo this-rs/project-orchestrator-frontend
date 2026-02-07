@@ -50,7 +50,7 @@ export const tasksApi = {
 
   // Steps
   listSteps: (taskId: string) =>
-    api.get<{ items: Step[] }>(`/tasks/${taskId}/steps`),
+    api.get<Step[]>(`/tasks/${taskId}/steps`),
 
   addStep: (taskId: string, data: { description: string; verification?: string }) =>
     api.post<Step>(`/tasks/${taskId}/steps`, data),
