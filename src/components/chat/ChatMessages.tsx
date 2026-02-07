@@ -53,6 +53,13 @@ export function ChatMessages({ messages, isStreaming, onRespondPermission, onRes
           onRespondInput={onRespondInput}
         />
       ))}
+      {isStreaming && messages[messages.length - 1]?.role === 'user' && (
+        <div className="mb-4 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-[bounce_1s_ease-in-out_infinite]" />
+          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-[bounce_1s_ease-in-out_0.15s_infinite]" />
+          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-[bounce_1s_ease-in-out_0.3s_infinite]" />
+        </div>
+      )}
     </div>
   )
 }
