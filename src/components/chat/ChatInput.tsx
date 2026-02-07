@@ -44,7 +44,7 @@ export function ChatInput({ onSend, onInterrupt, isStreaming, disabled }: ChatIn
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={disabled || isStreaming}
+          disabled={disabled}
           rows={1}
           placeholder="Send a message..."
           className="flex-1 resize-none bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/40 disabled:opacity-50"
