@@ -230,8 +230,10 @@ export function PlansPage() {
       description: `This will permanently delete ${count} plan${count > 1 ? 's' : ''} and all their tasks.`,
       onConfirm: async () => {
         const items = multiSelect.selectedItems
-        for (const item of items) {
-          await plansApi.delete(item.id)
+        confirmDialog.setProgress({ current: 0, total: items.length })
+        for (let i = 0; i < items.length; i++) {
+          await plansApi.delete(items[i].id)
+          confirmDialog.setProgress({ current: i + 1, total: items.length })
         }
         setPlans((prev) => prev.filter((p) => !multiSelect.selectedIds.has(p.id)))
         setTotal((prev) => prev - items.length)

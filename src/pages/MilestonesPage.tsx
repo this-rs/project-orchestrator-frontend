@@ -128,8 +128,10 @@ export function MilestonesPage() {
       description: `This will permanently delete ${count} milestone${count > 1 ? 's' : ''}.`,
       onConfirm: async () => {
         const items = multiSelect.selectedItems
-        for (const item of items) {
-          await workspacesApi.deleteMilestone(item.id)
+        confirmDialog.setProgress({ current: 0, total: items.length })
+        for (let i = 0; i < items.length; i++) {
+          await workspacesApi.deleteMilestone(items[i].id)
+          confirmDialog.setProgress({ current: i + 1, total: items.length })
         }
         setAllMilestones((prev) => prev.filter((m) => !multiSelect.selectedIds.has(m.id)))
         multiSelect.clear()

@@ -64,8 +64,10 @@ export function ProjectsPage() {
       description: `This will permanently delete ${count} project${count > 1 ? 's' : ''}.`,
       onConfirm: async () => {
         const items = multiSelect.selectedItems
-        for (const item of items) {
-          await projectsApi.delete(item.slug)
+        confirmDialog.setProgress({ current: 0, total: items.length })
+        for (let i = 0; i < items.length; i++) {
+          await projectsApi.delete(items[i].slug)
+          confirmDialog.setProgress({ current: i + 1, total: items.length })
         }
         setProjects((prev) => prev.filter((p) => !multiSelect.selectedIds.has(p.slug)))
         setTotal((prev) => prev - items.length)

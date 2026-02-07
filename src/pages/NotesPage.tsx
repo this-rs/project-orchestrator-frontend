@@ -116,8 +116,10 @@ export function NotesPage() {
       description: `This will permanently delete ${count} note${count > 1 ? 's' : ''}.`,
       onConfirm: async () => {
         const items = multiSelect.selectedItems
-        for (const item of items) {
-          await notesApi.delete(item.id)
+        confirmDialog.setProgress({ current: 0, total: items.length })
+        for (let i = 0; i < items.length; i++) {
+          await notesApi.delete(items[i].id)
+          confirmDialog.setProgress({ current: i + 1, total: items.length })
         }
         setNotes((prev) => prev.filter((n) => !multiSelect.selectedIds.has(n.id)))
         setTotal((prev) => prev - items.length)

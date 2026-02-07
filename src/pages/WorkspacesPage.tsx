@@ -64,8 +64,10 @@ export function WorkspacesPage() {
       description: `This will permanently delete ${count} workspace${count > 1 ? 's' : ''}. Projects will not be deleted.`,
       onConfirm: async () => {
         const items = multiSelect.selectedItems
-        for (const item of items) {
-          await workspacesApi.delete(item.slug)
+        confirmDialog.setProgress({ current: 0, total: items.length })
+        for (let i = 0; i < items.length; i++) {
+          await workspacesApi.delete(items[i].slug)
+          confirmDialog.setProgress({ current: i + 1, total: items.length })
         }
         setWorkspaces((prev) => prev.filter((w) => !multiSelect.selectedIds.has(w.slug)))
         setTotal((prev) => prev - items.length)

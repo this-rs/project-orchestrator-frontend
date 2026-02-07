@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from './Button'
+import { ProgressBar } from './ProgressBar'
 
 export interface ConfirmDialogProps {
   open: boolean
@@ -11,6 +12,7 @@ export interface ConfirmDialogProps {
   confirmLabel?: string
   cancelLabel?: string
   variant?: 'danger' | 'warning'
+  progress?: { current: number; total: number } | null
 }
 
 export function ConfirmDialog({
@@ -22,6 +24,7 @@ export function ConfirmDialog({
   confirmLabel = 'Delete',
   cancelLabel = 'Cancel',
   variant = 'danger',
+  progress,
 }: ConfirmDialogProps) {
   const [loading, setLoading] = useState(false)
   const cancelRef = useRef<HTMLButtonElement>(null)
@@ -97,6 +100,14 @@ export function ConfirmDialog({
             </h3>
             {description && (
               <p className="mt-2 text-sm text-gray-400">{description}</p>
+            )}
+            {loading && progress && progress.total > 0 && (
+              <div className="mt-3">
+                <ProgressBar value={progress.current} max={progress.total} size="sm" />
+                <p className="text-xs text-gray-500 mt-1">
+                  {progress.current} / {progress.total}
+                </p>
+              </div>
             )}
           </div>
         </div>
