@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useAtom } from 'jotai'
-import { sidebarCollapsedAtom } from '@/atoms'
+import { sidebarCollapsedAtom, chatPanelModeAtom } from '@/atoms'
 import { ToastContainer } from '@/components/ui'
+import { ChatPanel } from '@/components/chat'
 
 const navGroups = [
   {
@@ -85,8 +86,11 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
 
 export function MainLayout() {
   const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom)
+  const [chatMode, setChatMode] = useAtom(chatPanelModeAtom)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const location = useLocation()
+  const chatOpen = chatMode === 'open'
+  const chatFullscreen = chatMode === 'fullscreen'
 
   // Close mobile menu on navigation
   useEffect(() => {
@@ -161,7 +165,10 @@ export function MainLayout() {
       </div>
 
       {/* Main content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main
+        className="flex-1 flex flex-col overflow-hidden transition-[margin] duration-300"
+        style={{ marginRight: chatOpen && !chatFullscreen ? 400 : 0 }}
+      >
         {/* Breadcrumb */}
         <header className="h-16 flex items-center px-4 md:px-6 border-b border-white/[0.06] bg-[#1a1d27]/80 backdrop-blur-sm">
           {/* Hamburger button (mobile only) */}
@@ -173,6 +180,15 @@ export function MainLayout() {
           </button>
 
           <Breadcrumb pathname={location.pathname} />
+
+          {/* Chat toggle */}
+          <button
+            onClick={() => setChatMode(chatMode === 'closed' ? 'open' : 'closed')}
+            className={`ml-auto p-2 rounded-lg transition-colors ${chatMode !== 'closed' ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.06]'}`}
+            title="Toggle chat"
+          >
+            <ChatIcon className="w-5 h-5" />
+          </button>
         </header>
 
         {/* Page content */}
@@ -181,6 +197,7 @@ export function MainLayout() {
         </div>
       </main>
 
+      <ChatPanel />
       <ToastContainer />
     </div>
   )
@@ -302,6 +319,14 @@ function ChevronRightIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+    </svg>
+  )
+}
+
+function ChatIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
     </svg>
   )
 }

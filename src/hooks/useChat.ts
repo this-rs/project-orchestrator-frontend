@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react'
 import { useAtom } from 'jotai'
 import { chatSessionIdAtom, chatStreamingAtom } from '@/atoms'
 import { chatApi, subscribeToChatStream } from '@/services'
-import type { ChatMessage, ContentBlock, ChatEvent, ClientMessage } from '@/types'
+import type { ChatMessage, ChatEvent, ClientMessage } from '@/types'
 
 let blockIdCounter = 0
 function nextBlockId() {
