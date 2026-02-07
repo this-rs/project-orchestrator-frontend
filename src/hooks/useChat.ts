@@ -178,7 +178,7 @@ export function useChat() {
 
     if (!sessionId) {
       // Create a new session (first message)
-      const response = await chatApi.createSession({ message: text })
+      const response = await chatApi.createSession({ message: text, cwd: '/' })
       setSessionId(response.session_id)
       subscribe(response.session_id)
     } else {

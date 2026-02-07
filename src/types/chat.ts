@@ -17,7 +17,7 @@ export interface ChatSession {
 
 export interface CreateSessionRequest {
   message: string
-  cwd?: string
+  cwd: string
   session_id?: string
   project_slug?: string
   model?: string
