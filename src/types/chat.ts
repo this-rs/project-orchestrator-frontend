@@ -60,6 +60,8 @@ export type ChatEvent =
   | { type: 'ask_user_question'; questions: AskUserQuestion[] }
   | { type: 'result'; session_id: string; duration_ms: number; cost_usd?: number }
   | { type: 'error'; message: string }
+  | { type: 'partial_text'; content: string }
+  | { type: 'streaming_status'; is_streaming: boolean }
 
 // ============================================================================
 // CLIENT MESSAGES

@@ -40,6 +40,14 @@ export function useChat() {
   // Event handler — processes both live and replayed events
   // ========================================================================
   const handleEvent = useCallback((event: ChatEvent & { seq?: number; replaying?: boolean }) => {
+    // streaming_status — set isStreaming flag without touching messages
+    if (event.type === 'streaming_status') {
+      if ((event as { is_streaming?: boolean }).is_streaming) {
+        setIsStreaming(true)
+      }
+      return
+    }
+
     // user_message events from broadcast — add as user message
     if (event.type === 'user_message' && 'content' in event) {
       // During replay, reconstruct user messages; during live, they appear via broadcast
@@ -238,6 +246,21 @@ export function useChat() {
             type: 'error',
             content: (data as { message?: string }).message ?? 'Unknown error',
           })
+          break
+        }
+
+        case 'partial_text': {
+          // Mid-stream join: bulk text accumulated before this client connected
+          const content = event.replaying
+            ? ((event as { data?: { content?: string } }).data?.content ?? (event as { content: string }).content)
+            : (event as { content: string }).content
+          if (content) {
+            lastMsg.blocks.push({
+              id: nextBlockId(),
+              type: 'text',
+              content,
+            })
+          }
           break
         }
 
