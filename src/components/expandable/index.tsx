@@ -230,7 +230,7 @@ export function ExpandablePlanRow({
         <div className="pl-8 pr-3 pb-3 space-y-1.5">
           {tasks.length > 0 ? (
             tasks.map((task) => (
-              <NestedTaskRow key={task.id} task={task} refreshTrigger={refreshTrigger} />
+              <NestedTaskRow key={task.id} task={task} refreshTrigger={refreshTrigger} expandAllSignal={expandAllSignal} collapseAllSignal={collapseAllSignal} />
             ))
           ) : (
             <div className="text-xs text-gray-500 py-1">No tasks</div>
