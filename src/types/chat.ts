@@ -45,7 +45,7 @@ export interface AskUserQuestion {
 }
 
 // ============================================================================
-// SSE EVENTS (discriminated union on `type`)
+// CHAT EVENTS (discriminated union on `type`)
 // ============================================================================
 
 export type ChatEvent =

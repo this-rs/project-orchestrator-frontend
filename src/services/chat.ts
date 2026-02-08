@@ -3,8 +3,6 @@ import type {
   ChatSession,
   CreateSessionRequest,
   CreateSessionResponse,
-  ClientMessage,
-  ChatEvent,
   PaginatedResponse,
   MessageHistoryResponse,
 } from '@/types'
@@ -35,53 +33,4 @@ export const chatApi = {
 
   getMessages: (sessionId: string, params: GetMessagesParams = {}) =>
     api.get<MessageHistoryResponse>(`/chat/sessions/${sessionId}/messages${buildQuery(params)}`),
-
-  sendMessage: (sessionId: string, message: ClientMessage) =>
-    api.post<{ status: string }>(`/chat/sessions/${sessionId}/messages`, message),
-
-  interrupt: (sessionId: string) =>
-    api.post<{ status: string }>(`/chat/sessions/${sessionId}/interrupt`),
-}
-
-const SSE_EVENT_TYPES = [
-  'assistant_text',
-  'stream_delta',
-  'thinking',
-  'tool_use',
-  'tool_result',
-  'permission_request',
-  'input_request',
-  'ask_user_question',
-  'result',
-  'error',
-] as const
-
-export function subscribeToChatStream(
-  sessionId: string,
-  onEvent: (event: ChatEvent) => void,
-  onError: (error: Event) => void,
-): () => void {
-  const url = `/api/chat/sessions/${sessionId}/stream`
-  const eventSource = new EventSource(url)
-
-  // Backend sends named events (event: assistant_text, etc.)
-  for (const eventType of SSE_EVENT_TYPES) {
-    eventSource.addEventListener(eventType, (event: MessageEvent) => {
-      try {
-        const data = JSON.parse(event.data) as ChatEvent
-        onEvent(data)
-      } catch {
-        // ignore malformed events
-      }
-    })
-  }
-
-  eventSource.onerror = (error) => {
-    onError(error)
-    eventSource.close()
-  }
-
-  return () => {
-    eventSource.close()
-  }
 }
