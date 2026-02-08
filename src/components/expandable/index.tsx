@@ -74,9 +74,13 @@ export function CompactStepRow({ step, index }: { step: Step; index: number }) {
 export function NestedTaskRow({
   task,
   refreshTrigger,
+  expandAllSignal,
+  collapseAllSignal,
 }: {
   task: Task
   refreshTrigger?: number
+  expandAllSignal?: number
+  collapseAllSignal?: number
 }) {
   const [expanded, setExpanded] = useState(false)
   const [steps, setSteps] = useState<Step[]>([])
@@ -94,6 +98,15 @@ export function NestedTaskRow({
   useEffect(() => {
     fetchSteps()
   }, [refreshTrigger, fetchSteps])
+
+  // Expand/Collapse all signals
+  useEffect(() => {
+    if (expandAllSignal) setExpanded(true)
+  }, [expandAllSignal])
+
+  useEffect(() => {
+    if (collapseAllSignal) setExpanded(false)
+  }, [collapseAllSignal])
 
   const toggleExpand = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -148,10 +161,14 @@ export function ExpandablePlanRow({
   plan,
   onStatusChange,
   refreshTrigger,
+  expandAllSignal,
+  collapseAllSignal,
 }: {
   plan: Plan
   onStatusChange: (newStatus: PlanStatus) => Promise<void>
   refreshTrigger?: number
+  expandAllSignal?: number
+  collapseAllSignal?: number
 }) {
   const [expanded, setExpanded] = useState(false)
   const [tasks, setTasks] = useState<Task[]>([])
@@ -169,6 +186,15 @@ export function ExpandablePlanRow({
   useEffect(() => {
     fetchTasks()
   }, [refreshTrigger, fetchTasks])
+
+  // Expand/Collapse all signals
+  useEffect(() => {
+    if (expandAllSignal) setExpanded(true)
+  }, [expandAllSignal])
+
+  useEffect(() => {
+    if (collapseAllSignal) setExpanded(false)
+  }, [collapseAllSignal])
 
   const toggleExpand = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -204,7 +230,7 @@ export function ExpandablePlanRow({
         <div className="pl-8 pr-3 pb-3 space-y-1.5">
           {tasks.length > 0 ? (
             tasks.map((task) => (
-              <NestedTaskRow key={task.id} task={task} refreshTrigger={refreshTrigger} />
+              <NestedTaskRow key={task.id} task={task} refreshTrigger={refreshTrigger} expandAllSignal={expandAllSignal} collapseAllSignal={collapseAllSignal} />
             ))
           ) : (
             <div className="text-xs text-gray-500 py-1">No tasks</div>
@@ -220,9 +246,13 @@ export function ExpandablePlanRow({
 export function ExpandableTaskRow({
   task,
   refreshTrigger,
+  expandAllSignal,
+  collapseAllSignal,
 }: {
   task: Task
   refreshTrigger?: number
+  expandAllSignal?: number
+  collapseAllSignal?: number
 }) {
   const [expanded, setExpanded] = useState(false)
   const [steps, setSteps] = useState<Step[]>([])
@@ -240,6 +270,15 @@ export function ExpandableTaskRow({
   useEffect(() => {
     fetchSteps()
   }, [refreshTrigger, fetchSteps])
+
+  // Expand/Collapse all signals
+  useEffect(() => {
+    if (expandAllSignal) setExpanded(true)
+  }, [expandAllSignal])
+
+  useEffect(() => {
+    if (collapseAllSignal) setExpanded(false)
+  }, [collapseAllSignal])
 
   const toggleExpand = (e: React.MouseEvent) => {
     e.preventDefault()

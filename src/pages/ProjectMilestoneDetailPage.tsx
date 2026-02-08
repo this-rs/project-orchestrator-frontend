@@ -50,6 +50,12 @@ export function ProjectMilestoneDetailPage() {
   const planRefresh = useAtomValue(planRefreshAtom)
   const taskRefresh = useAtomValue(taskRefreshAtom)
   const projectRefresh = useAtomValue(projectRefreshAtom)
+  const [plansExpandAll, setPlansExpandAll] = useState(0)
+  const [plansCollapseAll, setPlansCollapseAll] = useState(0)
+  const [plansAllExpanded, setPlansAllExpanded] = useState(false)
+  const [tasksExpandAll, setTasksExpandAll] = useState(0)
+  const [tasksCollapseAll, setTasksCollapseAll] = useState(0)
+  const [tasksAllExpanded, setTasksAllExpanded] = useState(false)
 
   const refreshData = useCallback(async () => {
     if (!milestoneId) return
@@ -268,7 +274,31 @@ export function ProjectMilestoneDetailPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>Plans ({plans.length})</CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle>Plans ({plans.length})</CardTitle>
+                {plans.length > 0 && viewMode === 'list' && (
+                  <button
+                    onClick={() => {
+                      if (plansAllExpanded) {
+                        setPlansCollapseAll((s) => s + 1)
+                      } else {
+                        setPlansExpandAll((s) => s + 1)
+                      }
+                      setPlansAllExpanded(!plansAllExpanded)
+                    }}
+                    className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                    title={plansAllExpanded ? 'Collapse all' : 'Expand all'}
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      {plansAllExpanded ? (
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4-4 4 4M4 10l4-4 4 4" />
+                      ) : (
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4 4 4-4M4 14l4 4 4-4" />
+                      )}
+                    </svg>
+                  </button>
+                )}
+              </div>
               {plans.length > 0 && <ViewToggle value={viewMode} onChange={setViewMode} />}
             </div>
           </CardHeader>
@@ -296,6 +326,8 @@ export function ProjectMilestoneDetailPage() {
                       toast.success('Status updated')
                     }}
                     refreshTrigger={taskRefresh}
+                    expandAllSignal={plansExpandAll}
+                    collapseAllSignal={plansCollapseAll}
                   />
                 ))}
               </div>
@@ -309,7 +341,31 @@ export function ProjectMilestoneDetailPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>Tasks ({milestoneTasks.length})</CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle>Tasks ({milestoneTasks.length})</CardTitle>
+                {milestoneTasks.length > 0 && (
+                  <button
+                    onClick={() => {
+                      if (tasksAllExpanded) {
+                        setTasksCollapseAll((s) => s + 1)
+                      } else {
+                        setTasksExpandAll((s) => s + 1)
+                      }
+                      setTasksAllExpanded(!tasksAllExpanded)
+                    }}
+                    className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                    title={tasksAllExpanded ? 'Collapse all' : 'Expand all'}
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      {tasksAllExpanded ? (
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4-4 4 4M4 10l4-4 4 4" />
+                      ) : (
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4 4 4-4M4 14l4 4 4-4" />
+                      )}
+                    </svg>
+                  </button>
+                )}
+              </div>
               <Button
                 size="sm"
                 onClick={() =>
@@ -341,7 +397,7 @@ export function ProjectMilestoneDetailPage() {
             ) : (
               <div className="space-y-2">
                 {milestoneTasks.map((task) => (
-                  <ExpandableTaskRow key={task.id} task={task} refreshTrigger={taskRefresh} />
+                  <ExpandableTaskRow key={task.id} task={task} refreshTrigger={taskRefresh} expandAllSignal={tasksExpandAll} collapseAllSignal={tasksCollapseAll} />
                 ))}
               </div>
             )}

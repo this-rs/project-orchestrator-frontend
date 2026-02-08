@@ -30,6 +30,9 @@ export function PlanDetailPage() {
   const projectRefresh = useAtomValue(projectRefreshAtom)
   const [linkedProject, setLinkedProject] = useState<Project | null>(null)
   const [formLoading, setFormLoading] = useState(false)
+  const [tasksExpandAll, setTasksExpandAll] = useState(0)
+  const [tasksCollapseAll, setTasksCollapseAll] = useState(0)
+  const [tasksAllExpanded, setTasksAllExpanded] = useState(false)
 
   useEffect(() => {
     async function fetchData() {
@@ -246,7 +249,31 @@ export function PlanDetailPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Tasks ({tasks.length})</CardTitle>
+            <div className="flex items-center gap-2">
+              <CardTitle>Tasks ({tasks.length})</CardTitle>
+              {tasks.length > 0 && viewMode === 'list' && (
+                <button
+                  onClick={() => {
+                    if (tasksAllExpanded) {
+                      setTasksCollapseAll((s) => s + 1)
+                    } else {
+                      setTasksExpandAll((s) => s + 1)
+                    }
+                    setTasksAllExpanded(!tasksAllExpanded)
+                  }}
+                  className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                  title={tasksAllExpanded ? 'Collapse all' : 'Expand all'}
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    {tasksAllExpanded ? (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4-4 4 4M4 10l4-4 4 4" />
+                    ) : (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4 4 4-4M4 14l4 4 4-4" />
+                    )}
+                  </svg>
+                </button>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               <Button size="sm" onClick={() => taskFormDialog.open({ title: 'Add Task', size: 'lg' })}>Add Task</Button>
               <ViewToggle value={viewMode} onChange={setViewMode} />
@@ -271,6 +298,8 @@ export function PlanDetailPage() {
                   task={task}
                   onStatusChange={(newStatus) => handleTaskStatusChange(task.id, newStatus)}
                   refreshTrigger={taskRefresh}
+                  expandAllSignal={tasksExpandAll}
+                  collapseAllSignal={tasksCollapseAll}
                 />
               ))}
             </div>
@@ -376,10 +405,14 @@ function TaskRow({
   task,
   onStatusChange,
   refreshTrigger,
+  expandAllSignal,
+  collapseAllSignal,
 }: {
   task: Task
   onStatusChange: (status: TaskStatus) => Promise<void>
   refreshTrigger?: number
+  expandAllSignal?: number
+  collapseAllSignal?: number
 }) {
   const [expanded, setExpanded] = useState(false)
   const [steps, setSteps] = useState<Step[] | null>(null)
@@ -401,6 +434,22 @@ function TaskRow({
       fetchSteps()
     }
   }, [refreshTrigger, fetchSteps])
+
+  // Expand/Collapse all signals
+  useEffect(() => {
+    if (expandAllSignal) {
+      // Trigger fetch if steps not yet loaded
+      if (steps === null) {
+        setLoadingSteps(true)
+        fetchSteps().then(() => setLoadingSteps(false))
+      }
+      setExpanded(true)
+    }
+  }, [expandAllSignal])
+
+  useEffect(() => {
+    if (collapseAllSignal) setExpanded(false)
+  }, [collapseAllSignal])
 
   const toggleExpand = async (e: React.MouseEvent) => {
     e.preventDefault()
