@@ -1,28 +1,7 @@
 import { useState } from 'react'
 import { Card, CardHeader, CardTitle, CardContent, Button, SearchInput, LoadingPage, EmptyState } from '@/components/ui'
 import { codeApi } from '@/services'
-
-interface SearchDocument {
-  id: string
-  path: string
-  language: string
-  docstrings?: string
-  signatures?: string[]
-  symbols?: string[]
-  imports?: string[]
-  project_id?: string
-  project_slug?: string
-}
-
-interface SearchResult {
-  document: SearchDocument
-  score: number
-}
-
-interface ArchitectureOverview {
-  key_files: { path: string; dependents: number; imports: number }[]
-  languages: { language: string; file_count: number }[]
-}
+import type { SearchResult, ArchitectureOverview } from '@/services'
 
 export function CodePage() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -181,6 +160,34 @@ export function CodePage() {
             />
           ) : (
             <>
+              {/* Overview Stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
+                <div className="p-4 bg-white/[0.06] rounded-lg text-center">
+                  <div className="text-2xl font-bold text-indigo-400">
+                    {architecture.total_files.toLocaleString()}
+                  </div>
+                  <div className="text-sm text-gray-400">Total Files</div>
+                </div>
+                <div className="p-4 bg-white/[0.06] rounded-lg text-center">
+                  <div className="text-2xl font-bold text-emerald-400">
+                    {architecture.languages.length}
+                  </div>
+                  <div className="text-sm text-gray-400">Languages</div>
+                </div>
+                <div className="p-4 bg-white/[0.06] rounded-lg text-center">
+                  <div className="text-2xl font-bold text-amber-400">
+                    {architecture.key_files.length}
+                  </div>
+                  <div className="text-sm text-gray-400">Key Files</div>
+                </div>
+                <div className="p-4 bg-white/[0.06] rounded-lg text-center">
+                  <div className="text-2xl font-bold text-purple-400">
+                    {architecture.modules.length}
+                  </div>
+                  <div className="text-sm text-gray-400">Modules</div>
+                </div>
+              </div>
+
               {/* Key Files */}
               <Card>
                 <CardHeader>

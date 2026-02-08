@@ -1,7 +1,7 @@
 import { api, buildQuery } from './api'
 import type { FunctionNode, StructNode, TraitNode } from '@/types'
 
-interface SearchDocument {
+export interface SearchDocument {
   id: string
   path: string
   language: string
@@ -13,7 +13,7 @@ interface SearchDocument {
   project_slug?: string
 }
 
-interface SearchResult {
+export interface SearchResult {
   document: SearchDocument
   score: number
 }
@@ -43,9 +43,17 @@ interface ImpactAnalysis {
   risk_score: number
 }
 
-interface ArchitectureOverview {
+export interface ArchitectureOverview {
+  total_files: number
   key_files: { path: string; dependents: number; imports: number }[]
-  languages: { language: string; file_count: number }[]
+  languages: {
+    language: string
+    file_count: number
+    function_count: number
+    struct_count: number
+  }[]
+  modules: { path: string; files: number; public_api: string[] }[]
+  orphan_files: string[]
 }
 
 export const codeApi = {
