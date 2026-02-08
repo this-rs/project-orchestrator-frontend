@@ -74,9 +74,13 @@ export function CompactStepRow({ step, index }: { step: Step; index: number }) {
 export function NestedTaskRow({
   task,
   refreshTrigger,
+  expandAllSignal,
+  collapseAllSignal,
 }: {
   task: Task
   refreshTrigger?: number
+  expandAllSignal?: number
+  collapseAllSignal?: number
 }) {
   const [expanded, setExpanded] = useState(false)
   const [steps, setSteps] = useState<Step[]>([])
@@ -148,10 +152,14 @@ export function ExpandablePlanRow({
   plan,
   onStatusChange,
   refreshTrigger,
+  expandAllSignal,
+  collapseAllSignal,
 }: {
   plan: Plan
   onStatusChange: (newStatus: PlanStatus) => Promise<void>
   refreshTrigger?: number
+  expandAllSignal?: number
+  collapseAllSignal?: number
 }) {
   const [expanded, setExpanded] = useState(false)
   const [tasks, setTasks] = useState<Task[]>([])
@@ -220,9 +228,13 @@ export function ExpandablePlanRow({
 export function ExpandableTaskRow({
   task,
   refreshTrigger,
+  expandAllSignal,
+  collapseAllSignal,
 }: {
   task: Task
   refreshTrigger?: number
+  expandAllSignal?: number
+  collapseAllSignal?: number
 }) {
   const [expanded, setExpanded] = useState(false)
   const [steps, setSteps] = useState<Step[]>([])
