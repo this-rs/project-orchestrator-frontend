@@ -6,11 +6,12 @@ interface ChatMessagesProps {
   messages: ChatMessage[]
   isStreaming: boolean
   isLoadingHistory?: boolean
+  isReplaying?: boolean
   onRespondPermission: (toolCallId: string, allowed: boolean) => void
   onRespondInput: (requestId: string, response: string) => void
 }
 
-export function ChatMessages({ messages, isStreaming, isLoadingHistory, onRespondPermission, onRespondInput }: ChatMessagesProps) {
+export function ChatMessages({ messages, isStreaming, isLoadingHistory, isReplaying, onRespondPermission, onRespondInput }: ChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const shouldAutoScrollRef = useRef(true)
 
@@ -21,15 +22,22 @@ export function ChatMessages({ messages, isStreaming, isLoadingHistory, onRespon
     shouldAutoScrollRef.current = scrollHeight - scrollTop - clientHeight < 100
   }
 
-  // Auto-scroll to bottom when new content arrives
+  // Auto-scroll to bottom when new content arrives (skip during replay to avoid flash)
   useEffect(() => {
-    if (shouldAutoScrollRef.current && scrollRef.current) {
+    if (!isReplaying && shouldAutoScrollRef.current && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [messages])
+  }, [messages, isReplaying])
+
+  // Scroll to bottom when replay completes
+  useEffect(() => {
+    if (!isReplaying && messages.length > 0 && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [isReplaying, messages.length])
 
   if (messages.length === 0) {
-    if (isLoadingHistory) {
+    if (isLoadingHistory || isReplaying) {
       return (
         <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
           <div className="flex items-center gap-2">
@@ -37,7 +45,7 @@ export function ChatMessages({ messages, isStreaming, isLoadingHistory, onRespon
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
             </svg>
-            <span>Loading history...</span>
+            <span>Loading messages...</span>
           </div>
         </div>
       )

@@ -11,6 +11,18 @@ import type { Project } from '@/types'
 const MIN_WIDTH = 320
 const MAX_WIDTH = 800
 
+/** Small dot indicator for WebSocket status */
+function WsStatusDot({ status }: { status: string }) {
+  if (status === 'connected') {
+    return <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" title="Connected" />
+  }
+  if (status === 'reconnecting' || status === 'connecting') {
+    return <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" title="Reconnecting..." />
+  }
+  // disconnected or unknown — only show when there's a session
+  return <span className="w-1.5 h-1.5 rounded-full bg-gray-500 shrink-0" title="Disconnected" />
+}
+
 export function ChatPanel() {
   const [mode, setMode] = useAtom(chatPanelModeAtom)
   const [panelWidth, setPanelWidth] = useAtom(chatPanelWidthAtom)
@@ -94,15 +106,19 @@ export function ChatPanel() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <div className="min-w-0">
-            <span className="text-sm font-medium text-gray-300 truncate block">
-              {chat.sessionId ? 'Chat' : 'New Chat'}
-            </span>
-            {!isNewConversation && selectedProject && (
-              <span className="text-[10px] text-gray-500 truncate block">
-                {selectedProject.name}
+          <div className="min-w-0 flex items-center gap-1.5">
+            {/* WS status dot — only show when connected to a session */}
+            {!isNewConversation && <WsStatusDot status={chat.wsStatus} />}
+            <div className="min-w-0">
+              <span className="text-sm font-medium text-gray-300 truncate block">
+                {chat.sessionId ? 'Chat' : 'New Chat'}
               </span>
-            )}
+              {!isNewConversation && selectedProject && (
+                <span className="text-[10px] text-gray-500 truncate block">
+                  {selectedProject.name}
+                </span>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -142,6 +158,22 @@ export function ChatPanel() {
         </div>
       </div>
 
+      {/* Reconnecting / Disconnected banner */}
+      {!isNewConversation && chat.wsStatus === 'reconnecting' && (
+        <div className="px-4 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-amber-400 text-xs flex items-center gap-1.5">
+          <svg className="w-3 h-3 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          <span>Reconnecting...</span>
+        </div>
+      )}
+      {!isNewConversation && chat.wsStatus === 'disconnected' && chat.sessionId && (
+        <div className="px-4 py-1.5 bg-red-500/10 border-b border-red-500/20 text-red-400 text-xs flex items-center gap-1.5">
+          <span>Connection lost</span>
+        </div>
+      )}
+
       {/* Content */}
       {showSessions ? (
         <SessionList
@@ -165,6 +197,7 @@ export function ChatPanel() {
             messages={chat.messages}
             isStreaming={chat.isStreaming}
             isLoadingHistory={chat.isLoadingHistory}
+            isReplaying={chat.isReplaying}
             onRespondPermission={chat.respondPermission}
             onRespondInput={chat.respondInput}
           />
