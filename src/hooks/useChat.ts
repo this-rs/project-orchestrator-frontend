@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react'
 import { useAtom } from 'jotai'
 import { chatSessionIdAtom, chatStreamingAtom } from '@/atoms'
 import { chatApi, subscribeToChatStream } from '@/services'
-import type { ChatMessage, ChatEvent, ClientMessage } from '@/types'
+import type { ChatMessage, ChatEvent, ClientMessage, MessageHistoryItem } from '@/types'
 
 let blockIdCounter = 0
 function nextBlockId() {
@@ -14,6 +14,21 @@ function nextMessageId() {
   return `msg-${++messageIdCounter}`
 }
 
+function transformHistoryItem(item: MessageHistoryItem): ChatMessage {
+  return {
+    id: item.id,
+    role: item.role,
+    blocks: [
+      {
+        id: `block-${item.id}`,
+        type: 'text',
+        content: item.content,
+      },
+    ],
+    timestamp: new Date(item.created_at * 1000), // Unix timestamp → JS Date (ms)
+  }
+}
+
 export interface SendMessageOptions {
   cwd: string
   projectSlug?: string
@@ -23,6 +38,7 @@ export function useChat() {
   const [sessionId, setSessionId] = useAtom(chatSessionIdAtom)
   const [isStreaming, setIsStreaming] = useAtom(chatStreamingAtom)
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const unsubscribeRef = useRef<(() => void) | null>(null)
 
   const handleEvent = useCallback((event: ChatEvent) => {
@@ -38,24 +54,27 @@ export function useChat() {
       }
 
       switch (event.type) {
-        case 'stream_delta':
-        case 'assistant_text': {
-          const text = event.type === 'stream_delta' ? event.text : event.content
+        case 'stream_delta': {
+          // Only handle stream_delta, ignore assistant_text (sent at end with full text, would duplicate)
           const lastBlock = lastMsg.blocks[lastMsg.blocks.length - 1]
           if (lastBlock && lastBlock.type === 'text') {
             lastMsg.blocks[lastMsg.blocks.length - 1] = {
               ...lastBlock,
-              content: lastBlock.content + text,
+              content: lastBlock.content + event.text,
             }
           } else {
             lastMsg.blocks.push({
               id: nextBlockId(),
               type: 'text',
-              content: text,
+              content: event.text,
             })
           }
           break
         }
+
+        case 'assistant_text':
+          // Ignore: content already received via stream_delta events
+          break
 
         case 'thinking': {
           const lastBlock = lastMsg.blocks[lastMsg.blocks.length - 1]
@@ -244,7 +263,7 @@ export function useChat() {
     setMessages([])
   }, [setSessionId, setIsStreaming])
 
-  const loadSession = useCallback((sid: string) => {
+  const loadSession = useCallback(async (sid: string) => {
     if (unsubscribeRef.current) {
       unsubscribeRef.current()
       unsubscribeRef.current = null
@@ -252,11 +271,26 @@ export function useChat() {
     setSessionId(sid)
     setIsStreaming(false)
     setMessages([])
+    setIsLoadingHistory(true)
+
+    try {
+      const response = await chatApi.getMessages(sid)
+      // Sort by created_at ascending (backend may return in reverse order)
+      const sorted = [...response.messages].sort((a, b) => a.created_at - b.created_at)
+      const loadedMessages = sorted.map(transformHistoryItem)
+      setMessages(loadedMessages)
+    } catch (error) {
+      console.error('Failed to load message history:', error)
+      // Keep messages empty on error
+    } finally {
+      setIsLoadingHistory(false)
+    }
   }, [setSessionId, setIsStreaming])
 
   return {
     messages,
     isStreaming,
+    isLoadingHistory,
     sessionId,
     sendMessage,
     respondPermission,

@@ -9,15 +9,43 @@ interface SessionListProps {
 
 export function SessionList({ onSelect, onClose }: SessionListProps) {
   const [sessions, setSessions] = useState<ChatSession[]>([])
+  const [previews, setPreviews] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false
-    chatApi.listSessions({ limit: 50 }).then((data) => {
-      if (!cancelled) {
-        setSessions(data.items || [])
-        setLoading(false)
+    chatApi.listSessions({ limit: 50 }).then(async (data) => {
+      if (cancelled) return
+      const items = data.items || []
+      setSessions(items)
+      setLoading(false)
+
+      // Fetch first user message for each session in parallel
+      const previewPromises = items.map(async (session) => {
+        try {
+          const response = await chatApi.getMessages(session.id, { limit: 10 })
+          // Sort by created_at and find the first user message
+          const sorted = [...response.messages].sort((a, b) => a.created_at - b.created_at)
+          const firstUserMessage = sorted.find((m) => m.role === 'user')
+          if (firstUserMessage) {
+            return { id: session.id, preview: firstUserMessage.content }
+          }
+        } catch {
+          // Session might not have conversation_id (old sessions)
+        }
+        return null
+      })
+
+      const results = await Promise.all(previewPromises)
+      if (cancelled) return
+
+      const newPreviews: Record<string, string> = {}
+      for (const result of results) {
+        if (result) {
+          newPreviews[result.id] = result.preview
+        }
       }
+      setPreviews(newPreviews)
     }).catch(() => {
       if (!cancelled) setLoading(false)
     })
@@ -69,7 +97,7 @@ export function SessionList({ onSelect, onClose }: SessionListProps) {
               >
                 <div className="flex-1 min-w-0">
                   <div className="text-sm text-gray-300 truncate">
-                    {session.title || `Session ${session.id.slice(0, 8)}`}
+                    {session.title || previews[session.id] || `Session ${session.id.slice(0, 8)}`}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs text-gray-600">{formatDate(session.updated_at)}</span>

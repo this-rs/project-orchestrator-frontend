@@ -70,6 +70,27 @@ export type ClientMessage =
   | { type: 'input_response'; content: string }
 
 // ============================================================================
+// MESSAGE HISTORY API RESPONSE
+// ============================================================================
+
+export interface MessageHistoryItem {
+  id: string
+  conversation_id: string
+  role: 'user' | 'assistant'
+  content: string
+  turn_index: number
+  created_at: number // Unix timestamp
+}
+
+export interface MessageHistoryResponse {
+  messages: MessageHistoryItem[]
+  total_count: number
+  has_more: boolean
+  offset: number
+  limit: number
+}
+
+// ============================================================================
 // UI DISPLAY TYPES
 // ============================================================================
 

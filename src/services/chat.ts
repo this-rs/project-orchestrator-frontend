@@ -6,12 +6,18 @@ import type {
   ClientMessage,
   ChatEvent,
   PaginatedResponse,
+  MessageHistoryResponse,
 } from '@/types'
 
 interface ListSessionsParams {
   limit?: number
   offset?: number
   project_slug?: string
+}
+
+interface GetMessagesParams {
+  limit?: number
+  offset?: number
 }
 
 export const chatApi = {
@@ -26,6 +32,9 @@ export const chatApi = {
 
   deleteSession: (sessionId: string) =>
     api.delete(`/chat/sessions/${sessionId}`),
+
+  getMessages: (sessionId: string, params: GetMessagesParams = {}) =>
+    api.get<MessageHistoryResponse>(`/chat/sessions/${sessionId}/messages${buildQuery(params)}`),
 
   sendMessage: (sessionId: string, message: ClientMessage) =>
     api.post<{ status: string }>(`/chat/sessions/${sessionId}/messages`, message),
