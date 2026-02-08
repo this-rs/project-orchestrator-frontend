@@ -26,6 +26,10 @@ export function MilestoneDetailPage() {
   const planRefresh = useAtomValue(planRefreshAtom)
   const taskRefresh = useAtomValue(taskRefreshAtom)
   const projectRefresh = useAtomValue(projectRefreshAtom)
+  const [plansExpandAll, setPlansExpandAll] = useState(0)
+  const [plansCollapseAll, setPlansCollapseAll] = useState(0)
+  const [tasksExpandAll, setTasksExpandAll] = useState(0)
+  const [tasksCollapseAll, setTasksCollapseAll] = useState(0)
 
   useEffect(() => {
     async function fetchData() {
@@ -252,7 +256,31 @@ export function MilestoneDetailPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Plans ({plans.length})</CardTitle>
-            {plans.length > 0 && <ViewToggle value={viewMode} onChange={setViewMode} />}
+            <div className="flex items-center gap-2">
+              {plans.length > 0 && viewMode === 'list' && (
+                <div className="flex items-center gap-0.5">
+                  <button
+                    onClick={() => setPlansExpandAll((s) => s + 1)}
+                    className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                    title="Expand all"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4 4 4-4M4 14l4 4 4-4" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setPlansCollapseAll((s) => s + 1)}
+                    className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                    title="Collapse all"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4-4 4 4M4 10l4-4 4 4" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              {plans.length > 0 && <ViewToggle value={viewMode} onChange={setViewMode} />}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -277,6 +305,8 @@ export function MilestoneDetailPage() {
                     toast.success('Status updated')
                   }}
                   refreshTrigger={taskRefresh}
+                  expandAllSignal={plansExpandAll}
+                  collapseAllSignal={plansCollapseAll}
                 />
               ))}
             </div>
@@ -291,7 +321,30 @@ export function MilestoneDetailPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Tasks ({milestoneTasks.length})</CardTitle>
-            <Button size="sm" onClick={() => linkDialog.open({
+            <div className="flex items-center gap-2">
+              {milestoneTasks.length > 0 && (
+                <div className="flex items-center gap-0.5">
+                  <button
+                    onClick={() => setTasksExpandAll((s) => s + 1)}
+                    className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                    title="Expand all"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4 4 4-4M4 14l4 4 4-4" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setTasksCollapseAll((s) => s + 1)}
+                    className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                    title="Collapse all"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4-4 4 4M4 10l4-4 4 4" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              <Button size="sm" onClick={() => linkDialog.open({
               title: 'Add Task to Milestone',
               submitLabel: 'Add',
               fetchOptions: async () => {
@@ -317,7 +370,7 @@ export function MilestoneDetailPage() {
           ) : (
             <div className="space-y-2">
               {milestoneTasks.map((task) => (
-                <ExpandableTaskRow key={task.id} task={task} refreshTrigger={taskRefresh} />
+                <ExpandableTaskRow key={task.id} task={task} refreshTrigger={taskRefresh} expandAllSignal={tasksExpandAll} collapseAllSignal={tasksCollapseAll} />
               ))}
             </div>
           )}
