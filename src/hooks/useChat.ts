@@ -41,10 +41,9 @@ export function useChat() {
   // ========================================================================
   const handleEvent = useCallback((event: ChatEvent & { seq?: number; replaying?: boolean }) => {
     // streaming_status — set isStreaming flag without touching messages
+    // Broadcast by backend to ALL connected clients (multi-tab support)
     if (event.type === 'streaming_status') {
-      if ((event as { is_streaming?: boolean }).is_streaming) {
-        setIsStreaming(true)
-      }
+      setIsStreaming(!!(event as { is_streaming?: boolean }).is_streaming)
       return
     }
 
