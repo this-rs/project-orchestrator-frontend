@@ -362,6 +362,7 @@ export function MilestoneDetailPage() {
                 toast.success('Task added')
               },
             })}>Add Task</Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
