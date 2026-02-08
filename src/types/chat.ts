@@ -29,6 +29,22 @@ export interface CreateSessionResponse {
 }
 
 // ============================================================================
+// ASK USER QUESTION
+// ============================================================================
+
+export interface AskUserQuestionOption {
+  label: string
+  description?: string
+}
+
+export interface AskUserQuestion {
+  question: string
+  header?: string
+  multiSelect: boolean
+  options: AskUserQuestionOption[]
+}
+
+// ============================================================================
 // SSE EVENTS (discriminated union on `type`)
 // ============================================================================
 
@@ -40,6 +56,7 @@ export type ChatEvent =
   | { type: 'tool_result'; id: string; result: unknown; is_error?: boolean }
   | { type: 'permission_request'; id: string; tool: string; input: Record<string, unknown> }
   | { type: 'input_request'; prompt: string; options?: string[] }
+  | { type: 'ask_user_question'; questions: AskUserQuestion[] }
   | { type: 'result'; session_id: string; duration_ms: number; cost_usd?: number }
   | { type: 'error'; message: string }
 
@@ -58,7 +75,7 @@ export type ClientMessage =
 
 export interface ContentBlock {
   id: string
-  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'permission_request' | 'input_request' | 'error'
+  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'permission_request' | 'input_request' | 'ask_user_question' | 'error'
   content: string
   metadata?: Record<string, unknown>
 }
