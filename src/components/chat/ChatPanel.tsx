@@ -164,6 +164,7 @@ export function ChatPanel() {
           <ChatMessages
             messages={chat.messages}
             isStreaming={chat.isStreaming}
+            isLoadingHistory={chat.isLoadingHistory}
             onRespondPermission={chat.respondPermission}
             onRespondInput={chat.respondInput}
           />

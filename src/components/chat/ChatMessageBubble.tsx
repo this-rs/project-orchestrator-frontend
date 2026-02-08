@@ -1,12 +1,41 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
-import type { ChatMessage } from '@/types'
+import type { ChatMessage, ContentBlock } from '@/types'
 import { ThinkingBlock } from './ThinkingBlock'
-import { ToolCallBlock } from './ToolCallBlock'
+import { ToolCallGroup } from './ToolCallGroup'
 import { PermissionRequestBlock } from './PermissionRequestBlock'
 import { InputRequestBlock } from './InputRequestBlock'
 import { AskUserQuestionBlock } from './AskUserQuestionBlock'
+
+// Group consecutive tool_use blocks together
+function groupBlocks(blocks: ContentBlock[]): (ContentBlock | ContentBlock[])[] {
+  const result: (ContentBlock | ContentBlock[])[] = []
+  let currentToolGroup: ContentBlock[] = []
+
+  for (const block of blocks) {
+    if (block.type === 'tool_use') {
+      currentToolGroup.push(block)
+    } else if (block.type === 'tool_result') {
+      // Skip - rendered as part of tool_use
+      continue
+    } else {
+      // Flush tool group if any
+      if (currentToolGroup.length > 0) {
+        result.push(currentToolGroup)
+        currentToolGroup = []
+      }
+      result.push(block)
+    }
+  }
+
+  // Flush remaining tool group
+  if (currentToolGroup.length > 0) {
+    result.push(currentToolGroup)
+  }
+
+  return result
+}
 
 interface ChatMessageBubbleProps {
   message: ChatMessage
@@ -26,11 +55,25 @@ export function ChatMessageBubble({ message, isStreaming, onRespondPermission, o
     )
   }
 
-  // Assistant message
+  // Assistant message - group consecutive tool_use blocks
+  const groupedBlocks = groupBlocks(message.blocks)
+
   return (
     <div className="mb-4">
       <div className="max-w-full">
-        {message.blocks.map((block, index) => {
+        {groupedBlocks.map((item, index) => {
+          // Tool group (array of tool_use blocks)
+          if (Array.isArray(item)) {
+            return (
+              <ToolCallGroup
+                key={`tool-group-${index}`}
+                toolBlocks={item}
+                allBlocks={message.blocks}
+              />
+            )
+          }
+
+          const block = item
           switch (block.type) {
             case 'text': {
               // Skip empty metadata-only blocks (result cost info)
@@ -45,7 +88,7 @@ export function ChatMessageBubble({ message, isStreaming, onRespondPermission, o
             }
 
             case 'thinking': {
-              const isLastBlock = index === message.blocks.length - 1
+              const isLastBlock = index === groupedBlocks.length - 1
               return (
                 <ThinkingBlock
                   key={block.id}
@@ -54,20 +97,6 @@ export function ChatMessageBubble({ message, isStreaming, onRespondPermission, o
                 />
               )
             }
-
-            case 'tool_use': {
-              // Find matching tool_result
-              const resultBlock = message.blocks.find(
-                (b) => b.type === 'tool_result' && b.metadata?.tool_call_id === block.metadata?.tool_call_id,
-              )
-              return (
-                <ToolCallBlock key={block.id} block={block} resultBlock={resultBlock} />
-              )
-            }
-
-            case 'tool_result':
-              // Rendered as part of tool_use, skip
-              return null
 
             case 'permission_request':
               return (

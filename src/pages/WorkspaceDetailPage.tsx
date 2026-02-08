@@ -4,7 +4,7 @@ import { useAtomValue } from 'jotai'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, ProgressBar, PageHeader, SectionNav } from '@/components/ui'
 import { workspacesApi, projectsApi } from '@/services'
 import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
-import { workspaceRefreshAtom, projectRefreshAtom, milestoneRefreshAtom } from '@/atoms'
+import { workspaceRefreshAtom, projectRefreshAtom, milestoneRefreshAtom, taskRefreshAtom } from '@/atoms'
 import { CreateMilestoneForm, CreateResourceForm, CreateComponentForm } from '@/components/forms'
 import type { Workspace, Project, WorkspaceMilestone, Resource, Component, MilestoneProgress } from '@/types'
 
@@ -30,6 +30,7 @@ export function WorkspaceDetailPage() {
   const workspaceRefresh = useAtomValue(workspaceRefreshAtom)
   const projectRefresh = useAtomValue(projectRefreshAtom)
   const milestoneRefresh = useAtomValue(milestoneRefreshAtom)
+  const taskRefresh = useAtomValue(taskRefreshAtom)
   const [formLoading, setFormLoading] = useState(false)
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
@@ -74,7 +75,7 @@ export function WorkspaceDetailPage() {
       }
     }
     fetchData()
-  }, [slug, workspaceRefresh, projectRefresh, milestoneRefresh])
+  }, [slug, workspaceRefresh, projectRefresh, milestoneRefresh, taskRefresh])
 
   const milestoneForm = CreateMilestoneForm({
     onSubmit: async (data) => {
