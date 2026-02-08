@@ -99,6 +99,15 @@ export function NestedTaskRow({
     fetchSteps()
   }, [refreshTrigger, fetchSteps])
 
+  // Expand/Collapse all signals
+  useEffect(() => {
+    if (expandAllSignal) setExpanded(true)
+  }, [expandAllSignal])
+
+  useEffect(() => {
+    if (collapseAllSignal) setExpanded(false)
+  }, [collapseAllSignal])
+
   const toggleExpand = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -178,6 +187,15 @@ export function ExpandablePlanRow({
     fetchTasks()
   }, [refreshTrigger, fetchTasks])
 
+  // Expand/Collapse all signals
+  useEffect(() => {
+    if (expandAllSignal) setExpanded(true)
+  }, [expandAllSignal])
+
+  useEffect(() => {
+    if (collapseAllSignal) setExpanded(false)
+  }, [collapseAllSignal])
+
   const toggleExpand = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -252,6 +270,15 @@ export function ExpandableTaskRow({
   useEffect(() => {
     fetchSteps()
   }, [refreshTrigger, fetchSteps])
+
+  // Expand/Collapse all signals
+  useEffect(() => {
+    if (expandAllSignal) setExpanded(true)
+  }, [expandAllSignal])
+
+  useEffect(() => {
+    if (collapseAllSignal) setExpanded(false)
+  }, [collapseAllSignal])
 
   const toggleExpand = (e: React.MouseEvent) => {
     e.preventDefault()
