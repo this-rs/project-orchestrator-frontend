@@ -49,6 +49,7 @@ export interface AskUserQuestion {
 // ============================================================================
 
 export type ChatEvent =
+  | { type: 'user_message'; content: string }
   | { type: 'assistant_text'; content: string }
   | { type: 'stream_delta'; text: string }
   | { type: 'thinking'; content: string }
