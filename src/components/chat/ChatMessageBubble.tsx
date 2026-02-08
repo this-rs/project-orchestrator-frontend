@@ -6,6 +6,7 @@ import { ThinkingBlock } from './ThinkingBlock'
 import { ToolCallBlock } from './ToolCallBlock'
 import { PermissionRequestBlock } from './PermissionRequestBlock'
 import { InputRequestBlock } from './InputRequestBlock'
+import { AskUserQuestionBlock } from './AskUserQuestionBlock'
 
 interface ChatMessageBubbleProps {
   message: ChatMessage
@@ -80,6 +81,15 @@ export function ChatMessageBubble({ message, isStreaming, onRespondPermission, o
             case 'input_request':
               return (
                 <InputRequestBlock
+                  key={block.id}
+                  block={block}
+                  onRespond={onRespondInput}
+                />
+              )
+
+            case 'ask_user_question':
+              return (
+                <AskUserQuestionBlock
                   key={block.id}
                   block={block}
                   onRespond={onRespondInput}

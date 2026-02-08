@@ -75,16 +75,32 @@ export function useChat() {
         }
 
         case 'tool_use':
-          lastMsg.blocks.push({
-            id: nextBlockId(),
-            type: 'tool_use',
-            content: event.tool,
-            metadata: {
-              tool_call_id: event.id,
-              tool_name: event.tool,
-              tool_input: event.input,
-            },
-          })
+          // Special handling for AskUserQuestion tool
+          if (event.tool === 'AskUserQuestion') {
+            const questions = (event.input as { questions?: unknown[] })?.questions
+            if (questions && questions.length > 0) {
+              lastMsg.blocks.push({
+                id: nextBlockId(),
+                type: 'ask_user_question',
+                content: (questions as { question: string }[]).map((q) => q.question).join('\n'),
+                metadata: {
+                  tool_call_id: event.id,
+                  questions,
+                },
+              })
+            }
+          } else {
+            lastMsg.blocks.push({
+              id: nextBlockId(),
+              type: 'tool_use',
+              content: event.tool,
+              metadata: {
+                tool_call_id: event.id,
+                tool_name: event.tool,
+                tool_input: event.input,
+              },
+            })
+          }
           break
 
         case 'tool_result': {
@@ -123,6 +139,17 @@ export function useChat() {
             content: event.prompt,
             metadata: { request_id: event.prompt, options: event.options },
           })
+          break
+
+        case 'ask_user_question':
+          if (event.questions && event.questions.length > 0) {
+            lastMsg.blocks.push({
+              id: nextBlockId(),
+              type: 'ask_user_question',
+              content: event.questions.map((q) => q.question).join('\n'),
+              metadata: { questions: event.questions },
+            })
+          }
           break
 
         case 'error':

@@ -42,6 +42,7 @@ const SSE_EVENT_TYPES = [
   'tool_result',
   'permission_request',
   'input_request',
+  'ask_user_question',
   'result',
   'error',
 ] as const
