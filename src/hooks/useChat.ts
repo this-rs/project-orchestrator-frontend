@@ -185,12 +185,13 @@ export function useChat() {
             : event
           const resultVal = (data as { result?: unknown }).result
           const resultStr = typeof resultVal === 'string' ? resultVal : JSON.stringify(resultVal)
+          const toolCallId = (data as { id?: string }).id
           lastMsg.blocks.push({
             id: nextBlockId(),
             type: 'tool_result',
             content: resultStr,
             metadata: {
-              tool_call_id: (data as { id?: string }).id,
+              tool_call_id: toolCallId,
               is_error: (data as { is_error?: boolean }).is_error,
             },
           })

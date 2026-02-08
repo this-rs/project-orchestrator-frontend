@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { ContentBlock } from '@/types'
+import { ToolContent, getToolSummary, getToolIcon } from './tools'
 
 interface ToolCallBlockProps {
   block: ContentBlock
@@ -9,9 +10,13 @@ interface ToolCallBlockProps {
 export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
   const [expanded, setExpanded] = useState(false)
   const toolName = block.metadata?.tool_name as string || block.content
-  const toolInput = block.metadata?.tool_input as Record<string, unknown> | undefined
+  const toolInput = (block.metadata?.tool_input as Record<string, unknown>) ?? {}
   const isError = resultBlock?.metadata?.is_error as boolean | undefined
   const isLoading = !resultBlock
+
+  const icon = getToolIcon(toolName)
+  const summary = getToolSummary(toolName, toolInput)
+  const headerText = summary || toolName
 
   return (
     <div className="my-2 rounded-lg bg-white/[0.04] border border-white/[0.06] overflow-hidden">
@@ -29,34 +34,24 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
-        <span className="font-mono text-gray-400 truncate">{toolName}</span>
+        {icon && (
+          <span className="font-mono text-gray-600 shrink-0 text-[10px]">{icon}</span>
+        )}
+        <span className="font-mono text-gray-400 truncate">{headerText}</span>
         {isLoading && (
           <span className="ml-auto text-gray-600 shrink-0">running...</span>
         )}
       </button>
 
       {expanded && (
-        <div className="px-3 pb-2 space-y-2">
-          {toolInput && (
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-gray-600 mb-1">Input</div>
-              <pre className="text-xs text-gray-500 bg-black/20 rounded p-2 overflow-x-auto max-h-40 overflow-y-auto">
-                {JSON.stringify(toolInput, null, 2)}
-              </pre>
-            </div>
-          )}
-          {resultBlock && (
-            <div>
-              <div className={`text-[10px] uppercase tracking-wider mb-1 ${isError ? 'text-red-400' : 'text-gray-600'}`}>
-                {isError ? 'Error' : 'Result'}
-              </div>
-              <pre className={`text-xs rounded p-2 overflow-x-auto max-h-40 overflow-y-auto ${isError ? 'text-red-400 bg-red-900/10' : 'text-gray-500 bg-black/20'}`}>
-                {resultBlock.content.length > 2000
-                  ? resultBlock.content.slice(0, 2000) + '\n... (truncated)'
-                  : resultBlock.content}
-              </pre>
-            </div>
-          )}
+        <div className="px-3 pb-2">
+          <ToolContent
+            toolName={toolName}
+            toolInput={toolInput}
+            resultContent={resultBlock?.content}
+            isError={isError}
+            isLoading={isLoading}
+          />
         </div>
       )}
     </div>
