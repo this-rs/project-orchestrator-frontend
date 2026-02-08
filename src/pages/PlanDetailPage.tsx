@@ -32,6 +32,7 @@ export function PlanDetailPage() {
   const [formLoading, setFormLoading] = useState(false)
   const [tasksExpandAll, setTasksExpandAll] = useState(0)
   const [tasksCollapseAll, setTasksCollapseAll] = useState(0)
+  const [tasksAllExpanded, setTasksAllExpanded] = useState(false)
 
   useEffect(() => {
     async function fetchData() {
@@ -248,30 +249,32 @@ export function PlanDetailPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Tasks ({tasks.length})</CardTitle>
             <div className="flex items-center gap-2">
+              <CardTitle>Tasks ({tasks.length})</CardTitle>
               {tasks.length > 0 && viewMode === 'list' && (
-                <div className="flex items-center gap-0.5">
-                  <button
-                    onClick={() => setTasksExpandAll((s) => s + 1)}
-                    className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
-                    title="Expand all"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4 4 4-4M4 14l4 4 4-4" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => setTasksCollapseAll((s) => s + 1)}
-                    className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
-                    title="Collapse all"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <button
+                  onClick={() => {
+                    if (tasksAllExpanded) {
+                      setTasksCollapseAll((s) => s + 1)
+                    } else {
+                      setTasksExpandAll((s) => s + 1)
+                    }
+                    setTasksAllExpanded(!tasksAllExpanded)
+                  }}
+                  className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                  title={tasksAllExpanded ? 'Collapse all' : 'Expand all'}
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    {tasksAllExpanded ? (
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4-4 4 4M4 10l4-4 4 4" />
-                    </svg>
-                  </button>
-                </div>
+                    ) : (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4 4 4-4M4 14l4 4 4-4" />
+                    )}
+                  </svg>
+                </button>
               )}
+            </div>
+            <div className="flex items-center gap-2">
               <Button size="sm" onClick={() => taskFormDialog.open({ title: 'Add Task', size: 'lg' })}>Add Task</Button>
               <ViewToggle value={viewMode} onChange={setViewMode} />
             </div>

@@ -28,8 +28,10 @@ export function MilestoneDetailPage() {
   const projectRefresh = useAtomValue(projectRefreshAtom)
   const [plansExpandAll, setPlansExpandAll] = useState(0)
   const [plansCollapseAll, setPlansCollapseAll] = useState(0)
+  const [plansAllExpanded, setPlansAllExpanded] = useState(false)
   const [tasksExpandAll, setTasksExpandAll] = useState(0)
   const [tasksCollapseAll, setTasksCollapseAll] = useState(0)
+  const [tasksAllExpanded, setTasksAllExpanded] = useState(false)
 
   useEffect(() => {
     async function fetchData() {
@@ -255,32 +257,32 @@ export function MilestoneDetailPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Plans ({plans.length})</CardTitle>
             <div className="flex items-center gap-2">
+              <CardTitle>Plans ({plans.length})</CardTitle>
               {plans.length > 0 && viewMode === 'list' && (
-                <div className="flex items-center gap-0.5">
-                  <button
-                    onClick={() => setPlansExpandAll((s) => s + 1)}
-                    className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
-                    title="Expand all"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4 4 4-4M4 14l4 4 4-4" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => setPlansCollapseAll((s) => s + 1)}
-                    className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
-                    title="Collapse all"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <button
+                  onClick={() => {
+                    if (plansAllExpanded) {
+                      setPlansCollapseAll((s) => s + 1)
+                    } else {
+                      setPlansExpandAll((s) => s + 1)
+                    }
+                    setPlansAllExpanded(!plansAllExpanded)
+                  }}
+                  className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                  title={plansAllExpanded ? 'Collapse all' : 'Expand all'}
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    {plansAllExpanded ? (
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4-4 4 4M4 10l4-4 4 4" />
-                    </svg>
-                  </button>
-                </div>
+                    ) : (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4 4 4-4M4 14l4 4 4-4" />
+                    )}
+                  </svg>
+                </button>
               )}
-              {plans.length > 0 && <ViewToggle value={viewMode} onChange={setViewMode} />}
             </div>
+            {plans.length > 0 && <ViewToggle value={viewMode} onChange={setViewMode} />}
           </div>
         </CardHeader>
         <CardContent>
@@ -320,31 +322,32 @@ export function MilestoneDetailPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Tasks ({milestoneTasks.length})</CardTitle>
             <div className="flex items-center gap-2">
+              <CardTitle>Tasks ({milestoneTasks.length})</CardTitle>
               {milestoneTasks.length > 0 && (
-                <div className="flex items-center gap-0.5">
-                  <button
-                    onClick={() => setTasksExpandAll((s) => s + 1)}
-                    className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
-                    title="Expand all"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4 4 4-4M4 14l4 4 4-4" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => setTasksCollapseAll((s) => s + 1)}
-                    className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
-                    title="Collapse all"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <button
+                  onClick={() => {
+                    if (tasksAllExpanded) {
+                      setTasksCollapseAll((s) => s + 1)
+                    } else {
+                      setTasksExpandAll((s) => s + 1)
+                    }
+                    setTasksAllExpanded(!tasksAllExpanded)
+                  }}
+                  className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                  title={tasksAllExpanded ? 'Collapse all' : 'Expand all'}
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    {tasksAllExpanded ? (
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4-4 4 4M4 10l4-4 4 4" />
-                    </svg>
-                  </button>
-                </div>
+                    ) : (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4 4 4-4M4 14l4 4 4-4" />
+                    )}
+                  </svg>
+                </button>
               )}
-              <Button size="sm" onClick={() => linkDialog.open({
+            </div>
+            <Button size="sm" onClick={() => linkDialog.open({
               title: 'Add Task to Milestone',
               submitLabel: 'Add',
               fetchOptions: async () => {
@@ -362,7 +365,6 @@ export function MilestoneDetailPage() {
                 toast.success('Task added')
               },
             })}>Add Task</Button>
-            </div>
           </div>
         </CardHeader>
         <CardContent>

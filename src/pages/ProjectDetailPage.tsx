@@ -30,6 +30,7 @@ export function ProjectDetailPage() {
   const [syncing, setSyncing] = useState(false)
   const [plansExpandAll, setPlansExpandAll] = useState(0)
   const [plansCollapseAll, setPlansCollapseAll] = useState(0)
+  const [plansAllExpanded, setPlansAllExpanded] = useState(false)
 
   useEffect(() => {
     async function fetchData() {
@@ -261,30 +262,32 @@ export function ProjectDetailPage() {
       <section id="plans" className="scroll-mt-20">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Plans ({plans.length})</CardTitle>
           <div className="flex items-center gap-2">
+            <CardTitle>Plans ({plans.length})</CardTitle>
             {plans.length > 0 && (
-              <div className="flex items-center gap-0.5">
-                <button
-                  onClick={() => setPlansExpandAll((s) => s + 1)}
-                  className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
-                  title="Expand all"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4 4 4-4M4 14l4 4 4-4" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => setPlansCollapseAll((s) => s + 1)}
-                  className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
-                  title="Collapse all"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <button
+                onClick={() => {
+                  if (plansAllExpanded) {
+                    setPlansCollapseAll((s) => s + 1)
+                  } else {
+                    setPlansExpandAll((s) => s + 1)
+                  }
+                  setPlansAllExpanded(!plansAllExpanded)
+                }}
+                className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                title={plansAllExpanded ? 'Collapse all' : 'Expand all'}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  {plansAllExpanded ? (
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4-4 4 4M4 10l4-4 4 4" />
-                  </svg>
-                </button>
-              </div>
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4 4 4-4M4 14l4 4 4-4" />
+                  )}
+                </svg>
+              </button>
             )}
+          </div>
+          <div className="flex items-center gap-2">
             <Button size="sm" onClick={() => linkDialog.open({
               title: 'Link Existing Plan',
               submitLabel: 'Link',
