@@ -48,13 +48,19 @@ export function useChat() {
       return
     }
 
-    // user_message events from broadcast — add as user message
-    if (event.type === 'user_message' && 'content' in event) {
-      // During replay, reconstruct user messages; during live, they appear via broadcast
+    // user_message events from broadcast or replay — add as user message
+    if (event.type === 'user_message') {
+      // During replay, content is nested in event.data.content
+      // During live broadcast, content is at event.content
+      const content = event.replaying
+        ? ((event as { data?: { content?: string } }).data?.content ?? (event as { content?: string }).content)
+        : (event as { content: string }).content
+      if (!content) return
+
       setMessages((prev) => {
         // Avoid duplicate: if last message is user with same content, skip
         const last = prev[prev.length - 1]
-        if (last?.role === 'user' && last.blocks[0]?.content === (event as { content: string }).content) {
+        if (last?.role === 'user' && last.blocks[0]?.content === content) {
           return prev
         }
         return [
@@ -62,7 +68,7 @@ export function useChat() {
           {
             id: nextMessageId(),
             role: 'user',
-            blocks: [{ id: nextBlockId(), type: 'text' as const, content: (event as { content: string }).content }],
+            blocks: [{ id: nextBlockId(), type: 'text' as const, content }],
             timestamp: new Date(),
           },
         ]
