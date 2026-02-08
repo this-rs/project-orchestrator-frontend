@@ -39,6 +39,7 @@ export function ProjectMilestoneDetailPage() {
   const [progress, setProgress] = useState<MilestoneProgress | null>(null)
   const [project, setProject] = useState<Project | null>(null)
   const [plans, setPlans] = useState<Plan[]>([])
+  const [milestonePlanIds, setMilestonePlanIds] = useState<Set<string>>(new Set())
   const [milestoneTasks, setMilestoneTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useViewMode()
@@ -76,12 +77,34 @@ export function ProjectMilestoneDetailPage() {
           if (proj) {
             setProject(proj)
 
-            // Fetch plans for this project
-            const allPlansData = await plansApi.list({ limit: 100 })
-            const projectPlans = (allPlansData.items || []).filter(
-              (plan) => plan.project_id === proj.id,
-            )
-            setPlans(projectPlans)
+            // Backend doesn't return plan_id in milestone tasks, so we need to cross-reference
+            // Get task IDs from this milestone
+            const milestoneTaskIds = new Set((response.tasks || []).map((t) => t.id))
+
+            if (milestoneTaskIds.size > 0) {
+              // Fetch all tasks with plan_id to find which plans these tasks belong to
+              const allTasksData = await tasksApi.list({ limit: 100 })
+              const planIds = new Set(
+                (allTasksData.items || [])
+                  .filter((t) => milestoneTaskIds.has(t.id) && t.plan_id)
+                  .map((t) => t.plan_id),
+              )
+              setMilestonePlanIds(planIds)
+
+              // Fetch only plans that have tasks in this milestone
+              if (planIds.size > 0) {
+                const allPlansData = await plansApi.list({ limit: 100 })
+                const milestonePlans = (allPlansData.items || []).filter((plan) =>
+                  planIds.has(plan.id),
+                )
+                setPlans(milestonePlans)
+              } else {
+                setPlans([])
+              }
+            } else {
+              setMilestonePlanIds(new Set())
+              setPlans([])
+            }
           }
         } catch {
           // Project lookup failed
@@ -116,19 +139,18 @@ export function ProjectMilestoneDetailPage() {
     [plans],
   )
 
-  // Kanban fetchFn: fetches plans for this project, filters by status
-  const projectId = project?.id
+  // Kanban fetchFn: fetches plans for this milestone, filters by status
   const kanbanFetchFn = useCallback(
     async (params: Record<string, unknown>): Promise<PaginatedResponse<Plan>> => {
-      if (!projectId) return { items: [], total: 0, limit: 0, offset: 0 }
+      if (milestonePlanIds.size === 0) return { items: [], total: 0, limit: 0, offset: 0 }
       const status = params.status as string
       const allPlansData = await plansApi.list({ limit: 100 })
       const filtered = (allPlansData.items || []).filter(
-        (p) => p.project_id === projectId && p.status === status,
+        (p) => milestonePlanIds.has(p.id) && p.status === status,
       )
       return { items: filtered, total: filtered.length, limit: filtered.length, offset: 0 }
     },
-    [projectId],
+    [milestonePlanIds],
   )
 
   const handleAddTask = useCallback(async (taskId: string) => {
