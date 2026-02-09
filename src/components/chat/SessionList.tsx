@@ -407,7 +407,7 @@ export function SessionList({ activeSessionId, onSelect, onClose, embedded }: Se
       <button
         key={session.id}
         onClick={() => isActive ? onClose() : onSelect(session.id, undefined, title)}
-        className={`w-full text-left px-3 py-2.5 transition-all group flex items-start gap-2 rounded-lg mx-1 my-0.5 ${
+        className={`w-[calc(100%-0.5rem)] text-left px-3 py-2.5 transition-all group flex items-start gap-2 rounded-lg mx-1 my-0.5 ${
           isActive
             ? 'bg-indigo-500/[0.08] border-l-2 border-indigo-500 pl-2.5'
             : 'hover:bg-white/[0.04] border-l-2 border-transparent'
@@ -441,32 +441,32 @@ export function SessionList({ activeSessionId, onSelect, onClose, embedded }: Se
           )}
 
           {/* Metadata row */}
-          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-            <span className="text-[10px] text-gray-600">
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap overflow-hidden">
+            <span className="text-[10px] text-gray-600 shrink-0">
               {formatDate(session.updated_at)}
             </span>
-            <span className="text-[10px] text-gray-700">&middot;</span>
-            <span className="text-[10px] text-gray-600">
+            <span className="text-[10px] text-gray-700 shrink-0">&middot;</span>
+            <span className="text-[10px] text-gray-600 shrink-0">
               {session.message_count} msgs
             </span>
             {session.model && (
               <>
-                <span className="text-[10px] text-gray-700">&middot;</span>
-                <span className="text-[10px] text-gray-600">
+                <span className="text-[10px] text-gray-700 shrink-0">&middot;</span>
+                <span className="text-[10px] text-gray-600 truncate max-w-[80px]">
                   {session.model}
                 </span>
               </>
             )}
             {formatCost(session.total_cost_usd) && (
               <>
-                <span className="text-[10px] text-gray-700">&middot;</span>
-                <span className="text-[10px] text-gray-600">
+                <span className="text-[10px] text-gray-700 shrink-0">&middot;</span>
+                <span className="text-[10px] text-gray-600 shrink-0">
                   {formatCost(session.total_cost_usd)}
                 </span>
               </>
             )}
             {session.project_slug && (
-              <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded-full ml-auto">
+              <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded-full ml-auto truncate max-w-[100px]">
                 {session.project_slug}
               </span>
             )}

@@ -11,6 +11,7 @@ import type { Project } from '@/types'
 
 const MIN_WIDTH = 320
 const MAX_WIDTH = 800
+const MOBILE_BREAKPOINT = 768
 
 /** Small dot indicator for WebSocket status */
 function WsStatusDot({ status }: { status: string }) {
@@ -28,9 +29,11 @@ export function ChatPanel() {
   const [mode, setMode] = useAtom(chatPanelModeAtom)
   const [panelWidth, setPanelWidth] = useAtom(chatPanelWidthAtom)
   const [showSessions, setShowSessions] = useState(false)
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false)
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [sessionTitle, setSessionTitle] = useState<string | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
   const chat = useChat()
   const panelRef = useRef<HTMLDivElement>(null)
   const setScrollToTurn = useSetAtom(chatScrollToTurnAtom)
@@ -38,6 +41,19 @@ export function ChatPanel() {
   const isOpen = mode !== 'closed'
   const isFullscreen = mode === 'fullscreen'
   const isNewConversation = !chat.sessionId
+
+  // Detect mobile viewport
+  useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
+    setIsMobile(mql.matches)
+    const handler = (e: MediaQueryListEvent) => {
+      setIsMobile(e.matches)
+      // Close mobile sidebar when switching to desktop
+      if (!e.matches) setShowMobileSidebar(false)
+    }
+    mql.addEventListener('change', handler)
+    return () => mql.removeEventListener('change', handler)
+  }, [])
 
   // Fetch session title when sessionId changes
   useEffect(() => {
@@ -102,6 +118,10 @@ export function ChatPanel() {
     if (!isFullscreen) {
       setShowSessions(false)
     }
+    // Close mobile sidebar overlay on selection
+    if (isMobile) {
+      setShowMobileSidebar(false)
+    }
   }
 
   // Determine header title
@@ -110,14 +130,17 @@ export function ChatPanel() {
     : sessionTitle || 'Chat'
 
   // --- FULLSCREEN LAYOUT: sidebar + conversation side by side ---
+  // On mobile (<768px): sidebar is a full-screen overlay toggled via hamburger
+  // On desktop: sidebar is a permanent 288px column
   if (isFullscreen) {
     return (
       <div
         ref={panelRef}
         className={`fixed inset-0 z-30 bg-[#1a1d27] flex ${isDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
       >
-        {/* Left sidebar — SessionList */}
-        <div className="w-72 shrink-0 border-r border-white/[0.06] flex flex-col">
+        {/* Left sidebar — hidden on mobile, permanent on desktop */}
+        {/* Desktop: static sidebar */}
+        <div className="hidden md:flex w-72 shrink-0 border-r border-white/[0.06] flex-col">
           {/* Sidebar header */}
           <div className="h-14 flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0">
             <span className="text-sm font-medium text-gray-300">Conversations</span>
@@ -159,16 +182,67 @@ export function ChatPanel() {
           <SessionList
             activeSessionId={chat.sessionId}
             onSelect={handleSelectSession}
-            onClose={() => {}} // no-op in fullscreen
+            onClose={() => {}} // no-op in fullscreen desktop
             embedded
           />
         </div>
 
-        {/* Right side — conversation */}
+        {/* Mobile: full-screen overlay sidebar */}
+        {isMobile && showMobileSidebar && (
+          <div className="fixed inset-0 z-40 flex flex-col bg-[#1a1d27]">
+            {/* Mobile sidebar header */}
+            <div className="h-14 flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0">
+              <span className="text-sm font-medium text-gray-300">Conversations</span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setShowMobileSidebar(false)}
+                  className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
+                  title="Back to chat"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* New conversation button */}
+            <div className="px-3 py-2 border-b border-white/[0.06]">
+              <button
+                onClick={() => { handleNewSession(); setShowMobileSidebar(false) }}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-sm font-medium transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                New conversation
+              </button>
+            </div>
+
+            <SessionList
+              activeSessionId={chat.sessionId}
+              onSelect={handleSelectSession}
+              onClose={() => setShowMobileSidebar(false)}
+              embedded
+            />
+          </div>
+        )}
+
+        {/* Right side — conversation (full width on mobile) */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Conversation header */}
           <div className="h-14 flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0">
             <div className="min-w-0 flex items-center gap-2">
+              {/* Mobile: hamburger to toggle sidebar */}
+              <button
+                onClick={() => isMobile ? setShowMobileSidebar(true) : undefined}
+                className={`shrink-0 p-1.5 rounded-md transition-colors md:hidden ${showMobileSidebar ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
+                title="Sessions"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
               {!isNewConversation && <WsStatusDot status={chat.wsStatus} />}
               <span className="text-sm font-medium text-gray-300 truncate">
                 {headerTitle}
@@ -182,6 +256,25 @@ export function ChatPanel() {
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+              {/* Mobile: exit fullscreen / close buttons */}
+              <button
+                onClick={() => setMode('open')}
+                className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors md:hidden"
+                title="Exit fullscreen"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 9L4 4m0 0v5m0-5h5m6 6l5 5m0 0v-5m0 5h-5" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setMode('closed')}
+                className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors md:hidden"
+                title="Close"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
@@ -238,12 +331,12 @@ export function ChatPanel() {
     <div
       ref={panelRef}
       className={`fixed z-30 bg-[#1a1d27] border-l border-white/[0.06] flex flex-col ${isDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isOpen ? 'translate-x-0' : 'translate-x-full'} top-0 right-0 bottom-0 w-full`}
-      style={{ maxWidth: panelWidth }}
+      style={{ maxWidth: isMobile ? undefined : panelWidth }}
     >
-      {/* Resize handle */}
+      {/* Resize handle — hidden on mobile (panel takes full width) */}
       <div
         onMouseDown={handleMouseDown}
-        className={`absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-10 hover:bg-indigo-500/40 transition-colors ${isDragging ? 'bg-indigo-500/50' : ''}`}
+        className={`absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-10 hover:bg-indigo-500/40 transition-colors hidden md:block ${isDragging ? 'bg-indigo-500/50' : ''}`}
       />
 
       {/* Header */}
@@ -285,7 +378,7 @@ export function ChatPanel() {
           </button>
           <button
             onClick={() => setMode('fullscreen')}
-            className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
+            className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors hidden md:flex"
             title="Fullscreen"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
