@@ -45,10 +45,11 @@ export interface AskUserQuestion {
 }
 
 // ============================================================================
-// SSE EVENTS (discriminated union on `type`)
+// CHAT EVENTS (discriminated union on `type`)
 // ============================================================================
 
 export type ChatEvent =
+  | { type: 'user_message'; content: string }
   | { type: 'assistant_text'; content: string }
   | { type: 'stream_delta'; text: string }
   | { type: 'thinking'; content: string }
@@ -59,6 +60,8 @@ export type ChatEvent =
   | { type: 'ask_user_question'; questions: AskUserQuestion[] }
   | { type: 'result'; session_id: string; duration_ms: number; cost_usd?: number }
   | { type: 'error'; message: string }
+  | { type: 'partial_text'; content: string }
+  | { type: 'streaming_status'; is_streaming: boolean }
 
 // ============================================================================
 // CLIENT MESSAGES
@@ -109,3 +112,29 @@ export interface ChatMessage {
 }
 
 export type ChatPanelMode = 'closed' | 'open' | 'fullscreen'
+
+// ============================================================================
+// WEBSOCKET TYPES
+// ============================================================================
+
+/** Connection status for the chat WebSocket */
+export type WsConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected'
+
+/** Messages sent from the client to the server over WebSocket */
+export type WsChatClientMessage =
+  | { type: 'user_message'; content: string }
+  | { type: 'interrupt' }
+  | { type: 'permission_response'; id?: string; allow: boolean }
+  | { type: 'input_response'; id?: string; content: string }
+
+/** A chat event received over WebSocket with sequence number */
+export interface ChatWsEvent {
+  /** Sequence number (0 for non-persisted stream_delta) */
+  seq: number
+  /** Event type */
+  type: string
+  /** Event payload (varies by type) */
+  [key: string]: unknown
+  /** Whether this event is from the replay phase */
+  replaying?: boolean
+}
