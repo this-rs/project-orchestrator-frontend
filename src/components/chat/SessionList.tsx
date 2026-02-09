@@ -12,13 +12,130 @@ import type {
 
 interface SessionListProps {
   activeSessionId?: string | null
-  onSelect: (sessionId: string, targetMessageTurnIndex?: number) => void
+  onSelect: (sessionId: string, targetMessageTurnIndex?: number, title?: string) => void
   onClose: () => void
+  /** When true, hides the header + "New conversation" button (parent provides them) */
+  embedded?: boolean
 }
 
 const SESSION_PAGE_SIZE = 30
 
-export function SessionList({ activeSessionId, onSelect, onClose }: SessionListProps) {
+// ============================================================================
+// Date grouping helpers
+// ============================================================================
+
+type DateGroup = 'Today' | 'Yesterday' | 'This week' | 'This month' | 'Older'
+
+function getDateGroup(dateStr: string): DateGroup {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const weekAgo = new Date(today)
+  weekAgo.setDate(weekAgo.getDate() - 7)
+  const monthAgo = new Date(today)
+  monthAgo.setDate(monthAgo.getDate() - 30)
+
+  if (date >= today) return 'Today'
+  if (date >= yesterday) return 'Yesterday'
+  if (date >= weekAgo) return 'This week'
+  if (date >= monthAgo) return 'This month'
+  return 'Older'
+}
+
+function groupSessionsByDate(sessions: ChatSession[]): { group: DateGroup; sessions: ChatSession[] }[] {
+  const groups = new Map<DateGroup, ChatSession[]>()
+  const order: DateGroup[] = ['Today', 'Yesterday', 'This week', 'This month', 'Older']
+
+  for (const session of sessions) {
+    const group = getDateGroup(session.updated_at)
+    if (!groups.has(group)) groups.set(group, [])
+    groups.get(group)!.push(session)
+  }
+
+  return order.filter((g) => groups.has(g)).map((g) => ({ group: g, sessions: groups.get(g)! }))
+}
+
+// ============================================================================
+// Custom dropdown component
+// ============================================================================
+
+function FilterDropdown({
+  value,
+  onChange,
+  options,
+  placeholder,
+  icon,
+}: {
+  value: string
+  onChange: (value: string) => void
+  options: { value: string; label: string }[]
+  placeholder: string
+  icon?: React.ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const selectedLabel = options.find((o) => o.value === value)?.label || placeholder
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className={`w-full flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border transition-colors ${
+          open
+            ? 'border-indigo-500/40 bg-white/[0.06] text-gray-200'
+            : 'border-white/[0.06] bg-white/[0.03] text-gray-400 hover:border-white/[0.1] hover:text-gray-300'
+        }`}
+      >
+        {icon && <span className="shrink-0 text-gray-500">{icon}</span>}
+        <span className="flex-1 text-left truncate">{selectedLabel}</span>
+        <svg className={`w-3 h-3 shrink-0 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute z-50 left-0 right-0 mt-1 rounded-md border border-white/[0.08] bg-[#1e2130] shadow-xl py-1 max-h-48 overflow-y-auto">
+          <button
+            onClick={() => { onChange(''); setOpen(false) }}
+            className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
+              !value ? 'text-indigo-400 bg-indigo-500/[0.08]' : 'text-gray-400 hover:bg-white/[0.04] hover:text-gray-300'
+            }`}
+          >
+            {placeholder}
+          </button>
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => { onChange(opt.value); setOpen(false) }}
+              className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
+                value === opt.value ? 'text-indigo-400 bg-indigo-500/[0.08]' : 'text-gray-400 hover:bg-white/[0.04] hover:text-gray-300'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================================
+// SessionList component
+// ============================================================================
+
+export function SessionList({ activeSessionId, onSelect, onClose, embedded }: SessionListProps) {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [loading, setLoading] = useState(true)
   const [hasMoreSessions, setHasMoreSessions] = useState(false)
@@ -222,6 +339,9 @@ export function SessionList({ activeSessionId, onSelect, onClose }: SessionListP
     )
   }, [sessions, selectedWorkspace, workspaceProjects])
 
+  // Group sessions by date
+  const groupedSessions = useMemo(() => groupSessionsByDate(filteredSessions), [filteredSessions])
+
   // Available projects for the project dropdown (scoped by workspace if selected)
   const availableProjects = useMemo(() => {
     if (!selectedWorkspace || workspaceProjects.length === 0) return projects
@@ -278,27 +398,118 @@ export function SessionList({ activeSessionId, onSelect, onClose }: SessionListP
     return `$${cost.toFixed(2)}`
   }
 
+  // Render a single session card
+  const renderSessionCard = (session: ChatSession) => {
+    const isActive = session.id === activeSessionId
+    const title = session.title || `Session ${session.id.slice(0, 8)}`
+
+    return (
+      <button
+        key={session.id}
+        onClick={() => isActive ? onClose() : onSelect(session.id, undefined, title)}
+        className={`w-full text-left px-3 py-2.5 transition-all group flex items-start gap-2 rounded-lg mx-1 my-0.5 ${
+          isActive
+            ? 'bg-indigo-500/[0.08] border-l-2 border-indigo-500 pl-2.5'
+            : 'hover:bg-white/[0.04] border-l-2 border-transparent'
+        }`}
+      >
+        <div className="flex-1 min-w-0">
+          {/* Title + streaming indicator */}
+          <div className="flex items-center gap-1.5">
+            {streamingSessions.has(session.id) && (
+              <span
+                className="shrink-0 w-2 h-2 rounded-full bg-emerald-400 animate-pulse"
+                title="Streaming..."
+              />
+            )}
+            <span className={`text-sm truncate ${isActive ? 'text-gray-200 font-medium' : 'text-gray-300'}`}>
+              {title}
+            </span>
+          </div>
+
+          {/* Preview or streaming label */}
+          {streamingSessions.has(session.id) ? (
+            <div className="text-[10px] text-emerald-400/70 mt-0.5">
+              Working...
+            </div>
+          ) : (
+            session.preview && session.preview !== session.title && (
+              <div className="text-xs text-gray-500 truncate mt-0.5">
+                {session.preview}
+              </div>
+            )
+          )}
+
+          {/* Metadata row */}
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            <span className="text-[10px] text-gray-600">
+              {formatDate(session.updated_at)}
+            </span>
+            <span className="text-[10px] text-gray-700">&middot;</span>
+            <span className="text-[10px] text-gray-600">
+              {session.message_count} msgs
+            </span>
+            {session.model && (
+              <>
+                <span className="text-[10px] text-gray-700">&middot;</span>
+                <span className="text-[10px] text-gray-600">
+                  {session.model}
+                </span>
+              </>
+            )}
+            {formatCost(session.total_cost_usd) && (
+              <>
+                <span className="text-[10px] text-gray-700">&middot;</span>
+                <span className="text-[10px] text-gray-600">
+                  {formatCost(session.total_cost_usd)}
+                </span>
+              </>
+            )}
+            {session.project_slug && (
+              <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded-full ml-auto">
+                {session.project_slug}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Delete button */}
+        <button
+          onClick={(e) => handleDelete(e, session.id)}
+          className="shrink-0 p-1 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+          title="Delete session"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+      </button>
+    )
+  }
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
-        <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-          Sessions
-        </span>
-        <button
-          onClick={onClose}
-          className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
-        >
-          Back
-        </button>
-      </div>
+      {/* Header — hidden when embedded (parent provides it) */}
+      {!embedded && (
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+          <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+            Sessions
+          </span>
+          <button
+            onClick={onClose}
+            className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            Back
+          </button>
+        </div>
+      )}
 
       {/* Search + Filters */}
       <div className="px-3 py-2 border-b border-white/[0.06] space-y-1.5">
         {/* Search input */}
         <div className="relative">
           <svg
-            className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500"
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -315,58 +526,44 @@ export function SessionList({ activeSessionId, onSelect, onClose }: SessionListP
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search in conversations..."
-            className="w-full pl-7 pr-7 py-1 text-xs bg-white/[0.04] border border-white/[0.06] rounded text-gray-300 placeholder-gray-600 focus:outline-none focus:border-indigo-500/40"
+            placeholder="Search conversations..."
+            className="w-full pl-7 pr-7 py-1.5 text-xs bg-white/[0.03] border border-white/[0.06] rounded-md text-gray-300 placeholder-gray-600 focus:outline-none focus:border-indigo-500/40 focus:bg-white/[0.05] transition-colors"
           />
           {searchQuery && (
             <button
               onClick={handleClearSearch}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
             >
-              <svg
-                className="w-3 h-3"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 18L18 6M6 6l12 12"
-                />
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           )}
         </div>
 
-        {/* Workspace filter */}
-        <select
+        {/* Custom dropdown filters */}
+        <FilterDropdown
           value={selectedWorkspace}
-          onChange={(e) => handleWorkspaceChange(e.target.value)}
-          className="w-full px-2 py-1 text-xs bg-white/[0.04] border border-white/[0.06] rounded text-gray-300 focus:outline-none focus:border-indigo-500/40 appearance-none cursor-pointer"
-        >
-          <option value="">All workspaces</option>
-          {workspaces.map((w) => (
-            <option key={w.slug} value={w.slug}>
-              {w.name}
-            </option>
-          ))}
-        </select>
-
-        {/* Project filter */}
-        <select
+          onChange={handleWorkspaceChange}
+          options={workspaces.map((w) => ({ value: w.slug, label: w.name }))}
+          placeholder="All workspaces"
+          icon={
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+          }
+        />
+        <FilterDropdown
           value={selectedProject}
-          onChange={(e) => setSelectedProject(e.target.value)}
-          className="w-full px-2 py-1 text-xs bg-white/[0.04] border border-white/[0.06] rounded text-gray-300 focus:outline-none focus:border-indigo-500/40 appearance-none cursor-pointer"
-        >
-          <option value="">All projects</option>
-          {availableProjects.map((p) => (
-            <option key={p.slug} value={p.slug}>
-              {p.name}
-            </option>
-          ))}
-        </select>
+          onChange={setSelectedProject}
+          options={availableProjects.map((p) => ({ value: p.slug, label: p.name }))}
+          placeholder="All projects"
+          icon={
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+          }
+        />
       </div>
 
       {/* Content area: session list or search results */}
@@ -375,49 +572,23 @@ export function SessionList({ activeSessionId, onSelect, onClose }: SessionListP
           // Search results mode
           searching ? (
             <div className="flex items-center justify-center py-8 text-gray-600 text-sm">
-              <svg
-                className="w-4 h-4 mr-2 animate-spin"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth={4}
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
+              <svg className="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
               Searching...
             </div>
           ) : searchResults.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-gray-600 text-sm">
-              <svg
-                className="w-6 h-6 mb-2 text-gray-700"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
+              <svg className="w-6 h-6 mb-2 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               No results for &ldquo;{debouncedQuery}&rdquo;
             </div>
           ) : (
             <div className="py-1">
               <div className="px-4 py-1.5 text-[10px] text-gray-600 uppercase tracking-wider">
-                {searchResults.length} session
-                {searchResults.length !== 1 ? 's' : ''} found
+                {searchResults.length} session{searchResults.length !== 1 ? 's' : ''} found
               </div>
               {searchResults.map((result) => (
                 <div
@@ -426,17 +597,15 @@ export function SessionList({ activeSessionId, onSelect, onClose }: SessionListP
                 >
                   {/* Session header */}
                   <button
-                    onClick={() => onSelect(result.session_id)}
+                    onClick={() => onSelect(result.session_id, undefined, result.session_title)}
                     className="w-full text-left px-4 py-2 hover:bg-white/[0.04] transition-colors"
                   >
                     <div className="text-sm text-gray-300 truncate">
-                      {result.session_title ||
-                        `Session ${result.session_id.slice(0, 8)}`}
+                      {result.session_title || `Session ${result.session_id.slice(0, 8)}`}
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="text-[10px] text-gray-600">
-                        {result.hits.length} match
-                        {result.hits.length !== 1 ? 'es' : ''}
+                        {result.hits.length} match{result.hits.length !== 1 ? 'es' : ''}
                       </span>
                       {result.project_slug && (
                         <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded-full">
@@ -450,9 +619,7 @@ export function SessionList({ activeSessionId, onSelect, onClose }: SessionListP
                   {result.hits.slice(0, 3).map((hit) => (
                     <button
                       key={hit.message_id}
-                      onClick={() =>
-                        onSelect(result.session_id, hit.turn_index)
-                      }
+                      onClick={() => onSelect(result.session_id, hit.turn_index, result.session_title)}
                       className="w-full text-left px-4 pl-7 py-1.5 hover:bg-indigo-500/[0.06] transition-colors group"
                     >
                       <div className="flex items-start gap-2">
@@ -470,34 +637,22 @@ export function SessionList({ activeSessionId, onSelect, onClose }: SessionListP
                             {hit.content_snippet}
                           </div>
                           <span className="text-[10px] text-gray-600 mt-0.5">
-                            {formatTimestamp(hit.created_at)} · turn{' '}
-                            {hit.turn_index}
+                            {formatTimestamp(hit.created_at)}
                           </span>
                         </div>
                         {/* Arrow indicator */}
-                        <svg
-                          className="w-3 h-3 text-gray-700 group-hover:text-indigo-400 shrink-0 mt-1 transition-colors"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M9 5l7 7-7 7"
-                          />
+                        <svg className="w-3 h-3 text-gray-700 group-hover:text-indigo-400 shrink-0 mt-1 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                         </svg>
                       </div>
                     </button>
                   ))}
                   {result.hits.length > 3 && (
                     <button
-                      onClick={() => onSelect(result.session_id)}
+                      onClick={() => onSelect(result.session_id, undefined, result.session_title)}
                       className="w-full text-left px-4 pl-7 py-1 text-[10px] text-gray-600 hover:text-gray-400 transition-colors"
                     >
-                      +{result.hits.length - 3} more match
-                      {result.hits.length - 3 !== 1 ? 'es' : ''}...
+                      +{result.hits.length - 3} more match{result.hits.length - 3 !== 1 ? 'es' : ''}...
                     </button>
                   )}
                 </div>
@@ -507,112 +662,35 @@ export function SessionList({ activeSessionId, onSelect, onClose }: SessionListP
         ) : // Normal session list mode
         loading ? (
           <div className="flex items-center justify-center py-8 text-gray-600 text-sm">
+            <svg className="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
             Loading...
           </div>
         ) : filteredSessions.length === 0 ? (
-          <div className="flex items-center justify-center py-8 text-gray-600 text-sm">
-            No sessions found
+          <div className="flex flex-col items-center justify-center py-8 text-gray-600 text-sm">
+            <svg className="w-6 h-6 mb-2 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            No conversations yet
           </div>
         ) : (
           <div className="py-1">
-            {filteredSessions.map((session) => {
-              const isActive = session.id === activeSessionId
-              return (
-              <button
-                key={session.id}
-                onClick={() => isActive ? onClose() : onSelect(session.id)}
-                className={`w-full text-left px-4 py-2.5 transition-colors group flex items-start gap-2 ${isActive ? 'bg-indigo-500/[0.08] border-l-2 border-indigo-500' : 'hover:bg-white/[0.04]'}`}
-              >
-                <div className="flex-1 min-w-0">
-                  {/* Title + streaming indicator */}
-                  <div className="flex items-center gap-1.5">
-                    {streamingSessions.has(session.id) && (
-                      <span
-                        className="shrink-0 w-2 h-2 rounded-full bg-emerald-400 animate-pulse"
-                        title="Streaming..."
-                      />
-                    )}
-                    <span className="text-sm text-gray-300 truncate">
-                      {session.title ||
-                        `Session ${session.id.slice(0, 8)}`}
-                    </span>
-                  </div>
-
-                  {/* Preview or streaming label */}
-                  {streamingSessions.has(session.id) ? (
-                    <div className="text-[10px] text-emerald-400/70 mt-0.5">
-                      Working...
-                    </div>
-                  ) : (
-                    session.preview && session.preview !== session.title && (
-                      <div className="text-xs text-gray-500 truncate mt-0.5">
-                        {session.preview}
-                      </div>
-                    )
-                  )}
-
-                  {/* Metadata row */}
-                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                    <span className="text-[10px] text-gray-600">
-                      {formatDate(session.updated_at)}
-                    </span>
-                    <span className="text-[10px] text-gray-700">
-                      &middot;
-                    </span>
-                    <span className="text-[10px] text-gray-600">
-                      {session.message_count} msgs
-                    </span>
-                    {session.model && (
-                      <>
-                        <span className="text-[10px] text-gray-700">
-                          &middot;
-                        </span>
-                        <span className="text-[10px] text-gray-600">
-                          {session.model}
-                        </span>
-                      </>
-                    )}
-                    {formatCost(session.total_cost_usd) && (
-                      <>
-                        <span className="text-[10px] text-gray-700">
-                          &middot;
-                        </span>
-                        <span className="text-[10px] text-gray-600">
-                          {formatCost(session.total_cost_usd)}
-                        </span>
-                      </>
-                    )}
-                    {session.project_slug && (
-                      <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded-full ml-auto">
-                        {session.project_slug}
-                      </span>
-                    )}
-                  </div>
+            {groupedSessions.map(({ group, sessions: groupSessions }) => (
+              <div key={group}>
+                {/* Date group header */}
+                <div className="px-4 pt-3 pb-1.5 flex items-center gap-2">
+                  <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">
+                    {group}
+                  </span>
+                  <div className="flex-1 h-px bg-white/[0.04]" />
+                  <span className="text-[10px] text-gray-600">{groupSessions.length}</span>
                 </div>
 
-                {/* Delete button */}
-                <button
-                  onClick={(e) => handleDelete(e, session.id)}
-                  className="shrink-0 p-1 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
-                  title="Delete session"
-                >
-                  <svg
-                    className="w-3.5 h-3.5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
-                </button>
-              </button>
-              )
-            })}
+                {groupSessions.map(renderSessionCard)}
+              </div>
+            ))}
 
             {/* Infinite scroll sentinel + loading indicator */}
             {hasMoreSessions && (
