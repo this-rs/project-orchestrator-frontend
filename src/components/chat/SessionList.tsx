@@ -9,6 +9,7 @@ import type {
   Project,
   Workspace,
 } from '@/types'
+import { Select } from '@/components/ui'
 
 interface SessionListProps {
   activeSessionId?: string | null
@@ -55,80 +56,6 @@ function groupSessionsByDate(sessions: ChatSession[]): { group: DateGroup; sessi
   }
 
   return order.filter((g) => groups.has(g)).map((g) => ({ group: g, sessions: groups.get(g)! }))
-}
-
-// ============================================================================
-// Custom dropdown component
-// ============================================================================
-
-function FilterDropdown({
-  value,
-  onChange,
-  options,
-  placeholder,
-  icon,
-}: {
-  value: string
-  onChange: (value: string) => void
-  options: { value: string; label: string }[]
-  placeholder: string
-  icon?: React.ReactNode
-}) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const selectedLabel = options.find((o) => o.value === value)?.label || placeholder
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className={`w-full flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border transition-colors ${
-          open
-            ? 'border-indigo-500/40 bg-white/[0.06] text-gray-200'
-            : 'border-white/[0.06] bg-white/[0.03] text-gray-400 hover:border-white/[0.1] hover:text-gray-300'
-        }`}
-      >
-        {icon && <span className="shrink-0 text-gray-500">{icon}</span>}
-        <span className="flex-1 text-left truncate">{selectedLabel}</span>
-        <svg className={`w-3 h-3 shrink-0 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {open && (
-        <div className="absolute z-50 left-0 right-0 mt-1 rounded-md border border-white/[0.08] bg-[#1e2130] shadow-xl py-1 max-h-48 overflow-y-auto">
-          <button
-            onClick={() => { onChange(''); setOpen(false) }}
-            className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
-              !value ? 'text-indigo-400 bg-indigo-500/[0.08]' : 'text-gray-400 hover:bg-white/[0.04] hover:text-gray-300'
-            }`}
-          >
-            {placeholder}
-          </button>
-          {options.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => { onChange(opt.value); setOpen(false) }}
-              className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
-                value === opt.value ? 'text-indigo-400 bg-indigo-500/[0.08]' : 'text-gray-400 hover:bg-white/[0.04] hover:text-gray-300'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
 }
 
 // ============================================================================
@@ -541,28 +468,26 @@ export function SessionList({ activeSessionId, onSelect, onClose, embedded }: Se
           )}
         </div>
 
-        {/* Custom dropdown filters */}
-        <FilterDropdown
+        {/* Dropdown filters */}
+        <Select
           value={selectedWorkspace}
           onChange={handleWorkspaceChange}
-          options={workspaces.map((w) => ({ value: w.slug, label: w.name }))}
+          options={[
+            { value: '', label: 'All workspaces' },
+            ...workspaces.map((w) => ({ value: w.slug, label: w.name })),
+          ]}
           placeholder="All workspaces"
-          icon={
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-            </svg>
-          }
+          icon={<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>}
         />
-        <FilterDropdown
+        <Select
           value={selectedProject}
           onChange={setSelectedProject}
-          options={availableProjects.map((p) => ({ value: p.slug, label: p.name }))}
+          options={[
+            { value: '', label: 'All projects' },
+            ...availableProjects.map((p) => ({ value: p.slug, label: p.name })),
+          ]}
           placeholder="All projects"
-          icon={
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
-          }
+          icon={<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>}
         />
       </div>
 
