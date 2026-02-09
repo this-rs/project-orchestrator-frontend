@@ -202,6 +202,9 @@ export function ChatPanel() {
             isStreaming={chat.isStreaming}
             isLoadingHistory={chat.isLoadingHistory}
             isReplaying={chat.isReplaying}
+            hasOlderMessages={chat.hasOlderMessages}
+            isLoadingOlder={chat.isLoadingOlder}
+            onLoadOlder={chat.loadOlderMessages}
             onRespondPermission={chat.respondPermission}
             onRespondInput={chat.respondInput}
           />

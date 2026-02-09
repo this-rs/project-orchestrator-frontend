@@ -1,30 +1,79 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useAtom } from 'jotai'
 import { chatScrollToTurnAtom } from '@/atoms'
 import type { ChatMessage } from '@/types'
 import { ChatMessageBubble } from './ChatMessageBubble'
+
+/** Pixel threshold from top to trigger loading older messages */
+const SCROLL_TOP_THRESHOLD = 80
 
 interface ChatMessagesProps {
   messages: ChatMessage[]
   isStreaming: boolean
   isLoadingHistory?: boolean
   isReplaying?: boolean
+  hasOlderMessages?: boolean
+  isLoadingOlder?: boolean
+  onLoadOlder?: () => void
   onRespondPermission: (toolCallId: string, allowed: boolean) => void
   onRespondInput: (requestId: string, response: string) => void
 }
 
-export function ChatMessages({ messages, isStreaming, isLoadingHistory, isReplaying, onRespondPermission, onRespondInput }: ChatMessagesProps) {
+export function ChatMessages({
+  messages,
+  isStreaming,
+  isLoadingHistory,
+  isReplaying,
+  hasOlderMessages,
+  isLoadingOlder,
+  onLoadOlder,
+  onRespondPermission,
+  onRespondInput,
+}: ChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const shouldAutoScrollRef = useRef(true)
   const [scrollToTurn, setScrollToTurn] = useAtom(chatScrollToTurnAtom)
   const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null)
 
+  // Track previous scrollHeight to preserve scroll position after prepending older messages
+  const prevScrollHeightRef = useRef<number>(0)
+  const isLoadingOlderRef = useRef(false)
+
+  // Keep ref in sync with prop for use in scroll handler
+  useEffect(() => {
+    isLoadingOlderRef.current = !!isLoadingOlder
+  }, [isLoadingOlder])
+
   // Track if user has scrolled away from bottom
-  const handleScroll = () => {
+  const handleScroll = useCallback(() => {
     if (!scrollRef.current) return
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
     shouldAutoScrollRef.current = scrollHeight - scrollTop - clientHeight < 100
-  }
+
+    // Reverse infinite scroll: trigger load when near top
+    if (
+      scrollTop < SCROLL_TOP_THRESHOLD &&
+      hasOlderMessages &&
+      !isLoadingOlderRef.current &&
+      onLoadOlder
+    ) {
+      // Capture scrollHeight BEFORE loading so we can restore position after
+      prevScrollHeightRef.current = scrollHeight
+      onLoadOlder()
+    }
+  }, [hasOlderMessages, onLoadOlder])
+
+  // Restore scroll position after older messages are prepended
+  useEffect(() => {
+    if (!isLoadingOlder && prevScrollHeightRef.current > 0 && scrollRef.current) {
+      const newScrollHeight = scrollRef.current.scrollHeight
+      const heightDiff = newScrollHeight - prevScrollHeightRef.current
+      if (heightDiff > 0) {
+        scrollRef.current.scrollTop += heightDiff
+      }
+      prevScrollHeightRef.current = 0
+    }
+  }, [isLoadingOlder, messages])
 
   // Auto-scroll to bottom when new content arrives (skip during replay to avoid flash)
   useEffect(() => {
@@ -99,6 +148,24 @@ export function ChatMessages({ messages, isStreaming, isLoadingHistory, isReplay
       onScroll={handleScroll}
       className="flex-1 overflow-y-auto px-4 py-4"
     >
+      {/* Loading older messages spinner */}
+      {isLoadingOlder && (
+        <div className="flex items-center justify-center py-3">
+          <svg className="w-4 h-4 animate-spin text-gray-500" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          <span className="ml-2 text-xs text-gray-500">Loading older messages...</span>
+        </div>
+      )}
+
+      {/* "Beginning of conversation" marker when no more older messages */}
+      {!hasOlderMessages && messages.length > 0 && !isLoadingOlder && (
+        <div className="text-center text-[10px] text-gray-600 py-2 mb-2">
+          — Beginning of conversation —
+        </div>
+      )}
+
       {messages.map((msg, index) => (
         <div key={msg.id} data-msg-index={index}>
           <ChatMessageBubble

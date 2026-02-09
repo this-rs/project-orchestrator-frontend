@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom } from 'jotai'
 import { chatSessionIdAtom, chatStreamingAtom, chatWsStatusAtom, chatReplayingAtom } from '@/atoms'
 import { chatApi, ChatWebSocket } from '@/services'
-import type { ChatMessage, ChatEvent } from '@/types'
+import type { ChatMessage, ChatEvent, MessageHistoryItem } from '@/types'
 
 let blockIdCounter = 0
 function nextBlockId() {
@@ -14,9 +14,29 @@ function nextMessageId() {
   return `msg-${++messageIdCounter}`
 }
 
+/** Number of messages to load per page via REST */
+const PAGE_SIZE = 50
+
 export interface SendMessageOptions {
   cwd: string
   projectSlug?: string
+}
+
+/**
+ * Convert flat MessageHistoryItem (from REST) into the ChatMessage UI format.
+ * Groups consecutive same-role messages into a single ChatMessage.
+ */
+function historyToMessages(items: MessageHistoryItem[]): ChatMessage[] {
+  const messages: ChatMessage[] = []
+  for (const item of items) {
+    messages.push({
+      id: item.id || nextMessageId(),
+      role: item.role,
+      blocks: [{ id: nextBlockId(), type: 'text', content: item.content }],
+      timestamp: new Date(item.created_at * 1000),
+    })
+  }
+  return messages
 }
 
 export function useChat() {
@@ -28,6 +48,11 @@ export function useChat() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const wsRef = useRef<ChatWebSocket | null>(null)
 
+  // Pagination state for reverse infinite scroll
+  const [hasOlderMessages, setHasOlderMessages] = useState(false)
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false)
+  const paginationRef = useRef({ offset: 0, totalCount: 0 })
+
   // Lazily create the ChatWebSocket singleton per hook instance
   const getWs = useCallback(() => {
     if (!wsRef.current) {
@@ -37,7 +62,7 @@ export function useChat() {
   }, [])
 
   // ========================================================================
-  // Event handler — processes both live and replayed events
+  // Event handler — processes LIVE events only (no more replay)
   // ========================================================================
   const handleEvent = useCallback((event: ChatEvent & { seq?: number; replaying?: boolean }) => {
     // streaming_status — set isStreaming flag without touching messages
@@ -312,20 +337,95 @@ export function useChat() {
   }, [])
 
   // ========================================================================
-  // Auto-connect when sessionId changes
+  // Auto-connect when sessionId changes — REST history + WS live
   // ========================================================================
   useEffect(() => {
-    if (sessionId) {
-      const ws = getWs()
-      // Only connect if not already connected to this session
-      if (ws.sessionId !== sessionId || ws.status === 'disconnected') {
-        setIsLoadingHistory(true)
-        setIsReplaying(true)
-        setMessages([])
-        ws.connect(sessionId, 0) // replay from beginning for session switch
-      }
+    if (!sessionId) return
+
+    const ws = getWs()
+    // Only load if not already connected to this session
+    if (ws.sessionId === sessionId && ws.status !== 'disconnected') return
+
+    let cancelled = false
+
+    setIsLoadingHistory(true)
+    setIsReplaying(true)
+    setMessages([])
+    paginationRef.current = { offset: 0, totalCount: 0 }
+    setHasOlderMessages(false)
+
+    // Phase 1: Load latest messages via REST
+    chatApi
+      .getMessages(sessionId, { limit: PAGE_SIZE, offset: 0 })
+      .then((data) => {
+        if (cancelled) return
+
+        // REST returns messages from newest (offset 0) in chronological order
+        const historyMessages = historyToMessages(data.messages)
+        setMessages(historyMessages)
+
+        // Track pagination state
+        const loaded = data.messages.length
+        paginationRef.current = {
+          offset: loaded,
+          totalCount: data.total_count,
+        }
+        setHasOlderMessages(data.has_more)
+        setIsLoadingHistory(false)
+        setIsReplaying(false)
+
+        // Phase 2: Connect WS for live events only (skip replay)
+        // Use a very high last_event to skip all historical events
+        // The WS will only deliver new events after this seq
+        ws.connect(sessionId, Number.MAX_SAFE_INTEGER)
+      })
+      .catch(() => {
+        if (cancelled) return
+        // Fallback: connect WS with full replay if REST fails
+        setIsLoadingHistory(false)
+        ws.connect(sessionId, 0)
+      })
+
+    return () => {
+      cancelled = true
     }
   }, [sessionId, getWs, setIsReplaying])
+
+  // ========================================================================
+  // Load older messages (reverse infinite scroll)
+  // ========================================================================
+  const loadOlderMessages = useCallback(async () => {
+    if (!sessionId || isLoadingOlder || !hasOlderMessages) return
+
+    setIsLoadingOlder(true)
+    try {
+      const { offset } = paginationRef.current
+      const data = await chatApi.getMessages(sessionId, {
+        limit: PAGE_SIZE,
+        offset,
+      })
+
+      if (data.messages.length > 0) {
+        const olderMessages = historyToMessages(data.messages)
+
+        // Prepend older messages to the beginning
+        setMessages((prev) => [...olderMessages, ...prev])
+
+        // Update pagination
+        paginationRef.current = {
+          offset: offset + data.messages.length,
+          totalCount: data.total_count,
+        }
+        setHasOlderMessages(data.has_more)
+      } else {
+        setHasOlderMessages(false)
+      }
+    } catch {
+      // Silently fail, user can retry by scrolling up again
+    } finally {
+      setIsLoadingOlder(false)
+    }
+  }, [sessionId, isLoadingOlder, hasOlderMessages])
 
   // ========================================================================
   // Actions
@@ -387,6 +487,8 @@ export function useChat() {
     setIsStreaming(false)
     setIsReplaying(false)
     setMessages([])
+    setHasOlderMessages(false)
+    paginationRef.current = { offset: 0, totalCount: 0 }
   }, [getWs, setSessionId, setIsStreaming, setIsReplaying])
 
   const loadSession = useCallback(async (sid: string) => {
@@ -400,6 +502,8 @@ export function useChat() {
     setMessages([])
     setIsLoadingHistory(true)
     setIsReplaying(true)
+    setHasOlderMessages(false)
+    paginationRef.current = { offset: 0, totalCount: 0 }
     // WS will auto-connect via the useEffect above when sessionId changes
   }, [sessionId, getWs, setSessionId, setIsStreaming, setIsReplaying])
 
@@ -407,7 +511,9 @@ export function useChat() {
     messages,
     isStreaming,
     isLoadingHistory,
+    isLoadingOlder,
     isReplaying,
+    hasOlderMessages,
     wsStatus,
     sessionId,
     sendMessage,
@@ -416,5 +522,6 @@ export function useChat() {
     interrupt,
     newSession,
     loadSession,
+    loadOlderMessages,
   }
 }
