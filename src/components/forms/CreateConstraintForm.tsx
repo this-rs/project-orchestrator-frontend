@@ -51,14 +51,14 @@ export function CreateConstraintForm({ onSubmit, loading }: Props) {
             label="Type"
             options={typeOptions}
             value={constraintType}
-            onChange={(e) => setConstraintType(e.target.value)}
+            onChange={(value) => setConstraintType(value)}
             disabled={loading}
           />
           <Select
             label="Severity"
             options={severityOptions}
             value={severity}
-            onChange={(e) => setSeverity(e.target.value)}
+            onChange={(value) => setSeverity(value)}
             disabled={loading}
           />
         </div>

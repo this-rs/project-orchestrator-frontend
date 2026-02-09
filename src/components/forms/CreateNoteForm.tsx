@@ -68,7 +68,7 @@ export function CreateNoteForm({ onSubmit, loading, defaultProjectId }: Props) {
           label="Project"
           options={projectOptions}
           value={projectId}
-          onChange={(e) => setProjectId(e.target.value)}
+          onChange={(value) => setProjectId(value)}
           error={errors.project_id}
           disabled={loading}
         />
@@ -77,14 +77,14 @@ export function CreateNoteForm({ onSubmit, loading, defaultProjectId }: Props) {
             label="Type"
             options={typeOptions}
             value={noteType}
-            onChange={(e) => setNoteType(e.target.value)}
+            onChange={(value) => setNoteType(value)}
             disabled={loading}
           />
           <Select
             label="Importance"
             options={importanceOptions}
             value={importance}
-            onChange={(e) => setImportance(e.target.value)}
+            onChange={(value) => setImportance(value)}
             disabled={loading}
           />
         </div>
