@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { chatApi, projectsApi, workspacesApi } from '@/services'
+import { useAtomValue } from 'jotai'
+import { chatSessionRefreshAtom } from '@/atoms'
+import { chatApi, getEventBus, projectsApi, workspacesApi } from '@/services'
 import type {
   ChatSession,
+  CrudEvent,
   MessageSearchResult,
   Project,
   Workspace,
@@ -15,6 +18,39 @@ interface SessionListProps {
 export function SessionList({ onSelect, onClose }: SessionListProps) {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Live refresh via WebSocket CRUD events
+  const chatSessionRefresh = useAtomValue(chatSessionRefreshAtom)
+
+  // Track streaming sessions via direct event bus subscription
+  const [streamingSessions, setStreamingSessions] = useState<Set<string>>(
+    () => new Set(),
+  )
+
+  // Listen to chat_session events for streaming status updates
+  useEffect(() => {
+    const bus = getEventBus()
+    const off = bus.on((event: CrudEvent) => {
+      if (event.entity_type !== 'chat_session') return
+
+      if (
+        event.action === 'updated' &&
+        event.payload &&
+        typeof event.payload.is_streaming === 'boolean'
+      ) {
+        setStreamingSessions((prev) => {
+          const next = new Set(prev)
+          if (event.payload.is_streaming) {
+            next.add(event.entity_id)
+          } else {
+            next.delete(event.entity_id)
+          }
+          return next
+        })
+      }
+    })
+    return () => { off() }
+  }, [])
 
   // Filter state
   const [projects, setProjects] = useState<Project[]>([])
@@ -65,7 +101,7 @@ export function SessionList({ onSelect, onClose }: SessionListProps) {
     })
   }, [selectedWorkspace])
 
-  // Fetch sessions when project filter changes
+  // Fetch sessions when project filter changes or when a CRUD event bumps the counter
   const fetchSessions = useCallback(async () => {
     setLoading(true)
     try {
@@ -84,7 +120,7 @@ export function SessionList({ onSelect, onClose }: SessionListProps) {
 
   useEffect(() => {
     fetchSessions()
-  }, [fetchSessions])
+  }, [fetchSessions, chatSessionRefresh])
 
   // Execute search when debounced query changes
   useEffect(() => {
@@ -433,17 +469,31 @@ export function SessionList({ onSelect, onClose }: SessionListProps) {
                 className="w-full text-left px-4 py-2.5 hover:bg-white/[0.04] transition-colors group flex items-start gap-2"
               >
                 <div className="flex-1 min-w-0">
-                  {/* Title */}
-                  <div className="text-sm text-gray-300 truncate">
-                    {session.title ||
-                      `Session ${session.id.slice(0, 8)}`}
+                  {/* Title + streaming indicator */}
+                  <div className="flex items-center gap-1.5">
+                    {streamingSessions.has(session.id) && (
+                      <span
+                        className="shrink-0 w-2 h-2 rounded-full bg-emerald-400 animate-pulse"
+                        title="Streaming..."
+                      />
+                    )}
+                    <span className="text-sm text-gray-300 truncate">
+                      {session.title ||
+                        `Session ${session.id.slice(0, 8)}`}
+                    </span>
                   </div>
 
-                  {/* Preview */}
-                  {session.preview && session.preview !== session.title && (
-                    <div className="text-xs text-gray-500 truncate mt-0.5">
-                      {session.preview}
+                  {/* Preview or streaming label */}
+                  {streamingSessions.has(session.id) ? (
+                    <div className="text-[10px] text-emerald-400/70 mt-0.5">
+                      Working...
                     </div>
+                  ) : (
+                    session.preview && session.preview !== session.title && (
+                      <div className="text-xs text-gray-500 truncate mt-0.5">
+                        {session.preview}
+                      </div>
+                    )
                   )}
 
                   {/* Metadata row */}
