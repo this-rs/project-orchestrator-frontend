@@ -157,7 +157,7 @@ export function TasksPage() {
             <Select
               options={statusOptions}
               value={statusFilter}
-              onChange={(e) => handleStatusFilterChange(e.target.value as TaskStatus | 'all')}
+              onChange={(value) => handleStatusFilterChange(value as TaskStatus | 'all')}
               className="w-full sm:w-40"
             />
           )}

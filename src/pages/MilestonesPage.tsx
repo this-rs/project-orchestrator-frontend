@@ -168,14 +168,14 @@ export function MilestonesPage() {
         <Select
           options={workspaceOptions}
           value={workspaceFilter}
-          onChange={(e) => setWorkspaceFilter(e.target.value)}
+          onChange={(value) => setWorkspaceFilter(value)}
           className="w-full sm:w-44"
         />
         {viewMode === 'list' && (
           <Select
             options={statusOptions}
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(value) => setStatusFilter(value)}
             className="w-full sm:w-40"
           />
         )}
