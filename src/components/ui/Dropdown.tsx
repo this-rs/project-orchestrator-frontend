@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { useDropdownPosition } from '@/hooks'
 
 interface DropdownOption<T> {
   value: T
@@ -22,60 +23,11 @@ export function Dropdown<T extends string>({
   disabled = false,
   className = '',
 }: DropdownProps<T>) {
-  const [isOpen, setIsOpen] = useState(false)
-  const triggerRef = useRef<HTMLDivElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-  const [position, setPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
-
-  const updatePosition = useCallback(() => {
-    if (!triggerRef.current) return
-    const rect = triggerRef.current.getBoundingClientRect()
-    const menuHeight = menuRef.current?.offsetHeight || 200
-    const spaceBelow = window.innerHeight - rect.bottom
-    const showAbove = spaceBelow < menuHeight && rect.top > menuHeight
-
-    setPosition({
-      top: showAbove ? rect.top + window.scrollY - menuHeight - 4 : rect.bottom + window.scrollY + 4,
-      left: rect.left + window.scrollX,
-    })
-  }, [])
-
-  useEffect(() => {
-    if (!isOpen) return
-
-    updatePosition()
-
-    function handleClickOutside(event: MouseEvent) {
-      const target = event.target as Node
-      if (
-        triggerRef.current && !triggerRef.current.contains(target) &&
-        menuRef.current && !menuRef.current.contains(target)
-      ) {
-        setIsOpen(false)
-      }
-    }
-
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') setIsOpen(false)
-    }
-
-    function handleScroll() {
-      setIsOpen(false)
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleEscape)
-    window.addEventListener('scroll', handleScroll, true)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleEscape)
-      window.removeEventListener('scroll', handleScroll, true)
-    }
-  }, [isOpen, updatePosition])
+  const { isOpen, toggle, close, position, triggerRef, menuRef } = useDropdownPosition()
 
   const handleSelect = (value: T) => {
     onSelect(value)
-    setIsOpen(false)
+    close()
   }
 
   return (
@@ -84,7 +36,7 @@ export function Dropdown<T extends string>({
         onClick={(e) => {
           e.preventDefault()
           e.stopPropagation()
-          if (!disabled) setIsOpen(!isOpen)
+          if (!disabled) toggle()
         }}
         className={disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
       >
