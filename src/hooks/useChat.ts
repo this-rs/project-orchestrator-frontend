@@ -43,7 +43,8 @@ export function useChat() {
     // streaming_status — set isStreaming flag without touching messages
     // Broadcast by backend to ALL connected clients (multi-tab support)
     if (event.type === 'streaming_status') {
-      setIsStreaming(!!(event as { is_streaming?: boolean }).is_streaming)
+      const val = !!(event as { is_streaming?: boolean }).is_streaming
+      setIsStreaming(val)
       return
     }
 
@@ -57,10 +58,14 @@ export function useChat() {
       if (!content) return
 
       setMessages((prev) => {
-        // Avoid duplicate: if last message is user with same content, skip
-        const last = prev[prev.length - 1]
-        if (last?.role === 'user' && last.blocks[0]?.content === content) {
-          return prev
+        // Avoid duplicate: check if ANY recent user message has the same content.
+        // This handles mid-stream sends where the optimistic user message is followed
+        // by assistant messages before the broadcast arrives from the dequeue.
+        for (let i = prev.length - 1; i >= Math.max(0, prev.length - 10); i--) {
+          const msg = prev[i]
+          if (msg.role === 'user' && msg.blocks[0]?.content === content) {
+            return prev
+          }
         }
         return [
           ...prev,
@@ -271,7 +276,12 @@ export function useChat() {
         }
 
         case 'result':
-          setIsStreaming(false)
+          // Only stop streaming on LIVE result events, not replayed ones.
+          // During replay (Phase 1 or Phase 1.5), a historical result event
+          // must not override the streaming_status sent for mid-stream join.
+          if (!event.replaying) {
+            setIsStreaming(false)
+          }
           break
       }
 
