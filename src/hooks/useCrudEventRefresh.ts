@@ -7,6 +7,7 @@ import {
   milestoneRefreshAtom,
   noteRefreshAtom,
   workspaceRefreshAtom,
+  chatSessionRefreshAtom,
 } from '@/atoms'
 import { useEventBus } from './useEventBus'
 import type { CrudEvent, EntityType } from '@/types'
@@ -25,6 +26,7 @@ export function useCrudEventRefresh() {
   const bumpMilestone = useSetAtom(milestoneRefreshAtom)
   const bumpNote = useSetAtom(noteRefreshAtom)
   const bumpWorkspace = useSetAtom(workspaceRefreshAtom)
+  const bumpChatSession = useSetAtom(chatSessionRefreshAtom)
 
   const timers = useRef<Map<EntityType, ReturnType<typeof setTimeout>>>(new Map())
 
@@ -68,11 +70,14 @@ export function useCrudEventRefresh() {
             case 'component':
               bumpWorkspace((c) => c + 1)
               break
+            case 'chat_session':
+              bumpChatSession((c) => c + 1)
+              break
           }
         }, DEBOUNCE_MS),
       )
     },
-    [bumpPlan, bumpTask, bumpProject, bumpMilestone, bumpNote, bumpWorkspace],
+    [bumpPlan, bumpTask, bumpProject, bumpMilestone, bumpNote, bumpWorkspace, bumpChatSession],
   )
 
   useEventBus(handleEvent)

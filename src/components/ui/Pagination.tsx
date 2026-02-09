@@ -1,3 +1,5 @@
+import { Select } from './Select'
+
 interface PaginationProps {
   currentPage: number
   totalPages: number
@@ -82,17 +84,12 @@ export function Pagination({
         {/* Page size selector — hidden on mobile */}
         <div className="hidden sm:flex items-center gap-2">
           <span className="text-sm text-gray-400">Per page:</span>
-          <select
-            value={pageSize}
-            onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            className="bg-[#1a1d27] border border-white/[0.1] rounded px-2 py-1 text-sm text-gray-200 focus:outline-none focus:border-indigo-500"
-          >
-            {pageSizeOptions.map((size) => (
-              <option key={size} value={size}>
-                {size}
-              </option>
-            ))}
-          </select>
+          <Select
+            options={pageSizeOptions.map((size) => ({ value: String(size), label: String(size) }))}
+            value={String(pageSize)}
+            onChange={(val) => onPageSizeChange(Number(val))}
+            className="w-20"
+          />
         </div>
 
         {/* Navigation */}

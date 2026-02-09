@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Spinner } from './Spinner'
+import { useDropdownPosition } from '@/hooks'
 
 interface StatusSelectProps<T extends string> {
   status: T
@@ -15,64 +16,15 @@ export function StatusSelect<T extends string>({
   colorMap,
   onStatusChange,
 }: StatusSelectProps<T>) {
-  const [isOpen, setIsOpen] = useState(false)
+  const { isOpen, toggle, close, position, triggerRef, menuRef } = useDropdownPosition()
   const [loading, setLoading] = useState(false)
-  const triggerRef = useRef<HTMLDivElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-  const [position, setPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
-
-  const updatePosition = useCallback(() => {
-    if (!triggerRef.current) return
-    const rect = triggerRef.current.getBoundingClientRect()
-    const menuHeight = menuRef.current?.offsetHeight || 200
-    const spaceBelow = window.innerHeight - rect.bottom
-    const showAbove = spaceBelow < menuHeight && rect.top > menuHeight
-
-    setPosition({
-      top: showAbove ? rect.top + window.scrollY - menuHeight - 4 : rect.bottom + window.scrollY + 4,
-      left: rect.left + window.scrollX,
-    })
-  }, [])
-
-  useEffect(() => {
-    if (!isOpen) return
-
-    updatePosition()
-
-    function handleClickOutside(event: MouseEvent) {
-      const target = event.target as Node
-      if (
-        triggerRef.current && !triggerRef.current.contains(target) &&
-        menuRef.current && !menuRef.current.contains(target)
-      ) {
-        setIsOpen(false)
-      }
-    }
-
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') setIsOpen(false)
-    }
-
-    function handleScroll() {
-      setIsOpen(false)
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleEscape)
-    window.addEventListener('scroll', handleScroll, true)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleEscape)
-      window.removeEventListener('scroll', handleScroll, true)
-    }
-  }, [isOpen, updatePosition])
 
   const handleSelect = async (newStatus: T) => {
     if (newStatus === status) {
-      setIsOpen(false)
+      close()
       return
     }
-    setIsOpen(false)
+    close()
     setLoading(true)
     try {
       await onStatusChange(newStatus)
@@ -87,7 +39,7 @@ export function StatusSelect<T extends string>({
   return (
     <div ref={triggerRef} className="relative inline-block">
       <button
-        onClick={() => !loading && setIsOpen(!isOpen)}
+        onClick={() => !loading && toggle()}
         disabled={loading}
         className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${colors.bg} ${colors.text} hover:opacity-90`}
       >

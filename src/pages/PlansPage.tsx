@@ -262,7 +262,7 @@ export function PlansPage() {
             <Select
               options={statusOptions}
               value={statusFilter}
-              onChange={(e) => handleStatusFilterChange(e.target.value as PlanStatus | 'all')}
+              onChange={(value) => handleStatusFilterChange(value as PlanStatus | 'all')}
               className="w-full sm:w-40"
             />
           )}

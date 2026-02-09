@@ -40,14 +40,19 @@ function groupBlocks(blocks: ContentBlock[]): (ContentBlock | ContentBlock[])[] 
 interface ChatMessageBubbleProps {
   message: ChatMessage
   isStreaming?: boolean
+  highlighted?: boolean
   onRespondPermission: (toolCallId: string, allowed: boolean) => void
   onRespondInput: (requestId: string, response: string) => void
 }
 
-export function ChatMessageBubble({ message, isStreaming, onRespondPermission, onRespondInput }: ChatMessageBubbleProps) {
+export function ChatMessageBubble({ message, isStreaming, highlighted, onRespondPermission, onRespondInput }: ChatMessageBubbleProps) {
+  const highlightClass = highlighted
+    ? 'ring-2 ring-amber-400/50 bg-amber-400/[0.06] rounded-xl transition-all duration-500'
+    : 'transition-all duration-1000'
+
   if (message.role === 'user') {
     return (
-      <div className="flex justify-end mb-4">
+      <div className={`flex justify-end mb-4 ${highlightClass}`}>
         <div className="max-w-[85%] px-3 py-2 rounded-xl bg-indigo-600/20 text-sm text-gray-200 whitespace-pre-wrap">
           {message.blocks[0]?.content}
         </div>
@@ -59,7 +64,7 @@ export function ChatMessageBubble({ message, isStreaming, onRespondPermission, o
   const groupedBlocks = groupBlocks(message.blocks)
 
   return (
-    <div className="mb-4">
+    <div className={`mb-4 ${highlightClass}`}>
       <div className="max-w-full">
         {groupedBlocks.map((item, index) => {
           // Tool group (array of tool_use blocks)

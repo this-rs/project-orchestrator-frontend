@@ -76,7 +76,7 @@ export function CreatePlanForm({ onSubmit, loading, defaultProjectId }: Props) {
             label="Project"
             options={projectOptions}
             value={projectId}
-            onChange={(e) => setProjectId(e.target.value)}
+            onChange={(value) => setProjectId(value)}
             disabled={loading}
           />
         </div>

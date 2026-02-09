@@ -17,6 +17,7 @@ export type EntityType =
   | 'resource'
   | 'component'
   | 'note'
+  | 'chat_session'
 
 export type CrudAction = 'created' | 'updated' | 'deleted' | 'linked' | 'unlinked'
 
