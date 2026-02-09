@@ -12,6 +12,7 @@
  */
 
 import type { ChatEvent, WsChatClientMessage, WsConnectionStatus } from '@/types'
+import { getAuthToken } from './auth'
 
 const MIN_RECONNECT_DELAY = 1000
 const MAX_RECONNECT_DELAY = 30000
@@ -31,6 +32,7 @@ export class ChatWebSocket {
   private _status: WsConnectionStatus = 'disconnected'
   private _sessionId: string | null = null
   private _isReplaying: boolean = false
+  private authenticated: boolean = false
 
   private onEvent: ChatWsEventCallback | null = null
   private onStatusChange: ChatWsStatusCallback | null = null
@@ -98,12 +100,37 @@ export class ChatWebSocket {
     this.ws.onopen = () => {
       this.reconnectDelay = MIN_RECONNECT_DELAY
       this.reconnectAttempts = 0
-      this.setStatus('connected')
+      // Send auth message as first message before anything else
+      const token = getAuthToken()
+      if (token && this.ws) {
+        this.ws.send(JSON.stringify({ type: 'auth', token }))
+      } else {
+        // No token → close and redirect to login
+        this.shouldReconnect = false
+        this.ws?.close()
+        window.location.href = '/login'
+      }
     }
 
     this.ws.onmessage = (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data as string)
+
+        // Handle auth response (first message from server)
+        if (!this.authenticated) {
+          if (data.type === 'auth_ok') {
+            this.authenticated = true
+            this.setStatus('connected')
+            return
+          }
+          if (data.type === 'auth_error') {
+            this.shouldReconnect = false
+            this.ws?.close()
+            localStorage.removeItem('auth_token')
+            window.location.href = '/login'
+            return
+          }
+        }
 
         // Handle replay_complete marker
         if (data.type === 'replay_complete') {
@@ -143,6 +170,7 @@ export class ChatWebSocket {
     this.ws.onclose = () => {
       this.ws = null
       this._isReplaying = false
+      this.authenticated = false
       if (this.shouldReconnect) {
         this.setStatus('reconnecting')
         this.scheduleReconnect()
@@ -162,6 +190,7 @@ export class ChatWebSocket {
   disconnect() {
     this.shouldReconnect = false
     this._isReplaying = false
+    this.authenticated = false
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null

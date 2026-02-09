@@ -1,4 +1,5 @@
 import type { CrudEvent, EventBusStatus } from '@/types'
+import { getAuthToken } from './auth'
 
 type EventCallback = (event: CrudEvent) => void
 type StatusCallback = (status: EventBusStatus) => void
@@ -14,6 +15,7 @@ export class EventBusClient {
   private reconnectDelay = MIN_RECONNECT_DELAY
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private shouldReconnect = true
+  private authenticated = false
 
   get status() {
     return this._status
@@ -25,6 +27,7 @@ export class EventBusClient {
     }
 
     this.shouldReconnect = true
+    this.authenticated = false
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const url = `${protocol}//${window.location.host}/ws/events`
 
@@ -37,14 +40,42 @@ export class EventBusClient {
 
     this.ws.onopen = () => {
       this.reconnectDelay = MIN_RECONNECT_DELAY
-      this.setStatus('connected')
+      // Send auth message as first message
+      const token = getAuthToken()
+      if (token && this.ws) {
+        this.ws.send(JSON.stringify({ type: 'auth', token }))
+      } else {
+        // No token → close and redirect to login
+        this.shouldReconnect = false
+        this.ws?.close()
+        window.location.href = '/login'
+      }
     }
 
     this.ws.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data) as CrudEvent
+        const data = JSON.parse(event.data)
+
+        // Handle auth response (first message from server)
+        if (!this.authenticated) {
+          if (data.type === 'auth_ok') {
+            this.authenticated = true
+            this.setStatus('connected')
+            return
+          }
+          if (data.type === 'auth_error') {
+            this.shouldReconnect = false
+            this.ws?.close()
+            localStorage.removeItem('auth_token')
+            window.location.href = '/login'
+            return
+          }
+        }
+
+        // Forward CRUD events to listeners
+        const crudEvent = data as CrudEvent
         for (const listener of this.listeners) {
-          listener(data)
+          listener(crudEvent)
         }
       } catch {
         // ignore malformed messages
@@ -53,6 +84,7 @@ export class EventBusClient {
 
     this.ws.onclose = () => {
       this.ws = null
+      this.authenticated = false
       if (this.shouldReconnect) {
         this.setStatus('reconnecting')
         this.scheduleReconnect()
@@ -68,6 +100,7 @@ export class EventBusClient {
 
   disconnect() {
     this.shouldReconnect = false
+    this.authenticated = false
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null

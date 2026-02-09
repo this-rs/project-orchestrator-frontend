@@ -4,6 +4,7 @@ import { useAtom, useAtomValue } from 'jotai'
 import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom } from '@/atoms'
 import { ToastContainer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
+import { UserMenu } from '@/components/auth/UserMenu'
 import { useMediaQuery, useCrudEventRefresh } from '@/hooks'
 
 const navGroups = [
@@ -188,7 +189,7 @@ export function MainLayout() {
 
           <Breadcrumb pathname={location.pathname} />
 
-          {/* WS status + Chat toggle */}
+          {/* WS status + User menu + Chat toggle */}
           <div className="ml-auto flex items-center gap-1.5">
             <span
               className={`w-2 h-2 rounded-full transition-colors ${
@@ -200,6 +201,7 @@ export function MainLayout() {
               }`}
               title={`WebSocket: ${wsStatus}`}
             />
+            <UserMenu />
             <button
               onClick={() => setChatMode(chatMode === 'closed' ? 'open' : 'closed')}
               className={`p-2 rounded-lg transition-colors ${chatMode !== 'closed' ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.06]'}`}

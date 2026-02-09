@@ -1,4 +1,5 @@
 export { api, ApiError, buildQuery } from './api'
+export { authApi, getAuthToken } from './auth'
 export { workspacesApi } from './workspaces'
 export { projectsApi } from './projects'
 export { plansApi } from './plans'

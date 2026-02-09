@@ -395,6 +395,30 @@ export interface TaskDetails extends Task {
 }
 
 // ============================================================================
+// AUTH
+// ============================================================================
+
+export interface AuthUser {
+  id: string
+  email: string
+  name: string
+  picture_url?: string
+}
+
+export interface AuthTokenResponse {
+  token: string
+  user: AuthUser
+}
+
+export interface AuthUrlResponse {
+  auth_url: string
+}
+
+export interface RefreshTokenResponse {
+  token: string
+}
+
+// ============================================================================
 // API REQUESTS
 // ============================================================================
 
