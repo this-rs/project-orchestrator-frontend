@@ -1,11 +1,12 @@
 import { useAtom } from 'jotai'
-import { chatPanelModeAtom, chatPanelWidthAtom } from '@/atoms'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom } from '@/atoms'
 import { useChat } from '@/hooks'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
 import { SessionList } from './SessionList'
 import { ProjectSelect } from './ProjectSelect'
 import { useState, useCallback, useRef, useEffect } from 'react'
+import { useSetAtom } from 'jotai'
 import type { Project } from '@/types'
 
 const MIN_WIDTH = 320
@@ -31,6 +32,7 @@ export function ChatPanel() {
   const [isDragging, setIsDragging] = useState(false)
   const chat = useChat()
   const panelRef = useRef<HTMLDivElement>(null)
+  const setScrollToTurn = useSetAtom(chatScrollToTurnAtom)
 
   const isOpen = mode !== 'closed'
   const isFullscreen = mode === 'fullscreen'
@@ -177,7 +179,8 @@ export function ChatPanel() {
       {/* Content */}
       {showSessions ? (
         <SessionList
-          onSelect={(sessionId) => {
+          onSelect={(sessionId, targetTurnIndex) => {
+            setScrollToTurn(targetTurnIndex ?? null)
             chat.loadSession(sessionId)
             setShowSessions(false)
           }}

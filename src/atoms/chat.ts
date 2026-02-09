@@ -14,3 +14,6 @@ export const chatWsStatusAtom = atom<WsConnectionStatus>('disconnected')
 
 /** Whether the chat is replaying persisted events (after WS connect) */
 export const chatReplayingAtom = atom<boolean>(false)
+
+/** Target message turn index for scroll-to-message from search results (null = no scroll target) */
+export const chatScrollToTurnAtom = atom<number | null>(null)

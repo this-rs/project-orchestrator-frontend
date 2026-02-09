@@ -1,4 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useAtom } from 'jotai'
+import { chatScrollToTurnAtom } from '@/atoms'
 import type { ChatMessage } from '@/types'
 import { ChatMessageBubble } from './ChatMessageBubble'
 
@@ -14,6 +16,8 @@ interface ChatMessagesProps {
 export function ChatMessages({ messages, isStreaming, isLoadingHistory, isReplaying, onRespondPermission, onRespondInput }: ChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const shouldAutoScrollRef = useRef(true)
+  const [scrollToTurn, setScrollToTurn] = useAtom(chatScrollToTurnAtom)
+  const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null)
 
   // Track if user has scrolled away from bottom
   const handleScroll = () => {
@@ -25,16 +29,45 @@ export function ChatMessages({ messages, isStreaming, isLoadingHistory, isReplay
   // Auto-scroll to bottom when new content arrives (skip during replay to avoid flash)
   useEffect(() => {
     if (!isReplaying && shouldAutoScrollRef.current && scrollRef.current) {
+      // Don't auto-scroll to bottom if we have a scroll target pending
+      if (scrollToTurn !== null) return
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [messages, isReplaying])
+  }, [messages, isReplaying, scrollToTurn])
 
-  // Scroll to bottom when replay completes
+  // Scroll to bottom when replay completes (unless scroll target is set)
   useEffect(() => {
     if (!isReplaying && messages.length > 0 && scrollRef.current) {
+      if (scrollToTurn !== null) return
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [isReplaying, messages.length])
+  }, [isReplaying, messages.length, scrollToTurn])
+
+  // Scroll to target message when replay completes
+  useEffect(() => {
+    if (isReplaying || scrollToTurn === null || messages.length === 0) return
+
+    // turn_index maps to user messages: the user message for turn N is at position N*2
+    // We target the user message of that turn
+    const targetIndex = scrollToTurn * 2
+    if (targetIndex >= messages.length) {
+      // Target not found, clear and bail
+      setScrollToTurn(null)
+      return
+    }
+
+    // Find the DOM element by data attribute
+    requestAnimationFrame(() => {
+      const el = scrollRef.current?.querySelector(`[data-msg-index="${targetIndex}"]`)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        setHighlightedIndex(targetIndex)
+        // Clear highlight after animation
+        setTimeout(() => setHighlightedIndex(null), 2500)
+      }
+      setScrollToTurn(null)
+    })
+  }, [isReplaying, scrollToTurn, messages.length, setScrollToTurn])
 
   if (messages.length === 0) {
     if (isLoadingHistory || isReplaying) {
@@ -67,13 +100,15 @@ export function ChatMessages({ messages, isStreaming, isLoadingHistory, isReplay
       className="flex-1 overflow-y-auto px-4 py-4"
     >
       {messages.map((msg, index) => (
-        <ChatMessageBubble
-          key={msg.id}
-          message={msg}
-          isStreaming={isStreaming && index === messages.length - 1 && msg.role === 'assistant'}
-          onRespondPermission={onRespondPermission}
-          onRespondInput={onRespondInput}
-        />
+        <div key={msg.id} data-msg-index={index}>
+          <ChatMessageBubble
+            message={msg}
+            isStreaming={isStreaming && index === messages.length - 1 && msg.role === 'assistant'}
+            highlighted={highlightedIndex === index}
+            onRespondPermission={onRespondPermission}
+            onRespondInput={onRespondInput}
+          />
+        </div>
       ))}
       {isStreaming && messages[messages.length - 1]?.role === 'user' && (
         <div className="mb-4 flex items-center gap-1.5">
