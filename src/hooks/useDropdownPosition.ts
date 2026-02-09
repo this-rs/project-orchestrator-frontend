@@ -68,8 +68,13 @@ export function useDropdownPosition(
       if (event.key === 'Escape') setIsOpen(false)
     }
 
-    function handleScroll() {
-      if (closeOnScroll) setIsOpen(false)
+    function handleScroll(event: Event) {
+      if (!closeOnScroll) return
+      // Don't close when scrolling inside the dropdown menu itself
+      if (menuRef.current && event.target instanceof Node && menuRef.current.contains(event.target)) {
+        return
+      }
+      setIsOpen(false)
     }
 
     document.addEventListener('mousedown', handleClickOutside)
