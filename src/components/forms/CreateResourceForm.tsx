@@ -63,7 +63,7 @@ export function CreateResourceForm({ onSubmit, loading }: Props) {
           label="Type"
           options={typeOptions}
           value={resourceType}
-          onChange={(e) => setResourceType(e.target.value)}
+          onChange={(value) => setResourceType(value)}
           disabled={loading}
         />
         <Input

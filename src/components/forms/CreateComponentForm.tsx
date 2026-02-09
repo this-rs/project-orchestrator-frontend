@@ -58,7 +58,7 @@ export function CreateComponentForm({ onSubmit, loading }: Props) {
           label="Type"
           options={typeOptions}
           value={componentType}
-          onChange={(e) => setComponentType(e.target.value)}
+          onChange={(value) => setComponentType(value)}
           disabled={loading}
         />
         <Textarea
