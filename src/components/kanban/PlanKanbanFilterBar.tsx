@@ -89,8 +89,8 @@ export function PlanKanbanFilterBar({
       <Select
         options={workspaceOptions}
         value={filters.workspace}
-        onChange={(e) => {
-          onFilterChange('workspace', e.target.value)
+        onChange={(value) => {
+          onFilterChange('workspace', value)
           onFilterChange('project', 'all')
         }}
         className="w-44"
@@ -100,7 +100,7 @@ export function PlanKanbanFilterBar({
       <Select
         options={projectOptions}
         value={filters.project}
-        onChange={(e) => onFilterChange('project', e.target.value)}
+        onChange={(value) => onFilterChange('project', value)}
         className="w-44"
       />
 
