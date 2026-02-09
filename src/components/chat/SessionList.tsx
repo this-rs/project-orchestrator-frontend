@@ -407,7 +407,7 @@ export function SessionList({ activeSessionId, onSelect, onClose, embedded }: Se
       <button
         key={session.id}
         onClick={() => isActive ? onClose() : onSelect(session.id, undefined, title)}
-        className={`w-[calc(100%-0.5rem)] text-left px-3 py-2.5 transition-all group flex items-start gap-2 rounded-lg mx-1 my-0.5 ${
+        className={`w-full text-left px-3 py-2.5 transition-all group flex items-start gap-2 ${
           isActive
             ? 'bg-indigo-500/[0.08] border-l-2 border-indigo-500 pl-2.5'
             : 'hover:bg-white/[0.04] border-l-2 border-transparent'
@@ -567,7 +567,7 @@ export function SessionList({ activeSessionId, onSelect, onClose, embedded }: Se
       </div>
 
       {/* Content area: session list or search results */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
         {isSearchActive ? (
           // Search results mode
           searching ? (
