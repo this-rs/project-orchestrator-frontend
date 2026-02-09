@@ -16,9 +16,17 @@ interface SessionListProps {
   onClose: () => void
 }
 
+const SESSION_PAGE_SIZE = 30
+
 export function SessionList({ activeSessionId, onSelect, onClose }: SessionListProps) {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [loading, setLoading] = useState(true)
+  const [hasMoreSessions, setHasMoreSessions] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const offsetRef = useRef(0)
+
+  // Sentinel ref for IntersectionObserver (infinite scroll)
+  const sentinelRef = useRef<HTMLDivElement>(null)
 
   // Live refresh via WebSocket CRUD events
   const chatSessionRefresh = useAtomValue(chatSessionRefreshAtom)
@@ -102,26 +110,70 @@ export function SessionList({ activeSessionId, onSelect, onClose }: SessionListP
     })
   }, [selectedWorkspace])
 
-  // Fetch sessions when project filter changes or when a CRUD event bumps the counter
-  const fetchSessions = useCallback(async () => {
-    setLoading(true)
-    try {
-      const params: { limit: number; project_slug?: string } = { limit: 50 }
-      if (selectedProject) {
-        params.project_slug = selectedProject
+  // Fetch sessions — initial load resets the list, loadMore appends
+  const fetchSessions = useCallback(
+    async (loadMore = false) => {
+      if (loadMore) {
+        setIsLoadingMore(true)
+      } else {
+        setLoading(true)
+        offsetRef.current = 0
       }
-      const data = await chatApi.listSessions(params)
-      setSessions(data.items || [])
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false)
-    }
-  }, [selectedProject])
 
+      try {
+        const params: { limit: number; offset: number; project_slug?: string } = {
+          limit: SESSION_PAGE_SIZE,
+          offset: loadMore ? offsetRef.current : 0,
+        }
+        if (selectedProject) {
+          params.project_slug = selectedProject
+        }
+        const data = await chatApi.listSessions(params)
+        const newItems = data.items || []
+
+        if (loadMore) {
+          setSessions((prev) => [...prev, ...newItems])
+        } else {
+          setSessions(newItems)
+        }
+
+        offsetRef.current = (loadMore ? offsetRef.current : 0) + newItems.length
+        setHasMoreSessions(!!data.has_more)
+      } catch {
+        // ignore
+      } finally {
+        if (loadMore) {
+          setIsLoadingMore(false)
+        } else {
+          setLoading(false)
+        }
+      }
+    },
+    [selectedProject],
+  )
+
+  // Initial load + refresh on filter/CRUD changes
   useEffect(() => {
-    fetchSessions()
+    fetchSessions(false)
   }, [fetchSessions, chatSessionRefresh])
+
+  // IntersectionObserver for infinite scroll sentinel
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreSessions && !isLoadingMore && !loading) {
+          fetchSessions(true)
+        }
+      },
+      { threshold: 0.1 },
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [hasMoreSessions, isLoadingMore, loading, fetchSessions])
 
   // Execute search when debounced query changes
   useEffect(() => {
@@ -561,6 +613,23 @@ export function SessionList({ activeSessionId, onSelect, onClose }: SessionListP
               </button>
               )
             })}
+
+            {/* Infinite scroll sentinel + loading indicator */}
+            {hasMoreSessions && (
+              <div ref={sentinelRef} className="flex items-center justify-center py-3">
+                {isLoadingMore ? (
+                  <>
+                    <svg className="w-3.5 h-3.5 animate-spin text-gray-500" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    <span className="ml-1.5 text-[10px] text-gray-600">Loading more...</span>
+                  </>
+                ) : (
+                  <span className="text-[10px] text-gray-700">Scroll for more</span>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
