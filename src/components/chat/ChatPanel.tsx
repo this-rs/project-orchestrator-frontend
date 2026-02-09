@@ -179,6 +179,7 @@ export function ChatPanel() {
       {/* Content */}
       {showSessions ? (
         <SessionList
+          activeSessionId={chat.sessionId}
           onSelect={(sessionId, targetTurnIndex) => {
             setScrollToTurn(targetTurnIndex ?? null)
             chat.loadSession(sessionId)

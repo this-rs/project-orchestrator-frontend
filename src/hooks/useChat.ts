@@ -390,6 +390,9 @@ export function useChat() {
   }, [getWs, setSessionId, setIsStreaming, setIsReplaying])
 
   const loadSession = useCallback(async (sid: string) => {
+    // Guard: if already on this session, do nothing (avoid WS disconnect/reconnect loop)
+    if (sid === sessionId) return
+
     const ws = getWs()
     ws.disconnect()
     setSessionId(sid)
@@ -398,7 +401,7 @@ export function useChat() {
     setIsLoadingHistory(true)
     setIsReplaying(true)
     // WS will auto-connect via the useEffect above when sessionId changes
-  }, [getWs, setSessionId, setIsStreaming, setIsReplaying])
+  }, [sessionId, getWs, setSessionId, setIsStreaming, setIsReplaying])
 
   return {
     messages,

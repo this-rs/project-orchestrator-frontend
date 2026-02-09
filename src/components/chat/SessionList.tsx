@@ -11,11 +11,12 @@ import type {
 } from '@/types'
 
 interface SessionListProps {
+  activeSessionId?: string | null
   onSelect: (sessionId: string, targetMessageTurnIndex?: number) => void
   onClose: () => void
 }
 
-export function SessionList({ onSelect, onClose }: SessionListProps) {
+export function SessionList({ activeSessionId, onSelect, onClose }: SessionListProps) {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -462,11 +463,13 @@ export function SessionList({ onSelect, onClose }: SessionListProps) {
           </div>
         ) : (
           <div className="py-1">
-            {filteredSessions.map((session) => (
+            {filteredSessions.map((session) => {
+              const isActive = session.id === activeSessionId
+              return (
               <button
                 key={session.id}
-                onClick={() => onSelect(session.id)}
-                className="w-full text-left px-4 py-2.5 hover:bg-white/[0.04] transition-colors group flex items-start gap-2"
+                onClick={() => isActive ? onClose() : onSelect(session.id)}
+                className={`w-full text-left px-4 py-2.5 transition-colors group flex items-start gap-2 ${isActive ? 'bg-indigo-500/[0.08] border-l-2 border-indigo-500' : 'hover:bg-white/[0.04]'}`}
               >
                 <div className="flex-1 min-w-0">
                   {/* Title + streaming indicator */}
@@ -556,7 +559,8 @@ export function SessionList({ onSelect, onClose }: SessionListProps) {
                   </svg>
                 </button>
               </button>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
