@@ -145,13 +145,13 @@ export function NotesPage() {
           <Select
             options={typeOptions}
             value={typeFilter}
-            onChange={(e) => handleTypeFilterChange(e.target.value as NoteType | 'all')}
+            onChange={(value) => handleTypeFilterChange(value as NoteType | 'all')}
             className="w-full sm:w-36"
           />
           <Select
             options={statusOptions}
             value={statusFilter}
-            onChange={(e) => handleStatusFilterChange(e.target.value as NoteStatus | 'all')}
+            onChange={(value) => handleStatusFilterChange(value as NoteStatus | 'all')}
             className="w-full sm:w-36"
           />
           <Button onClick={openCreateNote}>Create Note</Button>
