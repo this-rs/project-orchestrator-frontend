@@ -46,7 +46,7 @@ export function KanbanFilterBar({
       <Select
         options={planOptions}
         value={filters.plan_id || ''}
-        onChange={(e) => onFilterChange('plan_id', e.target.value || undefined)}
+        onChange={(value) => onFilterChange('plan_id', value || undefined)}
         className="w-full sm:w-44"
       />
 
@@ -104,18 +104,13 @@ export function KanbanFilterBar({
 
       {/* Exclude projects */}
       {projectOptions.length > 0 && (
-        <select
+        <Select
+          options={projectOptions.map((p) => ({ value: p.id, label: p.name }))}
           value=""
-          onChange={(e) => {
-            if (e.target.value) onToggleExcludeProject(e.target.value)
-          }}
-          className="w-full sm:w-40 px-2.5 py-1.5 text-sm bg-[#0f1117] border border-white/[0.1] rounded-lg text-gray-400 focus:outline-none focus:border-indigo-500"
-        >
-          <option value="">Exclude project...</option>
-          {projectOptions.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
+          onChange={(value) => { if (value) onToggleExcludeProject(value) }}
+          placeholder="Exclude project..."
+          className="w-full sm:w-40"
+        />
       )}
 
       {/* Excluded project chips */}
