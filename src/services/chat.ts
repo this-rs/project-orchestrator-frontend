@@ -5,6 +5,7 @@ import type {
   CreateSessionResponse,
   PaginatedResponse,
   MessageHistoryResponse,
+  MessageSearchResult,
 } from '@/types'
 
 interface ListSessionsParams {
@@ -16,6 +17,12 @@ interface ListSessionsParams {
 interface GetMessagesParams {
   limit?: number
   offset?: number
+}
+
+interface SearchMessagesParams {
+  q: string
+  project_slug?: string
+  limit?: number
 }
 
 export const chatApi = {
@@ -33,4 +40,7 @@ export const chatApi = {
 
   getMessages: (sessionId: string, params: GetMessagesParams = {}) =>
     api.get<MessageHistoryResponse>(`/chat/sessions/${sessionId}/messages${buildQuery(params)}`),
+
+  searchMessages: (params: SearchMessagesParams) =>
+    api.get<MessageSearchResult[]>(`/chat/search${buildQuery(params)}`),
 }

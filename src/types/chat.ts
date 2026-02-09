@@ -13,6 +13,7 @@ export interface ChatSession {
   updated_at: string
   message_count: number
   total_cost_usd?: number
+  preview?: string
 }
 
 export interface CreateSessionRequest {
@@ -91,6 +92,29 @@ export interface MessageHistoryResponse {
   has_more: boolean
   offset: number
   limit: number
+}
+
+// ============================================================================
+// SEARCH TYPES
+// ============================================================================
+
+export interface MessageSearchHit {
+  message_id: string
+  role: 'user' | 'assistant'
+  content_snippet: string
+  turn_index: number
+  created_at: number // Unix timestamp
+  score: number
+}
+
+export interface MessageSearchResult {
+  session_id: string
+  session_title?: string
+  session_preview?: string
+  project_slug?: string
+  conversation_id: string
+  hits: MessageSearchHit[]
+  best_score: number
 }
 
 // ============================================================================
