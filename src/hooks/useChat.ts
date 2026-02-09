@@ -354,30 +354,46 @@ export function useChat() {
     paginationRef.current = { offset: 0, totalCount: 0 }
     setHasOlderMessages(false)
 
-    // Phase 1: Load latest messages via REST
+    // Phase 1: Load the most recent messages via REST.
+    // The API uses chronological pagination (offset 0 = oldest), so we first
+    // need to figure out the right offset to get the last page of messages.
+    // We do a small initial request to get total_count, then load the tail.
     chatApi
-      .getMessages(sessionId, { limit: PAGE_SIZE, offset: 0 })
-      .then((data) => {
+      .getMessages(sessionId, { limit: 1, offset: 0 })
+      .then((meta) => {
         if (cancelled) return
-
-        // REST returns messages from newest (offset 0) in chronological order
-        const historyMessages = historyToMessages(data.messages)
-        setMessages(historyMessages)
-
-        // Track pagination state
-        const loaded = data.messages.length
-        paginationRef.current = {
-          offset: loaded,
-          totalCount: data.total_count,
+        const total = meta.total_count
+        if (total === 0) {
+          setMessages([])
+          paginationRef.current = { offset: 0, totalCount: 0 }
+          setHasOlderMessages(false)
+          setIsLoadingHistory(false)
+          setIsReplaying(false)
+          ws.connect(sessionId, Number.MAX_SAFE_INTEGER)
+          return
         }
-        setHasOlderMessages(data.has_more)
-        setIsLoadingHistory(false)
-        setIsReplaying(false)
 
-        // Phase 2: Connect WS for live events only (skip replay)
-        // Use a very high last_event to skip all historical events
-        // The WS will only deliver new events after this seq
-        ws.connect(sessionId, Number.MAX_SAFE_INTEGER)
+        // Load the last PAGE_SIZE messages (the tail of the conversation)
+        const tailOffset = Math.max(0, total - PAGE_SIZE)
+        return chatApi.getMessages(sessionId, { limit: PAGE_SIZE, offset: tailOffset })
+          .then((data) => {
+            if (cancelled) return
+
+            const historyMessages = historyToMessages(data.messages)
+            setMessages(historyMessages)
+
+            // Track how far back we've loaded (tailOffset = messages before this page)
+            paginationRef.current = {
+              offset: tailOffset,
+              totalCount: data.total_count,
+            }
+            setHasOlderMessages(tailOffset > 0)
+            setIsLoadingHistory(false)
+            setIsReplaying(false)
+
+            // Phase 2: Connect WS for live events only (skip replay)
+            ws.connect(sessionId, Number.MAX_SAFE_INTEGER)
+          })
       })
       .catch(() => {
         if (cancelled) return
@@ -399,10 +415,21 @@ export function useChat() {
 
     setIsLoadingOlder(true)
     try {
+      // paginationRef.offset = the chronological offset of the oldest message we have.
+      // To load older messages, we go further back: newOffset = max(0, offset - PAGE_SIZE)
       const { offset } = paginationRef.current
+      const newOffset = Math.max(0, offset - PAGE_SIZE)
+      const loadLimit = offset - newOffset // may be < PAGE_SIZE at the start
+
+      if (loadLimit <= 0) {
+        setHasOlderMessages(false)
+        setIsLoadingOlder(false)
+        return
+      }
+
       const data = await chatApi.getMessages(sessionId, {
-        limit: PAGE_SIZE,
-        offset,
+        limit: loadLimit,
+        offset: newOffset,
       })
 
       if (data.messages.length > 0) {
@@ -411,12 +438,12 @@ export function useChat() {
         // Prepend older messages to the beginning
         setMessages((prev) => [...olderMessages, ...prev])
 
-        // Update pagination
+        // Move the offset cursor back
         paginationRef.current = {
-          offset: offset + data.messages.length,
+          offset: newOffset,
           totalCount: data.total_count,
         }
-        setHasOlderMessages(data.has_more)
+        setHasOlderMessages(newOffset > 0)
       } else {
         setHasOlderMessages(false)
       }
