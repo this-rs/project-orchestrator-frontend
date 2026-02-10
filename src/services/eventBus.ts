@@ -1,5 +1,6 @@
 import type { CrudEvent, EventBusStatus } from '@/types'
-import { getAuthMode, getAuthToken } from './auth'
+import { getAuthMode } from './auth'
+import { getValidToken, forceLogout } from './authManager'
 
 type EventCallback = (event: CrudEvent) => void
 type StatusCallback = (status: EventBusStatus) => void
@@ -28,6 +29,22 @@ export class EventBusClient {
 
     this.shouldReconnect = true
     this.authenticated = false
+
+    // In no-auth mode, connect directly. Otherwise pre-fetch a valid token.
+    if (getAuthMode() === 'none') {
+      this.openSocket(null)
+    } else {
+      getValidToken().then((token) => {
+        if (token) {
+          this.openSocket(token)
+        } else {
+          forceLogout()
+        }
+      })
+    }
+  }
+
+  private openSocket(token: string | null) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const url = `${protocol}//${window.location.host}/ws/events`
 
@@ -42,19 +59,8 @@ export class EventBusClient {
       this.reconnectDelay = MIN_RECONNECT_DELAY
 
       // In no-auth mode, skip auth handshake — server sends auth_ok automatically
-      if (getAuthMode() === 'none') {
-        return
-      }
-
-      // Send auth message as first message
-      const token = getAuthToken()
       if (token && this.ws) {
         this.ws.send(JSON.stringify({ type: 'auth', token }))
-      } else {
-        // No token → close and redirect to login
-        this.shouldReconnect = false
-        this.ws?.close()
-        window.location.href = '/login'
       }
     }
 
@@ -72,8 +78,7 @@ export class EventBusClient {
           if (data.type === 'auth_error') {
             this.shouldReconnect = false
             this.ws?.close()
-            localStorage.removeItem('auth_token')
-            window.location.href = '/login'
+            forceLogout()
             return
           }
         }

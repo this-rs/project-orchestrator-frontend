@@ -1,15 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAtomValue, useSetAtom } from 'jotai'
-import { authModeAtom, authTokenAtom, currentUserAtom } from '@/atoms'
-import { getEventBus } from '@/services'
+import { useAtomValue } from 'jotai'
+import { authModeAtom, currentUserAtom } from '@/atoms'
+import { forceLogout } from '@/services/authManager'
 
 export function UserMenu() {
   const authMode = useAtomValue(authModeAtom)
   const user = useAtomValue(currentUserAtom)
-  const setToken = useSetAtom(authTokenAtom)
-  const setUser = useSetAtom(currentUserAtom)
-  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -48,12 +44,7 @@ export function UserMenu() {
     .toUpperCase()
 
   const handleLogout = () => {
-    // Disconnect WS before clearing auth
-    getEventBus().disconnect()
-    setToken(null)
-    setUser(null)
-    localStorage.removeItem('auth_token')
-    navigate('/login')
+    forceLogout()
   }
 
   return (

@@ -12,7 +12,8 @@
  */
 
 import type { ChatEvent, WsChatClientMessage, WsConnectionStatus } from '@/types'
-import { getAuthMode, getAuthToken } from './auth'
+import { getAuthMode } from './auth'
+import { getValidToken, forceLogout } from './authManager'
 
 const MIN_RECONNECT_DELAY = 1000
 const MAX_RECONNECT_DELAY = 30000
@@ -85,10 +86,25 @@ export class ChatWebSocket {
     this.shouldReconnect = true
     this._isReplaying = true
 
+    this.setStatus('connecting')
+
+    // In no-auth mode, connect directly. Otherwise pre-fetch a valid token.
+    if (getAuthMode() === 'none') {
+      this.openSocket(sessionId, lastEventSeq, null)
+    } else {
+      getValidToken().then((token) => {
+        if (token) {
+          this.openSocket(sessionId, lastEventSeq, token)
+        } else {
+          forceLogout()
+        }
+      })
+    }
+  }
+
+  private openSocket(sessionId: string, lastEventSeq: number, token: string | null) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const url = `${protocol}//${window.location.host}/ws/chat/${sessionId}?last_event=${lastEventSeq}`
-
-    this.setStatus('connecting')
 
     try {
       this.ws = new WebSocket(url)
@@ -102,19 +118,8 @@ export class ChatWebSocket {
       this.reconnectAttempts = 0
 
       // In no-auth mode, skip auth handshake — server sends auth_ok automatically
-      if (getAuthMode() === 'none') {
-        return
-      }
-
-      // Send auth message as first message before anything else
-      const token = getAuthToken()
       if (token && this.ws) {
         this.ws.send(JSON.stringify({ type: 'auth', token }))
-      } else {
-        // No token → close and redirect to login
-        this.shouldReconnect = false
-        this.ws?.close()
-        window.location.href = '/login'
       }
     }
 
@@ -132,8 +137,7 @@ export class ChatWebSocket {
           if (data.type === 'auth_error') {
             this.shouldReconnect = false
             this.ws?.close()
-            localStorage.removeItem('auth_token')
-            window.location.href = '/login'
+            forceLogout()
             return
           }
         }
