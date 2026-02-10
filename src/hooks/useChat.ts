@@ -208,6 +208,36 @@ export function useChat() {
           break
         }
 
+        case 'tool_use_input_resolved': {
+          // Update an existing tool_use block's input with the full params
+          const data = event.replaying
+            ? (event as { data?: Record<string, unknown> }).data ?? event
+            : event
+          const resolvedId = (data as { id?: string }).id
+          const resolvedInput = (data as { input?: Record<string, unknown> }).input ?? {}
+
+          // Search backwards through ALL messages for the matching tool_use block
+          for (let mi = updated.length - 1; mi >= 0; mi--) {
+            const msg = updated[mi]
+            for (let bi = 0; bi < msg.blocks.length; bi++) {
+              const block = msg.blocks[bi]
+              if (
+                block.type === 'tool_use' &&
+                block.metadata?.tool_call_id === resolvedId
+              ) {
+                // Clone the message and block to trigger React re-render
+                const updatedMsg = { ...msg, blocks: [...msg.blocks] }
+                updatedMsg.blocks[bi] = {
+                  ...block,
+                  metadata: { ...block.metadata, tool_input: resolvedInput },
+                }
+                updated[mi] = updatedMsg
+              }
+            }
+          }
+          break
+        }
+
         case 'tool_result': {
           const data = event.replaying
             ? (event as { data?: Record<string, unknown> }).data ?? event
