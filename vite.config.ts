@@ -12,7 +12,7 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    allowedHosts: ['ffs.dev'],
+    allowedHosts: process.env.VITE_ALLOWED_HOSTS?.split(',') || true,
     proxy: {
       '/api': {
         target: 'http://localhost:8080',
