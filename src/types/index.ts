@@ -398,6 +398,39 @@ export interface TaskDetails extends Task {
 // AUTH
 // ============================================================================
 
+/** Auth mode: 'required' = login needed, 'none' = open access */
+export type AuthMode = 'required' | 'none'
+
+/** Auth provider type returned by GET /auth/providers */
+export type AuthProviderType = 'password' | 'oidc'
+
+/** Single auth provider info from GET /auth/providers */
+export interface AuthProviderInfo {
+  id: string
+  name: string
+  type: AuthProviderType
+}
+
+/** Response from GET /auth/providers */
+export interface AuthProvidersResponse {
+  auth_required: boolean
+  providers: AuthProviderInfo[]
+  allow_registration: boolean
+}
+
+/** POST /auth/login request body */
+export interface LoginRequest {
+  email: string
+  password: string
+}
+
+/** POST /auth/register request body */
+export interface RegisterRequest {
+  email: string
+  password: string
+  name: string
+}
+
 export interface AuthUser {
   id: string
   email: string

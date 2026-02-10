@@ -1,13 +1,39 @@
 /**
- * Auth API service — Google OAuth + JWT token management.
+ * Auth API service — multi-provider auth (no-auth, password, OIDC) + JWT management.
  *
  * Auth endpoints are under /auth/* (public, no /api prefix).
  * The /auth/me and /auth/refresh routes require a valid Bearer token.
  */
 
-import type { AuthTokenResponse, AuthUrlResponse, AuthUser, RefreshTokenResponse } from '@/types'
+import type {
+  AuthMode,
+  AuthProvidersResponse,
+  AuthTokenResponse,
+  AuthUrlResponse,
+  AuthUser,
+  LoginRequest,
+  RefreshTokenResponse,
+  RegisterRequest,
+} from '@/types'
 
 const AUTH_BASE = '/auth'
+
+/**
+ * Module-level auth mode cache.
+ * Set by ProtectedRoute after fetching GET /auth/providers.
+ * Read by api.ts to decide whether to redirect on 401.
+ */
+let _authMode: AuthMode = 'required'
+
+/** Update the cached auth mode (called from ProtectedRoute) */
+export function setAuthMode(mode: AuthMode): void {
+  _authMode = mode
+}
+
+/** Get the current auth mode */
+export function getAuthMode(): AuthMode {
+  return _authMode
+}
 
 /** Get the stored token from localStorage */
 export function getAuthToken(): string | null {
@@ -53,16 +79,65 @@ async function authRequest<T>(
 }
 
 export const authApi = {
-  /** GET /auth/google — Get Google OAuth authorization URL */
+  // =========================================================================
+  // Provider discovery
+  // =========================================================================
+
+  /** GET /auth/providers — Discover available auth modes and providers */
+  getProviders: () =>
+    authRequest<AuthProvidersResponse>('/providers'),
+
+  // =========================================================================
+  // Password auth
+  // =========================================================================
+
+  /** POST /auth/login — Authenticate with email + password */
+  loginWithPassword: (email: string, password: string) =>
+    authRequest<AuthTokenResponse>('/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password } satisfies LoginRequest),
+    }),
+
+  /** POST /auth/register — Create a new account (when registration is enabled) */
+  register: (email: string, password: string, name: string) =>
+    authRequest<AuthTokenResponse>('/register', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, name } satisfies RegisterRequest),
+    }),
+
+  // =========================================================================
+  // OIDC (generic — Google, Microsoft, Okta, etc.)
+  // =========================================================================
+
+  /** GET /auth/oidc — Get OIDC authorization URL */
+  getOidcAuthUrl: () =>
+    authRequest<AuthUrlResponse>('/oidc'),
+
+  /** POST /auth/oidc/callback — Exchange OIDC auth code for JWT + user */
+  exchangeOidcCode: (code: string) =>
+    authRequest<AuthTokenResponse>('/oidc/callback', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    }),
+
+  // =========================================================================
+  // Legacy Google endpoints (aliases — backward compatible)
+  // =========================================================================
+
+  /** @deprecated Use getOidcAuthUrl() instead */
   getGoogleAuthUrl: () =>
     authRequest<AuthUrlResponse>('/google'),
 
-  /** POST /auth/google/callback — Exchange auth code for JWT + user */
+  /** @deprecated Use exchangeOidcCode() instead */
   exchangeCode: (code: string) =>
     authRequest<AuthTokenResponse>('/google/callback', {
       method: 'POST',
       body: JSON.stringify({ code }),
     }),
+
+  // =========================================================================
+  // Token management (protected routes)
+  // =========================================================================
 
   /** GET /auth/me — Get current authenticated user */
   me: () =>

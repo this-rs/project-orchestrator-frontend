@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { authTokenAtom, currentUserAtom } from '@/atoms'
+import { authModeAtom, authTokenAtom, currentUserAtom } from '@/atoms'
 import { getEventBus } from '@/services'
 
 export function UserMenu() {
+  const authMode = useAtomValue(authModeAtom)
   const user = useAtomValue(currentUserAtom)
   const setToken = useSetAtom(authTokenAtom)
   const setUser = useSetAtom(currentUserAtom)
@@ -33,6 +34,9 @@ export function UserMenu() {
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
   }, [open])
+
+  // Hide in no-auth mode
+  if (authMode === 'none') return null
 
   if (!user) return null
 

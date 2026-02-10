@@ -1,4 +1,4 @@
-import { getAuthToken } from './auth'
+import { getAuthMode, getAuthToken } from './auth'
 
 const API_BASE = '/api'
 
@@ -35,8 +35,8 @@ async function request<T>(
   })
 
   if (!response.ok) {
-    // 401 Unauthorized → clear token and redirect to login
-    if (response.status === 401) {
+    // 401 Unauthorized → clear token and redirect to login (only in auth-required mode)
+    if (response.status === 401 && getAuthMode() === 'required') {
       localStorage.removeItem('auth_token')
       window.location.href = '/login'
       // Return a never-resolving promise so callers don't run their .then()

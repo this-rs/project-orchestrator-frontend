@@ -12,7 +12,7 @@
  */
 
 import type { ChatEvent, WsChatClientMessage, WsConnectionStatus } from '@/types'
-import { getAuthToken } from './auth'
+import { getAuthMode, getAuthToken } from './auth'
 
 const MIN_RECONNECT_DELAY = 1000
 const MAX_RECONNECT_DELAY = 30000
@@ -100,6 +100,12 @@ export class ChatWebSocket {
     this.ws.onopen = () => {
       this.reconnectDelay = MIN_RECONNECT_DELAY
       this.reconnectAttempts = 0
+
+      // In no-auth mode, skip auth handshake — server sends auth_ok automatically
+      if (getAuthMode() === 'none') {
+        return
+      }
+
       // Send auth message as first message before anything else
       const token = getAuthToken()
       if (token && this.ws) {

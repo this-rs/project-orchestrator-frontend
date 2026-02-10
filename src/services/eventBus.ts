@@ -1,5 +1,5 @@
 import type { CrudEvent, EventBusStatus } from '@/types'
-import { getAuthToken } from './auth'
+import { getAuthMode, getAuthToken } from './auth'
 
 type EventCallback = (event: CrudEvent) => void
 type StatusCallback = (status: EventBusStatus) => void
@@ -40,6 +40,12 @@ export class EventBusClient {
 
     this.ws.onopen = () => {
       this.reconnectDelay = MIN_RECONNECT_DELAY
+
+      // In no-auth mode, skip auth handshake — server sends auth_ok automatically
+      if (getAuthMode() === 'none') {
+        return
+      }
+
       // Send auth message as first message
       const token = getAuthToken()
       if (token && this.ws) {

@@ -5,6 +5,16 @@ import { authTokenAtom, currentUserAtom } from '@/atoms'
 import { authApi } from '@/services'
 import { Spinner } from '@/components/ui'
 
+/**
+ * OAuth/OIDC callback page.
+ *
+ * Handles both:
+ * - New generic OIDC flow (exchangeOidcCode)
+ * - Legacy Google flow (exchangeCode) as fallback
+ *
+ * Tries the generic OIDC endpoint first. If it fails with a non-auth error,
+ * falls back to the legacy Google endpoint for backward compatibility.
+ */
 export function AuthCallbackPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -21,8 +31,10 @@ export function AuthCallbackPage() {
 
     let cancelled = false
 
+    // Try generic OIDC first, fall back to legacy Google
     authApi
-      .exchangeCode(code)
+      .exchangeOidcCode(code)
+      .catch(() => authApi.exchangeCode(code))
       .then(({ token, user }) => {
         if (cancelled) return
         setToken(token)
