@@ -109,12 +109,11 @@ export function LoginPage() {
         {/* Auth forms */}
         <div className="space-y-6">
           {/* Password login or registration form */}
-          {hasPassword && (
-            showRegister ? <RegisterForm /> : <PasswordLoginForm />
-          )}
+          {hasPassword && !showRegister && <PasswordLoginForm />}
+          {allowRegistration && showRegister && <RegisterForm />}
 
-          {/* Separator when both password and OIDC are available */}
-          {hasPassword && oidcProvider && (
+          {/* Separator when both password/register and OIDC are available */}
+          {(hasPassword || (allowRegistration && showRegister)) && oidcProvider && (
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-white/[0.1]" />
@@ -153,7 +152,7 @@ export function LoginPage() {
         </div>
 
         {/* Registration toggle */}
-        {hasPassword && allowRegistration && (
+        {allowRegistration && (
           <div className="text-center">
             <button
               type="button"
