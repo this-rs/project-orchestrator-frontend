@@ -1,14 +1,20 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
-import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, TaskStatusBadge, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
+import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import { plansApi, tasksApi, projectsApi } from '@/services'
 import { KanbanBoard } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
 import { chatSuggestedProjectIdAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import { CreateTaskForm, CreateConstraintForm } from '@/components/forms'
-import type { Plan, DependencyGraph, Task, Constraint, Step, PlanStatus, TaskStatus, StepStatus, PaginatedResponse, Project } from '@/types'
+import { DependencyGraphView } from '@/components/DependencyGraphView'
+import type { Plan, Decision, DependencyGraph, Task, Constraint, Step, PlanStatus, TaskStatus, StepStatus, PaginatedResponse, Project } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
+
+interface DecisionWithTask extends Decision {
+  taskId: string
+  taskTitle: string
+}
 
 export function PlanDetailPage() {
   const { planId } = useParams<{ planId: string }>()
@@ -16,6 +22,7 @@ export function PlanDetailPage() {
   const [plan, setPlan] = useState<Plan | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
   const [constraints, setConstraints] = useState<Constraint[]>([])
+  const [decisions, setDecisions] = useState<DecisionWithTask[]>([])
   const [graph, setGraph] = useState<DependencyGraph | null>(null)
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useViewMode()
@@ -52,6 +59,18 @@ export function PlanDetailPage() {
         setTasks(tasksData.items || [])
         setConstraints(constraintsData.items || [])
         setGraph(graphData)
+
+        // Extract decisions from PlanDetails response — backend nests them in tasks[].decisions[]
+        const rawTasks = (planResponse as unknown as { tasks?: { task?: Task; decisions?: Decision[] }[] }).tasks || []
+        const allDecisions: DecisionWithTask[] = rawTasks.flatMap((td) => {
+          const taskInfo = td.task
+          return (td.decisions || []).map((d) => ({
+            ...d,
+            taskId: taskInfo?.id || '',
+            taskTitle: taskInfo?.title || taskInfo?.description || 'Untitled task',
+          }))
+        })
+        setDecisions(allDecisions)
 
         // Load linked project if exists
         if (planData.project_id) {
@@ -134,6 +153,13 @@ export function PlanDetailPage() {
   const sectionIds = ['overview', 'tasks', 'constraints', 'decisions', ...(graph && (graph.nodes || []).length > 0 ? ['graph'] : [])]
   const activeSection = useSectionObserver(sectionIds)
 
+  // Build a fresh status map from local tasks state (includes optimistic updates)
+  // Must be before early return to respect Rules of Hooks
+  const taskStatusMap = useMemo(
+    () => new Map(tasks.map((t) => [t.id, t.status])),
+    [tasks],
+  )
+
   if (loading || !plan) return <LoadingPage />
 
   const tasksByStatus = {
@@ -143,8 +169,6 @@ export function PlanDetailPage() {
     completed: tasks.filter((t) => t.status === 'completed'),
     failed: tasks.filter((t) => t.status === 'failed'),
   }
-
-  const decisions = (plan as { decisions?: { id: string; description: string; rationale: string; chosen_option?: string }[] }).decisions || []
 
   const sections = [
     { id: 'overview', label: 'Overview' },
@@ -348,11 +372,21 @@ export function PlanDetailPage() {
               <div className="space-y-3">
                 {decisions.map((decision) => (
                   <div key={decision.id} className="p-3 bg-white/[0.06] rounded-lg">
-                    <p className="font-medium text-gray-200 mb-1">{decision.description}</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-medium text-gray-200">{decision.description}</p>
+                    </div>
                     <p className="text-sm text-gray-400">{decision.rationale}</p>
-                    {decision.chosen_option && (
-                      <Badge variant="success" className="mt-2">{decision.chosen_option}</Badge>
-                    )}
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      {decision.chosen_option && (
+                        <Badge variant="success">{decision.chosen_option}</Badge>
+                      )}
+                      <Link
+                        to={`/tasks/${decision.taskId}`}
+                        className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                      >
+                        ← {decision.taskTitle}
+                      </Link>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -367,23 +401,15 @@ export function PlanDetailPage() {
         <section id="graph" className="scroll-mt-20">
         <Card>
           <CardHeader>
-            <CardTitle>Dependency Graph</CardTitle>
+            <div className="flex items-center justify-between w-full">
+              <CardTitle>Dependency Graph</CardTitle>
+              <span className="text-sm text-gray-500">
+                {(graph.nodes || []).length} tasks &middot; {(graph.edges || []).length} dependencies
+              </span>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-sm text-gray-400 mb-4">
-              {(graph.nodes || []).length} nodes, {(graph.edges || []).length} edges
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
-              {(graph.nodes || []).map((node) => (
-                <div
-                  key={node.id}
-                  className="p-2 bg-white/[0.06] rounded text-xs"
-                >
-                  <div className="font-medium text-gray-200 truncate">{node.title || 'Untitled'}</div>
-                  <TaskStatusBadge status={node.status} />
-                </div>
-              ))}
-            </div>
+            <DependencyGraphView graph={graph} taskStatuses={taskStatusMap} />
           </CardContent>
         </Card>
         </section>
