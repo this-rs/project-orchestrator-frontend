@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Provider } from 'jotai'
 import { MainLayout } from '@/layouts'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
+import { UpdateBanner } from '@/components/UpdateBanner'
 import {
   LoginPage,
   AuthCallbackPage,
@@ -25,6 +26,7 @@ function App() {
   return (
     <Provider>
       <BrowserRouter>
+        <UpdateBanner />
         <Routes>
           {/* Public routes (no auth required) */}
           <Route path="/login" element={<LoginPage />} />
