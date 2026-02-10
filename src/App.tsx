@@ -18,6 +18,7 @@ import {
   TaskDetailPage,
   NotesPage,
   CodePage,
+  SetupWizard,
 } from '@/pages'
 
 function App() {
@@ -28,6 +29,7 @@ function App() {
           {/* Public routes (no auth required) */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
+          <Route path="/setup" element={<SetupWizard />} />
 
           {/* Protected routes (auth required) */}
           <Route element={<ProtectedRoute />}>
