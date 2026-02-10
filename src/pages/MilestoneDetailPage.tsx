@@ -1,9 +1,9 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, ConfirmDialog, LinkEntityDialog, ProgressBar, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import { ExpandablePlanRow, ExpandableTaskRow } from '@/components/expandable'
-import { api, workspacesApi, plansApi, tasksApi } from '@/services'
+import { workspacesApi, projectsApi, plansApi, tasksApi } from '@/services'
 import { PlanKanbanBoard } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
 import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
@@ -16,6 +16,7 @@ export function MilestoneDetailPage() {
   const [progress, setProgress] = useState<MilestoneProgress | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [plans, setPlans] = useState<Plan[]>([])
+  const [milestonePlanIds, setMilestonePlanIds] = useState<Set<string>>(new Set())
   const [milestoneTasks, setMilestoneTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useViewMode()
@@ -53,21 +54,20 @@ export function MilestoneDetailPage() {
           const workspace = (workspacesData.items || []).find(w => w.id === milestoneData.workspace_id)
 
           if (workspace) {
+            // Fetch workspace projects
             const projectsResponse = await workspacesApi.listProjects(workspace.slug)
             const workspaceProjects = Array.isArray(projectsResponse)
               ? projectsResponse
               : (projectsResponse.items || [])
             setProjects(workspaceProjects as Project[])
 
-            // Fetch plans per project via /projects/{slug}/plans (returns Plan[])
-            // The global /plans listing doesn't include project_id, so we use per-project endpoints
+            // Fetch plans from each workspace project
             const planResults = await Promise.all(
               (workspaceProjects as Project[]).map(p =>
-                api.get<Plan[]>(`/projects/${p.slug}/plans`).catch(() => [] as Plan[])
+                projectsApi.listPlans(p.slug).catch(() => ({ items: [] as Plan[] }))
               )
             )
-            const allPlans = planResults.flat()
-            // Deduplicate by id
+            const allPlans = planResults.flatMap(r => r.items || [])
             const seenPlan = new Set<string>()
             const uniquePlans = allPlans.filter(p => {
               if (seenPlan.has(p.id)) return false
@@ -75,8 +75,9 @@ export function MilestoneDetailPage() {
               return true
             })
             setPlans(uniquePlans)
+            setMilestonePlanIds(new Set(uniquePlans.map(p => p.id)))
 
-            // Fetch tasks via plans (backend has no GET for milestone tasks)
+            // Fetch tasks from all plans
             const planIds = uniquePlans.map(p => p.id)
             if (planIds.length > 0) {
               const taskResults = await Promise.all(
@@ -102,23 +103,6 @@ export function MilestoneDetailPage() {
     fetchData()
   }, [milestoneId, milestoneRefresh, planRefresh, taskRefresh, projectRefresh])
 
-  // Helper: fetch tasks via workspace plans (no GET endpoint for milestone tasks)
-  const refreshTasksFromPlans = useCallback(async (workspacePlans: Plan[]) => {
-    const planIds = workspacePlans.map(p => p.id)
-    if (planIds.length === 0) { setMilestoneTasks([]); return }
-    const taskResults = await Promise.all(
-      planIds.map(pid => tasksApi.list({ plan_id: pid, limit: 100 }))
-    )
-    const allTasks = taskResults.flatMap(r => r.items || [])
-    const seen = new Set<string>()
-    const uniqueTasks = allTasks.filter(t => {
-      if (seen.has(t.id)) return false
-      seen.add(t.id)
-      return true
-    })
-    setMilestoneTasks(uniqueTasks)
-  }, [])
-
   const handlePlanStatusChange = useCallback(
     async (planId: string, newStatus: PlanStatus) => {
       const original = plans.find((p) => p.id === planId)
@@ -137,29 +121,18 @@ export function MilestoneDetailPage() {
     [plans],
   )
 
-  // Kanban fetchFn: fetches plans per project via /projects/{slug}/plans, then filters by status
-  const projectSlugs = useMemo(() => projects.map((p) => p.slug), [projects])
-
+  // Kanban fetchFn: fetches only plans linked to this milestone, filtered by status
   const kanbanFetchFn = useCallback(
     async (params: Record<string, unknown>): Promise<PaginatedResponse<Plan>> => {
+      if (milestonePlanIds.size === 0) return { items: [], total: 0, limit: 0, offset: 0 }
       const status = params.status as string
-      // Fetch all plans from each project endpoint (returns full Plan[] with project_id)
-      const results = await Promise.all(
-        projectSlugs.map(slug =>
-          api.get<Plan[]>(`/projects/${slug}/plans`).catch(() => [] as Plan[])
-        )
+      const allPlansData = await plansApi.list({ limit: 100 })
+      const filtered = (allPlansData.items || []).filter(
+        (p) => milestonePlanIds.has(p.id) && p.status === status,
       )
-      const allPlans = results.flat()
-      // Deduplicate and filter by status
-      const seen = new Set<string>()
-      const filtered = allPlans.filter(p => {
-        if (seen.has(p.id)) return false
-        seen.add(p.id)
-        return p.status === status
-      })
       return { items: filtered, total: filtered.length, limit: filtered.length, offset: 0 }
     },
-    [projectSlugs],
+    [milestonePlanIds],
   )
 
   const sectionIds = ['progress', 'plans', 'tasks', 'projects']
@@ -359,7 +332,9 @@ export function MilestoneDetailPage() {
               },
               onLink: async (taskId) => {
                 await workspacesApi.addTaskToMilestone(milestoneId!, taskId)
-                await refreshTasksFromPlans(plans)
+                // Add the task to the local list immediately
+                const taskData = await tasksApi.get(taskId)
+                setMilestoneTasks(prev => [...prev, taskData as unknown as Task])
                 const newProgress = await workspacesApi.getMilestoneProgress(milestoneId!).catch(() => null)
                 setProgress(newProgress)
                 toast.success('Task added')
