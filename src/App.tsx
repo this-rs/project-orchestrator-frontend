@@ -3,6 +3,7 @@ import { Provider } from 'jotai'
 import { MainLayout } from '@/layouts'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { UpdateBanner } from '@/components/UpdateBanner'
+import { WebUpdateBanner } from '@/components/ui/WebUpdateBanner'
 import {
   LoginPage,
   AuthCallbackPage,
@@ -27,6 +28,7 @@ function App() {
     <Provider>
       <BrowserRouter>
         <UpdateBanner />
+        <WebUpdateBanner />
         <Routes>
           {/* Public routes (no auth required) */}
           <Route path="/login" element={<LoginPage />} />
