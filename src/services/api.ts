@@ -1,3 +1,5 @@
+import { getAuthMode, getAuthToken } from './auth'
+
 const API_BASE = '/api'
 
 export class ApiError extends Error {
@@ -15,15 +17,32 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${API_BASE}${endpoint}`
+
+  // Build headers with auth token injection
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string> | undefined),
+  }
+
+  const token = getAuthToken()
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
   const response = await fetch(url, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    headers,
   })
 
   if (!response.ok) {
+    // 401 Unauthorized → clear token and redirect to login (only in auth-required mode)
+    if (response.status === 401 && getAuthMode() === 'required') {
+      localStorage.removeItem('auth_token')
+      window.location.href = '/login'
+      // Return a never-resolving promise so callers don't run their .then()
+      return new Promise<T>(() => {})
+    }
+
     const message = await response.text()
     throw new ApiError(response.status, message || `HTTP ${response.status}`)
   }

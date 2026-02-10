@@ -89,14 +89,32 @@ export function getToolSummary(
 // ---------------------------------------------------------------------------
 
 const ICON_REGISTRY: Record<string, string> = {
-  Bash: '›_',
-  Edit: '~',
-  Read: '{}',
-  Write: '+',
-  Glob: '**',
-  Grep: '/?',
+  Bash: '$',
+  Edit: '✏',
+  Read: '📄',
+  Write: '📝',
+  Glob: '📂',
+  Grep: '🔍',
   WebFetch: '↓',
-  WebSearch: '🔍',
+  WebSearch: '🔎',
+}
+
+/**
+ * Detect the action verb from an MCP tool name and return a specific icon.
+ */
+export function getMcpIcon(toolName: string): string {
+  const action = toolName.startsWith(MCP_PREFIX)
+    ? toolName.slice(MCP_PREFIX.length)
+    : toolName
+  if (/^(create|add)/.test(action)) return '+'
+  if (/^update/.test(action)) return '↻'
+  if (/^delete/.test(action)) return '✕'
+  if (/^get/.test(action)) return '◇'
+  if (/^list/.test(action)) return '≡'
+  if (/^(search|find)/.test(action)) return '⌕'
+  if (/^link/.test(action)) return '⇄'
+  if (/^sync/.test(action)) return '↻'
+  return '⚙'
 }
 
 /**
@@ -104,7 +122,7 @@ const ICON_REGISTRY: Record<string, string> = {
  */
 export function getToolIcon(toolName: string): string | undefined {
   if (ICON_REGISTRY[toolName]) return ICON_REGISTRY[toolName]
-  if (toolName.startsWith(MCP_PREFIX)) return '⚙'
+  if (toolName.startsWith(MCP_PREFIX)) return getMcpIcon(toolName)
   return undefined
 }
 
