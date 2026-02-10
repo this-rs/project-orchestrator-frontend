@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAtomValue } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   allowRegistrationAtom,
   authModeAtom,
   authProvidersAtom,
+  authProvidersLoadedAtom,
   isAuthenticatedAtom,
 } from '@/atoms'
-import { authApi } from '@/services'
+import { authApi, setAuthMode as setAuthModeService } from '@/services'
 import { Spinner } from '@/components/ui'
 import { PasswordLoginForm } from '@/components/auth/PasswordLoginForm'
 import { RegisterForm } from '@/components/auth/RegisterForm'
@@ -27,17 +28,43 @@ export function LoginPage() {
   const authMode = useAtomValue(authModeAtom)
   const providers = useAtomValue(authProvidersAtom)
   const allowRegistration = useAtomValue(allowRegistrationAtom)
+  const [providersLoaded, setProvidersLoaded] = useAtom(authProvidersLoadedAtom)
+  const setAuthMode = useSetAtom(authModeAtom)
+  const setProviders = useSetAtom(authProvidersAtom)
+  const setAllowRegistration = useSetAtom(allowRegistrationAtom)
 
   const [showRegister, setShowRegister] = useState(false)
   const [oidcLoading, setOidcLoading] = useState(false)
   const [oidcError, setOidcError] = useState<string | null>(null)
 
+  // Fetch providers if not already loaded (e.g. navigating to /login directly)
+  useEffect(() => {
+    if (providersLoaded) return
+
+    authApi
+      .getProviders()
+      .then((resp) => {
+        const mode = resp.auth_required ? 'required' : 'none'
+        setAuthMode(mode)
+        setAuthModeService(mode)
+        setProviders(resp.providers)
+        setAllowRegistration(resp.allow_registration)
+        setProvidersLoaded(true)
+      })
+      .catch(() => {
+        setAuthMode('none')
+        setAuthModeService('none')
+        setProvidersLoaded(true)
+      })
+  }, [providersLoaded, setAuthMode, setProviders, setAllowRegistration, setProvidersLoaded])
+
   // Redirect if already authenticated or no-auth mode
   useEffect(() => {
+    if (!providersLoaded) return
     if (isAuthenticated || authMode === 'none') {
       navigate('/workspaces', { replace: true })
     }
-  }, [isAuthenticated, authMode, navigate])
+  }, [providersLoaded, isAuthenticated, authMode, navigate])
 
   const hasPassword = providers.some((p) => p.type === 'password')
   const oidcProvider = providers.find((p) => p.type === 'oidc')
@@ -54,8 +81,8 @@ export function LoginPage() {
     }
   }
 
-  // While checking auth state
-  if (authMode === 'none') {
+  // Still loading providers
+  if (!providersLoaded) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-gray-950">
         <Spinner size="lg" />

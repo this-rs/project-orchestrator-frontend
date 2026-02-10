@@ -86,9 +86,13 @@ export function ProtectedRoute() {
       .then((u) => {
         setUser(u)
       })
-      .catch(() => {
-        // Token invalid/expired → clear
-        setToken(null)
+      .catch((e: unknown) => {
+        // Only clear token on 401 (invalid/expired token).
+        // Other errors (404, 500) may be transient — keep the session alive.
+        const msg = e instanceof Error ? e.message : ''
+        if (msg.includes('401') || msg.includes('Unauthorized')) {
+          setToken(null)
+        }
       })
       .finally(() => setLoading(false))
   }, [providersLoaded, authMode, isAuthenticated, user, setUser, setToken])
