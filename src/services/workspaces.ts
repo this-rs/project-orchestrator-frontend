@@ -71,7 +71,7 @@ export const workspacesApi = {
     api.post(`/workspace-milestones/${milestoneId}/tasks`, { task_id: taskId }),
 
   listMilestoneTasks: (milestoneId: string) =>
-    api.get<{ items: import('@/types').Task[] }>(`/workspace-milestones/${milestoneId}/tasks`),
+    api.get<import('@/types').Task[]>(`/workspace-milestones/${milestoneId}/tasks`),
 
   removeTaskFromMilestone: (milestoneId: string, taskId: string) =>
     api.delete(`/workspace-milestones/${milestoneId}/tasks/${taskId}`),
