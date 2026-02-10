@@ -1,9 +1,9 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, ConfirmDialog, LinkEntityDialog, ProgressBar, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import { ExpandablePlanRow, ExpandableTaskRow } from '@/components/expandable'
-import { api, workspacesApi, plansApi, tasksApi } from '@/services'
+import { workspacesApi, plansApi, tasksApi } from '@/services'
 import { PlanKanbanBoard } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
 import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
@@ -16,6 +16,7 @@ export function MilestoneDetailPage() {
   const [progress, setProgress] = useState<MilestoneProgress | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [plans, setPlans] = useState<Plan[]>([])
+  const [milestonePlanIds, setMilestonePlanIds] = useState<Set<string>>(new Set())
   const [milestoneTasks, setMilestoneTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useViewMode()
@@ -33,91 +34,73 @@ export function MilestoneDetailPage() {
   const [tasksCollapseAll, setTasksCollapseAll] = useState(0)
   const [tasksAllExpanded, setTasksAllExpanded] = useState(false)
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!milestoneId) return
-      // Only show loading spinner on initial load, not on WS-triggered refreshes
-      const isInitialLoad = !milestone
-      if (isInitialLoad) setLoading(true)
-      try {
-        const [milestoneData, progressData] = await Promise.all([
-          workspacesApi.getMilestone(milestoneId),
-          workspacesApi.getMilestoneProgress(milestoneId).catch(() => null),
-        ])
+  const refreshData = useCallback(async () => {
+    if (!milestoneId) return
+    // Only show loading spinner on initial load, not on WS-triggered refreshes
+    const isInitialLoad = !milestone
+    if (isInitialLoad) setLoading(true)
+    try {
+      const [milestoneData, progressData, milestoneTasks] = await Promise.all([
+        workspacesApi.getMilestone(milestoneId),
+        workspacesApi.getMilestoneProgress(milestoneId).catch(() => null),
+        workspacesApi.listMilestoneTasks(milestoneId),
+      ])
 
-        setMilestone(milestoneData)
-        setProgress(progressData)
+      setMilestone(milestoneData)
+      setProgress(progressData)
+      setMilestoneTasks(milestoneTasks || [])
 
-        if (milestoneData.workspace_id) {
-          const workspacesData = await workspacesApi.list()
-          const workspace = (workspacesData.items || []).find(w => w.id === milestoneData.workspace_id)
+      // Fetch workspace projects (for the Projects section)
+      if (milestoneData.workspace_id) {
+        const workspacesData = await workspacesApi.list()
+        const workspace = (workspacesData.items || []).find(w => w.id === milestoneData.workspace_id)
 
-          if (workspace) {
-            const projectsResponse = await workspacesApi.listProjects(workspace.slug)
-            const workspaceProjects = Array.isArray(projectsResponse)
-              ? projectsResponse
-              : (projectsResponse.items || [])
-            setProjects(workspaceProjects as Project[])
-
-            // Fetch plans per project via /projects/{slug}/plans (returns Plan[])
-            // The global /plans listing doesn't include project_id, so we use per-project endpoints
-            const planResults = await Promise.all(
-              (workspaceProjects as Project[]).map(p =>
-                api.get<Plan[]>(`/projects/${p.slug}/plans`).catch(() => [] as Plan[])
-              )
-            )
-            const allPlans = planResults.flat()
-            // Deduplicate by id
-            const seenPlan = new Set<string>()
-            const uniquePlans = allPlans.filter(p => {
-              if (seenPlan.has(p.id)) return false
-              seenPlan.add(p.id)
-              return true
-            })
-            setPlans(uniquePlans)
-
-            // Fetch tasks via plans (backend has no GET for milestone tasks)
-            const planIds = uniquePlans.map(p => p.id)
-            if (planIds.length > 0) {
-              const taskResults = await Promise.all(
-                planIds.map(pid => tasksApi.list({ plan_id: pid, limit: 100 }))
-              )
-              const allTasks = taskResults.flatMap(r => r.items || [])
-              const seenTask = new Set<string>()
-              const uniqueTasks = allTasks.filter(t => {
-                if (seenTask.has(t.id)) return false
-                seenTask.add(t.id)
-                return true
-              })
-              setMilestoneTasks(uniqueTasks)
-            }
-          }
+        if (workspace) {
+          const projectsResponse = await workspacesApi.listProjects(workspace.slug)
+          const workspaceProjects = Array.isArray(projectsResponse)
+            ? projectsResponse
+            : (projectsResponse.items || [])
+          setProjects(workspaceProjects as Project[])
         }
-      } catch (error) {
-        console.error('Failed to fetch milestone:', error)
-      } finally {
-        if (isInitialLoad) setLoading(false)
       }
+
+      // Cross-reference tasks to find which plans they belong to
+      const milestoneTaskIds = new Set((milestoneTasks || []).map((t) => t.id))
+
+      if (milestoneTaskIds.size > 0) {
+        // Fetch all tasks with plan_id to find which plans these tasks belong to
+        const allTasksData = await tasksApi.list({ limit: 100 })
+        const planIds = new Set(
+          (allTasksData.items || [])
+            .filter((t) => milestoneTaskIds.has(t.id) && t.plan_id)
+            .map((t) => t.plan_id),
+        )
+        setMilestonePlanIds(planIds)
+
+        // Fetch only plans that have tasks in this milestone
+        if (planIds.size > 0) {
+          const allPlansData = await plansApi.list({ limit: 100 })
+          const milestonePlans = (allPlansData.items || []).filter((plan) =>
+            planIds.has(plan.id),
+          )
+          setPlans(milestonePlans)
+        } else {
+          setPlans([])
+        }
+      } else {
+        setMilestonePlanIds(new Set())
+        setPlans([])
+      }
+    } catch (error) {
+      console.error('Failed to fetch milestone:', error)
+    } finally {
+      if (isInitialLoad) setLoading(false)
     }
-    fetchData()
   }, [milestoneId, milestoneRefresh, planRefresh, taskRefresh, projectRefresh])
 
-  // Helper: fetch tasks via workspace plans (no GET endpoint for milestone tasks)
-  const refreshTasksFromPlans = useCallback(async (workspacePlans: Plan[]) => {
-    const planIds = workspacePlans.map(p => p.id)
-    if (planIds.length === 0) { setMilestoneTasks([]); return }
-    const taskResults = await Promise.all(
-      planIds.map(pid => tasksApi.list({ plan_id: pid, limit: 100 }))
-    )
-    const allTasks = taskResults.flatMap(r => r.items || [])
-    const seen = new Set<string>()
-    const uniqueTasks = allTasks.filter(t => {
-      if (seen.has(t.id)) return false
-      seen.add(t.id)
-      return true
-    })
-    setMilestoneTasks(uniqueTasks)
-  }, [])
+  useEffect(() => {
+    refreshData()
+  }, [refreshData])
 
   const handlePlanStatusChange = useCallback(
     async (planId: string, newStatus: PlanStatus) => {
@@ -137,29 +120,18 @@ export function MilestoneDetailPage() {
     [plans],
   )
 
-  // Kanban fetchFn: fetches plans per project via /projects/{slug}/plans, then filters by status
-  const projectSlugs = useMemo(() => projects.map((p) => p.slug), [projects])
-
+  // Kanban fetchFn: fetches only plans linked to this milestone, filtered by status
   const kanbanFetchFn = useCallback(
     async (params: Record<string, unknown>): Promise<PaginatedResponse<Plan>> => {
+      if (milestonePlanIds.size === 0) return { items: [], total: 0, limit: 0, offset: 0 }
       const status = params.status as string
-      // Fetch all plans from each project endpoint (returns full Plan[] with project_id)
-      const results = await Promise.all(
-        projectSlugs.map(slug =>
-          api.get<Plan[]>(`/projects/${slug}/plans`).catch(() => [] as Plan[])
-        )
+      const allPlansData = await plansApi.list({ limit: 100 })
+      const filtered = (allPlansData.items || []).filter(
+        (p) => milestonePlanIds.has(p.id) && p.status === status,
       )
-      const allPlans = results.flat()
-      // Deduplicate and filter by status
-      const seen = new Set<string>()
-      const filtered = allPlans.filter(p => {
-        if (seen.has(p.id)) return false
-        seen.add(p.id)
-        return p.status === status
-      })
       return { items: filtered, total: filtered.length, limit: filtered.length, offset: 0 }
     },
-    [projectSlugs],
+    [milestonePlanIds],
   )
 
   const sectionIds = ['progress', 'plans', 'tasks', 'projects']
@@ -359,9 +331,8 @@ export function MilestoneDetailPage() {
               },
               onLink: async (taskId) => {
                 await workspacesApi.addTaskToMilestone(milestoneId!, taskId)
-                await refreshTasksFromPlans(plans)
-                const newProgress = await workspacesApi.getMilestoneProgress(milestoneId!).catch(() => null)
-                setProgress(newProgress)
+                // Re-fetch milestone tasks and progress to ensure consistency
+                await refreshData()
                 toast.success('Task added')
               },
             })}>Add Task</Button>

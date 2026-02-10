@@ -10,3 +10,12 @@ export type { SearchDocument, SearchResult, ArchitectureOverview } from './code'
 export { chatApi } from './chat'
 export { ChatWebSocket } from './chatWebSocket'
 export { EventBusClient, getEventBus } from './eventBus'
+export {
+  forceLogout,
+  refreshToken,
+  getValidToken,
+  setNavigate,
+  setJotaiSetter,
+  initCrossTabSync,
+  parseJwtExp,
+} from './authManager'

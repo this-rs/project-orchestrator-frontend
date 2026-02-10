@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { Navigate, Outlet } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Navigate, Outlet, useNavigate } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   authModeAtom,
@@ -11,6 +11,12 @@ import {
   isAuthenticatedAtom,
 } from '@/atoms'
 import { authApi, setAuthMode as setAuthModeService } from '@/services'
+import {
+  setNavigate,
+  setJotaiSetter,
+  initCrossTabSync,
+  forceLogout,
+} from '@/services/authManager'
 import { Spinner } from '@/components/ui'
 
 /**
@@ -20,10 +26,14 @@ import { Spinner } from '@/components/ui'
  * - No-auth mode (auth_required=false) → render <Outlet /> directly, no login needed
  * - Required mode (auth_required=true) → check token, fetch /auth/me, redirect if invalid
  *
+ * Also injects React Router navigate and Jotai setters into the authManager
+ * singleton so that forceLogout() can work from anywhere (WebSocket handlers, etc.).
+ *
  * If /auth/providers fails (e.g. backend not configured), falls back to no-auth mode
  * to avoid locking users out.
  */
 export function ProtectedRoute() {
+  const navigate = useNavigate()
   const isAuthenticated = useAtomValue(isAuthenticatedAtom)
   const authMode = useAtomValue(authModeAtom)
   const [providersLoaded, setProvidersLoaded] = useAtom(authProvidersLoadedAtom)
@@ -32,6 +42,22 @@ export function ProtectedRoute() {
   const setAllowRegistration = useSetAtom(allowRegistrationAtom)
   const [user, setUser] = useAtom(currentUserAtom)
   const setToken = useSetAtom(authTokenAtom)
+  const [authError, setAuthError] = useState(false)
+
+  // Inject React Router navigate + Jotai setters into authManager singleton
+  useEffect(() => {
+    setNavigate(navigate)
+    setJotaiSetter({
+      setToken: (t: string | null) => setToken(t),
+      setUser: () => setUser(null),
+    })
+  }, [navigate, setToken, setUser])
+
+  // Start cross-tab sync (listen for localStorage changes from other tabs)
+  useEffect(() => {
+    const cleanup = initCrossTabSync()
+    return cleanup
+  }, [])
 
   // Phase 1: Fetch auth providers (once)
   useEffect(() => {
@@ -58,7 +84,6 @@ export function ProtectedRoute() {
   }, [providersLoaded, setAuthMode, setProviders, setAllowRegistration, setProvidersLoaded])
 
   // Phase 2: Validate token when auth is required — fetch /auth/me
-  // setUser (Jotai atom setter) is called in the async callback, not synchronously.
   useEffect(() => {
     if (!providersLoaded || authMode === 'none' || !isAuthenticated || user) {
       return
@@ -69,19 +94,17 @@ export function ProtectedRoute() {
       .then((u) => {
         setUser(u)
       })
-      .catch((e: unknown) => {
-        // Only clear token on 401 (invalid/expired token).
-        const msg = e instanceof Error ? e.message : ''
-        if (msg.includes('401') || msg.includes('Unauthorized')) {
-          setToken(null)
-        }
+      .catch(() => {
+        // Token invalid/expired → force full logout (clears localStorage + Jotai + WS)
+        setAuthError(true)
+        forceLogout()
       })
-  }, [providersLoaded, authMode, isAuthenticated, user, setUser, setToken])
+  }, [providersLoaded, authMode, isAuthenticated, user, setUser])
 
   // Derive loading: waiting for providers OR waiting for user validation
-  // When auth is required and we have a token but no user yet, we're loading /auth/me
+  // authError short-circuits loading to prevent infinite spinner
   const needsUserFetch = authMode === 'required' && isAuthenticated && !user
-  const loading = !providersLoaded || needsUserFetch
+  const loading = !providersLoaded || (needsUserFetch && !authError)
 
   if (loading) {
     return (

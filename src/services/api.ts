@@ -1,11 +1,12 @@
-import { getAuthMode, getAuthToken } from './auth'
+import { getAuthMode } from './auth'
+import { getValidToken, refreshToken, forceLogout } from './authManager'
 
 const API_BASE = '/api'
 
 export class ApiError extends Error {
   constructor(
     public status: number,
-    message: string
+    message: string,
   ) {
     super(message)
     this.name = 'ApiError'
@@ -14,17 +15,18 @@ export class ApiError extends Error {
 
 async function request<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  _isRetry = false,
 ): Promise<T> {
   const url = `${API_BASE}${endpoint}`
 
-  // Build headers with auth token injection
+  // Build headers with fresh auth token injection
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string> | undefined),
   }
 
-  const token = getAuthToken()
+  const token = await getValidToken()
   if (token) {
     headers['Authorization'] = `Bearer ${token}`
   }
@@ -35,12 +37,22 @@ async function request<T>(
   })
 
   if (!response.ok) {
-    // 401 Unauthorized → clear token and redirect to login (only in auth-required mode)
+    // 401 Unauthorized in auth-required mode → try refresh once, then logout
     if (response.status === 401 && getAuthMode() === 'required') {
-      localStorage.removeItem('auth_token')
-      window.location.href = '/login'
-      // Return a never-resolving promise so callers don't run their .then()
-      return new Promise<T>(() => {})
+      if (!_isRetry) {
+        try {
+          // Attempt token refresh and retry the original request once
+          await refreshToken()
+          return request<T>(endpoint, options, true)
+        } catch {
+          // Refresh failed (forceLogout already called inside refreshToken on 401)
+          throw new ApiError(401, 'Session expired')
+        }
+      }
+
+      // Already retried once → force logout
+      forceLogout()
+      throw new ApiError(401, 'Session expired')
     }
 
     const message = await response.text()
