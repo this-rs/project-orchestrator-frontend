@@ -8,6 +8,8 @@ export type InfraMode = 'docker' | 'external'
 
 export type AuthMode = 'none' | 'password' | 'oidc'
 
+export type McpSetupStatus = 'idle' | 'detecting' | 'configuring' | 'configured' | 'already_configured' | 'error'
+
 export interface SetupConfig {
   // Step 1 — Infrastructure
   infraMode: InfraMode
@@ -30,6 +32,8 @@ export interface SetupConfig {
   chatModel: string
   chatMaxSessions: number
   claudeCodeDetected: boolean
+  mcpSetupStatus: McpSetupStatus
+  mcpSetupMessage: string
 }
 
 export const defaultSetupConfig: SetupConfig = {
@@ -54,6 +58,8 @@ export const defaultSetupConfig: SetupConfig = {
   chatModel: 'claude-sonnet-4-20250514',
   chatMaxSessions: 3,
   claudeCodeDetected: false,
+  mcpSetupStatus: 'idle' as McpSetupStatus,
+  mcpSetupMessage: '',
 }
 
 /** The full wizard configuration, shared across all setup steps */

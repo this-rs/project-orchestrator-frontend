@@ -1,5 +1,6 @@
 import { useAtom } from 'jotai'
-import { setupConfigAtom } from '@/atoms/setup'
+import { useCallback } from 'react'
+import { setupConfigAtom, type McpSetupStatus } from '@/atoms/setup'
 
 const MODELS = [
   { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
@@ -7,18 +8,72 @@ const MODELS = [
   { value: 'claude-haiku-3-20250414', label: 'Claude Haiku 3.5' },
 ]
 
+const isTauri = () => !!(window as unknown as Record<string, unknown>).__TAURI__
+
 export function ChatPage() {
   const [config, setConfig] = useAtom(setupConfigAtom)
 
   const update = (patch: Partial<typeof config>) =>
     setConfig((prev) => ({ ...prev, ...patch }))
 
+  // Detect Claude Code CLI via Tauri invoke
+  const handleDetect = useCallback(async () => {
+    if (!isTauri()) {
+      update({ claudeCodeDetected: false })
+      return
+    }
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const detected = await invoke<boolean>('detect_claude_code')
+      update({ claudeCodeDetected: detected })
+    } catch {
+      update({ claudeCodeDetected: false })
+    }
+  }, [])
+
+  // Configure Claude Code MCP server via Tauri invoke
+  const handleConfigureMcp = useCallback(async () => {
+    if (!isTauri()) return
+
+    update({ mcpSetupStatus: 'configuring' as McpSetupStatus, mcpSetupMessage: '' })
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const result = await invoke<{
+        success: boolean
+        method: string
+        message: string
+        filePath: string | null
+      }>('setup_claude_code', { serverUrl: `http://localhost:${config.serverPort}/mcp/sse` })
+
+      if (result.success) {
+        const status: McpSetupStatus =
+          result.method === 'already_configured' ? 'already_configured' : 'configured'
+        update({ mcpSetupStatus: status, mcpSetupMessage: result.message })
+      } else {
+        update({
+          mcpSetupStatus: 'error' as McpSetupStatus,
+          mcpSetupMessage: result.message,
+        })
+      }
+    } catch (e) {
+      update({
+        mcpSetupStatus: 'error' as McpSetupStatus,
+        mcpSetupMessage: e instanceof Error ? e.message : 'Unknown error',
+      })
+    }
+  }, [config.serverPort])
+
+  const mcpSuccess =
+    config.mcpSetupStatus === 'configured' || config.mcpSetupStatus === 'already_configured'
+
   return (
     <div className="space-y-8">
       <div>
         <h2 className="text-xl font-semibold">Chat AI</h2>
         <p className="mt-1 text-sm text-gray-400">
-          Configure the built-in AI chat assistant. These settings are optional and can be changed later.
+          Configure the built-in AI chat assistant. These settings are optional and can be changed
+          later.
         </p>
       </div>
 
@@ -66,49 +121,144 @@ export function ChatPage() {
         </div>
       </div>
 
-      {/* Claude Code detection */}
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
+      {/* Claude Code detection + MCP configuration */}
+      <div className="space-y-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
+        {/* Detection */}
         <div className="flex items-start justify-between gap-4">
           <div>
             <h3 className="text-sm font-medium text-gray-300">Claude Code CLI</h3>
             <p className="mt-1 text-xs text-gray-500">
-              The chat feature requires Claude Code to be installed on this machine.
-              Click detect to check if it&apos;s available.
+              The chat feature requires Claude Code to be installed on this machine. Click detect to
+              check if it&apos;s available.
             </p>
           </div>
           <div className="flex items-center gap-2">
             {config.claudeCodeDetected && (
               <span className="flex items-center gap-1 text-xs font-medium text-emerald-400">
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
                 Detected
               </span>
             )}
             <button
-              onClick={() => {
-                // In Tauri: invoke('detect_claude_code')
-                // For now, just simulate detection
-                update({ claudeCodeDetected: true })
-              }}
+              onClick={handleDetect}
               className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-gray-300 transition hover:bg-white/[0.08]"
             >
               Detect
             </button>
           </div>
         </div>
+
+        {/* MCP Configuration separator */}
+        <div className="border-t border-white/[0.06] pt-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-medium text-gray-300">MCP Server Configuration</h3>
+              <p className="mt-1 text-xs text-gray-500">
+                Configure Claude Code to use Project Orchestrator as an MCP server. This enables
+                Claude Code to access your projects, plans, and knowledge graph.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {mcpSuccess && (
+                <span className="flex items-center gap-1 text-xs font-medium text-emerald-400">
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  {config.mcpSetupStatus === 'already_configured' ? 'Already configured' : 'Configured'}
+                </span>
+              )}
+              <button
+                onClick={handleConfigureMcp}
+                disabled={config.mcpSetupStatus === 'configuring' || mcpSuccess}
+                className="rounded-lg border border-white/[0.1] bg-indigo-600/20 px-3 py-1.5 text-xs font-medium text-indigo-300 transition hover:bg-indigo-600/30 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {config.mcpSetupStatus === 'configuring' ? (
+                  <span className="flex items-center gap-1.5">
+                    <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
+                    </svg>
+                    Configuring…
+                  </span>
+                ) : (
+                  'Configure MCP'
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Status message */}
+          {config.mcpSetupStatus === 'error' && (
+            <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+              {config.mcpSetupMessage}
+            </div>
+          )}
+          {mcpSuccess && config.mcpSetupMessage && (
+            <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">
+              {config.mcpSetupMessage}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Info box */}
       <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
         <div className="flex gap-3">
-          <svg className="mt-0.5 h-5 w-5 shrink-0 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+          <svg
+            className="mt-0.5 h-5 w-5 shrink-0 text-gray-500"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={1.5}
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"
+            />
           </svg>
           <p className="text-xs text-gray-500">
             These settings can be changed at any time in{' '}
             <code className="rounded bg-white/[0.06] px-1 py-0.5 text-gray-400">config.yaml</code>
-            . If you don&apos;t use the AI chat feature, you can skip this step.
+            . If you don&apos;t use the AI chat feature, you can skip this step. You can also
+            configure the MCP server later by running{' '}
+            <code className="rounded bg-white/[0.06] px-1 py-0.5 text-gray-400">
+              orchestrator setup-claude
+            </code>
+            .
           </p>
         </div>
       </div>
