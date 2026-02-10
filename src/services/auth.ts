@@ -72,7 +72,10 @@ async function authRequest<T>(
 
   if (!response.ok) {
     const message = await response.text()
-    throw new Error(message || `HTTP ${response.status}`)
+    const err = new Error(message || `HTTP ${response.status}`)
+    // Expose status so callers can distinguish 401 from other errors
+    ;(err as Error & { status: number }).status = response.status
+    throw err
   }
 
   return response.json()

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
@@ -32,7 +32,6 @@ export function ProtectedRoute() {
   const setAllowRegistration = useSetAtom(allowRegistrationAtom)
   const [user, setUser] = useAtom(currentUserAtom)
   const setToken = useSetAtom(authTokenAtom)
-  const [loading, setLoading] = useState(true)
 
   // Phase 1: Fetch auth providers (once)
   useEffect(() => {
@@ -58,29 +57,13 @@ export function ProtectedRoute() {
       })
   }, [providersLoaded, setAuthMode, setProviders, setAllowRegistration, setProvidersLoaded])
 
-  // Phase 2: Validate token when auth is required
+  // Phase 2: Validate token when auth is required — fetch /auth/me
+  // setUser (Jotai atom setter) is called in the async callback, not synchronously.
   useEffect(() => {
-    if (!providersLoaded) return
-
-    // No-auth mode → done immediately
-    if (authMode === 'none') {
-      setLoading(false)
+    if (!providersLoaded || authMode === 'none' || !isAuthenticated || user) {
       return
     }
 
-    // No token → done (will redirect)
-    if (!isAuthenticated) {
-      setLoading(false)
-      return
-    }
-
-    // User already loaded (e.g. from login callback)
-    if (user) {
-      setLoading(false)
-      return
-    }
-
-    // Fetch user from /auth/me
     authApi
       .me()
       .then((u) => {
@@ -88,16 +71,18 @@ export function ProtectedRoute() {
       })
       .catch((e: unknown) => {
         // Only clear token on 401 (invalid/expired token).
-        // Other errors (404, 500) may be transient — keep the session alive.
         const msg = e instanceof Error ? e.message : ''
         if (msg.includes('401') || msg.includes('Unauthorized')) {
           setToken(null)
         }
       })
-      .finally(() => setLoading(false))
   }, [providersLoaded, authMode, isAuthenticated, user, setUser, setToken])
 
-  // Still loading providers or validating token
+  // Derive loading: waiting for providers OR waiting for user validation
+  // When auth is required and we have a token but no user yet, we're loading /auth/me
+  const needsUserFetch = authMode === 'required' && isAuthenticated && !user
+  const loading = !providersLoaded || needsUserFetch
+
   if (loading) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-gray-950">

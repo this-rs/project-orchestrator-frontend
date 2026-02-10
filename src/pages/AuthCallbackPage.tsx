@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
 import { authTokenAtom, currentUserAtom } from '@/atoms'
@@ -20,14 +20,14 @@ export function AuthCallbackPage() {
   const navigate = useNavigate()
   const setToken = useSetAtom(authTokenAtom)
   const setUser = useSetAtom(currentUserAtom)
-  const [error, setError] = useState<string | null>(null)
+  const [exchangeError, setExchangeError] = useState<string | null>(null)
+
+  // Derive missing code error from search params (avoids synchronous setState in effect)
+  const code = useMemo(() => searchParams.get('code'), [searchParams])
+  const error = code ? exchangeError : 'Missing authorization code'
 
   useEffect(() => {
-    const code = searchParams.get('code')
-    if (!code) {
-      setError('Missing authorization code')
-      return
-    }
+    if (!code) return
 
     let cancelled = false
 
@@ -43,13 +43,13 @@ export function AuthCallbackPage() {
       })
       .catch((e) => {
         if (cancelled) return
-        setError(e instanceof Error ? e.message : 'Authentication failed')
+        setExchangeError(e instanceof Error ? e.message : 'Authentication failed')
       })
 
     return () => {
       cancelled = true
     }
-  }, [searchParams, navigate, setToken, setUser])
+  }, [code, navigate, setToken, setUser])
 
   if (error) {
     return (
