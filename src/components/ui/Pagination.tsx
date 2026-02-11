@@ -83,7 +83,7 @@ export function Pagination({
       <div className="flex items-center gap-4">
         {/* Page size selector — hidden on mobile */}
         <div className="hidden sm:flex items-center gap-2">
-          <span className="text-sm text-gray-400">Per page:</span>
+          <span className="text-sm text-gray-400 whitespace-nowrap">Per page:</span>
           <Select
             options={pageSizeOptions.map((size) => ({ value: String(size), label: String(size) }))}
             value={String(pageSize)}

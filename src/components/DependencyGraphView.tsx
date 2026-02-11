@@ -229,11 +229,7 @@ export function DependencyGraphView({ graph, taskStatuses, className = '' }: Dep
         <Background color="#374151" gap={20} size={1} />
         <Controls
           showInteractive={false}
-          style={{
-            background: '#1f2937',
-            borderRadius: 8,
-            border: '1px solid #374151',
-          }}
+          className="dep-graph-controls"
         />
       </ReactFlow>
     </div>

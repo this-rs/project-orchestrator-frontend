@@ -436,6 +436,8 @@ export interface AuthUser {
   email: string
   name: string
   picture_url?: string
+  /** True when this user is the root account (configured in config.yaml). */
+  is_root?: boolean
 }
 
 export interface AuthTokenResponse {

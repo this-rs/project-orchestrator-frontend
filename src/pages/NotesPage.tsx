@@ -232,7 +232,7 @@ function NoteCard({ note, onDelete, selected, onToggleSelect }: { note: Note; on
         {onToggleSelect && (
           <SelectZone selected={!!selected} onToggle={onToggleSelect} />
         )}
-        <CardContent className="flex-1">
+        <CardContent className="flex-1 min-w-0">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="default">{note.note_type}</Badge>
@@ -251,7 +251,7 @@ function NoteCard({ note, onDelete, selected, onToggleSelect }: { note: Note; on
           </div>
         </div>
 
-        <p className="text-gray-200 whitespace-pre-wrap break-words overflow-hidden">{note.content}</p>
+        <p className="text-gray-200 whitespace-pre-wrap break-words overflow-hidden overflow-wrap-anywhere">{note.content}</p>
 
         {tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-3">

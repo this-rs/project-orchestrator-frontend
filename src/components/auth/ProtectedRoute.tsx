@@ -108,7 +108,7 @@ export function ProtectedRoute() {
 
   if (loading) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-gray-950">
+      <div className="flex min-h-dvh items-center justify-center bg-[var(--surface-base)]">
         <Spinner size="lg" />
       </div>
     )

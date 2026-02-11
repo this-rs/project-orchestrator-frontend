@@ -386,9 +386,9 @@ function PlanCard({
             <SelectZone selected={!!selected} onToggle={onToggleSelect} />
           )}
           <div className={`w-1 shrink-0 ${!onToggleSelect ? 'rounded-l-xl' : ''} ${planStatusBarColor[plan.status] || 'bg-gray-400'}`} />
-          <div className="flex-1 p-3 md:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex-1 min-w-0 p-3 md:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-1">
+              <div className="flex items-center gap-2 sm:gap-3 mb-1">
                 <h3 className="text-base sm:text-lg font-semibold text-gray-100 truncate min-w-0">{plan.title}</h3>
                 <InteractivePlanStatusBadge status={plan.status} onStatusChange={onStatusChange} />
               </div>

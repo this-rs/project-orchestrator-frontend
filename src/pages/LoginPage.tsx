@@ -84,14 +84,14 @@ export function LoginPage() {
   // Still loading providers
   if (!providersLoaded) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-gray-950">
+      <div className="flex min-h-dvh items-center justify-center bg-[var(--surface-base)]">
         <Spinner size="lg" />
       </div>
     )
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-gray-950">
+    <div className="flex min-h-dvh items-center justify-center bg-[var(--surface-base)]">
       <div className="w-full max-w-sm space-y-8 px-6">
         {/* Logo & Title */}
         <div className="text-center">
@@ -119,7 +119,7 @@ export function LoginPage() {
                 <div className="w-full border-t border-white/[0.1]" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="bg-gray-950 px-3 text-gray-500">or</span>
+                <span className="bg-[var(--surface-base)] px-3 text-gray-500">or</span>
               </div>
             </div>
           )}

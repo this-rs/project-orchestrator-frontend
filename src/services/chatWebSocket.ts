@@ -14,6 +14,7 @@
 import type { ChatEvent, WsChatClientMessage, WsConnectionStatus } from '@/types'
 import { getAuthMode } from './auth'
 import { getValidToken, forceLogout } from './authManager'
+import { wsUrl } from './env'
 
 const MIN_RECONNECT_DELAY = 1000
 const MAX_RECONNECT_DELAY = 30000
@@ -103,8 +104,7 @@ export class ChatWebSocket {
   }
 
   private openSocket(sessionId: string, lastEventSeq: number, token: string | null) {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const url = `${protocol}//${window.location.host}/ws/chat/${sessionId}?last_event=${lastEventSeq}`
+    const url = wsUrl(`/ws/chat/${sessionId}?last_event=${lastEventSeq}`)
 
     try {
       this.ws = new WebSocket(url)
