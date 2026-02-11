@@ -51,6 +51,27 @@ body {
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
+  background-color: var(--surface-base);
+}
+
+/*
+ * Tauri desktop — rounded window corners
+ *
+ * The native macOS rounded corners plugin (enableModernWindowStyle) clips
+ * the window content layer. For the rounded corner zones to show the
+ * correct color, html + body must be TRANSPARENT so the NSWindow
+ * backgroundColor (set in Rust show_main_window) shows through.
+ *
+ * The .tauri-window wrapper carries the actual app background color.
+ */
+html.tauri,
+html.tauri body {
+  background-color: transparent !important;
+}
+
+.tauri-window {
+  overflow: hidden;
+  background-color: var(--surface-base);
 }
 
 /* Custom scrollbar for dark theme */
@@ -123,6 +144,30 @@ html {
 .hljs-symbol, .hljs-bullet { color: #ffa657; }
 .hljs-addition { color: #aff5b4; background: rgba(46, 160, 67, 0.15); }
 .hljs-deletion { color: #ffdcd7; background: rgba(248, 81, 73, 0.15); }
+
+/* Dependency Graph — React Flow controls themed */
+.dep-graph-controls {
+  background: var(--surface-raised) !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--border-default) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+.dep-graph-controls button {
+  background: transparent !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  color: var(--text-secondary) !important;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.dep-graph-controls button:hover {
+  background: var(--surface-highlight) !important;
+  color: var(--color-primary-light) !important;
+}
+.dep-graph-controls button svg {
+  fill: currentColor !important;
+}
+.dep-graph-controls button:last-child {
+  border-bottom: none !important;
+}
 
 /* Toast animations */
 @keyframes slideInRight {

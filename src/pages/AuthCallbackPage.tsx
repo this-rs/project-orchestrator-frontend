@@ -53,7 +53,7 @@ export function AuthCallbackPage() {
 
   if (error) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-gray-950">
+      <div className="flex min-h-dvh items-center justify-center bg-[var(--surface-base)]">
         <div className="w-full max-w-sm space-y-6 px-6 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-900/50">
             <svg className="h-6 w-6 text-red-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -76,7 +76,7 @@ export function AuthCallbackPage() {
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-gray-950">
+    <div className="flex min-h-dvh items-center justify-center bg-[var(--surface-base)]">
       <div className="space-y-4 text-center">
         <Spinner size="lg" />
         <p className="text-sm text-gray-400">Signing you in...</p>
