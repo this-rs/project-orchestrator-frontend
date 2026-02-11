@@ -140,9 +140,6 @@ export function ProjectDetailPage() {
       <PageHeader
         title={project.name}
         description={project.description}
-        metadata={[
-          ...(project.root_path ? [{ label: 'Root path', value: project.root_path }] : []),
-        ]}
         overflowActions={[
           { label: 'Delete', variant: 'danger', onClick: () => confirmDialog.open({
             title: 'Delete Project',
@@ -150,14 +147,48 @@ export function ProjectDetailPage() {
             onConfirm: async () => { await projectsApi.delete(project.slug); toast.success('Project deleted'); navigate('/projects') }
           }) }
         ]}
-        actions={
-          <Button onClick={handleSync} loading={syncing}>
-            {syncing ? 'Syncing...' : 'Sync Codebase'}
-          </Button>
-        }
       />
 
-      <SectionNav sections={sections} activeSection={activeSection} />
+      <SectionNav
+        sections={sections}
+        activeSection={activeSection}
+        rightContent={
+          <div className="flex items-center gap-2">
+            {project.root_path && (
+              <div className="flex items-center gap-1.5 bg-white/[0.04] border border-white/[0.08] rounded-md px-2.5 py-1 group">
+                <svg className="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                </svg>
+                <span className="text-xs text-gray-400 font-mono truncate max-w-[200px] md:max-w-xs" title={project.root_path}>
+                  {project.root_path}
+                </span>
+                <button
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(project.root_path!)
+                    toast.success('Path copied')
+                  }}
+                  className="ml-0.5 p-0.5 rounded text-gray-600 opacity-0 group-hover:opacity-100 hover:text-gray-300 hover:bg-white/[0.08] transition-all"
+                  title="Copy path"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+                  </svg>
+                </button>
+              </div>
+            )}
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="p-1.5 rounded-md text-gray-500 hover:text-indigo-400 hover:bg-white/[0.08] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              title={syncing ? 'Syncing...' : `Sync codebase${project.last_synced ? `\nLast sync: ${new Date(project.last_synced).toLocaleString()}` : ''}`}
+            >
+              <svg className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M21.015 4.356v4.992" />
+              </svg>
+            </button>
+          </div>
+        }
+      />
 
       {/* Roadmap Progress */}
       {roadmap && (

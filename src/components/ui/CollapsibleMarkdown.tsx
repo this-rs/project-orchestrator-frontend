@@ -46,7 +46,7 @@ export function CollapsibleMarkdown({
       {needsCollapse && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="mt-1.5 ml-auto text-xs text-gray-400 hover:text-indigo-400 transition-colors flex items-center gap-1"
+          className="mt-1.5 w-full py-1.5 rounded-md text-xs text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors flex items-center justify-center gap-1"
         >
           <svg
             className={`w-3 h-3 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
