@@ -242,8 +242,8 @@ export function ProjectDetailPage() {
                       to={`/project-milestones/${milestone.id}`}
                       className="block p-3 bg-white/[0.06] rounded-lg hover:bg-white/[0.08] transition-colors"
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium text-gray-200">{milestone.title}</span>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="font-medium text-gray-200 truncate min-w-0">{milestone.title}</span>
                         <Badge variant={milestone.status?.toLowerCase() === 'open' ? 'info' : 'success'}>
                           {milestone.status}
                         </Badge>
@@ -269,8 +269,8 @@ export function ProjectDetailPage() {
               ) : (
                 <div className="space-y-3">
                   {roadmap.releases.map(({ release }) => (
-                    <div key={release.id} className="flex items-center justify-between p-3 bg-white/[0.06] rounded-lg">
-                      <div>
+                    <div key={release.id} className="flex items-center justify-between gap-2 p-3 bg-white/[0.06] rounded-lg">
+                      <div className="min-w-0 truncate">
                         <span className="font-medium text-gray-200">v{release.version}</span>
                         {release.title && (
                           <span className="ml-2 text-gray-400">{release.title}</span>

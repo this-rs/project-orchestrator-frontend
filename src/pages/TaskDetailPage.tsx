@@ -231,8 +231,8 @@ export function TaskDetailPage() {
             <ul className="space-y-2">
               {acceptanceCriteria.map((criterion, index) => (
                 <li key={index} className="flex items-start gap-2 text-gray-300">
-                  <span className="text-indigo-400 mt-0.5">•</span>
-                  {criterion}
+                  <span className="text-indigo-400 mt-0.5 shrink-0">•</span>
+                  <span className="break-words min-w-0">{criterion}</span>
                 </li>
               ))}
             </ul>
@@ -273,11 +273,11 @@ export function TaskDetailPage() {
             ) : (
               <div className="space-y-2">
                 {blockers.map((blocker) => (
-                  <div key={blocker.id} className="flex items-center justify-between p-2 bg-white/[0.06] rounded">
-                    <Link to={`/tasks/${blocker.id}`} className="text-gray-200 truncate hover:text-indigo-400 transition-colors">
+                  <div key={blocker.id} className="flex items-center justify-between gap-2 p-2 bg-white/[0.06] rounded">
+                    <Link to={`/tasks/${blocker.id}`} className="text-gray-200 truncate min-w-0 hover:text-indigo-400 transition-colors">
                       {blocker.title || blocker.description}
                     </Link>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                       <TaskStatusBadge status={blocker.status} />
                       <button
                         onClick={async () => {
@@ -308,8 +308,8 @@ export function TaskDetailPage() {
             ) : (
               <div className="space-y-2">
                 {blocking.map((blocked) => (
-                  <div key={blocked.id} className="flex items-center justify-between p-2 bg-white/[0.06] rounded">
-                    <Link to={`/tasks/${blocked.id}`} className="text-gray-200 truncate hover:text-indigo-400 transition-colors">
+                  <div key={blocked.id} className="flex items-center justify-between gap-2 p-2 bg-white/[0.06] rounded">
+                    <Link to={`/tasks/${blocked.id}`} className="text-gray-200 truncate min-w-0 hover:text-indigo-400 transition-colors">
                       {blocked.title || blocked.description}
                     </Link>
                     <TaskStatusBadge status={blocked.status} />
@@ -356,7 +356,7 @@ export function TaskDetailPage() {
           <CardContent>
             <div className="space-y-1">
               {affectedFiles.map((file, index) => (
-                <div key={`${file}-${index}`} className="font-mono text-sm text-gray-300 p-1">{file}</div>
+                <div key={`${file}-${index}`} className="font-mono text-sm text-gray-300 p-1 truncate" title={file}>{file}</div>
               ))}
             </div>
           </CardContent>
@@ -375,9 +375,9 @@ export function TaskDetailPage() {
             <div className="space-y-2">
               {commits.map((commit) => (
                 <div key={commit.sha} className="p-2 bg-white/[0.06] rounded">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-indigo-400">{commit.sha.slice(0, 7)}</span>
-                    <span className="text-gray-200">{commit.message}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-mono text-xs text-indigo-400 shrink-0">{commit.sha.slice(0, 7)}</span>
+                    <span className="text-gray-200 truncate min-w-0">{commit.message}</span>
                   </div>
                 </div>
               ))}
@@ -419,13 +419,13 @@ function StepRow({
 
   return (
     <div className="flex items-start gap-3 p-3 bg-white/[0.06] rounded-lg">
-      <div className={`w-6 h-6 rounded-full ${statusColors[step.status]} flex items-center justify-center text-xs font-medium text-white`}>
+      <div className={`w-6 h-6 rounded-full shrink-0 ${statusColors[step.status]} flex items-center justify-center text-xs font-medium text-white`}>
         {step.status === 'completed' ? '✓' : index + 1}
       </div>
-      <div className="flex-1">
-        <p className="text-gray-200">{step.description}</p>
+      <div className="flex-1 min-w-0">
+        <p className="text-gray-200 break-words">{step.description}</p>
         {step.verification && (
-          <p className="text-xs text-gray-500 mt-1">Verification: {step.verification}</p>
+          <p className="text-xs text-gray-500 mt-1 break-words">Verification: {step.verification}</p>
         )}
       </div>
       <InteractiveStepStatusBadge
@@ -446,9 +446,9 @@ function StepRow({
 function DecisionRow({ decision }: { decision: Decision }) {
   const alternatives = decision.alternatives || []
   return (
-    <div className="p-3 bg-white/[0.06] rounded-lg">
-      <p className="font-medium text-gray-200 mb-1">{decision.description}</p>
-      <p className="text-sm text-gray-400 mb-2">{decision.rationale}</p>
+    <div className="p-3 bg-white/[0.06] rounded-lg overflow-hidden">
+      <p className="font-medium text-gray-200 mb-1 break-words">{decision.description}</p>
+      <p className="text-sm text-gray-400 mb-2 break-words">{decision.rationale}</p>
       {alternatives.length > 0 && (
         <div className="text-xs text-gray-500 mb-2">
           Alternatives: {alternatives.join(', ')}

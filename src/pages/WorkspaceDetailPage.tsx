@@ -222,8 +222,8 @@ export function WorkspaceDetailPage() {
                   >
                     {project.name}
                   </Link>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">{project.slug}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs text-gray-500 hidden sm:inline">{project.slug}</span>
                     <button
                       onClick={async (e) => {
                         e.preventDefault()
@@ -266,8 +266,8 @@ export function WorkspaceDetailPage() {
                   to={`/milestones/${milestone.id}`}
                   className="block p-4 bg-white/[0.06] rounded-lg hover:bg-white/[0.06] transition-colors"
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-gray-200">{milestone.title}</span>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="font-medium text-gray-200 truncate min-w-0">{milestone.title}</span>
                     <Badge variant={milestone.status?.toLowerCase() === 'open' ? 'info' : 'success'}>
                       {milestone.status}
                     </Badge>
@@ -304,9 +304,9 @@ export function WorkspaceDetailPage() {
             ) : (
               <div className="space-y-2">
                 {resources.map((resource) => (
-                  <div key={resource.id} className="flex items-center justify-between p-2">
-                    <span className="text-gray-200">{resource.name}</span>
-                    <div className="flex items-center gap-2">
+                  <div key={resource.id} className="flex items-center justify-between gap-2 p-2">
+                    <span className="text-gray-200 truncate min-w-0">{resource.name}</span>
+                    <div className="flex items-center gap-2 shrink-0">
                       <Badge>{resource.resource_type}</Badge>
                       <button
                         onClick={async () => {
@@ -342,9 +342,9 @@ export function WorkspaceDetailPage() {
             ) : (
               <div className="space-y-2">
                 {components.map((component) => (
-                  <div key={component.id} className="flex items-center justify-between p-2">
-                    <span className="text-gray-200">{component.name}</span>
-                    <div className="flex items-center gap-2">
+                  <div key={component.id} className="flex items-center justify-between gap-2 p-2">
+                    <span className="text-gray-200 truncate min-w-0">{component.name}</span>
+                    <div className="flex items-center gap-2 shrink-0">
                       <Badge>{component.component_type}</Badge>
                       <button
                         onClick={async () => {

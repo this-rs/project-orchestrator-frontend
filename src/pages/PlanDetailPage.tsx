@@ -371,11 +371,11 @@ export function PlanDetailPage() {
             ) : (
               <div className="space-y-3">
                 {decisions.map((decision) => (
-                  <div key={decision.id} className="p-3 bg-white/[0.06] rounded-lg">
+                  <div key={decision.id} className="p-3 bg-white/[0.06] rounded-lg overflow-hidden">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="font-medium text-gray-200">{decision.description}</p>
+                      <p className="font-medium text-gray-200 break-words min-w-0">{decision.description}</p>
                     </div>
-                    <p className="text-sm text-gray-400">{decision.rationale}</p>
+                    <p className="text-sm text-gray-400 break-words">{decision.rationale}</p>
                     <div className="flex items-center gap-2 mt-2 flex-wrap">
                       {decision.chosen_option && (
                         <Badge variant="success">{decision.chosen_option}</Badge>
@@ -510,11 +510,11 @@ function TaskRow({
         </button>
         <Link
           to={`/tasks/${task.id}`}
-          className="flex-1 min-w-0 hover:text-indigo-400 transition-colors"
+          className="flex-1 min-w-0 hover:text-indigo-400 transition-colors overflow-hidden"
         >
-          <span className="font-medium text-gray-200">{task.title || task.description}</span>
+          <span className="font-medium text-gray-200 block truncate">{task.title || task.description}</span>
           {tags.length > 0 && (
-            <div className="flex gap-1 mt-1">
+            <div className="flex flex-wrap gap-1 mt-1">
               {tags.slice(0, 3).map((tag, index) => (
                 <Badge key={`${tag}-${index}`} variant="default">{tag}</Badge>
               ))}
@@ -598,7 +598,7 @@ function ConstraintRow({ constraint, onDelete }: { constraint: Constraint; onDel
       <span className={`text-xs uppercase font-medium ${typeColors[constraint.constraint_type] || typeColors.other}`}>
         {constraint.constraint_type}
       </span>
-      <span className="text-sm text-gray-300 flex-1">{constraint.description}</span>
+      <span className="text-sm text-gray-300 flex-1 min-w-0 break-words">{constraint.description}</span>
       <button
         onClick={onDelete}
         className="text-gray-500 hover:text-red-400 text-sm px-1"

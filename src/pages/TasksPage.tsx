@@ -279,10 +279,10 @@ function TaskCard({
             <SelectZone selected={!!selected} onToggle={onToggleSelect} />
           )}
           <div className={`w-1 shrink-0 ${!onToggleSelect ? 'rounded-l-xl' : ''} ${taskStatusBarColor[task.status] || 'bg-gray-400'}`} />
-          <div className="flex-1 p-3 md:p-4">
+          <div className="flex-1 min-w-0 p-3 md:p-4">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
               <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-semibold text-gray-100 truncate min-w-0">
                     {task.title || (task.description || '').slice(0, 60)}
                   </h3>
@@ -290,8 +290,8 @@ function TaskCard({
                 </div>
                 <p className="text-sm text-gray-400 line-clamp-2 mb-2">{task.description}</p>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
-                  <span className="truncate max-w-[200px]">Plan: {task.plan_title}</span>
-                  {task.assigned_to && <span className="truncate">Assigned: {task.assigned_to}</span>}
+                  <span className="truncate max-w-[150px] sm:max-w-[200px] md:max-w-xs">Plan: {task.plan_title}</span>
+                  {task.assigned_to && <span className="truncate max-w-[120px] sm:max-w-[180px]">Assigned: {task.assigned_to}</span>}
                 </div>
                 {tags.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">

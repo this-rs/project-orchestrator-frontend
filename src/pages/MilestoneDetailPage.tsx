@@ -367,10 +367,10 @@ export function MilestoneDetailPage() {
                 <Link
                   key={project.id}
                   to={`/projects/${project.slug}`}
-                  className="flex items-center justify-between p-3 bg-white/[0.06] rounded-lg hover:bg-white/[0.06] transition-colors"
+                  className="flex items-center justify-between gap-2 p-3 bg-white/[0.06] rounded-lg hover:bg-white/[0.08] transition-colors"
                 >
-                  <span className="font-medium text-gray-200">{project.name}</span>
-                  <span className="text-xs text-gray-500">{project.slug}</span>
+                  <span className="font-medium text-gray-200 truncate min-w-0">{project.name}</span>
+                  <span className="text-xs text-gray-500 shrink-0">{project.slug}</span>
                 </Link>
               ))}
             </div>

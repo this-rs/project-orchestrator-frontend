@@ -214,9 +214,9 @@ export function ExpandablePlanRow({
         </button>
         <Link
           to={`/plans/${plan.id}`}
-          className="flex-1 min-w-0 hover:text-indigo-400 transition-colors"
+          className="flex-1 min-w-0 hover:text-indigo-400 transition-colors overflow-hidden"
         >
-          <span className="font-medium text-gray-200">{plan.title}</span>
+          <span className="font-medium text-gray-200 block truncate">{plan.title}</span>
           {plan.description && (
             <p className="text-sm text-gray-400 line-clamp-1 mt-1">{plan.description}</p>
           )}
@@ -301,9 +301,9 @@ export function ExpandableTaskRow({
         </button>
         <Link
           to={`/tasks/${task.id}`}
-          className="flex-1 min-w-0 hover:text-indigo-400 transition-colors"
+          className="flex-1 min-w-0 hover:text-indigo-400 transition-colors overflow-hidden"
         >
-          <span className="font-medium text-gray-200">{task.title || task.description}</span>
+          <span className="font-medium text-gray-200 block truncate">{task.title || task.description}</span>
         </Link>
         {totalSteps > 0 && (
           <span className="text-xs text-gray-500 flex-shrink-0">

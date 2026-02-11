@@ -156,8 +156,8 @@ function ProjectCard({ project, onDelete, selected, onToggleSelect }: { project:
           <div className="flex-1 min-w-0">
             <div className="h-0.5 bg-blue-500/50" />
             <CardContent>
-              <div className="flex items-start justify-between mb-2">
-                <h3 className="text-lg font-semibold text-gray-100">{project.name}</h3>
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <h3 className="text-lg font-semibold text-gray-100 truncate min-w-0">{project.name}</h3>
                 <OverflowMenu
                   actions={[
                     { label: 'Delete', variant: 'danger', onClick: () => onDelete() },
