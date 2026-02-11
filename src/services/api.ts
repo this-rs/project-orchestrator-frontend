@@ -1,7 +1,6 @@
 import { getAuthMode } from './auth'
 import { getValidToken, refreshToken, forceLogout } from './authManager'
-
-const API_BASE = '/api'
+import { isTauri, getApiBase } from './env'
 
 export class ApiError extends Error {
   constructor(
@@ -13,12 +12,55 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Startup retry configuration.
+ *
+ * In Tauri desktop mode the backend server starts in parallel with the frontend.
+ * During the first few seconds, fetch() may fail with a network error (connection
+ * refused) before the server is fully ready. We retry transparently so pages
+ * don't flash a "Failed to load" error on cold start.
+ */
+const STARTUP_RETRY_MAX = 4
+const STARTUP_RETRY_DELAYS = [300, 600, 1200, 2000] // exponential-ish backoff
+
+/** Track whether we've successfully talked to the backend at least once. */
+let _backendReachable = !isTauri // In web mode, assume reachable (Vite proxy)
+
+async function fetchWithStartupRetry(
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
+  // If backend is already known to be reachable, do a single attempt
+  if (_backendReachable) {
+    return fetch(url, init)
+  }
+
+  // Startup phase — retry on network errors (TypeError from fetch = connection refused)
+  let lastError: unknown
+  for (let attempt = 0; attempt <= STARTUP_RETRY_MAX; attempt++) {
+    try {
+      const resp = await fetch(url, init)
+      _backendReachable = true
+      return resp
+    } catch (err) {
+      lastError = err
+      // Only retry on network errors (TypeError), not on AbortError etc.
+      if (!(err instanceof TypeError)) throw err
+      if (attempt < STARTUP_RETRY_MAX) {
+        const delay = STARTUP_RETRY_DELAYS[attempt] ?? 2000
+        await new Promise((r) => setTimeout(r, delay))
+      }
+    }
+  }
+  throw lastError
+}
+
 async function request<T>(
   endpoint: string,
   options: RequestInit = {},
   _isRetry = false,
 ): Promise<T> {
-  const url = `${API_BASE}${endpoint}`
+  const url = `${getApiBase()}${endpoint}`
 
   // Build headers with fresh auth token injection
   const headers: Record<string, string> = {
@@ -31,7 +73,7 @@ async function request<T>(
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  const response = await fetch(url, {
+  const response = await fetchWithStartupRetry(url, {
     ...options,
     headers,
   })

@@ -16,7 +16,7 @@ import type {
   RegisterRequest,
 } from '@/types'
 
-const AUTH_BASE = '/auth'
+import { isTauri, getAuthBase } from './env'
 
 /**
  * Module-level auth mode cache.
@@ -47,11 +47,38 @@ export function getAuthToken(): string | null {
   }
 }
 
+/**
+ * Startup retry for auth requests (same logic as api.ts).
+ * In Tauri desktop mode the backend may not be ready yet on cold start.
+ */
+const AUTH_STARTUP_RETRY_MAX = 4
+const AUTH_STARTUP_RETRY_DELAYS = [300, 600, 1200, 2000]
+let _authBackendReachable = !isTauri
+
+async function authFetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+  if (_authBackendReachable) return fetch(url, init)
+  let lastError: unknown
+  for (let attempt = 0; attempt <= AUTH_STARTUP_RETRY_MAX; attempt++) {
+    try {
+      const resp = await fetch(url, init)
+      _authBackendReachable = true
+      return resp
+    } catch (err) {
+      lastError = err
+      if (!(err instanceof TypeError)) throw err
+      if (attempt < AUTH_STARTUP_RETRY_MAX) {
+        await new Promise((r) => setTimeout(r, AUTH_STARTUP_RETRY_DELAYS[attempt] ?? 2000))
+      }
+    }
+  }
+  throw lastError
+}
+
 async function authRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = `${AUTH_BASE}${endpoint}`
+  const url = `${getAuthBase()}${endpoint}`
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
@@ -62,7 +89,7 @@ async function authRequest<T>(
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  const response = await fetch(url, {
+  const response = await authFetchWithRetry(url, {
     ...options,
     headers: {
       ...headers,

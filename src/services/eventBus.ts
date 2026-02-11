@@ -1,6 +1,7 @@
 import type { CrudEvent, EventBusStatus } from '@/types'
 import { getAuthMode } from './auth'
 import { getValidToken, forceLogout } from './authManager'
+import { wsUrl } from './env'
 
 type EventCallback = (event: CrudEvent) => void
 type StatusCallback = (status: EventBusStatus) => void
@@ -45,8 +46,7 @@ export class EventBusClient {
   }
 
   private openSocket(token: string | null) {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const url = `${protocol}//${window.location.host}/ws/events`
+    const url = wsUrl('/ws/events')
 
     try {
       this.ws = new WebSocket(url)

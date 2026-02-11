@@ -122,7 +122,8 @@ export function useUpdateCheck(): UpdateCheckResult {
       setLoading(true)
 
       // 1. Get current server version
-      const versionResp = await fetch('/api/version')
+      const { getApiBase } = await import('@/services/env')
+      const versionResp = await fetch(`${getApiBase()}/version`)
       if (!versionResp.ok) return
       const versionData = (await versionResp.json()) as VersionResponse
       const current = versionData.version
