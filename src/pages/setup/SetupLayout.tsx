@@ -1,5 +1,7 @@
 import { useAtom } from 'jotai'
+import { useNavigate } from 'react-router-dom'
 import { setupStepAtom } from '@/atoms/setup'
+import { useDragRegion } from '@/hooks'
 
 const STEPS = [
   { label: 'Infrastructure', icon: ServerIcon },
@@ -16,6 +18,10 @@ interface SetupLayoutProps {
   nextDisabled?: boolean
   nextLabel?: string
   hideNav?: boolean
+  /** When true, stepper steps are clickable for free navigation (reconfigure mode). */
+  freeNavigation?: boolean
+  /** When true, show a close button in the header to return to the app (reconfigure mode). */
+  showClose?: boolean
 }
 
 export function SetupLayout({
@@ -26,8 +32,12 @@ export function SetupLayout({
   nextDisabled = false,
   nextLabel,
   hideNav = false,
+  freeNavigation = false,
+  showClose = false,
 }: SetupLayoutProps) {
   const [step, setStep] = useAtom(setupStepAtom)
+  const navigate = useNavigate()
+  const onDragMouseDown = useDragRegion()
 
   const isFirst = step === 0
   const isLast = step === STEPS.length - 1
@@ -47,10 +57,14 @@ export function SetupLayout({
     }
   }
 
+  const handleClose = () => {
+    navigate('/', { replace: true })
+  }
+
   return (
-    <div className="flex min-h-dvh flex-col bg-gray-950 text-white">
-      {/* Header */}
-      <div className="border-b border-white/[0.06] px-6 py-4">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden text-white" style={{ backgroundColor: 'var(--surface-base)' }}>
+      {/* Header — draggable on Tauri desktop */}
+      <div className="border-b border-white/[0.06] px-6 py-4" onMouseDown={onDragMouseDown}>
         <div className="mx-auto flex max-w-3xl items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600">
             <svg
@@ -67,10 +81,22 @@ export function SetupLayout({
               />
             </svg>
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="text-lg font-semibold">Project Orchestrator</h1>
-            <p className="text-xs text-gray-500">Initial Setup</p>
+            <p className="text-xs text-gray-500">
+              {showClose ? 'Configuration' : 'Initial Setup'}
+            </p>
           </div>
+          {showClose && (
+            <button
+              onClick={handleClose}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-gray-400 transition hover:bg-white/[0.06] hover:text-white"
+              title="Back to app"
+            >
+              <CloseIcon />
+              <span className="hidden sm:inline">Close</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -82,37 +108,53 @@ export function SetupLayout({
               const Icon = s.icon
               const isActive = i === step
               const isDone = i < step
+              const isClickable = freeNavigation && i !== step
+
+              const stepContent = (
+                <>
+                  <div
+                    className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition ${
+                      isActive
+                        ? 'bg-indigo-600 text-white'
+                        : isDone
+                          ? 'bg-indigo-600/20 text-indigo-400'
+                          : 'bg-white/[0.06] text-gray-500'
+                    }`}
+                  >
+                    {isDone ? (
+                      <CheckIcon />
+                    ) : (
+                      <Icon />
+                    )}
+                  </div>
+                  <span
+                    className={`hidden text-sm font-medium sm:block ${
+                      isActive
+                        ? 'text-white'
+                        : isDone
+                          ? 'text-indigo-400'
+                          : 'text-gray-500'
+                    } ${isClickable ? 'group-hover:text-white' : ''}`}
+                  >
+                    {s.label}
+                  </span>
+                </>
+              )
 
               return (
                 <div key={s.label} className="flex flex-1 items-center">
-                  <div className="flex items-center gap-2.5">
-                    <div
-                      className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition ${
-                        isActive
-                          ? 'bg-indigo-600 text-white'
-                          : isDone
-                            ? 'bg-indigo-600/20 text-indigo-400'
-                            : 'bg-white/[0.06] text-gray-500'
-                      }`}
+                  {isClickable ? (
+                    <button
+                      onClick={() => setStep(i)}
+                      className="group flex items-center gap-2.5 rounded-lg px-1 py-1 -mx-1 transition hover:bg-white/[0.04]"
                     >
-                      {isDone ? (
-                        <CheckIcon />
-                      ) : (
-                        <Icon />
-                      )}
+                      {stepContent}
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2.5">
+                      {stepContent}
                     </div>
-                    <span
-                      className={`hidden text-sm font-medium sm:block ${
-                        isActive
-                          ? 'text-white'
-                          : isDone
-                            ? 'text-indigo-400'
-                            : 'text-gray-500'
-                      }`}
-                    >
-                      {s.label}
-                    </span>
-                  </div>
+                  )}
                   {i < STEPS.length - 1 && (
                     <div
                       className={`mx-3 h-px flex-1 ${
@@ -200,6 +242,14 @@ function CheckIcon() {
   return (
     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+    </svg>
+  )
+}
+
+function CloseIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
     </svg>
   )
 }

@@ -1,24 +1,25 @@
 import { useAtom } from 'jotai'
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { setupConfigAtom, type McpSetupStatus } from '@/atoms/setup'
+import { isTauri } from '@/services/env'
 
 const MODELS = [
-  { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
-  { value: 'claude-opus-4-20250514', label: 'Claude Opus 4' },
-  { value: 'claude-haiku-3-20250414', label: 'Claude Haiku 3.5' },
+  { value: 'sonnet-4-5', label: 'Claude Sonnet 4.5', description: 'Fast & capable — best for most tasks' },
+  { value: 'opus-4-5', label: 'Claude Opus 4.5', description: 'Most intelligent — complex reasoning' },
+  { value: 'opus-4-6', label: 'Claude Opus 4.6', description: 'Latest & most powerful' },
 ]
-
-const isTauri = () => !!(window as unknown as Record<string, unknown>).__TAURI__
 
 export function ChatPage() {
   const [config, setConfig] = useAtom(setupConfigAtom)
+  const [detectAttempted, setDetectAttempted] = useState(false)
 
   const update = (patch: Partial<typeof config>) =>
     setConfig((prev) => ({ ...prev, ...patch }))
 
   // Detect Claude Code CLI via Tauri invoke
   const handleDetect = useCallback(async () => {
-    if (!isTauri()) {
+    setDetectAttempted(true)
+    if (!isTauri) {
       update({ claudeCodeDetected: false })
       return
     }
@@ -33,7 +34,7 @@ export function ChatPage() {
 
   // Configure Claude Code MCP server via Tauri invoke
   const handleConfigureMcp = useCallback(async () => {
-    if (!isTauri()) return
+    if (!isTauri) return
 
     update({ mcpSetupStatus: 'configuring' as McpSetupStatus, mcpSetupMessage: '' })
 
@@ -80,19 +81,41 @@ export function ChatPage() {
       {/* Model selection */}
       <div className="space-y-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-gray-400">Default Model</label>
-          <select
-            value={config.chatModel}
-            onChange={(e) => update({ chatModel: e.target.value })}
-            className="w-full rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-sm text-white transition focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
-          >
+          <label className="mb-3 block text-xs font-medium text-gray-400">Default Model</label>
+          <div className="grid gap-3 sm:grid-cols-3">
             {MODELS.map((m) => (
-              <option key={m.value} value={m.value} className="bg-gray-900">
-                {m.label}
-              </option>
+              <button
+                key={m.value}
+                onClick={() => update({ chatModel: m.value })}
+                className={`flex flex-col items-start gap-1.5 rounded-xl border p-4 text-left transition ${
+                  config.chatModel === m.value
+                    ? 'border-indigo-500/50 bg-indigo-500/10'
+                    : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]'
+                }`}
+              >
+                <div className="flex w-full items-center justify-between">
+                  <span
+                    className={`text-sm font-medium ${config.chatModel === m.value ? 'text-white' : 'text-gray-300'}`}
+                  >
+                    {m.label}
+                  </span>
+                  {config.chatModel === m.value && (
+                    <svg
+                      className="h-4 w-4 text-indigo-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={2.5}
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                  )}
+                </div>
+                <span className="text-xs text-gray-500">{m.description}</span>
+              </button>
             ))}
-          </select>
-          <p className="mt-1.5 text-xs text-gray-500">
+          </div>
+          <p className="mt-3 text-xs text-gray-500">
             The model used for AI chat sessions. Requires a Claude Code CLI installation.
           </p>
         </div>
@@ -149,6 +172,24 @@ export function ChatPage() {
                   />
                 </svg>
                 Detected
+              </span>
+            )}
+            {detectAttempted && !config.claudeCodeDetected && (
+              <span className="flex items-center gap-1 text-xs font-medium text-amber-400">
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+                  />
+                </svg>
+                Not found
               </span>
             )}
             <button
