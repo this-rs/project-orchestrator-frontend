@@ -612,29 +612,42 @@ function OidcCallbackUrls({ config }: { config: SetupConfig }) {
             exactly.
           </p>
 
-          {/* Primary URLs — public if available, otherwise local */}
-          <div className="space-y-2">
-            <CopyableUrl
-              label={hasPublicUrl ? 'Redirect URI (public)' : 'Authorized redirect URI'}
-              value={`${hasPublicUrl ? publicBase : localBase}/auth/callback`}
-            />
-            <CopyableUrl
-              label={hasPublicUrl ? 'JavaScript origin (public)' : 'Authorized JavaScript origin'}
-              value={hasPublicUrl ? publicBase : localBase}
-            />
-          </div>
-
-          {/* Additional local URLs when a public URL is configured */}
-          {hasPublicUrl && (
-            <div className="space-y-2 border-t border-white/[0.06] pt-3">
-              <p className="text-xs text-gray-500">
-                For local development, also add these URLs:
-              </p>
+          {/* When both public + local: show both as required */}
+          {hasPublicUrl ? (
+            <>
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.04] px-3 py-2">
+                <p className="text-xs text-amber-300">
+                  Register <strong>BOTH</strong> redirect URIs below to support desktop + web access.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <CopyableUrl
+                  label="Redirect URI (web)"
+                  value={`${publicBase}/auth/callback`}
+                />
+                <CopyableUrl
+                  label="Redirect URI (desktop)"
+                  value={`${localBase}/auth/callback`}
+                />
+              </div>
+              <div className="space-y-2 border-t border-white/[0.06] pt-3">
+                <p className="text-xs text-gray-500">
+                  Authorized JavaScript origins:
+                </p>
+                <CopyableUrl label="JavaScript origin (web)" value={publicBase} />
+                <CopyableUrl label="JavaScript origin (desktop)" value={localBase} />
+              </div>
+            </>
+          ) : (
+            <div className="space-y-2">
               <CopyableUrl
-                label="Redirect URI (local)"
+                label="Authorized redirect URI"
                 value={`${localBase}/auth/callback`}
               />
-              <CopyableUrl label="JavaScript origin (local)" value={localBase} />
+              <CopyableUrl
+                label="Authorized JavaScript origin"
+                value={localBase}
+              />
             </div>
           )}
 

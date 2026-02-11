@@ -139,15 +139,17 @@ export const authApi = {
   // OIDC (generic — Google, Microsoft, Okta, etc.)
   // =========================================================================
 
-  /** GET /auth/oidc — Get OIDC authorization URL */
-  getOidcAuthUrl: () =>
-    authRequest<AuthUrlResponse>('/oidc'),
+  /** GET /auth/oidc — Get OIDC authorization URL (sends current origin for dynamic redirect_uri) */
+  getOidcAuthUrl: () => {
+    const origin = encodeURIComponent(window.location.origin)
+    return authRequest<AuthUrlResponse>(`/oidc?origin=${origin}`)
+  },
 
-  /** POST /auth/oidc/callback — Exchange OIDC auth code for JWT + user */
+  /** POST /auth/oidc/callback — Exchange OIDC auth code for JWT + user (sends origin for redirect_uri matching) */
   exchangeOidcCode: (code: string) =>
     authRequest<AuthTokenResponse>('/oidc/callback', {
       method: 'POST',
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ code, origin: window.location.origin }),
     }),
 
   // =========================================================================
@@ -155,14 +157,16 @@ export const authApi = {
   // =========================================================================
 
   /** @deprecated Use getOidcAuthUrl() instead */
-  getGoogleAuthUrl: () =>
-    authRequest<AuthUrlResponse>('/google'),
+  getGoogleAuthUrl: () => {
+    const origin = encodeURIComponent(window.location.origin)
+    return authRequest<AuthUrlResponse>(`/google?origin=${origin}`)
+  },
 
   /** @deprecated Use exchangeOidcCode() instead */
   exchangeCode: (code: string) =>
     authRequest<AuthTokenResponse>('/google/callback', {
       method: 'POST',
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ code, origin: window.location.origin }),
     }),
 
   // =========================================================================
