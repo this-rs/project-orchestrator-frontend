@@ -331,10 +331,13 @@ export function SessionList({ activeSessionId, onSelect, onClose, embedded }: Se
     const title = session.title || `Session ${session.id.slice(0, 8)}`
 
     return (
-      <button
+      <div
         key={session.id}
+        role="button"
+        tabIndex={0}
         onClick={() => isActive ? onClose() : onSelect(session.id, undefined, title)}
-        className={`w-full text-left px-3 py-2.5 transition-all group flex items-start gap-2 ${
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); isActive ? onClose() : onSelect(session.id, undefined, title) } }}
+        className={`w-full text-left px-3 py-2.5 transition-all group flex items-start gap-2 cursor-pointer ${
           isActive
             ? 'bg-indigo-500/[0.08] border-l-2 border-indigo-500 pl-2.5'
             : 'hover:bg-white/[0.04] border-l-2 border-transparent'
@@ -410,7 +413,7 @@ export function SessionList({ activeSessionId, onSelect, onClose, embedded }: Se
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
           </svg>
         </button>
-      </button>
+      </div>
     )
   }
 

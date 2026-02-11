@@ -40,7 +40,7 @@ export function ChatPanel() {
 
   const isOpen = mode !== 'closed'
   const isFullscreen = mode === 'fullscreen'
-  const isNewConversation = !chat.sessionId
+  const isNewConversation = !chat.sessionId && !chat.isSending
 
   // Detect mobile viewport
   useEffect(() => {
@@ -109,6 +109,7 @@ export function ChatPanel() {
     chat.newSession()
     setSelectedProject(null)
     setSessionTitle(null)
+    setShowSessions(false)
   }
 
   const handleSelectSession = (sessionId: string, targetTurnIndex?: number, title?: string) => {
@@ -144,38 +145,14 @@ export function ChatPanel() {
           {/* Sidebar header */}
           <div className="h-14 flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0">
             <span className="text-sm font-medium text-gray-300">Conversations</span>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setMode('open')}
-                className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
-                title="Exit fullscreen"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 9L4 4m0 0v5m0-5h5m6 6l5 5m0 0v-5m0 5h-5" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setMode('closed')}
-                className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
-                title="Close"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          {/* New conversation button */}
-          <div className="px-3 py-2 border-b border-white/[0.06]">
             <button
               onClick={handleNewSession}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-sm font-medium transition-colors"
+              className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
+              title="New conversation"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
-              New conversation
             </button>
           </div>
 
@@ -251,17 +228,16 @@ export function ChatPanel() {
             <div className="flex items-center gap-1">
               <button
                 onClick={handleNewSession}
-                className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
+                className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors md:hidden"
                 title="New chat"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
               </button>
-              {/* Mobile: exit fullscreen / close buttons */}
               <button
                 onClick={() => setMode('open')}
-                className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors md:hidden"
+                className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
                 title="Exit fullscreen"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -270,7 +246,7 @@ export function ChatPanel() {
               </button>
               <button
                 onClick={() => setMode('closed')}
-                className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors md:hidden"
+                className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
                 title="Close"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

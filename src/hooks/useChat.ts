@@ -47,6 +47,12 @@ export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const wsRef = useRef<ChatWebSocket | null>(null)
+  const [isSending, setIsSending] = useState(false)
+
+  // Flag to distinguish first-message session creation from loadSession().
+  // When true, the auto-connect useEffect will skip resetting messages
+  // so the optimistic user message is preserved.
+  const isFirstSendRef = useRef(false)
 
   // Pagination state for reverse infinite scroll
   const [hasOlderMessages, setHasOlderMessages] = useState(false)
@@ -119,16 +125,17 @@ export function useChat() {
       switch (event.type) {
         case 'stream_delta': {
           const lastBlock = lastMsg.blocks[lastMsg.blocks.length - 1]
+          const deltaText = (event as { text: string }).text
           if (lastBlock && lastBlock.type === 'text') {
             lastMsg.blocks[lastMsg.blocks.length - 1] = {
               ...lastBlock,
-              content: lastBlock.content + (event as { text: string }).text,
+              content: lastBlock.content + deltaText,
             }
           } else {
             lastMsg.blocks.push({
               id: nextBlockId(),
               type: 'text',
-              content: (event as { text: string }).text,
+              content: deltaText,
             })
           }
           break
@@ -312,6 +319,9 @@ export function useChat() {
             type: 'error',
             content: (data as { message?: string }).message ?? 'Unknown error',
           })
+          if (!event.replaying) {
+            setIsStreaming(false)
+          }
           break
         }
 
@@ -373,6 +383,18 @@ export function useChat() {
     if (!sessionId) return
 
     const ws = getWs()
+
+    // First-send path: the user just sent the first message of a new conversation.
+    // The optimistic user message is already in `messages` — do NOT reset it.
+    // Just connect the WS for live events and bail out.
+    if (isFirstSendRef.current) {
+      isFirstSendRef.current = false
+      paginationRef.current = { offset: 0, totalCount: 0 }
+      setHasOlderMessages(false)
+      ws.connect(sessionId, Number.MAX_SAFE_INTEGER)
+      return
+    }
+
     // Only load if not already connected to this session
     if (ws.sessionId === sessionId && ws.status !== 'disconnected') return
 
@@ -502,13 +524,21 @@ export function useChat() {
 
     if (!sessionId) {
       // First message — create session via REST, then connect WS
-      const response = await chatApi.createSession({
-        message: text,
-        cwd: options!.cwd,
-        project_slug: options?.projectSlug,
-      })
-      setSessionId(response.session_id)
+      setIsSending(true)
       setIsStreaming(true)
+      try {
+        const response = await chatApi.createSession({
+          message: text,
+          cwd: options!.cwd,
+          project_slug: options?.projectSlug,
+        })
+        // Signal that the upcoming sessionId change is from a first send,
+        // so the auto-connect useEffect should NOT reset messages.
+        isFirstSendRef.current = true
+        setSessionId(response.session_id)
+      } finally {
+        setIsSending(false)
+      }
       // WS will auto-connect via the useEffect above when sessionId changes
     } else {
       // Follow-up message — send via WS
@@ -567,6 +597,7 @@ export function useChat() {
   return {
     messages,
     isStreaming,
+    isSending,
     isLoadingHistory,
     isLoadingOlder,
     isReplaying,
