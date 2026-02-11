@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useAtom, useAtomValue } from 'jotai'
-import { authModeAtom, sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom } from '@/atoms'
+import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom } from '@/atoms'
 import { ToastContainer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
-import { useMediaQuery, useCrudEventRefresh } from '@/hooks'
+import { useMediaQuery, useCrudEventRefresh, useDragRegion } from '@/hooks'
 
 const navGroups = [
   {
@@ -96,11 +96,12 @@ export function MainLayout() {
   const chatOpen = chatMode === 'open'
   const chatFullscreen = chatMode === 'fullscreen'
   const wsStatus = useAtomValue(eventBusStatusAtom)
-  const authMode = useAtomValue(authModeAtom)
-  const isAuthRequired = authMode === 'required'
 
   // Connect to WebSocket CRUD event bus and auto-refresh pages
   useCrudEventRefresh()
+
+  // Enable native window dragging on the header bar (Tauri desktop)
+  const onDragMouseDown = useDragRegion()
 
   // Close mobile menu on navigation
   useEffect(() => {
@@ -118,7 +119,7 @@ export function MainLayout() {
   }, [mobileMenuOpen])
 
   return (
-    <div className="flex h-dvh bg-[#0f1117]">
+    <div className="flex min-h-0 flex-1 bg-[#0f1117]">
       {/* Desktop Sidebar */}
       <aside
         className={`${
@@ -180,7 +181,7 @@ export function MainLayout() {
         style={{ marginRight: chatOpen && !chatFullscreen && isSmUp ? chatWidth : 0 }}
       >
         {/* Breadcrumb */}
-        <header className="h-16 flex items-center px-4 md:px-6 border-b border-white/[0.06] bg-[#1a1d27]/80 backdrop-blur-sm">
+        <header className="h-16 flex items-center px-4 md:px-6 border-b border-white/[0.06] bg-[#1a1d27]/80 backdrop-blur-sm" onMouseDown={onDragMouseDown}>
           {/* Hamburger button (mobile only) */}
           <button
             className="mr-3 p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors md:hidden"
@@ -193,18 +194,16 @@ export function MainLayout() {
 
           {/* WS status + User menu + Chat toggle */}
           <div className="ml-auto flex items-center gap-1.5">
-            {isAuthRequired && (
-              <span
-                className={`w-2 h-2 rounded-full transition-colors ${
-                  wsStatus === 'connected'
-                    ? 'bg-emerald-400'
-                    : wsStatus === 'reconnecting'
-                      ? 'bg-amber-400 animate-pulse'
-                      : 'bg-gray-600'
-                }`}
-                title={`WebSocket: ${wsStatus}`}
-              />
-            )}
+            <span
+              className={`w-2 h-2 rounded-full transition-colors ${
+                wsStatus === 'connected'
+                  ? 'bg-emerald-400'
+                  : wsStatus === 'reconnecting'
+                    ? 'bg-amber-400 animate-pulse'
+                    : 'bg-gray-600'
+              }`}
+              title={`WebSocket: ${wsStatus}`}
+            />
             <UserMenu />
             <button
               onClick={() => setChatMode(chatMode === 'closed' ? 'open' : 'closed')}
