@@ -1,5 +1,15 @@
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
+import { ExternalLink } from '@/components/ui/ExternalLink'
+
+const markdownComponents = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  a: ({ href, children, ...props }: any) => (
+    <ExternalLink href={href} {...props}>
+      {children}
+    </ExternalLink>
+  ),
+}
 
 interface CollapsibleMarkdownProps {
   content: string
@@ -40,7 +50,7 @@ export function CollapsibleMarkdown({
         }
       >
         <div className="prose prose-invert prose-sm max-w-none break-words overflow-x-auto">
-          <ReactMarkdown>{content}</ReactMarkdown>
+          <ReactMarkdown components={markdownComponents}>{content}</ReactMarkdown>
         </div>
       </div>
       {needsCollapse && (

@@ -73,7 +73,10 @@ async function invokeTauri<T>(cmd: string): Promise<T | null> {
 // ============================================================================
 
 function isTauriEnv(): boolean {
-  return typeof window !== 'undefined' && '__TAURI__' in window
+  return (
+    typeof window !== 'undefined' &&
+    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+  )
 }
 
 function formatBytes(bytes: number): string {

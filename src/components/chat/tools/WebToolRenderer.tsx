@@ -7,6 +7,7 @@
 
 import { useState, type ReactNode } from 'react'
 import type { ToolRendererProps } from './types'
+import { ExternalLink } from '@/components/ui/ExternalLink'
 
 /** Max lines for result preview before offering "show more" */
 const MAX_RESULT_LINES = 40
@@ -53,16 +54,15 @@ function renderInlineMarkdown(text: string): ReactNode[] {
       // [text](url)
       const linkMatch = full.match(/\[([^\]]+)\]\(([^)]+)\)/)
       if (linkMatch) {
+        const linkHref = linkMatch[2]
         nodes.push(
-          <a
+          <ExternalLink
             key={match.index}
-            href={linkMatch[2]}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={linkHref}
             className="text-indigo-400 hover:underline"
           >
             {linkMatch[1]}
-          </a>
+          </ExternalLink>
         )
       } else {
         nodes.push(full)
@@ -322,14 +322,12 @@ export function WebToolRenderer({ toolName, toolInput, resultContent, isError, i
               <div className="space-y-2">
                 {parsedSearch.links.map((link, i) => (
                   <div key={i} className="space-y-0.5">
-                    <a
+                    <ExternalLink
                       href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
                       className="text-indigo-400 hover:underline text-xs"
                     >
                       {link.title}
-                    </a>
+                    </ExternalLink>
                     <div className="text-[10px] text-gray-600 font-mono truncate">
                       {link.url}
                     </div>

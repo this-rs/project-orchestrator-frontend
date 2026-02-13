@@ -7,6 +7,7 @@
 
 import type { ReactNode } from 'react'
 import { McpContainer, truncate, TimeAgo, ShortId, LinkedId } from './utils'
+import { ExternalLink } from '@/components/ui/ExternalLink'
 
 // ---------------------------------------------------------------------------
 // Cost formatting — smart precision based on magnitude
@@ -57,16 +58,15 @@ function renderInlineMarkdown(text: string): ReactNode[] {
       // [text](url)
       const linkMatch = full.match(/\[([^\]]+)\]\(([^)]+)\)/)
       if (linkMatch) {
+        const linkHref = linkMatch[2]
         nodes.push(
-          <a
+          <ExternalLink
             key={match.index}
-            href={linkMatch[2]}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={linkHref}
             className="text-indigo-400 hover:underline"
           >
             {linkMatch[1]}
-          </a>
+          </ExternalLink>
         )
       } else {
         nodes.push(full)

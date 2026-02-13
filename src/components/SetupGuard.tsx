@@ -65,7 +65,7 @@ export function SetupGuard() {
   // First load: show spinner while checking
   if (configExists === null) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-[var(--surface-base)]">
+      <div className="flex flex-1 items-center justify-center bg-[var(--surface-base)]">
         <Spinner size="lg" />
       </div>
     )

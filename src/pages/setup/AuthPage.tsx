@@ -8,6 +8,7 @@ import {
   type SetupConfig,
 } from '@/atoms/setup'
 import { isTauri } from '@/services/env'
+import { ExternalLink } from '@/components/ui/ExternalLink'
 
 // ============================================================================
 // AuthPage — Step 2 of the setup wizard
@@ -563,14 +564,12 @@ function OidcDetailsSection({
       {provider.consoleUrl && (
         <p className="text-xs text-gray-500">
           Get your credentials from{' '}
-          <a
+          <ExternalLink
             href={provider.consoleUrl}
-            target="_blank"
-            rel="noopener noreferrer"
             className="text-indigo-400 underline hover:text-indigo-300"
           >
             {provider.label} developer console
-          </a>
+          </ExternalLink>
           .
         </p>
       )}
@@ -655,28 +654,24 @@ function OidcCallbackUrls({ config }: { config: SetupConfig }) {
           {config.oidcProvider === 'google' && (
             <p className="text-xs text-gray-500">
               For Google: Go to{' '}
-              <a
+              <ExternalLink
                 href="https://console.cloud.google.com/apis/credentials"
-                target="_blank"
-                rel="noopener noreferrer"
                 className="text-indigo-400 underline hover:text-indigo-300"
               >
                 console.cloud.google.com/apis/credentials
-              </a>{' '}
+              </ExternalLink>{' '}
               → edit your OAuth 2.0 Client ID → paste these URLs.
             </p>
           )}
           {config.oidcProvider === 'microsoft' && (
             <p className="text-xs text-gray-500">
               For Microsoft: Go to{' '}
-              <a
+              <ExternalLink
                 href="https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps"
-                target="_blank"
-                rel="noopener noreferrer"
                 className="text-indigo-400 underline hover:text-indigo-300"
               >
                 Azure Portal → App registrations
-              </a>{' '}
+              </ExternalLink>{' '}
               → select your app → Authentication → add the redirect URI.
             </p>
           )}
