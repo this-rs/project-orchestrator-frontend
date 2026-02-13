@@ -64,8 +64,8 @@ export function ProjectDetailPage() {
         try {
           const fgData = await featureGraphsApi.list({ project_id: projectData.id })
           setFeatureGraphs(fgData.feature_graphs || [])
-        } catch {
-          // Feature graphs might not be available
+        } catch (fgError) {
+          console.error('Failed to fetch feature graphs:', fgError)
         }
       } catch (error) {
         console.error('Failed to fetch project:', error)

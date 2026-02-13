@@ -12,9 +12,9 @@ interface ListResponse {
 
 export const featureGraphsApi = {
   list: (params: ListParams = {}) =>
-    api.get<ListResponse>(`/api/feature-graphs${buildQuery(params)}`),
+    api.get<ListResponse>(`/feature-graphs${buildQuery(params)}`),
 
-  get: (id: string) => api.get<FeatureGraphDetail>(`/api/feature-graphs/${id}`),
+  get: (id: string) => api.get<FeatureGraphDetail>(`/feature-graphs/${id}`),
 
-  delete: (id: string) => api.delete(`/api/feature-graphs/${id}`),
+  delete: (id: string) => api.delete(`/feature-graphs/${id}`),
 }
