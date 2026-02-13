@@ -3,7 +3,14 @@ import { useAtomValue } from 'jotai'
 import { authModeAtom, currentUserAtom } from '@/atoms'
 import { forceLogout } from '@/services/authManager'
 
-export function UserMenu({ dropUp = false }: { dropUp?: boolean } = {}) {
+interface UserMenuProps {
+  /** Open dropdown upward (for sidebar bottom placement) */
+  dropUp?: boolean
+  /** Show user name next to avatar (when sidebar is expanded) */
+  showName?: boolean
+}
+
+export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {}) {
   const authMode = useAtomValue(authModeAtom)
   const user = useAtomValue(currentUserAtom)
   const [open, setOpen] = useState(false)
@@ -51,19 +58,22 @@ export function UserMenu({ dropUp = false }: { dropUp?: boolean } = {}) {
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200"
+        className="flex items-center gap-2 rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200 min-w-0"
       >
         {user.picture_url ? (
           <img
             src={user.picture_url}
             alt={user.name}
-            className="h-7 w-7 rounded-full"
+            className="h-7 w-7 rounded-full shrink-0"
             referrerPolicy="no-referrer"
           />
         ) : (
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-xs font-medium text-white">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-xs font-medium text-white shrink-0">
             {initials}
           </div>
+        )}
+        {showName && (
+          <span className="truncate text-sm text-gray-300">{user.name}</span>
         )}
       </button>
 

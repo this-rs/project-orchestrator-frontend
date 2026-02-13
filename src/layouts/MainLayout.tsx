@@ -132,8 +132,8 @@ export function MainLayout() {
         <SidebarContent collapsed={collapsed} trafficLightPad={trafficLightPad} />
 
         {/* User menu + Collapse button */}
-        <div className="border-t border-white/[0.06] p-2 flex items-center gap-1">
-          <UserMenu dropUp />
+        <div className={`border-t border-white/[0.06] p-2 ${collapsed ? 'flex flex-col items-center gap-1' : 'flex items-center gap-1'}`}>
+          <UserMenu dropUp showName={!collapsed} />
           {!collapsed && <div className="flex-1" />}
           <button
             onClick={() => setCollapsed(!collapsed)}
@@ -170,7 +170,7 @@ export function MainLayout() {
 
           {/* User menu + Close button */}
           <div className="border-t border-white/[0.06] p-2 flex items-center gap-1">
-            <UserMenu dropUp />
+            <UserMenu dropUp showName />
             <div className="flex-1" />
             <button
               onClick={() => setMobileMenuOpen(false)}
