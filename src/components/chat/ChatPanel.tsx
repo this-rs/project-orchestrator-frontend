@@ -148,7 +148,7 @@ export function ChatPanel() {
         {/* Desktop: static sidebar */}
         <div className="hidden md:flex w-72 shrink-0 border-r border-white/[0.06] flex-col">
           {/* Sidebar header — taller on Tauri (non-fullscreen) to clear traffic lights */}
-          <div className={`flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
+          <div className={`flex items-center justify-between px-4 shrink-0 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
             <span className="text-sm font-medium text-gray-300">Conversations</span>
             <button
               onClick={handleNewSession}
@@ -173,7 +173,7 @@ export function ChatPanel() {
         {isMobile && showMobileSidebar && (
           <div className="fixed inset-0 z-40 flex flex-col bg-[#1a1d27]">
             {/* Mobile sidebar header — taller on Tauri (non-fullscreen) to clear traffic lights */}
-            <div className={`flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
+            <div className={`flex items-center justify-between px-4 shrink-0 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
               <span className="text-sm font-medium text-gray-300">Conversations</span>
               <div className="flex items-center gap-1">
                 <button
