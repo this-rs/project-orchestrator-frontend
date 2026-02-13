@@ -22,6 +22,11 @@ export function AuthCallbackPage() {
   const setUser = useSetAtom(currentUserAtom)
   const [exchangeError, setExchangeError] = useState<string | null>(null)
 
+  // Remove the dark overlay injected by LoginPage before SSO redirect
+  useEffect(() => {
+    document.getElementById('sso-overlay')?.remove()
+  }, [])
+
   // Derive missing code error from search params (avoids synchronous setState in effect)
   const code = useMemo(() => searchParams.get('code'), [searchParams])
   const error = code ? exchangeError : 'Missing authorization code'
