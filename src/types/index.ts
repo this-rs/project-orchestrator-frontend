@@ -309,6 +309,40 @@ export interface TraitNode {
 }
 
 // ============================================================================
+// FEATURE GRAPHS
+// ============================================================================
+
+export type FeatureGraphRole =
+  | 'entry_point'
+  | 'core_logic'
+  | 'data_model'
+  | 'trait_contract'
+  | 'api_surface'
+  | 'support'
+
+export interface FeatureGraph {
+  id: string
+  name: string
+  description?: string
+  project_id: string
+  created_at: string
+  entity_count?: number
+  entry_function?: string
+  build_depth?: number
+}
+
+export interface FeatureGraphEntity {
+  entity_type: string
+  entity_id: string
+  name?: string
+  role?: FeatureGraphRole | string
+}
+
+export interface FeatureGraphDetail extends FeatureGraph {
+  entities: FeatureGraphEntity[]
+}
+
+// ============================================================================
 // API RESPONSES
 // ============================================================================
 

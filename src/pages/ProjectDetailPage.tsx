@@ -3,11 +3,11 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
 import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LoadingPage, Badge, ProgressBar, PageHeader, SectionNav } from '@/components/ui'
 import { ExpandablePlanRow } from '@/components/expandable'
-import { projectsApi, plansApi } from '@/services'
+import { projectsApi, plansApi, featureGraphsApi } from '@/services'
 import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
 import { chatSuggestedProjectIdAtom, projectRefreshAtom, planRefreshAtom, milestoneRefreshAtom, taskRefreshAtom } from '@/atoms'
 import { CreateMilestoneForm, CreateReleaseForm } from '@/components/forms'
-import type { Project, Plan, ProjectRoadmap, PlanStatus } from '@/types'
+import type { Project, Plan, ProjectRoadmap, PlanStatus, FeatureGraph } from '@/types'
 
 export function ProjectDetailPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -28,6 +28,7 @@ export function ProjectDetailPage() {
   const [roadmap, setRoadmap] = useState<ProjectRoadmap | null>(null)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
+  const [featureGraphs, setFeatureGraphs] = useState<FeatureGraph[]>([])
   const [plansExpandAll, setPlansExpandAll] = useState(0)
   const [plansCollapseAll, setPlansCollapseAll] = useState(0)
   const [plansAllExpanded, setPlansAllExpanded] = useState(false)
@@ -57,6 +58,14 @@ export function ProjectDetailPage() {
           setRoadmap(roadmapData)
         } catch {
           // Roadmap might not be available
+        }
+
+        // Fetch feature graphs for this project
+        try {
+          const fgData = await featureGraphsApi.list({ project_id: projectData.id })
+          setFeatureGraphs(fgData.feature_graphs || [])
+        } catch (fgError) {
+          console.error('Failed to fetch feature graphs:', fgError)
         }
       } catch (error) {
         console.error('Failed to fetch project:', error)
@@ -125,7 +134,7 @@ export function ProjectDetailPage() {
   })
 
   const hasRoadmap = roadmap && ((roadmap.milestones || []).length > 0 || roadmap.releases.length > 0)
-  const sectionIds = [...(hasRoadmap ? ['roadmap'] : []), 'plans']
+  const sectionIds = [...(hasRoadmap ? ['roadmap'] : []), 'plans', 'feature-graphs']
   const activeSection = useSectionObserver(sectionIds)
 
   if (loading || !project) return <LoadingPage />
@@ -133,6 +142,7 @@ export function ProjectDetailPage() {
   const sections = [
     ...(hasRoadmap ? [{ id: 'roadmap', label: 'Roadmap', count: (roadmap!.milestones || []).length + roadmap!.releases.length }] : []),
     { id: 'plans', label: 'Plans', count: plans.length },
+    { id: 'feature-graphs', label: 'Feature Graphs', count: featureGraphs.length },
   ]
 
   return (
@@ -359,6 +369,68 @@ export function ProjectDetailPage() {
                   expandAllSignal={plansExpandAll}
                   collapseAllSignal={plansCollapseAll}
                 />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      </section>
+
+      {/* Feature Graphs */}
+      <section id="feature-graphs" className="scroll-mt-20">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Feature Graphs ({featureGraphs.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {featureGraphs.length === 0 ? (
+            <p className="text-gray-500 text-sm">No feature graphs for this project</p>
+          ) : (
+            <div className="space-y-2">
+              {featureGraphs.map((fg) => (
+                <Link
+                  key={fg.id}
+                  to={`/feature-graphs/${fg.id}`}
+                  className="flex items-center justify-between gap-3 p-3 bg-white/[0.06] rounded-lg hover:bg-white/[0.08] transition-colors group"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-200 truncate">{fg.name}</span>
+                      {fg.entity_count != null && (
+                        <Badge variant="default">{fg.entity_count} entities</Badge>
+                      )}
+                      {fg.entry_function && (
+                        <Badge variant="info">{fg.entry_function}</Badge>
+                      )}
+                    </div>
+                    {fg.description && (
+                      <p className="text-xs text-gray-500 mt-1 truncate">
+                        {fg.description.length > 80 ? `${fg.description.slice(0, 80)}...` : fg.description}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      confirmDialog.open({
+                        title: 'Delete Feature Graph',
+                        description: `Delete "${fg.name}"? This cannot be undone.`,
+                        onConfirm: async () => {
+                          await featureGraphsApi.delete(fg.id)
+                          setFeatureGraphs((prev) => prev.filter((g) => g.id !== fg.id))
+                          toast.success('Feature graph deleted')
+                        },
+                      })
+                    }}
+                    className="p-1.5 rounded text-gray-600 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-white/[0.08] transition-all shrink-0"
+                    title="Delete"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                    </svg>
+                  </button>
+                </Link>
               ))}
             </div>
           )}
