@@ -71,7 +71,15 @@ html.tauri body {
 
 .tauri-window {
   overflow: hidden;
+  overscroll-behavior: none;
   background-color: var(--surface-base);
+}
+
+/* Disable overscroll bounce (macOS rubber-band) in Tauri desktop */
+html.tauri,
+html.tauri body,
+html.tauri * {
+  overscroll-behavior: none;
 }
 
 /* Custom scrollbar for dark theme */

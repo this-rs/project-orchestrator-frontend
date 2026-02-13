@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import { useAtom } from 'jotai'
 import { chatScrollToTurnAtom } from '@/atoms'
 import type { ChatMessage } from '@/types'
@@ -39,6 +39,12 @@ export function ChatMessages({
   const prevScrollHeightRef = useRef<number>(0)
   const isLoadingOlderRef = useRef(false)
 
+  // Track the last message ID to detect prepend vs append.
+  // If messages grow and the FIRST message ID changed → prepend (older messages loaded).
+  // If messages grow and the LAST message ID changed → append (new message from stream/user).
+  const firstMessageIdRef = useRef<string | null>(null)
+  const prevMessageCountRef = useRef(0)
+
   // Keep ref in sync with prop for use in scroll handler
   useEffect(() => {
     isLoadingOlderRef.current = !!isLoadingOlder
@@ -59,23 +65,46 @@ export function ChatMessages({
     ) {
       // Capture scrollHeight BEFORE loading so we can restore position after
       prevScrollHeightRef.current = scrollHeight
+      // Disable auto-scroll — user is at the top, we must preserve their position
+      shouldAutoScrollRef.current = false
       onLoadOlder()
     }
   }, [hasOlderMessages, onLoadOlder])
 
-  // Restore scroll position after older messages are prepended
-  useEffect(() => {
-    if (!isLoadingOlder && prevScrollHeightRef.current > 0 && scrollRef.current) {
-      const newScrollHeight = scrollRef.current.scrollHeight
+  // Detect whether messages were prepended (older loaded) or appended (new messages)
+  // and restore scroll position after prepend.
+  // useLayoutEffect runs synchronously before browser paint — prevents visible flash/jump.
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el || messages.length === 0) {
+      firstMessageIdRef.current = messages[0]?.id ?? null
+      prevMessageCountRef.current = messages.length
+      return
+    }
+
+    const currentFirstId = messages[0].id
+    const wasPrepend =
+      messages.length > prevMessageCountRef.current &&
+      firstMessageIdRef.current !== null &&
+      currentFirstId !== firstMessageIdRef.current
+
+    if (wasPrepend && prevScrollHeightRef.current > 0) {
+      // Older messages were prepended — restore scroll position
+      const newScrollHeight = el.scrollHeight
       const heightDiff = newScrollHeight - prevScrollHeightRef.current
       if (heightDiff > 0) {
-        scrollRef.current.scrollTop += heightDiff
+        el.scrollTop += heightDiff
       }
       prevScrollHeightRef.current = 0
+      // Keep auto-scroll disabled — user was scrolling up
+      shouldAutoScrollRef.current = false
     }
-  }, [isLoadingOlder, messages])
 
-  // Auto-scroll to bottom when new content arrives (skip during replay to avoid flash)
+    firstMessageIdRef.current = currentFirstId
+    prevMessageCountRef.current = messages.length
+  }, [messages])
+
+  // Auto-scroll to bottom when new content arrives (only when user is near bottom)
   useEffect(() => {
     if (!isReplaying && shouldAutoScrollRef.current && scrollRef.current) {
       // Don't auto-scroll to bottom if we have a scroll target pending
@@ -83,14 +112,6 @@ export function ChatMessages({
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages, isReplaying, scrollToTurn])
-
-  // Scroll to bottom when replay completes (unless scroll target is set)
-  useEffect(() => {
-    if (!isReplaying && messages.length > 0 && scrollRef.current) {
-      if (scrollToTurn !== null) return
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }, [isReplaying, messages.length, scrollToTurn])
 
   // Scroll to target message when replay completes
   useEffect(() => {

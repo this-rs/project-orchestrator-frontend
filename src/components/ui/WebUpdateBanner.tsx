@@ -6,6 +6,7 @@
  * running inside Tauri (the Tauri UpdateBanner handles that case).
  */
 import { useUpdateCheck } from '@/hooks'
+import { ExternalLink } from '@/components/ui/ExternalLink'
 
 export function WebUpdateBanner() {
   const { updateAvailable, latestVersion, currentVersion, releaseUrl, dismissed, dismiss } =
@@ -41,14 +42,12 @@ export function WebUpdateBanner() {
             {releaseUrl && (
               <>
                 {' — '}
-                <a
+                <ExternalLink
                   href={releaseUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="font-medium underline hover:text-blue-900 dark:hover:text-blue-100"
                 >
                   View release notes
-                </a>
+                </ExternalLink>
               </>
             )}
           </p>

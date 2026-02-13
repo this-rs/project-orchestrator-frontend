@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom } from 'jotai'
 import { chatSessionIdAtom, chatStreamingAtom, chatWsStatusAtom, chatReplayingAtom } from '@/atoms'
 import { chatApi, ChatWebSocket } from '@/services'
-import type { ChatMessage, ChatEvent, MessageHistoryItem } from '@/types'
+import type { ChatMessage, ChatEvent } from '@/types'
 
 let blockIdCounter = 0
 function nextBlockId() {
@@ -23,19 +23,164 @@ export interface SendMessageOptions {
 }
 
 /**
- * Convert flat MessageHistoryItem (from REST) into the ChatMessage UI format.
- * Groups consecutive same-role messages into a single ChatMessage.
+ * Convert raw chat events (from REST /messages endpoint) into ChatMessage UI format.
+ * Groups events into user/assistant messages — same logic as handleEvent in replay mode.
  */
-function historyToMessages(items: MessageHistoryItem[]): ChatMessage[] {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function historyEventsToMessages(events: any[]): ChatMessage[] {
   const messages: ChatMessage[] = []
-  for (const item of items) {
-    messages.push({
-      id: item.id || nextMessageId(),
-      role: item.role,
-      blocks: [{ id: nextBlockId(), type: 'text', content: item.content }],
-      timestamp: new Date(item.created_at * 1000),
-    })
+
+  function lastAssistant(): ChatMessage {
+    let msg = messages[messages.length - 1]
+    if (!msg || msg.role !== 'assistant') {
+      msg = { id: nextMessageId(), role: 'assistant', blocks: [], timestamp: new Date() }
+      messages.push(msg)
+    }
+    return msg
   }
+
+  for (const evt of events) {
+    const type = evt.type as string
+    const createdAt = evt.created_at ? new Date(evt.created_at * 1000) : new Date()
+
+    switch (type) {
+      case 'user_message': {
+        messages.push({
+          id: evt.id || nextMessageId(),
+          role: 'user',
+          blocks: [{ id: nextBlockId(), type: 'text', content: evt.content ?? '' }],
+          timestamp: createdAt,
+        })
+        break
+      }
+
+      case 'assistant_text': {
+        const content = evt.content ?? ''
+        if (content) {
+          const msg = lastAssistant()
+          msg.blocks.push({ id: nextBlockId(), type: 'text', content })
+        }
+        break
+      }
+
+      case 'thinking': {
+        const msg = lastAssistant()
+        msg.blocks.push({ id: nextBlockId(), type: 'thinking', content: evt.content ?? '' })
+        break
+      }
+
+      case 'tool_use': {
+        const msg = lastAssistant()
+        const toolName = evt.tool ?? ''
+        const toolId = evt.id ?? ''
+        const toolInput = evt.input ?? {}
+
+        if (toolName === 'AskUserQuestion') {
+          const questions = (toolInput as { questions?: { question: string }[] })?.questions
+          if (questions && questions.length > 0) {
+            msg.blocks.push({
+              id: nextBlockId(),
+              type: 'ask_user_question',
+              content: questions.map((q: { question: string }) => q.question).join('\n'),
+              metadata: { tool_call_id: toolId, questions },
+            })
+          }
+        } else {
+          msg.blocks.push({
+            id: nextBlockId(),
+            type: 'tool_use',
+            content: toolName,
+            metadata: { tool_call_id: toolId, tool_name: toolName, tool_input: toolInput },
+          })
+        }
+        break
+      }
+
+      case 'tool_use_input_resolved': {
+        // Update an existing tool_use block's input
+        const resolvedId = evt.id
+        const resolvedInput = evt.input ?? {}
+        for (let mi = messages.length - 1; mi >= 0; mi--) {
+          const msg = messages[mi]
+          for (let bi = 0; bi < msg.blocks.length; bi++) {
+            const block = msg.blocks[bi]
+            if (block.type === 'tool_use' && block.metadata?.tool_call_id === resolvedId) {
+              msg.blocks[bi] = { ...block, metadata: { ...block.metadata, tool_input: resolvedInput } }
+            }
+          }
+        }
+        break
+      }
+
+      case 'tool_result': {
+        const msg = lastAssistant()
+        const result = evt.result
+        const resultStr = typeof result === 'string' ? result : JSON.stringify(result)
+        msg.blocks.push({
+          id: nextBlockId(),
+          type: 'tool_result',
+          content: resultStr,
+          metadata: { tool_call_id: evt.id, is_error: evt.is_error },
+        })
+        break
+      }
+
+      case 'permission_request': {
+        const msg = lastAssistant()
+        msg.blocks.push({
+          id: nextBlockId(),
+          type: 'permission_request',
+          content: `Tool "${evt.tool}" wants to execute`,
+          metadata: { tool_call_id: evt.id, tool_name: evt.tool, tool_input: evt.input },
+        })
+        break
+      }
+
+      case 'input_request': {
+        const msg = lastAssistant()
+        msg.blocks.push({
+          id: nextBlockId(),
+          type: 'input_request',
+          content: evt.prompt ?? '',
+          metadata: { request_id: evt.prompt, options: evt.options },
+        })
+        break
+      }
+
+      case 'ask_user_question': {
+        const msg = lastAssistant()
+        const questions = evt.questions as { question: string }[] | undefined
+        if (questions && questions.length > 0) {
+          msg.blocks.push({
+            id: nextBlockId(),
+            type: 'ask_user_question',
+            content: questions.map((q: { question: string }) => q.question).join('\n'),
+            metadata: { questions },
+          })
+        }
+        break
+      }
+
+      case 'error': {
+        const msg = lastAssistant()
+        msg.blocks.push({
+          id: nextBlockId(),
+          type: 'error',
+          content: evt.message ?? 'Unknown error',
+        })
+        break
+      }
+
+      case 'result':
+        // Turn completion — skip (no UI block needed)
+        break
+
+      default:
+        // Unknown event type — skip
+        break
+    }
+  }
+
   return messages
 }
 
@@ -431,7 +576,7 @@ export function useChat() {
           .then((data) => {
             if (cancelled) return
 
-            const historyMessages = historyToMessages(data.messages)
+            const historyMessages = historyEventsToMessages(data.messages)
             setMessages(historyMessages)
 
             // Track how far back we've loaded (tailOffset = messages before this page)
@@ -485,7 +630,7 @@ export function useChat() {
       })
 
       if (data.messages.length > 0) {
-        const olderMessages = historyToMessages(data.messages)
+        const olderMessages = historyEventsToMessages(data.messages)
 
         // Prepend older messages to the beginning
         setMessages((prev) => [...olderMessages, ...prev])

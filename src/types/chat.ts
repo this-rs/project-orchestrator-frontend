@@ -88,7 +88,9 @@ export interface MessageHistoryItem {
 }
 
 export interface MessageHistoryResponse {
-  messages: MessageHistoryItem[]
+  /** Raw chat events (ChatEvent + id/seq/created_at metadata) */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  messages: any[]
   total_count: number
   has_more: boolean
   offset: number

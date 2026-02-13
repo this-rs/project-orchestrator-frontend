@@ -2,11 +2,25 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import type { ChatMessage, ContentBlock } from '@/types'
+import { ExternalLink } from '@/components/ui/ExternalLink'
 import { ThinkingBlock } from './ThinkingBlock'
 import { ToolCallGroup } from './ToolCallGroup'
 import { PermissionRequestBlock } from './PermissionRequestBlock'
 import { InputRequestBlock } from './InputRequestBlock'
 import { AskUserQuestionBlock } from './AskUserQuestionBlock'
+
+/**
+ * Markdown link component: uses ExternalLink which renders differently
+ * in Tauri (no href, onClick only) vs browser (normal <a>).
+ */
+const markdownComponents = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  a: ({ href, children, ...props }: any) => (
+    <ExternalLink href={href} {...props}>
+      {children}
+    </ExternalLink>
+  ),
+}
 
 // Group consecutive tool_use blocks together
 function groupBlocks(blocks: ContentBlock[]): (ContentBlock | ContentBlock[])[] {
@@ -53,7 +67,7 @@ export function ChatMessageBubble({ message, isStreaming, highlighted, onRespond
   if (message.role === 'user') {
     return (
       <div className={`flex justify-end mb-4 ${highlightClass}`}>
-        <div className="max-w-[85%] px-3 py-2 rounded-xl bg-indigo-600/20 text-sm text-gray-200 whitespace-pre-wrap">
+        <div className="max-w-[85%] px-3 py-2 rounded-xl bg-indigo-600/20 text-sm text-gray-200 whitespace-pre-wrap break-words overflow-hidden">
           {message.blocks[0]?.content}
         </div>
       </div>
@@ -85,7 +99,7 @@ export function ChatMessageBubble({ message, isStreaming, highlighted, onRespond
               if (!block.content && block.metadata) return null
               return (
                 <div key={block.id} className="chat-markdown prose prose-invert prose-sm max-w-none break-words overflow-x-auto [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={markdownComponents}>
                     {block.content}
                   </ReactMarkdown>
                 </div>

@@ -55,7 +55,10 @@ const DISMISS_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
 // ============================================================================
 
 function isTauriEnv(): boolean {
-  return typeof window !== 'undefined' && '__TAURI__' in window
+  return (
+    typeof window !== 'undefined' &&
+    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+  )
 }
 
 /** Parse semver string to comparable tuple */
