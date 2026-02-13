@@ -1,6 +1,6 @@
 import { useAtom } from 'jotai'
 import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom } from '@/atoms'
-import { useChat } from '@/hooks'
+import { useChat, useWindowFullscreen } from '@/hooks'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
 import { SessionList } from './SessionList'
@@ -8,6 +8,7 @@ import { ProjectSelect } from './ProjectSelect'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useSetAtom } from 'jotai'
 import type { Project } from '@/types'
+import { isTauri } from '@/services/env'
 
 const MIN_WIDTH = 320
 const MAX_WIDTH = 800
@@ -41,6 +42,10 @@ export function ChatPanel() {
   const isOpen = mode !== 'closed'
   const isFullscreen = mode === 'fullscreen'
   const isNewConversation = !chat.sessionId && !chat.isSending
+  const isWindowFullscreen = useWindowFullscreen()
+
+  // Show extra top padding on Tauri desktop (non-fullscreen) to clear native traffic lights
+  const trafficLightPad = isTauri && !isWindowFullscreen
 
   // Detect mobile viewport
   useEffect(() => {
@@ -142,8 +147,8 @@ export function ChatPanel() {
         {/* Left sidebar — hidden on mobile, permanent on desktop */}
         {/* Desktop: static sidebar */}
         <div className="hidden md:flex w-72 shrink-0 border-r border-white/[0.06] flex-col">
-          {/* Sidebar header */}
-          <div className="h-14 flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0">
+          {/* Sidebar header — taller on Tauri (non-fullscreen) to clear traffic lights */}
+          <div className={`flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
             <span className="text-sm font-medium text-gray-300">Conversations</span>
             <button
               onClick={handleNewSession}
@@ -167,8 +172,8 @@ export function ChatPanel() {
         {/* Mobile: full-screen overlay sidebar */}
         {isMobile && showMobileSidebar && (
           <div className="fixed inset-0 z-40 flex flex-col bg-[#1a1d27]">
-            {/* Mobile sidebar header */}
-            <div className="h-14 flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0">
+            {/* Mobile sidebar header — taller on Tauri (non-fullscreen) to clear traffic lights */}
+            <div className={`flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
               <span className="text-sm font-medium text-gray-300">Conversations</span>
               <div className="flex items-center gap-1">
                 <button

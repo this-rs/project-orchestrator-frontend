@@ -165,7 +165,7 @@ export function UpdateBanner() {
   // Don't render in web mode or if dismissed (except during download/install)
   if (!isTauriEnv()) return null
   if (state.kind === 'hidden') return null
-  if (dismissed && state.kind === 'available') return null
+  if (dismissed && (state.kind === 'available' || state.kind === 'error')) return null
 
   return (
     <div className="fixed top-0 left-0 right-0 z-50 mx-auto max-w-2xl px-4 pt-2">

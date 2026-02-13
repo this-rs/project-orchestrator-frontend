@@ -5,7 +5,8 @@ import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusSt
 import { ToastContainer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
-import { useMediaQuery, useCrudEventRefresh, useDragRegion } from '@/hooks'
+import { useMediaQuery, useCrudEventRefresh, useDragRegion, useWindowFullscreen } from '@/hooks'
+import { isTauri } from '@/services/env'
 
 const navGroups = [
   {
@@ -32,15 +33,13 @@ const navGroups = [
   },
 ]
 
-function SidebarContent({ collapsed }: { collapsed: boolean }) {
+function SidebarContent({ collapsed, trafficLightPad }: { collapsed: boolean; trafficLightPad?: boolean }) {
   return (
     <>
-      {/* Logo */}
-      <div className="flex items-center h-16 px-4 border-b border-white/[0.06]">
+      {/* Logo — taller on Tauri (non-fullscreen) to clear native traffic lights */}
+      <div className={`flex items-center px-4 border-b border-white/[0.06] ${trafficLightPad ? 'h-[88px] pt-7' : 'h-16'}`}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-            <span className="text-white font-bold">PO</span>
-          </div>
+          <img src="/logo-32.png" alt="PO" className="w-8 h-8 rounded-lg" />
           {!collapsed && (
             <span className="font-semibold text-gray-100">Project Orchestrator</span>
           )}
@@ -96,6 +95,10 @@ export function MainLayout() {
   const chatOpen = chatMode === 'open'
   const chatFullscreen = chatMode === 'fullscreen'
   const wsStatus = useAtomValue(eventBusStatusAtom)
+  const isWindowFullscreen = useWindowFullscreen()
+
+  // Show extra top padding on Tauri desktop (non-fullscreen) to clear native traffic lights
+  const trafficLightPad = isTauri && !isWindowFullscreen
 
   // Connect to WebSocket CRUD event bus and auto-refresh pages
   useCrudEventRefresh()
@@ -126,13 +129,15 @@ export function MainLayout() {
           collapsed ? 'w-16' : 'w-64'
         } hidden md:flex flex-col bg-[#1a1d27] border-r border-white/[0.06] transition-all duration-200`}
       >
-        <SidebarContent collapsed={collapsed} />
+        <SidebarContent collapsed={collapsed} trafficLightPad={trafficLightPad} />
 
-        {/* Collapse button */}
-        <div className="p-4 border-t border-white/[0.06]">
+        {/* User menu + Collapse button */}
+        <div className={`border-t border-white/[0.06] p-2 ${collapsed ? 'flex flex-col items-center gap-1' : 'flex items-center gap-1'}`}>
+          <UserMenu dropUp showName={!collapsed} />
+          {!collapsed && <div className="flex-1" />}
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="w-full flex items-center justify-center p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors"
+            className="flex items-center justify-center p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors"
           >
             {collapsed ? (
               <ChevronRightIcon className="w-5 h-5" />
@@ -163,11 +168,13 @@ export function MainLayout() {
         >
           <SidebarContent collapsed={false} />
 
-          {/* Close button */}
-          <div className="p-4 border-t border-white/[0.06]">
+          {/* User menu + Close button */}
+          <div className="border-t border-white/[0.06] p-2 flex items-center gap-1">
+            <UserMenu dropUp showName />
+            <div className="flex-1" />
             <button
               onClick={() => setMobileMenuOpen(false)}
-              className="w-full flex items-center justify-center p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors"
+              className="flex items-center justify-center p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors"
             >
               <ChevronLeftIcon className="w-5 h-5" />
             </button>
@@ -190,21 +197,22 @@ export function MainLayout() {
             <HamburgerIcon className="w-5 h-5" />
           </button>
 
+          {/* WS status dot — before breadcrumb, vertically centered */}
+          <span
+            className={`w-2 h-2 rounded-full shrink-0 mr-2.5 transition-colors ${
+              wsStatus === 'connected'
+                ? 'bg-emerald-400'
+                : wsStatus === 'reconnecting'
+                  ? 'bg-amber-400 animate-pulse'
+                  : 'bg-gray-600'
+            }`}
+            title={`WebSocket: ${wsStatus}`}
+          />
+
           <Breadcrumb pathname={location.pathname} />
 
-          {/* WS status + User menu + Chat toggle */}
-          <div className="ml-auto flex items-center gap-1.5">
-            <span
-              className={`w-2 h-2 rounded-full transition-colors ${
-                wsStatus === 'connected'
-                  ? 'bg-emerald-400'
-                  : wsStatus === 'reconnecting'
-                    ? 'bg-amber-400 animate-pulse'
-                    : 'bg-gray-600'
-              }`}
-              title={`WebSocket: ${wsStatus}`}
-            />
-            <UserMenu />
+          {/* Chat toggle (only icon in header right) */}
+          <div className="ml-auto flex items-center">
             <button
               onClick={() => setChatMode(chatMode === 'closed' ? 'open' : 'closed')}
               className={`p-2 rounded-lg transition-colors ${chatMode !== 'closed' ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.06]'}`}

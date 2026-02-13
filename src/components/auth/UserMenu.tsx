@@ -3,7 +3,14 @@ import { useAtomValue } from 'jotai'
 import { authModeAtom, currentUserAtom } from '@/atoms'
 import { forceLogout } from '@/services/authManager'
 
-export function UserMenu() {
+interface UserMenuProps {
+  /** Open dropdown upward (for sidebar bottom placement) */
+  dropUp?: boolean
+  /** Show user name next to avatar (when sidebar is expanded) */
+  showName?: boolean
+}
+
+export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {}) {
   const authMode = useAtomValue(authModeAtom)
   const user = useAtomValue(currentUserAtom)
   const [open, setOpen] = useState(false)
@@ -51,24 +58,27 @@ export function UserMenu() {
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200"
+        className="flex items-center gap-2 rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200 min-w-0"
       >
         {user.picture_url ? (
           <img
             src={user.picture_url}
             alt={user.name}
-            className="h-7 w-7 rounded-full"
+            className="h-7 w-7 rounded-full shrink-0"
             referrerPolicy="no-referrer"
           />
         ) : (
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-xs font-medium text-white">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-xs font-medium text-white shrink-0">
             {initials}
           </div>
+        )}
+        {showName && (
+          <span className="truncate text-sm text-gray-300">{user.name}</span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-lg border border-white/[0.08] bg-[#1e2130] py-1 shadow-xl">
+        <div className={`absolute z-50 w-56 rounded-lg border border-white/[0.08] bg-[#1e2130] py-1 shadow-xl ${dropUp ? 'bottom-full left-0 mb-2' : 'right-0 top-full mt-2'}`}>
           <div className="border-b border-white/[0.06] px-4 py-3">
             <p className="truncate text-sm font-medium text-gray-200">{user.name}</p>
             <p className="truncate text-xs text-gray-500">{user.email}</p>

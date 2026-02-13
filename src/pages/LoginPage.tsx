@@ -74,8 +74,17 @@ export function LoginPage() {
     setOidcError(null)
     try {
       const { auth_url } = await authApi.getOidcAuthUrl()
+      // Cover the viewport with a dark overlay before navigating away.
+      // This prevents a white flash while the browser loads the provider page
+      // (Google, Microsoft, etc.) and when it navigates back to /auth/callback.
+      const overlay = document.createElement('div')
+      overlay.id = 'sso-overlay'
+      overlay.style.cssText =
+        'position:fixed;inset:0;z-index:99999;background:#0f1117'
+      document.body.appendChild(overlay)
       window.location.href = auth_url
     } catch (e) {
+      document.getElementById('sso-overlay')?.remove()
       setOidcError(e instanceof Error ? e.message : 'Failed to start login')
       setOidcLoading(false)
     }
@@ -95,11 +104,7 @@ export function LoginPage() {
       <div className="w-full max-w-sm space-y-8 px-6">
         {/* Logo & Title */}
         <div className="text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600">
-            <svg className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
-            </svg>
-          </div>
+          <img src="/logo-192.png" alt="Project Orchestrator" className="mx-auto h-16 w-16 rounded-2xl" />
           <h1 className="mt-6 text-2xl font-bold text-white">Project Orchestrator</h1>
           <p className="mt-2 text-sm text-gray-400">
             {showRegister ? 'Create your account' : 'Sign in to continue'}
