@@ -5,7 +5,8 @@ import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusSt
 import { ToastContainer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
-import { useMediaQuery, useCrudEventRefresh, useDragRegion } from '@/hooks'
+import { useMediaQuery, useCrudEventRefresh, useDragRegion, useWindowFullscreen } from '@/hooks'
+import { isTauri } from '@/services/env'
 
 const navGroups = [
   {
@@ -32,15 +33,13 @@ const navGroups = [
   },
 ]
 
-function SidebarContent({ collapsed }: { collapsed: boolean }) {
+function SidebarContent({ collapsed, trafficLightPad }: { collapsed: boolean; trafficLightPad?: boolean }) {
   return (
     <>
-      {/* Logo */}
-      <div className="flex items-center h-16 px-4 border-b border-white/[0.06]">
+      {/* Logo — taller on Tauri (non-fullscreen) to clear native traffic lights */}
+      <div className={`flex items-center px-4 border-b border-white/[0.06] ${trafficLightPad ? 'h-[88px] pt-7' : 'h-16'}`}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-            <span className="text-white font-bold">PO</span>
-          </div>
+          <img src="/logo-32.png" alt="PO" className="w-8 h-8 rounded-lg" />
           {!collapsed && (
             <span className="font-semibold text-gray-100">Project Orchestrator</span>
           )}
@@ -96,6 +95,10 @@ export function MainLayout() {
   const chatOpen = chatMode === 'open'
   const chatFullscreen = chatMode === 'fullscreen'
   const wsStatus = useAtomValue(eventBusStatusAtom)
+  const isWindowFullscreen = useWindowFullscreen()
+
+  // Show extra top padding on Tauri desktop (non-fullscreen) to clear native traffic lights
+  const trafficLightPad = isTauri && !isWindowFullscreen
 
   // Connect to WebSocket CRUD event bus and auto-refresh pages
   useCrudEventRefresh()
@@ -126,7 +129,7 @@ export function MainLayout() {
           collapsed ? 'w-16' : 'w-64'
         } hidden md:flex flex-col bg-[#1a1d27] border-r border-white/[0.06] transition-all duration-200`}
       >
-        <SidebarContent collapsed={collapsed} />
+        <SidebarContent collapsed={collapsed} trafficLightPad={trafficLightPad} />
 
         {/* Collapse button */}
         <div className="p-4 border-t border-white/[0.06]">
