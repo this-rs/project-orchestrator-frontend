@@ -24,6 +24,7 @@ import {
   TaskDetailPage,
   NotesPage,
   CodePage,
+  FeatureGraphDetailPage,
   SetupWizard,
 } from '@/pages'
 
@@ -108,6 +109,7 @@ function App() {
                       <Route path="tasks/:taskId" element={<TaskDetailPage />} />
                       <Route path="notes" element={<NotesPage />} />
                       <Route path="code" element={<CodePage />} />
+                      <Route path="feature-graphs/:id" element={<FeatureGraphDetailPage />} />
                     </Route>
                   </Route>
                 </Route>
