@@ -104,7 +104,7 @@ export function LoginPage() {
       <div className="w-full max-w-sm space-y-8 px-6">
         {/* Logo & Title */}
         <div className="text-center">
-          <img src="/logo-192.png" alt="Project Orchestrator" className="mx-auto h-64 w-64 rounded-3xl" />
+          <img src="/logo-192.png" alt="Project Orchestrator" className="mx-auto h-44 w-44 rounded-3xl" />
           <h1 className="mt-6 text-2xl font-bold text-white">Project Orchestrator</h1>
           <p className="mt-2 text-sm text-gray-400">
             {showRegister ? 'Create your account' : 'Sign in to continue'}
