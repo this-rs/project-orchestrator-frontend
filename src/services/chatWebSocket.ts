@@ -206,6 +206,14 @@ export class ChatWebSocket {
       this.reconnectTimer = null
     }
     if (this.ws) {
+      // Remove event handlers BEFORE closing to prevent in-flight messages
+      // from being delivered to callbacks after disconnect(). The browser
+      // can still fire onmessage between ws.close() and the actual onclose
+      // event — without this, those stale events leak into the new session's
+      // message state.
+      this.ws.onmessage = null
+      this.ws.onclose = null
+      this.ws.onerror = null
       this.ws.close()
       this.ws = null
     }
@@ -253,6 +261,13 @@ export class ChatWebSocket {
    */
   sendInputResponse(id: string, content: string) {
     return this.send({ type: 'input_response', id, content })
+  }
+
+  /**
+   * Change the permission mode for the active CLI session mid-conversation
+   */
+  sendSetPermissionMode(mode: string) {
+    return this.send({ type: 'set_permission_mode', mode })
   }
 
   // --------------------------------------------------------------------------

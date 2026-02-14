@@ -116,6 +116,15 @@ export function LaunchPage() {
         <SummaryRow label="Chat Model" value={config.chatModel} />
         <SummaryRow label="Max Sessions" value={String(config.chatMaxSessions)} />
         <SummaryRow label="Max Turns" value={String(config.chatMaxTurns)} />
+        <SummaryRow
+          label="Permissions"
+          value={
+            config.chatPermissionMode === 'bypassPermissions' ? 'Bypass (all auto-approved)'
+            : config.chatPermissionMode === 'default' ? 'Default (ask for edits & shell)'
+            : config.chatPermissionMode === 'acceptEdits' ? 'Accept Edits (ask for shell only)'
+            : 'Plan Only (read-only)'
+          }
+        />
       </div>
 
       {/* Success message */}

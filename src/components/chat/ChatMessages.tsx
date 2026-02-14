@@ -15,7 +15,7 @@ interface ChatMessagesProps {
   hasOlderMessages?: boolean
   isLoadingOlder?: boolean
   onLoadOlder?: () => void
-  onRespondPermission: (toolCallId: string, allowed: boolean) => void
+  onRespondPermission: (toolCallId: string, allowed: boolean, remember?: { toolName: string }) => void
   onRespondInput: (requestId: string, response: string) => void
 }
 

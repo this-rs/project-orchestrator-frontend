@@ -55,7 +55,7 @@ interface ChatMessageBubbleProps {
   message: ChatMessage
   isStreaming?: boolean
   highlighted?: boolean
-  onRespondPermission: (toolCallId: string, allowed: boolean) => void
+  onRespondPermission: (toolCallId: string, allowed: boolean, remember?: { toolName: string }) => void
   onRespondInput: (requestId: string, response: string) => void
 }
 

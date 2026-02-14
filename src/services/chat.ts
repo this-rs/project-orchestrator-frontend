@@ -6,6 +6,7 @@ import type {
   PaginatedResponse,
   MessageHistoryResponse,
   MessageSearchResult,
+  PermissionConfig,
 } from '@/types'
 
 interface ListSessionsParams {
@@ -43,4 +44,11 @@ export const chatApi = {
 
   searchMessages: (params: SearchMessagesParams) =>
     api.get<MessageSearchResult[]>(`/chat/search${buildQuery(params)}`),
+
+  // Permission config (runtime GET/PUT)
+  getPermissionConfig: () =>
+    api.get<PermissionConfig>('/chat/config/permissions'),
+
+  updatePermissionConfig: (config: PermissionConfig) =>
+    api.put<PermissionConfig>('/chat/config/permissions', config),
 }

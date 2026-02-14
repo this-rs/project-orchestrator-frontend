@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatWsStatusAtom, chatReplayingAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom } from '@/atoms'
 import { chatApi, ChatWebSocket } from '@/services'
-import type { ChatMessage, ChatEvent } from '@/types'
+import type { ChatMessage, ChatEvent, PermissionMode } from '@/types'
 
 let blockIdCounter = 0
 function nextBlockId() {
@@ -18,6 +18,13 @@ function nextMessageId() {
 const PAGE_SIZE = 50
 
 export interface SendMessageOptions {
+  cwd: string
+  projectSlug?: string
+  permissionMode?: PermissionMode
+}
+
+/** Metadata about the active chat session (cwd, project, etc.) */
+export interface SessionMeta {
   cwd: string
   projectSlug?: string
 }
@@ -189,10 +196,13 @@ export function useChat() {
   const [isStreaming, setIsStreaming] = useAtom(chatStreamingAtom)
   const [wsStatus, setWsStatus] = useAtom(chatWsStatusAtom)
   const [isReplaying, setIsReplaying] = useAtom(chatReplayingAtom)
+  const [permissionOverride, setPermissionOverride] = useAtom(chatSessionPermissionOverrideAtom)
+  const [autoApprovedTools, setAutoApprovedTools] = useAtom(chatAutoApprovedToolsAtom)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const wsRef = useRef<ChatWebSocket | null>(null)
   const [isSending, setIsSending] = useState(false)
+  const [sessionMeta, setSessionMeta] = useState<SessionMeta | null>(null)
 
   // Flag to distinguish first-message session creation from loadSession().
   // When true, the auto-connect useEffect will skip resetting messages
@@ -212,10 +222,56 @@ export function useChat() {
     return wsRef.current
   }, [])
 
+  // Ref for auto-approved tools to avoid stale closures in handleEvent
+  const autoApprovedToolsRef = useRef(autoApprovedTools)
+  useEffect(() => {
+    autoApprovedToolsRef.current = autoApprovedTools
+  }, [autoApprovedTools])
+
   // ========================================================================
   // Event handler — processes LIVE events only (no more replay)
   // ========================================================================
   const handleEvent = useCallback((event: ChatEvent & { seq?: number; replaying?: boolean }) => {
+    // Auto-approve: if this is a live permission_request and the tool was remembered,
+    // auto-respond Allow via WS and show the block as already-approved.
+    if (event.type === 'permission_request' && !event.replaying) {
+      const toolName = (event as { tool?: string }).tool ?? ''
+      if (autoApprovedToolsRef.current.has(toolName)) {
+        const toolCallId = (event as { id?: string }).id ?? ''
+        // Auto-respond via WS
+        const ws = wsRef.current
+        if (ws && toolCallId) {
+          ws.sendPermissionResponse(toolCallId, true)
+        }
+        // Still add the block to messages but pre-mark as auto-approved
+        // (by not passing through the normal flow — we add a special metadata flag)
+        setMessages((prev) => {
+          const updated = [...prev]
+          let lastMsg = updated[updated.length - 1]
+          if (!lastMsg || lastMsg.role !== 'assistant') {
+            lastMsg = { id: nextMessageId(), role: 'assistant', blocks: [], timestamp: new Date() }
+            updated.push(lastMsg)
+          } else {
+            lastMsg = { ...lastMsg, blocks: [...lastMsg.blocks] }
+            updated[updated.length - 1] = lastMsg
+          }
+          lastMsg.blocks.push({
+            id: nextBlockId(),
+            type: 'permission_request',
+            content: `Tool "${toolName}" wants to execute`,
+            metadata: {
+              tool_call_id: toolCallId,
+              tool_name: toolName,
+              tool_input: (event as { input?: Record<string, unknown> }).input,
+              auto_approved: true,
+            },
+          })
+          return updated
+        })
+        return
+      }
+    }
+
     // streaming_status — set isStreaming flag without touching messages
     // Broadcast by backend to ALL connected clients (multi-tab support)
     if (event.type === 'streaming_status') {
@@ -485,6 +541,15 @@ export function useChat() {
           break
         }
 
+        case 'permission_mode_changed': {
+          // Server confirmed the mode change — update local atom
+          const newMode = (event as { mode?: string }).mode
+          if (newMode) {
+            setPermissionOverride(newMode as PermissionMode)
+          }
+          break
+        }
+
         case 'result':
           // Only stop streaming on LIVE result events, not replayed ones.
           // During replay (Phase 1 or Phase 1.5), a historical result event
@@ -676,11 +741,18 @@ export function useChat() {
           message: text,
           cwd: options!.cwd,
           project_slug: options?.projectSlug,
+          permission_mode: options?.permissionMode ?? permissionOverride ?? undefined,
         })
         // Signal that the upcoming sessionId change is from a first send,
         // so the auto-connect useEffect should NOT reset messages.
         isFirstSendRef.current = true
         setSessionId(response.session_id)
+        // Populate session metadata from the options used to create the session
+        if (options) {
+          setSessionMeta({ cwd: options.cwd, projectSlug: options.projectSlug })
+        }
+        // Reset override after use
+        if (permissionOverride) setPermissionOverride(null)
       } finally {
         setIsSending(false)
       }
@@ -691,13 +763,26 @@ export function useChat() {
       setIsStreaming(true)
       ws.sendUserMessage(text)
     }
-  }, [sessionId, setSessionId, setIsStreaming, getWs])
+  }, [sessionId, setSessionId, setIsStreaming, getWs, permissionOverride, setPermissionOverride])
 
-  const respondPermission = useCallback(async (toolCallId: string, allowed: boolean) => {
+  const respondPermission = useCallback(async (
+    toolCallId: string,
+    allowed: boolean,
+    remember?: { toolName: string },
+  ) => {
     if (!sessionId) return
     const ws = getWs()
     ws.sendPermissionResponse(toolCallId, allowed)
-  }, [sessionId, getWs])
+    // If "Remember for this session" was checked and user clicked Allow,
+    // add the tool name to the auto-approved set.
+    if (remember && allowed) {
+      setAutoApprovedTools((prev: Set<string>) => {
+        const next = new Set<string>(prev)
+        next.add(remember.toolName)
+        return next
+      })
+    }
+  }, [sessionId, getWs, setAutoApprovedTools])
 
   const respondInput = useCallback(async (_requestId: string, response: string) => {
     if (!sessionId) return
@@ -719,9 +804,21 @@ export function useChat() {
     setIsStreaming(false)
     setIsReplaying(false)
     setMessages([])
+    setSessionMeta(null)
     setHasOlderMessages(false)
     paginationRef.current = { offset: 0, totalCount: 0 }
-  }, [getWs, setSessionId, setIsStreaming, setIsReplaying])
+    // Reset session-scoped state
+    setAutoApprovedTools(new Set<string>())
+    setPermissionOverride(null)
+  }, [getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride])
+
+  const changePermissionMode = useCallback((mode: PermissionMode) => {
+    if (!sessionId) return
+    const ws = getWs()
+    ws.sendSetPermissionMode(mode)
+    // Optimistically update local state (server will confirm via permission_mode_changed event)
+    setPermissionOverride(mode)
+  }, [sessionId, getWs, setPermissionOverride])
 
   const loadSession = useCallback(async (sid: string) => {
     // Guard: if already on this session, do nothing (avoid WS disconnect/reconnect loop)
@@ -736,6 +833,17 @@ export function useChat() {
     setIsReplaying(true)
     setHasOlderMessages(false)
     paginationRef.current = { offset: 0, totalCount: 0 }
+
+    // Fetch session metadata (cwd, project, permission mode) for display in header
+    chatApi.getSession(sid).then((session) => {
+      setSessionMeta({ cwd: session.cwd, projectSlug: session.project_slug })
+      // Restore the session's permission mode override
+      setPermissionOverride((session.permission_mode as PermissionMode) ?? null)
+    }).catch(() => {
+      // Non-critical — header just won't show cwd
+      setSessionMeta(null)
+    })
+
     // WS will auto-connect via the useEffect above when sessionId changes
   }, [sessionId, getWs, setSessionId, setIsStreaming, setIsReplaying])
 
@@ -749,6 +857,7 @@ export function useChat() {
     hasOlderMessages,
     wsStatus,
     sessionId,
+    sessionMeta,
     sendMessage,
     respondPermission,
     respondInput,
@@ -756,5 +865,6 @@ export function useChat() {
     newSession,
     loadSession,
     loadOlderMessages,
+    changePermissionMode,
   }
 }

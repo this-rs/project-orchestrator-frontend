@@ -9,6 +9,29 @@ const MODELS = [
   { value: 'opus-4-6', label: 'Claude Opus 4.6', description: 'Latest & most powerful' },
 ]
 
+const PERMISSION_MODES = [
+  {
+    value: 'bypassPermissions' as const,
+    label: 'Bypass',
+    description: 'All tools auto-approved — no permission prompts',
+  },
+  {
+    value: 'default' as const,
+    label: 'Default',
+    description: 'Asks approval for file edits and shell commands',
+  },
+  {
+    value: 'acceptEdits' as const,
+    label: 'Accept Edits',
+    description: 'File edits auto-approved, shell commands need approval',
+  },
+  {
+    value: 'plan' as const,
+    label: 'Plan Only',
+    description: 'Read-only mode — Claude can read but not modify files',
+  },
+]
+
 export function ChatPage() {
   const [config, setConfig] = useAtom(setupConfigAtom)
   const [detectAttempted, setDetectAttempted] = useState(false)
@@ -164,6 +187,50 @@ export function ChatPage() {
           <p className="mt-1.5 text-xs text-gray-500">
             Maximum number of agentic turns (tool calls) the AI can take per message.
           </p>
+        </div>
+      </div>
+
+      {/* Permission mode */}
+      <div className="space-y-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-400">Permission Mode</label>
+          <p className="mb-3 text-xs text-gray-500">
+            Controls whether Claude asks for your approval before executing tools like file edits
+            and shell commands.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {PERMISSION_MODES.map((m) => (
+              <button
+                key={m.value}
+                onClick={() => update({ chatPermissionMode: m.value })}
+                className={`flex flex-col items-start gap-1.5 rounded-xl border p-4 text-left transition ${
+                  config.chatPermissionMode === m.value
+                    ? 'border-indigo-500/50 bg-indigo-500/10'
+                    : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]'
+                }`}
+              >
+                <div className="flex w-full items-center justify-between">
+                  <span
+                    className={`text-sm font-medium ${config.chatPermissionMode === m.value ? 'text-white' : 'text-gray-300'}`}
+                  >
+                    {m.label}
+                  </span>
+                  {config.chatPermissionMode === m.value && (
+                    <svg
+                      className="h-4 w-4 text-indigo-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={2.5}
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                  )}
+                </div>
+                <span className="text-xs text-gray-500">{m.description}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

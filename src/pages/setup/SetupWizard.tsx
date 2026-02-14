@@ -129,6 +129,9 @@ export function SetupWizard() {
             chatModel: (existing.chatModel as string) || prev.chatModel,
             chatMaxSessions: (existing.chatMaxSessions as number) || prev.chatMaxSessions,
             chatMaxTurns: (existing.chatMaxTurns as number) || prev.chatMaxTurns,
+            chatPermissionMode: (['default', 'acceptEdits', 'bypassPermissions', 'plan'].includes(existing.chatPermissionMode as string)
+              ? existing.chatPermissionMode
+              : prev.chatPermissionMode) as SetupConfig['chatPermissionMode'],
             // Reconfigure indicators
             hasOidcSecret: (existing.hasOidcSecret as boolean) || false,
             hasNeo4jPassword: (existing.hasNeo4jPassword as boolean) || false,

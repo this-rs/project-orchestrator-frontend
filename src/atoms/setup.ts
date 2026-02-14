@@ -119,6 +119,7 @@ export interface SetupConfig {
   chatModel: string
   chatMaxSessions: number
   chatMaxTurns: number
+  chatPermissionMode: 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions'
   claudeCodeDetected: boolean
   mcpSetupStatus: McpSetupStatus
   mcpSetupMessage: string
@@ -166,6 +167,7 @@ export const defaultSetupConfig: SetupConfig = {
   chatModel: 'sonnet-4-5',
   chatMaxSessions: 3,
   chatMaxTurns: 50,
+  chatPermissionMode: 'default',
   claudeCodeDetected: false,
   mcpSetupStatus: 'idle' as McpSetupStatus,
   mcpSetupMessage: '',

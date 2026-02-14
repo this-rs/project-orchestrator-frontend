@@ -1,4 +1,21 @@
 // ============================================================================
+// PERMISSION CONFIG
+// ============================================================================
+
+/** Permission modes supported by Claude CLI via Nexus SDK */
+export type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions'
+
+/** Runtime permission configuration (matches backend PermissionConfig struct) */
+export interface PermissionConfig {
+  /** Permission mode: controls how tool permissions are handled */
+  mode: PermissionMode
+  /** Tool patterns to explicitly allow (e.g. "Bash(git *)", "Read") */
+  allowed_tools: string[]
+  /** Tool patterns to explicitly disallow (e.g. "Bash(rm -rf *)") */
+  disallowed_tools: string[]
+}
+
+// ============================================================================
 // CHAT SESSION
 // ============================================================================
 
@@ -14,6 +31,8 @@ export interface ChatSession {
   message_count: number
   total_cost_usd?: number
   preview?: string
+  /** Permission mode override for this session (undefined = global config default) */
+  permission_mode?: PermissionMode
 }
 
 export interface CreateSessionRequest {
@@ -22,6 +41,8 @@ export interface CreateSessionRequest {
   session_id?: string
   project_slug?: string
   model?: string
+  /** Permission mode override for this session (default: from server config) */
+  permission_mode?: PermissionMode
 }
 
 export interface CreateSessionResponse {
@@ -64,6 +85,7 @@ export type ChatEvent =
   | { type: 'error'; message: string }
   | { type: 'partial_text'; content: string }
   | { type: 'streaming_status'; is_streaming: boolean }
+  | { type: 'permission_mode_changed'; mode: string }
 
 // ============================================================================
 // CLIENT MESSAGES
@@ -153,6 +175,7 @@ export type WsChatClientMessage =
   | { type: 'interrupt' }
   | { type: 'permission_response'; id?: string; allow: boolean }
   | { type: 'input_response'; id?: string; content: string }
+  | { type: 'set_permission_mode'; mode: string }
 
 /** A chat event received over WebSocket with sequence number */
 export interface ChatWsEvent {
