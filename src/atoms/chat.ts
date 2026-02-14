@@ -1,5 +1,5 @@
 import { atom } from 'jotai'
-import type { ChatPanelMode, PermissionConfig, WsConnectionStatus } from '@/types'
+import type { ChatPanelMode, PermissionConfig, PermissionMode, WsConnectionStatus } from '@/types'
 
 /** Hint set by pages that know which project the user is looking at */
 export const chatSuggestedProjectIdAtom = atom<string | null>(null)
@@ -20,6 +20,9 @@ export const chatScrollToTurnAtom = atom<number | null>(null)
 
 /** Runtime permission config (loaded from server, null = not yet loaded) */
 export const chatPermissionConfigAtom = atom<PermissionConfig | null>(null)
+
+/** Per-session permission mode override (null = use server default) */
+export const chatSessionPermissionOverrideAtom = atom<PermissionMode | null>(null)
 
 /** Derived: true when permission mode requires interactive approval (not bypassPermissions) */
 export const chatPermissionInteractiveAtom = atom((get) => {

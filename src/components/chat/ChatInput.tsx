@@ -1,15 +1,40 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { useAtom, useAtomValue } from 'jotai'
+import { chatSessionPermissionOverrideAtom, chatPermissionConfigAtom } from '@/atoms'
+import type { PermissionMode } from '@/types'
+
+const MODE_LABELS: Record<PermissionMode, string> = {
+  bypassPermissions: 'Bypass',
+  acceptEdits: 'Accept Edits',
+  default: 'Default',
+  plan: 'Plan Only',
+}
+
+const MODE_DOT_COLORS: Record<PermissionMode, string> = {
+  bypassPermissions: 'bg-emerald-400',
+  acceptEdits: 'bg-blue-400',
+  default: 'bg-amber-400',
+  plan: 'bg-gray-400',
+}
 
 interface ChatInputProps {
   onSend: (text: string) => void
   onInterrupt: () => void
   isStreaming: boolean
   disabled?: boolean
+  /** Show per-session mode selector (only for new conversations) */
+  showModeSelector?: boolean
 }
 
-export function ChatInput({ onSend, onInterrupt, isStreaming, disabled }: ChatInputProps) {
+export function ChatInput({ onSend, onInterrupt, isStreaming, disabled, showModeSelector }: ChatInputProps) {
   const [value, setValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [modeOverride, setModeOverride] = useAtom(chatSessionPermissionOverrideAtom)
+  const serverConfig = useAtomValue(chatPermissionConfigAtom)
+  const [showModeDropdown, setShowModeDropdown] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  const effectiveMode = modeOverride ?? serverConfig?.mode ?? 'bypassPermissions'
 
   const resize = useCallback(() => {
     const el = textareaRef.current
@@ -21,6 +46,18 @@ export function ChatInput({ onSend, onInterrupt, isStreaming, disabled }: ChatIn
   useEffect(() => {
     resize()
   }, [value, resize])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!showModeDropdown) return
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowModeDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showModeDropdown])
 
   const handleSend = () => {
     const text = value.trim()
@@ -37,8 +74,61 @@ export function ChatInput({ onSend, onInterrupt, isStreaming, disabled }: ChatIn
     }
   }
 
+  const handleSelectMode = (mode: PermissionMode) => {
+    // If same as server default, clear the override
+    if (mode === serverConfig?.mode) {
+      setModeOverride(null)
+    } else {
+      setModeOverride(mode)
+    }
+    setShowModeDropdown(false)
+  }
+
   return (
     <div className="border-t border-white/[0.06] p-3">
+      {/* Per-session mode selector — above the input, only for new conversations */}
+      {showModeSelector && (
+        <div className="mb-2 flex items-center gap-1.5" ref={dropdownRef}>
+          <span className="text-[10px] text-gray-500">Mode:</span>
+          <div className="relative">
+            <button
+              onClick={() => setShowModeDropdown(!showModeDropdown)}
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border border-white/[0.08] text-gray-300 hover:bg-white/[0.06] transition-colors"
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${MODE_DOT_COLORS[effectiveMode]}`} />
+              <span>{MODE_LABELS[effectiveMode]}</span>
+              {modeOverride && (
+                <span className="text-[8px] text-indigo-400 ml-0.5">(override)</span>
+              )}
+              <svg className="w-2.5 h-2.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showModeDropdown && (
+              <div className="absolute bottom-full left-0 mb-1 z-20 w-40 bg-[#1e2130] border border-white/[0.08] rounded-lg shadow-xl py-1">
+                {(Object.keys(MODE_LABELS) as PermissionMode[]).map((mode) => {
+                  const isActive = effectiveMode === mode
+                  const isDefault = mode === serverConfig?.mode
+                  return (
+                    <button
+                      key={mode}
+                      onClick={() => handleSelectMode(mode)}
+                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${
+                        isActive ? 'text-gray-100 bg-white/[0.04]' : 'text-gray-400 hover:bg-white/[0.04] hover:text-gray-200'
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${MODE_DOT_COLORS[mode]}`} />
+                      <span>{MODE_LABELS[mode]}</span>
+                      {isDefault && <span className="text-[9px] text-gray-600 ml-auto">default</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-end gap-2">
         <textarea
           ref={textareaRef}
