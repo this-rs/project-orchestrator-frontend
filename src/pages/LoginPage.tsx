@@ -100,13 +100,13 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--surface-base)]">
-      <div className="w-full max-w-sm space-y-8 px-6">
+    <div className="flex h-screen flex-col items-center justify-center overflow-hidden bg-[var(--surface-base)]">
+      <div className="w-full max-w-sm space-y-6 px-6">
         {/* Logo & Title */}
         <div className="text-center">
-          <img src="/logo-192.png" alt="Project Orchestrator" className="mx-auto h-44 w-44 rounded-3xl" />
-          <h1 className="mt-6 text-2xl font-bold text-white">Project Orchestrator</h1>
-          <p className="mt-2 text-sm text-gray-400">
+          <img src="/logo-192.png" alt="Project Orchestrator" className="mx-auto h-20 w-20 rounded-2xl sm:h-28 sm:w-28 sm:rounded-3xl" />
+          <h1 className="mt-4 text-2xl font-bold text-white">Project Orchestrator</h1>
+          <p className="mt-1.5 text-sm text-gray-400">
             {showRegister ? 'Create your account' : 'Sign in to continue'}
           </p>
         </div>
