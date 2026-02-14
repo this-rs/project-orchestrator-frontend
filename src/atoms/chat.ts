@@ -1,5 +1,5 @@
 import { atom } from 'jotai'
-import type { ChatPanelMode, WsConnectionStatus } from '@/types'
+import type { ChatPanelMode, PermissionConfig, WsConnectionStatus } from '@/types'
 
 /** Hint set by pages that know which project the user is looking at */
 export const chatSuggestedProjectIdAtom = atom<string | null>(null)
@@ -17,3 +17,12 @@ export const chatReplayingAtom = atom<boolean>(false)
 
 /** Target message turn index for scroll-to-message from search results (null = no scroll target) */
 export const chatScrollToTurnAtom = atom<number | null>(null)
+
+/** Runtime permission config (loaded from server, null = not yet loaded) */
+export const chatPermissionConfigAtom = atom<PermissionConfig | null>(null)
+
+/** Derived: true when permission mode requires interactive approval (not bypassPermissions) */
+export const chatPermissionInteractiveAtom = atom((get) => {
+  const config = get(chatPermissionConfigAtom)
+  return config !== null && config.mode !== 'bypassPermissions'
+})

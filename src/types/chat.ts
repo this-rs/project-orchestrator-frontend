@@ -1,4 +1,21 @@
 // ============================================================================
+// PERMISSION CONFIG
+// ============================================================================
+
+/** Permission modes supported by Claude CLI via Nexus SDK */
+export type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions'
+
+/** Runtime permission configuration (matches backend PermissionConfig struct) */
+export interface PermissionConfig {
+  /** Permission mode: controls how tool permissions are handled */
+  mode: PermissionMode
+  /** Tool patterns to explicitly allow (e.g. "Bash(git *)", "Read") */
+  allowed_tools: string[]
+  /** Tool patterns to explicitly disallow (e.g. "Bash(rm -rf *)") */
+  disallowed_tools: string[]
+}
+
+// ============================================================================
 // CHAT SESSION
 // ============================================================================
 
@@ -22,6 +39,8 @@ export interface CreateSessionRequest {
   session_id?: string
   project_slug?: string
   model?: string
+  /** Permission mode override for this session (default: from server config) */
+  permission_mode?: PermissionMode
 }
 
 export interface CreateSessionResponse {
