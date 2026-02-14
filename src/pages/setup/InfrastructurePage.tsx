@@ -212,33 +212,35 @@ export function InfrastructurePage() {
         </label>
       </div>
 
-      {/* Public URL (optional) */}
-      <div>
-        <Field
-          label="Public URL (optional)"
-          value={config.publicUrl}
-          onChange={(v) => update({ publicUrl: v })}
-          placeholder="https://myapp.example.com"
-          hint="If you use a reverse proxy (e.g. Cloudflare Tunnel, ngrok, ffs.dev), enter the public URL here. Used for OAuth callbacks and CORS."
-        />
-        {config.publicUrl.trim() && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg border border-indigo-500/20 bg-indigo-500/[0.06] px-4 py-2.5">
-            <svg className="h-4 w-4 shrink-0 text-indigo-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 003 12c0-1.605.42-3.113 1.157-4.418" />
-            </svg>
-            <span className="text-xs text-indigo-300">
-              Local:{' '}
-              <code className="rounded bg-white/[0.06] px-1 py-0.5 text-gray-400">
-                http://localhost:{config.serverPort}
-              </code>
-              {' '}&middot; Public:{' '}
-              <code className="rounded bg-white/[0.06] px-1 py-0.5 text-gray-400">
-                {config.publicUrl.trim().replace(/\/+$/, '')}
-              </code>
-            </span>
-          </div>
-        )}
-      </div>
+      {/* Public URL (optional) — only when serving frontend */}
+      {config.serveFrontend && (
+        <div>
+          <Field
+            label="Public URL (optional)"
+            value={config.publicUrl}
+            onChange={(v) => update({ publicUrl: v })}
+            placeholder="https://myapp.example.com"
+            hint="If you use a reverse proxy (e.g. Cloudflare Tunnel, ngrok, ffs.dev), enter the public URL here. Used for OAuth callbacks and CORS."
+          />
+          {config.publicUrl.trim() && (
+            <div className="mt-3 flex items-center gap-2 rounded-lg border border-indigo-500/20 bg-indigo-500/[0.06] px-4 py-2.5">
+              <svg className="h-4 w-4 shrink-0 text-indigo-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 003 12c0-1.605.42-3.113 1.157-4.418" />
+              </svg>
+              <span className="text-xs text-indigo-300">
+                Local:{' '}
+                <code className="rounded bg-white/[0.06] px-1 py-0.5 text-gray-400">
+                  http://localhost:{config.serverPort}
+                </code>
+                {' '}&middot; Public:{' '}
+                <code className="rounded bg-white/[0.06] px-1 py-0.5 text-gray-400">
+                  {config.publicUrl.trim().replace(/\/+$/, '')}
+                </code>
+              </span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

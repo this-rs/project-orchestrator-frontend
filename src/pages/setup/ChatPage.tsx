@@ -142,6 +142,29 @@ export function ChatPage() {
             Maximum number of AI chat sessions that can run simultaneously.
           </p>
         </div>
+
+        {/* Max turns */}
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-gray-400">
+            Max Turns per Message
+          </label>
+          <div className="flex items-center gap-4">
+            <input
+              type="range"
+              min={1}
+              max={500}
+              value={config.chatMaxTurns}
+              onChange={(e) => update({ chatMaxTurns: parseInt(e.target.value) })}
+              className="h-2 flex-1 cursor-pointer appearance-none rounded-lg bg-white/[0.1] accent-indigo-600"
+            />
+            <span className="w-10 text-center text-sm font-medium text-white">
+              {config.chatMaxTurns}
+            </span>
+          </div>
+          <p className="mt-1.5 text-xs text-gray-500">
+            Maximum number of agentic turns (tool calls) the AI can take per message.
+          </p>
+        </div>
       </div>
 
       {/* Claude Code detection + MCP configuration */}

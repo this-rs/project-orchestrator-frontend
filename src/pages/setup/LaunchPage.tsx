@@ -115,6 +115,7 @@ export function LaunchPage() {
 
         <SummaryRow label="Chat Model" value={config.chatModel} />
         <SummaryRow label="Max Sessions" value={String(config.chatMaxSessions)} />
+        <SummaryRow label="Max Turns" value={String(config.chatMaxTurns)} />
       </div>
 
       {/* Success message */}

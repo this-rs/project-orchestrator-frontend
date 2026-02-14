@@ -128,6 +128,7 @@ export function SetupWizard() {
             // Chat
             chatModel: (existing.chatModel as string) || prev.chatModel,
             chatMaxSessions: (existing.chatMaxSessions as number) || prev.chatMaxSessions,
+            chatMaxTurns: (existing.chatMaxTurns as number) || prev.chatMaxTurns,
             // Reconfigure indicators
             hasOidcSecret: (existing.hasOidcSecret as boolean) || false,
             hasNeo4jPassword: (existing.hasNeo4jPassword as boolean) || false,

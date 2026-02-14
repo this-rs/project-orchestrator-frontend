@@ -118,6 +118,7 @@ export interface SetupConfig {
   // Step 3 — Chat AI
   chatModel: string
   chatMaxSessions: number
+  chatMaxTurns: number
   claudeCodeDetected: boolean
   mcpSetupStatus: McpSetupStatus
   mcpSetupMessage: string
@@ -164,6 +165,7 @@ export const defaultSetupConfig: SetupConfig = {
   // Chat
   chatModel: 'sonnet-4-5',
   chatMaxSessions: 3,
+  chatMaxTurns: 50,
   claudeCodeDetected: false,
   mcpSetupStatus: 'idle' as McpSetupStatus,
   mcpSetupMessage: '',
