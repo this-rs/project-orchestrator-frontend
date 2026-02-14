@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatWsStatusAtom, chatReplayingAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom } from '@/atoms'
 import { chatApi, ChatWebSocket } from '@/services'
-import type { ChatMessage, ChatEvent } from '@/types'
+import type { ChatMessage, ChatEvent, PermissionMode } from '@/types'
 
 let blockIdCounter = 0
 function nextBlockId() {
@@ -20,6 +20,7 @@ const PAGE_SIZE = 50
 export interface SendMessageOptions {
   cwd: string
   projectSlug?: string
+  permissionMode?: PermissionMode
 }
 
 /**
@@ -189,6 +190,8 @@ export function useChat() {
   const [isStreaming, setIsStreaming] = useAtom(chatStreamingAtom)
   const [wsStatus, setWsStatus] = useAtom(chatWsStatusAtom)
   const [isReplaying, setIsReplaying] = useAtom(chatReplayingAtom)
+  const [permissionOverride, setPermissionOverride] = useAtom(chatSessionPermissionOverrideAtom)
+  const [autoApprovedTools, setAutoApprovedTools] = useAtom(chatAutoApprovedToolsAtom)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const wsRef = useRef<ChatWebSocket | null>(null)
@@ -212,10 +215,56 @@ export function useChat() {
     return wsRef.current
   }, [])
 
+  // Ref for auto-approved tools to avoid stale closures in handleEvent
+  const autoApprovedToolsRef = useRef(autoApprovedTools)
+  useEffect(() => {
+    autoApprovedToolsRef.current = autoApprovedTools
+  }, [autoApprovedTools])
+
   // ========================================================================
   // Event handler — processes LIVE events only (no more replay)
   // ========================================================================
   const handleEvent = useCallback((event: ChatEvent & { seq?: number; replaying?: boolean }) => {
+    // Auto-approve: if this is a live permission_request and the tool was remembered,
+    // auto-respond Allow via WS and show the block as already-approved.
+    if (event.type === 'permission_request' && !event.replaying) {
+      const toolName = (event as { tool?: string }).tool ?? ''
+      if (autoApprovedToolsRef.current.has(toolName)) {
+        const toolCallId = (event as { id?: string }).id ?? ''
+        // Auto-respond via WS
+        const ws = wsRef.current
+        if (ws && toolCallId) {
+          ws.sendPermissionResponse(toolCallId, true)
+        }
+        // Still add the block to messages but pre-mark as auto-approved
+        // (by not passing through the normal flow — we add a special metadata flag)
+        setMessages((prev) => {
+          const updated = [...prev]
+          let lastMsg = updated[updated.length - 1]
+          if (!lastMsg || lastMsg.role !== 'assistant') {
+            lastMsg = { id: nextMessageId(), role: 'assistant', blocks: [], timestamp: new Date() }
+            updated.push(lastMsg)
+          } else {
+            lastMsg = { ...lastMsg, blocks: [...lastMsg.blocks] }
+            updated[updated.length - 1] = lastMsg
+          }
+          lastMsg.blocks.push({
+            id: nextBlockId(),
+            type: 'permission_request',
+            content: `Tool "${toolName}" wants to execute`,
+            metadata: {
+              tool_call_id: toolCallId,
+              tool_name: toolName,
+              tool_input: (event as { input?: Record<string, unknown> }).input,
+              auto_approved: true,
+            },
+          })
+          return updated
+        })
+        return
+      }
+    }
+
     // streaming_status — set isStreaming flag without touching messages
     // Broadcast by backend to ALL connected clients (multi-tab support)
     if (event.type === 'streaming_status') {
@@ -676,11 +725,14 @@ export function useChat() {
           message: text,
           cwd: options!.cwd,
           project_slug: options?.projectSlug,
+          permission_mode: options?.permissionMode ?? permissionOverride ?? undefined,
         })
         // Signal that the upcoming sessionId change is from a first send,
         // so the auto-connect useEffect should NOT reset messages.
         isFirstSendRef.current = true
         setSessionId(response.session_id)
+        // Reset override after use
+        if (permissionOverride) setPermissionOverride(null)
       } finally {
         setIsSending(false)
       }
@@ -691,13 +743,26 @@ export function useChat() {
       setIsStreaming(true)
       ws.sendUserMessage(text)
     }
-  }, [sessionId, setSessionId, setIsStreaming, getWs])
+  }, [sessionId, setSessionId, setIsStreaming, getWs, permissionOverride, setPermissionOverride])
 
-  const respondPermission = useCallback(async (toolCallId: string, allowed: boolean) => {
+  const respondPermission = useCallback(async (
+    toolCallId: string,
+    allowed: boolean,
+    remember?: { toolName: string },
+  ) => {
     if (!sessionId) return
     const ws = getWs()
     ws.sendPermissionResponse(toolCallId, allowed)
-  }, [sessionId, getWs])
+    // If "Remember for this session" was checked and user clicked Allow,
+    // add the tool name to the auto-approved set.
+    if (remember && allowed) {
+      setAutoApprovedTools((prev: Set<string>) => {
+        const next = new Set<string>(prev)
+        next.add(remember.toolName)
+        return next
+      })
+    }
+  }, [sessionId, getWs, setAutoApprovedTools])
 
   const respondInput = useCallback(async (_requestId: string, response: string) => {
     if (!sessionId) return
@@ -721,7 +786,9 @@ export function useChat() {
     setMessages([])
     setHasOlderMessages(false)
     paginationRef.current = { offset: 0, totalCount: 0 }
-  }, [getWs, setSessionId, setIsStreaming, setIsReplaying])
+    // Reset auto-approved tools — they are session-scoped
+    setAutoApprovedTools(new Set<string>())
+  }, [getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools])
 
   const loadSession = useCallback(async (sid: string) => {
     // Guard: if already on this session, do nothing (avoid WS disconnect/reconnect loop)

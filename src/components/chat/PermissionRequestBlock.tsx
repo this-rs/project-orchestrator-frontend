@@ -197,7 +197,7 @@ function CategoryIcon({ category, className }: { category: ToolCategory; classNa
 
 interface PermissionRequestBlockProps {
   block: ContentBlock
-  onRespond: (toolCallId: string, allowed: boolean) => void
+  onRespond: (toolCallId: string, allowed: boolean, remember?: { toolName: string }) => void
   disabled?: boolean
 }
 
@@ -206,13 +206,15 @@ export function PermissionRequestBlock({ block, onRespond, disabled }: Permissio
   const toolName = (block.metadata?.tool_name as string) || ''
   const toolInput = block.metadata?.tool_input as Record<string, unknown> | undefined
 
+  const autoApproved = !!(block.metadata?.auto_approved)
+
   const category = classifyTool(toolName)
   const styles = CATEGORY_STYLES[category]
   const { summary, detail, language } = formatToolInput(toolName, toolInput)
 
-  // Response state (local)
-  const [responded, setResponded] = useState(false)
-  const [decision, setDecision] = useState<'allowed' | 'denied' | null>(null)
+  // Response state (local) — auto-approved blocks start as already responded
+  const [responded, setResponded] = useState(autoApproved)
+  const [decision, setDecision] = useState<'allowed' | 'denied' | null>(autoApproved ? 'allowed' : null)
   const [rememberChecked, setRememberChecked] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
 
@@ -230,7 +232,11 @@ export function PermissionRequestBlock({ block, onRespond, disabled }: Permissio
     if (responded) return
     setResponded(true)
     setDecision(allowed ? 'allowed' : 'denied')
-    onRespond(toolCallId, allowed)
+    // Extract the base tool name for "remember" pattern matching.
+    // For MCP tools, use the full qualified name (e.g. "mcp__project-orchestrator__create_plan").
+    // For other tools, use the tool name as-is (e.g. "Bash", "Read", "Edit").
+    const remember = (rememberChecked && allowed) ? { toolName } : undefined
+    onRespond(toolCallId, allowed, remember)
   }
 
   const isPending = !responded && !disabled
@@ -321,7 +327,10 @@ export function PermissionRequestBlock({ block, onRespond, disabled }: Permissio
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
                 Allowed
-                {rememberChecked && (
+                {autoApproved && (
+                  <span className="text-[10px] text-gray-500 ml-1">(auto)</span>
+                )}
+                {!autoApproved && rememberChecked && (
                   <span className="text-[10px] text-gray-500 ml-1">(remembered)</span>
                 )}
               </>
