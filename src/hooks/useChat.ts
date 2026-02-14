@@ -534,6 +534,15 @@ export function useChat() {
           break
         }
 
+        case 'permission_mode_changed': {
+          // Server confirmed the mode change — update local atom
+          const newMode = (event as { mode?: string }).mode
+          if (newMode) {
+            setPermissionOverride(newMode as PermissionMode)
+          }
+          break
+        }
+
         case 'result':
           // Only stop streaming on LIVE result events, not replayed ones.
           // During replay (Phase 1 or Phase 1.5), a historical result event
@@ -790,6 +799,14 @@ export function useChat() {
     setAutoApprovedTools(new Set<string>())
   }, [getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools])
 
+  const changePermissionMode = useCallback((mode: PermissionMode) => {
+    if (!sessionId) return
+    const ws = getWs()
+    ws.sendSetPermissionMode(mode)
+    // Optimistically update local state (server will confirm via permission_mode_changed event)
+    setPermissionOverride(mode)
+  }, [sessionId, getWs, setPermissionOverride])
+
   const loadSession = useCallback(async (sid: string) => {
     // Guard: if already on this session, do nothing (avoid WS disconnect/reconnect loop)
     if (sid === sessionId) return
@@ -823,5 +840,6 @@ export function useChat() {
     newSession,
     loadSession,
     loadOlderMessages,
+    changePermissionMode,
   }
 }

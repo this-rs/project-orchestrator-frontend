@@ -255,6 +255,13 @@ export class ChatWebSocket {
     return this.send({ type: 'input_response', id, content })
   }
 
+  /**
+   * Change the permission mode for the active CLI session mid-conversation
+   */
+  sendSetPermissionMode(mode: string) {
+    return this.send({ type: 'set_permission_mode', mode })
+  }
+
   // --------------------------------------------------------------------------
   // Private
   // --------------------------------------------------------------------------

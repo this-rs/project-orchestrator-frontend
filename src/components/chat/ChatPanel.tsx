@@ -328,7 +328,8 @@ export function ChatPanel() {
                 onInterrupt={chat.interrupt}
                 isStreaming={chat.isStreaming}
                 disabled={isNewConversation && !selectedProject}
-                showModeSelector={isNewConversation}
+                sessionId={chat.sessionId}
+                onChangePermissionMode={chat.changePermissionMode}
               />
             </>
           )}
@@ -473,6 +474,8 @@ export function ChatPanel() {
             onInterrupt={chat.interrupt}
             isStreaming={chat.isStreaming}
             disabled={isNewConversation && !selectedProject}
+            sessionId={chat.sessionId}
+            onChangePermissionMode={chat.changePermissionMode}
           />
         </>
       )}

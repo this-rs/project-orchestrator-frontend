@@ -83,6 +83,7 @@ export type ChatEvent =
   | { type: 'error'; message: string }
   | { type: 'partial_text'; content: string }
   | { type: 'streaming_status'; is_streaming: boolean }
+  | { type: 'permission_mode_changed'; mode: string }
 
 // ============================================================================
 // CLIENT MESSAGES
@@ -172,6 +173,7 @@ export type WsChatClientMessage =
   | { type: 'interrupt' }
   | { type: 'permission_response'; id?: string; allow: boolean }
   | { type: 'input_response'; id?: string; content: string }
+  | { type: 'set_permission_mode'; mode: string }
 
 /** A chat event received over WebSocket with sequence number */
 export interface ChatWsEvent {
