@@ -8,6 +8,7 @@ import { ProjectSelect } from './ProjectSelect'
 import { PermissionSettingsPanel } from './PermissionSettingsPanel'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useSetAtom, useAtomValue } from 'jotai'
+import { Link } from 'react-router-dom'
 import type { Project } from '@/types'
 import { isTauri } from '@/services/env'
 
@@ -234,9 +235,20 @@ export function ChatPanel() {
                 </svg>
               </button>
               {!isNewConversation && <WsStatusDot status={chat.wsStatus} />}
-              <span className="text-sm font-medium text-gray-300 truncate">
-                {headerTitle}
-              </span>
+              <div className="min-w-0">
+                <span className="text-sm font-medium text-gray-300 truncate block">
+                  {headerTitle}
+                </span>
+                {!isNewConversation && chat.sessionMeta?.projectSlug && (
+                  <Link
+                    to={`/projects/${chat.sessionMeta.projectSlug}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-[10px] text-indigo-400 hover:text-indigo-300 truncate block transition-colors"
+                  >
+                    {chat.sessionMeta.projectSlug}
+                  </Link>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-1">
               <button
@@ -370,10 +382,14 @@ export function ChatPanel() {
               <span className="text-sm font-medium text-gray-300 truncate block">
                 {headerTitle}
               </span>
-              {!isNewConversation && selectedProject && (
-                <span className="text-[10px] text-gray-500 truncate block">
-                  {selectedProject.name}
-                </span>
+              {!isNewConversation && chat.sessionMeta?.projectSlug && (
+                <Link
+                  to={`/projects/${chat.sessionMeta.projectSlug}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-[10px] text-indigo-400 hover:text-indigo-300 truncate block transition-colors"
+                >
+                  {chat.sessionMeta.projectSlug}
+                </Link>
               )}
             </div>
           </div>

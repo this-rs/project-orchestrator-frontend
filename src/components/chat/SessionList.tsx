@@ -21,6 +21,12 @@ interface SessionListProps {
 
 const SESSION_PAGE_SIZE = 30
 
+/** Shorten an absolute path by replacing the home directory with ~ */
+function shortenPath(path: string): string {
+  if (path.startsWith('~/')) return path
+  return path.replace(/^\/(?:Users|home)\/[^/]+\//, '~/')
+}
+
 // ============================================================================
 // Date grouping helpers
 // ============================================================================
@@ -368,6 +374,18 @@ export function SessionList({ activeSessionId, onSelect, onClose, embedded }: Se
                 {session.preview}
               </div>
             )
+          )}
+
+          {/* CWD */}
+          {session.cwd && (
+            <div className="flex items-center gap-1 mt-0.5 min-w-0">
+              <svg className="w-2.5 h-2.5 text-gray-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+              <span className="text-[10px] text-gray-600 truncate">
+                {shortenPath(session.cwd)}
+              </span>
+            </div>
           )}
 
           {/* Metadata row */}

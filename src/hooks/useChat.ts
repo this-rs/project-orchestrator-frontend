@@ -23,6 +23,12 @@ export interface SendMessageOptions {
   permissionMode?: PermissionMode
 }
 
+/** Metadata about the active chat session (cwd, project, etc.) */
+export interface SessionMeta {
+  cwd: string
+  projectSlug?: string
+}
+
 /**
  * Convert raw chat events (from REST /messages endpoint) into ChatMessage UI format.
  * Groups events into user/assistant messages — same logic as handleEvent in replay mode.
@@ -196,6 +202,7 @@ export function useChat() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const wsRef = useRef<ChatWebSocket | null>(null)
   const [isSending, setIsSending] = useState(false)
+  const [sessionMeta, setSessionMeta] = useState<SessionMeta | null>(null)
 
   // Flag to distinguish first-message session creation from loadSession().
   // When true, the auto-connect useEffect will skip resetting messages
@@ -740,6 +747,10 @@ export function useChat() {
         // so the auto-connect useEffect should NOT reset messages.
         isFirstSendRef.current = true
         setSessionId(response.session_id)
+        // Populate session metadata from the options used to create the session
+        if (options) {
+          setSessionMeta({ cwd: options.cwd, projectSlug: options.projectSlug })
+        }
         // Reset override after use
         if (permissionOverride) setPermissionOverride(null)
       } finally {
@@ -793,6 +804,7 @@ export function useChat() {
     setIsStreaming(false)
     setIsReplaying(false)
     setMessages([])
+    setSessionMeta(null)
     setHasOlderMessages(false)
     paginationRef.current = { offset: 0, totalCount: 0 }
     // Reset auto-approved tools — they are session-scoped
@@ -820,6 +832,15 @@ export function useChat() {
     setIsReplaying(true)
     setHasOlderMessages(false)
     paginationRef.current = { offset: 0, totalCount: 0 }
+
+    // Fetch session metadata (cwd, project) for display in header
+    chatApi.getSession(sid).then((session) => {
+      setSessionMeta({ cwd: session.cwd, projectSlug: session.project_slug })
+    }).catch(() => {
+      // Non-critical — header just won't show cwd
+      setSessionMeta(null)
+    })
+
     // WS will auto-connect via the useEffect above when sessionId changes
   }, [sessionId, getWs, setSessionId, setIsStreaming, setIsReplaying])
 
@@ -833,6 +854,7 @@ export function useChat() {
     hasOlderMessages,
     wsStatus,
     sessionId,
+    sessionMeta,
     sendMessage,
     respondPermission,
     respondInput,
