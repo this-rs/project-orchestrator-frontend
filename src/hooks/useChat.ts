@@ -807,9 +807,10 @@ export function useChat() {
     setSessionMeta(null)
     setHasOlderMessages(false)
     paginationRef.current = { offset: 0, totalCount: 0 }
-    // Reset auto-approved tools — they are session-scoped
+    // Reset session-scoped state
     setAutoApprovedTools(new Set<string>())
-  }, [getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools])
+    setPermissionOverride(null)
+  }, [getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride])
 
   const changePermissionMode = useCallback((mode: PermissionMode) => {
     if (!sessionId) return
@@ -833,9 +834,11 @@ export function useChat() {
     setHasOlderMessages(false)
     paginationRef.current = { offset: 0, totalCount: 0 }
 
-    // Fetch session metadata (cwd, project) for display in header
+    // Fetch session metadata (cwd, project, permission mode) for display in header
     chatApi.getSession(sid).then((session) => {
       setSessionMeta({ cwd: session.cwd, projectSlug: session.project_slug })
+      // Restore the session's permission mode override
+      setPermissionOverride((session.permission_mode as PermissionMode) ?? null)
     }).catch(() => {
       // Non-critical — header just won't show cwd
       setSessionMeta(null)

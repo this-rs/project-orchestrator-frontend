@@ -37,7 +37,7 @@ export function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionI
   const [modeJustChanged, setModeJustChanged] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  const effectiveMode = modeOverride ?? serverConfig?.mode ?? 'bypassPermissions'
+  const effectiveMode = modeOverride ?? serverConfig?.mode ?? 'default'
 
   const resize = useCallback(() => {
     const el = textareaRef.current

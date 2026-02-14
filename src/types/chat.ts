@@ -31,6 +31,8 @@ export interface ChatSession {
   message_count: number
   total_cost_usd?: number
   preview?: string
+  /** Permission mode override for this session (undefined = global config default) */
+  permission_mode?: PermissionMode
 }
 
 export interface CreateSessionRequest {

@@ -6,6 +6,7 @@ import type {
   ChatSession,
   CrudEvent,
   MessageSearchResult,
+  PermissionMode,
   Project,
   Workspace,
 } from '@/types'
@@ -20,6 +21,13 @@ interface SessionListProps {
 }
 
 const SESSION_PAGE_SIZE = 30
+
+const MODE_DOT_COLORS: Record<PermissionMode, string> = {
+  bypassPermissions: 'bg-emerald-400',
+  acceptEdits: 'bg-blue-400',
+  default: 'bg-amber-400',
+  plan: 'bg-gray-400',
+}
 
 /** Shorten an absolute path by replacing the home directory with ~ */
 function shortenPath(path: string): string {
@@ -350,7 +358,7 @@ export function SessionList({ activeSessionId, onSelect, onClose, embedded }: Se
         }`}
       >
         <div className="flex-1 min-w-0">
-          {/* Title + streaming indicator */}
+          {/* Title + streaming indicator + mode dot */}
           <div className="flex items-center gap-1.5">
             {streamingSessions.has(session.id) && (
               <span
@@ -361,6 +369,12 @@ export function SessionList({ activeSessionId, onSelect, onClose, embedded }: Se
             <span className={`text-sm truncate ${isActive ? 'text-gray-200 font-medium' : 'text-gray-300'}`}>
               {title}
             </span>
+            {session.permission_mode && (
+              <span
+                className={`shrink-0 w-1.5 h-1.5 rounded-full ${MODE_DOT_COLORS[session.permission_mode] ?? 'bg-gray-400'}`}
+                title={session.permission_mode}
+              />
+            )}
           </div>
 
           {/* Preview or streaming label */}

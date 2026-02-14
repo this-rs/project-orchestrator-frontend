@@ -11,6 +11,7 @@ import { useSetAtom, useAtomValue } from 'jotai'
 import { Link } from 'react-router-dom'
 import type { Project } from '@/types'
 import { isTauri } from '@/services/env'
+import { chatApi } from '@/services/chat'
 
 const MIN_WIDTH = 320
 const MAX_WIDTH = 800
@@ -42,6 +43,19 @@ export function ChatPanel() {
   const panelRef = useRef<HTMLDivElement>(null)
   const setScrollToTurn = useSetAtom(chatScrollToTurnAtom)
   const permissionConfig = useAtomValue(chatPermissionConfigAtom)
+  const setPermissionConfig = useSetAtom(chatPermissionConfigAtom)
+
+  // Load permission config from server on mount (so ChatInput has the correct default mode)
+  useEffect(() => {
+    if (permissionConfig) return // Already loaded (e.g. from PermissionSettingsPanel)
+    let cancelled = false
+    chatApi.getPermissionConfig().then((config) => {
+      if (!cancelled) setPermissionConfig(config)
+    }).catch(() => {
+      // Non-critical — ChatInput will fallback to 'default'
+    })
+    return () => { cancelled = true }
+  }, [permissionConfig, setPermissionConfig])
 
   // Mode-based color for gear icon badge
   const modeColor = permissionConfig
