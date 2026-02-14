@@ -173,8 +173,9 @@ export function LoginPage() {
       </div>
 
       {/* Branding */}
-      <div className="absolute bottom-6 text-center text-xs tracking-wide text-gray-600">
-        Freedom From Scratch
+      <div className="absolute bottom-6 text-center text-xs tracking-wide">
+        <div className="text-gray-700">Made by</div>
+        <div className="text-gray-600">Freedom From Scratch</div>
       </div>
     </div>
   )
