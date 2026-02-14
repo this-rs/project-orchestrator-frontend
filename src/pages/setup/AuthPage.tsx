@@ -135,8 +135,8 @@ export function AuthPage() {
         </>
       )}
 
-      {/* Access control — visible for password and oidc */}
-      {(config.authMode === 'password' || config.authMode === 'oidc') && (
+      {/* Access control — only for OIDC (password mode has a single root account) */}
+      {config.authMode === 'oidc' && (
         <AccessControlSection config={config} update={update} />
       )}
     </div>
