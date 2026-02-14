@@ -100,11 +100,11 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center bg-[var(--surface-base)]">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--surface-base)]">
       <div className="w-full max-w-sm space-y-8 px-6">
         {/* Logo & Title */}
         <div className="text-center">
-          <img src="/logo-192.png" alt="Project Orchestrator" className="mx-auto h-16 w-16 rounded-2xl" />
+          <img src="/logo-192.png" alt="Project Orchestrator" className="mx-auto h-44 w-44 rounded-3xl" />
           <h1 className="mt-6 text-2xl font-bold text-white">Project Orchestrator</h1>
           <p className="mt-2 text-sm text-gray-400">
             {showRegister ? 'Create your account' : 'Sign in to continue'}
@@ -170,6 +170,11 @@ export function LoginPage() {
             </button>
           </div>
         )}
+      </div>
+
+      {/* Branding */}
+      <div className="absolute bottom-6 text-center text-xs tracking-wide text-gray-600">
+        Freedom From Scratch
       </div>
     </div>
   )
