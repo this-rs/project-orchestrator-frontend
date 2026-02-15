@@ -227,9 +227,69 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
         break
       }
 
-      case 'result':
-        // Turn completion — skip (no UI block needed)
+      case 'compact_boundary': {
+        const msg = lastAssistant()
+        const trigger = (evt.trigger as string) ?? 'auto'
+        const preTokens = evt.pre_tokens as number | undefined
+        const label = preTokens
+          ? `Context compacted (${trigger}, ~${Math.round(preTokens / 1000)}K tokens)`
+          : `Context compacted (${trigger})`
+        msg.blocks.push({
+          id: nextBlockId(),
+          type: 'compact_boundary',
+          content: label,
+          metadata: { trigger, pre_tokens: preTokens },
+        })
         break
+      }
+
+      case 'system_init': {
+        const msg = lastAssistant()
+        const initModel = evt.model as string | undefined
+        const initTools = evt.tools as string[] | undefined
+        const initMcpServers = evt.mcp_servers as { name: string; status?: string }[] | undefined
+        const initPermMode = evt.permission_mode as string | undefined
+        msg.blocks.push({
+          id: nextBlockId(),
+          type: 'system_init',
+          content: 'Session initialized',
+          metadata: {
+            model: initModel,
+            tools_count: initTools?.length ?? 0,
+            mcp_servers_count: initMcpServers?.length ?? 0,
+            permission_mode: initPermMode,
+          },
+        })
+        break
+      }
+
+      case 'result': {
+        const rSubtype = (evt.subtype as string) ?? 'success'
+        const rNumTurns = evt.num_turns as number | undefined
+        const rResultText = evt.result_text as string | undefined
+
+        if (rSubtype === 'error_max_turns') {
+          const msg = lastAssistant()
+          msg.blocks.push({
+            id: nextBlockId(),
+            type: 'result_max_turns',
+            content: rNumTurns
+              ? `Maximum turns reached (${rNumTurns} turns)`
+              : 'Maximum turns reached',
+            metadata: { num_turns: rNumTurns },
+          })
+        } else if (rSubtype === 'error_during_execution') {
+          const msg = lastAssistant()
+          msg.blocks.push({
+            id: nextBlockId(),
+            type: 'result_error',
+            content: rResultText ?? 'An execution error occurred',
+            metadata: { result_text: rResultText },
+          })
+        }
+        // success → no UI block needed (existing behavior)
+        break
+      }
 
       default:
         // Unknown event type — skip
@@ -638,7 +698,72 @@ export function useChat() {
           break
         }
 
-        case 'result':
+        case 'compact_boundary': {
+          const cbData = event.replaying
+            ? (event as { data?: Record<string, unknown> }).data ?? event
+            : event
+          const trigger = (cbData as { trigger?: string }).trigger ?? 'auto'
+          const preTokens = (cbData as { pre_tokens?: number }).pre_tokens
+          const label = preTokens
+            ? `Context compacted (${trigger}, ~${Math.round(preTokens / 1000)}K tokens)`
+            : `Context compacted (${trigger})`
+          lastMsg.blocks.push({
+            id: nextBlockId(),
+            type: 'compact_boundary',
+            content: label,
+            metadata: { trigger, pre_tokens: preTokens },
+          })
+          break
+        }
+
+        case 'system_init': {
+          const siData = event.replaying
+            ? (event as { data?: Record<string, unknown> }).data ?? event
+            : event
+          const siModel = (siData as { model?: string }).model
+          const siTools = (siData as { tools?: string[] }).tools
+          const siMcpServers = (siData as { mcp_servers?: { name: string }[] }).mcp_servers
+          const siPermMode = (siData as { permission_mode?: string }).permission_mode
+          lastMsg.blocks.push({
+            id: nextBlockId(),
+            type: 'system_init',
+            content: 'Session initialized',
+            metadata: {
+              model: siModel,
+              tools_count: siTools?.length ?? 0,
+              mcp_servers_count: siMcpServers?.length ?? 0,
+              permission_mode: siPermMode,
+            },
+          })
+          break
+        }
+
+        case 'result': {
+          const rData = event.replaying
+            ? (event as { data?: Record<string, unknown> }).data ?? event
+            : event
+          const rSubtype = (rData as { subtype?: string }).subtype ?? 'success'
+          const rNumTurns = (rData as { num_turns?: number }).num_turns
+          const rResultText = (rData as { result_text?: string }).result_text
+
+          if (rSubtype === 'error_max_turns') {
+            lastMsg.blocks.push({
+              id: nextBlockId(),
+              type: 'result_max_turns',
+              content: rNumTurns
+                ? `Maximum turns reached (${rNumTurns} turns)`
+                : 'Maximum turns reached',
+              metadata: { num_turns: rNumTurns },
+            })
+          } else if (rSubtype === 'error_during_execution') {
+            lastMsg.blocks.push({
+              id: nextBlockId(),
+              type: 'result_error',
+              content: rResultText ?? 'An execution error occurred',
+              metadata: { result_text: rResultText },
+            })
+          }
+
           // Only stop streaming on LIVE result events, not replayed ones.
           // During replay (Phase 1 or Phase 1.5), a historical result event
           // must not override the streaming_status sent for mid-stream join.
@@ -646,6 +771,7 @@ export function useChat() {
             setIsStreaming(false)
           }
           break
+        }
       }
 
       return updated

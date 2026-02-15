@@ -9,6 +9,10 @@ import { AgentGroup } from './AgentGroup'
 import { PermissionRequestBlock } from './PermissionRequestBlock'
 import { InputRequestBlock } from './InputRequestBlock'
 import { AskUserQuestionBlock } from './AskUserQuestionBlock'
+import { CompactBoundaryBlock } from './CompactBoundaryBlock'
+import { ResultMaxTurnsBlock } from './ResultMaxTurnsBlock'
+import { ResultErrorBlock } from './ResultErrorBlock'
+import { SystemInitBlock } from './SystemInitBlock'
 
 /**
  * Markdown link component: uses ExternalLink which renders differently
@@ -135,9 +139,10 @@ interface ChatMessageBubbleProps {
   highlighted?: boolean
   onRespondPermission: (toolCallId: string, allowed: boolean, remember?: { toolName: string }) => void
   onRespondInput: (requestId: string, response: string) => void
+  onContinue?: () => void
 }
 
-export function ChatMessageBubble({ message, isStreaming, highlighted, onRespondPermission, onRespondInput }: ChatMessageBubbleProps) {
+export function ChatMessageBubble({ message, isStreaming, highlighted, onRespondPermission, onRespondInput, onContinue }: ChatMessageBubbleProps) {
   const highlightClass = highlighted
     ? 'ring-2 ring-amber-400/50 bg-amber-400/[0.06] rounded-xl transition-all duration-500'
     : 'transition-all duration-1000'
@@ -233,6 +238,39 @@ export function ChatMessageBubble({ message, isStreaming, highlighted, onRespond
                   key={block.id}
                   block={block}
                   onRespond={onRespondInput}
+                />
+              )
+
+            case 'compact_boundary':
+              return (
+                <CompactBoundaryBlock
+                  key={block.id}
+                  block={block}
+                />
+              )
+
+            case 'system_init':
+              return (
+                <SystemInitBlock
+                  key={block.id}
+                  block={block}
+                />
+              )
+
+            case 'result_max_turns':
+              return (
+                <ResultMaxTurnsBlock
+                  key={block.id}
+                  block={block}
+                  onContinue={onContinue ?? (() => {})}
+                />
+              )
+
+            case 'result_error':
+              return (
+                <ResultErrorBlock
+                  key={block.id}
+                  block={block}
                 />
               )
 

@@ -133,6 +133,10 @@ export function ChatPanel() {
     )
   }
 
+  const handleContinue = () => {
+    chat.sendMessage('Continue')
+  }
+
   const handleNewSession = () => {
     chat.newSession()
     setSelectedProject(null)
@@ -348,6 +352,7 @@ export function ChatPanel() {
                 onLoadOlder={chat.loadOlderMessages}
                 onRespondPermission={chat.respondPermission}
                 onRespondInput={chat.respondInput}
+                onContinue={handleContinue}
               />
               <ChatInput
                 onSend={handleSend}
