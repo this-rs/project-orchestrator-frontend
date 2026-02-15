@@ -78,7 +78,7 @@ export function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionI
   const modelDropdownRef = useRef<HTMLDivElement>(null)
 
   const effectiveMode = modeOverride ?? serverConfig?.mode ?? 'default'
-  const effectiveModel = sessionModel ?? 'claude-sonnet-4-5'
+  const effectiveModel = sessionModel ?? serverConfig?.default_model ?? 'claude-sonnet-4-5'
 
   const resize = useCallback(() => {
     const el = textareaRef.current

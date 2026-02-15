@@ -13,6 +13,8 @@ export interface PermissionConfig {
   allowed_tools: string[]
   /** Tool patterns to explicitly disallow (e.g. "Bash(rm -rf *)") */
   disallowed_tools: string[]
+  /** Default model from backend config (e.g. "claude-sonnet-4-5") */
+  default_model?: string
 }
 
 // ============================================================================
