@@ -22,7 +22,113 @@ const markdownComponents = {
   ),
 }
 
-// Group consecutive tool_use blocks together
+// ============================================================================
+// Agent grouping types & utilities
+// ============================================================================
+
+/** A group of blocks produced by a sub-agent (identified by parent_tool_use_id) */
+export interface AgentGroupData {
+  kind: 'agent_group'
+  /** The tool_use block that spawned this agent (tool_name = "Task") */
+  parentBlock: ContentBlock
+  /** All blocks produced by this agent (tool_use, tool_result, text, thinking, etc.) */
+  childBlocks: ContentBlock[]
+}
+
+/** Either a regular ContentBlock, a consecutive tool group, or an agent group */
+export type GroupedBlock =
+  | { kind: 'block'; block: ContentBlock }
+  | { kind: 'tool_group'; blocks: ContentBlock[] }
+  | AgentGroupData
+
+/**
+ * Group blocks by agent (parent_tool_use_id) and consecutive tool_use runs.
+ *
+ * 1. Identify blocks with `metadata.parent_tool_use_id` — they belong to a sub-agent.
+ * 2. Find the parent tool_use block whose `metadata.tool_call_id` matches.
+ * 3. Group consecutive top-level tool_use blocks together (existing behavior).
+ * 4. Return a flat array of GroupedBlock items preserving chronological order.
+ *
+ * Blocks without parent_tool_use_id are treated as top-level (no visual change).
+ */
+export function groupBlocksByAgent(blocks: ContentBlock[]): GroupedBlock[] {
+  // Step 1: Collect all parent_tool_use_ids and their child blocks
+  const childrenByParent = new Map<string, ContentBlock[]>()
+  const parentIds = new Set<string>()
+
+  for (const block of blocks) {
+    const parentId = block.metadata?.parent_tool_use_id as string | undefined
+    if (parentId) {
+      parentIds.add(parentId)
+      let children = childrenByParent.get(parentId)
+      if (!children) {
+        children = []
+        childrenByParent.set(parentId, children)
+      }
+      children.push(block)
+    }
+  }
+
+  // Step 2: Build agent groups, preserving order by first appearance of the parent tool_use
+  const result: GroupedBlock[] = []
+  let currentToolGroup: ContentBlock[] = []
+  const emittedParents = new Set<string>()
+
+  for (const block of blocks) {
+    const parentId = block.metadata?.parent_tool_use_id as string | undefined
+
+    // Skip blocks that belong to a sub-agent — they'll be rendered inside their AgentGroupData
+    if (parentId) {
+      continue
+    }
+
+    // Skip tool_result blocks — rendered as part of their tool_use
+    if (block.type === 'tool_result') {
+      continue
+    }
+
+    // Check if this tool_use is a parent of sub-agent blocks
+    const toolCallId = block.metadata?.tool_call_id as string | undefined
+    if (block.type === 'tool_use' && toolCallId && parentIds.has(toolCallId)) {
+      // This is an agent parent — flush any pending tool group first
+      if (currentToolGroup.length > 0) {
+        result.push({ kind: 'tool_group', blocks: currentToolGroup })
+        currentToolGroup = []
+      }
+      if (!emittedParents.has(toolCallId)) {
+        emittedParents.add(toolCallId)
+        result.push({
+          kind: 'agent_group',
+          parentBlock: block,
+          childBlocks: childrenByParent.get(toolCallId) ?? [],
+        })
+      }
+      continue
+    }
+
+    // Regular tool_use (not an agent parent) — group consecutively
+    if (block.type === 'tool_use') {
+      currentToolGroup.push(block)
+      continue
+    }
+
+    // Non-tool block — flush tool group first, then add block
+    if (currentToolGroup.length > 0) {
+      result.push({ kind: 'tool_group', blocks: currentToolGroup })
+      currentToolGroup = []
+    }
+    result.push({ kind: 'block', block })
+  }
+
+  // Flush remaining tool group
+  if (currentToolGroup.length > 0) {
+    result.push({ kind: 'tool_group', blocks: currentToolGroup })
+  }
+
+  return result
+}
+
+// Group consecutive tool_use blocks together (legacy — used as fallback)
 function groupBlocks(blocks: ContentBlock[]): (ContentBlock | ContentBlock[])[] {
   const result: (ContentBlock | ContentBlock[])[] = []
   let currentToolGroup: ContentBlock[] = []

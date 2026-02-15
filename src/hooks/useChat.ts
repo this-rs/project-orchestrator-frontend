@@ -9,6 +9,30 @@ function nextBlockId() {
   return `block-${++blockIdCounter}`
 }
 
+/**
+ * Extract parent_tool_use_id from a chat event (if present).
+ * When set, this event originated from a sub-agent spawned by a Task tool.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getParentToolUseId(event: any): string | undefined {
+  // Live events: field is at top-level
+  // Replay events: field may be inside .data
+  const data = event.data ?? event
+  return data.parent_tool_use_id ?? undefined
+}
+
+/**
+ * Inject parent_tool_use_id into metadata if present.
+ * Returns the metadata object with the field added (or unchanged).
+ */
+function withParent(
+  metadata: Record<string, unknown> | undefined,
+  parentToolUseId: string | undefined,
+): Record<string, unknown> | undefined {
+  if (!parentToolUseId) return metadata
+  return { ...metadata, parent_tool_use_id: parentToolUseId }
+}
+
 let messageIdCounter = 0
 function nextMessageId() {
   return `msg-${++messageIdCounter}`
@@ -65,14 +89,16 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
         const content = evt.content ?? ''
         if (content) {
           const msg = lastAssistant()
-          msg.blocks.push({ id: nextBlockId(), type: 'text', content })
+          const parent = getParentToolUseId(evt)
+          msg.blocks.push({ id: nextBlockId(), type: 'text', content, metadata: withParent(undefined, parent) })
         }
         break
       }
 
       case 'thinking': {
         const msg = lastAssistant()
-        msg.blocks.push({ id: nextBlockId(), type: 'thinking', content: evt.content ?? '' })
+        const parent = getParentToolUseId(evt)
+        msg.blocks.push({ id: nextBlockId(), type: 'thinking', content: evt.content ?? '', metadata: withParent(undefined, parent) })
         break
       }
 
@@ -81,6 +107,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
         const toolName = evt.tool ?? ''
         const toolId = evt.id ?? ''
         const toolInput = evt.input ?? {}
+        const parent = getParentToolUseId(evt)
 
         if (toolName === 'AskUserQuestion') {
           const questions = (toolInput as { questions?: { question: string }[] })?.questions
@@ -89,7 +116,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
               id: nextBlockId(),
               type: 'ask_user_question',
               content: questions.map((q: { question: string }) => q.question).join('\n'),
-              metadata: { tool_call_id: toolId, questions },
+              metadata: withParent({ tool_call_id: toolId, questions }, parent),
             })
           }
         } else {
@@ -97,7 +124,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
             id: nextBlockId(),
             type: 'tool_use',
             content: toolName,
-            metadata: { tool_call_id: toolId, tool_name: toolName, tool_input: toolInput },
+            metadata: withParent({ tool_call_id: toolId, tool_name: toolName, tool_input: toolInput }, parent),
           })
         }
         break
@@ -123,33 +150,36 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
         const msg = lastAssistant()
         const result = evt.result
         const resultStr = typeof result === 'string' ? result : JSON.stringify(result)
+        const parent = getParentToolUseId(evt)
         msg.blocks.push({
           id: nextBlockId(),
           type: 'tool_result',
           content: resultStr,
-          metadata: { tool_call_id: evt.id, is_error: evt.is_error },
+          metadata: withParent({ tool_call_id: evt.id, is_error: evt.is_error }, parent),
         })
         break
       }
 
       case 'permission_request': {
         const msg = lastAssistant()
+        const parent = getParentToolUseId(evt)
         msg.blocks.push({
           id: nextBlockId(),
           type: 'permission_request',
           content: `Tool "${evt.tool}" wants to execute`,
-          metadata: { tool_call_id: evt.id, tool_name: evt.tool, tool_input: evt.input },
+          metadata: withParent({ tool_call_id: evt.id, tool_name: evt.tool, tool_input: evt.input }, parent),
         })
         break
       }
 
       case 'input_request': {
         const msg = lastAssistant()
+        const parent = getParentToolUseId(evt)
         msg.blocks.push({
           id: nextBlockId(),
           type: 'input_request',
           content: evt.prompt ?? '',
-          metadata: { request_id: evt.prompt, options: evt.options },
+          metadata: withParent({ request_id: evt.prompt, options: evt.options }, parent),
         })
         break
       }
@@ -157,12 +187,13 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
       case 'ask_user_question': {
         const msg = lastAssistant()
         const questions = evt.questions as { question: string }[] | undefined
+        const parent = getParentToolUseId(evt)
         if (questions && questions.length > 0) {
           msg.blocks.push({
             id: nextBlockId(),
             type: 'ask_user_question',
             content: questions.map((q: { question: string }) => q.question).join('\n'),
-            metadata: { questions },
+            metadata: withParent({ questions }, parent),
           })
         }
         break
@@ -170,10 +201,12 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
 
       case 'error': {
         const msg = lastAssistant()
+        const parent = getParentToolUseId(evt)
         msg.blocks.push({
           id: nextBlockId(),
           type: 'error',
           content: evt.message ?? 'Unknown error',
+          metadata: withParent(undefined, parent),
         })
         break
       }
@@ -255,16 +288,17 @@ export function useChat() {
             lastMsg = { ...lastMsg, blocks: [...lastMsg.blocks] }
             updated[updated.length - 1] = lastMsg
           }
+          const apParent = getParentToolUseId(event)
           lastMsg.blocks.push({
             id: nextBlockId(),
             type: 'permission_request',
             content: `Tool "${toolName}" wants to execute`,
-            metadata: {
+            metadata: withParent({
               tool_call_id: toolCallId,
               tool_name: toolName,
               tool_input: (event as { input?: Record<string, unknown> }).input,
               auto_approved: true,
-            },
+            }, apParent),
           })
           return updated
         })
@@ -327,7 +361,8 @@ export function useChat() {
         case 'stream_delta': {
           const lastBlock = lastMsg.blocks[lastMsg.blocks.length - 1]
           const deltaText = (event as { text: string }).text
-          if (lastBlock && lastBlock.type === 'text') {
+          const deltaParent = getParentToolUseId(event)
+          if (lastBlock && lastBlock.type === 'text' && lastBlock.metadata?.parent_tool_use_id === deltaParent) {
             lastMsg.blocks[lastMsg.blocks.length - 1] = {
               ...lastBlock,
               content: lastBlock.content + deltaText,
@@ -337,6 +372,7 @@ export function useChat() {
               id: nextBlockId(),
               type: 'text',
               content: deltaText,
+              metadata: withParent(undefined, deltaParent),
             })
           }
           break
@@ -350,10 +386,12 @@ export function useChat() {
             const data = (event as { data?: { content?: string } }).data
             const text = data?.content ?? content ?? ''
             if (text) {
+              const atParent = getParentToolUseId(event)
               lastMsg.blocks.push({
                 id: nextBlockId(),
                 type: 'text',
                 content: text,
+                metadata: withParent(undefined, atParent),
               })
             }
           }
@@ -364,8 +402,9 @@ export function useChat() {
           const content = event.replaying
             ? ((event as { data?: { content?: string } }).data?.content ?? (event as { content: string }).content)
             : (event as { content: string }).content
+          const thinkParent = getParentToolUseId(event)
           const lastBlock = lastMsg.blocks[lastMsg.blocks.length - 1]
-          if (!event.replaying && lastBlock && lastBlock.type === 'thinking') {
+          if (!event.replaying && lastBlock && lastBlock.type === 'thinking' && lastBlock.metadata?.parent_tool_use_id === thinkParent) {
             lastMsg.blocks[lastMsg.blocks.length - 1] = {
               ...lastBlock,
               content: lastBlock.content + content,
@@ -375,6 +414,7 @@ export function useChat() {
               id: nextBlockId(),
               type: 'thinking',
               content: content,
+              metadata: withParent(undefined, thinkParent),
             })
           }
           break
@@ -387,6 +427,7 @@ export function useChat() {
           const toolName = (data as { tool?: string }).tool ?? ''
           const toolId = (data as { id?: string }).id ?? ''
           const toolInput = (data as { input?: Record<string, unknown> }).input ?? {}
+          const tuParent = getParentToolUseId(event)
 
           if (toolName === 'AskUserQuestion') {
             const questions = (toolInput as { questions?: unknown[] })?.questions
@@ -395,10 +436,10 @@ export function useChat() {
                 id: nextBlockId(),
                 type: 'ask_user_question',
                 content: (questions as { question: string }[]).map((q) => q.question).join('\n'),
-                metadata: {
+                metadata: withParent({
                   tool_call_id: toolId,
                   questions,
-                },
+                }, tuParent),
               })
             }
           } else {
@@ -406,11 +447,11 @@ export function useChat() {
               id: nextBlockId(),
               type: 'tool_use',
               content: toolName,
-              metadata: {
+              metadata: withParent({
                 tool_call_id: toolId,
                 tool_name: toolName,
                 tool_input: toolInput,
-              },
+              }, tuParent),
             })
           }
           break
@@ -453,14 +494,15 @@ export function useChat() {
           const resultVal = (data as { result?: unknown }).result
           const resultStr = typeof resultVal === 'string' ? resultVal : JSON.stringify(resultVal)
           const toolCallId = (data as { id?: string }).id
+          const trParent = getParentToolUseId(event)
           lastMsg.blocks.push({
             id: nextBlockId(),
             type: 'tool_result',
             content: resultStr,
-            metadata: {
+            metadata: withParent({
               tool_call_id: toolCallId,
               is_error: (data as { is_error?: boolean }).is_error,
-            },
+            }, trParent),
           })
           break
         }
@@ -469,15 +511,16 @@ export function useChat() {
           const data = event.replaying
             ? (event as { data?: Record<string, unknown> }).data ?? event
             : event
+          const prParent = getParentToolUseId(event)
           lastMsg.blocks.push({
             id: nextBlockId(),
             type: 'permission_request',
             content: `Tool "${(data as { tool?: string }).tool}" wants to execute`,
-            metadata: {
+            metadata: withParent({
               tool_call_id: (data as { id?: string }).id,
               tool_name: (data as { tool?: string }).tool,
               tool_input: (data as { input?: Record<string, unknown> }).input,
-            },
+            }, prParent),
           })
           break
         }
@@ -486,11 +529,12 @@ export function useChat() {
           const data = event.replaying
             ? (event as { data?: Record<string, unknown> }).data ?? event
             : event
+          const irParent = getParentToolUseId(event)
           lastMsg.blocks.push({
             id: nextBlockId(),
             type: 'input_request',
             content: (data as { prompt?: string }).prompt ?? '',
-            metadata: { request_id: (data as { prompt?: string }).prompt, options: (data as { options?: string[] }).options },
+            metadata: withParent({ request_id: (data as { prompt?: string }).prompt, options: (data as { options?: string[] }).options }, irParent),
           })
           break
         }
@@ -500,12 +544,13 @@ export function useChat() {
             ? (event as { data?: Record<string, unknown> }).data ?? event
             : event
           const questions = (data as { questions?: { question: string }[] }).questions
+          const auqParent = getParentToolUseId(event)
           if (questions && questions.length > 0) {
             lastMsg.blocks.push({
               id: nextBlockId(),
               type: 'ask_user_question',
               content: questions.map((q) => q.question).join('\n'),
-              metadata: { questions },
+              metadata: withParent({ questions }, auqParent),
             })
           }
           break
@@ -515,10 +560,12 @@ export function useChat() {
           const data = event.replaying
             ? (event as { data?: Record<string, unknown> }).data ?? event
             : event
+          const errParent = getParentToolUseId(event)
           lastMsg.blocks.push({
             id: nextBlockId(),
             type: 'error',
             content: (data as { message?: string }).message ?? 'Unknown error',
+            metadata: withParent(undefined, errParent),
           })
           if (!event.replaying) {
             setIsStreaming(false)
@@ -531,11 +578,13 @@ export function useChat() {
           const content = event.replaying
             ? ((event as { data?: { content?: string } }).data?.content ?? (event as { content: string }).content)
             : (event as { content: string }).content
+          const ptParent = getParentToolUseId(event)
           if (content) {
             lastMsg.blocks.push({
               id: nextBlockId(),
               type: 'text',
               content,
+              metadata: withParent(undefined, ptParent),
             })
           }
           break
