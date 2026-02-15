@@ -7,11 +7,14 @@ interface ModelChangedBlockProps {
 export function ModelChangedBlock({ block }: ModelChangedBlockProps) {
   const model = (block.metadata?.model as string) ?? 'unknown'
 
-  // Extract short label from full model name (e.g. "claude-sonnet-4-20250514" → "sonnet 4")
+  // Extract short label from full model name (e.g. "claude-opus-4-6" → "Opus 4.6")
   const shortLabel = (() => {
-    if (model.includes('opus')) return 'opus'
-    if (model.includes('haiku')) return 'haiku'
-    if (model.includes('sonnet')) return 'sonnet'
+    if (model.includes('opus-4-6')) return 'Opus 4.6'
+    if (model.includes('opus-4-5')) return 'Opus 4.5'
+    if (model.includes('opus')) return 'Opus'
+    if (model.includes('sonnet-4-5')) return 'Sonnet 4.5'
+    if (model.includes('sonnet')) return 'Sonnet'
+    if (model.includes('haiku')) return 'Haiku'
     return model
   })()
 

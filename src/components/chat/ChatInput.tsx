@@ -19,16 +19,19 @@ const MODE_DOT_COLORS: Record<PermissionMode, string> = {
 
 /** Supported models for the selector */
 const MODEL_OPTIONS: { id: string; label: string; dotColor: string }[] = [
-  { id: 'claude-sonnet-4-20250514', label: 'Sonnet', dotColor: 'bg-blue-400' },
-  { id: 'claude-opus-4-20250514', label: 'Opus', dotColor: 'bg-violet-400' },
-  { id: 'claude-haiku-3-5-20241022', label: 'Haiku', dotColor: 'bg-emerald-400' },
+  { id: 'claude-opus-4-6', label: 'Opus 4.6', dotColor: 'bg-violet-400' },
+  { id: 'claude-opus-4-5', label: 'Opus 4.5', dotColor: 'bg-violet-400' },
+  { id: 'claude-sonnet-4-5', label: 'Sonnet 4.5', dotColor: 'bg-blue-400' },
 ]
 
 /** Extract short display label from a full model name */
 function modelShortLabel(model: string): string {
+  if (model.includes('opus-4-6')) return 'Opus 4.6'
+  if (model.includes('opus-4-5')) return 'Opus 4.5'
   if (model.includes('opus')) return 'Opus'
-  if (model.includes('haiku')) return 'Haiku'
+  if (model.includes('sonnet-4-5')) return 'Sonnet 4.5'
   if (model.includes('sonnet')) return 'Sonnet'
+  if (model.includes('haiku')) return 'Haiku'
   return model
 }
 
@@ -75,7 +78,7 @@ export function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionI
   const modelDropdownRef = useRef<HTMLDivElement>(null)
 
   const effectiveMode = modeOverride ?? serverConfig?.mode ?? 'default'
-  const effectiveModel = sessionModel ?? 'claude-sonnet-4-20250514'
+  const effectiveModel = sessionModel ?? 'claude-sonnet-4-5'
 
   const resize = useCallback(() => {
     const el = textareaRef.current
