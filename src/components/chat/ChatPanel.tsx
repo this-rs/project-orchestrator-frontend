@@ -371,6 +371,7 @@ export function ChatPanel() {
                 disabled={isNewConversation && !selectedProject}
                 sessionId={chat.sessionId}
                 onChangePermissionMode={chat.changePermissionMode}
+                onChangeModel={chat.changeModel}
                 prefill={prefill}
               />
             </>
@@ -525,6 +526,7 @@ export function ChatPanel() {
             disabled={isNewConversation && !selectedProject}
             sessionId={chat.sessionId}
             onChangePermissionMode={chat.changePermissionMode}
+            onChangeModel={chat.changeModel}
             prefill={prefill}
           />
         </>

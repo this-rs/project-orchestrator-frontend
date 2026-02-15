@@ -24,6 +24,9 @@ export const chatPermissionConfigAtom = atom<PermissionConfig | null>(null)
 /** Per-session permission mode override (null = use server default) */
 export const chatSessionPermissionOverrideAtom = atom<PermissionMode | null>(null)
 
+/** Active model for the current session (null = not yet known / use default) */
+export const chatSessionModelAtom = atom<string | null>(null)
+
 /** Tools auto-approved via "Remember for this session" checkbox (reset on new session) */
 export const chatAutoApprovedToolsAtom = atom<Set<string>>(new Set<string>())
 
