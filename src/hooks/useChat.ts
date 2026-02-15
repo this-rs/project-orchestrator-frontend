@@ -172,6 +172,22 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
         break
       }
 
+      case 'permission_decision': {
+        // Find the matching permission_request block and stamp the decision
+        const decisionId = evt.id as string
+        const allowed = evt.allow as boolean
+        for (let mi = messages.length - 1; mi >= 0; mi--) {
+          const msg = messages[mi]
+          for (let bi = 0; bi < msg.blocks.length; bi++) {
+            const block = msg.blocks[bi]
+            if (block.type === 'permission_request' && block.metadata?.tool_call_id === decisionId) {
+              msg.blocks[bi] = { ...block, metadata: { ...block.metadata, decided: true, decision: allowed ? 'allowed' : 'denied' } }
+            }
+          }
+        }
+        break
+      }
+
       case 'input_request': {
         const msg = lastAssistant()
         const parent = getParentToolUseId(evt)
@@ -311,6 +327,29 @@ export function useChat() {
     if (event.type === 'streaming_status') {
       const val = !!(event as { is_streaming?: boolean }).is_streaming
       setIsStreaming(val)
+      return
+    }
+
+    // permission_decision — stamp the decision onto the matching permission_request block
+    if (event.type === 'permission_decision') {
+      const data = event.replaying
+        ? (event as { data?: Record<string, unknown> }).data ?? event
+        : event
+      const decisionId = (data as { id?: string }).id
+      const allowed = (data as { allow?: boolean }).allow
+      if (decisionId) {
+        setMessages((prev) =>
+          prev.map((msg) => ({
+            ...msg,
+            blocks: msg.blocks.map((block) => {
+              if (block.type === 'permission_request' && block.metadata?.tool_call_id === decisionId) {
+                return { ...block, metadata: { ...block.metadata, decided: true, decision: allowed ? 'allowed' : 'denied' } }
+              }
+              return block
+            }),
+          })),
+        )
+      }
       return
     }
 
