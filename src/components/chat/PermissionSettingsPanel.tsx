@@ -249,8 +249,8 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
         if (cancelled) return
         setServerConfig(config)
         setLocalMode(config.mode)
-        setLocalAllowed([...config.allowed_tools])
-        setLocalDisallowed([...config.disallowed_tools])
+        setLocalAllowed([...(config.allowed_tools ?? [])])
+        setLocalDisallowed([...(config.disallowed_tools ?? [])])
       } catch (err) {
         if (cancelled) return
         setError(err instanceof Error ? err.message : 'Failed to load permission config')
@@ -292,8 +292,8 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
   const handleCancel = () => {
     if (serverConfig) {
       setLocalMode(serverConfig.mode)
-      setLocalAllowed([...serverConfig.allowed_tools])
-      setLocalDisallowed([...serverConfig.disallowed_tools])
+      setLocalAllowed([...(serverConfig.allowed_tools ?? [])])
+      setLocalDisallowed([...(serverConfig.disallowed_tools ?? [])])
     }
   }
 

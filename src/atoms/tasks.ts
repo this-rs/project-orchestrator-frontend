@@ -30,7 +30,7 @@ export const filteredTasksAtom = atom<TaskWithPlan[]>((get) => {
 
   return tasks.filter((task) => {
     if (statusFilter !== 'all' && task.status !== statusFilter) return false
-    if (tagsFilter.length > 0 && !tagsFilter.some((tag) => task.tags.includes(tag)))
+    if (tagsFilter.length > 0 && !tagsFilter.some((tag) => task.tags?.includes(tag)))
       return false
     if (assigneeFilter && task.assigned_to !== assigneeFilter) return false
     return true
