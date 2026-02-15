@@ -133,6 +133,7 @@ export function PlansPage() {
       }
     }
     fetchPlans()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- plans.length used for initial load detection; toast is stable
   }, [setPlans, setLoading, page, pageSize, offset, statusFilter, viewMode, planRefresh])
 
   // Stable fetchFn for PlanKanbanBoard

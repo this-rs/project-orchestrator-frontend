@@ -53,6 +53,7 @@ export function ChatPage() {
     } catch {
       update({ claudeCodeDetected: false })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- update is a local helper that changes on every render
   }, [])
 
   // Configure Claude Code MCP server via Tauri invoke
@@ -86,6 +87,7 @@ export function ChatPage() {
         mcpSetupMessage: e instanceof Error ? e.message : 'Unknown error',
       })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- update is a local helper that changes on every render
   }, [config.serverPort])
 
   const mcpSuccess =

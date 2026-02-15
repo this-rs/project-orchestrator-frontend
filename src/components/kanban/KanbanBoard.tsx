@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -61,7 +61,7 @@ export function KanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], onTask
 
   // Keep a ref to column data for drag handlers (avoid stale closures)
   const columnDataRef = useRef(columnDataMap)
-  columnDataRef.current = columnDataMap
+  useEffect(() => { columnDataRef.current = columnDataMap })
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const task = (event.active.data.current as { task: KanbanTask } | undefined)?.task

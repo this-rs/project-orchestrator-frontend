@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from 'react'
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -60,7 +60,7 @@ export function PlanKanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], on
   }
 
   const columnDataRef = useRef(columnDataMap)
-  columnDataRef.current = columnDataMap
+  useEffect(() => { columnDataRef.current = columnDataMap })
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const plan = (event.active.data.current as { plan: Plan } | undefined)?.plan

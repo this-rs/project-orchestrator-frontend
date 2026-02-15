@@ -2,16 +2,13 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 
 export function useMultiSelect<T>(items: T[], getId: (item: T) => string) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const prevItemsRef = useRef(items)
   const lastToggledIndexRef = useRef<number | null>(null)
 
   // Auto-clear when items reference changes (pagination, filters)
   useEffect(() => {
-    if (prevItemsRef.current !== items) {
-      setSelectedIds(new Set())
-      lastToggledIndexRef.current = null
-      prevItemsRef.current = items
-    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync selection reset on items change
+    setSelectedIds(new Set())
+    lastToggledIndexRef.current = null
   }, [items])
 
   const toggle = useCallback(

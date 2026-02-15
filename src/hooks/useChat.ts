@@ -810,6 +810,7 @@ export function useChat() {
 
       return updated
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setPermissionOverride and setSessionModel are stable Jotai setters
   }, [setIsStreaming])
 
   // ========================================================================
@@ -1105,6 +1106,7 @@ export function useChat() {
     })
 
     // WS will auto-connect via the useEffect above when sessionId changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setPermissionOverride and setSessionModel are stable Jotai setters
   }, [sessionId, getWs, setSessionId, setIsStreaming, setIsReplaying])
 
   return {

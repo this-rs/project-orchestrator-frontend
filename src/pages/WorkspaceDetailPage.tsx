@@ -75,6 +75,7 @@ export function WorkspaceDetailPage() {
       }
     }
     fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- workspace is a data object (would cause infinite loop)
   }, [slug, workspaceRefresh, projectRefresh, milestoneRefresh, taskRefresh])
 
   const milestoneForm = CreateMilestoneForm({

@@ -42,6 +42,7 @@ function isMultiline(cmd: string): boolean {
 
 /** Strip ANSI escape sequences from terminal output */
 function stripAnsi(text: string): string {
+  // eslint-disable-next-line no-control-regex
   return text.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '')
 }
 

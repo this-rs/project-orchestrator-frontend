@@ -74,6 +74,7 @@ export function ProjectDetailPage() {
       }
     }
     fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- project is a data object (would cause loop); setSuggestedProjectId is a stable Jotai setter
   }, [slug, projectRefresh, planRefresh, milestoneRefresh, taskRefresh])
 
   const handleSync = async () => {

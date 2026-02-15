@@ -121,6 +121,7 @@ export function ProjectMilestoneDetailPage() {
     } finally {
       if (isInitialLoad) setLoading(false)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- milestone is a data object (would cause infinite loop)
   }, [milestoneId, milestoneRefresh, planRefresh, taskRefresh, projectRefresh])
 
   useEffect(() => {
@@ -142,6 +143,7 @@ export function ProjectMilestoneDetailPage() {
         toast.error('Failed to update plan status')
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable
     [plans],
   )
 

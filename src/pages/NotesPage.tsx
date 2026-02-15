@@ -83,6 +83,7 @@ export function NotesPage() {
       initialLoadDone.current = true
     }
     fetchNotes()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable
   }, [setNotes, setLoading, page, pageSize, offset, typeFilter, statusFilter, noteRefresh])
 
   const handleTypeFilterChange = (newFilter: NoteType | 'all') => {

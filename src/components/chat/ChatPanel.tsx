@@ -74,24 +74,23 @@ export function ChatPanel() {
   // Detect mobile viewport
   useEffect(() => {
     const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
-    setIsMobile(mql.matches)
     const handler = (e: MediaQueryListEvent) => {
       setIsMobile(e.matches)
       // Close mobile sidebar when switching to desktop
       if (!e.matches) setShowMobileSidebar(false)
     }
+    // Sync initial value via the same callback path
+    handler({ matches: mql.matches } as MediaQueryListEvent)
     mql.addEventListener('change', handler)
     return () => mql.removeEventListener('change', handler)
   }, [])
 
-  // Fetch session title when sessionId changes
+  // Reset session title when sessionId is cleared
   useEffect(() => {
     if (!chat.sessionId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync title reset on session clear
       setSessionTitle(null)
-      return
     }
-    // We'll get the title from the session list's onSelect callback
-    // For now set a default, it will be updated by handleSelectSession
   }, [chat.sessionId])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {

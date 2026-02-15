@@ -108,6 +108,7 @@ export function MainLayout() {
 
   // Close mobile menu on navigation
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync menu close on route change
     setMobileMenuOpen(false)
   }, [location.pathname])
 

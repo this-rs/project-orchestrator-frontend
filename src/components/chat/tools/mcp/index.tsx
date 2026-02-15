@@ -5,6 +5,8 @@
  * Falls back to the generic McpGenericRenderer for unrecognized actions.
  */
 
+/* eslint-disable react-refresh/only-export-components */
+
 export { ListRenderer } from './ListRenderer'
 export { EntityRenderer } from './EntityRenderer'
 export { ChatRenderer } from './ChatRenderer'

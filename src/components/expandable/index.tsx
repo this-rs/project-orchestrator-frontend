@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useState, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { InteractivePlanStatusBadge, TaskStatusBadge } from '@/components/ui'
@@ -96,15 +97,18 @@ export function NestedTaskRow({
 
   // Eager fetch on mount + WS refresh
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch from external API
     fetchSteps()
   }, [refreshTrigger, fetchSteps])
 
   // Expand/Collapse all signals
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- signal-driven toggle from parent
     if (expandAllSignal) setExpanded(true)
   }, [expandAllSignal])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- signal-driven toggle from parent
     if (collapseAllSignal) setExpanded(false)
   }, [collapseAllSignal])
 
@@ -184,15 +188,18 @@ export function ExpandablePlanRow({
 
   // Eager fetch on mount + WS refresh
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch from external API
     fetchTasks()
   }, [refreshTrigger, fetchTasks])
 
   // Expand/Collapse all signals
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- signal-driven toggle from parent
     if (expandAllSignal) setExpanded(true)
   }, [expandAllSignal])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- signal-driven toggle from parent
     if (collapseAllSignal) setExpanded(false)
   }, [collapseAllSignal])
 
@@ -268,15 +275,18 @@ export function ExpandableTaskRow({
 
   // Eager fetch on mount + WS refresh
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch from external API
     fetchSteps()
   }, [refreshTrigger, fetchSteps])
 
   // Expand/Collapse all signals
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- signal-driven toggle from parent
     if (expandAllSignal) setExpanded(true)
   }, [expandAllSignal])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- signal-driven toggle from parent
     if (collapseAllSignal) setExpanded(false)
   }, [collapseAllSignal])
 

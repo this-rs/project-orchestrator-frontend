@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useDroppable } from '@dnd-kit/core'
 import type { TaskStatus } from '@/types'
 import { useInfiniteScroll } from '@/hooks'

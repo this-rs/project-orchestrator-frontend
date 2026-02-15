@@ -350,7 +350,7 @@ export function SessionList({ activeSessionId, onSelect, onClose, embedded }: Se
         role="button"
         tabIndex={0}
         onClick={() => isActive ? onClose() : onSelect(session.id, undefined, title)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); isActive ? onClose() : onSelect(session.id, undefined, title) } }}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (isActive) { onClose() } else { onSelect(session.id, undefined, title) } } }}
         className={`w-full text-left px-3 py-2.5 transition-all group flex items-start gap-2 cursor-pointer ${
           isActive
             ? 'bg-indigo-500/[0.08] border-l-2 border-indigo-500 pl-2.5'

@@ -94,6 +94,7 @@ export function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionI
   // Prefill textarea when a quick action is triggered
   useEffect(() => {
     if (!prefill) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync prefill from parent prop
     setValue(prefill.text)
     // Focus and position cursor after React re-renders the new value
     requestAnimationFrame(() => {

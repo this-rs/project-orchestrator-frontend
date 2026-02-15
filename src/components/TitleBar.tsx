@@ -12,8 +12,6 @@ import { isTauri } from '@/services/env'
  * Provides macOS-style traffic light buttons (close, minimize, fullscreen).
  */
 export function TitleBar() {
-  if (!isTauri) return null
-
   const [visible, setVisible] = useState(false)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -63,6 +61,8 @@ export function TitleBar() {
       await win.maximize()
     }
   }, [])
+
+  if (!isTauri) return null
 
   return (
     <>

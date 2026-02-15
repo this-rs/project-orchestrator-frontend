@@ -38,6 +38,7 @@ export function WorkspacesPage() {
     const silent = initialLoadDone.current
     fetchWorkspaces(silent)
     initialLoadDone.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchWorkspaces is intentionally excluded to avoid loop
   }, [setWorkspaces, setLoading, page, pageSize, offset, wsRefresh])
 
   const form = CreateWorkspaceForm({
