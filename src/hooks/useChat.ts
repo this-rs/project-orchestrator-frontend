@@ -45,6 +45,7 @@ export interface SendMessageOptions {
   cwd: string
   projectSlug?: string
   permissionMode?: PermissionMode
+  model?: string
 }
 
 /** Metadata about the active chat session (cwd, project, etc.) */
@@ -989,6 +990,7 @@ export function useChat() {
           cwd: options!.cwd,
           project_slug: options?.projectSlug,
           permission_mode: options?.permissionMode ?? permissionOverride ?? undefined,
+          model: options?.model ?? sessionModel ?? undefined,
         })
         // Signal that the upcoming sessionId change is from a first send,
         // so the auto-connect useEffect should NOT reset messages.
@@ -1010,7 +1012,7 @@ export function useChat() {
       setIsStreaming(true)
       ws.sendUserMessage(text)
     }
-  }, [sessionId, setSessionId, setIsStreaming, getWs, permissionOverride, setPermissionOverride])
+  }, [sessionId, setSessionId, setIsStreaming, getWs, permissionOverride, setPermissionOverride, sessionModel])
 
   const respondPermission = useCallback(async (
     toolCallId: string,

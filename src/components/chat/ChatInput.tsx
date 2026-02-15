@@ -69,7 +69,7 @@ export function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionI
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [modeOverride, setModeOverride] = useAtom(chatSessionPermissionOverrideAtom)
   const serverConfig = useAtomValue(chatPermissionConfigAtom)
-  const sessionModel = useAtomValue(chatSessionModelAtom)
+  const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
   const [showModeDropdown, setShowModeDropdown] = useState(false)
   const [showModelDropdown, setShowModelDropdown] = useState(false)
   const [modeJustChanged, setModeJustChanged] = useState(false)
@@ -78,7 +78,7 @@ export function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionI
   const modelDropdownRef = useRef<HTMLDivElement>(null)
 
   const effectiveMode = modeOverride ?? serverConfig?.mode ?? 'default'
-  const effectiveModel = sessionModel ?? 'claude-sonnet-4-5'
+  const effectiveModel = sessionModel ?? serverConfig?.default_model ?? 'claude-sonnet-4-5'
 
   const resize = useCallback(() => {
     const el = textareaRef.current
@@ -159,6 +159,9 @@ export function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionI
     if (sessionId && onChangeModel) {
       // Active session — send WS message for mid-session model change
       onChangeModel(modelId)
+    } else {
+      // No session yet — set atom directly (used at session creation)
+      setSessionModel(modelId)
     }
     setShowModelDropdown(false)
     // Visual feedback: brief highlight
@@ -215,48 +218,46 @@ export function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionI
           </div>
         </div>
 
-        {/* Model selector — only shown when a session is active */}
-        {sessionId && (
-          <div className="flex items-center gap-1.5" ref={modelDropdownRef}>
-            <span className="text-[10px] text-gray-500">Model:</span>
-            <div className="relative">
-              <button
-                onClick={() => { setShowModelDropdown(!showModelDropdown); setShowModeDropdown(false) }}
-                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border text-gray-300 hover:bg-white/[0.06] transition-all duration-300 ${
-                  modelJustChanged
-                    ? 'border-violet-400/50 ring-1 ring-violet-400/30'
-                    : 'border-white/[0.08]'
-                }`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${modelDotColor(effectiveModel)}`} />
-                <span>{modelShortLabel(effectiveModel)}</span>
-                <svg className="w-2.5 h-2.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {showModelDropdown && (
-                <div className="absolute bottom-full left-0 mb-1 z-20 w-52 bg-[#1e2130] border border-white/[0.08] rounded-lg shadow-xl py-1">
-                  {MODEL_OPTIONS.map((opt) => {
-                    const isActive = effectiveModel === opt.id
-                    return (
-                      <button
-                        key={opt.id}
-                        onClick={() => handleSelectModel(opt.id)}
-                        className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${
-                          isActive ? 'text-gray-100 bg-white/[0.04]' : 'text-gray-400 hover:bg-white/[0.04] hover:text-gray-200'
-                        }`}
-                      >
-                        <span className={`w-1.5 h-1.5 rounded-full ${opt.dotColor}`} />
-                        <span>{opt.label}</span>
-                        <span className="text-[9px] text-gray-600 ml-auto font-mono">{opt.id.replace('claude-', '').slice(0, 15)}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
+        {/* Model selector — always visible (new conversation + active session) */}
+        <div className="flex items-center gap-1.5" ref={modelDropdownRef}>
+          <span className="text-[10px] text-gray-500">Model:</span>
+          <div className="relative">
+            <button
+              onClick={() => { setShowModelDropdown(!showModelDropdown); setShowModeDropdown(false) }}
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border text-gray-300 hover:bg-white/[0.06] transition-all duration-300 ${
+                modelJustChanged
+                  ? 'border-violet-400/50 ring-1 ring-violet-400/30'
+                  : 'border-white/[0.08]'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${modelDotColor(effectiveModel)}`} />
+              <span>{modelShortLabel(effectiveModel)}</span>
+              <svg className="w-2.5 h-2.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showModelDropdown && (
+              <div className="absolute bottom-full left-0 mb-1 z-20 w-52 bg-[#1e2130] border border-white/[0.08] rounded-lg shadow-xl py-1">
+                {MODEL_OPTIONS.map((opt) => {
+                  const isActive = effectiveModel === opt.id
+                  return (
+                    <button
+                      key={opt.id}
+                      onClick={() => handleSelectModel(opt.id)}
+                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${
+                        isActive ? 'text-gray-100 bg-white/[0.04]' : 'text-gray-400 hover:bg-white/[0.04] hover:text-gray-200'
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${opt.dotColor}`} />
+                      <span>{opt.label}</span>
+                      <span className="text-[9px] text-gray-600 ml-auto font-mono">{opt.id.replace('claude-', '').slice(0, 15)}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       <div className="flex items-end gap-2">
