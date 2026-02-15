@@ -12,8 +12,7 @@
  */
 
 import type { ChatEvent, WsChatClientMessage, WsConnectionStatus } from '@/types'
-import { getAuthMode } from './auth'
-import { getValidToken, forceLogout } from './authManager'
+import { forceLogout } from './authManager'
 import { wsUrl } from './env'
 
 const MIN_RECONNECT_DELAY = 1000
@@ -89,21 +88,12 @@ export class ChatWebSocket {
 
     this.setStatus('connecting')
 
-    // In no-auth mode, connect directly. Otherwise pre-fetch a valid token.
-    if (getAuthMode() === 'none') {
-      this.openSocket(sessionId, lastEventSeq, null)
-    } else {
-      getValidToken().then((token) => {
-        if (token) {
-          this.openSocket(sessionId, lastEventSeq, token)
-        } else {
-          forceLogout()
-        }
-      })
-    }
+    // Auth is handled pre-upgrade via HttpOnly refresh_token cookie.
+    // The browser sends the cookie automatically during the WS upgrade request.
+    this.openSocket(sessionId, lastEventSeq)
   }
 
-  private openSocket(sessionId: string, lastEventSeq: number, token: string | null) {
+  private openSocket(sessionId: string, lastEventSeq: number) {
     const url = wsUrl(`/ws/chat/${sessionId}?last_event=${lastEventSeq}`)
 
     try {
@@ -116,11 +106,7 @@ export class ChatWebSocket {
     this.ws.onopen = () => {
       this.reconnectDelay = MIN_RECONNECT_DELAY
       this.reconnectAttempts = 0
-
-      // In no-auth mode, skip auth handshake — server sends auth_ok automatically
-      if (token && this.ws) {
-        this.ws.send(JSON.stringify({ type: 'auth', token }))
-      }
+      // Auth is done pre-upgrade via cookie — just wait for server's auth_ok
     }
 
     this.ws.onmessage = (event: MessageEvent) => {
