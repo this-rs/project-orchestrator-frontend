@@ -17,6 +17,13 @@ const MODE_DOT_COLORS: Record<PermissionMode, string> = {
   plan: 'bg-gray-400',
 }
 
+/** Payload for prefilling the textarea from an external source (e.g. quick actions) */
+export interface PrefillPayload {
+  text: string
+  /** Cursor position from the end of the string (0 = cursor at end) */
+  cursorOffset?: number
+}
+
 interface ChatInputProps {
   onSend: (text: string) => void
   onInterrupt: () => void
@@ -26,9 +33,11 @@ interface ChatInputProps {
   sessionId?: string | null
   /** Callback to change permission mode on an active session (mid-session) */
   onChangePermissionMode?: (mode: PermissionMode) => void
+  /** When set, prefills the textarea and focuses it. Change the object reference to trigger. */
+  prefill?: PrefillPayload | null
 }
 
-export function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionId, onChangePermissionMode }: ChatInputProps) {
+export function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionId, onChangePermissionMode, prefill }: ChatInputProps) {
   const [value, setValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [modeOverride, setModeOverride] = useAtom(chatSessionPermissionOverrideAtom)
@@ -49,6 +58,22 @@ export function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionI
   useEffect(() => {
     resize()
   }, [value, resize])
+
+  // Prefill textarea when a quick action is triggered
+  useEffect(() => {
+    if (!prefill) return
+    setValue(prefill.text)
+    // Focus and position cursor after React re-renders the new value
+    requestAnimationFrame(() => {
+      const el = textareaRef.current
+      if (!el) return
+      el.focus()
+      const cursorPos = typeof prefill.cursorOffset === 'number'
+        ? prefill.text.length - prefill.cursorOffset
+        : prefill.text.length
+      el.setSelectionRange(cursorPos, cursorPos)
+    })
+  }, [prefill])
 
   // Close dropdown on outside click
   useEffect(() => {
