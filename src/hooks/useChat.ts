@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom } from '@/atoms'
 import { chatApi, ChatWebSocket } from '@/services'
 import type { ChatMessage, ChatEvent, PermissionMode } from '@/types'
 
@@ -227,6 +227,18 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
         break
       }
 
+      case 'model_changed': {
+        const msg = lastAssistant()
+        const changedModel = (evt.model as string) ?? 'unknown'
+        msg.blocks.push({
+          id: nextBlockId(),
+          type: 'model_changed',
+          content: `Model changed to ${changedModel}`,
+          metadata: { model: changedModel },
+        })
+        break
+      }
+
       case 'compact_boundary': {
         const msg = lastAssistant()
         const trigger = (evt.trigger as string) ?? 'auto'
@@ -307,6 +319,7 @@ export function useChat() {
   const [isReplaying, setIsReplaying] = useAtom(chatReplayingAtom)
   const [permissionOverride, setPermissionOverride] = useAtom(chatSessionPermissionOverrideAtom)
   const [autoApprovedTools, setAutoApprovedTools] = useAtom(chatAutoApprovedToolsAtom)
+  const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const wsRef = useRef<ChatWebSocket | null>(null)
@@ -698,6 +711,22 @@ export function useChat() {
           break
         }
 
+        case 'model_changed': {
+          const mcData = event.replaying
+            ? (event as { data?: Record<string, unknown> }).data ?? event
+            : event
+          const newModel = (mcData as { model?: string }).model ?? 'unknown'
+          // Update the session model atom (server confirmed the change)
+          setSessionModel(newModel)
+          lastMsg.blocks.push({
+            id: nextBlockId(),
+            type: 'model_changed',
+            content: `Model changed to ${newModel}`,
+            metadata: { model: newModel },
+          })
+          break
+        }
+
         case 'compact_boundary': {
           const cbData = event.replaying
             ? (event as { data?: Record<string, unknown> }).data ?? event
@@ -724,6 +753,10 @@ export function useChat() {
           const siTools = (siData as { tools?: string[] }).tools
           const siMcpServers = (siData as { mcp_servers?: { name: string }[] }).mcp_servers
           const siPermMode = (siData as { permission_mode?: string }).permission_mode
+          // Set the initial model from system_init
+          if (siModel) {
+            setSessionModel(siModel)
+          }
           lastMsg.blocks.push({
             id: nextBlockId(),
             type: 'system_init',
@@ -1024,7 +1057,8 @@ export function useChat() {
     // Reset session-scoped state
     setAutoApprovedTools(new Set<string>())
     setPermissionOverride(null)
-  }, [getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride])
+    setSessionModel(null)
+  }, [getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride, setSessionModel])
 
   const changePermissionMode = useCallback((mode: PermissionMode) => {
     if (!sessionId) return
@@ -1033,6 +1067,14 @@ export function useChat() {
     // Optimistically update local state (server will confirm via permission_mode_changed event)
     setPermissionOverride(mode)
   }, [sessionId, getWs, setPermissionOverride])
+
+  const changeModel = useCallback((model: string) => {
+    if (!sessionId) return
+    const ws = getWs()
+    ws.sendSetModel(model)
+    // Optimistically update local state (server will confirm via model_changed event)
+    setSessionModel(model)
+  }, [sessionId, getWs, setSessionModel])
 
   const loadSession = useCallback(async (sid: string) => {
     // Guard: if already on this session, do nothing (avoid WS disconnect/reconnect loop)
@@ -1053,6 +1095,8 @@ export function useChat() {
       setSessionMeta({ cwd: session.cwd, projectSlug: session.project_slug })
       // Restore the session's permission mode override
       setPermissionOverride((session.permission_mode as PermissionMode) ?? null)
+      // Restore the session's model
+      setSessionModel(session.model ?? null)
     }).catch(() => {
       // Non-critical — header just won't show cwd
       setSessionMeta(null)
@@ -1080,5 +1124,7 @@ export function useChat() {
     loadSession,
     loadOlderMessages,
     changePermissionMode,
+    changeModel,
+    sessionModel,
   }
 }

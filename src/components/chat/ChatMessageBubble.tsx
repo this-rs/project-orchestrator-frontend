@@ -10,6 +10,7 @@ import { PermissionRequestBlock } from './PermissionRequestBlock'
 import { InputRequestBlock } from './InputRequestBlock'
 import { AskUserQuestionBlock } from './AskUserQuestionBlock'
 import { CompactBoundaryBlock } from './CompactBoundaryBlock'
+import { ModelChangedBlock } from './ModelChangedBlock'
 import { ResultMaxTurnsBlock } from './ResultMaxTurnsBlock'
 import { ResultErrorBlock } from './ResultErrorBlock'
 import { SystemInitBlock } from './SystemInitBlock'
@@ -238,6 +239,14 @@ export function ChatMessageBubble({ message, isStreaming, highlighted, onRespond
                   key={block.id}
                   block={block}
                   onRespond={onRespondInput}
+                />
+              )
+
+            case 'model_changed':
+              return (
+                <ModelChangedBlock
+                  key={block.id}
+                  block={block}
                 />
               )
 

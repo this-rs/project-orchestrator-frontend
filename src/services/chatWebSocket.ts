@@ -270,6 +270,13 @@ export class ChatWebSocket {
     return this.send({ type: 'set_permission_mode', mode })
   }
 
+  /**
+   * Change the model for the active CLI session mid-conversation
+   */
+  sendSetModel(model: string) {
+    return this.send({ type: 'set_model', model })
+  }
+
   // --------------------------------------------------------------------------
   // Private
   // --------------------------------------------------------------------------

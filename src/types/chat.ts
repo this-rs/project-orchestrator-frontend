@@ -87,6 +87,7 @@ export type ChatEvent =
   | { type: 'partial_text'; content: string }
   | { type: 'streaming_status'; is_streaming: boolean }
   | { type: 'permission_mode_changed'; mode: string }
+  | { type: 'model_changed'; model: string }
   | { type: 'compact_boundary'; trigger: string; pre_tokens?: number }
   | { type: 'system_init'; cli_session_id: string; model?: string; tools?: string[]; mcp_servers?: { name: string; status?: string }[]; permission_mode?: string }
 
@@ -151,7 +152,7 @@ export interface MessageSearchResult {
 
 export interface ContentBlock {
   id: string
-  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'permission_request' | 'input_request' | 'ask_user_question' | 'error' | 'compact_boundary' | 'result_max_turns' | 'result_error' | 'system_init'
+  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'permission_request' | 'input_request' | 'ask_user_question' | 'error' | 'compact_boundary' | 'model_changed' | 'result_max_turns' | 'result_error' | 'system_init'
   content: string
   metadata?: Record<string, unknown>
 }
@@ -179,6 +180,7 @@ export type WsChatClientMessage =
   | { type: 'permission_response'; id?: string; allow: boolean }
   | { type: 'input_response'; id?: string; content: string }
   | { type: 'set_permission_mode'; mode: string }
+  | { type: 'set_model'; model: string }
 
 /** A chat event received over WebSocket with sequence number */
 export interface ChatWsEvent {
