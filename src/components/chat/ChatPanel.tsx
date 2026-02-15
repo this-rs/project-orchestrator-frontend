@@ -514,6 +514,7 @@ export function ChatPanel() {
             onLoadOlder={chat.loadOlderMessages}
             onRespondPermission={chat.respondPermission}
             onRespondInput={chat.respondInput}
+            onContinue={handleContinue}
             onQuickAction={handleQuickAction}
             onSelectSession={handleSelectSession}
             selectedProject={selectedProject}
