@@ -8,6 +8,20 @@
  * (files exporting React components should only export components).
  */
 
+/**
+ * TodoWrite: show progress count and active task name.
+ */
+export function getTodoWriteSummary(toolInput: Record<string, unknown>): string {
+  const todos = (toolInput.todos as { status: string; activeForm?: string; content?: string }[]) ?? []
+  if (todos.length === 0) return 'No tasks'
+  const completed = todos.filter((t) => t.status === 'completed').length
+  const active = todos.find((t) => t.status === 'in_progress')
+  const label = active
+    ? truncate(active.activeForm ?? active.content ?? '', 40)
+    : `${completed}/${todos.length} done`
+  return `${completed}/${todos.length} — ${label}`
+}
+
 /** Truncate a string to maxLen characters, adding ellipsis if needed */
 function truncate(str: string, maxLen: number): string {
   if (str.length <= maxLen) return str

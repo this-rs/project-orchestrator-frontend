@@ -5,6 +5,7 @@ import type { ChatMessage, ContentBlock } from '@/types'
 import { ExternalLink } from '@/components/ui/ExternalLink'
 import { ThinkingBlock } from './ThinkingBlock'
 import { ToolCallGroup } from './ToolCallGroup'
+import { AgentGroup } from './AgentGroup'
 import { PermissionRequestBlock } from './PermissionRequestBlock'
 import { InputRequestBlock } from './InputRequestBlock'
 import { AskUserQuestionBlock } from './AskUserQuestionBlock'
@@ -22,30 +23,107 @@ const markdownComponents = {
   ),
 }
 
-// Group consecutive tool_use blocks together
-function groupBlocks(blocks: ContentBlock[]): (ContentBlock | ContentBlock[])[] {
-  const result: (ContentBlock | ContentBlock[])[] = []
-  let currentToolGroup: ContentBlock[] = []
+// ============================================================================
+// Agent grouping types & utilities
+// ============================================================================
+
+/** A group of blocks produced by a sub-agent (identified by parent_tool_use_id) */
+export interface AgentGroupData {
+  kind: 'agent_group'
+  /** The tool_use block that spawned this agent (tool_name = "Task") */
+  parentBlock: ContentBlock
+  /** All blocks produced by this agent (tool_use, tool_result, text, thinking, etc.) */
+  childBlocks: ContentBlock[]
+}
+
+/** Either a regular ContentBlock, a consecutive tool group, or an agent group */
+export type GroupedBlock =
+  | { kind: 'block'; block: ContentBlock }
+  | { kind: 'tool_group'; blocks: ContentBlock[] }
+  | AgentGroupData
+
+/**
+ * Group blocks by agent (parent_tool_use_id) and consecutive tool_use runs.
+ *
+ * 1. Identify blocks with `metadata.parent_tool_use_id` — they belong to a sub-agent.
+ * 2. Find the parent tool_use block whose `metadata.tool_call_id` matches.
+ * 3. Group consecutive top-level tool_use blocks together (existing behavior).
+ * 4. Return a flat array of GroupedBlock items preserving chronological order.
+ *
+ * Blocks without parent_tool_use_id are treated as top-level (no visual change).
+ */
+export function groupBlocksByAgent(blocks: ContentBlock[]): GroupedBlock[] {
+  // Step 1: Collect all parent_tool_use_ids and their child blocks
+  const childrenByParent = new Map<string, ContentBlock[]>()
+  const parentIds = new Set<string>()
 
   for (const block of blocks) {
-    if (block.type === 'tool_use') {
-      currentToolGroup.push(block)
-    } else if (block.type === 'tool_result') {
-      // Skip - rendered as part of tool_use
+    const parentId = block.metadata?.parent_tool_use_id as string | undefined
+    if (parentId) {
+      parentIds.add(parentId)
+      let children = childrenByParent.get(parentId)
+      if (!children) {
+        children = []
+        childrenByParent.set(parentId, children)
+      }
+      children.push(block)
+    }
+  }
+
+  // Step 2: Build agent groups, preserving order by first appearance of the parent tool_use
+  const result: GroupedBlock[] = []
+  let currentToolGroup: ContentBlock[] = []
+  const emittedParents = new Set<string>()
+
+  for (const block of blocks) {
+    const parentId = block.metadata?.parent_tool_use_id as string | undefined
+
+    // Skip blocks that belong to a sub-agent — they'll be rendered inside their AgentGroupData
+    if (parentId) {
       continue
-    } else {
-      // Flush tool group if any
+    }
+
+    // Skip tool_result blocks — rendered as part of their tool_use
+    if (block.type === 'tool_result') {
+      continue
+    }
+
+    // Check if this tool_use is a parent of sub-agent blocks
+    const toolCallId = block.metadata?.tool_call_id as string | undefined
+    if (block.type === 'tool_use' && toolCallId && parentIds.has(toolCallId)) {
+      // This is an agent parent — flush any pending tool group first
       if (currentToolGroup.length > 0) {
-        result.push(currentToolGroup)
+        result.push({ kind: 'tool_group', blocks: currentToolGroup })
         currentToolGroup = []
       }
-      result.push(block)
+      if (!emittedParents.has(toolCallId)) {
+        emittedParents.add(toolCallId)
+        result.push({
+          kind: 'agent_group',
+          parentBlock: block,
+          childBlocks: childrenByParent.get(toolCallId) ?? [],
+        })
+      }
+      continue
     }
+
+    // Regular tool_use (not an agent parent) — group consecutively
+    if (block.type === 'tool_use') {
+      currentToolGroup.push(block)
+      continue
+    }
+
+    // Non-tool block — flush tool group first, then add block
+    if (currentToolGroup.length > 0) {
+      result.push({ kind: 'tool_group', blocks: currentToolGroup })
+      currentToolGroup = []
+    }
+    result.push({ kind: 'block', block })
   }
 
   // Flush remaining tool group
   if (currentToolGroup.length > 0) {
-    result.push(currentToolGroup)
+    result.push({ kind: 'tool_group', blocks: currentToolGroup })
   }
 
   return result
@@ -74,25 +152,39 @@ export function ChatMessageBubble({ message, isStreaming, highlighted, onRespond
     )
   }
 
-  // Assistant message - group consecutive tool_use blocks
-  const groupedBlocks = groupBlocks(message.blocks)
+  // Assistant message - group blocks by agent and consecutive tool_use runs
+  const grouped = groupBlocksByAgent(message.blocks)
 
   return (
     <div className={`mb-4 ${highlightClass}`}>
       <div className="max-w-full">
-        {groupedBlocks.map((item, index) => {
-          // Tool group (array of tool_use blocks)
-          if (Array.isArray(item)) {
+        {grouped.map((item, index) => {
+          // Agent group (sub-agent blocks)
+          if (item.kind === 'agent_group') {
+            return (
+              <AgentGroup
+                key={`agent-${item.parentBlock.id}`}
+                parentBlock={item.parentBlock}
+                childBlocks={item.childBlocks}
+                allBlocks={message.blocks}
+                isStreaming={isStreaming}
+              />
+            )
+          }
+
+          // Consecutive tool group (top-level tool_use blocks)
+          if (item.kind === 'tool_group') {
             return (
               <ToolCallGroup
                 key={`tool-group-${index}`}
-                toolBlocks={item}
+                toolBlocks={item.blocks}
                 allBlocks={message.blocks}
               />
             )
           }
 
-          const block = item
+          // Single block
+          const block = item.block
           switch (block.type) {
             case 'text': {
               // Skip empty metadata-only blocks (result cost info)
@@ -107,7 +199,7 @@ export function ChatMessageBubble({ message, isStreaming, highlighted, onRespond
             }
 
             case 'thinking': {
-              const isLastBlock = index === groupedBlocks.length - 1
+              const isLastBlock = index === grouped.length - 1
               return (
                 <ThinkingBlock
                   key={block.id}
