@@ -9,11 +9,18 @@
  * - Automatic reconnection with exponential backoff
  * - lastEventSeq tracking for seamless reconnection
  * - Status change notifications
+ *
+ * Authentication:
+ * - The browser sends the HttpOnly `refresh_token` cookie automatically
+ *   during the WebSocket upgrade request (same-origin or CORS with credentials).
+ * - The server validates the cookie BEFORE the upgrade and sends `auth_ok`
+ *   as the first message — no client-side auth handshake needed.
+ * - In no-auth mode, the server sends `auth_ok` automatically.
  */
 
 import type { ChatEvent, WsChatClientMessage, WsConnectionStatus } from '@/types'
 import { getAuthMode } from './auth'
-import { getValidToken, forceLogout } from './authManager'
+import { forceLogout } from './authManager'
 import { wsUrl } from './env'
 
 const MIN_RECONNECT_DELAY = 1000
@@ -70,7 +77,8 @@ export class ChatWebSocket {
   }
 
   /**
-   * Connect to a chat session's WebSocket
+   * Connect to a chat session's WebSocket.
+   * The browser sends the HttpOnly cookie automatically — no token needed.
    */
   connect(sessionId: string, lastEventSeq: number = 0) {
     // Close existing connection if switching sessions
@@ -88,22 +96,10 @@ export class ChatWebSocket {
     this._isReplaying = true
 
     this.setStatus('connecting')
-
-    // In no-auth mode, connect directly. Otherwise pre-fetch a valid token.
-    if (getAuthMode() === 'none') {
-      this.openSocket(sessionId, lastEventSeq, null)
-    } else {
-      getValidToken().then((token) => {
-        if (token) {
-          this.openSocket(sessionId, lastEventSeq, token)
-        } else {
-          forceLogout()
-        }
-      })
-    }
+    this.openSocket(sessionId, lastEventSeq)
   }
 
-  private openSocket(sessionId: string, lastEventSeq: number, token: string | null) {
+  private openSocket(sessionId: string, lastEventSeq: number) {
     const url = wsUrl(`/ws/chat/${sessionId}?last_event=${lastEventSeq}`)
 
     try {
@@ -116,11 +112,9 @@ export class ChatWebSocket {
     this.ws.onopen = () => {
       this.reconnectDelay = MIN_RECONNECT_DELAY
       this.reconnectAttempts = 0
-
-      // In no-auth mode, skip auth handshake — server sends auth_ok automatically
-      if (token && this.ws) {
-        this.ws.send(JSON.stringify({ type: 'auth', token }))
-      }
+      // No auth message needed — the browser sends the HttpOnly cookie
+      // automatically during the WebSocket upgrade request.
+      // In no-auth mode, the server sends auth_ok automatically.
     }
 
     this.ws.onmessage = (event: MessageEvent) => {
@@ -137,7 +131,9 @@ export class ChatWebSocket {
           if (data.type === 'auth_error') {
             this.shouldReconnect = false
             this.ws?.close()
-            forceLogout()
+            if (getAuthMode() === 'required') {
+              forceLogout()
+            }
             return
           }
         }

@@ -1,6 +1,6 @@
 import type { CrudEvent, EventBusStatus } from '@/types'
 import { getAuthMode } from './auth'
-import { getValidToken, forceLogout } from './authManager'
+import { forceLogout } from './authManager'
 import { wsUrl } from './env'
 
 type EventCallback = (event: CrudEvent) => void
@@ -30,22 +30,10 @@ export class EventBusClient {
 
     this.shouldReconnect = true
     this.authenticated = false
-
-    // In no-auth mode, connect directly. Otherwise pre-fetch a valid token.
-    if (getAuthMode() === 'none') {
-      this.openSocket(null)
-    } else {
-      getValidToken().then((token) => {
-        if (token) {
-          this.openSocket(token)
-        } else {
-          forceLogout()
-        }
-      })
-    }
+    this.openSocket()
   }
 
-  private openSocket(token: string | null) {
+  private openSocket() {
     const url = wsUrl('/ws/events')
 
     try {
@@ -57,11 +45,9 @@ export class EventBusClient {
 
     this.ws.onopen = () => {
       this.reconnectDelay = MIN_RECONNECT_DELAY
-
-      // In no-auth mode, skip auth handshake — server sends auth_ok automatically
-      if (token && this.ws) {
-        this.ws.send(JSON.stringify({ type: 'auth', token }))
-      }
+      // No auth message needed — the browser sends the HttpOnly cookie
+      // automatically during the WebSocket upgrade request.
+      // In no-auth mode, the server sends auth_ok automatically.
     }
 
     this.ws.onmessage = (event) => {
@@ -78,7 +64,9 @@ export class EventBusClient {
           if (data.type === 'auth_error') {
             this.shouldReconnect = false
             this.ws?.close()
-            forceLogout()
+            if (getAuthMode() === 'required') {
+              forceLogout()
+            }
             return
           }
         }

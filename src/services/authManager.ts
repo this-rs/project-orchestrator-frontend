@@ -2,17 +2,20 @@
  * authManager — Centralized auth lifecycle manager.
  *
  * Module-level singleton that handles:
- * - forceLogout(): clean logout across all layers (localStorage, Jotai, WebSockets, navigation)
- * - refreshToken(): JWT refresh with concurrent-call deduplication
+ * - forceLogout(): clean logout across all layers (memory, Jotai, WebSockets, navigation)
+ * - refreshToken(): JWT refresh with concurrent-call deduplication (via HttpOnly cookie)
  * - getValidToken(): returns a fresh token, refreshing if near expiry
- * - initCrossTabSync(): listens for localStorage changes from other tabs
+ * - initCrossTabSync(): uses BroadcastChannel API to sync logout across tabs
  *
  * This module is intentionally outside the React tree so it can be called from
  * anywhere (WebSocket handlers, API interceptors, etc.). React Router navigation
  * and Jotai atom setters are injected via setter functions at mount time.
+ *
+ * Token storage: in-memory only (module-level variable in auth.ts).
+ * The HttpOnly cookie handles persistence across page reloads.
  */
 
-import { getAuthMode, getAuthToken, authApi } from './auth'
+import { getAuthMode, getAuthToken, setAuthToken, authApi } from './auth'
 import { getEventBus } from './eventBus'
 
 // ---------------------------------------------------------------------------
@@ -80,10 +83,13 @@ let _refreshQueue: Array<{
 /**
  * Refresh the JWT token via POST /auth/refresh.
  *
+ * The refresh endpoint reads the HttpOnly cookie (credentials: 'include')
+ * — no Bearer header needed. This works even when the access token is expired
+ * or null (e.g. after page reload).
+ *
  * - Deduplicates concurrent calls: only one network request is made,
  *   all callers receive the same result.
- * - On success: updates localStorage (JSON-stringified for atomWithStorage
- *   compatibility) and Jotai atom.
+ * - On success: updates in-memory token cache and Jotai atom.
  * - On 401 from refresh endpoint: calls forceLogout() — no retry loop.
  */
 export async function refreshToken(): Promise<string> {
@@ -100,8 +106,8 @@ export async function refreshToken(): Promise<string> {
     const resp = await authApi.refresh()
     const newToken = resp.token
 
-    // Persist for atomWithStorage (stores as JSON string with quotes)
-    localStorage.setItem('auth_token', JSON.stringify(newToken))
+    // Update in-memory token cache
+    setAuthToken(newToken)
 
     // Sync Jotai atom
     _jotai?.setToken(newToken)
@@ -142,7 +148,7 @@ const REFRESH_THRESHOLD_S = 30
  * Get a valid auth token, refreshing proactively if it's about to expire.
  *
  * - In no-auth mode: returns null (no token needed).
- * - If token is missing: returns null (caller should handle).
+ * - If token is missing: attempts a refresh via cookie (page reload case).
  * - If token expires within REFRESH_THRESHOLD_S: triggers refresh.
  * - If token is already expired: triggers refresh.
  * - Otherwise: returns the current token as-is.
@@ -151,7 +157,14 @@ export async function getValidToken(): Promise<string | null> {
   if (getAuthMode() === 'none') return null
 
   const token = getAuthToken()
-  if (!token) return null
+  if (!token) {
+    // No token in memory — try refreshing via cookie (page reload scenario)
+    try {
+      return await refreshToken()
+    } catch {
+      return null
+    }
+  }
 
   const exp = parseJwtExp(token)
   if (exp === null) {
@@ -183,10 +196,12 @@ let _isLoggingOut = false
 
 /**
  * Force a full logout across all layers:
- * 1. Clear localStorage
- * 2. Sync Jotai atoms (token=null, user=null)
- * 3. Disconnect all WebSockets (EventBus + ChatWS via EventBus singleton)
- * 4. Navigate to /login (React Router if available, hard redirect as fallback)
+ * 1. Call POST /auth/logout to revoke the refresh cookie server-side
+ * 2. Clear in-memory token
+ * 3. Sync Jotai atoms (token=null, user=null)
+ * 4. Broadcast logout to other tabs via BroadcastChannel
+ * 5. Disconnect all WebSockets (EventBus + ChatWS via EventBus singleton)
+ * 6. Navigate to /login (React Router if available, hard redirect as fallback)
  *
  * Safe to call from anywhere: React components, API interceptors, WebSocket handlers.
  * Re-entrant safe: calling forceLogout() while already logging out is a no-op.
@@ -196,21 +211,31 @@ export function forceLogout(): void {
   _isLoggingOut = true
 
   try {
-    // 1. Clear persisted token
-    localStorage.removeItem('auth_token')
+    // 1. Revoke refresh token server-side (best-effort, don't await)
+    authApi.logout()
 
-    // 2. Sync Jotai state
+    // 2. Clear in-memory token
+    setAuthToken(null)
+
+    // 3. Sync Jotai state
     _jotai?.setToken(null)
     _jotai?.setUser(null)
 
-    // 3. Disconnect WebSockets
+    // 4. Broadcast logout to other tabs
+    try {
+      _authChannel?.postMessage({ type: 'logout' })
+    } catch {
+      // BroadcastChannel may not be available — ignore
+    }
+
+    // 5. Disconnect WebSockets
     try {
       getEventBus().disconnect()
     } catch {
       // EventBus may not be initialized yet — ignore
     }
 
-    // 4. Navigate to login
+    // 6. Navigate to login
     if (_navigate) {
       _navigate('/login')
     } else {
@@ -222,35 +247,59 @@ export function forceLogout(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Cross-tab sync — listen for localStorage changes from other tabs
+// Cross-tab sync — BroadcastChannel API (replaces StorageEvent)
 // ---------------------------------------------------------------------------
 
+let _authChannel: BroadcastChannel | null = null
+
 /**
- * Start listening for `auth_token` changes in localStorage triggered by other tabs.
+ * Start listening for auth events from other tabs via BroadcastChannel.
  *
- * - If token removed (other tab logged out) → forceLogout() in this tab
- * - If token changed (other tab refreshed) → sync the new token to Jotai
+ * Replaces the old StorageEvent-based sync (which relied on localStorage).
+ * Since tokens are now in-memory only, we use BroadcastChannel to notify
+ * other tabs when a logout occurs.
+ *
+ * - If another tab logs out → forceLogout() in this tab
+ * - Token refresh doesn't need cross-tab sync: each tab has its own
+ *   in-memory token, and all share the same HttpOnly cookie.
  *
  * Returns a cleanup function to stop listening (call in useEffect cleanup).
  */
 export function initCrossTabSync(): () => void {
-  function onStorageChange(e: StorageEvent): void {
-    if (e.key !== 'auth_token') return
+  try {
+    _authChannel = new BroadcastChannel('auth')
 
-    if (e.newValue === null || e.newValue === 'null') {
-      // Another tab logged out → logout this tab too
-      forceLogout()
-    } else {
-      // Another tab refreshed the token → sync Jotai
-      try {
-        const newToken = JSON.parse(e.newValue) as string
-        _jotai?.setToken(newToken)
-      } catch {
-        // Malformed value — ignore
+    _authChannel.onmessage = (event: MessageEvent) => {
+      const data = event.data as { type: string }
+      if (data?.type === 'logout') {
+        // Another tab logged out → logout this tab too (skip re-broadcasting)
+        _isLoggingOut = true
+        try {
+          setAuthToken(null)
+          _jotai?.setToken(null)
+          _jotai?.setUser(null)
+          try {
+            getEventBus().disconnect()
+          } catch {
+            // ignore
+          }
+          if (_navigate) {
+            _navigate('/login')
+          } else {
+            window.location.href = '/login'
+          }
+        } finally {
+          _isLoggingOut = false
+        }
       }
     }
-  }
 
-  window.addEventListener('storage', onStorageChange)
-  return () => window.removeEventListener('storage', onStorageChange)
+    return () => {
+      _authChannel?.close()
+      _authChannel = null
+    }
+  } catch {
+    // BroadcastChannel not supported — no-op
+    return () => {}
+  }
 }

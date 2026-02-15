@@ -2,7 +2,7 @@ import { FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
 import { authTokenAtom, currentUserAtom } from '@/atoms'
-import { authApi } from '@/services'
+import { authApi, setAuthToken } from '@/services'
 import { Button, Input } from '@/components/ui'
 
 /**
@@ -49,6 +49,7 @@ export function RegisterForm() {
     setLoading(true)
     try {
       const { token, user } = await authApi.register(trimmedEmail, password, trimmedName)
+      setAuthToken(token) // Module-level cache for api.ts Bearer header
       setToken(token)
       setUser(user)
       navigate('/workspaces', { replace: true })

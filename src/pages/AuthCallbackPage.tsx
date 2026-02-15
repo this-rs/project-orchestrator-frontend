@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
 import { authTokenAtom, currentUserAtom } from '@/atoms'
-import { authApi } from '@/services'
+import { authApi, setAuthToken } from '@/services'
 import { Spinner } from '@/components/ui'
 
 /**
@@ -42,6 +42,7 @@ export function AuthCallbackPage() {
       .catch(() => authApi.exchangeCode(code))
       .then(({ token, user }) => {
         if (cancelled) return
+        setAuthToken(token) // Module-level cache for api.ts Bearer header
         setToken(token)
         setUser(user)
         navigate('/workspaces', { replace: true })
