@@ -68,6 +68,7 @@ export function TasksPage() {
       }
     }
     fetchTasks()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tasks.length used for initial load detection; toast is stable
   }, [setTasks, setLoading, page, pageSize, offset, statusFilter, viewMode, taskRefresh])
 
   // Stable fetchFn for kanban board — wraps tasksApi.list with kanban filters

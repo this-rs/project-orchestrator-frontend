@@ -90,6 +90,7 @@ export function PlanDetailPage() {
       }
     }
     fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- plan and setSuggestedProjectId: plan is a data object (would cause loop), Jotai setter is stable
   }, [planId, planRefresh, taskRefresh, projectRefresh])
 
   const handleTaskStatusChange = useCallback(
@@ -107,6 +108,7 @@ export function PlanDetailPage() {
         toast.error('Failed to update task status')
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable
     [tasks],
   )
 
@@ -459,6 +461,7 @@ function TaskRow({
     if (steps !== null) {
       fetchSteps()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- steps intentionally excluded to avoid loop
   }, [refreshTrigger, fetchSteps])
 
   // Expand/Collapse all signals
@@ -471,6 +474,7 @@ function TaskRow({
       }
       setExpanded(true)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- signal-driven, steps/fetchSteps intentionally excluded
   }, [expandAllSignal])
 
   useEffect(() => {

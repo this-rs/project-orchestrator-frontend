@@ -69,6 +69,7 @@ export function TaskDetailPage() {
       }
     }
     fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- task is a data object (would cause infinite loop)
   }, [taskId, taskRefresh, projectRefresh, planRefresh])
 
   const stepForm = CreateStepForm({

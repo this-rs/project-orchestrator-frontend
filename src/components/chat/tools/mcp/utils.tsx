@@ -5,6 +5,8 @@
  * All styled for the dark theme with consistent color scheme.
  */
 
+/* eslint-disable react-refresh/only-export-components */
+
 import { Link } from 'react-router-dom'
 
 // ---------------------------------------------------------------------------
@@ -176,25 +178,27 @@ export function ProgressBar({ completed, total }: { completed: number; total: nu
 export function TimeAgo({ date }: { date: string | null | undefined }) {
   if (!date) return <span className="text-gray-600 italic">—</span>
 
+  let text: string
+  let isoString: string | undefined
   try {
     const d = new Date(date)
+    isoString = d.toISOString()
     const now = new Date()
     const diffMs = now.getTime() - d.getTime()
     const diffMin = Math.floor(diffMs / 60000)
     const diffH = Math.floor(diffMin / 60)
     const diffD = Math.floor(diffH / 24)
 
-    let text: string
     if (diffMin < 1) text = 'just now'
     else if (diffMin < 60) text = `${diffMin}m ago`
     else if (diffH < 24) text = `${diffH}h ago`
     else if (diffD < 7) text = `${diffD}d ago`
     else text = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
-
-    return <span className="text-gray-500" title={d.toISOString()}>{text}</span>
   } catch {
     return <span className="text-gray-600">{date}</span>
   }
+
+  return <span className="text-gray-500" title={isoString}>{text}</span>
 }
 
 // ---------------------------------------------------------------------------

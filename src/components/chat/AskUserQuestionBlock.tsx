@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import type { ContentBlock, AskUserQuestion } from '@/types'
 
 interface AskUserQuestionBlockProps {
@@ -8,7 +8,7 @@ interface AskUserQuestionBlockProps {
 }
 
 export function AskUserQuestionBlock({ block, onRespond, disabled }: AskUserQuestionBlockProps) {
-  const questions = (block.metadata?.questions as AskUserQuestion[]) || []
+  const questions = useMemo(() => (block.metadata?.questions as AskUserQuestion[]) || [], [block.metadata?.questions])
   const [selections, setSelections] = useState<Map<number, Set<number>>>(() => new Map())
   const [freeText, setFreeText] = useState('')
   const [submitted, setSubmitted] = useState(false)

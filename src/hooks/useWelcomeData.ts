@@ -136,6 +136,7 @@ export function useWelcomeData(selectedProject?: Project | null): UseWelcomeData
       controller.abort()
     }
   // Re-fetch when selected project changes or manual refetch is triggered
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedProject?.slug not needed; selectedProject?.id already covers identity changes
   }, [fetchKey, selectedProject?.id])
 
   return { data, isLoading, refetch }

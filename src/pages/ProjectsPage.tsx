@@ -38,6 +38,7 @@ export function ProjectsPage() {
     const silent = initialLoadDone.current
     fetchProjects(silent)
     initialLoadDone.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchProjects is intentionally excluded to avoid loop
   }, [setProjects, setLoading, page, pageSize, offset, projRefresh])
 
   const form = CreateProjectForm({

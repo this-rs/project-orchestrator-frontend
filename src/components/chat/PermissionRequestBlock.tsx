@@ -238,12 +238,10 @@ export function PermissionRequestBlock({
   const [showDetail, setShowDetail] = useState(false)
 
   // Sync with persisted decision arriving via broadcast after initial render
-  useEffect(() => {
-    if (persistedDecision && !responded) {
-      setResponded(true)
-      setDecision(persistedDecision)
-    }
-  }, [persistedDecision, responded])
+  if (persistedDecision && !responded) {
+    setResponded(true)
+    setDecision(persistedDecision)
+  }
 
   // Entrance animation
   const [mounted, setMounted] = useState(false)

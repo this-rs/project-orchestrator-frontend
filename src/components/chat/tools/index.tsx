@@ -10,6 +10,8 @@
  * 3. Add entries to TOOL_REGISTRY (and optionally SUMMARY_REGISTRY / ICON_REGISTRY)
  */
 
+/* eslint-disable react-refresh/only-export-components */
+
 import type { ComponentType } from 'react'
 import type { ToolRendererProps } from './types'
 import { DefaultToolRenderer } from './DefaultToolRenderer'

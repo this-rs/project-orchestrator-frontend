@@ -17,10 +17,11 @@ export function useInfiniteScroll({
   const observerRef = useRef<IntersectionObserver | null>(null)
 
   const stableLoadMore = useRef(onLoadMore)
-  stableLoadMore.current = onLoadMore
-
   const stableFlags = useRef({ hasMore, loading })
-  stableFlags.current = { hasMore, loading }
+  useEffect(() => {
+    stableLoadMore.current = onLoadMore
+    stableFlags.current = { hasMore, loading }
+  })
 
   const setSentinelRef = useCallback((node: HTMLDivElement | null) => {
     // Cleanup previous observer

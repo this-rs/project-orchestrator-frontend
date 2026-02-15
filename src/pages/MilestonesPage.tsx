@@ -83,6 +83,7 @@ export function MilestonesPage() {
       }
     }
     fetchMilestones()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- allMilestones.length used for initial load detection; toast is stable
   }, [msRefresh, wsRefresh])
 
   // Filtered milestones
@@ -122,6 +123,7 @@ export function MilestonesPage() {
         toast.error('Failed to update status')
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable
     [allMilestones],
   )
 
