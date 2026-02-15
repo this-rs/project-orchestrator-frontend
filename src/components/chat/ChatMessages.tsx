@@ -17,6 +17,7 @@ interface ChatMessagesProps {
   onLoadOlder?: () => void
   onRespondPermission: (toolCallId: string, allowed: boolean, remember?: { toolName: string }) => void
   onRespondInput: (requestId: string, response: string) => void
+  onContinue?: () => void
 }
 
 export function ChatMessages({
@@ -29,6 +30,7 @@ export function ChatMessages({
   onLoadOlder,
   onRespondPermission,
   onRespondInput,
+  onContinue,
 }: ChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const shouldAutoScrollRef = useRef(true)
@@ -195,6 +197,7 @@ export function ChatMessages({
             highlighted={highlightedIndex === index}
             onRespondPermission={onRespondPermission}
             onRespondInput={onRespondInput}
+            onContinue={onContinue}
           />
         </div>
       ))}

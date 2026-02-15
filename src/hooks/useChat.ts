@@ -243,9 +243,33 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
         break
       }
 
-      case 'result':
-        // Turn completion — skip (no UI block needed)
+      case 'result': {
+        const rSubtype = (evt.subtype as string) ?? 'success'
+        const rNumTurns = evt.num_turns as number | undefined
+        const rResultText = evt.result_text as string | undefined
+
+        if (rSubtype === 'error_max_turns') {
+          const msg = lastAssistant()
+          msg.blocks.push({
+            id: nextBlockId(),
+            type: 'result_max_turns',
+            content: rNumTurns
+              ? `Maximum turns reached (${rNumTurns} turns)`
+              : 'Maximum turns reached',
+            metadata: { num_turns: rNumTurns },
+          })
+        } else if (rSubtype === 'error_during_execution') {
+          const msg = lastAssistant()
+          msg.blocks.push({
+            id: nextBlockId(),
+            type: 'result_error',
+            content: rResultText ?? 'An execution error occurred',
+            metadata: { result_text: rResultText },
+          })
+        }
+        // success → no UI block needed (existing behavior)
         break
+      }
 
       default:
         // Unknown event type — skip
@@ -672,7 +696,32 @@ export function useChat() {
           break
         }
 
-        case 'result':
+        case 'result': {
+          const rData = event.replaying
+            ? (event as { data?: Record<string, unknown> }).data ?? event
+            : event
+          const rSubtype = (rData as { subtype?: string }).subtype ?? 'success'
+          const rNumTurns = (rData as { num_turns?: number }).num_turns
+          const rResultText = (rData as { result_text?: string }).result_text
+
+          if (rSubtype === 'error_max_turns') {
+            lastMsg.blocks.push({
+              id: nextBlockId(),
+              type: 'result_max_turns',
+              content: rNumTurns
+                ? `Maximum turns reached (${rNumTurns} turns)`
+                : 'Maximum turns reached',
+              metadata: { num_turns: rNumTurns },
+            })
+          } else if (rSubtype === 'error_during_execution') {
+            lastMsg.blocks.push({
+              id: nextBlockId(),
+              type: 'result_error',
+              content: rResultText ?? 'An execution error occurred',
+              metadata: { result_text: rResultText },
+            })
+          }
+
           // Only stop streaming on LIVE result events, not replayed ones.
           // During replay (Phase 1 or Phase 1.5), a historical result event
           // must not override the streaming_status sent for mid-stream join.
@@ -680,6 +729,7 @@ export function useChat() {
             setIsStreaming(false)
           }
           break
+        }
       }
 
       return updated

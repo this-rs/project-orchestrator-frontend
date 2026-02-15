@@ -82,7 +82,7 @@ export type ChatEvent =
   | { type: 'permission_decision'; id: string; allow: boolean }
   | { type: 'input_request'; prompt: string; options?: string[] }
   | { type: 'ask_user_question'; questions: AskUserQuestion[] }
-  | { type: 'result'; session_id: string; duration_ms: number; cost_usd?: number }
+  | { type: 'result'; session_id: string; duration_ms: number; cost_usd?: number; subtype?: string; is_error?: boolean; num_turns?: number; result_text?: string }
   | { type: 'error'; message: string }
   | { type: 'partial_text'; content: string }
   | { type: 'streaming_status'; is_streaming: boolean }
@@ -150,7 +150,7 @@ export interface MessageSearchResult {
 
 export interface ContentBlock {
   id: string
-  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'permission_request' | 'input_request' | 'ask_user_question' | 'error' | 'compact_boundary'
+  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'permission_request' | 'input_request' | 'ask_user_question' | 'error' | 'compact_boundary' | 'result_max_turns' | 'result_error'
   content: string
   metadata?: Record<string, unknown>
 }
