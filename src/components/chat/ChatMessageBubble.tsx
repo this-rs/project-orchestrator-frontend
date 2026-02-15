@@ -5,6 +5,7 @@ import type { ChatMessage, ContentBlock } from '@/types'
 import { ExternalLink } from '@/components/ui/ExternalLink'
 import { ThinkingBlock } from './ThinkingBlock'
 import { ToolCallGroup } from './ToolCallGroup'
+import { AgentGroup } from './AgentGroup'
 import { PermissionRequestBlock } from './PermissionRequestBlock'
 import { InputRequestBlock } from './InputRequestBlock'
 import { AskUserQuestionBlock } from './AskUserQuestionBlock'
@@ -128,35 +129,6 @@ export function groupBlocksByAgent(blocks: ContentBlock[]): GroupedBlock[] {
   return result
 }
 
-// Group consecutive tool_use blocks together (legacy — used as fallback)
-function groupBlocks(blocks: ContentBlock[]): (ContentBlock | ContentBlock[])[] {
-  const result: (ContentBlock | ContentBlock[])[] = []
-  let currentToolGroup: ContentBlock[] = []
-
-  for (const block of blocks) {
-    if (block.type === 'tool_use') {
-      currentToolGroup.push(block)
-    } else if (block.type === 'tool_result') {
-      // Skip - rendered as part of tool_use
-      continue
-    } else {
-      // Flush tool group if any
-      if (currentToolGroup.length > 0) {
-        result.push(currentToolGroup)
-        currentToolGroup = []
-      }
-      result.push(block)
-    }
-  }
-
-  // Flush remaining tool group
-  if (currentToolGroup.length > 0) {
-    result.push(currentToolGroup)
-  }
-
-  return result
-}
-
 interface ChatMessageBubbleProps {
   message: ChatMessage
   isStreaming?: boolean
@@ -180,25 +152,39 @@ export function ChatMessageBubble({ message, isStreaming, highlighted, onRespond
     )
   }
 
-  // Assistant message - group consecutive tool_use blocks
-  const groupedBlocks = groupBlocks(message.blocks)
+  // Assistant message - group blocks by agent and consecutive tool_use runs
+  const grouped = groupBlocksByAgent(message.blocks)
 
   return (
     <div className={`mb-4 ${highlightClass}`}>
       <div className="max-w-full">
-        {groupedBlocks.map((item, index) => {
-          // Tool group (array of tool_use blocks)
-          if (Array.isArray(item)) {
+        {grouped.map((item, index) => {
+          // Agent group (sub-agent blocks)
+          if (item.kind === 'agent_group') {
+            return (
+              <AgentGroup
+                key={`agent-${item.parentBlock.id}`}
+                parentBlock={item.parentBlock}
+                childBlocks={item.childBlocks}
+                allBlocks={message.blocks}
+                isStreaming={isStreaming}
+              />
+            )
+          }
+
+          // Consecutive tool group (top-level tool_use blocks)
+          if (item.kind === 'tool_group') {
             return (
               <ToolCallGroup
                 key={`tool-group-${index}`}
-                toolBlocks={item}
+                toolBlocks={item.blocks}
                 allBlocks={message.blocks}
               />
             )
           }
 
-          const block = item
+          // Single block
+          const block = item.block
           switch (block.type) {
             case 'text': {
               // Skip empty metadata-only blocks (result cost info)
@@ -213,7 +199,7 @@ export function ChatMessageBubble({ message, isStreaming, highlighted, onRespond
             }
 
             case 'thinking': {
-              const isLastBlock = index === groupedBlocks.length - 1
+              const isLastBlock = index === grouped.length - 1
               return (
                 <ThinkingBlock
                   key={block.id}
