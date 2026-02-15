@@ -199,7 +199,7 @@ export function ChatWelcome({
   onSelectSession,
   selectedProject,
 }: ChatWelcomeProps) {
-  const { data, isLoading } = useWelcomeData()
+  const { data, isLoading } = useWelcomeData(selectedProject)
   const lastClickRef = useRef(0)
 
   // Debounced quick action handler — prevents double-clicks
@@ -232,18 +232,19 @@ export function ChatWelcome({
   const projects = Array.isArray(data.projects) ? data.projects : []
   const totalActiveNotes = Number(data.totalActiveNotes) || 0
 
-  // Find most recently synced project for "last sync" display
-  const lastSyncedProject = projects.reduce<Project | null>((latest, proj) => {
-    if (!proj.last_synced) return latest
-    if (!latest?.last_synced) return proj
-    return new Date(proj.last_synced) > new Date(latest.last_synced) ? proj : latest
-  }, null)
+  // Sync date: use selected project directly, or find most recently synced across all
+  const lastSyncDate = selectedProject?.last_synced
+    ?? projects.reduce<string | null>((latest, proj) => {
+      if (!proj.last_synced) return latest
+      if (!latest) return proj.last_synced
+      return new Date(proj.last_synced) > new Date(latest) ? proj.last_synced : latest
+    }, null)
 
   // Check if any status data is worth showing
   const hasStatusData = activePlans.length > 0
     || notesNeedingReview.length > 0
     || totalActiveNotes > 0
-    || lastSyncedProject !== null
+    || lastSyncDate !== null
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-6">
@@ -299,14 +300,14 @@ export function ChatWelcome({
         {isLoading ? (
           <div className="opacity-0" style={{ animation: 'fadeSlideIn 300ms ease-out 450ms forwards' }}>
             <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">
-              Project Status
+              {selectedProject ? selectedProject.name : 'Project Status'}
             </div>
             <StatusSkeleton />
           </div>
         ) : hasStatusData ? (
           <div className="opacity-0" style={{ animation: 'fadeSlideIn 300ms ease-out 450ms forwards' }}>
             <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">
-              Project Status
+              {selectedProject ? selectedProject.name : 'Project Status'}
             </div>
             <div className="grid grid-cols-2 gap-2">
               {/* Active plans count */}
@@ -356,13 +357,13 @@ export function ChatWelcome({
               )}
 
               {/* Last sync */}
-              {lastSyncedProject?.last_synced && (
+              {lastSyncDate && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.06]">
                   <svg className="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
                   <span className="text-xs text-gray-500">
-                    Synced {relativeTime(lastSyncedProject.last_synced)}
+                    Synced {relativeTime(lastSyncDate)}
                   </span>
                 </div>
               )}
