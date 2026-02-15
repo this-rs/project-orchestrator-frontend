@@ -79,6 +79,7 @@ export type ChatEvent =
   | { type: 'tool_result'; id: string; result: unknown; is_error?: boolean }
   | { type: 'tool_use_input_resolved'; id: string; input: Record<string, unknown> }
   | { type: 'permission_request'; id: string; tool: string; input: Record<string, unknown> }
+  | { type: 'permission_decision'; id: string; allow: boolean }
   | { type: 'input_request'; prompt: string; options?: string[] }
   | { type: 'ask_user_question'; questions: AskUserQuestion[] }
   | { type: 'result'; session_id: string; duration_ms: number; cost_usd?: number }
