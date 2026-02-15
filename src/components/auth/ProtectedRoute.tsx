@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Navigate, Outlet, useNavigate } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
@@ -15,6 +15,7 @@ import {
   setNavigate,
   setJotaiSetter,
   initCrossTabSync,
+  refreshToken,
   forceLogout,
 } from '@/services/authManager'
 import { Spinner } from '@/components/ui'
@@ -22,9 +23,12 @@ import { Spinner } from '@/components/ui'
 /**
  * Route guard that protects all child routes.
  *
- * On first mount, fetches GET /auth/providers to determine the auth mode:
- * - No-auth mode (auth_required=false) → render <Outlet /> directly, no login needed
- * - Required mode (auth_required=true) → check token, fetch /auth/me, redirect if invalid
+ * Boot sequence (3 phases):
+ * 1. Fetch GET /auth/providers to determine the auth mode
+ * 2. If auth required & no in-memory token → attempt silent refresh via HttpOnly cookie
+ * 3. Fetch /auth/me to load the current user
+ *
+ * No-auth mode (auth_required=false) → render <Outlet /> directly, no login needed.
  *
  * Also injects React Router navigate and Jotai setters into the authManager
  * singleton so that forceLogout() can work from anywhere (WebSocket handlers, etc.).
@@ -43,6 +47,8 @@ export function ProtectedRoute() {
   const [user, setUser] = useAtom(currentUserAtom)
   const setToken = useSetAtom(authTokenAtom)
   const [authError, setAuthError] = useState(false)
+  const [bootRefreshDone, setBootRefreshDone] = useState(false)
+  const bootRefreshStarted = useRef(false)
 
   // Inject React Router navigate + Jotai setters into authManager singleton
   useEffect(() => {
@@ -53,7 +59,7 @@ export function ProtectedRoute() {
     })
   }, [navigate, setToken, setUser])
 
-  // Start cross-tab sync (listen for localStorage changes from other tabs)
+  // Start cross-tab sync (BroadcastChannel — listen for logout from other tabs)
   useEffect(() => {
     const cleanup = initCrossTabSync()
     return cleanup
@@ -83,9 +89,38 @@ export function ProtectedRoute() {
       })
   }, [providersLoaded, setAuthMode, setProviders, setAllowRegistration, setProvidersLoaded])
 
-  // Phase 2: Validate token when auth is required — fetch /auth/me
+  // Phase 2: Silent token refresh via HttpOnly cookie on page reload.
+  //
+  // After a page reload, the in-memory access token is null. If auth is required,
+  // attempt to get a fresh JWT from POST /auth/refresh (the browser sends the
+  // HttpOnly cookie automatically). If this succeeds, set the token in memory +
+  // Jotai so that Phase 3 (/auth/me) can proceed. If it fails, the user will be
+  // redirected to /login — this is expected when the cookie is absent or expired.
+  //
+  // When the user is already authenticated (e.g. just logged in), we skip the
+  // refresh — the `needsBootRefresh` guard below prevents the effect from running.
+  const needsBootRefresh = providersLoaded && authMode === 'required' && !isAuthenticated
   useEffect(() => {
-    if (!providersLoaded || authMode === 'none' || !isAuthenticated || user) {
+    if (!needsBootRefresh) return
+
+    // Prevent double-fire in StrictMode
+    if (bootRefreshStarted.current) return
+    bootRefreshStarted.current = true
+
+    refreshToken()
+      .then((token) => {
+        setToken(token)
+        setBootRefreshDone(true)
+      })
+      .catch(() => {
+        // No valid cookie → user needs to log in
+        setBootRefreshDone(true)
+      })
+  }, [needsBootRefresh, setToken])
+
+  // Phase 3: Validate token when auth is required — fetch /auth/me
+  useEffect(() => {
+    if (!providersLoaded || !bootRefreshDone || authMode === 'none' || !isAuthenticated || user) {
       return
     }
 
@@ -95,16 +130,22 @@ export function ProtectedRoute() {
         setUser(u)
       })
       .catch(() => {
-        // Token invalid/expired → force full logout (clears localStorage + Jotai + WS)
+        // Token invalid/expired → force full logout (clears memory + Jotai + WS)
         setAuthError(true)
         forceLogout()
       })
-  }, [providersLoaded, authMode, isAuthenticated, user, setUser])
+  }, [providersLoaded, bootRefreshDone, authMode, isAuthenticated, user, setUser])
 
-  // Derive loading: waiting for providers OR waiting for user validation
+  // Derive loading: waiting for providers OR boot refresh OR user validation
   // authError short-circuits loading to prevent infinite spinner
+  //
+  // Boot refresh is only needed when !isAuthenticated (page reload scenario).
+  // When already authenticated (e.g. just logged in), skip waiting for bootRefreshDone.
   const needsUserFetch = authMode === 'required' && isAuthenticated && !user
-  const loading = !providersLoaded || (needsUserFetch && !authError)
+  const waitingForBootRefresh =
+    authMode === 'required' && !isAuthenticated && !bootRefreshDone
+  const loading =
+    !providersLoaded || waitingForBootRefresh || (needsUserFetch && !authError)
 
   if (loading) {
     return (

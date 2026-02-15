@@ -75,6 +75,7 @@ async function request<T>(
 
   const response = await fetchWithStartupRetry(url, {
     ...options,
+    credentials: 'include', // Send HttpOnly refresh_token cookie
     headers,
   })
 

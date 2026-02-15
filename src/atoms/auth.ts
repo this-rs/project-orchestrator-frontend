@@ -1,9 +1,14 @@
 import { atom } from 'jotai'
-import { atomWithStorage } from 'jotai/utils'
 import type { AuthMode, AuthProviderInfo, AuthUser } from '@/types'
 
-/** JWT token persisted in localStorage under key "auth_token" */
-export const authTokenAtom = atomWithStorage<string | null>('auth_token', null)
+/**
+ * JWT access token — stored in memory only (NOT localStorage).
+ *
+ * Security: the access token is short-lived (15min) and never persisted.
+ * On page reload, a fresh token is obtained via the HttpOnly refresh cookie
+ * (POST /auth/refresh with credentials: 'include').
+ */
+export const authTokenAtom = atom<string | null>(null)
 
 /** Current authenticated user (loaded from /auth/me on app start) */
 export const currentUserAtom = atom<AuthUser | null>(null)
@@ -27,9 +32,13 @@ export const authProvidersLoadedAtom = atom<boolean>(false)
 /**
  * Derived: true when user is considered authenticated.
  * In no-auth mode, always returns true.
- * In required mode, checks for a valid token.
+ * In required mode, checks for a valid token OR a loaded user.
+ *
+ * After page reload, the token is null (memory-only) but the user may
+ * be re-authenticated via the HttpOnly cookie during boot. The user
+ * atom is set after a successful refresh, making this atom true.
  */
 export const isAuthenticatedAtom = atom((get) => {
   if (get(authModeAtom) === 'none') return true
-  return get(authTokenAtom) !== null
+  return get(authTokenAtom) !== null || get(currentUserAtom) !== null
 })

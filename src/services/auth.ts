@@ -2,7 +2,14 @@
  * Auth API service — multi-provider auth (no-auth, password, OIDC) + JWT management.
  *
  * Auth endpoints are under /auth/* (public, no /api prefix).
- * The /auth/me and /auth/refresh routes require a valid Bearer token.
+ *
+ * Cookie handling:
+ * - All auth requests use `credentials: 'include'` so the browser sends
+ *   the HttpOnly `refresh_token` cookie automatically.
+ * - Login/register/OIDC responses set the cookie via Set-Cookie header.
+ * - POST /auth/refresh reads the cookie (no Bearer needed) and returns
+ *   a fresh access JWT in the body + a new cookie (rotation).
+ * - POST /auth/logout revokes the cookie server-side.
  */
 
 import type {
@@ -35,16 +42,21 @@ export function getAuthMode(): AuthMode {
   return _authMode
 }
 
-/** Get the stored token from localStorage */
+/**
+ * Module-level in-memory token cache.
+ * Set by authManager after login/refresh, read by api.ts for Bearer header.
+ * NOT persisted — lost on page reload (refreshed via cookie on boot).
+ */
+let _memoryToken: string | null = null
+
+/** Get the in-memory access token */
 export function getAuthToken(): string | null {
-  try {
-    // jotai atomWithStorage stores as JSON string (with quotes)
-    const raw = localStorage.getItem('auth_token')
-    if (!raw) return null
-    return JSON.parse(raw) as string | null
-  } catch {
-    return null
-  }
+  return _memoryToken
+}
+
+/** Set the in-memory access token (called by authManager on login/refresh) */
+export function setAuthToken(token: string | null): void {
+  _memoryToken = token
 }
 
 /**
@@ -83,7 +95,7 @@ async function authRequest<T>(
     'Content-Type': 'application/json',
   }
 
-  // Add Bearer token for protected auth routes (/auth/me, /auth/refresh)
+  // Add Bearer token for protected auth routes (/auth/me)
   const token = getAuthToken()
   if (token) {
     headers['Authorization'] = `Bearer ${token}`
@@ -91,6 +103,7 @@ async function authRequest<T>(
 
   const response = await authFetchWithRetry(url, {
     ...options,
+    credentials: 'include', // Send HttpOnly refresh_token cookie
     headers: {
       ...headers,
       ...(options.headers as Record<string, string> | undefined),
@@ -170,16 +183,24 @@ export const authApi = {
     }),
 
   // =========================================================================
-  // Token management (protected routes)
+  // Token management
   // =========================================================================
 
-  /** GET /auth/me — Get current authenticated user */
+  /** GET /auth/me — Get current authenticated user (requires Bearer) */
   me: () =>
     authRequest<AuthUser>('/me'),
 
-  /** POST /auth/refresh — Get a fresh JWT token */
+  /** POST /auth/refresh — Get a fresh JWT token (uses cookie, no Bearer needed) */
   refresh: () =>
     authRequest<RefreshTokenResponse>('/refresh', {
       method: 'POST',
+    }),
+
+  /** POST /auth/logout — Revoke refresh token and clear cookie */
+  logout: () =>
+    authRequest<void>('/logout', {
+      method: 'POST',
+    }).catch(() => {
+      // Best-effort — logout should not fail the UI flow
     }),
 }
