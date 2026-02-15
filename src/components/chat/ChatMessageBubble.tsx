@@ -9,6 +9,7 @@ import { AgentGroup } from './AgentGroup'
 import { PermissionRequestBlock } from './PermissionRequestBlock'
 import { InputRequestBlock } from './InputRequestBlock'
 import { AskUserQuestionBlock } from './AskUserQuestionBlock'
+import { CompactBoundaryBlock } from './CompactBoundaryBlock'
 
 /**
  * Markdown link component: uses ExternalLink which renders differently
@@ -233,6 +234,14 @@ export function ChatMessageBubble({ message, isStreaming, highlighted, onRespond
                   key={block.id}
                   block={block}
                   onRespond={onRespondInput}
+                />
+              )
+
+            case 'compact_boundary':
+              return (
+                <CompactBoundaryBlock
+                  key={block.id}
+                  block={block}
                 />
               )
 

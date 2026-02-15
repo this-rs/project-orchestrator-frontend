@@ -227,6 +227,22 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
         break
       }
 
+      case 'compact_boundary': {
+        const msg = lastAssistant()
+        const trigger = (evt.trigger as string) ?? 'auto'
+        const preTokens = evt.pre_tokens as number | undefined
+        const label = preTokens
+          ? `Context compacted (${trigger}, ~${Math.round(preTokens / 1000)}K tokens)`
+          : `Context compacted (${trigger})`
+        msg.blocks.push({
+          id: nextBlockId(),
+          type: 'compact_boundary',
+          content: label,
+          metadata: { trigger, pre_tokens: preTokens },
+        })
+        break
+      }
+
       case 'result':
         // Turn completion — skip (no UI block needed)
         break
@@ -635,6 +651,24 @@ export function useChat() {
           if (newMode) {
             setPermissionOverride(newMode as PermissionMode)
           }
+          break
+        }
+
+        case 'compact_boundary': {
+          const cbData = event.replaying
+            ? (event as { data?: Record<string, unknown> }).data ?? event
+            : event
+          const trigger = (cbData as { trigger?: string }).trigger ?? 'auto'
+          const preTokens = (cbData as { pre_tokens?: number }).pre_tokens
+          const label = preTokens
+            ? `Context compacted (${trigger}, ~${Math.round(preTokens / 1000)}K tokens)`
+            : `Context compacted (${trigger})`
+          lastMsg.blocks.push({
+            id: nextBlockId(),
+            type: 'compact_boundary',
+            content: label,
+            metadata: { trigger, pre_tokens: preTokens },
+          })
           break
         }
 
