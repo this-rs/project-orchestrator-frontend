@@ -2,7 +2,7 @@ import { useAtom } from 'jotai'
 import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom } from '@/atoms'
 import { useChat, useWindowFullscreen } from '@/hooks'
 import { ChatMessages } from './ChatMessages'
-import { ChatInput } from './ChatInput'
+import { ChatInput, type PrefillPayload } from './ChatInput'
 import { SessionList } from './SessionList'
 import { ProjectSelect } from './ProjectSelect'
 import { PermissionSettingsPanel } from './PermissionSettingsPanel'
@@ -39,6 +39,7 @@ export function ChatPanel() {
   const [isDragging, setIsDragging] = useState(false)
   const [sessionTitle, setSessionTitle] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
+  const [prefill, setPrefill] = useState<PrefillPayload | null>(null)
   const chat = useChat()
   const panelRef = useRef<HTMLDivElement>(null)
   const setScrollToTurn = useSetAtom(chatScrollToTurnAtom)
@@ -136,6 +137,12 @@ export function ChatPanel() {
   const handleContinue = () => {
     chat.sendMessage('Continue')
   }
+
+  /** Quick action from welcome screen → prefill the textarea */
+  const handleQuickAction = useCallback((prompt: string, cursorOffset?: number) => {
+    // Create a new object reference each time to re-trigger the useEffect in ChatInput
+    setPrefill({ text: prompt, cursorOffset })
+  }, [])
 
   const handleNewSession = () => {
     chat.newSession()
@@ -353,6 +360,9 @@ export function ChatPanel() {
                 onRespondPermission={chat.respondPermission}
                 onRespondInput={chat.respondInput}
                 onContinue={handleContinue}
+                onQuickAction={handleQuickAction}
+                onSelectSession={handleSelectSession}
+                selectedProject={selectedProject}
               />
               <ChatInput
                 onSend={handleSend}
@@ -361,6 +371,7 @@ export function ChatPanel() {
                 disabled={isNewConversation && !selectedProject}
                 sessionId={chat.sessionId}
                 onChangePermissionMode={chat.changePermissionMode}
+                prefill={prefill}
               />
             </>
           )}
@@ -503,6 +514,9 @@ export function ChatPanel() {
             onLoadOlder={chat.loadOlderMessages}
             onRespondPermission={chat.respondPermission}
             onRespondInput={chat.respondInput}
+            onQuickAction={handleQuickAction}
+            onSelectSession={handleSelectSession}
+            selectedProject={selectedProject}
           />
           <ChatInput
             onSend={handleSend}
@@ -511,6 +525,7 @@ export function ChatPanel() {
             disabled={isNewConversation && !selectedProject}
             sessionId={chat.sessionId}
             onChangePermissionMode={chat.changePermissionMode}
+            prefill={prefill}
           />
         </>
       )}

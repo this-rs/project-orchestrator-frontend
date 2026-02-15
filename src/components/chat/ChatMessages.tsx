@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import { useAtom } from 'jotai'
 import { chatScrollToTurnAtom } from '@/atoms'
-import type { ChatMessage } from '@/types'
+import type { ChatMessage, Project } from '@/types'
 import { ChatMessageBubble } from './ChatMessageBubble'
+import { ChatWelcome } from './ChatWelcome'
 
 /** Pixel threshold from top to trigger loading older messages */
 const SCROLL_TOP_THRESHOLD = 80
@@ -18,6 +19,12 @@ interface ChatMessagesProps {
   onRespondPermission: (toolCallId: string, allowed: boolean, remember?: { toolName: string }) => void
   onRespondInput: (requestId: string, response: string) => void
   onContinue?: () => void
+  /** Quick action callback — inserts prompt into chat textarea */
+  onQuickAction?: (prompt: string, cursorOffset?: number) => void
+  /** Resume a previous conversation from welcome screen */
+  onSelectSession?: (sessionId: string, turnIndex?: number, title?: string) => void
+  /** Currently selected project (for welcome screen context) */
+  selectedProject?: Project | null
 }
 
 export function ChatMessages({
@@ -31,6 +38,9 @@ export function ChatMessages({
   onRespondPermission,
   onRespondInput,
   onContinue,
+  onQuickAction,
+  onSelectSession,
+  selectedProject,
 }: ChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const shouldAutoScrollRef = useRef(true)
@@ -156,12 +166,11 @@ export function ChatMessages({
       )
     }
     return (
-      <div className="flex-1 flex items-center justify-center text-gray-600 text-sm">
-        <div className="text-center">
-          <p className="mb-1">Start a conversation</p>
-          <p className="text-xs">The assistant can create tasks, plans, and more.</p>
-        </div>
-      </div>
+      <ChatWelcome
+        onQuickAction={onQuickAction ?? (() => {})}
+        onSelectSession={onSelectSession ?? (() => {})}
+        selectedProject={selectedProject ?? null}
+      />
     )
   }
 
