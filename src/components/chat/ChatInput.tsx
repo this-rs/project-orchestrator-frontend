@@ -167,9 +167,9 @@ export function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionI
   }
 
   return (
-    <div className="border-t border-white/[0.06] p-3">
-      {/* Per-session mode & model selectors — always visible */}
-      <div className="mb-2 flex items-center gap-3">
+    <div className="border-t border-white/[0.06] px-3 pt-0.5 pb-2 flex flex-col gap-1">
+      {/* Per-session mode & model selectors */}
+      <div className="flex items-center gap-3">
         {/* Permission mode selector */}
         <div className="flex items-center gap-1.5" ref={dropdownRef}>
           <span className="text-[10px] text-gray-500">Mode:</span>
