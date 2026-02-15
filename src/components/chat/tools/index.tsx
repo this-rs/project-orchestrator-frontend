@@ -20,10 +20,11 @@ import { WriteToolRenderer } from './WriteToolRenderer'
 import { SearchToolRenderer } from './SearchToolRenderer'
 import { WebToolRenderer } from './WebToolRenderer'
 import { McpToolRenderer } from './McpToolRenderer'
+import { TodoWriteRenderer } from './TodoWriteRenderer'
 import {
   getBashSummary, getEditSummary, getReadSummary, getWriteSummary,
   getGlobSummary, getGrepSummary, getWebFetchSummary, getWebSearchSummary,
-  getMcpSummary,
+  getTodoWriteSummary, getMcpSummary,
 } from './summaries'
 
 export type { ToolRendererProps } from './types'
@@ -47,6 +48,7 @@ const TOOL_REGISTRY: Record<string, ComponentType<ToolRendererProps>> = {
   Grep: SearchToolRenderer,
   WebFetch: WebToolRenderer,
   WebSearch: WebToolRenderer,
+  TodoWrite: TodoWriteRenderer,
   __mcp__: McpToolRenderer,
 }
 
@@ -65,6 +67,7 @@ const SUMMARY_REGISTRY: Record<string, SummaryFn> = {
   Grep: getGrepSummary,
   WebFetch: getWebFetchSummary,
   WebSearch: getWebSearchSummary,
+  TodoWrite: getTodoWriteSummary,
 }
 
 /**
@@ -97,6 +100,7 @@ const ICON_REGISTRY: Record<string, string> = {
   Grep: '🔍',
   WebFetch: '↓',
   WebSearch: '🔎',
+  TodoWrite: '☑',
 }
 
 /**
