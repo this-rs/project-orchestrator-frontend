@@ -88,6 +88,7 @@ export type ChatEvent =
   | { type: 'streaming_status'; is_streaming: boolean }
   | { type: 'permission_mode_changed'; mode: string }
   | { type: 'compact_boundary'; trigger: string; pre_tokens?: number }
+  | { type: 'system_init'; cli_session_id: string; model?: string; tools?: string[]; mcp_servers?: { name: string; status?: string }[]; permission_mode?: string }
 
 // ============================================================================
 // CLIENT MESSAGES
@@ -150,7 +151,7 @@ export interface MessageSearchResult {
 
 export interface ContentBlock {
   id: string
-  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'permission_request' | 'input_request' | 'ask_user_question' | 'error' | 'compact_boundary' | 'result_max_turns' | 'result_error'
+  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'permission_request' | 'input_request' | 'ask_user_question' | 'error' | 'compact_boundary' | 'result_max_turns' | 'result_error' | 'system_init'
   content: string
   metadata?: Record<string, unknown>
 }

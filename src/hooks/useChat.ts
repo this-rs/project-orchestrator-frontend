@@ -243,6 +243,26 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
         break
       }
 
+      case 'system_init': {
+        const msg = lastAssistant()
+        const initModel = evt.model as string | undefined
+        const initTools = evt.tools as string[] | undefined
+        const initMcpServers = evt.mcp_servers as { name: string; status?: string }[] | undefined
+        const initPermMode = evt.permission_mode as string | undefined
+        msg.blocks.push({
+          id: nextBlockId(),
+          type: 'system_init',
+          content: 'Session initialized',
+          metadata: {
+            model: initModel,
+            tools_count: initTools?.length ?? 0,
+            mcp_servers_count: initMcpServers?.length ?? 0,
+            permission_mode: initPermMode,
+          },
+        })
+        break
+      }
+
       case 'result': {
         const rSubtype = (evt.subtype as string) ?? 'success'
         const rNumTurns = evt.num_turns as number | undefined
@@ -692,6 +712,28 @@ export function useChat() {
             type: 'compact_boundary',
             content: label,
             metadata: { trigger, pre_tokens: preTokens },
+          })
+          break
+        }
+
+        case 'system_init': {
+          const siData = event.replaying
+            ? (event as { data?: Record<string, unknown> }).data ?? event
+            : event
+          const siModel = (siData as { model?: string }).model
+          const siTools = (siData as { tools?: string[] }).tools
+          const siMcpServers = (siData as { mcp_servers?: { name: string }[] }).mcp_servers
+          const siPermMode = (siData as { permission_mode?: string }).permission_mode
+          lastMsg.blocks.push({
+            id: nextBlockId(),
+            type: 'system_init',
+            content: 'Session initialized',
+            metadata: {
+              model: siModel,
+              tools_count: siTools?.length ?? 0,
+              mcp_servers_count: siMcpServers?.length ?? 0,
+              permission_mode: siPermMode,
+            },
           })
           break
         }

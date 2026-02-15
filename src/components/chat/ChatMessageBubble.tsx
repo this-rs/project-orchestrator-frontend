@@ -12,6 +12,7 @@ import { AskUserQuestionBlock } from './AskUserQuestionBlock'
 import { CompactBoundaryBlock } from './CompactBoundaryBlock'
 import { ResultMaxTurnsBlock } from './ResultMaxTurnsBlock'
 import { ResultErrorBlock } from './ResultErrorBlock'
+import { SystemInitBlock } from './SystemInitBlock'
 
 /**
  * Markdown link component: uses ExternalLink which renders differently
@@ -243,6 +244,14 @@ export function ChatMessageBubble({ message, isStreaming, highlighted, onRespond
             case 'compact_boundary':
               return (
                 <CompactBoundaryBlock
+                  key={block.id}
+                  block={block}
+                />
+              )
+
+            case 'system_init':
+              return (
+                <SystemInitBlock
                   key={block.id}
                   block={block}
                 />
