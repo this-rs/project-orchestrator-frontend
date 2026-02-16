@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
-import { chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom } from '@/atoms'
+import { chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom } from '@/atoms'
 import type { PermissionMode } from '@/types'
 
 const MODE_LABELS: Record<PermissionMode, string> = {
@@ -70,6 +70,7 @@ export function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionI
   const [modeOverride, setModeOverride] = useAtom(chatSessionPermissionOverrideAtom)
   const serverConfig = useAtomValue(chatPermissionConfigAtom)
   const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
+  const [autoContinue, setAutoContinue] = useAtom(chatAutoContinueAtom)
   const [showModeDropdown, setShowModeDropdown] = useState(false)
   const [showModelDropdown, setShowModelDropdown] = useState(false)
   const [modeJustChanged, setModeJustChanged] = useState(false)
@@ -258,6 +259,24 @@ export function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionI
               </div>
             )}
           </div>
+        </div>
+
+        {/* Auto-continue toggle — pushed to the right */}
+        <div className="flex items-center gap-1.5 ml-auto">
+          <span className={`text-[10px] ${autoContinue ? 'text-gray-400' : 'text-gray-500'} transition-colors`}>Auto-continue</span>
+          <button
+            onClick={() => setAutoContinue(!autoContinue)}
+            className={`relative w-7 h-3.5 rounded-full transition-colors duration-200 ${
+              autoContinue ? 'bg-emerald-500/70' : 'bg-gray-600/50'
+            }`}
+            title={autoContinue ? 'Auto-continue enabled' : 'Auto-continue disabled'}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform duration-200 ${
+                autoContinue ? 'translate-x-3' : 'translate-x-0'
+              }`}
+            />
+          </button>
         </div>
       </div>
 

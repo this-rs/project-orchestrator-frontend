@@ -3,9 +3,11 @@ import type { ContentBlock } from '@/types'
 interface ResultMaxTurnsBlockProps {
   block: ContentBlock
   onContinue: () => void
+  /** When true, the Continue button is hidden (streaming resumed after continue) */
+  isStreaming?: boolean
 }
 
-export function ResultMaxTurnsBlock({ block, onContinue }: ResultMaxTurnsBlockProps) {
+export function ResultMaxTurnsBlock({ block, onContinue, isStreaming }: ResultMaxTurnsBlockProps) {
   const numTurns = block.metadata?.num_turns as number | undefined
 
   return (
@@ -31,12 +33,14 @@ export function ResultMaxTurnsBlock({ block, onContinue }: ResultMaxTurnsBlockPr
           : 'Maximum turns reached'}
       </span>
 
-      <button
-        onClick={onContinue}
-        className="px-3 py-1 bg-orange-600 hover:bg-orange-700 text-white text-xs font-medium rounded transition-colors shrink-0"
-      >
-        Continue
-      </button>
+      {!isStreaming && (
+        <button
+          onClick={onContinue}
+          className="px-3 py-1 bg-orange-600 hover:bg-orange-700 text-white text-xs font-medium rounded transition-colors shrink-0"
+        >
+          Continue
+        </button>
+      )}
     </div>
   )
 }

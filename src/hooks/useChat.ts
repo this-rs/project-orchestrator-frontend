@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { useAtom } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom } from '@/atoms'
+import { useAtom, useAtomValue } from 'jotai'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom } from '@/atoms'
 import { chatApi, ChatWebSocket } from '@/services'
 import type { ChatMessage, ChatEvent, PermissionMode } from '@/types'
 
@@ -71,16 +71,38 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
     return msg
   }
 
+  // Track whether the previous event was a result/error_max_turns so we can
+  // transform the following "Continue" user_message into a discreet indicator.
+  let lastEventWasMaxTurns = false
+
   for (const evt of events) {
     const type = evt.type as string
     const createdAt = evt.created_at ? new Date(evt.created_at * 1000) : new Date()
 
     switch (type) {
       case 'user_message': {
+        const content = evt.content ?? ''
+        // "Continue" after max_turns → discreet indicator instead of user bubble
+        if (lastEventWasMaxTurns && content === 'Continue') {
+          const assistantMsg = messages[messages.length - 1]
+          if (assistantMsg && assistantMsg.role === 'assistant') {
+            const maxTurnsBlock = assistantMsg.blocks.find((b) => b.type === 'result_max_turns')
+            const numTurns = maxTurnsBlock?.metadata?.num_turns as number | undefined
+            assistantMsg.blocks.push({
+              id: nextBlockId(),
+              type: 'continue_indicator',
+              content: 'Continued',
+              metadata: numTurns != null ? { num_turns: numTurns } : undefined,
+            })
+          }
+          lastEventWasMaxTurns = false
+          break
+        }
+        lastEventWasMaxTurns = false
         messages.push({
           id: evt.id || nextMessageId(),
           role: 'user',
-          blocks: [{ id: nextBlockId(), type: 'text', content: evt.content ?? '' }],
+          blocks: [{ id: nextBlockId(), type: 'text', content }],
           timestamp: createdAt,
         })
         break
@@ -291,6 +313,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
               : 'Maximum turns reached',
             metadata: { num_turns: rNumTurns },
           })
+          lastEventWasMaxTurns = true
         } else if (rSubtype === 'error_during_execution') {
           const msg = lastAssistant()
           msg.blocks.push({
@@ -299,6 +322,9 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
             content: rResultText ?? 'An execution error occurred',
             metadata: { result_text: rResultText },
           })
+          lastEventWasMaxTurns = false
+        } else {
+          lastEventWasMaxTurns = false
         }
         // success → no UI block needed (existing behavior)
         break
@@ -306,6 +332,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
 
       default:
         // Unknown event type — skip
+        lastEventWasMaxTurns = false
         break
     }
   }
@@ -351,6 +378,19 @@ export function useChat() {
   useEffect(() => {
     autoApprovedToolsRef.current = autoApprovedTools
   }, [autoApprovedTools])
+
+  // Auto-continue: read atom value + ref for stale closure safety in handleEvent
+  const autoContinue = useAtomValue(chatAutoContinueAtom)
+  const autoContinueRef = useRef(autoContinue)
+  useEffect(() => {
+    autoContinueRef.current = autoContinue
+  }, [autoContinue])
+
+  // Debounce ref for sendContinue (prevents double-sends)
+  const continueDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Ref for sendContinue to avoid stale closures in handleEvent auto-continue
+  const sendContinueRef = useRef<(() => void) | null>(null)
 
   // ========================================================================
   // Event handler — processes LIVE events only (no more replay)
@@ -445,6 +485,22 @@ export function useChat() {
       if (!content) return
 
       setMessages((prev) => {
+        // "Continue" after max_turns: if a continue_indicator was already added
+        // by sendContinue(), suppress the broadcast user_message to avoid a duplicate bubble.
+        if (content === 'Continue') {
+          // Check if the last assistant message has a continue_indicator or result_max_turns as its last block
+          for (let i = prev.length - 1; i >= Math.max(0, prev.length - 5); i--) {
+            const msg = prev[i]
+            if (msg.role === 'assistant' && msg.blocks.length > 0) {
+              const lastBlock = msg.blocks[msg.blocks.length - 1]
+              if (lastBlock.type === 'continue_indicator' || lastBlock.type === 'result_max_turns') {
+                return prev // suppress — already represented by the indicator
+              }
+              break
+            }
+          }
+        }
+
         // Avoid duplicate: check if ANY recent user message has the same content.
         // This handles mid-stream sends where the optimistic user message is followed
         // by assistant messages before the broadcast arrives from the dequeue.
@@ -813,6 +869,13 @@ export function useChat() {
           if (!event.replaying) {
             setIsStreaming(false)
             setIsCompacting(false) // safety net: reset compaction flag on result
+
+            // Auto-continue: if enabled and max_turns was reached, auto-send Continue
+            if (rSubtype === 'error_max_turns' && autoContinueRef.current) {
+              setTimeout(() => {
+                sendContinueRef.current?.()
+              }, 500)
+            }
           }
           break
         }
@@ -1025,6 +1088,47 @@ export function useChat() {
     }
   }, [sessionId, setSessionId, setIsStreaming, getWs, permissionOverride, setPermissionOverride, sessionModel])
 
+  /**
+   * Send "Continue" after max_turns — adds a discreet inline indicator instead of a user bubble.
+   * The backend still receives a normal user_message with content "Continue".
+   */
+  const sendContinue = useCallback(() => {
+    if (!sessionId) return
+    // Debounce: prevent double-sends within 300ms
+    if (continueDebounceRef.current) return
+    continueDebounceRef.current = setTimeout(() => { continueDebounceRef.current = null }, 300)
+
+    // Add a discreet continue_indicator block to the last assistant message (not a user bubble)
+    setMessages((prev) => {
+      const updated = [...prev]
+      let lastMsg = updated[updated.length - 1]
+      if (lastMsg && lastMsg.role === 'assistant') {
+        lastMsg = { ...lastMsg, blocks: [...lastMsg.blocks] }
+        updated[updated.length - 1] = lastMsg
+        // Get num_turns from the result_max_turns block if present
+        const maxTurnsBlock = lastMsg.blocks.find((b) => b.type === 'result_max_turns')
+        const numTurns = maxTurnsBlock?.metadata?.num_turns as number | undefined
+        lastMsg.blocks.push({
+          id: nextBlockId(),
+          type: 'continue_indicator',
+          content: 'Continued',
+          metadata: numTurns != null ? { num_turns: numTurns } : undefined,
+        })
+      }
+      return updated
+    })
+
+    // Send via WS as a normal user_message
+    const ws = getWs()
+    setIsStreaming(true)
+    ws.sendUserMessage('Continue')
+  }, [sessionId, getWs, setIsStreaming])
+
+  // Keep ref in sync so handleEvent can trigger auto-continue without stale closure
+  useEffect(() => {
+    sendContinueRef.current = sendContinue
+  }, [sendContinue])
+
   const respondPermission = useCallback(async (
     toolCallId: string,
     allowed: boolean,
@@ -1132,6 +1236,7 @@ export function useChat() {
     sessionId,
     sessionMeta,
     sendMessage,
+    sendContinue,
     respondPermission,
     respondInput,
     interrupt,
