@@ -2,6 +2,7 @@ import type { CrudEvent, EventBusStatus } from '@/types'
 import { getAuthMode, fetchWsTicket } from './auth'
 import { forceLogout } from './authManager'
 import { wsUrl } from './env'
+import { createWebSocket, ReadyState, type IWebSocket } from './wsAdapter'
 
 type EventCallback = (event: CrudEvent) => void
 type StatusCallback = (status: EventBusStatus) => void
@@ -10,7 +11,7 @@ const MIN_RECONNECT_DELAY = 1000
 const MAX_RECONNECT_DELAY = 30000
 
 export class EventBusClient {
-  private ws: WebSocket | null = null
+  private ws: IWebSocket | null = null
   private listeners = new Set<EventCallback>()
   private statusListeners = new Set<StatusCallback>()
   private _status: EventBusStatus = 'disconnected'
@@ -24,7 +25,7 @@ export class EventBusClient {
   }
 
   async connect() {
-    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) {
+    if (this.ws?.readyState === ReadyState.OPEN || this.ws?.readyState === ReadyState.CONNECTING) {
       return
     }
 
@@ -43,63 +44,62 @@ export class EventBusClient {
     const url = wsUrl(path)
 
     try {
-      this.ws = new WebSocket(url)
+      this.ws = await createWebSocket(url, {
+        onopen: () => {
+          this.reconnectDelay = MIN_RECONNECT_DELAY
+          // Auth is handled pre-upgrade: either via HttpOnly cookie (browsers)
+          // or via the ?ticket= query param (Tauri/WKWebView fallback).
+          // The server sends auth_ok as the first message.
+        },
+
+        onmessage: (event) => {
+          try {
+            const data = JSON.parse(event.data)
+
+            // Handle auth response (first message from server)
+            if (!this.authenticated) {
+              if (data.type === 'auth_ok') {
+                this.authenticated = true
+                this.setStatus('connected')
+                return
+              }
+              if (data.type === 'auth_error') {
+                this.shouldReconnect = false
+                this.ws?.close()
+                if (getAuthMode() === 'required') {
+                  forceLogout()
+                }
+                return
+              }
+            }
+
+            // Forward CRUD events to listeners
+            const crudEvent = data as CrudEvent
+            for (const listener of this.listeners) {
+              listener(crudEvent)
+            }
+          } catch {
+            // ignore malformed messages
+          }
+        },
+
+        onclose: () => {
+          this.ws = null
+          this.authenticated = false
+          if (this.shouldReconnect) {
+            this.setStatus('reconnecting')
+            this.scheduleReconnect()
+          } else {
+            this.setStatus('disconnected')
+          }
+        },
+
+        onerror: () => {
+          // onclose will fire after onerror
+        },
+      })
     } catch {
       this.scheduleReconnect()
-      return
-    }
-
-    this.ws.onopen = () => {
-      this.reconnectDelay = MIN_RECONNECT_DELAY
-      // Auth is handled pre-upgrade: either via HttpOnly cookie (browsers)
-      // or via the ?ticket= query param (Tauri/WKWebView fallback).
-      // The server sends auth_ok as the first message.
-    }
-
-    this.ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-
-        // Handle auth response (first message from server)
-        if (!this.authenticated) {
-          if (data.type === 'auth_ok') {
-            this.authenticated = true
-            this.setStatus('connected')
-            return
-          }
-          if (data.type === 'auth_error') {
-            this.shouldReconnect = false
-            this.ws?.close()
-            if (getAuthMode() === 'required') {
-              forceLogout()
-            }
-            return
-          }
-        }
-
-        // Forward CRUD events to listeners
-        const crudEvent = data as CrudEvent
-        for (const listener of this.listeners) {
-          listener(crudEvent)
-        }
-      } catch {
-        // ignore malformed messages
-      }
-    }
-
-    this.ws.onclose = () => {
-      this.ws = null
-      this.authenticated = false
-      if (this.shouldReconnect) {
-        this.setStatus('reconnecting')
-        this.scheduleReconnect()
-      } else {
-        this.setStatus('disconnected')
-      }
-    }
-
-    this.ws.onerror = () => {
-      // onclose will fire after onerror
     }
   }
 
@@ -111,6 +111,10 @@ export class EventBusClient {
       this.reconnectTimer = null
     }
     if (this.ws) {
+      // Detach handlers before closing to prevent stale events
+      this.ws.onmessage = null
+      this.ws.onclose = null
+      this.ws.onerror = null
       this.ws.close()
       this.ws = null
     }
