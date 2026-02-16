@@ -19,7 +19,7 @@
  */
 
 import type { ChatEvent, WsChatClientMessage, WsConnectionStatus } from '@/types'
-import { getAuthMode } from './auth'
+import { getAuthMode, fetchWsTicket } from './auth'
 import { forceLogout } from './authManager'
 import { wsUrl } from './env'
 
@@ -78,9 +78,10 @@ export class ChatWebSocket {
 
   /**
    * Connect to a chat session's WebSocket.
-   * The browser sends the HttpOnly cookie automatically — no token needed.
+   * Auth is handled pre-upgrade: either via HttpOnly cookie (browsers)
+   * or via a one-time ?ticket= query param (Tauri/WKWebView fallback).
    */
-  connect(sessionId: string, lastEventSeq: number = 0) {
+  async connect(sessionId: string, lastEventSeq: number = 0) {
     // Close existing connection if switching sessions
     if (this.ws && this._sessionId !== sessionId) {
       this.disconnect()
@@ -96,11 +97,18 @@ export class ChatWebSocket {
     this._isReplaying = true
 
     this.setStatus('connecting')
-    this.openSocket(sessionId, lastEventSeq)
+    await this.openSocket(sessionId, lastEventSeq)
   }
 
-  private openSocket(sessionId: string, lastEventSeq: number) {
-    const url = wsUrl(`/ws/chat/${sessionId}?last_event=${lastEventSeq}`)
+  private async openSocket(sessionId: string, lastEventSeq: number) {
+    // Fetch a one-time WS ticket before connecting.
+    // This works around WKWebView (Tauri) not sending HttpOnly cookies
+    // on WebSocket upgrade requests. In browsers the cookie is still sent
+    // and takes priority server-side; the ticket is just a fallback.
+    const ticket = await fetchWsTicket()
+    const params = new URLSearchParams({ last_event: String(lastEventSeq) })
+    if (ticket) params.set('ticket', ticket)
+    const url = wsUrl(`/ws/chat/${sessionId}?${params.toString()}`)
 
     try {
       this.ws = new WebSocket(url)
@@ -112,9 +120,9 @@ export class ChatWebSocket {
     this.ws.onopen = () => {
       this.reconnectDelay = MIN_RECONNECT_DELAY
       this.reconnectAttempts = 0
-      // No auth message needed — the browser sends the HttpOnly cookie
-      // automatically during the WebSocket upgrade request.
-      // In no-auth mode, the server sends auth_ok automatically.
+      // Auth is handled pre-upgrade: either via HttpOnly cookie (browsers)
+      // or via the ?ticket= query param (Tauri/WKWebView fallback).
+      // The server sends auth_ok as the first message.
     }
 
     this.ws.onmessage = (event: MessageEvent) => {

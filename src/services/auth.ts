@@ -203,4 +203,39 @@ export const authApi = {
     }).catch(() => {
       // Best-effort — logout should not fail the UI flow
     }),
+
+  // =========================================================================
+  // WebSocket ticket (WKWebView cookie workaround)
+  // =========================================================================
+
+  /**
+   * POST /auth/ws-ticket — Get an ephemeral one-time ticket for WebSocket auth.
+   *
+   * WKWebView (macOS/iOS) does NOT send HttpOnly cookies during WebSocket
+   * upgrade requests (NSURLSession isolation). This endpoint lets the client
+   * obtain a short-lived ticket (30s TTL, single-use) via a regular fetch()
+   * (which DOES send cookies), then pass it as ?ticket=xxx on the WS URL.
+   *
+   * In no-auth mode the server returns an anonymous ticket.
+   */
+  getWsTicket: () =>
+    authRequest<{ ticket: string }>('/ws-ticket', {
+      method: 'POST',
+    }),
+}
+
+/**
+ * Fetch a WS ticket for WebSocket authentication.
+ *
+ * Returns the ticket string, or `null` if the fetch fails (no-auth mode
+ * without cookie, backend not ready, network error). The WebSocket will
+ * still connect — the backend falls back to cookie auth or anonymous mode.
+ */
+export async function fetchWsTicket(): Promise<string | null> {
+  try {
+    const { ticket } = await authApi.getWsTicket()
+    return ticket
+  } catch {
+    return null
+  }
 }

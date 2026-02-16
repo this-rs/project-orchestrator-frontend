@@ -1,5 +1,5 @@
 import type { CrudEvent, EventBusStatus } from '@/types'
-import { getAuthMode } from './auth'
+import { getAuthMode, fetchWsTicket } from './auth'
 import { forceLogout } from './authManager'
 import { wsUrl } from './env'
 
@@ -23,18 +23,24 @@ export class EventBusClient {
     return this._status
   }
 
-  connect() {
+  async connect() {
     if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) {
       return
     }
 
     this.shouldReconnect = true
     this.authenticated = false
-    this.openSocket()
+    await this.openSocket()
   }
 
-  private openSocket() {
-    const url = wsUrl('/ws/events')
+  private async openSocket() {
+    // Fetch a one-time WS ticket before connecting.
+    // This works around WKWebView (Tauri) not sending HttpOnly cookies
+    // on WebSocket upgrade requests. In browsers the cookie is still sent
+    // and takes priority server-side; the ticket is just a fallback.
+    const ticket = await fetchWsTicket()
+    const path = ticket ? `/ws/events?ticket=${ticket}` : '/ws/events'
+    const url = wsUrl(path)
 
     try {
       this.ws = new WebSocket(url)
@@ -45,9 +51,9 @@ export class EventBusClient {
 
     this.ws.onopen = () => {
       this.reconnectDelay = MIN_RECONNECT_DELAY
-      // No auth message needed — the browser sends the HttpOnly cookie
-      // automatically during the WebSocket upgrade request.
-      // In no-auth mode, the server sends auth_ok automatically.
+      // Auth is handled pre-upgrade: either via HttpOnly cookie (browsers)
+      // or via the ?ticket= query param (Tauri/WKWebView fallback).
+      // The server sends auth_ok as the first message.
     }
 
     this.ws.onmessage = (event) => {
