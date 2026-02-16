@@ -13,15 +13,19 @@
  * Authentication:
  * - The browser sends the HttpOnly `refresh_token` cookie automatically
  *   during the WebSocket upgrade request (same-origin or CORS with credentials).
- * - The server validates the cookie BEFORE the upgrade and sends `auth_ok`
+ * - In Tauri, the tauri-plugin-websocket Rust client bypasses WKWebView's
+ *   Mixed Content restrictions. A WS ticket (fetched via fetch()) is passed
+ *   as a query parameter for authentication.
+ * - The server validates credentials BEFORE the upgrade and sends `auth_ok`
  *   as the first message — no client-side auth handshake needed.
  * - In no-auth mode, the server sends `auth_ok` automatically.
  */
 
 import type { ChatEvent, WsChatClientMessage, WsConnectionStatus } from '@/types'
-import { getAuthMode } from './auth'
+import { getAuthMode, fetchWsTicket } from './auth'
 import { forceLogout } from './authManager'
 import { wsUrl } from './env'
+import { createWebSocket, ReadyState, type IWebSocket } from './wsAdapter'
 
 const MIN_RECONNECT_DELAY = 1000
 const MAX_RECONNECT_DELAY = 30000
@@ -32,7 +36,7 @@ export type ChatWsStatusCallback = (status: WsConnectionStatus) => void
 export type ChatWsReplayCompleteCallback = () => void
 
 export class ChatWebSocket {
-  private ws: WebSocket | null = null
+  private ws: IWebSocket | null = null
   private _lastEventSeq: number = 0
   private reconnectAttempts: number = 0
   private reconnectDelay: number = MIN_RECONNECT_DELAY
@@ -78,15 +82,16 @@ export class ChatWebSocket {
 
   /**
    * Connect to a chat session's WebSocket.
-   * The browser sends the HttpOnly cookie automatically — no token needed.
+   * Auth is handled pre-upgrade: either via HttpOnly cookie (browsers)
+   * or via a one-time ?ticket= query param (Tauri/WKWebView fallback).
    */
-  connect(sessionId: string, lastEventSeq: number = 0) {
+  async connect(sessionId: string, lastEventSeq: number = 0) {
     // Close existing connection if switching sessions
     if (this.ws && this._sessionId !== sessionId) {
       this.disconnect()
     }
 
-    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) {
+    if (this.ws?.readyState === ReadyState.OPEN || this.ws?.readyState === ReadyState.CONNECTING) {
       return
     }
 
@@ -96,97 +101,103 @@ export class ChatWebSocket {
     this._isReplaying = true
 
     this.setStatus('connecting')
-    this.openSocket(sessionId, lastEventSeq)
+    await this.openSocket(sessionId, lastEventSeq)
   }
 
-  private openSocket(sessionId: string, lastEventSeq: number) {
-    const url = wsUrl(`/ws/chat/${sessionId}?last_event=${lastEventSeq}`)
+  private async openSocket(sessionId: string, lastEventSeq: number) {
+    // Fetch a one-time WS ticket before connecting.
+    // This works around WKWebView (Tauri) not sending HttpOnly cookies
+    // on WebSocket upgrade requests. In browsers the cookie is still sent
+    // and takes priority server-side; the ticket is just a fallback.
+    const ticket = await fetchWsTicket()
+    const params = new URLSearchParams({ last_event: String(lastEventSeq) })
+    if (ticket) params.set('ticket', ticket)
+    const url = wsUrl(`/ws/chat/${sessionId}?${params.toString()}`)
 
     try {
-      this.ws = new WebSocket(url)
+      this.ws = await createWebSocket(url, {
+        onopen: () => {
+          this.reconnectDelay = MIN_RECONNECT_DELAY
+          this.reconnectAttempts = 0
+          // Auth is handled pre-upgrade: either via HttpOnly cookie (browsers)
+          // or via the ?ticket= query param (Tauri/WKWebView fallback).
+          // The server sends auth_ok as the first message.
+        },
+
+        onmessage: (event: MessageEvent) => {
+          try {
+            const data = JSON.parse(event.data as string)
+
+            // Handle auth response (first message from server)
+            if (!this.authenticated) {
+              if (data.type === 'auth_ok') {
+                this.authenticated = true
+                this.setStatus('connected')
+                return
+              }
+              if (data.type === 'auth_error') {
+                this.shouldReconnect = false
+                this.ws?.close()
+                if (getAuthMode() === 'required') {
+                  forceLogout()
+                }
+                return
+              }
+            }
+
+            // Handle replay_complete marker
+            if (data.type === 'replay_complete') {
+              this._isReplaying = false
+              this.onReplayComplete?.()
+              return
+            }
+
+            // Handle events_lagged hint (client missed events)
+            if (data.type === 'events_lagged') {
+              console.warn(`Chat WS: lagged, ${data.skipped} events skipped`)
+              return
+            }
+
+            // Handle session_closed
+            if (data.type === 'session_closed') {
+              this.shouldReconnect = false
+              this.setStatus('disconnected')
+              return
+            }
+
+            // Track lastEventSeq for reconnection
+            if (typeof data.seq === 'number' && data.seq > this._lastEventSeq) {
+              this._lastEventSeq = data.seq
+            }
+
+            // Forward as ChatEvent to the callback
+            // The data has `type` field matching ChatEvent discriminant
+            if (this.onEvent) {
+              this.onEvent(data as ChatEvent & { seq?: number; replaying?: boolean })
+            }
+          } catch {
+            // Ignore malformed messages
+          }
+        },
+
+        onclose: () => {
+          this.ws = null
+          this._isReplaying = false
+          this.authenticated = false
+          if (this.shouldReconnect) {
+            this.setStatus('reconnecting')
+            this.scheduleReconnect()
+          } else {
+            this.setStatus('disconnected')
+          }
+        },
+
+        onerror: () => {
+          // onclose will fire after onerror
+        },
+      })
     } catch {
       this.scheduleReconnect()
-      return
-    }
-
-    this.ws.onopen = () => {
-      this.reconnectDelay = MIN_RECONNECT_DELAY
-      this.reconnectAttempts = 0
-      // No auth message needed — the browser sends the HttpOnly cookie
-      // automatically during the WebSocket upgrade request.
-      // In no-auth mode, the server sends auth_ok automatically.
-    }
-
-    this.ws.onmessage = (event: MessageEvent) => {
-      try {
-        const data = JSON.parse(event.data as string)
-
-        // Handle auth response (first message from server)
-        if (!this.authenticated) {
-          if (data.type === 'auth_ok') {
-            this.authenticated = true
-            this.setStatus('connected')
-            return
-          }
-          if (data.type === 'auth_error') {
-            this.shouldReconnect = false
-            this.ws?.close()
-            if (getAuthMode() === 'required') {
-              forceLogout()
-            }
-            return
-          }
-        }
-
-        // Handle replay_complete marker
-        if (data.type === 'replay_complete') {
-          this._isReplaying = false
-          this.onReplayComplete?.()
-          return
-        }
-
-        // Handle events_lagged hint (client missed events)
-        if (data.type === 'events_lagged') {
-          console.warn(`Chat WS: lagged, ${data.skipped} events skipped`)
-          return
-        }
-
-        // Handle session_closed
-        if (data.type === 'session_closed') {
-          this.shouldReconnect = false
-          this.setStatus('disconnected')
-          return
-        }
-
-        // Track lastEventSeq for reconnection
-        if (typeof data.seq === 'number' && data.seq > this._lastEventSeq) {
-          this._lastEventSeq = data.seq
-        }
-
-        // Forward as ChatEvent to the callback
-        // The data has `type` field matching ChatEvent discriminant
-        if (this.onEvent) {
-          this.onEvent(data as ChatEvent & { seq?: number; replaying?: boolean })
-        }
-      } catch {
-        // Ignore malformed messages
-      }
-    }
-
-    this.ws.onclose = () => {
-      this.ws = null
-      this._isReplaying = false
-      this.authenticated = false
-      if (this.shouldReconnect) {
-        this.setStatus('reconnecting')
-        this.scheduleReconnect()
-      } else {
-        this.setStatus('disconnected')
-      }
-    }
-
-    this.ws.onerror = () => {
-      // onclose will fire after onerror
     }
   }
 
@@ -223,7 +234,7 @@ export class ChatWebSocket {
    * Send a message over the WebSocket
    */
   send(message: WsChatClientMessage) {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+    if (!this.ws || this.ws.readyState !== ReadyState.OPEN) {
       console.warn('Chat WS: cannot send, not connected')
       return false
     }
