@@ -19,8 +19,8 @@ const DEFAULT_DESKTOP_PORT = 6600
 
 /**
  * Mutable backend port — starts at DEFAULT_DESKTOP_PORT.
- * Can be updated at runtime via setBackendPort() after Tauri invoke
- * or when the setup wizard changes the port.
+ * Updated at startup via initBackendPort() which invokes the Tauri command
+ * `get_server_port` to read the actual port from config.yaml.
  */
 let _backendPort = DEFAULT_DESKTOP_PORT
 
@@ -32,6 +32,30 @@ export function setBackendPort(port: number): void {
 /** Get the current backend port. */
 export function getBackendPort(): number {
   return _backendPort
+}
+
+/**
+ * Initialize the backend port from the Tauri desktop app config.
+ *
+ * In Tauri mode, calls `get_server_port` to read the real port from config.yaml
+ * (which may differ from the default 6600 if the user changed it in the setup wizard).
+ * In browser mode this is a no-op.
+ *
+ * **Must be called before rendering** to ensure all API/WS URLs use the correct port.
+ */
+export async function initBackendPort(): Promise<void> {
+  if (!isTauri) return
+
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const port = await invoke<number>('get_server_port')
+    if (port && port !== _backendPort) {
+      console.log(`[env] Backend port from config: ${port} (was ${_backendPort})`)
+      _backendPort = port
+    }
+  } catch (e) {
+    console.warn('[env] Failed to get server port from Tauri, using default:', e)
+  }
 }
 
 /**
