@@ -121,7 +121,7 @@ export class ChatWebSocket {
           this.reconnectAttempts = 0
           // Auth is handled pre-upgrade: either via HttpOnly cookie (browsers)
           // or via the ?ticket= query param (Tauri/WKWebView fallback).
-          // The server sends auth_ok as the first message.
+          // The server waits for a "ready" signal before sending auth_ok.
         },
 
         onmessage: (event: MessageEvent) => {
@@ -196,6 +196,14 @@ export class ChatWebSocket {
           // onclose will fire after onerror
         },
       })
+
+      // Send "ready" to tell the server our message listener is registered.
+      // The server waits for this before sending auth_ok, preventing a race
+      // condition with the Tauri WebSocket plugin where messages sent before
+      // addListener() is called are lost.
+      if (this.ws && this.ws.readyState === ReadyState.OPEN) {
+        this.ws.send('"ready"')
+      }
     } catch {
       this.scheduleReconnect()
     }
