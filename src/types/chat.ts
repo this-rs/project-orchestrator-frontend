@@ -90,6 +90,7 @@ export type ChatEvent =
   | { type: 'streaming_status'; is_streaming: boolean }
   | { type: 'permission_mode_changed'; mode: string }
   | { type: 'model_changed'; model: string }
+  | { type: 'compaction_started'; trigger: string }
   | { type: 'compact_boundary'; trigger: string; pre_tokens?: number }
   | { type: 'system_init'; cli_session_id: string; model?: string; tools?: string[]; mcp_servers?: { name: string; status?: string }[]; permission_mode?: string }
 

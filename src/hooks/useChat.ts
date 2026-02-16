@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom } from '@/atoms'
 import { chatApi, ChatWebSocket } from '@/services'
 import type { ChatMessage, ChatEvent, PermissionMode } from '@/types'
 
@@ -316,6 +316,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
 export function useChat() {
   const [sessionId, setSessionId] = useAtom(chatSessionIdAtom)
   const [isStreaming, setIsStreaming] = useAtom(chatStreamingAtom)
+  const [isCompacting, setIsCompacting] = useAtom(chatCompactingAtom)
   const [wsStatus, setWsStatus] = useAtom(chatWsStatusAtom)
   const [isReplaying, setIsReplaying] = useAtom(chatReplayingAtom)
   const [permissionOverride, setPermissionOverride] = useAtom(chatSessionPermissionOverrideAtom)
@@ -401,6 +402,13 @@ export function useChat() {
     if (event.type === 'streaming_status') {
       const val = !!(event as { is_streaming?: boolean }).is_streaming
       setIsStreaming(val)
+      return
+    }
+
+    // compaction_started — PreCompact hook fired, compaction is about to begin
+    // Set isCompacting flag so the UI can show a spinner/banner
+    if (event.type === 'compaction_started') {
+      setIsCompacting(true)
       return
     }
 
@@ -729,6 +737,7 @@ export function useChat() {
         }
 
         case 'compact_boundary': {
+          setIsCompacting(false)
           const cbData = event.replaying
             ? (event as { data?: Record<string, unknown> }).data ?? event
             : event
@@ -803,6 +812,7 @@ export function useChat() {
           // must not override the streaming_status sent for mid-stream join.
           if (!event.replaying) {
             setIsStreaming(false)
+            setIsCompacting(false) // safety net: reset compaction flag on result
           }
           break
         }
@@ -1112,6 +1122,7 @@ export function useChat() {
   return {
     messages,
     isStreaming,
+    isCompacting,
     isSending,
     isLoadingHistory,
     isLoadingOlder,
