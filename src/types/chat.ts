@@ -83,7 +83,7 @@ export type ChatEvent =
   | { type: 'permission_request'; id: string; tool: string; input: Record<string, unknown> }
   | { type: 'permission_decision'; id: string; allow: boolean }
   | { type: 'input_request'; prompt: string; options?: string[] }
-  | { type: 'ask_user_question'; questions: AskUserQuestion[] }
+  | { type: 'ask_user_question'; questions: AskUserQuestion[]; tool_call_id?: string; id?: string }
   | { type: 'result'; session_id: string; duration_ms: number; cost_usd?: number; subtype?: string; is_error?: boolean; num_turns?: number; result_text?: string }
   | { type: 'error'; message: string }
   | { type: 'partial_text'; content: string }
