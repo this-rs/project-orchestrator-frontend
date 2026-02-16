@@ -9,9 +9,14 @@ interface AskUserQuestionBlockProps {
 
 export function AskUserQuestionBlock({ block, onRespond, disabled }: AskUserQuestionBlockProps) {
   const questions = useMemo(() => (block.metadata?.questions as AskUserQuestion[]) || [], [block.metadata?.questions])
+
+  // Initialize from persisted metadata (survives page reload / history replay)
+  const persistedSubmitted = !!block.metadata?.submitted
+  const persistedResponse = (block.metadata?.response as string) ?? ''
+
   const [selections, setSelections] = useState<Map<number, Set<number>>>(() => new Map())
   const [freeText, setFreeText] = useState('')
-  const [submitted, setSubmitted] = useState(false)
+  const [submitted, setSubmitted] = useState(persistedSubmitted)
 
   const toggleOption = useCallback((questionIndex: number, optionIndex: number, multiSelect: boolean) => {
     setSelections((prev) => {
@@ -83,6 +88,79 @@ export function AskUserQuestionBlock({ block, onRespond, disabled }: AskUserQues
     return (
       <div className="my-2 rounded-lg bg-indigo-900/10 border border-indigo-500/20 p-3">
         <p className="text-sm text-gray-300">{block.content}</p>
+      </div>
+    )
+  }
+
+  // Read-only mode: show the persisted response summary
+  if (submitted && persistedSubmitted) {
+    return (
+      <div className="my-2 rounded-lg bg-emerald-900/10 border border-emerald-500/20 p-3 space-y-3">
+        {questions.map((q, qIndex) => (
+          <div key={qIndex} className="space-y-1.5">
+            {/* Header chip + Question */}
+            <div className="flex items-start gap-2">
+              {q.header && (
+                <span className="shrink-0 px-2 py-0.5 text-xs font-medium rounded bg-emerald-600/20 text-emerald-400">
+                  {q.header}
+                </span>
+              )}
+              <p className="text-sm text-gray-400">{q.question}</p>
+            </div>
+
+            {/* Options — read-only display */}
+            <div className="flex flex-wrap gap-2">
+              {q.options.map((opt, optIndex) => {
+                // Check if this option was part of the persisted response
+                const isSelected = persistedResponse.includes(opt.label)
+                return (
+                  <div
+                    key={optIndex}
+                    className={`
+                      flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm
+                      ${isSelected
+                        ? 'bg-emerald-600/15 border border-emerald-500/30 text-emerald-300'
+                        : 'bg-white/[0.02] border border-white/[0.04] text-gray-600'
+                      }
+                    `}
+                  >
+                    {/* Check icon for selected */}
+                    <span className={`
+                      w-3.5 h-3.5 flex items-center justify-center border
+                      ${q.multiSelect ? 'rounded-sm' : 'rounded-full'}
+                      ${isSelected
+                        ? 'border-emerald-500 bg-emerald-600'
+                        : 'border-gray-700'
+                      }
+                    `}>
+                      {isSelected && (
+                        <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 12 12">
+                          <path d="M10.28 2.28L3.989 8.575 1.695 6.28A1 1 0 00.28 7.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 2.28z" />
+                        </svg>
+                      )}
+                    </span>
+                    <span className="flex flex-col items-start">
+                      <span>{opt.label}</span>
+                      {opt.description && (
+                        <span className="text-xs text-gray-600">{opt.description}</span>
+                      )}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+
+        {/* Persisted response summary */}
+        <div className="pt-2 border-t border-emerald-500/10">
+          <p className="text-xs text-gray-500 flex items-center gap-1.5">
+            <svg className="w-3 h-3 text-emerald-500" fill="currentColor" viewBox="0 0 12 12">
+              <path d="M10.28 2.28L3.989 8.575 1.695 6.28A1 1 0 00.28 7.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 2.28z" />
+            </svg>
+            Answered: <span className="text-gray-400">{persistedResponse}</span>
+          </p>
+        </div>
       </div>
     )
   }
@@ -165,7 +243,7 @@ export function AskUserQuestionBlock({ block, onRespond, disabled }: AskUserQues
             onChange={(e) => setFreeText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && hasSelection && handleSubmit()}
             disabled={isDisabled}
-            placeholder="Ou tapez votre réponse..."
+            placeholder="Or type your answer..."
             className="flex-1 px-3 py-1.5 text-sm bg-black/20 border border-white/[0.06] rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/40"
           />
           <button
@@ -178,11 +256,11 @@ export function AskUserQuestionBlock({ block, onRespond, disabled }: AskUserQues
         </div>
       )}
 
-      {/* Submitted summary */}
-      {submitted && (
+      {/* Just-submitted summary (before metadata is persisted) */}
+      {submitted && !persistedSubmitted && (
         <div className="pt-2 border-t border-white/[0.06]">
           <p className="text-xs text-gray-500">
-            Responded: <span className="text-gray-400">{formatResponse()}</span>
+            Answered: <span className="text-gray-400">{formatResponse()}</span>
           </p>
         </div>
       )}

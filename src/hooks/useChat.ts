@@ -135,12 +135,18 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
         if (toolName === 'AskUserQuestion') {
           const questions = (toolInput as { questions?: { question: string }[] })?.questions
           if (questions && questions.length > 0) {
-            msg.blocks.push({
-              id: nextBlockId(),
-              type: 'ask_user_question',
-              content: questions.map((q: { question: string }) => q.question).join('\n'),
-              metadata: withParent({ tool_call_id: toolId, questions }, parent),
-            })
+            // Dedup: skip if ask_user_question block with same tool_call_id already exists
+            const isDupe = toolId && msg.blocks.some(
+              (b) => b.type === 'ask_user_question' && b.metadata?.tool_call_id === toolId,
+            )
+            if (!isDupe) {
+              msg.blocks.push({
+                id: nextBlockId(),
+                type: 'ask_user_question',
+                content: questions.map((q: { question: string }) => q.question).join('\n'),
+                metadata: withParent({ tool_call_id: toolId, questions }, parent),
+              })
+            }
           }
         } else {
           msg.blocks.push({
@@ -226,14 +232,21 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
       case 'ask_user_question': {
         const msg = lastAssistant()
         const questions = evt.questions as { question: string }[] | undefined
+        const toolCallId = (evt as { tool_call_id?: string }).tool_call_id ?? ''
         const parent = getParentToolUseId(evt)
         if (questions && questions.length > 0) {
-          msg.blocks.push({
-            id: nextBlockId(),
-            type: 'ask_user_question',
-            content: questions.map((q: { question: string }) => q.question).join('\n'),
-            metadata: withParent({ questions }, parent),
-          })
+          // Dedup: skip if a block with the same tool_call_id already exists
+          const isDupe = toolCallId && msg.blocks.some(
+            (b) => b.type === 'ask_user_question' && b.metadata?.tool_call_id === toolCallId,
+          )
+          if (!isDupe) {
+            msg.blocks.push({
+              id: nextBlockId(),
+              type: 'ask_user_question',
+              content: questions.map((q: { question: string }) => q.question).join('\n'),
+              metadata: withParent({ tool_call_id: toolCallId, questions }, parent),
+            })
+          }
         }
         break
       }
@@ -334,6 +347,27 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
         // Unknown event type — skip
         lastEventWasMaxTurns = false
         break
+    }
+  }
+
+  // Post-processing: match ask_user_question blocks with their tool_result
+  // to pre-fill the persisted response for read-only display in history.
+  for (const msg of messages) {
+    for (const block of msg.blocks) {
+      if (block.type === 'ask_user_question' && block.metadata?.tool_call_id && !block.metadata.submitted) {
+        const toolCallId = block.metadata.tool_call_id as string
+        // Find the tool_result with the same tool_call_id
+        const toolResult = msg.blocks.find(
+          (b) => b.type === 'tool_result' && b.metadata?.tool_call_id === toolCallId,
+        )
+        if (toolResult) {
+          block.metadata = {
+            ...block.metadata,
+            submitted: true,
+            response: toolResult.content || '',
+          }
+        }
+      }
     }
   }
 
@@ -609,15 +643,22 @@ export function useChat() {
           if (toolName === 'AskUserQuestion') {
             const questions = (toolInput as { questions?: unknown[] })?.questions
             if (questions && questions.length > 0) {
-              lastMsg.blocks.push({
-                id: nextBlockId(),
-                type: 'ask_user_question',
-                content: (questions as { question: string }[]).map((q) => q.question).join('\n'),
-                metadata: withParent({
-                  tool_call_id: toolId,
-                  questions,
-                }, tuParent),
-              })
+              // Dedup: skip if an ask_user_question block with same tool_call_id already exists
+              // (created via the control channel ask_user_question event)
+              const isDupe = toolId && lastMsg.blocks.some(
+                (b) => b.type === 'ask_user_question' && b.metadata?.tool_call_id === toolId,
+              )
+              if (!isDupe) {
+                lastMsg.blocks.push({
+                  id: nextBlockId(),
+                  type: 'ask_user_question',
+                  content: (questions as { question: string }[]).map((q) => q.question).join('\n'),
+                  metadata: withParent({
+                    tool_call_id: toolId,
+                    questions,
+                  }, tuParent),
+                })
+              }
             }
           } else {
             lastMsg.blocks.push({
@@ -721,14 +762,22 @@ export function useChat() {
             ? (event as { data?: Record<string, unknown> }).data ?? event
             : event
           const questions = (data as { questions?: { question: string }[] }).questions
+          const toolCallId = (data as { tool_call_id?: string }).tool_call_id ?? ''
           const auqParent = getParentToolUseId(event)
           if (questions && questions.length > 0) {
-            lastMsg.blocks.push({
-              id: nextBlockId(),
-              type: 'ask_user_question',
-              content: questions.map((q) => q.question).join('\n'),
-              metadata: withParent({ questions }, auqParent),
-            })
+            // Dedup: skip if a block with the same tool_call_id already exists
+            // (created via the tool_use stream path)
+            const isDupe = toolCallId && lastMsg.blocks.some(
+              (b) => b.type === 'ask_user_question' && b.metadata?.tool_call_id === toolCallId,
+            )
+            if (!isDupe) {
+              lastMsg.blocks.push({
+                id: nextBlockId(),
+                type: 'ask_user_question',
+                content: questions.map((q) => q.question).join('\n'),
+                metadata: withParent({ tool_call_id: toolCallId, questions }, auqParent),
+              })
+            }
           }
           break
         }
@@ -1148,10 +1197,31 @@ export function useChat() {
     }
   }, [sessionId, getWs, setAutoApprovedTools])
 
-  const respondInput = useCallback(async (_requestId: string, response: string) => {
+  const respondInput = useCallback(async (requestId: string, response: string) => {
     if (!sessionId) return
     const ws = getWs()
-    ws.sendInputResponse(_requestId, response)
+    ws.sendInputResponse(requestId, response)
+
+    // Stamp the block's metadata with the response so it persists across
+    // page reloads and renders as read-only in history/replay.
+    setMessages((prev) =>
+      prev.map((msg) => {
+        const blockIdx = msg.blocks.findIndex(
+          (b) => b.type === 'ask_user_question' && (b.metadata?.tool_call_id === requestId || b.id === requestId),
+        )
+        if (blockIdx === -1) return msg
+        const updatedBlocks = [...msg.blocks]
+        updatedBlocks[blockIdx] = {
+          ...updatedBlocks[blockIdx],
+          metadata: {
+            ...updatedBlocks[blockIdx].metadata,
+            submitted: true,
+            response,
+          },
+        }
+        return { ...msg, blocks: updatedBlocks }
+      }),
+    )
   }, [sessionId, getWs])
 
   const interrupt = useCallback(async () => {
