@@ -61,12 +61,15 @@ export async function initBackendPort(): Promise<void> {
 /**
  * The backend server origin. Empty string in dev (relative URLs via Vite proxy).
  *
- * In Tauri mode we use `127.0.0.1` instead of `localhost` to avoid IPv6
- * DNS resolution issues (macOS resolves localhost to ::1 first, but the
- * backend only listens on IPv4 0.0.0.0).
+ * In Tauri mode we use `localhost` (not `127.0.0.1`) because HttpOnly cookies
+ * set by `http://localhost:{port}/auth/callback` (OIDC flow) are scoped to the
+ * `localhost` hostname. Using `127.0.0.1` would cause a cookie domain mismatch
+ * and break auth refresh. WKWebView's NSURLSession handles IPv6 fallback
+ * correctly for HTTP fetch, so there's no IPv6 issue here — only the
+ * `tauri-plugin-websocket` (tungstenite) needs `127.0.0.1` (see `wsUrl`).
  */
 function backendOrigin(): string {
-  return isTauri ? `http://127.0.0.1:${_backendPort}` : ''
+  return isTauri ? `http://localhost:${_backendPort}` : ''
 }
 
 /** Base URL for REST API endpoints (/api/...). */
