@@ -3,6 +3,7 @@ import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermis
 import { useChat, useWindowFullscreen } from '@/hooks'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput, type PrefillPayload } from './ChatInput'
+import { CompactionBanner } from './CompactionBanner'
 import { SessionList } from './SessionList'
 import { ProjectSelect } from './ProjectSelect'
 import { PermissionSettingsPanel } from './PermissionSettingsPanel'
@@ -363,6 +364,7 @@ export function ChatPanel() {
                 onSelectSession={handleSelectSession}
                 selectedProject={selectedProject}
               />
+              <CompactionBanner visible={chat.isCompacting} />
               <ChatInput
                 onSend={handleSend}
                 onInterrupt={chat.interrupt}
@@ -519,6 +521,7 @@ export function ChatPanel() {
             onSelectSession={handleSelectSession}
             selectedProject={selectedProject}
           />
+          <CompactionBanner visible={chat.isCompacting} />
           <ChatInput
             onSend={handleSend}
             onInterrupt={chat.interrupt}
