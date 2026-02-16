@@ -51,7 +51,7 @@ export class EventBusClient {
           this.reconnectDelay = MIN_RECONNECT_DELAY
           // Auth is handled pre-upgrade: either via HttpOnly cookie (browsers)
           // or via the ?ticket= query param (Tauri/WKWebView fallback).
-          // The server sends auth_ok as the first message.
+          // The server waits for a "ready" signal before sending auth_ok.
         },
 
         onmessage: (event) => {
@@ -81,7 +81,7 @@ export class EventBusClient {
               listener(crudEvent)
             }
           } catch {
-            // ignore malformed messages
+            // ignore malformed messages (e.g. ping frames)
           }
         },
 
@@ -100,6 +100,15 @@ export class EventBusClient {
           // onclose will fire after onerror
         },
       })
+
+      // Send "ready" to tell the server our message listener is registered.
+      // The server waits for this before sending auth_ok, preventing a race
+      // condition with the Tauri WebSocket plugin where messages sent before
+      // addListener() is called are lost.
+      if (this.ws && this.ws.readyState === ReadyState.OPEN) {
+        console.log('[EventBus] Sending "ready" to server')
+        this.ws.send('"ready"')
+      }
     } catch (err) {
       console.error('[EventBus] createWebSocket failed:', err)
       this.scheduleReconnect()
