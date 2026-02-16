@@ -34,9 +34,15 @@ export function getBackendPort(): number {
   return _backendPort
 }
 
-/** The backend server origin. Empty string in dev (relative URLs via Vite proxy). */
+/**
+ * The backend server origin. Empty string in dev (relative URLs via Vite proxy).
+ *
+ * In Tauri mode we use `127.0.0.1` instead of `localhost` to avoid IPv6
+ * DNS resolution issues (macOS resolves localhost to ::1 first, but the
+ * backend only listens on IPv4 0.0.0.0).
+ */
 function backendOrigin(): string {
-  return isTauri ? `http://localhost:${_backendPort}` : ''
+  return isTauri ? `http://127.0.0.1:${_backendPort}` : ''
 }
 
 /** Base URL for REST API endpoints (/api/...). */
@@ -49,10 +55,18 @@ export function getAuthBase(): string {
   return `${backendOrigin()}/auth`
 }
 
-/** Build a WebSocket URL for a given path (e.g. /ws/events). */
+/**
+ * Build a WebSocket URL for a given path (e.g. /ws/events).
+ *
+ * In Tauri mode we use `127.0.0.1` instead of `localhost` because
+ * `tauri-plugin-websocket` (tungstenite) resolves `localhost` via DNS
+ * which may return `::1` (IPv6) first on macOS. Since the backend
+ * listens on `0.0.0.0` (IPv4-only), the IPv6 connection attempt fails.
+ * Using `127.0.0.1` forces IPv4 without DNS resolution.
+ */
 export function wsUrl(path: string): string {
   if (isTauri) {
-    return `ws://localhost:${_backendPort}${path}`
+    return `ws://127.0.0.1:${_backendPort}${path}`
   }
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${protocol}//${window.location.host}${path}`
