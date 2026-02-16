@@ -135,7 +135,7 @@ export function ChatPanel() {
   }
 
   const handleContinue = () => {
-    chat.sendMessage('Continue')
+    chat.sendContinue()
   }
 
   /** Quick action from welcome screen → prefill the textarea */

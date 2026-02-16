@@ -33,6 +33,9 @@ export const chatSessionModelAtom = atom<string | null>(null)
 /** Tools auto-approved via "Remember for this session" checkbox (reset on new session) */
 export const chatAutoApprovedToolsAtom = atom<Set<string>>(new Set<string>())
 
+/** Whether auto-continue is enabled (automatically sends "Continue" after max_turns) */
+export const chatAutoContinueAtom = atom<boolean>(false)
+
 /** Derived: true when permission mode requires interactive approval (not bypassPermissions) */
 export const chatPermissionInteractiveAtom = atom((get) => {
   const config = get(chatPermissionConfigAtom)

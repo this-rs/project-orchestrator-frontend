@@ -15,6 +15,7 @@ import { ModelChangedBlock } from './ModelChangedBlock'
 import { ResultMaxTurnsBlock } from './ResultMaxTurnsBlock'
 import { ResultErrorBlock } from './ResultErrorBlock'
 import { SystemInitBlock } from './SystemInitBlock'
+import { ContinueIndicatorBlock } from './ContinueIndicatorBlock'
 
 /**
  * Markdown link component: uses ExternalLink which renders differently
@@ -267,12 +268,28 @@ export function ChatMessageBubble({ message, isStreaming, highlighted, onRespond
                 />
               )
 
-            case 'result_max_turns':
+            case 'result_max_turns': {
+              // Hide the entire block if the user already continued past this point
+              // (a continue_indicator follows in the same message)
+              const alreadyContinued = message.blocks.some(
+                (b) => b.type === 'continue_indicator',
+              )
+              if (alreadyContinued) return null
               return (
                 <ResultMaxTurnsBlock
                   key={block.id}
                   block={block}
                   onContinue={onContinue ?? (() => {})}
+                  isStreaming={isStreaming}
+                />
+              )
+            }
+
+            case 'continue_indicator':
+              return (
+                <ContinueIndicatorBlock
+                  key={block.id}
+                  block={block}
                 />
               )
 
