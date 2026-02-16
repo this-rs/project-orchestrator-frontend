@@ -17,6 +17,7 @@
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-updater": "^2.10.0",
+    "@tauri-apps/plugin-websocket": "^2.4.2",
     "@types/dagre": "^0.7.53",
     "@xyflow/react": "^12.10.0",
     "dagre": "^0.8.5",
