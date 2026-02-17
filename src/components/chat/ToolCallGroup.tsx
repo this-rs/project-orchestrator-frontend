@@ -50,18 +50,20 @@ export function ToolCallGroup({ toolBlocks, allBlocks }: ToolCallGroupProps) {
     return result?.metadata?.is_error
   })
 
-  // Live timer: recompute total duration every second while tools are running
+  // Live timer: recompute total duration while tools are running.
+  // Tick every 100ms when total < 10s (for 0.1s precision), then every 1s.
   const [totalMs, setTotalMs] = useState(() => computeTotalDuration(toolBlocks, getResultBlock))
 
   useEffect(() => {
-    // Recompute immediately on any change
-    setTotalMs(computeTotalDuration(toolBlocks, getResultBlock))
+    const total = computeTotalDuration(toolBlocks, getResultBlock)
+    setTotalMs(total)
 
     if (runningCount === 0) return
 
+    const tickMs = total < 10_000 ? 100 : 1000
     const interval = setInterval(() => {
       setTotalMs(computeTotalDuration(toolBlocks, getResultBlock))
-    }, 1000)
+    }, tickMs)
 
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- toolBlocks/allBlocks identity changes trigger recompute
