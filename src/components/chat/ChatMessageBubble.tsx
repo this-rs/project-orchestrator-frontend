@@ -136,6 +136,20 @@ export function groupBlocksByAgent(blocks: ContentBlock[]): GroupedBlock[] {
   return result
 }
 
+/** Format a Date as "HH:MM" in local time */
+function formatTime(date: Date): string {
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+}
+
+/** Format duration in ms to a human-readable string */
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${Math.round(ms)}ms`
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
+  const mins = Math.floor(ms / 60000)
+  const secs = Math.round((ms % 60000) / 1000)
+  return `${mins}m${secs}s`
+}
+
 interface ChatMessageBubbleProps {
   message: ChatMessage
   isStreaming?: boolean
@@ -152,10 +166,13 @@ export function ChatMessageBubble({ message, isStreaming, highlighted, onRespond
 
   if (message.role === 'user') {
     return (
-      <div className={`flex justify-end mb-4 ${highlightClass}`}>
+      <div className={`flex flex-col items-end mb-4 ${highlightClass}`}>
         <div className="max-w-[85%] px-3 py-2 rounded-xl bg-indigo-600/20 text-sm text-gray-200 whitespace-pre-wrap break-words overflow-hidden">
           {message.blocks[0]?.content}
         </div>
+        {message.timestamp && (
+          <span className="text-[10px] text-gray-600 mt-0.5 mr-1">{formatTime(message.timestamp)}</span>
+        )}
       </div>
     )
   }
@@ -316,6 +333,24 @@ export function ChatMessageBubble({ message, isStreaming, highlighted, onRespond
           <div className="flex items-center gap-1.5 text-gray-500 text-sm">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
             <span>Thinking...</span>
+          </div>
+        )}
+        {/* Turn summary: timestamp · duration · cost */}
+        {!isStreaming && (message.timestamp || message.duration_ms || message.cost_usd) && (
+          <div className="flex items-center justify-end gap-1 mt-1 text-[10px] text-gray-600">
+            {message.timestamp && <span>{formatTime(message.timestamp)}</span>}
+            {message.duration_ms != null && (
+              <>
+                <span>·</span>
+                <span>{formatDuration(message.duration_ms)}</span>
+              </>
+            )}
+            {message.cost_usd != null && (
+              <>
+                <span>·</span>
+                <span>${message.cost_usd < 0.01 ? message.cost_usd.toFixed(4) : message.cost_usd.toFixed(2)}</span>
+              </>
+            )}
           </div>
         )}
       </div>

@@ -29,6 +29,7 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
   const toolInput = (block.metadata?.tool_input as Record<string, unknown>) ?? {}
   const isError = resultBlock?.metadata?.is_error as boolean | undefined
   const isLoading = !resultBlock
+  const durationMs = resultBlock?.metadata?.duration_ms as number | undefined
 
   const icon = getToolIcon(toolName)
   const summary = getToolSummary(toolName, toolInput)
@@ -60,9 +61,13 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${badgeColor}`} />
         )}
         <span className="font-mono text-gray-400 truncate">{headerText}</span>
-        {isLoading && (
+        {isLoading ? (
           <span className="ml-auto text-gray-600 shrink-0">running...</span>
-        )}
+        ) : durationMs != null ? (
+          <span className="ml-auto text-gray-600 shrink-0">
+            {durationMs < 1000 ? `${Math.round(durationMs)}ms` : `${(durationMs / 1000).toFixed(1)}s`}
+          </span>
+        ) : null}
       </button>
 
       {expanded && (

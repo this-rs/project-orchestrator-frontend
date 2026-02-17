@@ -33,6 +33,17 @@ function withParent(
   return { ...metadata, parent_tool_use_id: parentToolUseId }
 }
 
+/**
+ * Inject `created_at` (ISO string) into metadata for timestamp display.
+ */
+function withCreatedAt(
+  metadata: Record<string, unknown> | undefined,
+  createdAt: string | undefined,
+): Record<string, unknown> | undefined {
+  if (!createdAt) return metadata
+  return { ...metadata, created_at: createdAt }
+}
+
 let messageIdCounter = 0
 function nextMessageId() {
   return `msg-${++messageIdCounter}`
@@ -131,6 +142,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
         const toolId = evt.id ?? ''
         const toolInput = evt.input ?? {}
         const parent = getParentToolUseId(evt)
+        const ts = createdAt.toISOString()
 
         if (toolName === 'AskUserQuestion') {
           const questions = (toolInput as { questions?: { question: string }[] })?.questions
@@ -144,7 +156,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
                 id: nextBlockId(),
                 type: 'ask_user_question',
                 content: questions.map((q: { question: string }) => q.question).join('\n'),
-                metadata: withParent({ tool_call_id: toolId, questions }, parent),
+                metadata: withCreatedAt(withParent({ tool_call_id: toolId, questions }, parent), ts),
               })
             }
           }
@@ -153,7 +165,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
             id: nextBlockId(),
             type: 'tool_use',
             content: toolName,
-            metadata: withParent({ tool_call_id: toolId, tool_name: toolName, tool_input: toolInput }, parent),
+            metadata: withCreatedAt(withParent({ tool_call_id: toolId, tool_name: toolName, tool_input: toolInput }, parent), ts),
           })
         }
         break
@@ -180,11 +192,31 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
         const result = evt.result
         const resultStr = typeof result === 'string' ? result : JSON.stringify(result)
         const parent = getParentToolUseId(evt)
+        // Calculate tool duration by finding the matching tool_use block
+        let toolDurationMs: number | undefined
+        const toolCallId = evt.id
+        if (toolCallId) {
+          for (let mi = messages.length - 1; mi >= 0; mi--) {
+            const tuBlock = messages[mi].blocks.find(
+              (b) => b.type === 'tool_use' && b.metadata?.tool_call_id === toolCallId && b.metadata?.created_at,
+            )
+            if (tuBlock) {
+              const tuTime = new Date(tuBlock.metadata!.created_at as string).getTime()
+              const trTime = createdAt.getTime()
+              if (trTime > tuTime) toolDurationMs = trTime - tuTime
+              break
+            }
+          }
+        }
         msg.blocks.push({
           id: nextBlockId(),
           type: 'tool_result',
           content: resultStr,
-          metadata: withParent({ tool_call_id: evt.id, is_error: evt.is_error }, parent),
+          metadata: withCreatedAt(withParent({
+            tool_call_id: toolCallId,
+            is_error: evt.is_error,
+            ...(toolDurationMs != null && { duration_ms: toolDurationMs }),
+          }, parent), createdAt.toISOString()),
         })
         break
       }
@@ -292,22 +324,28 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
       }
 
       case 'system_init': {
-        const msg = lastAssistant()
-        const initModel = evt.model as string | undefined
-        const initTools = evt.tools as string[] | undefined
-        const initMcpServers = evt.mcp_servers as { name: string; status?: string }[] | undefined
-        const initPermMode = evt.permission_mode as string | undefined
-        msg.blocks.push({
-          id: nextBlockId(),
-          type: 'system_init',
-          content: 'Session initialized',
-          metadata: {
-            model: initModel,
-            tools_count: initTools?.length ?? 0,
-            mcp_servers_count: initMcpServers?.length ?? 0,
-            permission_mode: initPermMode,
-          },
-        })
+        // Dedup: only show the first system_init per conversation
+        const alreadyHasInit = messages.some((m) =>
+          m.blocks.some((b) => b.type === 'system_init'),
+        )
+        if (!alreadyHasInit) {
+          const msg = lastAssistant()
+          const initModel = evt.model as string | undefined
+          const initTools = evt.tools as string[] | undefined
+          const initMcpServers = evt.mcp_servers as { name: string; status?: string }[] | undefined
+          const initPermMode = evt.permission_mode as string | undefined
+          msg.blocks.push({
+            id: nextBlockId(),
+            type: 'system_init',
+            content: 'Session initialized',
+            metadata: {
+              model: initModel,
+              tools_count: initTools?.length ?? 0,
+              mcp_servers_count: initMcpServers?.length ?? 0,
+              permission_mode: initPermMode,
+            },
+          })
+        }
         break
       }
 
@@ -316,9 +354,13 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
         const rNumTurns = evt.num_turns as number | undefined
         const rResultText = evt.result_text as string | undefined
 
+        // Store turn metrics on the assistant message
+        const rMsg = lastAssistant()
+        if (evt.duration_ms != null) rMsg.duration_ms = evt.duration_ms as number
+        if (evt.cost_usd != null) rMsg.cost_usd = evt.cost_usd as number
+
         if (rSubtype === 'error_max_turns') {
-          const msg = lastAssistant()
-          msg.blocks.push({
+          rMsg.blocks.push({
             id: nextBlockId(),
             type: 'result_max_turns',
             content: rNumTurns
@@ -328,8 +370,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
           })
           lastEventWasMaxTurns = true
         } else if (rSubtype === 'error_during_execution') {
-          const msg = lastAssistant()
-          msg.blocks.push({
+          rMsg.blocks.push({
             id: nextBlockId(),
             type: 'result_error',
             content: rResultText ?? 'An execution error occurred',
@@ -339,7 +380,6 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
         } else {
           lastEventWasMaxTurns = false
         }
-        // success → no UI block needed (existing behavior)
         break
       }
 
@@ -399,6 +439,13 @@ export function useChat() {
   const [isLoadingOlder, setIsLoadingOlder] = useState(false)
   const paginationRef = useRef({ offset: 0, totalCount: 0 })
 
+  // Mid-stream join: buffer WS events while REST history is loading.
+  // historyLoadedRef starts true (first-send path has no REST loading).
+  // The auto-connect useEffect sets it to false before starting REST,
+  // then back to true after setMessages(history) + replaying buffered events.
+  const historyLoadedRef = useRef(true)
+  const pendingEventsRef = useRef<Array<ChatEvent & { seq?: number; replaying?: boolean }>>([])
+
   // Lazily create the ChatWebSocket singleton per hook instance
   const getWs = useCallback(() => {
     if (!wsRef.current) {
@@ -430,6 +477,17 @@ export function useChat() {
   // Event handler — processes LIVE events only (no more replay)
   // ========================================================================
   const handleEvent = useCallback((event: ChatEvent & { seq?: number; replaying?: boolean }) => {
+    // Mid-stream join: if REST history hasn't loaded yet, buffer most events
+    // so they can be replayed AFTER setMessages(history). This prevents
+    // setMessages([]) or setMessages(history) from wiping live events.
+    // EXCEPTION: streaming_status and partial_text are processed immediately
+    // because they provide the instant visual feedback the user expects
+    // (seeing the live stream + interrupt button without waiting for REST).
+    if (!historyLoadedRef.current && event.type !== 'streaming_status' && event.type !== 'partial_text') {
+      pendingEventsRef.current.push(event)
+      return
+    }
+
     // Auto-approve: if this is a live permission_request and the tool was remembered,
     // auto-respond Allow via WS and show the block as already-approved.
     if (event.type === 'permission_request' && !event.replaying) {
@@ -639,6 +697,7 @@ export function useChat() {
           const toolId = (data as { id?: string }).id ?? ''
           const toolInput = (data as { input?: Record<string, unknown> }).input ?? {}
           const tuParent = getParentToolUseId(event)
+          const tuTs = new Date().toISOString()
 
           if (toolName === 'AskUserQuestion') {
             const questions = (toolInput as { questions?: unknown[] })?.questions
@@ -653,10 +712,10 @@ export function useChat() {
                   id: nextBlockId(),
                   type: 'ask_user_question',
                   content: (questions as { question: string }[]).map((q) => q.question).join('\n'),
-                  metadata: withParent({
+                  metadata: withCreatedAt(withParent({
                     tool_call_id: toolId,
                     questions,
-                  }, tuParent),
+                  }, tuParent), tuTs),
                 })
               }
             }
@@ -665,11 +724,11 @@ export function useChat() {
               id: nextBlockId(),
               type: 'tool_use',
               content: toolName,
-              metadata: withParent({
+              metadata: withCreatedAt(withParent({
                 tool_call_id: toolId,
                 tool_name: toolName,
                 tool_input: toolInput,
-              }, tuParent),
+              }, tuParent), tuTs),
             })
           }
           break
@@ -713,6 +772,21 @@ export function useChat() {
           const resultStr = typeof resultVal === 'string' ? resultVal : JSON.stringify(resultVal)
           const toolCallId = (data as { id?: string }).id
           const trParent = getParentToolUseId(event)
+          // Calculate tool duration from matching tool_use block
+          let trDurationMs: number | undefined
+          if (toolCallId) {
+            const now = Date.now()
+            for (let mi = updated.length - 1; mi >= 0; mi--) {
+              const tuBlock = updated[mi].blocks.find(
+                (b) => b.type === 'tool_use' && b.metadata?.tool_call_id === toolCallId && b.metadata?.created_at,
+              )
+              if (tuBlock) {
+                const tuTime = new Date(tuBlock.metadata!.created_at as string).getTime()
+                if (now > tuTime) trDurationMs = now - tuTime
+                break
+              }
+            }
+          }
           lastMsg.blocks.push({
             id: nextBlockId(),
             type: 'tool_result',
@@ -720,6 +794,7 @@ export function useChat() {
             metadata: withParent({
               tool_call_id: toolCallId,
               is_error: (data as { is_error?: boolean }).is_error,
+              ...(trDurationMs != null && { duration_ms: trDurationMs }),
             }, trParent),
           })
           break
@@ -872,17 +947,23 @@ export function useChat() {
           if (siModel) {
             setSessionModel(siModel)
           }
-          lastMsg.blocks.push({
-            id: nextBlockId(),
-            type: 'system_init',
-            content: 'Session initialized',
-            metadata: {
-              model: siModel,
-              tools_count: siTools?.length ?? 0,
-              mcp_servers_count: siMcpServers?.length ?? 0,
-              permission_mode: siPermMode,
-            },
-          })
+          // Dedup: only show the first system_init per conversation
+          const alreadyHasSystemInit = updated.some((m) =>
+            m.blocks.some((b) => b.type === 'system_init'),
+          )
+          if (!alreadyHasSystemInit) {
+            lastMsg.blocks.push({
+              id: nextBlockId(),
+              type: 'system_init',
+              content: 'Session initialized',
+              metadata: {
+                model: siModel,
+                tools_count: siTools?.length ?? 0,
+                mcp_servers_count: siMcpServers?.length ?? 0,
+                permission_mode: siPermMode,
+              },
+            })
+          }
           break
         }
 
@@ -893,6 +974,12 @@ export function useChat() {
           const rSubtype = (rData as { subtype?: string }).subtype ?? 'success'
           const rNumTurns = (rData as { num_turns?: number }).num_turns
           const rResultText = (rData as { result_text?: string }).result_text
+
+          // Store turn metrics on the assistant message
+          const rDuration = (rData as { duration_ms?: number }).duration_ms
+          const rCost = (rData as { cost_usd?: number }).cost_usd
+          if (rDuration != null) lastMsg.duration_ms = rDuration
+          if (rCost != null) lastMsg.cost_usd = rCost
 
           if (rSubtype === 'error_max_turns') {
             lastMsg.blocks.push({
@@ -987,22 +1074,42 @@ export function useChat() {
     paginationRef.current = { offset: 0, totalCount: 0 }
     setHasOlderMessages(false)
 
-    // Phase 1: Load the most recent messages via REST.
+    // Prepare the event buffer: WS events arriving while REST is loading
+    // will be queued in pendingEventsRef and replayed after setMessages().
+    historyLoadedRef.current = false
+    pendingEventsRef.current = []
+
+    const t0 = performance.now()
+
+    // Phase 1: Connect WS IMMEDIATELY for live streaming (parallel with REST).
+    // This eliminates the latency of the old sequential approach where
+    // the WS only connected after 2 REST calls.
+    // The WS delivers the mid-stream snapshot (partial_text, streaming_events,
+    // streaming_status) instantly — the user sees the live stream right away.
+    ws.connect(sessionId, Number.MAX_SAFE_INTEGER)
+
+    // Phase 2: Load history via REST in parallel.
     // The API uses chronological pagination (offset 0 = oldest), so we first
     // need to figure out the right offset to get the last page of messages.
     // We do a small initial request to get total_count, then load the tail.
     chatApi
       .getMessages(sessionId, { limit: 1, offset: 0 })
       .then((meta) => {
+        console.log(`⏱ [REST] getMessages(count): ${(performance.now() - t0).toFixed(0)}ms`)
         if (cancelled) return
         const total = meta.total_count
         if (total === 0) {
-          setMessages([])
           paginationRef.current = { offset: 0, totalCount: 0 }
           setHasOlderMessages(false)
           setIsLoadingHistory(false)
           setIsReplaying(false)
-          ws.connect(sessionId, Number.MAX_SAFE_INTEGER)
+          // Flush buffered events (none expected, but be safe)
+          historyLoadedRef.current = true
+          const pending = pendingEventsRef.current
+          pendingEventsRef.current = []
+          for (const evt of pending) {
+            handleEvent(evt)
+          }
           return
         }
 
@@ -1010,6 +1117,7 @@ export function useChat() {
         const tailOffset = Math.max(0, total - PAGE_SIZE)
         return chatApi.getMessages(sessionId, { limit: PAGE_SIZE, offset: tailOffset })
           .then((data) => {
+            console.log(`⏱ [REST] getMessages(tail): ${(performance.now() - t0).toFixed(0)}ms`)
             if (cancelled) return
 
             const historyMessages = historyEventsToMessages(data.messages)
@@ -1024,19 +1132,32 @@ export function useChat() {
             setIsLoadingHistory(false)
             setIsReplaying(false)
 
-            // Phase 2: Connect WS for live events only (skip replay)
-            ws.connect(sessionId, Number.MAX_SAFE_INTEGER)
+            // Phase 3: Replay buffered WS events that arrived during REST loading.
+            // These were queued in pendingEventsRef by handleEvent's guard clause.
+            // Setting historyLoadedRef first so any events arriving NOW go direct.
+            historyLoadedRef.current = true
+            const pending = pendingEventsRef.current
+            pendingEventsRef.current = []
+            console.log(`⏱ [REST] replaying ${pending.length} buffered WS events: ${(performance.now() - t0).toFixed(0)}ms`)
+            for (const evt of pending) {
+              handleEvent(evt)
+            }
           })
       })
       .catch(() => {
         if (cancelled) return
-        // Fallback: connect WS with full replay if REST fails
+        // Fallback: if REST fails, switch to full WS replay.
+        // Stop buffering, clear pending, reconnect with seq 0.
+        historyLoadedRef.current = true
+        pendingEventsRef.current = []
         setIsLoadingHistory(false)
+        ws.disconnect()
         ws.connect(sessionId, 0)
       })
 
     return () => {
       cancelled = true
+      pendingEventsRef.current = []
     }
   }, [sessionId, getWs, setIsReplaying])
 

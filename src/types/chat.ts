@@ -165,6 +165,10 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   blocks: ContentBlock[]
   timestamp: Date
+  /** Total turn duration in ms (from backend result event) */
+  duration_ms?: number
+  /** Total turn cost in USD (from backend result event) */
+  cost_usd?: number
 }
 
 export type ChatPanelMode = 'closed' | 'open' | 'fullscreen'

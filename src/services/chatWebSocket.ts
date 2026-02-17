@@ -105,11 +105,13 @@ export class ChatWebSocket {
   }
 
   private async openSocket(sessionId: string, lastEventSeq: number) {
+    const t0 = performance.now()
     // Fetch a one-time WS ticket before connecting.
     // This works around WKWebView (Tauri) not sending HttpOnly cookies
     // on WebSocket upgrade requests. In browsers the cookie is still sent
     // and takes priority server-side; the ticket is just a fallback.
     const ticket = await fetchWsTicket()
+    console.log(`⏱ [WS] fetchWsTicket: ${(performance.now() - t0).toFixed(0)}ms`)
     const params = new URLSearchParams({ last_event: String(lastEventSeq) })
     if (ticket) params.set('ticket', ticket)
     const url = wsUrl(`/ws/chat/${sessionId}?${params.toString()}`)
@@ -117,11 +119,16 @@ export class ChatWebSocket {
     try {
       this.ws = await createWebSocket(url, {
         onopen: () => {
+          console.log(`⏱ [WS] onopen: ${(performance.now() - t0).toFixed(0)}ms`)
           this.reconnectDelay = MIN_RECONNECT_DELAY
           this.reconnectAttempts = 0
-          // Auth is handled pre-upgrade: either via HttpOnly cookie (browsers)
-          // or via the ?ticket= query param (Tauri/WKWebView fallback).
-          // The server waits for a "ready" signal before sending auth_ok.
+          // Send "ready" to tell the server our message listener is wired.
+          // The server waits for this before sending auth_ok, preventing a
+          // race condition with the Tauri WebSocket plugin where messages
+          // sent before addListener() is called are lost.
+          // MUST be sent from onopen — in browser mode, readyState is still
+          // CONNECTING when createWebSocket() returns synchronously.
+          this.ws!.send('"ready"')
         },
 
         onmessage: (event: MessageEvent) => {
@@ -131,6 +138,7 @@ export class ChatWebSocket {
             // Handle auth response (first message from server)
             if (!this.authenticated) {
               if (data.type === 'auth_ok') {
+                console.log(`⏱ [WS] auth_ok received: ${(performance.now() - t0).toFixed(0)}ms`)
                 this.authenticated = true
                 this.setStatus('connected')
                 return
@@ -147,6 +155,7 @@ export class ChatWebSocket {
 
             // Handle replay_complete marker
             if (data.type === 'replay_complete') {
+              console.log(`⏱ [WS] replay_complete: ${(performance.now() - t0).toFixed(0)}ms`)
               this._isReplaying = false
               this.onReplayComplete?.()
               return
@@ -173,6 +182,9 @@ export class ChatWebSocket {
             // Forward as ChatEvent to the callback
             // The data has `type` field matching ChatEvent discriminant
             if (this.onEvent) {
+              if (data.type === 'streaming_status' || data.type === 'partial_text' || data.type === 'stream_delta') {
+                console.log(`⏱ [WS] first ${data.type}: ${(performance.now() - t0).toFixed(0)}ms`)
+              }
               this.onEvent(data as ChatEvent & { seq?: number; replaying?: boolean })
             }
           } catch {
@@ -197,13 +209,9 @@ export class ChatWebSocket {
         },
       })
 
-      // Send "ready" to tell the server our message listener is registered.
-      // The server waits for this before sending auth_ok, preventing a race
-      // condition with the Tauri WebSocket plugin where messages sent before
-      // addListener() is called are lost.
-      if (this.ws && this.ws.readyState === ReadyState.OPEN) {
-        this.ws.send('"ready"')
-      }
+      // "ready" is now sent from the onopen callback (above) so it works
+      // in both browser mode (where readyState is CONNECTING here) and
+      // Tauri mode (where readyState is OPEN here).
     } catch {
       this.scheduleReconnect()
     }
