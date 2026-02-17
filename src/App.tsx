@@ -25,6 +25,7 @@ import {
   NotesPage,
   CodePage,
   FeatureGraphDetailPage,
+  NotFoundPage,
   SetupWizard,
 } from '@/pages'
 
@@ -110,9 +111,13 @@ function App() {
                       <Route path="notes" element={<NotesPage />} />
                       <Route path="code" element={<CodePage />} />
                       <Route path="feature-graphs/:id" element={<FeatureGraphDetailPage />} />
+                      <Route path="*" element={<NotFoundPage embedded />} />
                     </Route>
                   </Route>
                 </Route>
+
+                {/* Catch-all: unknown routes outside the protected layout */}
+                <Route path="*" element={<NotFoundPage />} />
               </Route>
             </Routes>
           </div>
