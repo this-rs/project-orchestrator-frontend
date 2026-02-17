@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom } from '@/atoms'
+import { AVAILABLE_MODELS, DEFAULT_MODEL_ID, getModelShortLabel, getModelDotColor } from '@/constants/models'
 import type { PermissionMode } from '@/types'
 
 const MODE_LABELS: Record<PermissionMode, string> = {
@@ -15,31 +16,6 @@ const MODE_DOT_COLORS: Record<PermissionMode, string> = {
   acceptEdits: 'bg-blue-400',
   default: 'bg-amber-400',
   plan: 'bg-gray-400',
-}
-
-/** Supported models for the selector */
-const MODEL_OPTIONS: { id: string; label: string; dotColor: string }[] = [
-  { id: 'claude-opus-4-6', label: 'Opus 4.6', dotColor: 'bg-violet-400' },
-  { id: 'claude-opus-4-5', label: 'Opus 4.5', dotColor: 'bg-violet-400' },
-  { id: 'claude-sonnet-4-5', label: 'Sonnet 4.5', dotColor: 'bg-blue-400' },
-]
-
-/** Extract short display label from a full model name */
-function modelShortLabel(model: string): string {
-  if (model.includes('opus-4-6')) return 'Opus 4.6'
-  if (model.includes('opus-4-5')) return 'Opus 4.5'
-  if (model.includes('opus')) return 'Opus'
-  if (model.includes('sonnet-4-5')) return 'Sonnet 4.5'
-  if (model.includes('sonnet')) return 'Sonnet'
-  if (model.includes('haiku')) return 'Haiku'
-  return model
-}
-
-/** Get dot color for a model */
-function modelDotColor(model: string): string {
-  if (model.includes('opus')) return 'bg-violet-400'
-  if (model.includes('haiku')) return 'bg-emerald-400'
-  return 'bg-blue-400' // sonnet / default
 }
 
 /** Payload for prefilling the textarea from an external source (e.g. quick actions) */
@@ -79,7 +55,7 @@ export function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionI
   const modelDropdownRef = useRef<HTMLDivElement>(null)
 
   const effectiveMode = modeOverride ?? serverConfig?.mode ?? 'default'
-  const effectiveModel = sessionModel ?? serverConfig?.default_model ?? 'claude-sonnet-4-5'
+  const effectiveModel = sessionModel ?? serverConfig?.default_model ?? DEFAULT_MODEL_ID
 
   const resize = useCallback(() => {
     const el = textareaRef.current
@@ -232,15 +208,15 @@ export function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionI
                   : 'border-white/[0.08]'
               }`}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${modelDotColor(effectiveModel)}`} />
-              <span>{modelShortLabel(effectiveModel)}</span>
+              <span className={`w-1.5 h-1.5 rounded-full ${getModelDotColor(effectiveModel)}`} />
+              <span>{getModelShortLabel(effectiveModel)}</span>
               <svg className="w-2.5 h-2.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </button>
             {showModelDropdown && (
               <div className="absolute bottom-full left-0 mb-1 z-20 w-52 bg-[#1e2130] border border-white/[0.08] rounded-lg shadow-xl py-1">
-                {MODEL_OPTIONS.map((opt) => {
+                {AVAILABLE_MODELS.map((opt) => {
                   const isActive = effectiveModel === opt.id
                   return (
                     <button
@@ -251,7 +227,7 @@ export function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionI
                       }`}
                     >
                       <span className={`w-1.5 h-1.5 rounded-full ${opt.dotColor}`} />
-                      <span>{opt.label}</span>
+                      <span>{opt.shortLabel}</span>
                       <span className="text-[9px] text-gray-600 ml-auto font-mono">{opt.id.replace('claude-', '').slice(0, 15)}</span>
                     </button>
                   )

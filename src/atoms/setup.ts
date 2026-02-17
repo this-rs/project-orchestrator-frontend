@@ -1,4 +1,5 @@
 import { atom } from 'jotai'
+import { DEFAULT_MODEL_ID } from '@/constants/models'
 
 // ============================================================================
 // Setup wizard configuration atoms
@@ -164,7 +165,7 @@ export const defaultSetupConfig: SetupConfig = {
   allowedEmails: '',
 
   // Chat
-  chatModel: 'sonnet-4-5',
+  chatModel: DEFAULT_MODEL_ID,
   chatMaxSessions: 3,
   chatMaxTurns: 50,
   chatPermissionMode: 'default',
