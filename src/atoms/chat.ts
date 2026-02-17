@@ -1,5 +1,5 @@
 import { atom } from 'jotai'
-import type { ChatPanelMode, PermissionConfig, PermissionMode, WsConnectionStatus } from '@/types'
+import type { ChatPanelMode, PermissionConfig, PermissionMode, Project, WsConnectionStatus } from '@/types'
 
 /** Hint set by pages that know which project the user is looking at */
 export const chatSuggestedProjectIdAtom = atom<string | null>(null)
@@ -35,6 +35,12 @@ export const chatAutoApprovedToolsAtom = atom<Set<string>>(new Set<string>())
 
 /** Whether auto-continue is enabled (automatically sends "Continue" after max_turns) */
 export const chatAutoContinueAtom = atom<boolean>(false)
+
+/** Draft text in the chat input textarea (survives layout switches & settings overlay) */
+export const chatDraftInputAtom = atom<string>('')
+
+/** Selected project for new conversations (survives layout switches & new-session) */
+export const chatSelectedProjectAtom = atom<Project | null>(null)
 
 /** Derived: true when permission mode requires interactive approval (not bypassPermissions) */
 export const chatPermissionInteractiveAtom = atom((get) => {
