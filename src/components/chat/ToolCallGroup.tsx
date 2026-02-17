@@ -1,10 +1,36 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { ContentBlock } from '@/types'
 import { ToolCallBlock } from './ToolCallBlock'
+import { formatDurationShort } from './useElapsedMs'
 
 interface ToolCallGroupProps {
   toolBlocks: ContentBlock[]
   allBlocks: ContentBlock[]
+}
+
+/**
+ * Compute total duration across all tools in the group.
+ * For completed tools: uses resultBlock.metadata.duration_ms
+ * For running tools: uses Date.now() - block.metadata.created_at
+ */
+function computeTotalDuration(
+  toolBlocks: ContentBlock[],
+  getResultBlock: (b: ContentBlock) => ContentBlock | undefined,
+): number {
+  let total = 0
+  for (const block of toolBlocks) {
+    const result = getResultBlock(block)
+    if (result) {
+      const dur = result.metadata?.duration_ms as number | undefined
+      if (dur != null) total += dur
+    } else {
+      const createdAt = block.metadata?.created_at as string | undefined
+      if (createdAt) {
+        total += Math.max(0, Date.now() - new Date(createdAt).getTime())
+      }
+    }
+  }
+  return total
 }
 
 export function ToolCallGroup({ toolBlocks, allBlocks }: ToolCallGroupProps) {
@@ -23,6 +49,23 @@ export function ToolCallGroup({ toolBlocks, allBlocks }: ToolCallGroupProps) {
     const result = getResultBlock(b)
     return result?.metadata?.is_error
   })
+
+  // Live timer: recompute total duration every second while tools are running
+  const [totalMs, setTotalMs] = useState(() => computeTotalDuration(toolBlocks, getResultBlock))
+
+  useEffect(() => {
+    // Recompute immediately on any change
+    setTotalMs(computeTotalDuration(toolBlocks, getResultBlock))
+
+    if (runningCount === 0) return
+
+    const interval = setInterval(() => {
+      setTotalMs(computeTotalDuration(toolBlocks, getResultBlock))
+    }, 1000)
+
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toolBlocks/allBlocks identity changes trigger recompute
+  }, [toolBlocks, allBlocks, runningCount])
 
   // If only 1 tool, render it directly without grouping
   if (toolBlocks.length === 1) {
@@ -65,9 +108,10 @@ export function ToolCallGroup({ toolBlocks, allBlocks }: ToolCallGroupProps) {
           {toolBlocks.length} tools
           <span className="text-gray-600 ml-2">({summary})</span>
         </span>
-        {runningCount > 0 && (
-          <span className="ml-auto text-gray-600 shrink-0">{runningCount} running...</span>
-        )}
+        <span className="ml-auto text-gray-600 shrink-0">
+          {totalMs > 0 && formatDurationShort(totalMs)}
+          {runningCount > 0 && (totalMs > 0 ? ' — ' : '')}{runningCount > 0 && `${runningCount} running...`}
+        </span>
       </button>
 
       {expanded && (
