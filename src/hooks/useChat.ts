@@ -109,6 +109,17 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
           lastEventWasMaxTurns = false
           break
         }
+        // User sent a normal message (not "Continue") after max_turns →
+        // dismiss the result_max_turns block so the orange banner won't reappear on reload.
+        if (lastEventWasMaxTurns) {
+          const assistantMsg = messages[messages.length - 1]
+          if (assistantMsg && assistantMsg.role === 'assistant') {
+            const maxTurnsBlock = assistantMsg.blocks.find((b) => b.type === 'result_max_turns')
+            if (maxTurnsBlock) {
+              maxTurnsBlock.metadata = { ...maxTurnsBlock.metadata, dismissed: true }
+            }
+          }
+        }
         lastEventWasMaxTurns = false
         messages.push({
           id: evt.id || nextMessageId(),
@@ -1213,16 +1224,39 @@ export function useChat() {
   // ========================================================================
 
   const sendMessage = useCallback(async (text: string, options?: SendMessageOptions) => {
-    // Add user message to UI immediately (optimistic)
-    setMessages((prev) => [
-      ...prev,
-      {
+    // Add user message to UI immediately (optimistic).
+    // Also dismiss any pending result_max_turns block so the orange banner disappears.
+    setMessages((prev) => {
+      const updated = [...prev]
+
+      // Dismiss result_max_turns on the last assistant message (if any)
+      for (let i = updated.length - 1; i >= Math.max(0, updated.length - 5); i--) {
+        const msg = updated[i]
+        if (msg.role === 'assistant') {
+          const hasMaxTurns = msg.blocks.some((b) => b.type === 'result_max_turns')
+          const hasContinue = msg.blocks.some((b) => b.type === 'continue_indicator')
+          if (hasMaxTurns && !hasContinue) {
+            updated[i] = {
+              ...msg,
+              blocks: msg.blocks.map((b) =>
+                b.type === 'result_max_turns'
+                  ? { ...b, metadata: { ...b.metadata, dismissed: true } }
+                  : b,
+              ),
+            }
+          }
+          break
+        }
+      }
+
+      updated.push({
         id: nextMessageId(),
         role: 'user',
         blocks: [{ id: nextBlockId(), type: 'text', content: text }],
         timestamp: new Date(),
-      },
-    ])
+      })
+      return updated
+    })
 
     if (!sessionId) {
       // First message — create session via REST, then connect WS
