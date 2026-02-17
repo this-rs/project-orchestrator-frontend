@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAtomValue } from 'jotai'
 import { chatSessionRefreshAtom } from '@/atoms'
 import { chatApi, getEventBus, projectsApi, workspacesApi } from '@/services'
@@ -76,7 +76,7 @@ function groupSessionsByDate(sessions: ChatSession[]): { group: DateGroup; sessi
 // SessionList component
 // ============================================================================
 
-export function SessionList({ activeSessionId, onSelect, onClose, embedded }: SessionListProps) {
+export const SessionList = memo(function SessionList({ activeSessionId, onSelect, onClose, embedded }: SessionListProps) {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [loading, setLoading] = useState(true)
   const [hasMoreSessions, setHasMoreSessions] = useState(false)
@@ -673,4 +673,4 @@ export function SessionList({ activeSessionId, onSelect, onClose, embedded }: Se
       </div>
     </div>
   )
-}
+})

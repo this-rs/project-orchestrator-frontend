@@ -16,6 +16,7 @@ import { chatApi } from '@/services/chat'
 const MIN_WIDTH = 320
 const MAX_WIDTH = 800
 const MOBILE_BREAKPOINT = 768
+const NOOP = () => {}
 
 /** Small dot indicator for WebSocket status */
 function WsStatusDot({ status }: { status: string }) {
@@ -123,7 +124,7 @@ export function ChatPanel() {
     }
   }, [isDragging, setPanelWidth])
 
-  const handleSend = (text: string) => {
+  const handleSend = useCallback((text: string) => {
     if (isNewConversation && !selectedProject) return
     chat.sendMessage(
       text,
@@ -131,11 +132,11 @@ export function ChatPanel() {
         ? { cwd: selectedProject!.root_path, projectSlug: selectedProject!.slug }
         : undefined,
     )
-  }
+  }, [isNewConversation, selectedProject, chat.sendMessage])
 
-  const handleContinue = () => {
+  const handleContinue = useCallback(() => {
     chat.sendContinue()
-  }
+  }, [chat.sendContinue])
 
   /** Quick action from welcome screen → prefill the textarea */
   const handleQuickAction = useCallback((prompt: string, cursorOffset?: number) => {
@@ -143,14 +144,14 @@ export function ChatPanel() {
     setPrefill({ text: prompt, cursorOffset })
   }, [])
 
-  const handleNewSession = () => {
+  const handleNewSession = useCallback(() => {
     chat.newSession()
     // Keep selectedProject — user expects the project to persist across new chats
     setSessionTitle(null)
     setShowSessions(false)
-  }
+  }, [chat.newSession])
 
-  const handleSelectSession = (sessionId: string, targetTurnIndex?: number, title?: string) => {
+  const handleSelectSession = useCallback((sessionId: string, targetTurnIndex?: number, title?: string) => {
     setScrollToTurn(targetTurnIndex ?? null)
     chat.loadSession(sessionId)
     setSessionTitle(title ?? null)
@@ -161,7 +162,7 @@ export function ChatPanel() {
     if (isMobile) {
       setShowMobileSidebar(false)
     }
-  }
+  }, [chat.loadSession, setScrollToTurn, isFullscreen, isMobile])
 
   // Determine header title
   const headerTitle = isNewConversation
@@ -198,7 +199,7 @@ export function ChatPanel() {
           <SessionList
             activeSessionId={chat.sessionId}
             onSelect={handleSelectSession}
-            onClose={() => {}} // no-op in fullscreen desktop
+            onClose={NOOP} // no-op in fullscreen desktop
             embedded
           />
         </div>

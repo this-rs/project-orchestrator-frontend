@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import { useAtom } from 'jotai'
 import { chatScrollToTurnAtom } from '@/atoms'
 import type { ChatMessage, Project } from '@/types'
@@ -27,7 +27,7 @@ interface ChatMessagesProps {
   selectedProject?: Project | null
 }
 
-export function ChatMessages({
+export const ChatMessages = memo(function ChatMessages({
   messages,
   isStreaming,
   isLoadingHistory,
@@ -219,4 +219,4 @@ export function ChatMessages({
       )}
     </div>
   )
-}
+})
