@@ -32,16 +32,20 @@ export function useDropdownPosition(
     if (!triggerRef.current) return
     const rect = triggerRef.current.getBoundingClientRect()
     const menuHeight = menuRef.current?.offsetHeight || 200
+    const menuWidth = menuRef.current?.offsetWidth || rect.width
     const spaceBelow = window.innerHeight - rect.bottom
     const showAbove = spaceBelow < menuHeight && rect.top > menuHeight
 
-    setPosition({
-      top: showAbove
-        ? rect.top + window.scrollY - menuHeight - 4
-        : rect.bottom + window.scrollY + 4,
-      left: rect.left + window.scrollX,
-      width: rect.width,
-    })
+    // Use fixed positioning (no scrollY/scrollX) — menu is rendered in a portal with position:fixed
+    const PAD = 8
+    let top = showAbove ? rect.top - menuHeight - 4 : rect.bottom + 4
+    let left = rect.left
+
+    // Clamp to viewport bounds
+    top = Math.max(PAD, Math.min(top, window.innerHeight - menuHeight - PAD))
+    left = Math.max(PAD, Math.min(left, window.innerWidth - menuWidth - PAD))
+
+    setPosition({ top, left, width: rect.width })
   }, [])
 
   const close = useCallback(() => setIsOpen(false), [])

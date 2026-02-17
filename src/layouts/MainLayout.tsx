@@ -37,7 +37,7 @@ function SidebarContent({ collapsed, trafficLightPad }: { collapsed: boolean; tr
   return (
     <>
       {/* Logo — taller on Tauri (non-fullscreen) to clear native traffic lights */}
-      <div className={`flex items-center px-4 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-16'}`}>
+      <div className={`flex items-center px-4 transition-all duration-300 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-16'}`}>
         <div className="flex items-center gap-3">
           <img src="/logo-32.png" alt="PO" className="w-8 h-8 rounded-lg" />
           {!collapsed && (

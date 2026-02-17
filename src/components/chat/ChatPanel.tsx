@@ -182,11 +182,12 @@ export function ChatPanel() {
         {/* Desktop: static sidebar */}
         <div className="hidden md:flex w-72 shrink-0 border-r border-white/[0.06] flex-col">
           {/* Sidebar header — taller on Tauri (non-fullscreen) to clear traffic lights */}
-          <div className={`flex items-center justify-between px-4 shrink-0 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
+          <div className={`flex items-center justify-between px-4 shrink-0 transition-all duration-300 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
             <span className="text-sm font-medium text-gray-300">Conversations</span>
             <button
               onClick={handleNewSession}
-              className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
+              disabled={isNewConversation}
+              className={`p-1.5 rounded-md transition-colors ${isNewConversation ? 'text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
               title="New conversation"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -207,7 +208,7 @@ export function ChatPanel() {
         {isMobile && showMobileSidebar && (
           <div className="fixed inset-0 z-40 flex flex-col bg-[#1a1d27]">
             {/* Mobile sidebar header — taller on Tauri (non-fullscreen) to clear traffic lights */}
-            <div className={`flex items-center justify-between px-4 shrink-0 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
+            <div className={`flex items-center justify-between px-4 shrink-0 transition-all duration-300 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
               <span className="text-sm font-medium text-gray-300">Conversations</span>
               <div className="flex items-center gap-1">
                 <button
@@ -226,7 +227,8 @@ export function ChatPanel() {
             <div className="px-3 py-2 border-b border-white/[0.06]">
               <button
                 onClick={() => { handleNewSession(); setShowMobileSidebar(false) }}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-sm font-medium transition-colors"
+                disabled={isNewConversation}
+                className={`w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isNewConversation ? 'bg-indigo-500/5 text-indigo-400/40 cursor-not-allowed' : 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400'}`}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -278,7 +280,8 @@ export function ChatPanel() {
             <div className="flex items-center gap-1">
               <button
                 onClick={handleNewSession}
-                className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors md:hidden"
+                disabled={isNewConversation}
+                className={`p-1.5 rounded-md transition-colors md:hidden ${isNewConversation ? 'text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
                 title="New chat"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -429,7 +432,8 @@ export function ChatPanel() {
         <div className="flex items-center gap-1">
           <button
             onClick={handleNewSession}
-            className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
+            disabled={isNewConversation}
+            className={`p-1.5 rounded-md transition-colors ${isNewConversation ? 'text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
             title="New chat"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
