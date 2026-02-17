@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ContentBlock } from '@/types'
 import { ToolContent, getToolSummary, getToolIcon } from './tools'
+import { useElapsedMs, formatDurationShort } from './useElapsedMs'
 
 const MCP_PREFIX = 'mcp__project-orchestrator__'
 
@@ -29,6 +30,9 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
   const toolInput = (block.metadata?.tool_input as Record<string, unknown>) ?? {}
   const isError = resultBlock?.metadata?.is_error as boolean | undefined
   const isLoading = !resultBlock
+  const durationMs = resultBlock?.metadata?.duration_ms as number | undefined
+  const createdAt = block.metadata?.created_at as string | undefined
+  const elapsedMs = useElapsedMs(createdAt, isLoading)
 
   const icon = getToolIcon(toolName)
   const summary = getToolSummary(toolName, toolInput)
@@ -60,9 +64,15 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${badgeColor}`} />
         )}
         <span className="font-mono text-gray-400 truncate">{headerText}</span>
-        {isLoading && (
-          <span className="ml-auto text-gray-600 shrink-0">running...</span>
-        )}
+        {isLoading ? (
+          <span className="ml-auto text-gray-600 shrink-0">
+            {elapsedMs != null ? `${formatDurationShort(elapsedMs)} — ` : ''}running...
+          </span>
+        ) : durationMs != null ? (
+          <span className="ml-auto text-gray-600 shrink-0">
+            {formatDurationShort(durationMs)}
+          </span>
+        ) : null}
       </button>
 
       {expanded && (
