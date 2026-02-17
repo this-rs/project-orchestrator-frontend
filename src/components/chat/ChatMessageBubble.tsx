@@ -287,11 +287,12 @@ export function ChatMessageBubble({ message, isStreaming, highlighted, onRespond
 
             case 'result_max_turns': {
               // Hide the entire block if the user already continued past this point
-              // (a continue_indicator follows in the same message)
+              // (a continue_indicator follows in the same message), or if it was
+              // dismissed because the user sent a normal message after max_turns.
               const alreadyContinued = message.blocks.some(
                 (b) => b.type === 'continue_indicator',
               )
-              if (alreadyContinued) return null
+              if (alreadyContinued || block.metadata?.dismissed) return null
               return (
                 <ResultMaxTurnsBlock
                   key={block.id}
