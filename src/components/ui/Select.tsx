@@ -162,7 +162,6 @@ export function Select({
               top: position.top,
               left: position.left,
               width: position.width,
-              position: 'absolute',
               minWidth: 120,
             }}
           >

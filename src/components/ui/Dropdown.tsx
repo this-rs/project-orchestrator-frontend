@@ -48,7 +48,7 @@ export function Dropdown<T extends string>({
           <div
             ref={menuRef}
             className="fixed z-[9999] min-w-[120px] rounded-lg bg-[#232733] border border-white/[0.1] shadow-[0_4px_12px_rgba(0,0,0,0.4)] py-1"
-            style={{ top: position.top, left: position.left, position: 'absolute' }}
+            style={{ top: position.top, left: position.left }}
           >
             {options.map((option) => (
               <button
