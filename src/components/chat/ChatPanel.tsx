@@ -1,5 +1,5 @@
 import { useAtom } from 'jotai'
-import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom } from '@/atoms'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom } from '@/atoms'
 import { useChat, useWindowFullscreen } from '@/hooks'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput, type PrefillPayload } from './ChatInput'
@@ -10,7 +10,6 @@ import { PermissionSettingsPanel } from './PermissionSettingsPanel'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useSetAtom, useAtomValue } from 'jotai'
 import { Link } from 'react-router-dom'
-import type { Project } from '@/types'
 import { isTauri } from '@/services/env'
 import { chatApi } from '@/services/chat'
 
@@ -36,7 +35,7 @@ export function ChatPanel() {
   const [showSessions, setShowSessions] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
+  const selectedProject = useAtomValue(chatSelectedProjectAtom)
   const [isDragging, setIsDragging] = useState(false)
   const [sessionTitle, setSessionTitle] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
@@ -146,7 +145,7 @@ export function ChatPanel() {
 
   const handleNewSession = () => {
     chat.newSession()
-    setSelectedProject(null)
+    // Keep selectedProject — user expects the project to persist across new chats
     setSessionTitle(null)
     setShowSessions(false)
   }
@@ -346,10 +345,7 @@ export function ChatPanel() {
             <>
               {/* Project selector — only for new conversations */}
               {isNewConversation && (
-                <ProjectSelect
-                  value={selectedProject?.id || null}
-                  onChange={setSelectedProject}
-                />
+                <ProjectSelect />
               )}
 
               <ChatMessages
@@ -504,10 +500,7 @@ export function ChatPanel() {
         <>
           {/* Project selector — only for new conversations */}
           {isNewConversation && (
-            <ProjectSelect
-              value={selectedProject?.id || null}
-              onChange={setSelectedProject}
-            />
+            <ProjectSelect />
           )}
 
           <ChatMessages

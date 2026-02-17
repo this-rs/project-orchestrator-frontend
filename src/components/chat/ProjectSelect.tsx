@@ -1,20 +1,15 @@
 import { useEffect, useState } from 'react'
-import { useAtomValue } from 'jotai'
-import { chatSuggestedProjectIdAtom } from '@/atoms'
+import { useAtom, useAtomValue } from 'jotai'
+import { chatSuggestedProjectIdAtom, chatSelectedProjectAtom } from '@/atoms'
 import { Select } from '@/components/ui'
 import { projectsApi } from '@/services'
 import type { Project } from '@/types'
 
-interface ProjectSelectProps {
-  value: string | null
-  onChange: (project: Project | null) => void
-}
-
-export function ProjectSelect({ value, onChange }: ProjectSelectProps) {
+export function ProjectSelect() {
   const suggestedId = useAtomValue(chatSuggestedProjectIdAtom)
+  const [selectedProject, setSelectedProject] = useAtom(chatSelectedProjectAtom)
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
-  const [initialized, setInitialized] = useState(false)
 
   useEffect(() => {
     projectsApi.list({ limit: 100 }).then((data) => {
@@ -22,18 +17,17 @@ export function ProjectSelect({ value, onChange }: ProjectSelectProps) {
       setProjects(items)
       setLoading(false)
 
-      // Auto-select suggested project on first load
-      if (!initialized && items.length > 0) {
-        setInitialized(true)
+      // Auto-select only if no project is already selected (atom persists across remounts)
+      if (!selectedProject && items.length > 0) {
         if (suggestedId) {
           const match = items.find((p) => p.id === suggestedId)
           if (match) {
-            onChange(match)
+            setSelectedProject(match)
             return
           }
         }
         // Default to first project if none suggested
-        onChange(items[0])
+        setSelectedProject(items[0])
       }
     }).catch(() => setLoading(false))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -61,15 +55,15 @@ export function ProjectSelect({ value, onChange }: ProjectSelectProps) {
       </label>
       <Select
         options={projects.map((p) => ({ value: p.id, label: p.name }))}
-        value={value || ''}
+        value={selectedProject?.id || ''}
         onChange={(val) => {
           const project = projects.find((p) => p.id === val) || null
-          onChange(project)
+          setSelectedProject(project)
         }}
       />
-      {value && (
+      {selectedProject && (
         <div className="text-[10px] text-gray-600 mt-1 truncate font-mono">
-          {projects.find((p) => p.id === value)?.root_path}
+          {selectedProject.root_path}
         </div>
       )}
     </div>

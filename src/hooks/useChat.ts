@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { useAtom, useAtomValue } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom } from '@/atoms'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom, chatDraftInputAtom } from '@/atoms'
 import { chatApi, ChatWebSocket } from '@/services'
 import type { ChatMessage, ChatEvent, PermissionMode } from '@/types'
 
@@ -434,6 +434,7 @@ export function useChat() {
   const [permissionOverride, setPermissionOverride] = useAtom(chatSessionPermissionOverrideAtom)
   const [autoApprovedTools, setAutoApprovedTools] = useAtom(chatAutoApprovedToolsAtom)
   const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
+  const setDraftInput = useSetAtom(chatDraftInputAtom)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const wsRef = useRef<ChatWebSocket | null>(null)
@@ -1400,7 +1401,8 @@ export function useChat() {
     setAutoApprovedTools(new Set<string>())
     setPermissionOverride(null)
     setSessionModel(null)
-  }, [getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride, setSessionModel])
+    setDraftInput('')
+  }, [getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride, setSessionModel, setDraftInput])
 
   const changePermissionMode = useCallback((mode: PermissionMode) => {
     if (!sessionId) return
@@ -1430,6 +1432,7 @@ export function useChat() {
     setIsLoadingHistory(true)
     setIsReplaying(true)
     setHasOlderMessages(false)
+    setDraftInput('')
     paginationRef.current = { offset: 0, totalCount: 0 }
 
     // Fetch session metadata (cwd, project, permission mode) for display in header
