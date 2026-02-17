@@ -1,4 +1,5 @@
 import type { ContentBlock } from '@/types'
+import { getModelShortLabel } from '@/constants/models'
 
 interface ModelChangedBlockProps {
   block: ContentBlock
@@ -6,17 +7,6 @@ interface ModelChangedBlockProps {
 
 export function ModelChangedBlock({ block }: ModelChangedBlockProps) {
   const model = (block.metadata?.model as string) ?? 'unknown'
-
-  // Extract short label from full model name (e.g. "claude-opus-4-6" → "Opus 4.6")
-  const shortLabel = (() => {
-    if (model.includes('opus-4-6')) return 'Opus 4.6'
-    if (model.includes('opus-4-5')) return 'Opus 4.5'
-    if (model.includes('opus')) return 'Opus'
-    if (model.includes('sonnet-4-5')) return 'Sonnet 4.5'
-    if (model.includes('sonnet')) return 'Sonnet'
-    if (model.includes('haiku')) return 'Haiku'
-    return model
-  })()
 
   return (
     <div className="flex items-center gap-2 py-1 my-1 select-none">
@@ -35,11 +25,11 @@ export function ModelChangedBlock({ block }: ModelChangedBlockProps) {
         />
       </svg>
 
-      <span className="text-xs text-gray-500">Model →</span>
+      <span className="text-xs text-gray-500">Model &rarr;</span>
 
       {/* Model badge */}
       <span className="px-1.5 py-0.5 bg-violet-600/20 text-violet-400 text-[10px] rounded font-mono font-medium">
-        {shortLabel}
+        {getModelShortLabel(model)}
       </span>
     </div>
   )

@@ -2,12 +2,7 @@ import { useAtom } from 'jotai'
 import { useCallback, useState } from 'react'
 import { setupConfigAtom, type McpSetupStatus } from '@/atoms/setup'
 import { isTauri } from '@/services/env'
-
-const MODELS = [
-  { value: 'sonnet-4-5', label: 'Claude Sonnet 4.5', description: 'Fast & capable — best for most tasks' },
-  { value: 'opus-4-5', label: 'Claude Opus 4.5', description: 'Most intelligent — complex reasoning' },
-  { value: 'opus-4-6', label: 'Claude Opus 4.6', description: 'Latest & most powerful' },
-]
+import { AVAILABLE_MODELS } from '@/constants/models'
 
 const PERMISSION_MODES = [
   {
@@ -108,23 +103,23 @@ export function ChatPage() {
         <div>
           <label className="mb-3 block text-xs font-medium text-gray-400">Default Model</label>
           <div className="grid gap-3 sm:grid-cols-3">
-            {MODELS.map((m) => (
+            {AVAILABLE_MODELS.map((m) => (
               <button
-                key={m.value}
-                onClick={() => update({ chatModel: m.value })}
+                key={m.id}
+                onClick={() => update({ chatModel: m.id })}
                 className={`flex flex-col items-start gap-1.5 rounded-xl border p-4 text-left transition ${
-                  config.chatModel === m.value
+                  config.chatModel === m.id
                     ? 'border-indigo-500/50 bg-indigo-500/10'
                     : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]'
                 }`}
               >
                 <div className="flex w-full items-center justify-between">
                   <span
-                    className={`text-sm font-medium ${config.chatModel === m.value ? 'text-white' : 'text-gray-300'}`}
+                    className={`text-sm font-medium ${config.chatModel === m.id ? 'text-white' : 'text-gray-300'}`}
                   >
-                    {m.label}
+                    {m.fullLabel}
                   </span>
-                  {config.chatModel === m.value && (
+                  {config.chatModel === m.id && (
                     <svg
                       className="h-4 w-4 text-indigo-400"
                       fill="none"
