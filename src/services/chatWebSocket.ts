@@ -117,18 +117,25 @@ export class ChatWebSocket {
     const url = wsUrl(`/ws/chat/${sessionId}?${params.toString()}`)
 
     try {
+      // Use a "ready" flag so we can send "ready" either from onopen (browser)
+      // or after createWebSocket resolves (Tauri). In Tauri mode, onopen fires
+      // DURING init() before createWebSocket returns — this.ws is still null,
+      // so we can't send from the callback. Instead we defer to after assignment.
+      let readySent = false
+
       this.ws = await createWebSocket(url, {
         onopen: () => {
           console.log(`⏱ [WS] onopen: ${(performance.now() - t0).toFixed(0)}ms`)
           this.reconnectDelay = MIN_RECONNECT_DELAY
           this.reconnectAttempts = 0
-          // Send "ready" to tell the server our message listener is wired.
-          // The server waits for this before sending auth_ok, preventing a
-          // race condition with the Tauri WebSocket plugin where messages
-          // sent before addListener() is called are lost.
-          // MUST be sent from onopen — in browser mode, readyState is still
-          // CONNECTING when createWebSocket() returns synchronously.
-          this.ws!.send('"ready"')
+          // In browser mode, this.ws is already assigned (createWebSocket returned
+          // synchronously for BrowserWebSocket). Send "ready" now.
+          // In Tauri mode, this.ws is null here — readySent stays false, and we
+          // send "ready" after createWebSocket resolves (below).
+          if (this.ws) {
+            this.ws.send('"ready"')
+            readySent = true
+          }
         },
 
         onmessage: (event: MessageEvent) => {
@@ -209,9 +216,11 @@ export class ChatWebSocket {
         },
       })
 
-      // "ready" is now sent from the onopen callback (above) so it works
-      // in both browser mode (where readyState is CONNECTING here) and
-      // Tauri mode (where readyState is OPEN here).
+      // In Tauri mode, onopen fired during init() when this.ws was still null,
+      // so "ready" wasn't sent yet. Send it now that this.ws is assigned.
+      if (!readySent && this.ws && this.ws.readyState === ReadyState.OPEN) {
+        this.ws.send('"ready"')
+      }
     } catch {
       this.scheduleReconnect()
     }
