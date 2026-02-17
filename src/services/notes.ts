@@ -49,10 +49,10 @@ export const notesApi = {
   updateStaleness: () => api.post('/notes/update-staleness'),
 
   // Actions
-  confirm: (noteId: string) => api.post(`/notes/${noteId}/confirm`),
+  confirm: (noteId: string) => api.post<Note>(`/notes/${noteId}/confirm`),
 
   invalidate: (noteId: string, reason: string) =>
-    api.post(`/notes/${noteId}/invalidate`, { reason }),
+    api.post<Note>(`/notes/${noteId}/invalidate`, { reason }),
 
   supersede: (
     noteId: string,

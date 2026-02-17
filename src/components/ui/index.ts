@@ -10,6 +10,7 @@ export {
   InteractiveMilestoneStatusBadge,
   InteractivePlanStatusBadge,
   InteractiveTaskStatusBadge,
+  InteractiveNoteStatusBadge,
   InteractiveStepStatusBadge,
 } from './Badge'
 export { Card, CardHeader, CardTitle, CardContent, CardFooter } from './Card'
