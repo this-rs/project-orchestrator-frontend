@@ -18,6 +18,7 @@ import { isTauri } from '@/services/env'
 import { useNextStep } from 'nextstepjs'
 import type { Tour } from 'nextstepjs'
 import { testTour } from '@/tutorial/steps'
+import { TutorialCard } from '@/tutorial/components'
 
 // All tours will be registered here — test tour for validation, real tours added in Plan 3
 const allTours: Tour[] = [testTour]
@@ -181,6 +182,7 @@ export function MainLayout() {
     <NextStepReact
       steps={allTours}
       navigationAdapter={useReactRouterAdapter}
+      cardComponent={TutorialCard}
       shadowRgb="0, 0, 0"
       shadowOpacity="0.6"
       onComplete={handleTourComplete}
