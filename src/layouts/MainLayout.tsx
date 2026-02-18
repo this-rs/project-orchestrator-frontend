@@ -189,12 +189,17 @@ export function MainLayout() {
   // Auto-open/close chat panel during the main tour so that the
   // "Quick Actions" step (index 3) targeting [data-tour="chat-quick-actions"]
   // has its element visible without requiring the user to manually open it.
+  //
+  // We open the chat one step early (step 2 = "chat-toggle") so that by the
+  // time NextStepjs positions the card for step 3, the panel DOM is already
+  // rendered. onStepChange fires *before* setCurrentStep, so opening at
+  // step 3 would be too late — the card would position against a missing element.
   const handleStepChange = useCallback(
     (step: number, tourName: string | null) => {
       if (tourName !== TOUR_NAMES.MAIN) return
 
-      // Step 3 = "Quick Actions" inside the chat panel → open it
-      if (step === 3 && chatMode === 'closed') {
+      // Step 2 = "Chat toggle" — open the panel now so step 3 target exists
+      if (step === 2 && chatMode === 'closed') {
         setChatMode('open')
       }
       // Leaving the chat area (step 4+ = projects, plans, etc.) → close it
