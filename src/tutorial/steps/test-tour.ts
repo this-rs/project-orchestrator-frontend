@@ -46,7 +46,7 @@ export const testTour: Tour = {
       title: 'Chat IA',
       content: 'Cliquez ici pour ouvrir le panneau de chat avec l\'assistant IA.',
       selector: '[data-tour="chat-toggle"]',
-      side: 'left-bottom',
+      side: 'bottom-right',
       showControls: true,
       showSkip: true,
       pointerPadding: 8,
