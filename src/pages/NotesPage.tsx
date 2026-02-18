@@ -137,6 +137,7 @@ export function NotesPage() {
     <PageShell
       title="Knowledge Notes"
       description="Capture knowledge and decisions"
+      dataTour="notes-list"
       actions={
         <>
           <div data-tour="notes-type-filter"><Select
@@ -155,7 +156,6 @@ export function NotesPage() {
         </>
       }
     >
-      <div data-tour="notes-list">
       {notes.length === 0 ? (
         <EmptyState
           title="No notes found"
@@ -196,7 +196,6 @@ export function NotesPage() {
           <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
         </>
       )}
-      </div>
 
       <BulkActionBar
         count={multiSelect.selectionCount}

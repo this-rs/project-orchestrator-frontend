@@ -268,6 +268,7 @@ export function PlansPage() {
     <PageShell
       title="Plans"
       description="Plan and track implementation phases"
+      dataTour="plans-list"
       actions={
         <>
           {viewMode === 'list' && (
@@ -293,7 +294,6 @@ export function PlansPage() {
         />
       )}
 
-      <div data-tour="plans-list">
       {viewMode === 'kanban' ? (
         <PlanKanbanBoard
           fetchFn={kanbanFetchFn}
@@ -357,7 +357,6 @@ export function PlansPage() {
           <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
         </>
       )}
-      </div>
 
       <BulkActionBar
         count={multiSelect.selectionCount}

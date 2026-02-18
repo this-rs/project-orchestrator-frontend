@@ -82,9 +82,9 @@ export function ProjectsPage() {
     <PageShell
       title="Projects"
       description="Track your codebase projects"
+      dataTour="projects-list"
       actions={<Button onClick={openCreateDialog}>Create Project</Button>}
     >
-      <div data-tour="projects-list">
       {projects.length === 0 && total === 0 ? (
         <EmptyState
           title="No projects"
@@ -125,7 +125,6 @@ export function ProjectsPage() {
           <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
         </>
       )}
-      </div>
 
       <BulkActionBar
         count={multiSelect.selectionCount}
