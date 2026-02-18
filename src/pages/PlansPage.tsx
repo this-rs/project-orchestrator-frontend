@@ -274,7 +274,7 @@ export function PlansPage() {
               className="w-full sm:w-40"
             />
           )}
-          <ViewToggle value={viewMode} onChange={setViewMode} />
+          <div data-tour="plan-view-toggle"><ViewToggle value={viewMode} onChange={setViewMode} /></div>
           <Button onClick={openCreatePlan}>Create Plan</Button>
         </>
       }
@@ -320,7 +320,7 @@ export function PlansPage() {
               </button>
             </div>
           )}
-          <div className="space-y-4">
+          <div data-tour="plans-list" className="space-y-4">
             {plans.map((plan) => (
               <PlanCard
                 selected={multiSelect.isSelected(plan.id)}

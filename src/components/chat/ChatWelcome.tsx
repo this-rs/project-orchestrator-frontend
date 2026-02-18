@@ -267,7 +267,7 @@ export function ChatWelcome({
           <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">
             Quick Actions
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div data-tour="chat-quick-actions" className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {QUICK_ACTIONS.map((action, i) => (
               <button
                 key={action.icon}

@@ -168,7 +168,7 @@ export function NotesPage() {
               </button>
             </div>
           )}
-          <div className="space-y-4">
+          <div data-tour="notes-list" className="space-y-4">
             {notes.map((note) => (
               <NoteCard
                 selected={multiSelect.isSelected(note.id)}

@@ -64,13 +64,15 @@ export function CodePage() {
           <Card>
             <CardContent>
               <div className="flex gap-4">
+                <div data-tour="code-search" className="flex-1">
                 <SearchInput
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                   placeholder="Search code semantically..."
-                  className="flex-1"
+                  className="w-full"
                 />
+                </div>
                 <Button onClick={handleSearch} loading={loading}>
                   Search
                 </Button>
