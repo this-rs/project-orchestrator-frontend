@@ -232,6 +232,18 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
         break
       }
 
+      case 'tool_cancelled': {
+        const msg = lastAssistant()
+        const parent = getParentToolUseId(evt)
+        msg.blocks.push({
+          id: nextBlockId(),
+          type: 'tool_result',
+          content: 'Cancelled by user',
+          metadata: withParent({ tool_call_id: evt.id, is_cancelled: true }, parent),
+        })
+        break
+      }
+
       case 'permission_request': {
         const msg = lastAssistant()
         const parent = getParentToolUseId(evt)
@@ -808,6 +820,21 @@ export function useChat() {
               is_error: (data as { is_error?: boolean }).is_error,
               ...(trDurationMs != null && { duration_ms: trDurationMs }),
             }, trParent),
+          })
+          break
+        }
+
+        case 'tool_cancelled': {
+          const tcData = event.replaying
+            ? (event as { data?: Record<string, unknown> }).data ?? event
+            : event
+          const tcId = (tcData as { id?: string }).id
+          const tcParent = getParentToolUseId(event)
+          lastMsg.blocks.push({
+            id: nextBlockId(),
+            type: 'tool_result',
+            content: 'Cancelled by user',
+            metadata: withParent({ tool_call_id: tcId, is_cancelled: true }, tcParent),
           })
           break
         }

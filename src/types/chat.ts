@@ -80,6 +80,7 @@ export type ChatEvent =
   | { type: 'tool_use'; id: string; tool: string; input: Record<string, unknown> }
   | { type: 'tool_result'; id: string; result: unknown; is_error?: boolean }
   | { type: 'tool_use_input_resolved'; id: string; input: Record<string, unknown> }
+  | { type: 'tool_cancelled'; id: string; parent_tool_use_id?: string }
   | { type: 'permission_request'; id: string; tool: string; input: Record<string, unknown> }
   | { type: 'permission_decision'; id: string; allow: boolean }
   | { type: 'input_request'; prompt: string; options?: string[] }
