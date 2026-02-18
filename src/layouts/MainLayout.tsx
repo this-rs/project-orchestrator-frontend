@@ -18,7 +18,9 @@ import { isTauri } from '@/services/env'
 import { useNextStep } from 'nextstepjs'
 import type { Tour } from 'nextstepjs'
 import { testTour } from '@/tutorial/steps'
-import { TutorialCard } from '@/tutorial/components'
+import { TutorialCard, TutorialWelcome } from '@/tutorial/components'
+import { useTutorial } from '@/tutorial/hooks'
+import { TOUR_NAMES } from '@/tutorial/constants'
 
 // All tours will be registered here — test tour for validation, real tours added in Plan 3
 const allTours: Tour[] = [testTour]
@@ -106,8 +108,10 @@ export function MainLayout() {
   const [chatWidth] = useAtom(chatPanelWidthAtom)
   const [, setTutorialState] = useAtom(tutorialStateAtom)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [showWelcome, setShowWelcome] = useState(false)
   const location = useLocation()
   const { startNextStep } = useNextStep()
+  const { isFirstTimeUser, isNextStepVisible, startTour, skipTour } = useTutorial()
   const isSmUp = useMediaQuery('(min-width: 640px)')
   const chatOpen = chatMode === 'open'
   const chatFullscreen = chatMode === 'fullscreen'
@@ -138,6 +142,27 @@ export function MainLayout() {
       }
     }
   }, [mobileMenuOpen])
+
+  // ---------------------------------------------------------------------------
+  // Welcome modal — auto-show for first-time users
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (isFirstTimeUser && !isNextStepVisible) {
+      const id = setTimeout(() => setShowWelcome(true), 800)
+      return () => clearTimeout(id)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only
+
+  const handleWelcomeStart = useCallback(() => {
+    setShowWelcome(false)
+    // Small delay to let the modal close animation finish
+    setTimeout(() => startTour(TOUR_NAMES.MAIN), 250)
+  }, [startTour])
+
+  const handleWelcomeDismiss = useCallback(() => {
+    setShowWelcome(false)
+    skipTour(TOUR_NAMES.MAIN)
+  }, [skipTour])
 
   // ---------------------------------------------------------------------------
   // NextStepjs lifecycle callbacks — persist tour state in Jotai atom
@@ -315,6 +340,11 @@ export function MainLayout() {
 
       <ChatPanel />
       <ToastContainer />
+      <TutorialWelcome
+        open={showWelcome}
+        onStartTour={handleWelcomeStart}
+        onDismiss={handleWelcomeDismiss}
+      />
     </div>
     </NextStepReact>
   )
