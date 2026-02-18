@@ -197,6 +197,13 @@ html.tauri * {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Tutorial — spotlight glow around target element */
+[data-name="nextstep-pointer"] {
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.5),
+              0 0 16px rgba(99, 102, 241, 0.2);
+  transition: box-shadow 0.3s ease;
+}
+
 /* Tutorial — pulsing dot indicator (CSS-only, no JS timer) */
 @keyframes tutorial-dot-pulse {
   0%, 100% { transform: scale(1); opacity: 1; }

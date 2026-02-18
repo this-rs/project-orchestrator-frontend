@@ -208,6 +208,8 @@ export function MainLayout() {
       cardComponent={TutorialCard}
       shadowRgb="0, 0, 0"
       shadowOpacity="0.6"
+      cardTransition={{ duration: 0.3, ease: 'easeOut' }}
+      clickThroughOverlay={false}
       onComplete={handleTourComplete}
       onSkip={handleTourSkip}
       disableConsoleLogs
