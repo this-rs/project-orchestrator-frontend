@@ -190,21 +190,26 @@ export function MainLayout() {
   // "Quick Actions" step (index 3) targeting [data-tour="chat-quick-actions"]
   // has its element visible without requiring the user to manually open it.
   //
-  // We open the chat one step early (step 2 = "chat-toggle") so that by the
-  // time NextStepjs positions the card for step 3, the panel DOM is already
-  // rendered. onStepChange fires *before* setCurrentStep, so opening at
-  // step 3 would be too late — the card would position against a missing element.
+  // Timing is tricky: onStepChange fires *before* setCurrentStep, and
+  // opening the chat changes the layout (margin-right transition on <main>),
+  // which moves the highlighted element. We open the chat at step 3 and
+  // dispatch a window resize after the CSS transition settles so NextStepjs
+  // recalculates the pointer/card position against the new layout.
   const handleStepChange = useCallback(
     (step: number, tourName: string | null) => {
       if (tourName !== TOUR_NAMES.MAIN) return
 
-      // Step 2 = "Chat toggle" — open the panel now so step 3 target exists
-      if (step === 2 && chatMode === 'closed') {
+      // Step 3 = "Quick Actions" inside the chat panel → open it
+      if (step === 3 && chatMode === 'closed') {
         setChatMode('open')
+        // Wait for the chat panel CSS transition (300ms) to finish,
+        // then nudge NextStepjs to recompute the card position.
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 350)
       }
       // Leaving the chat area (step 4+ = projects, plans, etc.) → close it
       if (step >= 4 && chatMode !== 'closed') {
         setChatMode('closed')
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 350)
       }
     },
     [chatMode, setChatMode],
