@@ -16,8 +16,8 @@ export const notesTour: Tour = {
       side: 'bottom',
       showControls: true,
       showSkip: true,
-      pointerPadding: 8,
-      pointerRadius: 12,
+      pointerPadding: 20,
+      pointerRadius: 16,
     },
     {
       icon: '🏷️',
