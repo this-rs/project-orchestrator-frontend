@@ -29,4 +29,8 @@ dist-ssr
 .env.*.local
 .claude/
 
+# Playwright
+playwright-report/
+test-results/
+
 /vite.config.ts
