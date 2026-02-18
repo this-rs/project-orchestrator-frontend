@@ -215,6 +215,17 @@ export function MainLayout() {
     [chatMode, setChatMode],
   )
 
+  // Auto-open chat panel when the chat tour starts — all its steps
+  // target elements inside the chat panel that don't exist when closed.
+  const handleTourStart = useCallback(
+    (tourName: string | null) => {
+      if (tourName === TOUR_NAMES.CHAT && chatMode === 'closed') {
+        setChatMode('open')
+      }
+    },
+    [chatMode, setChatMode],
+  )
+
   // Persist tour completion in Jotai atom
   const handleTourComplete = useCallback(
     (tourName: string | null) => {
@@ -261,6 +272,7 @@ export function MainLayout() {
       shadowOpacity="0.6"
       cardTransition={{ duration: 0.3, ease: 'easeOut' }}
       clickThroughOverlay={false}
+      onStart={handleTourStart}
       onStepChange={handleStepChange}
       onComplete={handleTourComplete}
       onSkip={handleTourSkip}
