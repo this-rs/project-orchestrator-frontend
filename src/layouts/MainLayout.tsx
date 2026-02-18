@@ -183,8 +183,29 @@ export function MainLayout() {
   }, [skipTour])
 
   // ---------------------------------------------------------------------------
-  // NextStepjs lifecycle callbacks — persist tour state in Jotai atom
+  // NextStepjs lifecycle callbacks
   // ---------------------------------------------------------------------------
+
+  // Auto-open/close chat panel during the main tour so that the
+  // "Quick Actions" step (index 3) targeting [data-tour="chat-quick-actions"]
+  // has its element visible without requiring the user to manually open it.
+  const handleStepChange = useCallback(
+    (step: number, tourName: string | null) => {
+      if (tourName !== TOUR_NAMES.MAIN) return
+
+      // Step 3 = "Quick Actions" inside the chat panel → open it
+      if (step === 3 && chatMode === 'closed') {
+        setChatMode('open')
+      }
+      // Leaving the chat area (step 4+ = projects, plans, etc.) → close it
+      if (step >= 4 && chatMode !== 'closed') {
+        setChatMode('closed')
+      }
+    },
+    [chatMode, setChatMode],
+  )
+
+  // Persist tour completion in Jotai atom
   const handleTourComplete = useCallback(
     (tourName: string | null) => {
       if (!tourName) return
@@ -230,6 +251,7 @@ export function MainLayout() {
       shadowOpacity="0.6"
       cardTransition={{ duration: 0.3, ease: 'easeOut' }}
       clickThroughOverlay={false}
+      onStepChange={handleStepChange}
       onComplete={handleTourComplete}
       onSkip={handleTourSkip}
       disableConsoleLogs
