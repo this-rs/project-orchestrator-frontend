@@ -97,7 +97,7 @@ export const chatTour: Tour = {
       content:
         "Ajustez les paramètres de permission pour cette session. Les changements s'appliquent immédiatement à la conversation en cours.",
       selector: '[data-tour="chat-settings"]',
-      side: 'left-top',
+      side: 'bottom-right',
       showControls: true,
       showSkip: false,
       pointerPadding: 4,
