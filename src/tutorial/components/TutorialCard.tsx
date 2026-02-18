@@ -4,6 +4,7 @@ import { useNextStep } from 'nextstepjs'
 import { TutorialProgress } from './TutorialProgress'
 import { TOUR_ICONS } from '@/tutorial/constants'
 import type { TourName } from '@/tutorial/constants'
+import { useIsMobile } from '@/hooks'
 
 /**
  * Custom card component for NextStepjs tours.
@@ -23,6 +24,7 @@ export function TutorialCard({
   arrow,
 }: CardComponentProps) {
   const { currentTour } = useNextStep()
+  const isMobile = useIsMobile()
   const isFirst = currentStep === 0
   const isLast = currentStep === totalSteps - 1
 
@@ -75,7 +77,7 @@ export function TutorialCard({
             <button
               onClick={prevStep}
               aria-label="Étape précédente"
-              className="text-zinc-400 hover:text-zinc-200 text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-zinc-800 transition-colors"
+              className={`text-zinc-400 hover:text-zinc-200 text-sm font-medium rounded-lg hover:bg-zinc-800 transition-colors ${isMobile ? 'px-4 py-2.5' : 'px-3 py-1.5'}`}
             >
               ← Précédent
             </button>
@@ -87,7 +89,7 @@ export function TutorialCard({
           <button
             onClick={nextStep}
             aria-label={isLast ? 'Terminer le tour' : 'Étape suivante'}
-            className="bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
+            className={`bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium rounded-lg transition-colors ${isMobile ? 'px-5 py-2.5' : 'px-4 py-1.5'}`}
           >
             {isLast ? 'Terminer ✓' : 'Suivant →'}
           </button>

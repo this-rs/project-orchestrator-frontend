@@ -133,7 +133,7 @@ export function KanbanBoard({ fetchFn, filters = {}, hiddenStatuses = [], onTask
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      <div data-tour="kanban-columns" className="flex gap-4 overflow-x-auto pb-4">
         {visibleColumns.map((col) => {
           const data = columnDataMap[col.id]
           return (

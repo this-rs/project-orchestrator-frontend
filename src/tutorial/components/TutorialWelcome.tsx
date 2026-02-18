@@ -66,29 +66,29 @@ export function TutorialWelcome({ open, onStartTour, onDismiss }: TutorialWelcom
 
           {/* Content */}
           <motion.div
-            className="relative bg-zinc-900 border border-zinc-700 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl"
+            className="relative bg-zinc-900 border border-zinc-700 rounded-2xl p-5 sm:p-8 max-w-md w-full mx-4 shadow-2xl"
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.35, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
           >
             {/* Logo icon */}
-            <div className="flex justify-center mb-6">
-              <div className="w-24 h-24 rounded-full bg-indigo-500/10 flex items-center justify-center">
-                <GraduationCap className="w-16 h-16 text-indigo-400" />
+            <div className="flex justify-center mb-4 sm:mb-6">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-indigo-500/10 flex items-center justify-center">
+                <GraduationCap className="w-12 h-12 sm:w-16 sm:h-16 text-indigo-400" />
               </div>
             </div>
 
             {/* Title */}
             <h2
               id="welcome-title"
-              className="text-2xl font-bold text-zinc-100 text-center mb-2"
+              className="text-xl sm:text-2xl font-bold text-zinc-100 text-center mb-2"
             >
               Bienvenue sur Project Orchestrator
             </h2>
 
             {/* Subtitle */}
-            <p className="text-zinc-400 text-center mb-8">
+            <p className="text-sm sm:text-base text-zinc-400 text-center mb-6 sm:mb-8">
               {"Découvrez l'interface en quelques étapes guidées"}
             </p>
 
