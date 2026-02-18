@@ -105,11 +105,11 @@ class TauriWebSocket implements IWebSocket {
    */
   async init(url: string): Promise<void> {
     try {
-      console.log('[TauriWS] Connecting to:', url)
+      // console.log('[TauriWS] Connecting to:', url)
       const TauriWS = (await import('@tauri-apps/plugin-websocket')).default
-      console.log('[TauriWS] Plugin loaded, calling connect()...')
+      // console.log('[TauriWS] Plugin loaded, calling connect()...')
       this.tauriWs = await TauriWS.connect(url)
-      console.log('[TauriWS] Connected successfully, id:', this.tauriWs.id)
+      // console.log('[TauriWS] Connected successfully, id:', this.tauriWs.id)
 
       // Subscribe to messages
       this.unsubscribe = this.tauriWs.addListener((msg) => {
@@ -243,7 +243,7 @@ export async function createWebSocket(
     onerror?: (ev: Event) => void
   },
 ): Promise<IWebSocket> {
-  console.log('[wsAdapter] createWebSocket called, isTauri:', isTauri, 'url:', url)
+  // console.log('[wsAdapter] createWebSocket called, isTauri:', isTauri, 'url:', url)
   if (isTauri) {
     const ws = new TauriWebSocket()
     // Wire callbacks BEFORE connecting so we don't miss onopen

@@ -50,7 +50,7 @@ export async function initBackendPort(): Promise<void> {
     const { invoke } = await import('@tauri-apps/api/core')
     const port = await invoke<number>('get_server_port')
     if (port && port !== _backendPort) {
-      console.log(`[env] Backend port from config: ${port} (was ${_backendPort})`)
+      // console.log(`[env] Backend port from config: ${port} (was ${_backendPort})`)
       _backendPort = port
     }
   } catch (e) {

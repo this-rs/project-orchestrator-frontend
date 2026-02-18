@@ -43,11 +43,11 @@ export class EventBusClient {
     const path = ticket ? `/ws/events?ticket=${ticket}` : '/ws/events'
     const url = wsUrl(path)
 
-    console.log('[EventBus] Opening socket, ticket:', ticket ? 'obtained' : 'null', 'url:', url)
+    // console.log('[EventBus] Opening socket, ticket:', ticket ? 'obtained' : 'null', 'url:', url)
     try {
       this.ws = await createWebSocket(url, {
         onopen: () => {
-          console.log('[EventBus] WebSocket opened')
+          // console.log('[EventBus] WebSocket opened')
           this.reconnectDelay = MIN_RECONNECT_DELAY
           // Auth is handled pre-upgrade: either via HttpOnly cookie (browsers)
           // or via the ?ticket= query param (Tauri/WKWebView fallback).
@@ -106,7 +106,7 @@ export class EventBusClient {
       // condition with the Tauri WebSocket plugin where messages sent before
       // addListener() is called are lost.
       if (this.ws && this.ws.readyState === ReadyState.OPEN) {
-        console.log('[EventBus] Sending "ready" to server')
+        // console.log('[EventBus] Sending "ready" to server')
         this.ws.send('"ready"')
       }
     } catch (err) {

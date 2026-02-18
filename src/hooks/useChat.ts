@@ -6,7 +6,7 @@ import type { ChatMessage, ChatEvent, PermissionMode } from '@/types'
 
 let blockIdCounter = 0
 function nextBlockId() {
-  return `block-${++blockIdCounter}`
+  return `b-${++blockIdCounter}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 /**
@@ -46,7 +46,7 @@ function withCreatedAt(
 
 let messageIdCounter = 0
 function nextMessageId() {
-  return `msg-${++messageIdCounter}`
+  return `m-${++messageIdCounter}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 /** Number of messages to load per page via REST */
@@ -1200,7 +1200,7 @@ export function useChat() {
     chatApi
       .getMessages(sessionId, { limit: 1, offset: 0 })
       .then((meta) => {
-        console.log(`⏱ [REST] getMessages(count): ${(performance.now() - t0).toFixed(0)}ms`)
+        // console.log(`⏱ [REST] getMessages(count): ${(performance.now() - t0).toFixed(0)}ms`)
         if (cancelled) return
         const total = meta.total_count
         if (total === 0) {
@@ -1295,7 +1295,7 @@ export function useChat() {
             historyLoadedRef.current = true
             const pending = pendingEventsRef.current
             pendingEventsRef.current = []
-            console.log(`⏱ [REST] replaying ${pending.length} buffered WS events: ${(performance.now() - t0).toFixed(0)}ms`)
+            // console.log(`⏱ [REST] replaying ${pending.length} buffered WS events: ${(performance.now() - t0).toFixed(0)}ms`)
             for (const evt of pending) {
               handleEvent(evt)
             }
@@ -1664,8 +1664,9 @@ export function useChat() {
     setAutoApprovedTools(new Set<string>())
     setPermissionOverride(null)
     setSessionModel(null)
+    setAutoContinue(false)
     setDraftInput('')
-  }, [getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride, setSessionModel, setDraftInput])
+  }, [getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride, setSessionModel, setAutoContinue, setDraftInput])
 
   const changePermissionMode = useCallback((mode: PermissionMode) => {
     if (!sessionId) return
