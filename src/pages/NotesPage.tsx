@@ -1,12 +1,12 @@
-import { useEffect, useState, useRef } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { notesAtom, notesLoadingAtom, noteTypeFilterAtom, noteStatusFilterAtom, noteRefreshAtom } from '@/atoms'
 import { notesApi } from '@/services'
-import { Card, CardContent, Button, LoadingPage, EmptyState, Select, InteractiveNoteStatusBadge, ImportanceBadge, Badge, Pagination, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, CollapsibleMarkdown } from '@/components/ui'
+import { Card, CardContent, Button, LoadingPage, EmptyState, Select, InteractiveNoteStatusBadge, ImportanceBadge, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, CollapsibleMarkdown, LoadMoreSentinel } from '@/components/ui'
 import type { OverflowMenuAction } from '@/components/ui'
-import { usePagination, useConfirmDialog, useFormDialog, useToast, useMultiSelect } from '@/hooks'
+import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList } from '@/hooks'
 import { CreateNoteForm } from '@/components/forms'
-import type { Note, NoteType, NoteStatus, NoteScopeType } from '@/types'
+import type { Note, NoteType, NoteStatus, NoteScopeType, PaginatedResponse } from '@/types'
 
 // Inline SVG icons (project convention: no icon library)
 const iconClass = 'w-3 h-3 flex-shrink-0'
@@ -38,73 +38,55 @@ const statusOptions = [
 ]
 
 export function NotesPage() {
-  const [notes, setNotes] = useAtom(notesAtom)
-  const [loading, setLoading] = useAtom(notesLoadingAtom)
+  const [, setNotesAtom] = useAtom(notesAtom)
+  const [, setLoadingAtom] = useAtom(notesLoadingAtom)
   const [typeFilter, setTypeFilter] = useAtom(noteTypeFilterAtom)
   const [statusFilter, setStatusFilter] = useAtom(noteStatusFilterAtom)
   const noteRefresh = useAtomValue(noteRefreshAtom)
-  const [total, setTotal] = useState(0)
-  const { page, pageSize, offset, setPage, paginationProps } = usePagination()
   const confirmDialog = useConfirmDialog()
   const formDialog = useFormDialog()
   const toast = useToast()
   const [formLoading, setFormLoading] = useState(false)
 
-  const fetchNotes = async () => {
-    setLoading(true)
-    try {
-      const params: { limit: number; offset: number; note_type?: string; status?: string } = { limit: pageSize, offset }
-      if (typeFilter !== 'all') params.note_type = typeFilter
-      if (statusFilter !== 'all') params.status = statusFilter
-      const response = await notesApi.list(params)
-      setNotes(response.items || [])
-      setTotal(response.total || 0)
-    } catch (error) {
-      console.error('Failed to fetch notes:', error)
-      toast.error('Failed to load notes')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const filters = useMemo(
+    () => ({
+      note_type: typeFilter !== 'all' ? typeFilter : undefined,
+      status: statusFilter !== 'all' ? statusFilter : undefined,
+      _refresh: noteRefresh,
+    }),
+    [typeFilter, statusFilter, noteRefresh],
+  )
 
-  const initialLoadDone = useRef(false)
-  useEffect(() => {
-    async function fetchNotes() {
-      // Only show loading spinner on initial load, not on WS-triggered refreshes
-      const silent = initialLoadDone.current
-      if (!silent) setLoading(true)
-      try {
-        const params: { limit: number; offset: number; note_type?: string; status?: string } = { limit: pageSize, offset }
-        if (typeFilter !== 'all') {
-          params.note_type = typeFilter
-        }
-        if (statusFilter !== 'all') {
-          params.status = statusFilter
-        }
-        const response = await notesApi.list(params)
-        setNotes(response.items || [])
-        setTotal(response.total || 0)
-      } catch (error) {
-        console.error('Failed to fetch notes:', error)
-        toast.error('Failed to load notes')
-      } finally {
-        if (!silent) setLoading(false)
+  const fetcher = useCallback(
+    (params: { limit: number; offset: number; note_type?: string; status?: string }): Promise<PaginatedResponse<Note>> => {
+      const apiParams: { limit: number; offset: number; note_type?: string; status?: string } = {
+        limit: params.limit,
+        offset: params.offset,
       }
-      initialLoadDone.current = true
-    }
-    fetchNotes()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable
-  }, [setNotes, setLoading, page, pageSize, offset, typeFilter, statusFilter, noteRefresh])
+      if (params.note_type) apiParams.note_type = params.note_type
+      if (params.status) apiParams.status = params.status
+      return notesApi.list(apiParams)
+    },
+    [],
+  )
 
-  const handleTypeFilterChange = (newFilter: NoteType | 'all') => {
-    setTypeFilter(newFilter)
-    setPage(1)
-  }
+  const {
+    items: notes,
+    loading,
+    loadingMore,
+    hasMore,
+    total,
+    sentinelRef,
+    reset,
+    removeItems,
+    updateItem,
+  } = useInfiniteList({ fetcher, filters })
 
-  const handleStatusFilterChange = (newFilter: NoteStatus | 'all') => {
-    setStatusFilter(newFilter)
-    setPage(1)
-  }
+  // Sync notes atom
+  useCallback(() => {
+    setNotesAtom(notes)
+    setLoadingAtom(loading)
+  }, [notes, loading, setNotesAtom, setLoadingAtom])
 
   const noteForm = CreateNoteForm({
     onSubmit: async (data) => {
@@ -113,7 +95,7 @@ export function NotesPage() {
         await notesApi.create(data)
         toast.success('Note created')
         formDialog.close()
-        fetchNotes()
+        reset()
       } finally {
         setFormLoading(false)
       }
@@ -137,8 +119,8 @@ export function NotesPage() {
           await notesApi.delete(items[i].id)
           confirmDialog.setProgress({ current: i + 1, total: items.length })
         }
-        setNotes((prev) => prev.filter((n) => !multiSelect.selectedIds.has(n.id)))
-        setTotal((prev) => prev - items.length)
+        const ids = new Set(items.map((n) => n.id))
+        removeItems((n) => ids.has(n.id))
         multiSelect.clear()
         toast.success(`Deleted ${count} note${count > 1 ? 's' : ''}`)
       },
@@ -156,13 +138,13 @@ export function NotesPage() {
           <Select
             options={typeOptions}
             value={typeFilter}
-            onChange={(value) => handleTypeFilterChange(value as NoteType | 'all')}
+            onChange={(value) => setTypeFilter(value as NoteType | 'all')}
             className="w-full sm:w-36"
           />
           <Select
             options={statusOptions}
             value={statusFilter}
-            onChange={(value) => handleStatusFilterChange(value as NoteStatus | 'all')}
+            onChange={(value) => setStatusFilter(value as NoteStatus | 'all')}
             className="w-full sm:w-36"
           />
           <Button onClick={openCreateNote}>Create Note</Button>
@@ -193,22 +175,20 @@ export function NotesPage() {
                 onToggleSelect={(shiftKey) => multiSelect.toggle(note.id, shiftKey)}
                 key={note.id}
                 note={note}
-                onUpdate={(updated) => setNotes(prev => prev.map(n => n.id === updated.id ? updated : n))}
+                onUpdate={(updated) => updateItem((n) => n.id === updated.id, () => updated)}
                 onDelete={() => confirmDialog.open({
                   title: 'Delete Note',
                   description: 'This note will be permanently deleted.',
                   onConfirm: async () => {
                     await notesApi.delete(note.id)
-                    setNotes(prev => prev.filter(n => n.id !== note.id))
+                    removeItems((n) => n.id === note.id)
                     toast.success('Note deleted')
                   },
                 })}
               />
             ))}
           </div>
-          <div className="mt-6">
-            <Pagination {...paginationProps(total)} />
-          </div>
+          <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
         </>
       )}
 

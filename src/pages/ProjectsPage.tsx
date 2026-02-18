@@ -1,45 +1,39 @@
-import { useEffect, useState, useRef } from 'react'
-import { useAtom, useAtomValue } from 'jotai'
+import { useState, useMemo, useCallback } from 'react'
+import { useAtomValue } from 'jotai'
 import { Link } from 'react-router-dom'
-import { projectsAtom, projectsLoadingAtom, projectRefreshAtom } from '@/atoms'
+import { projectRefreshAtom } from '@/atoms'
 import { projectsApi } from '@/services'
-import { Card, CardContent, Button, LoadingPage, EmptyState, Badge, Pagination, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
-import { usePagination, useConfirmDialog, useFormDialog, useToast, useMultiSelect } from '@/hooks'
+import { Card, CardContent, Button, LoadingPage, EmptyState, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, LoadMoreSentinel } from '@/components/ui'
+import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList } from '@/hooks'
 import { CreateProjectForm } from '@/components/forms'
-import type { Project } from '@/types'
+import type { Project, PaginatedResponse } from '@/types'
 
 export function ProjectsPage() {
-  const [projects, setProjects] = useAtom(projectsAtom)
-  const [loading, setLoading] = useAtom(projectsLoadingAtom)
-  const [total, setTotal] = useState(0)
-  const { page, pageSize, offset, paginationProps } = usePagination()
   const confirmDialog = useConfirmDialog()
   const formDialog = useFormDialog()
   const toast = useToast()
   const [formLoading, setFormLoading] = useState(false)
   const projRefresh = useAtomValue(projectRefreshAtom)
 
-  const fetchProjects = async (silent = false) => {
-    if (!silent) setLoading(true)
-    try {
-      const response = await projectsApi.list({ limit: pageSize, offset })
-      setProjects(response.items || [])
-      setTotal(response.total || 0)
-    } catch (error) {
-      console.error('Failed to fetch projects:', error)
-      toast.error('Failed to load projects')
-    } finally {
-      if (!silent) setLoading(false)
-    }
-  }
+  const filters = useMemo(() => ({ _refresh: projRefresh }), [projRefresh])
 
-  const initialLoadDone = useRef(false)
-  useEffect(() => {
-    const silent = initialLoadDone.current
-    fetchProjects(silent)
-    initialLoadDone.current = true
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchProjects is intentionally excluded to avoid loop
-  }, [setProjects, setLoading, page, pageSize, offset, projRefresh])
+  const fetcher = useCallback(
+    (params: { limit: number; offset: number }): Promise<PaginatedResponse<Project>> => {
+      return projectsApi.list({ limit: params.limit, offset: params.offset })
+    },
+    [],
+  )
+
+  const {
+    items: projects,
+    loading,
+    loadingMore,
+    hasMore,
+    total,
+    sentinelRef,
+    reset,
+    removeItems,
+  } = useInfiniteList({ fetcher, filters })
 
   const form = CreateProjectForm({
     onSubmit: async (data) => {
@@ -48,7 +42,7 @@ export function ProjectsPage() {
         await projectsApi.create(data)
         toast.success('Project created')
         formDialog.close()
-        fetchProjects()
+        reset()
       } finally {
         setFormLoading(false)
       }
@@ -74,8 +68,8 @@ export function ProjectsPage() {
           await projectsApi.delete(items[i].slug)
           confirmDialog.setProgress({ current: i + 1, total: items.length })
         }
-        setProjects((prev) => prev.filter((p) => !multiSelect.selectedIds.has(p.slug)))
-        setTotal((prev) => prev - items.length)
+        const slugs = new Set(items.map((p) => p.slug))
+        removeItems((p) => slugs.has(p.slug))
         multiSelect.clear()
         toast.success(`Deleted ${count} project${count > 1 ? 's' : ''}`)
       },
@@ -120,16 +114,14 @@ export function ProjectsPage() {
                   description: 'This will permanently delete this project.',
                   onConfirm: async () => {
                     await projectsApi.delete(project.slug)
-                    setProjects(prev => prev.filter(p => p.id !== project.id))
+                    removeItems((p) => p.id === project.id)
                     toast.success('Project deleted')
                   },
                 })}
               />
             ))}
           </div>
-          <div className="mt-6">
-            <Pagination {...paginationProps(total)} />
-          </div>
+          <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
         </>
       )}
 

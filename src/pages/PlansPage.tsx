@@ -10,7 +10,6 @@ import {
   EmptyState,
   Select,
   InteractivePlanStatusBadge,
-  Pagination,
   ViewToggle,
   ConfirmDialog,
   FormDialog,
@@ -18,8 +17,9 @@ import {
   PageShell,
   SelectZone,
   BulkActionBar,
+  LoadMoreSentinel,
 } from '@/components/ui'
-import { usePagination, useViewMode, useConfirmDialog, useFormDialog, useToast, useMultiSelect } from '@/hooks'
+import { useViewMode, useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList } from '@/hooks'
 import { CreatePlanForm } from '@/components/forms'
 import { PlanKanbanBoard, PlanKanbanFilterBar } from '@/components/kanban'
 import type { PlanKanbanFilters } from '@/components/kanban'
@@ -45,12 +45,10 @@ const defaultFilters: PlanKanbanFilters = {
 }
 
 export function PlansPage() {
-  const [plans, setPlans] = useAtom(plansAtom)
-  const [loading, setLoading] = useAtom(plansLoadingAtom)
+  const [, setPlans] = useAtom(plansAtom)
+  const [, setLoadingAtom] = useAtom(plansLoadingAtom)
   const [statusFilter, setStatusFilter] = useAtom(planStatusFilterAtom)
   const planRefresh = useAtomValue(planRefreshAtom)
-  const [total, setTotal] = useState(0)
-  const { page, pageSize, offset, setPage, paginationProps } = usePagination()
   const [viewMode, setViewMode] = useViewMode()
   const navigate = useNavigate()
   const confirmDialog = useConfirmDialog()
@@ -110,31 +108,50 @@ export function PlansPage() {
     return count
   }, [kanbanFilters])
 
-  // Fetch paginated plans for list mode
-  useEffect(() => {
-    if (viewMode !== 'list') return
-    async function fetchPlans() {
-      // Only show loading spinner on initial load, not on WS-triggered refreshes
-      const isInitialLoad = plans.length === 0
-      if (isInitialLoad) setLoading(true)
-      try {
-        const params: { limit: number; offset: number; status?: string } = { limit: pageSize, offset }
-        if (statusFilter !== 'all') {
-          params.status = statusFilter
-        }
-        const response = await plansApi.list(params)
-        setPlans(response.items || [])
-        setTotal(response.total || 0)
-      } catch (error) {
-        console.error('Failed to fetch plans:', error)
-        toast.error('Failed to load plans')
-      } finally {
-        if (isInitialLoad) setLoading(false)
+  // --- Infinite scroll for list mode ---
+  const listFilters = useMemo(
+    () => ({
+      status: statusFilter !== 'all' ? statusFilter : undefined,
+      _refresh: planRefresh,
+    }),
+    [statusFilter, planRefresh],
+  )
+
+  const listFetcher = useCallback(
+    (params: { limit: number; offset: number; status?: string }): Promise<PaginatedResponse<Plan>> => {
+      const apiParams: { limit: number; offset: number; status?: string } = {
+        limit: params.limit,
+        offset: params.offset,
       }
+      if (params.status) apiParams.status = params.status
+      return plansApi.list(apiParams)
+    },
+    [],
+  )
+
+  const {
+    items: plans,
+    loading,
+    loadingMore,
+    hasMore,
+    total,
+    sentinelRef,
+    reset,
+    removeItems,
+    updateItem,
+  } = useInfiniteList({
+    fetcher: listFetcher,
+    filters: listFilters,
+    enabled: viewMode === 'list',
+  })
+
+  // Sync plans atom for other components that read it
+  useEffect(() => {
+    if (viewMode === 'list') {
+      setPlans(plans)
+      setLoadingAtom(loading)
     }
-    fetchPlans()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- plans.length used for initial load detection; toast is stable
-  }, [setPlans, setLoading, page, pageSize, offset, statusFilter, viewMode, planRefresh])
+  }, [plans, loading, viewMode, setPlans, setLoadingAtom])
 
   // Stable fetchFn for PlanKanbanBoard
   const kanbanFetchFn = useCallback(
@@ -188,18 +205,16 @@ export function PlansPage() {
     return hidden
   }, [kanbanFilters.hide_completed, kanbanFilters.hide_cancelled])
 
-  const handleStatusFilterChange = (newFilter: PlanStatus | 'all') => {
-    setStatusFilter(newFilter)
-    setPage(1)
-  }
-
   const handlePlanStatusChange = useCallback(
     async (planId: string, newStatus: PlanStatus) => {
-      setPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, status: newStatus } : p)))
+      updateItem(
+        (p) => p.id === planId,
+        (p) => ({ ...p, status: newStatus }),
+      )
       await plansApi.updateStatus(planId, newStatus)
       toast.success('Status updated')
     },
-    [setPlans, toast],
+    [updateItem, toast],
   )
 
   const planForm = CreatePlanForm({
@@ -209,15 +224,7 @@ export function PlansPage() {
         await plansApi.create(data)
         toast.success('Plan created')
         formDialog.close()
-        // Trigger re-fetch
-        setPlans([])
-        setLoading(true)
-        const params: { limit: number; offset: number; status?: string } = { limit: pageSize, offset }
-        if (statusFilter !== 'all') params.status = statusFilter
-        const response = await plansApi.list(params)
-        setPlans(response.items || [])
-        setTotal(response.total || 0)
-        setLoading(false)
+        reset()
       } finally {
         setFormLoading(false)
       }
@@ -239,8 +246,8 @@ export function PlansPage() {
           await plansApi.delete(items[i].id)
           confirmDialog.setProgress({ current: i + 1, total: items.length })
         }
-        setPlans((prev) => prev.filter((p) => !multiSelect.selectedIds.has(p.id)))
-        setTotal((prev) => prev - items.length)
+        const ids = new Set(items.map((p) => p.id))
+        removeItems((p) => ids.has(p.id))
         multiSelect.clear()
         toast.success(`Deleted ${count} plan${count > 1 ? 's' : ''}`)
       },
@@ -263,7 +270,7 @@ export function PlansPage() {
             <Select
               options={statusOptions}
               value={statusFilter}
-              onChange={(value) => handleStatusFilterChange(value as PlanStatus | 'all')}
+              onChange={(value) => setStatusFilter(value as PlanStatus | 'all')}
               className="w-full sm:w-40"
             />
           )}
@@ -322,7 +329,10 @@ export function PlansPage() {
                 plan={plan}
                 onStatusChange={async (newStatus) => {
                   await plansApi.updateStatus(plan.id, newStatus)
-                  setPlans((prev) => prev.map((p) => (p.id === plan.id ? { ...p, status: newStatus } : p)))
+                  updateItem(
+                    (p) => p.id === plan.id,
+                    (p) => ({ ...p, status: newStatus }),
+                  )
                   toast.success('Status updated')
                 }}
                 onDelete={() =>
@@ -331,7 +341,7 @@ export function PlansPage() {
                     description: 'This plan and all its tasks will be permanently deleted.',
                     onConfirm: async () => {
                       await plansApi.delete(plan.id)
-                      setPlans((prev) => prev.filter((p) => p.id !== plan.id))
+                      removeItems((p) => p.id === plan.id)
                       toast.success('Plan deleted')
                     },
                   })
@@ -339,9 +349,7 @@ export function PlansPage() {
               />
             ))}
           </div>
-          <div className="mt-6">
-            <Pagination {...paginationProps(total)} />
-          </div>
+          <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
         </>
       )}
 
