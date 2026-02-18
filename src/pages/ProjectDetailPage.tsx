@@ -8,6 +8,9 @@ import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObs
 import { chatSuggestedProjectIdAtom, projectRefreshAtom, planRefreshAtom, milestoneRefreshAtom, taskRefreshAtom } from '@/atoms'
 import { CreateMilestoneForm, CreateReleaseForm } from '@/components/forms'
 import type { Project, Plan, ProjectRoadmap, PlanStatus, FeatureGraph } from '@/types'
+import { AnimatePresence } from 'motion/react'
+import { useTourSuggestion } from '@/tutorial/hooks'
+import { TourSuggestionToast } from '@/tutorial/components'
 
 export function ProjectDetailPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -32,6 +35,7 @@ export function ProjectDetailPage() {
   const [plansExpandAll, setPlansExpandAll] = useState(0)
   const [plansCollapseAll, setPlansCollapseAll] = useState(0)
   const [plansAllExpanded, setPlansAllExpanded] = useState(false)
+  const suggestion = useTourSuggestion('project-detail')
 
   useEffect(() => {
     async function fetchData() {
@@ -448,6 +452,12 @@ export function ProjectDetailPage() {
       </FormDialog>
       <LinkEntityDialog {...linkDialog.dialogProps} />
       <ConfirmDialog {...confirmDialog.dialogProps} />
+
+      <AnimatePresence>
+        {suggestion.isVisible && (
+          <TourSuggestionToast key="tour-suggestion" tourName={suggestion.tourName} displayName={suggestion.displayName} icon={suggestion.icon} onAccept={suggestion.accept} onDismiss={suggestion.dismiss} />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

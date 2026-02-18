@@ -33,8 +33,10 @@ export interface UseTourSuggestionReturn {
  * Dismissals are persisted in localStorage via the Jotai tutorial atom.
  *
  * @param tourName - The tour to suggest for this page
+ * @param options.enabled - Whether the suggestion is enabled (default: true). Useful for conditional rendering (e.g. fullscreen-only).
  */
-export function useTourSuggestion(tourName: TourName): UseTourSuggestionReturn {
+export function useTourSuggestion(tourName: TourName, options?: { enabled?: boolean }): UseTourSuggestionReturn {
+  const enabled = options?.enabled ?? true
   const {
     startTour,
     isTourCompleted,
@@ -46,6 +48,7 @@ export function useTourSuggestion(tourName: TourName): UseTourSuggestionReturn {
   const [isVisible, setIsVisible] = useState(false)
 
   const shouldShow =
+    enabled &&
     !isTourCompleted(tourName) &&
     !isTourDismissed(tourName) &&
     !isNextStepVisible

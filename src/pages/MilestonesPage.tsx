@@ -8,6 +8,9 @@ import { useViewMode, useConfirmDialog, useToast, useMultiSelect } from '@/hooks
 import { MilestoneKanbanBoard } from '@/components/kanban'
 import type { MilestoneWithProgress } from '@/components/kanban'
 import type { MilestoneStatus, Workspace } from '@/types'
+import { AnimatePresence } from 'motion/react'
+import { useTourSuggestion } from '@/tutorial/hooks'
+import { TourSuggestionToast } from '@/tutorial/components'
 
 const statusOptions = [
   { value: 'all', label: 'All Status' },
@@ -26,6 +29,7 @@ export function MilestonesPage() {
   const navigate = useNavigate()
   const confirmDialog = useConfirmDialog()
   const toast = useToast()
+  const suggestion = useTourSuggestion('milestones')
 
   // Filters
   const [workspaceFilter, setWorkspaceFilter] = useState('all')
@@ -236,6 +240,11 @@ export function MilestonesPage() {
         onClear={multiSelect.clear}
       />
       <ConfirmDialog {...confirmDialog.dialogProps} />
+      <AnimatePresence>
+        {suggestion.isVisible && (
+          <TourSuggestionToast key="tour-suggestion" tourName={suggestion.tourName} displayName={suggestion.displayName} icon={suggestion.icon} onAccept={suggestion.accept} onDismiss={suggestion.dismiss} />
+        )}
+      </AnimatePresence>
     </PageShell>
   )
 }

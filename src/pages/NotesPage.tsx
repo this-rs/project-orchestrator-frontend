@@ -7,6 +7,9 @@ import type { OverflowMenuAction } from '@/components/ui'
 import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList } from '@/hooks'
 import { CreateNoteForm } from '@/components/forms'
 import type { Note, NoteType, NoteStatus, NoteScopeType, PaginatedResponse } from '@/types'
+import { AnimatePresence } from 'motion/react'
+import { useTourSuggestion } from '@/tutorial/hooks'
+import { TourSuggestionToast } from '@/tutorial/components'
 
 // Inline SVG icons (project convention: no icon library)
 const iconClass = 'w-3 h-3 flex-shrink-0'
@@ -47,6 +50,7 @@ export function NotesPage() {
   const formDialog = useFormDialog()
   const toast = useToast()
   const [formLoading, setFormLoading] = useState(false)
+  const suggestion = useTourSuggestion('notes')
 
   const filters = useMemo(
     () => ({
@@ -201,6 +205,11 @@ export function NotesPage() {
         {noteForm.fields}
       </FormDialog>
       <ConfirmDialog {...confirmDialog.dialogProps} />
+      <AnimatePresence>
+        {suggestion.isVisible && (
+          <TourSuggestionToast key="tour-suggestion" tourName={suggestion.tourName} displayName={suggestion.displayName} icon={suggestion.icon} onAccept={suggestion.accept} onDismiss={suggestion.dismiss} />
+        )}
+      </AnimatePresence>
     </PageShell>
   )
 }

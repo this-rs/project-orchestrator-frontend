@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { Card, CardHeader, CardTitle, CardContent, Button, SearchInput, LoadingPage, EmptyState } from '@/components/ui'
 import { codeApi } from '@/services'
 import type { SearchResult, ArchitectureOverview } from '@/services'
+import { AnimatePresence } from 'motion/react'
+import { useTourSuggestion } from '@/tutorial/hooks'
+import { TourSuggestionToast } from '@/tutorial/components'
 
 export function CodePage() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -9,6 +12,7 @@ export function CodePage() {
   const [architecture, setArchitecture] = useState<ArchitectureOverview | null>(null)
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'search' | 'architecture'>('search')
+  const suggestion = useTourSuggestion('code-explorer')
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return
@@ -244,6 +248,12 @@ export function CodePage() {
           )}
         </div>
       )}
+
+      <AnimatePresence>
+        {suggestion.isVisible && (
+          <TourSuggestionToast key="tour-suggestion" tourName={suggestion.tourName} displayName={suggestion.displayName} icon={suggestion.icon} onAccept={suggestion.accept} onDismiss={suggestion.dismiss} />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

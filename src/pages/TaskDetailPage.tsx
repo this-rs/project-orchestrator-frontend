@@ -7,6 +7,9 @@ import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObs
 import { taskRefreshAtom, projectRefreshAtom, planRefreshAtom } from '@/atoms'
 import { CreateStepForm, CreateDecisionForm } from '@/components/forms'
 import type { Task, Step, Decision, Commit, TaskStatus, StepStatus } from '@/types'
+import { AnimatePresence } from 'motion/react'
+import { useTourSuggestion } from '@/tutorial/hooks'
+import { TourSuggestionToast } from '@/tutorial/components'
 
 // The API response structure
 interface TaskApiResponse {
@@ -29,6 +32,7 @@ export function TaskDetailPage() {
   const projectRefresh = useAtomValue(projectRefreshAtom)
   const planRefresh = useAtomValue(planRefreshAtom)
   const [formLoading, setFormLoading] = useState(false)
+  const suggestion = useTourSuggestion('task-detail')
   const [task, setTask] = useState<Task | null>(null)
   const [steps, setSteps] = useState<Step[]>([])
   const [decisions, setDecisions] = useState<Decision[]>([])
@@ -396,6 +400,11 @@ export function TaskDetailPage() {
       </FormDialog>
       <LinkEntityDialog {...linkDialog.dialogProps} />
       <ConfirmDialog {...confirmDialog.dialogProps} />
+      <AnimatePresence>
+        {suggestion.isVisible && (
+          <TourSuggestionToast key="tour-suggestion" tourName={suggestion.tourName} displayName={suggestion.displayName} icon={suggestion.icon} onAccept={suggestion.accept} onDismiss={suggestion.dismiss} />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

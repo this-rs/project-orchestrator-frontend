@@ -11,6 +11,9 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useSetAtom, useAtomValue } from 'jotai'
 import { Link } from 'react-router-dom'
 import { isTauri } from '@/services/env'
+import { AnimatePresence } from 'motion/react'
+import { useTourSuggestion } from '@/tutorial/hooks'
+import { TourSuggestionToast } from '@/tutorial/components'
 
 const MIN_WIDTH = 320
 const MAX_WIDTH = 800
@@ -53,6 +56,7 @@ export function ChatPanel() {
 
   const isOpen = mode !== 'closed'
   const isFullscreen = mode === 'fullscreen'
+  const suggestion = useTourSuggestion('chat', { enabled: isFullscreen })
   const isNewConversation = !chat.sessionId && !chat.isSending
   const isWindowFullscreen = useWindowFullscreen()
 
@@ -372,6 +376,12 @@ export function ChatPanel() {
             </>
           )}
         </div>
+
+        <AnimatePresence>
+          {suggestion.isVisible && (
+            <TourSuggestionToast key="tour-suggestion" tourName={suggestion.tourName} displayName={suggestion.displayName} icon={suggestion.icon} onAccept={suggestion.accept} onDismiss={suggestion.dismiss} />
+          )}
+        </AnimatePresence>
       </div>
     )
   }
