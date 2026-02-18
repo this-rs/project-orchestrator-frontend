@@ -155,6 +155,7 @@ export function NotesPage() {
         </>
       }
     >
+      <div data-tour="notes-list">
       {notes.length === 0 ? (
         <EmptyState
           title="No notes found"
@@ -172,7 +173,7 @@ export function NotesPage() {
               </button>
             </div>
           )}
-          <div data-tour="notes-list" className="space-y-4">
+          <div className="space-y-4">
             {notes.map((note) => (
               <NoteCard
                 selected={multiSelect.isSelected(note.id)}
@@ -195,6 +196,7 @@ export function NotesPage() {
           <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
         </>
       )}
+      </div>
 
       <BulkActionBar
         count={multiSelect.selectionCount}

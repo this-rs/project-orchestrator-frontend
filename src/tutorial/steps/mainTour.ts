@@ -59,6 +59,7 @@ export const mainTour: Tour = {
       showSkip: true,
       pointerPadding: 8,
       pointerRadius: 12,
+      nextRoute: '/projects',
     },
     // Step 5 — Projects page
     {
@@ -72,7 +73,8 @@ export const mainTour: Tour = {
       showSkip: true,
       pointerPadding: 8,
       pointerRadius: 12,
-      nextRoute: '/projects',
+      nextRoute: '/plans',
+      prevRoute: '/workspaces',
     },
     // Step 6 — Plans page
     {
@@ -86,7 +88,6 @@ export const mainTour: Tour = {
       showSkip: true,
       pointerPadding: 8,
       pointerRadius: 12,
-      nextRoute: '/plans',
       prevRoute: '/projects',
     },
     // Step 7 — Kanban view toggle
@@ -101,6 +102,7 @@ export const mainTour: Tour = {
       showSkip: true,
       pointerPadding: 4,
       pointerRadius: 8,
+      nextRoute: '/notes',
     },
     // Step 8 — Notes page
     {
@@ -114,7 +116,7 @@ export const mainTour: Tour = {
       showSkip: true,
       pointerPadding: 8,
       pointerRadius: 12,
-      nextRoute: '/notes',
+      nextRoute: '/code',
       prevRoute: '/plans',
     },
     // Step 9 — Code explorer
@@ -129,7 +131,7 @@ export const mainTour: Tour = {
       showSkip: true,
       pointerPadding: 8,
       pointerRadius: 12,
-      nextRoute: '/code',
+      nextRoute: '/workspaces',
       prevRoute: '/notes',
     },
     // Step 10 — Tutorial button
@@ -144,7 +146,6 @@ export const mainTour: Tour = {
       showSkip: false,
       pointerPadding: 8,
       pointerRadius: 12,
-      nextRoute: '/workspaces',
       prevRoute: '/code',
     },
   ],

@@ -293,6 +293,7 @@ export function PlansPage() {
         />
       )}
 
+      <div data-tour="plans-list">
       {viewMode === 'kanban' ? (
         <PlanKanbanBoard
           fetchFn={kanbanFetchFn}
@@ -324,7 +325,7 @@ export function PlansPage() {
               </button>
             </div>
           )}
-          <div data-tour="plans-list" className="space-y-4">
+          <div className="space-y-4">
             {plans.map((plan) => (
               <PlanCard
                 selected={multiSelect.isSelected(plan.id)}
@@ -356,6 +357,7 @@ export function PlansPage() {
           <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
         </>
       )}
+      </div>
 
       <BulkActionBar
         count={multiSelect.selectionCount}

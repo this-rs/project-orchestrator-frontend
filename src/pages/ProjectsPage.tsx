@@ -84,6 +84,7 @@ export function ProjectsPage() {
       description="Track your codebase projects"
       actions={<Button onClick={openCreateDialog}>Create Project</Button>}
     >
+      <div data-tour="projects-list">
       {projects.length === 0 && total === 0 ? (
         <EmptyState
           title="No projects"
@@ -102,7 +103,7 @@ export function ProjectsPage() {
               </button>
             </div>
           )}
-          <div data-tour="projects-list" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
             {projects.map((project) => (
               <ProjectCard
                 selected={multiSelect.isSelected(project.slug)}
@@ -124,6 +125,7 @@ export function ProjectsPage() {
           <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
         </>
       )}
+      </div>
 
       <BulkActionBar
         count={multiSelect.selectionCount}
