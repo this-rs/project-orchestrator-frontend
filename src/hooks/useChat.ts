@@ -73,10 +73,10 @@ export interface SessionMeta {
 function historyEventsToMessages(events: any[]): ChatMessage[] {
   const messages: ChatMessage[] = []
 
-  function lastAssistant(): ChatMessage {
+  function lastAssistant(eventTimestamp?: Date): ChatMessage {
     let msg = messages[messages.length - 1]
     if (!msg || msg.role !== 'assistant') {
-      msg = { id: nextMessageId(), role: 'assistant', blocks: [], timestamp: new Date() }
+      msg = { id: nextMessageId(), role: 'assistant', blocks: [], timestamp: eventTimestamp ?? new Date() }
       messages.push(msg)
     }
     return msg
@@ -88,7 +88,9 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
 
   for (const evt of events) {
     const type = evt.type as string
-    const createdAt = evt.created_at ? new Date(evt.created_at * 1000) : new Date()
+    const createdAt = evt.created_at
+      ? new Date(typeof evt.created_at === 'number' ? evt.created_at * 1000 : evt.created_at)
+      : new Date()
 
     switch (type) {
       case 'user_message': {
@@ -133,7 +135,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
       case 'assistant_text': {
         const content = evt.content ?? ''
         if (content) {
-          const msg = lastAssistant()
+          const msg = lastAssistant(createdAt)
           const parent = getParentToolUseId(evt)
           msg.blocks.push({ id: nextBlockId(), type: 'text', content, metadata: withParent(undefined, parent) })
         }
@@ -141,14 +143,14 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
       }
 
       case 'thinking': {
-        const msg = lastAssistant()
+        const msg = lastAssistant(createdAt)
         const parent = getParentToolUseId(evt)
         msg.blocks.push({ id: nextBlockId(), type: 'thinking', content: evt.content ?? '', metadata: withParent(undefined, parent) })
         break
       }
 
       case 'tool_use': {
-        const msg = lastAssistant()
+        const msg = lastAssistant(createdAt)
         const toolName = evt.tool ?? ''
         const toolId = evt.id ?? ''
         const toolInput = evt.input ?? {}
@@ -199,7 +201,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
       }
 
       case 'tool_result': {
-        const msg = lastAssistant()
+        const msg = lastAssistant(createdAt)
         const result = evt.result
         const resultStr = typeof result === 'string' ? result : JSON.stringify(result)
         const parent = getParentToolUseId(evt)
@@ -233,7 +235,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
       }
 
       case 'tool_cancelled': {
-        const msg = lastAssistant()
+        const msg = lastAssistant(createdAt)
         const parent = getParentToolUseId(evt)
         msg.blocks.push({
           id: nextBlockId(),
@@ -245,7 +247,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
       }
 
       case 'permission_request': {
-        const msg = lastAssistant()
+        const msg = lastAssistant(createdAt)
         const parent = getParentToolUseId(evt)
         msg.blocks.push({
           id: nextBlockId(),
@@ -273,7 +275,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
       }
 
       case 'input_request': {
-        const msg = lastAssistant()
+        const msg = lastAssistant(createdAt)
         const parent = getParentToolUseId(evt)
         msg.blocks.push({
           id: nextBlockId(),
@@ -285,7 +287,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
       }
 
       case 'ask_user_question': {
-        const msg = lastAssistant()
+        const msg = lastAssistant(createdAt)
         const questions = evt.questions as { question: string }[] | undefined
         const toolCallId = (evt as { tool_call_id?: string }).tool_call_id ?? ''
         const parent = getParentToolUseId(evt)
@@ -307,7 +309,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
       }
 
       case 'error': {
-        const msg = lastAssistant()
+        const msg = lastAssistant(createdAt)
         const parent = getParentToolUseId(evt)
         msg.blocks.push({
           id: nextBlockId(),
@@ -319,7 +321,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
       }
 
       case 'model_changed': {
-        const msg = lastAssistant()
+        const msg = lastAssistant(createdAt)
         const changedModel = (evt.model as string) ?? 'unknown'
         msg.blocks.push({
           id: nextBlockId(),
@@ -331,7 +333,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
       }
 
       case 'compact_boundary': {
-        const msg = lastAssistant()
+        const msg = lastAssistant(createdAt)
         const trigger = (evt.trigger as string) ?? 'auto'
         const preTokens = evt.pre_tokens as number | undefined
         const label = preTokens
@@ -352,7 +354,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
           m.blocks.some((b) => b.type === 'system_init'),
         )
         if (!alreadyHasInit) {
-          const msg = lastAssistant()
+          const msg = lastAssistant(createdAt)
           const initModel = evt.model as string | undefined
           const initTools = evt.tools as string[] | undefined
           const initMcpServers = evt.mcp_servers as { name: string; status?: string }[] | undefined
@@ -378,7 +380,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
         const rResultText = evt.result_text as string | undefined
 
         // Store turn metrics on the assistant message
-        const rMsg = lastAssistant()
+        const rMsg = lastAssistant(createdAt)
         if (evt.duration_ms != null) rMsg.duration_ms = evt.duration_ms as number
         if (evt.cost_usd != null) rMsg.cost_usd = evt.cost_usd as number
 
@@ -407,7 +409,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
       }
 
       case 'auto_continue': {
-        const msg = lastAssistant()
+        const msg = lastAssistant(createdAt)
         const acDelay = evt.delay_ms as number | undefined
         msg.blocks.push({
           id: nextBlockId(),
@@ -479,7 +481,21 @@ export function useChat() {
   // Pagination state for reverse infinite scroll
   const [hasOlderMessages, setHasOlderMessages] = useState(false)
   const [isLoadingOlder, setIsLoadingOlder] = useState(false)
-  const paginationRef = useRef({ offset: 0, totalCount: 0 })
+  const [hasNewerMessages, setHasNewerMessages] = useState(false)
+  const [isLoadingNewer, setIsLoadingNewer] = useState(false)
+  const paginationRef = useRef({ offset: 0, tailOffset: 0, totalCount: 0 })
+
+  // Target timestamp (Unix seconds) for scroll-to-message from search results.
+  // Set by loadSession(sid, targetTimestamp), consumed by the auto-connect useEffect.
+  // Used to find the right offset via binary search on the event timeline.
+  const targetTimestampRef = useRef<number | null>(null)
+
+  // Whether the loaded message window includes the tail (end) of the conversation.
+  // When false (pagination centrée), live WS events are buffered to avoid disorder.
+  const isAtTailRef = useRef(true)
+  const pendingTailEventsRef = useRef<Array<ChatEvent & { seq?: number; replaying?: boolean }>>([])
+  // True when live WS events are being buffered (user is viewing centered pagination)
+  const [hasLiveActivity, setHasLiveActivity] = useState(false)
 
   // Mid-stream join: buffer WS events while REST history is loading.
   // historyLoadedRef starts true (first-send path has no REST loading).
@@ -520,6 +536,17 @@ export function useChat() {
     // (seeing the live stream + interrupt button without waiting for REST).
     if (!historyLoadedRef.current && event.type !== 'streaming_status' && event.type !== 'partial_text') {
       pendingEventsRef.current.push(event)
+      return
+    }
+
+    // Not-at-tail buffering: when in centered pagination mode (user scrolled to
+    // a search result), live WS events correspond to the conversation tail which
+    // is NOT in the loaded window. Buffer them so they don't insert messages in
+    // the wrong place. They'll be flushed when loadNewerMessages reaches the tail.
+    // streaming_status is still processed for UI responsiveness (interrupt btn).
+    if (!isAtTailRef.current && event.type !== 'streaming_status') {
+      pendingTailEventsRef.current.push(event)
+      setHasLiveActivity(true)
       return
     }
 
@@ -1131,7 +1158,7 @@ export function useChat() {
     // Just connect the WS for live events and bail out.
     if (isFirstSendRef.current) {
       isFirstSendRef.current = false
-      paginationRef.current = { offset: 0, totalCount: 0 }
+      paginationRef.current = { offset: 0, tailOffset: 0, totalCount: 0 }
       setHasOlderMessages(false)
       ws.connect(sessionId, Number.MAX_SAFE_INTEGER)
       return
@@ -1145,7 +1172,7 @@ export function useChat() {
     setIsLoadingHistory(true)
     setIsReplaying(true)
     setMessages([])
-    paginationRef.current = { offset: 0, totalCount: 0 }
+    paginationRef.current = { offset: 0, tailOffset: 0, totalCount: 0 }
     setHasOlderMessages(false)
 
     // Prepare the event buffer: WS events arriving while REST is loading
@@ -1162,6 +1189,10 @@ export function useChat() {
     // streaming_status) instantly — the user sees the live stream right away.
     ws.connect(sessionId, Number.MAX_SAFE_INTEGER)
 
+    // Capture and clear targetTimestamp so it's only used once
+    const targetTimestamp = targetTimestampRef.current
+    targetTimestampRef.current = null
+
     // Phase 2: Load history via REST in parallel.
     // The API uses chronological pagination (offset 0 = oldest), so we first
     // need to figure out the right offset to get the last page of messages.
@@ -1173,8 +1204,10 @@ export function useChat() {
         if (cancelled) return
         const total = meta.total_count
         if (total === 0) {
-          paginationRef.current = { offset: 0, totalCount: 0 }
+          paginationRef.current = { offset: 0, tailOffset: 0, totalCount: 0 }
           setHasOlderMessages(false)
+          setHasNewerMessages(false)
+          isAtTailRef.current = true
           setIsLoadingHistory(false)
           setIsReplaying(false)
           // Flush buffered events (none expected, but be safe)
@@ -1187,22 +1220,72 @@ export function useChat() {
           return
         }
 
-        // Load the last PAGE_SIZE messages (the tail of the conversation)
-        const tailOffset = Math.max(0, total - PAGE_SIZE)
-        return chatApi.getMessages(sessionId, { limit: PAGE_SIZE, offset: tailOffset })
+        // Decide loading strategy: centered around target timestamp vs tail
+        let loadOffsetPromise: Promise<{ loadOffset: number; isCentered: boolean }>
+
+        if (targetTimestamp !== null) {
+          // Binary search: find the event offset closest to the target timestamp.
+          // Events are stored chronologically, so we can binary search by created_at.
+          loadOffsetPromise = (async () => {
+            let lo = 0
+            let hi = total - 1
+            let bestOffset = 0
+
+            // Binary search: ~10 iterations for 1M events (log2(1M) ≈ 20)
+            while (lo <= hi) {
+              const mid = Math.floor((lo + hi) / 2)
+              const probe = await chatApi.getMessages(sessionId, { limit: 1, offset: mid })
+              if (cancelled || !probe.messages[0]) break
+              const rawTs = probe.messages[0].created_at
+              const probeTs = typeof rawTs === 'number' ? rawTs : Math.floor(new Date(rawTs as string).getTime() / 1000)
+              if (probeTs <= targetTimestamp) {
+                bestOffset = mid
+                lo = mid + 1
+              } else {
+                hi = mid - 1
+              }
+            }
+
+            // Load a window biased BEFORE the target to include the full turn/message.
+            // A single assistant turn can span 30+ events (tool_use/tool_result chains),
+            // so the snippet from Meilisearch may come from an event well before bestOffset.
+            // Use 80% of PAGE_SIZE before the target, 20% after.
+            let loadOffset = Math.max(0, bestOffset - Math.floor(PAGE_SIZE * 0.8))
+            let isCentered = true
+            if (loadOffset + PAGE_SIZE >= total) {
+              loadOffset = Math.max(0, total - PAGE_SIZE)
+              isCentered = false // effectively tail loading
+            }
+            return { loadOffset, isCentered }
+          })()
+        } else {
+          // Normal tail loading
+          loadOffsetPromise = Promise.resolve({
+            loadOffset: Math.max(0, total - PAGE_SIZE),
+            isCentered: false,
+          })
+        }
+
+        return loadOffsetPromise.then(({ loadOffset }) =>
+        chatApi.getMessages(sessionId, { limit: PAGE_SIZE, offset: loadOffset })
           .then((data) => {
-            console.log(`⏱ [REST] getMessages(tail): ${(performance.now() - t0).toFixed(0)}ms`)
             if (cancelled) return
 
             const historyMessages = historyEventsToMessages(data.messages)
             setMessages(historyMessages)
 
-            // Track how far back we've loaded (tailOffset = messages before this page)
+            const loadedCount = data.messages.length
+            const endOffset = loadOffset + loadedCount
+
+            // Track the loaded window boundaries
             paginationRef.current = {
-              offset: tailOffset,
+              offset: loadOffset,
+              tailOffset: endOffset,
               totalCount: data.total_count,
             }
-            setHasOlderMessages(tailOffset > 0)
+            setHasOlderMessages(loadOffset > 0)
+            setHasNewerMessages(endOffset < data.total_count)
+            isAtTailRef.current = endOffset >= data.total_count
             setIsLoadingHistory(false)
             setIsReplaying(false)
 
@@ -1217,6 +1300,7 @@ export function useChat() {
               handleEvent(evt)
             }
           })
+        )
       })
       .catch(() => {
         if (cancelled) return
@@ -1266,8 +1350,9 @@ export function useChat() {
         // Prepend older messages to the beginning
         setMessages((prev) => [...olderMessages, ...prev])
 
-        // Move the offset cursor back
+        // Move the offset cursor back (tailOffset unchanged — we only prepended)
         paginationRef.current = {
+          ...paginationRef.current,
           offset: newOffset,
           totalCount: data.total_count,
         }
@@ -1281,6 +1366,113 @@ export function useChat() {
       setIsLoadingOlder(false)
     }
   }, [sessionId, isLoadingOlder, hasOlderMessages])
+
+  // ========================================================================
+  // Load newer messages (forward infinite scroll — only after centered load)
+  // ========================================================================
+  const loadNewerMessages = useCallback(async () => {
+    if (!sessionId || isLoadingNewer || !hasNewerMessages) return
+
+    setIsLoadingNewer(true)
+    try {
+      const { tailOffset, totalCount } = paginationRef.current
+      const loadLimit = Math.min(PAGE_SIZE, totalCount - tailOffset)
+
+      if (loadLimit <= 0) {
+        setHasNewerMessages(false)
+        isAtTailRef.current = true
+        setIsLoadingNewer(false)
+        return
+      }
+
+      const data = await chatApi.getMessages(sessionId, {
+        limit: loadLimit,
+        offset: tailOffset,
+      })
+
+      if (data.messages.length > 0) {
+        const newerMessages = historyEventsToMessages(data.messages)
+
+        // Append newer messages to the end
+        setMessages((prev) => [...prev, ...newerMessages])
+
+        const newTailOffset = tailOffset + data.messages.length
+        paginationRef.current = {
+          ...paginationRef.current,
+          tailOffset: newTailOffset,
+          totalCount: data.total_count,
+        }
+
+        const atTail = newTailOffset >= data.total_count
+        setHasNewerMessages(!atTail)
+        isAtTailRef.current = atTail
+
+        // If we just reached the tail, flush any buffered live WS events
+        if (atTail && pendingTailEventsRef.current.length > 0) {
+          const pending = pendingTailEventsRef.current
+          pendingTailEventsRef.current = []
+          setHasLiveActivity(false)
+          for (const evt of pending) {
+            handleEvent(evt)
+          }
+        } else if (atTail) {
+          setHasLiveActivity(false)
+        }
+      } else {
+        setHasNewerMessages(false)
+        isAtTailRef.current = true
+      }
+    } catch {
+      // Silently fail, user can retry by scrolling down again
+    } finally {
+      setIsLoadingNewer(false)
+    }
+  }, [sessionId, isLoadingNewer, hasNewerMessages, handleEvent])
+
+  // Jump directly to the tail of the conversation (reload last PAGE_SIZE messages).
+  // Used by "New activity" badge — unlike loadNewerMessages which loads page-by-page,
+  // this discards the current centered window and reloads the tail in one shot.
+  const jumpToTail = useCallback(async () => {
+    if (!sessionId) return
+    try {
+      const data = await chatApi.getMessages(sessionId, { limit: PAGE_SIZE, offset: 0 })
+      const total = data.total_count
+      const tailOffset = Math.max(0, total - PAGE_SIZE)
+
+      const tailData = tailOffset > 0
+        ? await chatApi.getMessages(sessionId, { limit: PAGE_SIZE, offset: tailOffset })
+        : data
+
+      const historyMessages = historyEventsToMessages(tailData.messages)
+      setMessages(historyMessages)
+
+      const loadedCount = tailData.messages.length
+      const endOffset = tailOffset + loadedCount
+      paginationRef.current = {
+        offset: tailOffset,
+        tailOffset: endOffset,
+        totalCount: tailData.total_count,
+      }
+      setHasOlderMessages(tailOffset > 0)
+      setHasNewerMessages(false)
+      isAtTailRef.current = true
+
+      // Flush buffered live events now that we're at tail
+      if (pendingTailEventsRef.current.length > 0) {
+        const pending = pendingTailEventsRef.current
+        pendingTailEventsRef.current = []
+        setHasLiveActivity(false)
+        for (const evt of pending) {
+          handleEvent(evt)
+        }
+      } else {
+        setHasLiveActivity(false)
+      }
+    } catch {
+      // Fallback: at minimum clear the badge
+      setHasLiveActivity(false)
+    }
+  }, [sessionId, handleEvent])
 
   // ========================================================================
   // Actions
@@ -1462,7 +1654,12 @@ export function useChat() {
     setMessages([])
     setSessionMeta(null)
     setHasOlderMessages(false)
-    paginationRef.current = { offset: 0, totalCount: 0 }
+    setHasNewerMessages(false)
+    isAtTailRef.current = true
+    targetTimestampRef.current = null
+    pendingTailEventsRef.current = []
+    setHasLiveActivity(false)
+    paginationRef.current = { offset: 0, tailOffset: 0, totalCount: 0 }
     // Reset session-scoped state
     setAutoApprovedTools(new Set<string>())
     setPermissionOverride(null)
@@ -1486,9 +1683,12 @@ export function useChat() {
     setSessionModel(model)
   }, [sessionId, getWs, setSessionModel])
 
-  const loadSession = useCallback(async (sid: string) => {
+  const loadSession = useCallback(async (sid: string, targetTimestamp?: number) => {
     // Guard: if already on this session, do nothing (avoid WS disconnect/reconnect loop)
     if (sid === sessionId) return
+
+    // Store target timestamp (Unix seconds) for the auto-connect useEffect to pick up
+    targetTimestampRef.current = targetTimestamp ?? null
 
     const ws = getWs()
     ws.disconnect()
@@ -1498,8 +1698,10 @@ export function useChat() {
     setIsLoadingHistory(true)
     setIsReplaying(true)
     setHasOlderMessages(false)
+    setHasNewerMessages(false)
+    setHasLiveActivity(false)
     setDraftInput('')
-    paginationRef.current = { offset: 0, totalCount: 0 }
+    paginationRef.current = { offset: 0, tailOffset: 0, totalCount: 0 }
 
     // Fetch session metadata (cwd, project, permission mode) for display in header
     chatApi.getSession(sid).then((session) => {
@@ -1524,8 +1726,12 @@ export function useChat() {
     isSending,
     isLoadingHistory,
     isLoadingOlder,
+    isLoadingNewer,
     isReplaying,
     hasOlderMessages,
+    hasNewerMessages,
+    hasLiveActivity,
+    jumpToTail,
     wsStatus,
     sessionId,
     sessionMeta,
@@ -1537,6 +1743,7 @@ export function useChat() {
     newSession,
     loadSession,
     loadOlderMessages,
+    loadNewerMessages,
     changePermissionMode,
     changeModel,
     changeAutoContinue,

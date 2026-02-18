@@ -18,8 +18,14 @@ export const chatWsStatusAtom = atom<WsConnectionStatus>('disconnected')
 /** Whether the chat is replaying persisted events (after WS connect) */
 export const chatReplayingAtom = atom<boolean>(false)
 
-/** Target message turn index for scroll-to-message from search results (null = no scroll target) */
-export const chatScrollToTurnAtom = atom<number | null>(null)
+/** Scroll-to-message target from search results (null = no scroll target) */
+export const chatScrollToTurnAtom = atom<{
+  turnIndex: number
+  snippet?: string
+  /** Unix timestamp (seconds) from the search hit — used for exact matching */
+  createdAt?: number
+  role?: 'user' | 'assistant'
+} | null>(null)
 
 /** Runtime permission config (loaded from server, null = not yet loaded) */
 export const chatPermissionConfigAtom = atom<PermissionConfig | null>(null)

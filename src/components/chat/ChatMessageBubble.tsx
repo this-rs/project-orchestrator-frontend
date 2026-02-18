@@ -153,20 +153,15 @@ function formatDuration(ms: number): string {
 interface ChatMessageBubbleProps {
   message: ChatMessage
   isStreaming?: boolean
-  highlighted?: boolean
   onRespondPermission: (toolCallId: string, allowed: boolean, remember?: { toolName: string }) => void
   onRespondInput: (requestId: string, response: string) => void
   onContinue?: () => void
 }
 
-export function ChatMessageBubble({ message, isStreaming, highlighted, onRespondPermission, onRespondInput, onContinue }: ChatMessageBubbleProps) {
-  const highlightClass = highlighted
-    ? 'ring-2 ring-amber-400/50 bg-amber-400/[0.06] rounded-xl transition-all duration-500'
-    : 'transition-all duration-1000'
-
+export function ChatMessageBubble({ message, isStreaming, onRespondPermission, onRespondInput, onContinue }: ChatMessageBubbleProps) {
   if (message.role === 'user') {
     return (
-      <div className={`flex flex-col items-end mb-4 ${highlightClass}`}>
+      <div className="flex flex-col items-end mb-4">
         <div className="max-w-[85%] px-3 py-2 rounded-xl bg-indigo-600/20 text-sm text-gray-200 whitespace-pre-wrap break-words overflow-hidden">
           {message.blocks[0]?.content}
         </div>
@@ -181,7 +176,7 @@ export function ChatMessageBubble({ message, isStreaming, highlighted, onRespond
   const grouped = groupBlocksByAgent(message.blocks)
 
   return (
-    <div className={`mb-4 ${highlightClass}`}>
+    <div className="mb-4">
       <div className="max-w-full">
         {grouped.map((item, index) => {
           // Agent group (sub-agent blocks)

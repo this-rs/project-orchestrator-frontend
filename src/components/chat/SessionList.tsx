@@ -14,7 +14,7 @@ import { Select } from '@/components/ui'
 
 interface SessionListProps {
   activeSessionId?: string | null
-  onSelect: (sessionId: string, targetMessageTurnIndex?: number, title?: string) => void
+  onSelect: (sessionId: string, targetMessageTurnIndex?: number, title?: string, searchHit?: { snippet: string; createdAt: number; role: 'user' | 'assistant' }) => void
   onClose: () => void
   /** When true, hides the header + "New conversation" button (parent provides them) */
   embedded?: boolean
@@ -579,7 +579,7 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
                   {result.hits.slice(0, 3).map((hit) => (
                     <button
                       key={hit.message_id}
-                      onClick={() => onSelect(result.session_id, hit.turn_index, result.session_title)}
+                      onClick={() => onSelect(result.session_id, hit.turn_index, result.session_title, { snippet: hit.content_snippet, createdAt: hit.created_at, role: hit.role })}
                       className="w-full text-left px-4 pl-7 py-1.5 hover:bg-indigo-500/[0.06] transition-colors group"
                     >
                       <div className="flex items-start gap-2">

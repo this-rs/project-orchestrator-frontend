@@ -151,9 +151,10 @@ export function ChatPanel() {
     setShowSessions(false)
   }, [chat.newSession])
 
-  const handleSelectSession = useCallback((sessionId: string, targetTurnIndex?: number, title?: string) => {
-    setScrollToTurn(targetTurnIndex ?? null)
-    chat.loadSession(sessionId)
+  const handleSelectSession = useCallback((sessionId: string, targetTurnIndex?: number, title?: string, searchHit?: { snippet: string; createdAt: number; role: 'user' | 'assistant' }) => {
+    setScrollToTurn(targetTurnIndex != null ? { turnIndex: targetTurnIndex, snippet: searchHit?.snippet, createdAt: searchHit?.createdAt, role: searchHit?.role } : null)
+    // Pass the created_at timestamp (not turn_index) to loadSession for binary search offset resolution
+    chat.loadSession(sessionId, searchHit?.createdAt)
     setSessionTitle(title ?? null)
     if (!isFullscreen) {
       setShowSessions(false)
@@ -357,6 +358,11 @@ export function ChatPanel() {
                 hasOlderMessages={chat.hasOlderMessages}
                 isLoadingOlder={chat.isLoadingOlder}
                 onLoadOlder={chat.loadOlderMessages}
+                hasNewerMessages={chat.hasNewerMessages}
+                isLoadingNewer={chat.isLoadingNewer}
+                onLoadNewer={chat.loadNewerMessages}
+                hasLiveActivity={chat.hasLiveActivity}
+                onJumpToTail={chat.jumpToTail}
                 onRespondPermission={chat.respondPermission}
                 onRespondInput={chat.respondInput}
                 onContinue={handleContinue}
@@ -513,6 +519,11 @@ export function ChatPanel() {
             hasOlderMessages={chat.hasOlderMessages}
             isLoadingOlder={chat.isLoadingOlder}
             onLoadOlder={chat.loadOlderMessages}
+            hasNewerMessages={chat.hasNewerMessages}
+            isLoadingNewer={chat.isLoadingNewer}
+            onLoadNewer={chat.loadNewerMessages}
+            hasLiveActivity={chat.hasLiveActivity}
+            onJumpToTail={chat.jumpToTail}
             onRespondPermission={chat.respondPermission}
             onRespondInput={chat.respondInput}
             onContinue={handleContinue}
