@@ -1,12 +1,20 @@
 import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useAtom, useAtomValue } from 'jotai'
+import { NextStepReact } from 'nextstepjs'
+import { useReactRouterAdapter } from 'nextstepjs/adapters/react-router'
 import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom } from '@/atoms'
 import { ToastContainer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
 import { useMediaQuery, useCrudEventRefresh, useDragRegion, useWindowFullscreen } from '@/hooks'
 import { isTauri } from '@/services/env'
+import { useNextStep } from 'nextstepjs'
+import type { Tour } from 'nextstepjs'
+import { testTour } from '@/tutorial/steps'
+
+// All tours will be registered here — test tour for validation, real tours added in Plan 3
+const allTours: Tour[] = [testTour]
 
 const navGroups = [
   {
@@ -91,6 +99,7 @@ export function MainLayout() {
   const [chatWidth] = useAtom(chatPanelWidthAtom)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const location = useLocation()
+  const { startNextStep } = useNextStep()
   const isSmUp = useMediaQuery('(min-width: 640px)')
   const chatOpen = chatMode === 'open'
   const chatFullscreen = chatMode === 'fullscreen'
@@ -123,9 +132,17 @@ export function MainLayout() {
   }, [mobileMenuOpen])
 
   return (
+    <NextStepReact
+      steps={allTours}
+      navigationAdapter={useReactRouterAdapter}
+      shadowRgb="0, 0, 0"
+      shadowOpacity="0.6"
+      disableConsoleLogs
+    >
     <div className="flex min-h-0 flex-1 bg-[#0f1117]">
       {/* Desktop Sidebar */}
       <aside
+        data-tour="sidebar-nav"
         className={`${
           collapsed ? 'w-16' : 'w-64'
         } hidden md:flex flex-col bg-[#1a1d27] border-r border-white/[0.06] transition-all duration-200`}
@@ -189,7 +206,7 @@ export function MainLayout() {
         style={{ marginRight: chatOpen && !chatFullscreen && isSmUp ? chatWidth : 0 }}
       >
         {/* Breadcrumb */}
-        <header className="h-16 flex items-center px-4 md:px-6 border-b border-white/[0.06] bg-[#1a1d27]/80 backdrop-blur-sm" onMouseDown={onDragMouseDown}>
+        <header data-tour="header-breadcrumb" className="h-16 flex items-center px-4 md:px-6 border-b border-white/[0.06] bg-[#1a1d27]/80 backdrop-blur-sm" onMouseDown={onDragMouseDown}>
           {/* Hamburger button (mobile only) */}
           <button
             className="mr-3 p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors md:hidden"
@@ -200,6 +217,7 @@ export function MainLayout() {
 
           {/* WS status dot — before breadcrumb, vertically centered */}
           <span
+            data-tour="ws-status"
             className={`w-2 h-2 rounded-full shrink-0 mr-2.5 transition-colors ${
               wsStatus === 'connected'
                 ? 'bg-emerald-400'
@@ -213,8 +231,17 @@ export function MainLayout() {
           <Breadcrumb pathname={location.pathname} />
 
           {/* Chat toggle (only icon in header right) */}
-          <div className="ml-auto flex items-center">
+          <div className="ml-auto flex items-center gap-1">
+            {/* TODO: Remove this test button once real tutorial triggers are in place */}
             <button
+              onClick={() => startNextStep('test-tour')}
+              className="px-2 py-1 text-xs text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded transition-colors"
+              title="Launch test tour (dev only)"
+            >
+              🎓 Test Tour
+            </button>
+            <button
+              data-tour="chat-toggle"
               onClick={() => setChatMode(chatMode === 'closed' ? 'open' : 'closed')}
               className={`p-2 rounded-lg transition-colors ${chatMode !== 'closed' ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.06]'}`}
               title="Toggle chat"
@@ -225,7 +252,7 @@ export function MainLayout() {
         </header>
 
         {/* Page content */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 md:px-6 pb-6">
+        <div data-tour="main-content" className="flex-1 overflow-y-auto overflow-x-hidden px-4 md:px-6 pb-6">
           <Outlet />
 
           {/* Branding */}
@@ -239,6 +266,7 @@ export function MainLayout() {
       <ChatPanel />
       <ToastContainer />
     </div>
+    </NextStepReact>
   )
 }
 

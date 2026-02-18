@@ -16,6 +16,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // Stub optional peer deps of nextstepjs that we don't use (Next.js / Remix)
+      'next/navigation': path.resolve(__dirname, './src/stubs/empty-module.ts'),
+      '@remix-run/react': path.resolve(__dirname, './src/stubs/empty-module.ts'),
     },
   },
   server: {

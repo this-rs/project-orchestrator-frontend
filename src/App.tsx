@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { Provider } from 'jotai'
+import { NextStepProvider } from 'nextstepjs'
 import { MainLayout } from '@/layouts'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { SetupGuard } from '@/components/SetupGuard'
@@ -75,11 +76,12 @@ function App() {
   return (
     <Provider>
       <BrowserRouter>
-        <div className="tauri-window flex h-dvh flex-col overflow-hidden">
-          <div className="flex min-h-0 flex-1 flex-col">
-            <UpdateBanner />
-            <WebUpdateBanner />
-            <Routes>
+        <NextStepProvider>
+          <div className="tauri-window flex h-dvh flex-col overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col">
+              <UpdateBanner />
+              <WebUpdateBanner />
+              <Routes>
               {/* Capture ?from=tray before any guard runs */}
               <Route element={<TrayNavigationCapture />}>
                 {/* Public routes (no auth required) */}
@@ -120,8 +122,9 @@ function App() {
                 <Route path="*" element={<NotFoundPage />} />
               </Route>
             </Routes>
+            </div>
           </div>
-        </div>
+        </NextStepProvider>
       </BrowserRouter>
     </Provider>
   )
