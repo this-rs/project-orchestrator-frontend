@@ -61,7 +61,7 @@ export const chatTour: Tour = {
       content:
         "Activez l'auto-continue pour que l'IA enchaîne automatiquement les étapes longues sans attendre votre validation à chaque tour. Idéal pour les tâches multi-steps.",
       selector: '[data-tour="chat-auto-continue"]',
-      side: 'left-bottom',
+      side: 'top',
       showControls: true,
       showSkip: true,
       pointerPadding: 4,
