@@ -182,6 +182,20 @@ export interface WorkspaceMilestone {
 // KNOWLEDGE NOTES
 // ============================================================================
 
+export type NoteScopeType =
+  | 'workspace'
+  | 'project'
+  | 'module'
+  | 'file'
+  | 'function'
+  | 'struct'
+  | 'trait'
+
+export interface NoteScope {
+  type: NoteScopeType
+  path?: string
+}
+
 export interface NoteAnchor {
   entity_type: string
   entity_id: string
@@ -197,6 +211,7 @@ export interface Note {
   note_type: NoteType
   status: NoteStatus
   importance: NoteImportance
+  scope?: NoteScope
   content: string
   tags: string[]
   anchors: NoteAnchor[]

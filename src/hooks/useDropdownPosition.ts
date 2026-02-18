@@ -78,7 +78,17 @@ export function useDropdownPosition(
       if (menuRef.current && event.target instanceof Node && menuRef.current.contains(event.target)) {
         return
       }
-      setIsOpen(false)
+      // Only close if the scroll happened in an ancestor of the trigger.
+      // Scrolls in unrelated containers (e.g. a sibling chat messages area
+      // auto-scrolling during streaming) should NOT close the dropdown.
+      if (triggerRef.current && event.target instanceof Node) {
+        if (!event.target.contains(triggerRef.current)) {
+          return
+        }
+      }
+      // Ancestor of the trigger scrolled — reposition instead of closing.
+      // This keeps the dropdown open and visually attached to the trigger.
+      updatePosition()
     }
 
     document.addEventListener('mousedown', handleClickOutside)

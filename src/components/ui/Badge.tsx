@@ -261,6 +261,55 @@ export function InteractiveTaskStatusBadge({
   )
 }
 
+export function InteractiveNoteStatusBadge({
+  status,
+  onStatusChange,
+  disabled = false,
+}: InteractiveBadgeProps<NoteStatus>) {
+  const [loading, setLoading] = useState(false)
+
+  const config: Record<NoteStatus, { label: string; variant: BadgeVariant }> = {
+    active: { label: 'Active', variant: 'success' },
+    needs_review: { label: 'Needs Review', variant: 'warning' },
+    stale: { label: 'Stale', variant: 'default' },
+    obsolete: { label: 'Obsolete', variant: 'error' },
+    archived: { label: 'Archived', variant: 'default' },
+  }
+
+  const options: { value: NoteStatus; label: string }[] = [
+    { value: 'active', label: 'Active' },
+    { value: 'needs_review', label: 'Needs Review' },
+    { value: 'stale', label: 'Stale' },
+    { value: 'obsolete', label: 'Obsolete' },
+    { value: 'archived', label: 'Archived' },
+  ]
+
+  const handleChange = async (newStatus: NoteStatus) => {
+    if (newStatus === status) return
+    setLoading(true)
+    try {
+      await onStatusChange(newStatus)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const { label, variant } = (status && config[status]) || defaultConfig
+
+  if (loading) {
+    return <Badge variant={variant}><Spinner size="sm" className="mr-1" />{label}</Badge>
+  }
+
+  return (
+    <Dropdown
+      trigger={<Badge variant={variant} className="cursor-pointer hover:opacity-80">{label}</Badge>}
+      options={options}
+      onSelect={handleChange}
+      disabled={disabled}
+    />
+  )
+}
+
 export function InteractiveStepStatusBadge({
   status,
   onStatusChange,
