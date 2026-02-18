@@ -162,13 +162,14 @@ export function MainLayout() {
 
   // ---------------------------------------------------------------------------
   // Welcome modal — auto-show for first-time users
+  // With getOnInit: true on the atom, isFirstTimeUser is correct from the
+  // very first render. We only trigger once (mount-only) using empty deps.
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (isFirstTimeUser && !isNextStepVisible) {
-      const id = setTimeout(() => setShowWelcome(true), 800)
-      return () => clearTimeout(id)
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only
+    if (!isFirstTimeUser || isNextStepVisible) return
+    const id = setTimeout(() => setShowWelcome(true), 800)
+    return () => clearTimeout(id)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- mount-only: getOnInit ensures correct first-render value
 
   const handleWelcomeStart = useCallback(() => {
     setShowWelcome(false)

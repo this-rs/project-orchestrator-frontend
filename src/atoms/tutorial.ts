@@ -9,4 +9,6 @@ import type { TutorialState } from '@/tutorial/constants'
 export const tutorialStateAtom = atomWithStorage<TutorialState>(
   'po-tutorials',
   DEFAULT_TUTORIAL_STATE,
+  undefined, // use default JSON storage (localStorage)
+  { getOnInit: true }, // read localStorage synchronously on first render — avoids flash of welcome modal
 )
