@@ -73,7 +73,7 @@ export const chatTour: Tour = {
       content:
         "Passez en mode plein écran pour une expérience de chat immersive avec la barre latérale des conversations et plus d'espace pour lire les réponses.",
       selector: '[data-tour="chat-fullscreen"]',
-      side: 'bottom-left',
+      side: 'bottom-right',
       showControls: true,
       showSkip: true,
       pointerPadding: 4,
