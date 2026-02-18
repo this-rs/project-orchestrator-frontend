@@ -39,7 +39,7 @@ export function CodePage() {
     <div className="pt-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 md:mb-6">
         <h1 className="text-2xl md:text-3xl font-bold text-gray-100">Code Explorer</h1>
-        <div className="flex gap-2">
+        <div data-tour="code-tabs" className="flex gap-2">
           <Button
             variant={activeTab === 'search' ? 'primary' : 'secondary'}
             onClick={() => setActiveTab('search')}
@@ -89,7 +89,7 @@ export function CodePage() {
               description="Enter a search query to find code across your projects."
             />
           ) : (
-            <div className="space-y-4">
+            <div data-tour="code-results" className="space-y-4">
               {searchResults.map((result) => (
                 <Card key={result.document.id}>
                   <CardContent>
@@ -152,7 +152,7 @@ export function CodePage() {
       )}
 
       {activeTab === 'architecture' && (
-        <div className="space-y-6">
+        <div data-tour="code-architecture" className="space-y-6">
           {loading ? (
             <LoadingPage />
           ) : !architecture ? (

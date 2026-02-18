@@ -135,19 +135,19 @@ export function NotesPage() {
       description="Capture knowledge and decisions"
       actions={
         <>
-          <Select
+          <div data-tour="notes-type-filter"><Select
             options={typeOptions}
             value={typeFilter}
             onChange={(value) => setTypeFilter(value as NoteType | 'all')}
             className="w-full sm:w-36"
-          />
-          <Select
+          /></div>
+          <div data-tour="notes-status-filter"><Select
             options={statusOptions}
             value={statusFilter}
             onChange={(value) => setStatusFilter(value as NoteStatus | 'all')}
             className="w-full sm:w-36"
-          />
-          <Button onClick={openCreateNote}>Create Note</Button>
+          /></div>
+          <div data-tour="notes-create-btn"><Button onClick={openCreateNote}>Create Note</Button></div>
         </>
       }
     >
