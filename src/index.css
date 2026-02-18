@@ -196,3 +196,12 @@ html.tauri * {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Tutorial — pulsing dot indicator (CSS-only, no JS timer) */
+@keyframes tutorial-dot-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.8); opacity: 0.4; }
+}
+.tutorial-dot-pulse {
+  animation: tutorial-dot-pulse 2s ease-in-out infinite;
+}

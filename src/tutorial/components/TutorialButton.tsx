@@ -83,11 +83,11 @@ export function TutorialButton() {
       >
         <HelpCircle className="w-4 h-4 text-zinc-400" />
 
-        {/* Pulsing dot for uncompleted tours */}
+        {/* Pulsing dot for uncompleted tours — CSS-only animation (no JS timer) */}
         {hasUncompletedTours && (
           <>
             <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-indigo-500" />
-            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-indigo-500 animate-ping" />
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-indigo-500 tutorial-dot-pulse" />
           </>
         )}
       </button>

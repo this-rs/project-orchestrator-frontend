@@ -61,7 +61,13 @@ export function TourSuggestionToast({
         initial={{ opacity: 0, y: 20, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 20, scale: 0.95 }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
+        transition={{ duration: 0.25, ease: 'easeOut' }}
+        style={{ willChange: 'transform, opacity' }}
+        onAnimationComplete={() => {
+          // Release GPU compositing layer after entrance animation
+          const el = document.querySelector<HTMLElement>('[role="status"] > div')
+          if (el) el.style.willChange = 'auto'
+        }}
         className="w-80 bg-zinc-800 border border-zinc-700 rounded-xl shadow-2xl overflow-hidden"
       >
         {/* Header */}
