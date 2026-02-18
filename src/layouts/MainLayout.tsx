@@ -21,7 +21,7 @@ import { TutorialButton, TutorialCard, TutorialWelcome } from '@/tutorial/compon
 import { useTutorial } from '@/tutorial/hooks'
 import { TOUR_NAMES } from '@/tutorial/constants'
 
-// All tours — test tour + main tour; micro-tours added as they are implemented
+// All tours — test tour + 11 micro-tours (main, chat, plan-list, plan-detail, kanban, task-detail, notes, code, project-detail, workspace-detail, milestones)
 const allTours: Tour[] = [testTour, mainTour, chatTour, planListTour, planDetailTour, kanbanTour, taskDetailTour, notesTour, codeTour, projectDetailTour, workspaceDetailTour, milestoneTour]
 
 const navGroups = [
