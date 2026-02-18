@@ -41,7 +41,7 @@ export const mainTour: Tour = {
       content:
         "Cliquez ici pour ouvrir le panneau de chat IA. Vous pouvez discuter avec Claude pour planifier, coder, explorer le code ou gérer vos projets. L'assistant connaît toute votre base de code.",
       selector: '[data-tour="chat-toggle"]',
-      side: 'bottom-left',
+      side: 'left-bottom',
       showControls: true,
       showSkip: true,
       pointerPadding: 8,
@@ -139,7 +139,7 @@ export const mainTour: Tour = {
       content:
         "Vous connaissez maintenant les bases de Project Orchestrator. Chaque page dispose d'un tour dédié avec plus de détails. Relancez n'importe quel tour via ce bouton.",
       selector: '[data-tour="tutorial-button"]',
-      side: 'bottom-left',
+      side: 'left-bottom',
       showControls: true,
       showSkip: false,
       pointerPadding: 8,
