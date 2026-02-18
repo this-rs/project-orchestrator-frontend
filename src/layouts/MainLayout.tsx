@@ -217,10 +217,13 @@ export function MainLayout() {
 
   // Auto-open chat panel when the chat tour starts — all its steps
   // target elements inside the chat panel that don't exist when closed.
+  // Dispatch a resize after the CSS transition so NextStepjs repositions
+  // the card against the final layout.
   const handleTourStart = useCallback(
     (tourName: string | null) => {
       if (tourName === TOUR_NAMES.CHAT && chatMode === 'closed') {
         setChatMode('open')
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 350)
       }
     },
     [chatMode, setChatMode],
