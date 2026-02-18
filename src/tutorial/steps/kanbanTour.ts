@@ -25,7 +25,7 @@ export const kanbanTour: Tour = {
       content:
         "Chaque colonne représente un statut. Glissez-déposez les cartes d'une colonne à l'autre pour changer leur statut instantanément. Le compteur en haut de chaque colonne indique le nombre d'éléments.",
       selector: '[data-tour="kanban-columns"]',
-      side: 'top',
+      side: 'bottom',
       showControls: true,
       showSkip: false,
       pointerPadding: 8,

@@ -13,7 +13,7 @@ export const milestoneTour: Tour = {
       content:
         "Les milestones marquent les jalons importants de vos projets. Chaque carte affiche le titre, le statut, le workspace d'origine et une barre de progression calculée sur les tâches liées (complétées / total).",
       selector: '[data-tour="milestones-list-view"]',
-      side: 'top',
+      side: 'bottom',
       showControls: true,
       showSkip: true,
       pointerPadding: 8,

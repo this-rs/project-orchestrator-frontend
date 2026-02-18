@@ -49,7 +49,7 @@ export const planDetailTour: Tour = {
       content:
         "Chaque tâche a un titre, un statut, une priorité et des critères d'acceptation. Cliquez sur une tâche pour voir ses steps, décisions et dépendances. Le statut est cliquable pour le mettre à jour.",
       selector: '[data-tour="plan-detail-tasks"]',
-      side: 'top',
+      side: 'bottom',
       showControls: true,
       showSkip: true,
       pointerPadding: 8,
@@ -61,7 +61,7 @@ export const planDetailTour: Tour = {
       content:
         "Les contraintes définissent les règles à respecter : performance, sécurité, compatibilité, style... Chaque contrainte a une sévérité (low à critical) pour prioriser l'attention.",
       selector: '[data-tour="plan-detail-constraints"]',
-      side: 'top',
+      side: 'bottom',
       showControls: true,
       showSkip: true,
       pointerPadding: 8,
@@ -73,7 +73,7 @@ export const planDetailTour: Tour = {
       content:
         "Le graphe visualise les dépendances entre les tâches. Les flèches montrent l'ordre d'exécution. Les nœuds colorés indiquent le statut. Identifiez le chemin critique d'un coup d'œil.",
       selector: '[data-tour="plan-detail-graph"]',
-      side: 'top',
+      side: 'bottom',
       showControls: true,
       showSkip: false,
       pointerPadding: 8,

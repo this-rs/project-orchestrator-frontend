@@ -37,7 +37,7 @@ export const codeTour: Tour = {
       content:
         "Chaque résultat affiche le chemin du fichier, le langage, un score de pertinence, les symboles (fonctions, types) et les signatures. Plus le score est élevé, plus le résultat correspond à votre requête.",
       selector: '[data-tour="code-results"]',
-      side: 'top',
+      side: 'bottom',
       showControls: true,
       showSkip: true,
       pointerPadding: 8,

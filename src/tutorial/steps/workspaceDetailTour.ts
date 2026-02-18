@@ -13,7 +13,7 @@ export const workspaceDetailTour: Tour = {
       content:
         "Un workspace regroupe plusieurs projets liés. Ajoutez vos projets ici pour avoir une vue unifiée de la progression, des milestones cross-projets et des dépendances entre services.",
       selector: '[data-tour="workspace-projects-grid"]',
-      side: 'top',
+      side: 'bottom',
       showControls: true,
       showSkip: true,
       pointerPadding: 8,
@@ -25,7 +25,7 @@ export const workspaceDetailTour: Tour = {
       content:
         "Les milestones de workspace peuvent regrouper des tâches de différents projets. Idéal pour suivre un objectif qui implique plusieurs équipes ou services (ex: migration API, nouvelle fonctionnalité fullstack).",
       selector: '[data-tour="workspace-milestones"]',
-      side: 'top',
+      side: 'bottom',
       showControls: true,
       showSkip: true,
       pointerPadding: 8,
@@ -37,7 +37,7 @@ export const workspaceDetailTour: Tour = {
       content:
         "Référencez les contrats API (OpenAPI), schémas Protobuf, schémas GraphQL ou JSON partagés entre les projets du workspace. Chaque ressource peut être liée à un projet qui l'implémente.",
       selector: '[data-tour="workspace-resources"]',
-      side: 'top',
+      side: 'bottom',
       showControls: true,
       showSkip: true,
       pointerPadding: 8,
@@ -49,7 +49,7 @@ export const workspaceDetailTour: Tour = {
       content:
         "Modélisez l'architecture de votre système : Service, Frontend, Worker, Database, MessageQueue, Cache, Gateway... Définissez les dépendances entre composants (HTTP, gRPC, AMQP) pour visualiser la topologie.",
       selector: '[data-tour="workspace-components"]',
-      side: 'top',
+      side: 'bottom',
       showControls: true,
       showSkip: false,
       pointerPadding: 8,

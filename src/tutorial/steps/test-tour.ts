@@ -57,7 +57,7 @@ export const testTour: Tour = {
       title: 'C\'est tout !',
       content: 'Le système de didacticiel est opérationnel. Ce tour de test sera remplacé par de vrais tours guidés.',
       selector: '[data-tour="main-content"]',
-      side: 'top',
+      side: 'bottom',
       showControls: true,
       showSkip: false,
       pointerPadding: 16,

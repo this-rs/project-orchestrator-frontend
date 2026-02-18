@@ -61,7 +61,7 @@ export const chatTour: Tour = {
       content:
         "Activez l'auto-continue pour que l'IA enchaîne automatiquement les étapes longues sans attendre votre validation à chaque tour. Idéal pour les tâches multi-steps.",
       selector: '[data-tour="chat-auto-continue"]',
-      side: 'left',
+      side: 'left-bottom',
       showControls: true,
       showSkip: true,
       pointerPadding: 4,
@@ -73,7 +73,7 @@ export const chatTour: Tour = {
       content:
         "Passez en mode plein écran pour une expérience de chat immersive avec la barre latérale des conversations et plus d'espace pour lire les réponses.",
       selector: '[data-tour="chat-fullscreen"]',
-      side: 'left',
+      side: 'left-top',
       showControls: true,
       showSkip: true,
       pointerPadding: 4,
@@ -97,7 +97,7 @@ export const chatTour: Tour = {
       content:
         "Ajustez les paramètres de permission pour cette session. Les changements s'appliquent immédiatement à la conversation en cours.",
       selector: '[data-tour="chat-settings"]',
-      side: 'left',
+      side: 'left-top',
       showControls: true,
       showSkip: false,
       pointerPadding: 4,

@@ -25,7 +25,7 @@ export const projectDetailTour: Tour = {
       content:
         'La roadmap regroupe vos milestones et releases. Les milestones marquent les jalons de progression avec une barre de progression basée sur les tâches complétées. Les releases versionnent vos livrables.',
       selector: '[data-tour="project-roadmap"]',
-      side: 'top',
+      side: 'bottom',
       showControls: true,
       showSkip: true,
       pointerPadding: 8,
@@ -37,7 +37,7 @@ export const projectDetailTour: Tour = {
       content:
         "Tous les plans de développement rattachés à ce projet. Chaque plan peut être déplié pour voir ses tâches et leur progression. Liez un plan existant ou consultez-les tous depuis cette section.",
       selector: '[data-tour="project-plans-section"]',
-      side: 'top',
+      side: 'bottom',
       showControls: true,
       showSkip: true,
       pointerPadding: 8,
@@ -49,7 +49,7 @@ export const projectDetailTour: Tour = {
       content:
         "Les feature graphs capturent les entités de code (fonctions, fichiers, types) liées à une fonctionnalité. Construits automatiquement à partir d'un point d'entrée, ils aident à comprendre la portée d'une feature.",
       selector: '[data-tour="project-feature-graphs"]',
-      side: 'top',
+      side: 'bottom',
       showControls: true,
       showSkip: false,
       pointerPadding: 8,
