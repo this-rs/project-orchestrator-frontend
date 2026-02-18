@@ -1,9 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useAtom, useAtomValue } from 'jotai'
 import { NextStepReact } from 'nextstepjs'
 import { useReactRouterAdapter } from 'nextstepjs/adapters/react-router'
-import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom } from '@/atoms'
+import {
+  sidebarCollapsedAtom,
+  chatPanelModeAtom,
+  chatPanelWidthAtom,
+  eventBusStatusAtom,
+  tutorialStateAtom,
+} from '@/atoms'
 import { ToastContainer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
@@ -97,6 +103,7 @@ export function MainLayout() {
   const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom)
   const [chatMode, setChatMode] = useAtom(chatPanelModeAtom)
   const [chatWidth] = useAtom(chatPanelWidthAtom)
+  const [, setTutorialState] = useAtom(tutorialStateAtom)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const location = useLocation()
   const { startNextStep } = useNextStep()
@@ -131,12 +138,53 @@ export function MainLayout() {
     }
   }, [mobileMenuOpen])
 
+  // ---------------------------------------------------------------------------
+  // NextStepjs lifecycle callbacks — persist tour state in Jotai atom
+  // ---------------------------------------------------------------------------
+  const handleTourComplete = useCallback(
+    (tourName: string | null) => {
+      if (!tourName) return
+      setTutorialState((prev) => ({
+        ...prev,
+        tours: {
+          ...prev.tours,
+          [tourName]: {
+            completed: true,
+            completedAt: new Date().toISOString(),
+            skippedAt: null,
+          },
+        },
+      }))
+    },
+    [setTutorialState],
+  )
+
+  const handleTourSkip = useCallback(
+    (_step: number, tourName: string | null) => {
+      if (!tourName) return
+      setTutorialState((prev) => ({
+        ...prev,
+        tours: {
+          ...prev.tours,
+          [tourName]: {
+            completed: false,
+            completedAt: null,
+            skippedAt: new Date().toISOString(),
+          },
+        },
+      }))
+    },
+    [setTutorialState],
+  )
+
   return (
     <NextStepReact
       steps={allTours}
       navigationAdapter={useReactRouterAdapter}
       shadowRgb="0, 0, 0"
       shadowOpacity="0.6"
+      onComplete={handleTourComplete}
+      onSkip={handleTourSkip}
       disableConsoleLogs
     >
     <div className="flex min-h-0 flex-1 bg-[#0f1117]">
