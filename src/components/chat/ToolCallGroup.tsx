@@ -42,13 +42,18 @@ export function ToolCallGroup({ toolBlocks, allBlocks }: ToolCallGroupProps) {
       (b) => b.type === 'tool_result' && b.metadata?.tool_call_id === block.metadata?.tool_call_id,
     )
 
-  // Count completed vs running
+  // Count completed vs running vs cancelled
   const completedCount = toolBlocks.filter((b) => getResultBlock(b)).length
+  const cancelledCount = toolBlocks.filter((b) => {
+    const result = getResultBlock(b)
+    return result?.metadata?.is_cancelled
+  }).length
   const runningCount = toolBlocks.length - completedCount
   const hasErrors = toolBlocks.some((b) => {
     const result = getResultBlock(b)
     return result?.metadata?.is_error
   })
+  const hasCancelled = cancelledCount > 0
 
   // Live timer: recompute total duration while tools are running.
   // Tick every 100ms when total < 10s (for 0.1s precision), then every 1s.
@@ -94,7 +99,9 @@ export function ToolCallGroup({ toolBlocks, allBlocks }: ToolCallGroupProps) {
               ? 'bg-red-400'
               : runningCount > 0
                 ? 'bg-amber-400 animate-pulse'
-                : 'bg-green-400'
+                : hasCancelled
+                  ? 'bg-gray-400'
+                  : 'bg-green-400'
           }`}
         />
         <svg
@@ -113,6 +120,7 @@ export function ToolCallGroup({ toolBlocks, allBlocks }: ToolCallGroupProps) {
         <span className="ml-auto text-gray-600 shrink-0">
           {totalMs > 0 && formatDurationShort(totalMs)}
           {runningCount > 0 && (totalMs > 0 ? ' — ' : '')}{runningCount > 0 && `${runningCount} running...`}
+          {runningCount === 0 && hasCancelled && (totalMs > 0 ? ' — ' : '')}{runningCount === 0 && hasCancelled && <span className="text-gray-500">{cancelledCount} cancelled</span>}
         </span>
       </button>
 

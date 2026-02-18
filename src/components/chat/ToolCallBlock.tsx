@@ -29,6 +29,7 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
   const toolName = block.metadata?.tool_name as string || block.content
   const toolInput = (block.metadata?.tool_input as Record<string, unknown>) ?? {}
   const isError = resultBlock?.metadata?.is_error as boolean | undefined
+  const isCancelled = resultBlock?.metadata?.is_cancelled as boolean | undefined
   const isLoading = !resultBlock
   const durationMs = resultBlock?.metadata?.duration_ms as number | undefined
   const createdAt = block.metadata?.created_at as string | undefined
@@ -47,7 +48,7 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
         onClick={() => setExpanded(!expanded)}
         className="flex items-center gap-2 w-full px-3 py-2 text-left text-xs hover:bg-white/[0.02] transition-colors"
       >
-        <div className={`w-0.5 h-4 rounded-full shrink-0 ${isError ? 'bg-red-400' : isLoading ? 'bg-amber-400 animate-pulse' : 'bg-green-400'}`} />
+        <div className={`w-0.5 h-4 rounded-full shrink-0 ${isError ? 'bg-red-400' : isCancelled ? 'bg-gray-400' : isLoading ? 'bg-amber-400 animate-pulse' : 'bg-green-400'}`} />
         <svg
           className={`w-3 h-3 text-gray-500 transition-transform shrink-0 ${expanded ? 'rotate-90' : ''}`}
           fill="none"
@@ -64,7 +65,9 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${badgeColor}`} />
         )}
         <span className="font-mono text-gray-400 truncate">{headerText}</span>
-        {isLoading ? (
+        {isCancelled ? (
+          <span className="ml-auto text-gray-500 shrink-0">cancelled</span>
+        ) : isLoading ? (
           <span className="ml-auto text-gray-600 shrink-0">
             {elapsedMs != null ? `${formatDurationShort(elapsedMs)} — ` : ''}running...
           </span>
