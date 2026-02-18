@@ -15,10 +15,9 @@ import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
 import { useMediaQuery, useCrudEventRefresh, useDragRegion, useWindowFullscreen } from '@/hooks'
 import { isTauri } from '@/services/env'
-import { useNextStep } from 'nextstepjs'
 import type { Tour } from 'nextstepjs'
 import { testTour } from '@/tutorial/steps'
-import { TutorialCard, TutorialWelcome } from '@/tutorial/components'
+import { TutorialButton, TutorialCard, TutorialWelcome } from '@/tutorial/components'
 import { useTutorial } from '@/tutorial/hooks'
 import { TOUR_NAMES } from '@/tutorial/constants'
 
@@ -110,7 +109,6 @@ export function MainLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showWelcome, setShowWelcome] = useState(false)
   const location = useLocation()
-  const { startNextStep } = useNextStep()
   const { isFirstTimeUser, isNextStepVisible, startTour, skipTour } = useTutorial()
   const isSmUp = useMediaQuery('(min-width: 640px)')
   const chatOpen = chatMode === 'open'
@@ -307,14 +305,7 @@ export function MainLayout() {
 
           {/* Chat toggle (only icon in header right) */}
           <div className="ml-auto flex items-center gap-1">
-            {/* TODO: Remove this test button once real tutorial triggers are in place */}
-            <button
-              onClick={() => startNextStep('test-tour')}
-              className="px-2 py-1 text-xs text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded transition-colors"
-              title="Launch test tour (dev only)"
-            >
-              🎓 Test Tour
-            </button>
+            <TutorialButton />
             <button
               data-tour="chat-toggle"
               onClick={() => setChatMode(chatMode === 'closed' ? 'open' : 'closed')}
