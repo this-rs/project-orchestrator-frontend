@@ -188,6 +188,7 @@ export function ProjectDetailPage() {
               </div>
             )}
             <button
+              data-tour="project-sync-button"
               onClick={handleSync}
               disabled={syncing}
               className="p-1.5 rounded-md text-gray-500 hover:text-indigo-400 hover:bg-white/[0.08] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
@@ -233,7 +234,7 @@ export function ProjectDetailPage() {
 
       {/* Milestones & Releases */}
       {roadmap && (
-        <section id="roadmap" className="scroll-mt-20">
+        <section id="roadmap" className="scroll-mt-20" data-tour="project-roadmap">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <Card>
             <CardHeader>
@@ -301,7 +302,7 @@ export function ProjectDetailPage() {
       )}
 
       {/* Plans */}
-      <section id="plans" className="scroll-mt-20">
+      <section id="plans" className="scroll-mt-20" data-tour="project-plans-section">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div className="flex items-center gap-2">
@@ -378,7 +379,7 @@ export function ProjectDetailPage() {
       </section>
 
       {/* Feature Graphs */}
-      <section id="feature-graphs" className="scroll-mt-20">
+      <section id="feature-graphs" className="scroll-mt-20" data-tour="project-feature-graphs">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Feature Graphs ({featureGraphs.length})</CardTitle>

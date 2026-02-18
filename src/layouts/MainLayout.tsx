@@ -16,13 +16,13 @@ import { UserMenu } from '@/components/auth/UserMenu'
 import { useMediaQuery, useCrudEventRefresh, useDragRegion, useWindowFullscreen } from '@/hooks'
 import { isTauri } from '@/services/env'
 import type { Tour } from 'nextstepjs'
-import { testTour, mainTour, chatTour, planListTour, planDetailTour, kanbanTour, taskDetailTour, notesTour, codeTour } from '@/tutorial/steps'
+import { testTour, mainTour, chatTour, planListTour, planDetailTour, kanbanTour, taskDetailTour, notesTour, codeTour, projectDetailTour, workspaceDetailTour, milestoneTour } from '@/tutorial/steps'
 import { TutorialButton, TutorialCard, TutorialWelcome } from '@/tutorial/components'
 import { useTutorial } from '@/tutorial/hooks'
 import { TOUR_NAMES } from '@/tutorial/constants'
 
 // All tours — test tour + main tour; micro-tours added as they are implemented
-const allTours: Tour[] = [testTour, mainTour, chatTour, planListTour, planDetailTour, kanbanTour, taskDetailTour, notesTour, codeTour]
+const allTours: Tour[] = [testTour, mainTour, chatTour, planListTour, planDetailTour, kanbanTour, taskDetailTour, notesTour, codeTour, projectDetailTour, workspaceDetailTour, milestoneTour]
 
 const navGroups = [
   {

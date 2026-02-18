@@ -203,7 +203,7 @@ export function MilestoneDetailPage() {
       <SectionNav sections={sections} activeSection={activeSection} />
 
       {/* Progress */}
-      <section id="progress" className="scroll-mt-20">
+      <section id="progress" className="scroll-mt-20" data-tour="milestone-progress">
       {progress && (
         <Card>
           <CardHeader>
@@ -292,7 +292,7 @@ export function MilestoneDetailPage() {
       </section>
 
       {/* Tasks */}
-      <section id="tasks" className="scroll-mt-20">
+      <section id="tasks" className="scroll-mt-20" data-tour="milestone-tasks-list">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">

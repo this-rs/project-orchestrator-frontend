@@ -155,11 +155,11 @@ export function MilestonesPage() {
       title="Milestones"
       description="Track milestones across workspaces"
       actions={
-        <ViewToggle value={viewMode} onChange={setViewMode} />
+        <div data-tour="milestone-view-toggle"><ViewToggle value={viewMode} onChange={setViewMode} /></div>
       }
     >
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-4 sm:flex-wrap">
+      <div data-tour="milestone-filters" className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-4 sm:flex-wrap">
         <Select
           options={workspaceOptions}
           value={workspaceFilter}
@@ -207,7 +207,7 @@ export function MilestonesPage() {
               </button>
             </div>
           )}
-          <div className="space-y-4">
+          <div data-tour="milestones-list-view" className="space-y-4">
             {filteredMilestones.map((milestone) => (
               <MilestoneCard
                 selected={multiSelect.isSelected(milestone.id)}

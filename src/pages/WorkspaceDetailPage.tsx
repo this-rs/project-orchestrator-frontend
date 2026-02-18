@@ -182,7 +182,7 @@ export function WorkspaceDetailPage() {
       </section>
 
       {/* Projects */}
-      <section id="projects" className="scroll-mt-20">
+      <section id="projects" className="scroll-mt-20" data-tour="workspace-projects-grid">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -248,7 +248,7 @@ export function WorkspaceDetailPage() {
       </section>
 
       {/* Milestones */}
-      <section id="milestones" className="scroll-mt-20">
+      <section id="milestones" className="scroll-mt-20" data-tour="workspace-milestones">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -291,7 +291,7 @@ export function WorkspaceDetailPage() {
 
       {/* Resources & Components */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-        <section id="resources" className="scroll-mt-20">
+        <section id="resources" className="scroll-mt-20" data-tour="workspace-resources">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -329,7 +329,7 @@ export function WorkspaceDetailPage() {
         </Card>
         </section>
 
-        <section id="components" className="scroll-mt-20">
+        <section id="components" className="scroll-mt-20" data-tour="workspace-components">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
