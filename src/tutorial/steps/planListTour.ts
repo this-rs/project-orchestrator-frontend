@@ -13,7 +13,7 @@ export const planListTour: Tour = {
       content:
         'Tous vos plans de développement sont ici. Chaque carte affiche le titre, le statut, la priorité et la progression des tâches. Cliquez sur un plan pour voir ses détails.',
       selector: '[data-tour="plans-list"]',
-      side: 'top',
+      side: 'bottom',
       showControls: true,
       showSkip: true,
       pointerPadding: 8,

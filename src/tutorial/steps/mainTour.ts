@@ -68,7 +68,7 @@ export const mainTour: Tour = {
       content:
         "Chaque projet correspond à un dépôt de code. Synchronisez-le pour construire le graphe de connaissances : fonctions, types, imports, appels entre fichiers. L'IA utilise ce graphe pour vous aider.",
       selector: '[data-tour="projects-list"]',
-      side: 'top',
+      side: 'bottom',
       showControls: true,
       showSkip: true,
       pointerPadding: 8,
@@ -83,7 +83,7 @@ export const mainTour: Tour = {
       content:
         'Un plan structure un objectif en tâches, steps, contraintes et décisions architecturales. Créez un plan pour chaque feature, refactoring ou bug fix important.',
       selector: '[data-tour="plans-list"]',
-      side: 'top',
+      side: 'bottom',
       showControls: true,
       showSkip: true,
       pointerPadding: 8,
@@ -111,7 +111,7 @@ export const mainTour: Tour = {
       content:
         "Les notes capturent le savoir de votre projet : guidelines, gotchas, patterns, tips... L'IA les consulte automatiquement avant de travailler pour respecter vos conventions.",
       selector: '[data-tour="notes-list"]',
-      side: 'top',
+      side: 'bottom',
       showControls: true,
       showSkip: true,
       pointerPadding: 8,

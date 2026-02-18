@@ -13,7 +13,7 @@ export const notesTour: Tour = {
       content:
         "Les notes capturent le savoir de votre projet. Il existe 7 types :\n• **Guideline** — règles et conventions à suivre\n• **Gotcha** — pièges et subtilités à connaître\n• **Pattern** — patterns architecturaux récurrents\n• **Context** — contexte métier ou technique\n• **Tip** — astuces et bonnes pratiques\n• **Observation** — constatations et métriques\n• **Assertion** — hypothèses à vérifier",
       selector: '[data-tour="notes-list"]',
-      side: 'top',
+      side: 'bottom',
       showControls: true,
       showSkip: true,
       pointerPadding: 8,
