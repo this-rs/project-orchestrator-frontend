@@ -2,9 +2,9 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useAtomValue } from 'jotai'
 import { Link, useNavigate } from 'react-router-dom'
 import { milestoneRefreshAtom, workspaceRefreshAtom } from '@/atoms'
-import { Card, LoadingPage, EmptyState, Badge, ProgressBar, InteractiveMilestoneStatusBadge, Pagination, ViewToggle, Select, ConfirmDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
+import { Card, LoadingPage, EmptyState, Badge, ProgressBar, InteractiveMilestoneStatusBadge, ViewToggle, Select, ConfirmDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
 import { workspacesApi } from '@/services'
-import { usePagination, useViewMode, useConfirmDialog, useToast, useMultiSelect } from '@/hooks'
+import { useViewMode, useConfirmDialog, useToast, useMultiSelect } from '@/hooks'
 import { MilestoneKanbanBoard } from '@/components/kanban'
 import type { MilestoneWithProgress } from '@/components/kanban'
 import type { MilestoneStatus, Workspace } from '@/types'
@@ -22,7 +22,6 @@ export function MilestonesPage() {
   const [allMilestones, setAllMilestones] = useState<MilestoneWithProgress[]>([])
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [loading, setLoading] = useState(true)
-  const { page, pageSize, paginationProps } = usePagination()
   const [viewMode, setViewMode] = useViewMode()
   const navigate = useNavigate()
   const confirmDialog = useConfirmDialog()
@@ -98,12 +97,6 @@ export function MilestonesPage() {
     return result
   }, [allMilestones, workspaceFilter, statusFilter])
 
-  // Client-side pagination (list mode only)
-  const paginatedMilestones = useMemo(() => {
-    const start = (page - 1) * pageSize
-    return filteredMilestones.slice(start, start + pageSize)
-  }, [filteredMilestones, page, pageSize])
-
   const handleStatusChange = useCallback(
     async (milestoneId: string, newStatus: MilestoneStatus) => {
       const original = allMilestones.find((m) => m.id === milestoneId)
@@ -127,7 +120,7 @@ export function MilestonesPage() {
     [allMilestones],
   )
 
-  const multiSelect = useMultiSelect(paginatedMilestones, (m) => m.id)
+  const multiSelect = useMultiSelect(filteredMilestones, (m) => m.id)
 
   const handleBulkDelete = () => {
     const count = multiSelect.selectionCount
@@ -204,7 +197,7 @@ export function MilestonesPage() {
         />
       ) : (
         <>
-          {viewMode === 'list' && paginatedMilestones.length > 0 && (
+          {filteredMilestones.length > 0 && (
             <div className="flex items-center gap-2 mb-3">
               <button
                 onClick={multiSelect.toggleAll}
@@ -215,7 +208,7 @@ export function MilestonesPage() {
             </div>
           )}
           <div className="space-y-4">
-            {paginatedMilestones.map((milestone) => (
+            {filteredMilestones.map((milestone) => (
               <MilestoneCard
                 selected={multiSelect.isSelected(milestone.id)}
                 onToggleSelect={(shiftKey) => multiSelect.toggle(milestone.id, shiftKey)}
@@ -233,9 +226,6 @@ export function MilestonesPage() {
                 })}
               />
             ))}
-          </div>
-          <div className="mt-6">
-            <Pagination {...paginationProps(filteredMilestones.length)} />
           </div>
         </>
       )}

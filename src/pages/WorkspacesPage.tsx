@@ -1,45 +1,39 @@
-import { useEffect, useState, useRef } from 'react'
-import { useAtom, useAtomValue } from 'jotai'
+import { useState, useMemo, useCallback } from 'react'
+import { useAtomValue } from 'jotai'
 import { Link } from 'react-router-dom'
-import { workspacesAtom, workspacesLoadingAtom, workspaceRefreshAtom } from '@/atoms'
+import { workspaceRefreshAtom } from '@/atoms'
 import { workspacesApi } from '@/services'
-import { Card, CardContent, Button, LoadingPage, EmptyState, Pagination, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
-import { usePagination, useConfirmDialog, useFormDialog, useToast, useMultiSelect } from '@/hooks'
+import { Card, CardContent, Button, LoadingPage, EmptyState, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, LoadMoreSentinel } from '@/components/ui'
+import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList } from '@/hooks'
 import { CreateWorkspaceForm } from '@/components/forms'
-import type { Workspace } from '@/types'
+import type { Workspace, PaginatedResponse } from '@/types'
 
 export function WorkspacesPage() {
-  const [workspaces, setWorkspaces] = useAtom(workspacesAtom)
-  const [loading, setLoading] = useAtom(workspacesLoadingAtom)
-  const [total, setTotal] = useState(0)
-  const { page, pageSize, offset, paginationProps } = usePagination()
   const confirmDialog = useConfirmDialog()
   const formDialog = useFormDialog()
   const toast = useToast()
   const [formLoading, setFormLoading] = useState(false)
   const wsRefresh = useAtomValue(workspaceRefreshAtom)
 
-  const fetchWorkspaces = async (silent = false) => {
-    if (!silent) setLoading(true)
-    try {
-      const response = await workspacesApi.list({ limit: pageSize, offset })
-      setWorkspaces(response.items || [])
-      setTotal(response.total || 0)
-    } catch (error) {
-      console.error('Failed to fetch workspaces:', error)
-      toast.error('Failed to load workspaces')
-    } finally {
-      if (!silent) setLoading(false)
-    }
-  }
+  const filters = useMemo(() => ({ _refresh: wsRefresh }), [wsRefresh])
 
-  const initialLoadDone = useRef(false)
-  useEffect(() => {
-    const silent = initialLoadDone.current
-    fetchWorkspaces(silent)
-    initialLoadDone.current = true
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchWorkspaces is intentionally excluded to avoid loop
-  }, [setWorkspaces, setLoading, page, pageSize, offset, wsRefresh])
+  const fetcher = useCallback(
+    (params: { limit: number; offset: number }): Promise<PaginatedResponse<Workspace>> => {
+      return workspacesApi.list({ limit: params.limit, offset: params.offset })
+    },
+    [],
+  )
+
+  const {
+    items: workspaces,
+    loading,
+    loadingMore,
+    hasMore,
+    total,
+    sentinelRef,
+    reset,
+    removeItems,
+  } = useInfiniteList({ fetcher, filters })
 
   const form = CreateWorkspaceForm({
     onSubmit: async (data) => {
@@ -48,7 +42,7 @@ export function WorkspacesPage() {
         await workspacesApi.create(data)
         toast.success('Workspace created')
         formDialog.close()
-        fetchWorkspaces()
+        reset()
       } finally {
         setFormLoading(false)
       }
@@ -74,8 +68,8 @@ export function WorkspacesPage() {
           await workspacesApi.delete(items[i].slug)
           confirmDialog.setProgress({ current: i + 1, total: items.length })
         }
-        setWorkspaces((prev) => prev.filter((w) => !multiSelect.selectedIds.has(w.slug)))
-        setTotal((prev) => prev - items.length)
+        const slugs = new Set(items.map((w) => w.slug))
+        removeItems((w) => slugs.has(w.slug))
         multiSelect.clear()
         toast.success(`Deleted ${count} workspace${count > 1 ? 's' : ''}`)
       },
@@ -120,16 +114,14 @@ export function WorkspacesPage() {
                   description: 'This will permanently delete this workspace.',
                   onConfirm: async () => {
                     await workspacesApi.delete(workspace.slug)
-                    setWorkspaces(prev => prev.filter(w => w.id !== workspace.id))
+                    removeItems((w) => w.id === workspace.id)
                     toast.success('Workspace deleted')
                   },
                 })}
               />
             ))}
           </div>
-          <div className="mt-6">
-            <Pagination {...paginationProps(total)} />
-          </div>
+          <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
         </>
       )}
 

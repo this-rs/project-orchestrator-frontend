@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useCallback, useMemo } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { Link, useNavigate } from 'react-router-dom'
 import { tasksAtom, tasksLoadingAtom, taskStatusFilterAtom, taskRefreshAtom } from '@/atoms'
@@ -10,15 +10,15 @@ import {
   Select,
   InteractiveTaskStatusBadge,
   Badge,
-  Pagination,
   ViewToggle,
   ConfirmDialog,
   OverflowMenu,
   PageShell,
   SelectZone,
   BulkActionBar,
+  LoadMoreSentinel,
 } from '@/components/ui'
-import { usePagination, useKanbanFilters, useViewMode, useConfirmDialog, useToast, useMultiSelect } from '@/hooks'
+import { useKanbanFilters, useViewMode, useConfirmDialog, useToast, useMultiSelect, useInfiniteList } from '@/hooks'
 import { KanbanBoard, KanbanFilterBar } from '@/components/kanban'
 import type { TaskWithPlan, TaskStatus, PaginatedResponse } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
@@ -33,43 +33,59 @@ const statusOptions = [
 ]
 
 export function TasksPage() {
-  const [tasks, setTasks] = useAtom(tasksAtom)
-  const [loading, setLoading] = useAtom(tasksLoadingAtom)
+  const [, setTasksAtom] = useAtom(tasksAtom)
+  const [, setLoadingAtom] = useAtom(tasksLoadingAtom)
   const [statusFilter, setStatusFilter] = useAtom(taskStatusFilterAtom)
   const taskRefresh = useAtomValue(taskRefreshAtom)
   const [viewMode, setViewMode] = useViewMode()
-  const [total, setTotal] = useState(0)
-  const { page, pageSize, offset, setPage, paginationProps } = usePagination()
   const navigate = useNavigate()
   const confirmDialog = useConfirmDialog()
   const toast = useToast()
   const kanbanFilters = useKanbanFilters()
 
-  // Fetch tasks for list mode (paginated)
-  useEffect(() => {
-    if (viewMode !== 'list') return
-    async function fetchTasks() {
-      // Only show loading spinner on initial load, not on WS-triggered refreshes
-      const isInitialLoad = tasks.length === 0
-      if (isInitialLoad) setLoading(true)
-      try {
-        const params: { limit: number; offset: number; status?: string } = { limit: pageSize, offset }
-        if (statusFilter !== 'all') {
-          params.status = statusFilter
-        }
-        const response = await tasksApi.list(params)
-        setTasks(response.items || [])
-        setTotal(response.total || 0)
-      } catch (error) {
-        console.error('Failed to fetch tasks:', error)
-        toast.error('Failed to load tasks')
-      } finally {
-        if (isInitialLoad) setLoading(false)
+  // --- Infinite scroll for list mode ---
+  const listFilters = useMemo(
+    () => ({
+      status: statusFilter !== 'all' ? statusFilter : undefined,
+      _refresh: taskRefresh,
+    }),
+    [statusFilter, taskRefresh],
+  )
+
+  const listFetcher = useCallback(
+    (params: { limit: number; offset: number; status?: string }): Promise<PaginatedResponse<TaskWithPlan>> => {
+      const apiParams: { limit: number; offset: number; status?: string } = {
+        limit: params.limit,
+        offset: params.offset,
       }
+      if (params.status) apiParams.status = params.status
+      return tasksApi.list(apiParams)
+    },
+    [],
+  )
+
+  const {
+    items: tasks,
+    loading,
+    loadingMore,
+    hasMore,
+    total,
+    sentinelRef,
+    removeItems,
+    updateItem,
+  } = useInfiniteList({
+    fetcher: listFetcher,
+    filters: listFilters,
+    enabled: viewMode === 'list',
+  })
+
+  // Sync tasks atom for other components that read it
+  useEffect(() => {
+    if (viewMode === 'list') {
+      setTasksAtom(tasks)
+      setLoadingAtom(loading)
     }
-    fetchTasks()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- tasks.length used for initial load detection; toast is stable
-  }, [setTasks, setLoading, page, pageSize, offset, statusFilter, viewMode, taskRefresh])
+  }, [tasks, loading, viewMode, setTasksAtom, setLoadingAtom])
 
   // Stable fetchFn for kanban board — wraps tasksApi.list with kanban filters
   const kanbanApiParams = kanbanFilters.buildApiParams()
@@ -100,19 +116,16 @@ export function TasksPage() {
     return hidden
   }, [kanbanFilters.filters.exclude_completed, kanbanFilters.filters.exclude_failed])
 
-  const handleStatusFilterChange = (newFilter: TaskStatus | 'all') => {
-    setStatusFilter(newFilter)
-    setPage(1)
-  }
-
   const handleTaskStatusChange = useCallback(
     async (taskId: string, newStatus: TaskStatus) => {
-      // Also update list mode atom
-      setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)))
+      updateItem(
+        (t) => t.id === taskId,
+        (t) => ({ ...t, status: newStatus }),
+      )
       await tasksApi.update(taskId, { status: newStatus })
       toast.success('Status updated')
     },
-    [setTasks, toast],
+    [updateItem, toast],
   )
 
   const handleTaskClick = useCallback(
@@ -136,8 +149,8 @@ export function TasksPage() {
           await tasksApi.delete(items[i].id)
           confirmDialog.setProgress({ current: i + 1, total: items.length })
         }
-        setTasks((prev) => prev.filter((t) => !multiSelect.selectedIds.has(t.id)))
-        setTotal((prev) => prev - items.length)
+        const ids = new Set(items.map((t) => t.id))
+        removeItems((t) => ids.has(t.id))
         multiSelect.clear()
         toast.success(`Deleted ${count} task${count > 1 ? 's' : ''}`)
       },
@@ -158,7 +171,7 @@ export function TasksPage() {
             <Select
               options={statusOptions}
               value={statusFilter}
-              onChange={(value) => handleStatusFilterChange(value as TaskStatus | 'all')}
+              onChange={(value) => setStatusFilter(value as TaskStatus | 'all')}
               className="w-full sm:w-40"
             />
           )}
@@ -217,7 +230,10 @@ export function TasksPage() {
                 task={task}
                 onStatusChange={async (newStatus) => {
                   await tasksApi.update(task.id, { status: newStatus })
-                  setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: newStatus } : t)))
+                  updateItem(
+                    (t) => t.id === task.id,
+                    (t) => ({ ...t, status: newStatus }),
+                  )
                   toast.success('Status updated')
                 }}
                 onDelete={() =>
@@ -226,7 +242,7 @@ export function TasksPage() {
                     description: 'This will permanently delete this task and all its steps and decisions.',
                     onConfirm: async () => {
                       await tasksApi.delete(task.id)
-                      setTasks((prev) => prev.filter((t) => t.id !== task.id))
+                      removeItems((t) => t.id === task.id)
                       toast.success('Task deleted')
                     },
                   })
@@ -234,9 +250,7 @@ export function TasksPage() {
               />
             ))}
           </div>
-          <div className="mt-6">
-            <Pagination {...paginationProps(total)} />
-          </div>
+          <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
         </>
       )}
 
