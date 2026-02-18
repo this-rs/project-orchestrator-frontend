@@ -178,7 +178,7 @@ export function TaskDetailPage() {
       <SectionNav sections={sections} activeSection={activeSection} />
 
       {/* Steps */}
-      <section id="steps" className="scroll-mt-20">
+      <section id="steps" data-tour="task-detail-steps" className="scroll-mt-20">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -223,7 +223,7 @@ export function TaskDetailPage() {
 
       {/* Acceptance Criteria */}
       {acceptanceCriteria.length > 0 && (
-        <section id="criteria" className="scroll-mt-20">
+        <section id="criteria" data-tour="task-detail-acceptance" className="scroll-mt-20">
         <Card>
           <CardHeader>
             <CardTitle>Acceptance Criteria</CardTitle>
@@ -243,7 +243,7 @@ export function TaskDetailPage() {
       )}
 
       {/* Blockers & Blocking */}
-      <section id="dependencies" className="scroll-mt-20">
+      <section id="dependencies" data-tour="task-detail-dependencies" className="scroll-mt-20">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         <Card>
           <CardHeader>
@@ -324,7 +324,7 @@ export function TaskDetailPage() {
       </section>
 
       {/* Decisions */}
-      <section id="decisions" className="scroll-mt-20">
+      <section id="decisions" className="scroll-mt-20" data-tour="task-detail-decisions">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">

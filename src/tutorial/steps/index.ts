@@ -2,3 +2,7 @@
 export { testTour } from './test-tour'
 export { mainTour } from './mainTour'
 export { chatTour } from './chatTour'
+export { planListTour } from './planListTour'
+export { planDetailTour } from './planDetailTour'
+export { kanbanTour } from './kanbanTour'
+export { taskDetailTour } from './taskDetailTour'
