@@ -463,9 +463,9 @@ export function useChat() {
   const [isCompacting, setIsCompacting] = useAtom(chatCompactingAtom)
   const [wsStatus, setWsStatus] = useAtom(chatWsStatusAtom)
   const [isReplaying, setIsReplaying] = useAtom(chatReplayingAtom)
-  const [permissionOverride, setPermissionOverride] = useAtom(chatSessionPermissionOverrideAtom)
-  const [autoApprovedTools, setAutoApprovedTools] = useAtom(chatAutoApprovedToolsAtom)
-  const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
+  const _setPermissionOverride = useSetAtom(chatSessionPermissionOverrideAtom)
+  const _setAutoApprovedTools = useSetAtom(chatAutoApprovedToolsAtom)
+  const _setSessionModel = useSetAtom(chatSessionModelAtom)
   const setDraftInput = useSetAtom(chatDraftInputAtom)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
@@ -512,11 +512,38 @@ export function useChat() {
     return wsRef.current
   }, [])
 
-  // Ref for auto-approved tools to avoid stale closures in handleEvent
-  const autoApprovedToolsRef = useRef(autoApprovedTools)
-  useEffect(() => {
-    autoApprovedToolsRef.current = autoApprovedTools
-  }, [autoApprovedTools])
+  // Refs for atom values to avoid stale closures in callbacks.
+  // We use useSetAtom (no render subscription) to avoid "Cannot update ChatInput
+  // while rendering ChatPanel" warning in React 19 — both components read
+  // these atoms, and updating them during handleEvent caused cross-component
+  // setState-during-render. Tracked setters keep refs in sync for callback access.
+  const autoApprovedToolsRef = useRef<Set<string>>(new Set())
+  const permissionOverrideRef = useRef<PermissionMode | null>(null)
+  const sessionModelRef = useRef<string | null>(null)
+
+  // Tracked setters: update ref + atom atomically
+  const setPermissionOverride = useCallback((value: PermissionMode | null) => {
+    permissionOverrideRef.current = value
+    _setPermissionOverride(value)
+  }, [_setPermissionOverride])
+
+  const setAutoApprovedTools = useCallback((value: Set<string> | ((prev: Set<string>) => Set<string>)) => {
+    if (typeof value === 'function') {
+      _setAutoApprovedTools((prev: Set<string>) => {
+        const next = value(prev)
+        autoApprovedToolsRef.current = next
+        return next
+      })
+    } else {
+      autoApprovedToolsRef.current = value
+      _setAutoApprovedTools(value)
+    }
+  }, [_setAutoApprovedTools])
+
+  const setSessionModel = useCallback((value: string | null) => {
+    sessionModelRef.current = value
+    _setSessionModel(value)
+  }, [_setSessionModel])
 
   // Auto-continue: atom is now synced from backend events (not local-only)
   const setAutoContinue = useSetAtom(chatAutoContinueAtom)
@@ -1120,8 +1147,8 @@ export function useChat() {
 
       return updated
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- setPermissionOverride and setSessionModel are stable Jotai setters
-  }, [setIsStreaming])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tracked setters are stable (useCallback with stable deps)
+  }, [setIsStreaming, setPermissionOverride, setSessionModel, setAutoContinue, setIsCompacting])
 
   // ========================================================================
   // Setup WS callbacks
@@ -1180,8 +1207,6 @@ export function useChat() {
     historyLoadedRef.current = false
     pendingEventsRef.current = []
 
-    const t0 = performance.now()
-
     // Phase 1: Connect WS IMMEDIATELY for live streaming (parallel with REST).
     // This eliminates the latency of the old sequential approach where
     // the WS only connected after 2 REST calls.
@@ -1200,7 +1225,6 @@ export function useChat() {
     chatApi
       .getMessages(sessionId, { limit: 1, offset: 0 })
       .then((meta) => {
-        // console.log(`⏱ [REST] getMessages(count): ${(performance.now() - t0).toFixed(0)}ms`)
         if (cancelled) return
         const total = meta.total_count
         if (total === 0) {
@@ -1295,7 +1319,6 @@ export function useChat() {
             historyLoadedRef.current = true
             const pending = pendingEventsRef.current
             pendingEventsRef.current = []
-            // console.log(`⏱ [REST] replaying ${pending.length} buffered WS events: ${(performance.now() - t0).toFixed(0)}ms`)
             for (const evt of pending) {
               handleEvent(evt)
             }
@@ -1522,8 +1545,8 @@ export function useChat() {
           message: text,
           cwd: options!.cwd,
           project_slug: options?.projectSlug,
-          permission_mode: options?.permissionMode ?? permissionOverride ?? undefined,
-          model: options?.model ?? sessionModel ?? undefined,
+          permission_mode: options?.permissionMode ?? permissionOverrideRef.current ?? undefined,
+          model: options?.model ?? sessionModelRef.current ?? undefined,
         })
         // Signal that the upcoming sessionId change is from a first send,
         // so the auto-connect useEffect should NOT reset messages.
@@ -1534,7 +1557,7 @@ export function useChat() {
           setSessionMeta({ cwd: options.cwd, projectSlug: options.projectSlug })
         }
         // Reset override after use
-        if (permissionOverride) setPermissionOverride(null)
+        if (permissionOverrideRef.current) setPermissionOverride(null)
       } finally {
         setIsSending(false)
       }
@@ -1545,7 +1568,7 @@ export function useChat() {
       setIsStreaming(true)
       ws.sendUserMessage(text)
     }
-  }, [sessionId, setSessionId, setIsStreaming, getWs, permissionOverride, setPermissionOverride, sessionModel])
+  }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride])
 
   /**
    * Send "Continue" after max_turns — adds a discreet inline indicator instead of a user bubble.
@@ -1748,6 +1771,5 @@ export function useChat() {
     changePermissionMode,
     changeModel,
     changeAutoContinue,
-    sessionModel,
   }
 }
