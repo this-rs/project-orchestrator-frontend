@@ -393,6 +393,7 @@ export function ChatPanel() {
       <div className="h-14 flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <button
+            data-tour="chat-sessions-toggle"
             onClick={() => { setShowSessions(!showSessions); setShowSettings(false) }}
             className={`shrink-0 p-1.5 rounded-md transition-colors ${showSessions ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
             title="Sessions"
@@ -433,6 +434,7 @@ export function ChatPanel() {
           </button>
           {/* Permission settings gear icon */}
           <button
+            data-tour="chat-settings"
             onClick={() => { setShowSettings(!showSettings); setShowSessions(false) }}
             className={`relative p-1.5 rounded-md transition-colors ${showSettings ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
             title="Permission settings"
@@ -446,6 +448,7 @@ export function ChatPanel() {
             )}
           </button>
           <button
+            data-tour="chat-fullscreen"
             onClick={() => setMode('fullscreen')}
             className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors hidden md:flex"
             title="Fullscreen"
@@ -495,7 +498,7 @@ export function ChatPanel() {
         <>
           {/* Project selector — only for new conversations */}
           {isNewConversation && (
-            <ProjectSelect />
+            <div data-tour="chat-project-select"><ProjectSelect /></div>
           )}
 
           <ChatMessages

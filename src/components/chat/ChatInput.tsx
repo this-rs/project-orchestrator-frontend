@@ -181,7 +181,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
       {/* Per-session mode & model selectors */}
       <div className="flex items-center gap-3">
         {/* Permission mode selector */}
-        <div className="flex items-center gap-1.5" ref={dropdownRef}>
+        <div data-tour="chat-permission-mode" className="flex items-center gap-1.5" ref={dropdownRef}>
           <span className="text-[10px] text-gray-500">Mode:</span>
           <div className="relative">
             <button
@@ -226,7 +226,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
         </div>
 
         {/* Model selector — always visible (new conversation + active session) */}
-        <div className="flex items-center gap-1.5" ref={modelDropdownRef}>
+        <div data-tour="chat-model-select" className="flex items-center gap-1.5" ref={modelDropdownRef}>
           <span className="text-[10px] text-gray-500">Model:</span>
           <div className="relative">
             <button
@@ -267,7 +267,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
         </div>
 
         {/* Auto-continue toggle — pushed to the right */}
-        <div className="flex items-center gap-1.5 ml-auto">
+        <div data-tour="chat-auto-continue" className="flex items-center gap-1.5 ml-auto">
           <span className={`text-[10px] ${autoContinue ? 'text-gray-400' : 'text-gray-500'} transition-colors`}>Auto-continue</span>
           <button
             onClick={() => onChangeAutoContinue?.(!autoContinue)}
@@ -285,7 +285,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
         </div>
       </div>
 
-      <div className="flex items-end gap-2">
+      <div data-tour="chat-input" className="flex items-end gap-2">
         <textarea
           ref={textareaRef}
           value={value}
