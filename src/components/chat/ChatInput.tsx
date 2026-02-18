@@ -2,6 +2,7 @@ import { memo, useState, useRef, useCallback, useEffect } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { chatDraftInputAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom } from '@/atoms'
 import { AVAILABLE_MODELS, DEFAULT_MODEL_ID, getModelShortLabel, getModelDotColor } from '@/constants/models'
+import { chatApi } from '@/services/chat'
 import type { PermissionMode } from '@/types'
 
 const MODE_LABELS: Record<PermissionMode, string> = {
@@ -46,7 +47,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
   const [value, setValue] = useAtom(chatDraftInputAtom)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [modeOverride, setModeOverride] = useAtom(chatSessionPermissionOverrideAtom)
-  const serverConfig = useAtomValue(chatPermissionConfigAtom)
+  const [serverConfig, setServerConfig] = useAtom(chatPermissionConfigAtom)
   const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
   const autoContinue = useAtomValue(chatAutoContinueAtom)
   const [showModeDropdown, setShowModeDropdown] = useState(false)
@@ -102,6 +103,18 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [showModeDropdown, showModelDropdown])
+
+  // Load permission config from server on mount (so mode selector has the correct default)
+  useEffect(() => {
+    if (serverConfig) return // Already loaded (e.g. from PermissionSettingsPanel)
+    let cancelled = false
+    chatApi.getPermissionConfig().then((config) => {
+      if (!cancelled) setServerConfig(config)
+    }).catch(() => {
+      // Non-critical — will fallback to 'default'
+    })
+    return () => { cancelled = true }
+  }, [serverConfig, setServerConfig])
 
   // Reset isStopping when streaming actually stops (result event received)
   useEffect(() => {
