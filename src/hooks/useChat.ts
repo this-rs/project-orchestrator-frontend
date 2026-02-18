@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { useAtom, useSetAtom } from 'jotai'
 import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom, chatDraftInputAtom } from '@/atoms'
 import { chatApi, ChatWebSocket } from '@/services'
 import type { ChatMessage, ChatEvent, PermissionMode } from '@/types'
@@ -406,6 +406,24 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
         break
       }
 
+      case 'auto_continue': {
+        const msg = lastAssistant()
+        const acDelay = evt.delay_ms as number | undefined
+        msg.blocks.push({
+          id: nextBlockId(),
+          type: 'continue_indicator',
+          content: 'Auto-continuing...',
+          metadata: { delay_ms: acDelay, auto: true },
+        })
+        lastEventWasMaxTurns = false
+        break
+      }
+
+      case 'auto_continue_state_changed':
+        // State sync event — no UI block needed in history
+        lastEventWasMaxTurns = false
+        break
+
       default:
         // Unknown event type — skip
         lastEventWasMaxTurns = false
@@ -484,18 +502,11 @@ export function useChat() {
     autoApprovedToolsRef.current = autoApprovedTools
   }, [autoApprovedTools])
 
-  // Auto-continue: read atom value + ref for stale closure safety in handleEvent
-  const autoContinue = useAtomValue(chatAutoContinueAtom)
-  const autoContinueRef = useRef(autoContinue)
-  useEffect(() => {
-    autoContinueRef.current = autoContinue
-  }, [autoContinue])
+  // Auto-continue: atom is now synced from backend events (not local-only)
+  const setAutoContinue = useSetAtom(chatAutoContinueAtom)
 
-  // Debounce ref for sendContinue (prevents double-sends)
+  // Debounce ref for sendContinue (prevents double-sends on manual Continue button)
   const continueDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Ref for sendContinue to avoid stale closures in handleEvent auto-continue
-  const sendContinueRef = useRef<(() => void) | null>(null)
 
   // ========================================================================
   // Event handler — processes LIVE events only (no more replay)
@@ -939,6 +950,36 @@ export function useChat() {
           break
         }
 
+        case 'auto_continue_state_changed': {
+          // Backend confirmed the auto-continue toggle — sync local atom
+          const acData = event.replaying
+            ? (event as { data?: Record<string, unknown> }).data ?? event
+            : event
+          const enabled = (acData as { enabled?: boolean }).enabled
+          if (enabled !== undefined) {
+            setAutoContinue(enabled)
+          }
+          break
+        }
+
+        case 'auto_continue': {
+          // Backend is auto-continuing after max_turns — show indicator on last assistant message
+          const acEvtData = event.replaying
+            ? (event as { data?: Record<string, unknown> }).data ?? event
+            : event
+          const delayMs = (acEvtData as { delay_ms?: number }).delay_ms ?? 500
+          lastMsg.blocks.push({
+            id: nextBlockId(),
+            type: 'continue_indicator',
+            content: 'Auto-continuing...',
+            metadata: { delay_ms: delayMs, auto: true },
+          })
+          if (!event.replaying) {
+            setIsStreaming(true) // backend will send a new stream shortly
+          }
+          break
+        }
+
         case 'model_changed': {
           const mcData = event.replaying
             ? (event as { data?: Record<string, unknown> }).data ?? event
@@ -1044,13 +1085,7 @@ export function useChat() {
           if (!event.replaying) {
             setIsStreaming(false)
             setIsCompacting(false) // safety net: reset compaction flag on result
-
-            // Auto-continue: if enabled and max_turns was reached, auto-send Continue
-            if (rSubtype === 'error_max_turns' && autoContinueRef.current) {
-              setTimeout(() => {
-                sendContinueRef.current?.()
-              }, 500)
-            }
+            // Auto-continue is now handled by the backend — no local setTimeout needed
           }
           break
         }
@@ -1356,10 +1391,14 @@ export function useChat() {
     ws.sendUserMessage('Continue')
   }, [sessionId, getWs, setIsStreaming])
 
-  // Keep ref in sync so handleEvent can trigger auto-continue without stale closure
-  useEffect(() => {
-    sendContinueRef.current = sendContinue
-  }, [sendContinue])
+  /** Toggle auto-continue on the backend (sends WS message, atom synced from backend event) */
+  const changeAutoContinue = useCallback((enabled: boolean) => {
+    if (!sessionId) return
+    const ws = getWs()
+    ws.sendSetAutoContinue(enabled)
+    // Optimistically update local state (server will confirm via auto_continue_state_changed event)
+    setAutoContinue(enabled)
+  }, [sessionId, getWs, setAutoContinue])
 
   const respondPermission = useCallback(async (
     toolCallId: string,
@@ -1500,6 +1539,7 @@ export function useChat() {
     loadOlderMessages,
     changePermissionMode,
     changeModel,
+    changeAutoContinue,
     sessionModel,
   }
 }

@@ -309,6 +309,13 @@ export class ChatWebSocket {
     return this.send({ type: 'set_model', model })
   }
 
+  /**
+   * Toggle auto-continue for the active session (backend-managed)
+   */
+  sendSetAutoContinue(enabled: boolean) {
+    return this.send({ type: 'set_auto_continue', enabled })
+  }
+
   // --------------------------------------------------------------------------
   // Private
   // --------------------------------------------------------------------------

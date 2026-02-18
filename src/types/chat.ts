@@ -94,6 +94,8 @@ export type ChatEvent =
   | { type: 'compaction_started'; trigger: string }
   | { type: 'compact_boundary'; trigger: string; pre_tokens?: number }
   | { type: 'system_init'; cli_session_id: string; model?: string; tools?: string[]; mcp_servers?: { name: string; status?: string }[]; permission_mode?: string }
+  | { type: 'auto_continue'; session_id: string; delay_ms: number }
+  | { type: 'auto_continue_state_changed'; session_id: string; enabled: boolean }
 
 // ============================================================================
 // CLIENT MESSAGES
@@ -189,6 +191,7 @@ export type WsChatClientMessage =
   | { type: 'input_response'; id?: string; content: string }
   | { type: 'set_permission_mode'; mode: string }
   | { type: 'set_model'; model: string }
+  | { type: 'set_auto_continue'; enabled: boolean }
 
 /** A chat event received over WebSocket with sequence number */
 export interface ChatWsEvent {
