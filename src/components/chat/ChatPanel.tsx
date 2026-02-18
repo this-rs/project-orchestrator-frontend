@@ -373,6 +373,7 @@ export function ChatPanel() {
                 sessionId={chat.sessionId}
                 onChangePermissionMode={chat.changePermissionMode}
                 onChangeModel={chat.changeModel}
+                onChangeAutoContinue={chat.changeAutoContinue}
                 prefill={prefill}
               />
             </>
@@ -528,6 +529,7 @@ export function ChatPanel() {
             sessionId={chat.sessionId}
             onChangePermissionMode={chat.changePermissionMode}
             onChangeModel={chat.changeModel}
+            onChangeAutoContinue={chat.changeAutoContinue}
             prefill={prefill}
           />
         </>

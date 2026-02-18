@@ -36,17 +36,19 @@ interface ChatInputProps {
   onChangePermissionMode?: (mode: PermissionMode) => void
   /** Callback to change model on an active session (mid-session) */
   onChangeModel?: (model: string) => void
+  /** Callback to toggle auto-continue on an active session (sends WS message to backend) */
+  onChangeAutoContinue?: (enabled: boolean) => void
   /** When set, prefills the textarea and focuses it. Change the object reference to trigger. */
   prefill?: PrefillPayload | null
 }
 
-export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionId, onChangePermissionMode, onChangeModel, prefill }: ChatInputProps) {
+export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionId, onChangePermissionMode, onChangeModel, onChangeAutoContinue, prefill }: ChatInputProps) {
   const [value, setValue] = useAtom(chatDraftInputAtom)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [modeOverride, setModeOverride] = useAtom(chatSessionPermissionOverrideAtom)
   const serverConfig = useAtomValue(chatPermissionConfigAtom)
   const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
-  const [autoContinue, setAutoContinue] = useAtom(chatAutoContinueAtom)
+  const autoContinue = useAtomValue(chatAutoContinueAtom)
   const [showModeDropdown, setShowModeDropdown] = useState(false)
   const [showModelDropdown, setShowModelDropdown] = useState(false)
   const [modeJustChanged, setModeJustChanged] = useState(false)
@@ -255,7 +257,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
         <div className="flex items-center gap-1.5 ml-auto">
           <span className={`text-[10px] ${autoContinue ? 'text-gray-400' : 'text-gray-500'} transition-colors`}>Auto-continue</span>
           <button
-            onClick={() => setAutoContinue(!autoContinue)}
+            onClick={() => onChangeAutoContinue?.(!autoContinue)}
             className={`relative w-7 h-3.5 rounded-full transition-colors duration-200 ${
               autoContinue ? 'bg-emerald-500/70' : 'bg-gray-600/50'
             }`}
