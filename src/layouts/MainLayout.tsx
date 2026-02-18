@@ -109,7 +109,7 @@ export function MainLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showWelcome, setShowWelcome] = useState(false)
   const location = useLocation()
-  const { isFirstTimeUser, isNextStepVisible, startTour, skipTour } = useTutorial()
+  const { isFirstTimeUser, isNextStepVisible, currentTour, closeTour, startTour, skipTour } = useTutorial()
   const isSmUp = useMediaQuery('(min-width: 640px)')
   const chatOpen = chatMode === 'open'
   const chatFullscreen = chatMode === 'fullscreen'
@@ -131,6 +131,14 @@ export function MainLayout() {
     setMobileMenuOpen(false)
   }, [location.pathname])
 
+  // Close micro-tours on navigation — the main tour uses nextRoute/prevRoute
+  // to navigate between pages so it must NOT be closed on route change.
+  useEffect(() => {
+    if (isNextStepVisible && currentTour && currentTour !== TOUR_NAMES.MAIN) {
+      closeTour()
+    }
+  }, [location.pathname]) // eslint-disable-line react-hooks/exhaustive-deps -- close tour on route change only
+
   // Lock body scroll when mobile menu is open
   useEffect(() => {
     if (mobileMenuOpen) {
@@ -140,6 +148,17 @@ export function MainLayout() {
       }
     }
   }, [mobileMenuOpen])
+
+  // Lock body scroll during active tour — NextStepjs scrollIntoView still works
+  // because programmatic scroll bypasses overflow:hidden on body.
+  useEffect(() => {
+    if (isNextStepVisible) {
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = ''
+      }
+    }
+  }, [isNextStepVisible])
 
   // ---------------------------------------------------------------------------
   // Welcome modal — auto-show for first-time users
