@@ -85,10 +85,13 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
           </div>
           <button
             onClick={handleLogout}
-            className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200"
+            className="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200"
           >
-            <LogoutIcon className="h-4 w-4" />
-            Sign out
+            <span className="flex items-center gap-2">
+              <LogoutIcon className="h-4 w-4" />
+              Sign out
+            </span>
+            <span className="text-[10px] text-gray-600">v{__APP_VERSION__}</span>
           </button>
         </div>
       )}

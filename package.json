@@ -1,7 +1,7 @@
 {
   "name": "project-orchestrator-frontend",
   "private": true,
-  "version": "0.1.0",
+  "version": "local",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
