@@ -1,13 +1,15 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useLocation } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
+import { ClipboardList, FolderKanban } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, TaskStatusBadge, InteractiveStepStatusBadge, ProgressBar, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
-import { tasksApi } from '@/services'
+import type { ParentLink } from '@/components/ui/PageHeader'
+import { tasksApi, plansApi, projectsApi } from '@/services'
 import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { taskRefreshAtom, projectRefreshAtom, planRefreshAtom } from '@/atoms'
 import { CreateStepForm, CreateDecisionForm } from '@/components/forms'
-import type { Task, Step, Decision, Commit, TaskStatus, StepStatus } from '@/types'
+import type { Task, Step, Decision, Commit, TaskStatus, StepStatus, Project } from '@/types'
 
 // The API response structure
 interface TaskApiResponse {
@@ -18,9 +20,19 @@ interface TaskApiResponse {
   modifies_files: string[]
 }
 
+// Router state passed from referring pages (PlanDetailPage, TasksPage, etc.)
+interface TaskLocationState {
+  planId?: string
+  planTitle?: string
+  projectId?: string
+  projectSlug?: string
+  projectName?: string
+}
+
 export function TaskDetailPage() {
   const { taskId } = useParams<{ taskId: string }>()
   const { navigate } = useViewTransition()
+  const location = useLocation()
   const wsSlug = useWorkspaceSlug()
   const confirmDialog = useConfirmDialog()
   const stepFormDialog = useFormDialog()
@@ -39,6 +51,11 @@ export function TaskDetailPage() {
   const [commits, setCommits] = useState<Commit[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Parent resolution state
+  const [parentPlanId, setParentPlanId] = useState<string | null>(null)
+  const [parentPlanTitle, setParentPlanTitle] = useState<string | null>(null)
+  const [parentProject, setParentProject] = useState<Project | null>(null)
 
   const fetchData = useCallback(async () => {
     if (!taskId) return
@@ -77,6 +94,57 @@ export function TaskDetailPage() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  // Resolve parent plan & project
+  useEffect(() => {
+    if (!taskId) return
+    const state = location.state as TaskLocationState | null
+    const controller = new AbortController()
+
+    async function resolveParents() {
+      // 1. Resolve plan — fast-path from Router state, fallback via task list
+      let planId = state?.planId ?? null
+      let planTitle = state?.planTitle ?? null
+
+      if (!planId) {
+        try {
+          const allTasks = await tasksApi.list({ limit: 100, workspace_slug: wsSlug })
+          const match = (allTasks.items || []).find((t) => t.id === taskId)
+          if (match && 'plan_id' in match) {
+            planId = (match as { plan_id?: string }).plan_id ?? null
+            planTitle = (match as { plan_title?: string }).plan_title ?? null
+          }
+        } catch { /* graceful degradation */ }
+      }
+
+      if (controller.signal.aborted) return
+      setParentPlanId(planId)
+      setParentPlanTitle(planTitle)
+
+      // 2. Resolve project — fast-path from state, fallback via plan detail
+      let project: Project | null = null
+
+      if (state?.projectSlug && state?.projectName) {
+        project = { slug: state.projectSlug, name: state.projectName } as Project
+      } else if (planId) {
+        try {
+          const planResponse = await plansApi.get(planId)
+          const planData = (planResponse as unknown as { plan?: { project_id?: string } }).plan || planResponse
+          if (planData.project_id) {
+            const allProjects = await projectsApi.list()
+            project = (allProjects.items || []).find((p) => p.id === planData.project_id) ?? null
+          }
+        } catch { /* graceful degradation */ }
+      }
+
+      if (controller.signal.aborted) return
+      setParentProject(project)
+    }
+
+    resolveParents()
+    return () => controller.abort()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount + when taskId changes
+  }, [taskId, wsSlug])
 
   const stepForm = CreateStepForm({
     onSubmit: async (data) => {
@@ -130,12 +198,32 @@ export function TaskDetailPage() {
     { id: 'decisions', label: 'Decisions', count: decisions.length },
   ]
 
+  // Build parent links for navigation
+  const parentLinks: ParentLink[] = []
+  if (parentProject) {
+    parentLinks.push({
+      icon: FolderKanban,
+      label: 'Project',
+      name: parentProject.name,
+      href: workspacePath(wsSlug, `/projects/${parentProject.slug}`),
+    })
+  }
+  if (parentPlanId && parentPlanTitle) {
+    parentLinks.push({
+      icon: ClipboardList,
+      label: 'Plan',
+      name: parentPlanTitle,
+      href: workspacePath(wsSlug, `/plans/${parentPlanId}`),
+    })
+  }
+
   return (
     <div className="pt-6 space-y-6">
       <PageHeader
         title={task.title || 'Task'}
         viewTransitionName={`task-title-${task.id}`}
         description={task.description}
+        parentLinks={parentLinks.length > 0 ? parentLinks : undefined}
         status={
           <StatusSelect
             status={task.status}
@@ -170,7 +258,15 @@ export function TaskDetailPage() {
           { label: 'Delete', variant: 'danger', onClick: () => confirmDialog.open({
             title: 'Delete Task',
             description: 'This will permanently delete this task and all its steps and decisions.',
-            onConfirm: async () => { await tasksApi.delete(task.id); toast.success('Task deleted'); navigate(workspacePath(wsSlug, '/tasks'), { type: 'back-button' }) }
+            onConfirm: async () => {
+              await tasksApi.delete(task.id)
+              toast.success('Task deleted')
+              // Navigate to parent plan if known, otherwise task list
+              const target = parentPlanId
+                ? workspacePath(wsSlug, `/plans/${parentPlanId}`)
+                : workspacePath(wsSlug, '/tasks')
+              navigate(target, { type: 'back-button' })
+            }
           }) }
         ]}
       >

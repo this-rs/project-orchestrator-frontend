@@ -329,6 +329,9 @@ export function PlanDetailPage() {
                   refreshTrigger={taskRefresh}
                   expandAllSignal={tasksExpandAll}
                   collapseAllSignal={tasksCollapseAll}
+                  planId={plan.id}
+                  planTitle={plan.title}
+                  projectId={plan.project_id}
                 />
               ))}
             </div>
@@ -387,6 +390,7 @@ export function PlanDetailPage() {
                       )}
                       <Link
                         to={workspacePath(wsSlug, `/tasks/${decision.taskId}`)}
+                        state={{ planId: plan.id, planTitle: plan.title, projectId: plan.project_id }}
                         className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
                       >
                         ← {decision.taskTitle}
@@ -438,12 +442,18 @@ function TaskRow({
   refreshTrigger,
   expandAllSignal,
   collapseAllSignal,
+  planId,
+  planTitle,
+  projectId,
 }: {
   task: Task
   onStatusChange: (status: TaskStatus) => Promise<void>
   refreshTrigger?: number
   expandAllSignal?: number
   collapseAllSignal?: number
+  planId?: string
+  planTitle?: string
+  projectId?: string
 }) {
   const wsSlug = useWorkspaceSlug()
   const [expanded, setExpanded] = useState(false)
@@ -511,6 +521,7 @@ function TaskRow({
         </button>
         <Link
           to={workspacePath(wsSlug, `/tasks/${task.id}`)}
+          state={{ planId, planTitle, projectId }}
           className="flex-1 min-w-0 hover:text-indigo-400 transition-colors overflow-hidden"
         >
           <span className="font-medium text-gray-200 block truncate">{task.title || task.description}</span>

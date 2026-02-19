@@ -317,7 +317,7 @@ function TaskCard({
 }) {
   const tags = task.tags || []
   return (
-    <Link to={`/workspace/${wsSlug}/tasks/${task.id}`}>
+    <Link to={`/workspace/${wsSlug}/tasks/${task.id}`} state={{ planId: task.plan_id, planTitle: task.plan_title }}>
       <Card lazy className={`transition-colors ${selected ? 'border-indigo-500/40 bg-indigo-500/[0.05]' : 'hover:border-indigo-500'}`}>
         <div className="flex">
           {onToggleSelect && (

@@ -253,6 +253,7 @@ export function ProjectDetailPage() {
                     <Link
                       key={milestone.id}
                       to={workspacePath(wsSlug, `/project-milestones/${milestone.id}`)}
+                      state={{ projectId: project.id, projectSlug: project.slug, projectName: project.name }}
                       className="block p-3 bg-white/[0.06] rounded-lg hover:bg-white/[0.08] transition-colors"
                     >
                       <div className="flex items-center justify-between gap-2 mb-2">
@@ -365,6 +366,7 @@ export function ProjectDetailPage() {
                   refreshTrigger={taskRefresh}
                   expandAllSignal={plansExpandAll}
                   collapseAllSignal={plansCollapseAll}
+                  linkState={{ projectId: project.id, projectSlug: project.slug, projectName: project.name }}
                 />
               ))}
             </div>
@@ -388,6 +390,7 @@ export function ProjectDetailPage() {
                 <Link
                   key={fg.id}
                   to={workspacePath(wsSlug, `/feature-graphs/${fg.id}`)}
+                  state={{ projectId: project.id, projectSlug: project.slug, projectName: project.name }}
                   className="flex items-center justify-between gap-3 p-3 bg-white/[0.06] rounded-lg hover:bg-white/[0.08] transition-colors group"
                 >
                   <div className="min-w-0 flex-1">

@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { Zap, File, Database, Link as LinkIcon, Package } from 'lucide-react'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { Zap, File, Database, Link as LinkIcon, Package, FolderKanban } from 'lucide-react'
 import {
   Card,
   CardHeader,
@@ -12,9 +12,11 @@ import {
   ConfirmDialog,
   PageHeader,
 } from '@/components/ui'
-import { featureGraphsApi } from '@/services'
-import { useConfirmDialog, useToast } from '@/hooks'
-import type { FeatureGraphDetail, FeatureGraphEntity } from '@/types'
+import type { ParentLink } from '@/components/ui/PageHeader'
+import { featureGraphsApi, projectsApi } from '@/services'
+import { useConfirmDialog, useToast, useWorkspaceSlug } from '@/hooks'
+import { workspacePath } from '@/utils/paths'
+import type { FeatureGraphDetail, FeatureGraphEntity, Project } from '@/types'
 
 // ============================================================================
 // ROLE CONFIG
@@ -103,14 +105,24 @@ function EntityIcon({ type }: { type: string }) {
 // MAIN COMPONENT
 // ============================================================================
 
+// Router state passed from referring pages (ProjectDetailPage, CodePage)
+interface FGLocationState {
+  projectId?: string
+  projectSlug?: string
+  projectName?: string
+}
+
 export function FeatureGraphDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
+  const wsSlug = useWorkspaceSlug()
   const confirmDialog = useConfirmDialog()
   const toast = useToast()
   const [detail, setDetail] = useState<FeatureGraphDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [parentProject, setParentProject] = useState<Project | null>(null)
 
   async function fetchData() {
     if (!id) return
@@ -129,6 +141,26 @@ export function FeatureGraphDetailPage() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchData() }, [id])
+
+  // Resolve parent project
+  useEffect(() => {
+    if (!detail?.project_id) return
+    const state = location.state as FGLocationState | null
+    const controller = new AbortController()
+
+    if (state?.projectSlug && state?.projectName) {
+      setParentProject({ slug: state.projectSlug, name: state.projectName, id: state.projectId } as Project)
+    } else {
+      projectsApi.list().then((res) => {
+        if (controller.signal.aborted) return
+        const proj = (res.items || []).find((p) => p.id === detail.project_id) ?? null
+        setParentProject(proj)
+      }).catch(() => { /* graceful degradation */ })
+    }
+
+    return () => controller.abort()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail?.project_id])
 
   // Group entities by role
   const groupedEntities = useMemo(() => {
@@ -160,11 +192,23 @@ export function FeatureGraphDetailPage() {
 
   const totalEntities = detail.entities.length
 
+  // Build parent links for navigation
+  const parentLinks: ParentLink[] = []
+  if (parentProject) {
+    parentLinks.push({
+      icon: FolderKanban,
+      label: 'Project',
+      name: parentProject.name,
+      href: workspacePath(wsSlug, `/projects/${parentProject.slug}`),
+    })
+  }
+
   return (
     <div className="pt-6 space-y-6">
       <PageHeader
         title={detail.name}
         description={detail.description}
+        parentLinks={parentLinks.length > 0 ? parentLinks : undefined}
         overflowActions={[
           {
             label: 'Delete',
@@ -176,7 +220,7 @@ export function FeatureGraphDetailPage() {
                 onConfirm: async () => {
                   await featureGraphsApi.delete(detail.id)
                   toast.success('Feature graph deleted')
-                  navigate(-1)
+                  navigate(workspacePath(wsSlug, '/code'))
                 },
               }),
           },
