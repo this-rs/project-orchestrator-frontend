@@ -181,7 +181,7 @@ export function WorkspaceDetailPage() {
               <CardTitle>Overall Progress</CardTitle>
             </CardHeader>
             <CardContent>
-              <ProgressBar value={overallProgress.percentage} showLabel size="lg" />
+              <ProgressBar value={overallProgress.percentage} showLabel size="lg" gradient shimmer={overallProgress.percentage < 100} />
               <p className="mt-2 text-sm text-gray-400">
                 {overallProgress.completed_tasks} / {overallProgress.total_tasks} tasks completed
               </p>

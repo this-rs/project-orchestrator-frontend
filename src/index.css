@@ -135,6 +135,28 @@ p, .description-text { text-wrap: pretty; }
 .cv-auto-sm    { content-visibility: auto; contain-intrinsic-size: auto 80px; }
 .cv-auto-lg    { content-visibility: auto; contain-intrinsic-size: auto 160px; }
 
+/* ─── Progress bar shimmer ────────────────────────────────────────── */
+.progress-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.progress-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.15) 50%,
+    transparent 100%
+  );
+  animation: progress-shimmer-slide 1.5s ease-in-out infinite;
+}
+@keyframes progress-shimmer-slide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;

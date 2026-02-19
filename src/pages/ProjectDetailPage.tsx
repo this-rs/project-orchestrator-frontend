@@ -210,7 +210,7 @@ export function ProjectDetailPage() {
             <CardTitle>Progress</CardTitle>
           </CardHeader>
           <CardContent>
-            <ProgressBar value={roadmap.progress.percentage} showLabel size="lg" />
+            <ProgressBar value={roadmap.progress.percentage} showLabel size="lg" gradient shimmer={roadmap.progress.percentage < 100} />
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 text-center">
               <div>
                 <div className="text-2xl font-bold text-gray-200">{roadmap.progress.total_tasks}</div>
