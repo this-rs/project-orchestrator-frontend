@@ -12,6 +12,8 @@ interface ListParams {
   search?: string
   limit?: number
   offset?: number
+  /** Filter notes by workspace (all projects in the workspace) */
+  workspace_slug?: string
 }
 
 interface SearchParams {

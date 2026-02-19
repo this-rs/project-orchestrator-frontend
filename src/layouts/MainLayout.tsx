@@ -1,39 +1,42 @@
-import { useState, useEffect } from 'react'
-import { Outlet, NavLink, useLocation } from 'react-router-dom'
-import { useAtom, useAtomValue } from 'jotai'
-import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom } from '@/atoms'
+import { useState, useEffect, useMemo } from 'react'
+import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom } from '@/atoms'
 import { ToastContainer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
+import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher'
 import { useMediaQuery, useCrudEventRefresh, useDragRegion, useWindowFullscreen } from '@/hooks'
 import { isTauri } from '@/services/env'
+import { workspacesApi } from '@/services/workspaces'
+import { workspacePath } from '@/utils/paths'
 
-const navGroups = [
-  {
-    label: 'Organize',
-    items: [
-      { name: 'Workspaces', href: '/workspaces', icon: FolderIcon },
-      { name: 'Projects', href: '/projects', icon: CubeIcon },
-      { name: 'Milestones', href: '/milestones', icon: FlagIcon },
-    ],
-  },
-  {
-    label: 'Plan',
-    items: [
-      { name: 'Plans', href: '/plans', icon: ClipboardIcon },
-      { name: 'Tasks', href: '/tasks', icon: CheckCircleIcon },
-    ],
-  },
-  {
-    label: 'Knowledge',
-    items: [
-      { name: 'Notes', href: '/notes', icon: DocumentIcon },
-      { name: 'Code', href: '/code', icon: CodeIcon },
-    ],
-  },
-]
+function SidebarContent({ collapsed, trafficLightPad, wsSlug }: { collapsed: boolean; trafficLightPad?: boolean; wsSlug: string }) {
+  const navGroups = useMemo(() => [
+    {
+      label: 'Organize',
+      items: [
+        { name: 'Overview', href: workspacePath(wsSlug, '/overview'), icon: HomeIcon },
+        { name: 'Projects', href: workspacePath(wsSlug, '/projects'), icon: CubeIcon },
+        { name: 'Milestones', href: workspacePath(wsSlug, '/milestones'), icon: FlagIcon },
+      ],
+    },
+    {
+      label: 'Plan',
+      items: [
+        { name: 'Plans', href: workspacePath(wsSlug, '/plans'), icon: ClipboardIcon },
+        { name: 'Tasks', href: workspacePath(wsSlug, '/tasks'), icon: CheckCircleIcon },
+      ],
+    },
+    {
+      label: 'Knowledge',
+      items: [
+        { name: 'Notes', href: workspacePath(wsSlug, '/notes'), icon: DocumentIcon },
+        { name: 'Code', href: workspacePath(wsSlug, '/code'), icon: CodeIcon },
+      ],
+    },
+  ], [wsSlug])
 
-function SidebarContent({ collapsed, trafficLightPad }: { collapsed: boolean; trafficLightPad?: boolean }) {
   return (
     <>
       {/* Logo — taller on Tauri (non-fullscreen) to clear native traffic lights */}
@@ -45,6 +48,9 @@ function SidebarContent({ collapsed, trafficLightPad }: { collapsed: boolean; tr
           )}
         </div>
       </div>
+
+      {/* Workspace Switcher */}
+      <WorkspaceSwitcher collapsed={collapsed} />
 
       {/* Navigation */}
       <nav className="flex-1 py-4 overflow-y-auto">
@@ -63,6 +69,7 @@ function SidebarContent({ collapsed, trafficLightPad }: { collapsed: boolean; tr
                   <li key={item.name}>
                     <NavLink
                       to={item.href}
+                      end={item.name === 'Overview'}
                       className={({ isActive }) =>
                         `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
                           isActive
@@ -86,6 +93,7 @@ function SidebarContent({ collapsed, trafficLightPad }: { collapsed: boolean; tr
 }
 
 export function MainLayout() {
+  const { slug: wsSlug } = useParams<{ slug: string }>()
   const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom)
   const [chatMode, setChatMode] = useAtom(chatPanelModeAtom)
   const [chatWidth] = useAtom(chatPanelWidthAtom)
@@ -96,9 +104,18 @@ export function MainLayout() {
   const chatFullscreen = chatMode === 'fullscreen'
   const wsStatus = useAtomValue(eventBusStatusAtom)
   const isWindowFullscreen = useWindowFullscreen()
+  const setWorkspaces = useSetAtom(workspacesAtom)
 
   // Show extra top padding on Tauri desktop (non-fullscreen) to clear native traffic lights
   const trafficLightPad = isTauri && !isWindowFullscreen
+
+  // Load workspaces list (for the switcher and route guard)
+  useEffect(() => {
+    workspacesApi
+      .list({ limit: 100, sort_by: 'name', sort_order: 'asc' })
+      .then((data) => setWorkspaces(data.items || []))
+      .catch(() => {})
+  }, [setWorkspaces])
 
   // Connect to WebSocket CRUD event bus and auto-refresh pages
   useCrudEventRefresh()
@@ -122,6 +139,8 @@ export function MainLayout() {
     }
   }, [mobileMenuOpen])
 
+  const currentSlug = wsSlug || ''
+
   return (
     <div className="flex min-h-0 flex-1 bg-[#0f1117]">
       {/* Desktop Sidebar */}
@@ -130,7 +149,7 @@ export function MainLayout() {
           collapsed ? 'w-16' : 'w-64'
         } hidden md:flex flex-col bg-[#1a1d27] border-r border-white/[0.06] transition-all duration-200`}
       >
-        <SidebarContent collapsed={collapsed} trafficLightPad={trafficLightPad} />
+        <SidebarContent collapsed={collapsed} trafficLightPad={trafficLightPad} wsSlug={currentSlug} />
 
         {/* User menu + Collapse button */}
         <div className={`border-t border-white/[0.06] p-2 ${collapsed ? 'flex flex-col items-center gap-1' : 'flex items-center gap-1'}`}>
@@ -167,7 +186,7 @@ export function MainLayout() {
             mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
-          <SidebarContent collapsed={false} />
+          <SidebarContent collapsed={false} wsSlug={currentSlug} />
 
           {/* User menu + Close button */}
           <div className="border-t border-white/[0.06] p-2 flex items-center gap-1">
@@ -242,30 +261,42 @@ export function MainLayout() {
   )
 }
 
+/**
+ * Breadcrumb that handles workspace-scoped URLs.
+ * Strips the /workspace/:slug prefix and shows meaningful segments.
+ *
+ * /workspace/my-ws/plans/abc → Plans / abc
+ */
 function Breadcrumb({ pathname }: { pathname: string }) {
   const parts = pathname.split('/').filter(Boolean)
 
+  // Strip "workspace" and the slug from the display
+  const isWorkspaceScoped = parts[0] === 'workspace' && parts.length >= 2
+  const displayParts = isWorkspaceScoped ? parts.slice(2) : parts
+  const basePath = isWorkspaceScoped ? `/workspace/${parts[1]}` : ''
+
   return (
     <nav className="flex items-center gap-2 text-sm min-w-0">
-      <NavLink to="/" className="text-gray-400 hover:text-gray-200 shrink-0">
+      <NavLink to={basePath || '/'} className="text-gray-400 hover:text-gray-200 shrink-0">
         Home
       </NavLink>
-      {parts.length > 2 && (
+      {displayParts.length > 2 && (
         <span className="flex items-center gap-2 min-w-0 sm:hidden">
           <span className="text-gray-600 shrink-0">/</span>
           <span className="text-gray-500">...</span>
         </span>
       )}
-      {parts.map((part, index) => {
+      {displayParts.map((part, index) => {
         const isFirst = index === 0
-        const isLast = index === parts.length - 1
+        const isLast = index === displayParts.length - 1
         const isMiddle = !isFirst && !isLast
-        const hideOnMobile = isMiddle && parts.length > 2
+        const hideOnMobile = isMiddle && displayParts.length > 2
+        const fullPath = `${basePath}/${displayParts.slice(0, index + 1).join('/')}`
         return (
           <span key={`${part}-${index}`} className={`flex items-center gap-2 min-w-0 ${hideOnMobile ? 'hidden sm:flex' : ''}`}>
             <span className="text-gray-600 shrink-0">/</span>
             <NavLink
-              to={`/${parts.slice(0, index + 1).join('/')}`}
+              to={fullPath}
               className={`truncate max-w-[120px] sm:max-w-[200px] md:max-w-none ${
                 isLast
                   ? 'text-gray-200 font-medium'
@@ -290,10 +321,10 @@ function HamburgerIcon({ className }: { className?: string }) {
   )
 }
 
-function FolderIcon({ className }: { className?: string }) {
+function HomeIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
     </svg>
   )
 }

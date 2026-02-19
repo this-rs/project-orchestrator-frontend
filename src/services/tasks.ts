@@ -21,6 +21,10 @@ interface ListParams {
   offset?: number
   sort_by?: string
   sort_order?: 'asc' | 'desc'
+  /** Filter tasks by workspace (all projects in the workspace) */
+  workspace_slug?: string
+  /** Filter tasks by project */
+  project_id?: string
 }
 
 export const tasksApi = {

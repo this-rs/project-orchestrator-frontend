@@ -1,17 +1,20 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
-import { Provider } from 'jotai'
+import { Provider, useAtomValue } from 'jotai'
 import { MainLayout } from '@/layouts'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { SetupGuard } from '@/components/SetupGuard'
+import { WorkspaceRouteGuard } from '@/components/WorkspaceRouteGuard'
 import { UpdateBanner } from '@/components/UpdateBanner'
 import { WebUpdateBanner } from '@/components/ui/WebUpdateBanner'
 import { useTrayNavigation } from '@/hooks'
 import { isTauri } from '@/services/env'
+import { activeWorkspaceSlugAtom } from '@/atoms'
+import { workspacePath } from '@/utils/paths'
 import {
   LoginPage,
   AuthCallbackPage,
-  WorkspacesPage,
+  WorkspaceSelectorPage,
   WorkspaceDetailPage,
   MilestonesPage,
   MilestoneDetailPage,
@@ -39,6 +42,30 @@ import {
 function TrayNavigationCapture() {
   useTrayNavigation()
   return <Outlet />
+}
+
+/**
+ * Redirects `/` to the last used workspace or to the workspace selector.
+ * Reads the persisted slug from localStorage via activeWorkspaceSlugAtom.
+ */
+function RootRedirect() {
+  const lastSlug = useAtomValue(activeWorkspaceSlugAtom)
+  if (lastSlug) {
+    return <Navigate to={workspacePath(lastSlug, '/projects')} replace />
+  }
+  return <Navigate to="/workspace-selector" replace />
+}
+
+/**
+ * Redirects legacy flat URLs (/plans, /tasks, etc.) to workspace-scoped ones.
+ * Falls back to workspace-selector if no workspace is stored.
+ */
+function LegacyRedirect({ path }: { path: string }) {
+  const lastSlug = useAtomValue(activeWorkspaceSlugAtom)
+  if (lastSlug) {
+    return <Navigate to={workspacePath(lastSlug, path)} replace />
+  }
+  return <Navigate to="/workspace-selector" replace />
 }
 
 /**
@@ -92,27 +119,45 @@ function App() {
                 <Route element={<SetupGuard />}>
                   {/* Protected routes (auth required) */}
                   <Route element={<ProtectedRoute />}>
-                    <Route path="/" element={<MainLayout />}>
-                      <Route index element={<Navigate to="/workspaces" replace />} />
-                      <Route path="workspaces" element={<WorkspacesPage />} />
-                      <Route path="workspaces/:slug" element={<WorkspaceDetailPage />} />
-                      <Route path="milestones" element={<MilestonesPage />} />
-                      <Route path="milestones/:milestoneId" element={<MilestoneDetailPage />} />
-                      <Route
-                        path="project-milestones/:milestoneId"
-                        element={<ProjectMilestoneDetailPage />}
-                      />
-                      <Route path="projects" element={<ProjectsPage />} />
-                      <Route path="projects/:slug" element={<ProjectDetailPage />} />
-                      <Route path="plans" element={<PlansPage />} />
-                      <Route path="plans/:planId" element={<PlanDetailPage />} />
-                      <Route path="tasks" element={<TasksPage />} />
-                      <Route path="tasks/:taskId" element={<TaskDetailPage />} />
-                      <Route path="notes" element={<NotesPage />} />
-                      <Route path="code" element={<CodePage />} />
-                      <Route path="feature-graphs/:id" element={<FeatureGraphDetailPage />} />
-                      <Route path="*" element={<NotFoundPage embedded />} />
+                    {/* Root → redirect to last workspace or selector */}
+                    <Route path="/" element={<RootRedirect />} />
+
+                    {/* Workspace selector (no sidebar) */}
+                    <Route path="/workspace-selector" element={<WorkspaceSelectorPage />} />
+
+                    {/* ===== Workspace-scoped routes ===== */}
+                    <Route path="/workspace/:slug" element={<WorkspaceRouteGuard />}>
+                      <Route element={<MainLayout />}>
+                        <Route index element={<Navigate to="projects" replace />} />
+                        <Route path="overview" element={<WorkspaceDetailPage />} />
+                        <Route path="projects" element={<ProjectsPage />} />
+                        <Route path="projects/:slug" element={<ProjectDetailPage />} />
+                        <Route path="milestones" element={<MilestonesPage />} />
+                        <Route path="milestones/:milestoneId" element={<MilestoneDetailPage />} />
+                        <Route
+                          path="project-milestones/:milestoneId"
+                          element={<ProjectMilestoneDetailPage />}
+                        />
+                        <Route path="plans" element={<PlansPage />} />
+                        <Route path="plans/:planId" element={<PlanDetailPage />} />
+                        <Route path="tasks" element={<TasksPage />} />
+                        <Route path="tasks/:taskId" element={<TaskDetailPage />} />
+                        <Route path="notes" element={<NotesPage />} />
+                        <Route path="code" element={<CodePage />} />
+                        <Route path="feature-graphs/:id" element={<FeatureGraphDetailPage />} />
+                        <Route path="*" element={<NotFoundPage embedded />} />
+                      </Route>
                     </Route>
+
+                    {/* ===== Legacy redirects (bookmarks, old URLs) ===== */}
+                    <Route path="/workspaces" element={<LegacyRedirect path="/projects" />} />
+                    <Route path="/workspaces/:slug" element={<LegacyRedirect path="/overview" />} />
+                    <Route path="/projects" element={<LegacyRedirect path="/projects" />} />
+                    <Route path="/plans" element={<LegacyRedirect path="/plans" />} />
+                    <Route path="/tasks" element={<LegacyRedirect path="/tasks" />} />
+                    <Route path="/notes" element={<LegacyRedirect path="/notes" />} />
+                    <Route path="/milestones" element={<LegacyRedirect path="/milestones" />} />
+                    <Route path="/code" element={<LegacyRedirect path="/code" />} />
                   </Route>
                 </Route>
 

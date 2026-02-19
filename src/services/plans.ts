@@ -19,6 +19,10 @@ interface ListParams {
   search?: string
   sort_by?: string
   sort_order?: 'asc' | 'desc'
+  /** Filter plans by workspace (all projects in the workspace) */
+  workspace_slug?: string
+  /** Filter plans by project */
+  project_id?: string
 }
 
 export const plansApi = {

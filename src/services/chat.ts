@@ -13,6 +13,8 @@ interface ListSessionsParams {
   limit?: number
   offset?: number
   project_slug?: string
+  /** Filter sessions by workspace */
+  workspace_slug?: string
 }
 
 interface GetMessagesParams {
