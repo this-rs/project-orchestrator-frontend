@@ -72,9 +72,9 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug }: { collapsed: boo
                       to={item.href}
                       end={item.name === 'Overview'}
                       className={({ isActive }) =>
-                        `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                        `flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${
                           isActive
-                            ? 'bg-indigo-500/15 text-indigo-400 font-medium border-l-[3px] border-indigo-500 -ml-[3px]'
+                            ? 'bg-indigo-500/15 text-indigo-400 font-medium border-l-[3px] border-indigo-500 -ml-[3px] glow-primary'
                             : 'text-gray-400 hover:bg-white/[0.06] hover:text-gray-200'
                         }`
                       }

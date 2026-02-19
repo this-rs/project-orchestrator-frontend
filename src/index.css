@@ -46,6 +46,13 @@
   --ambient-spot-2: rgba(139, 92, 246, 0.06);    /* violet */
   --ambient-spot-3: rgba(34, 211, 238, 0.05);    /* cyan */
 
+  /* Glow accents — status-matched box-shadow colors */
+  --glow-primary: 99, 102, 241;   /* indigo — active items, CTA */
+  --glow-success: 74, 222, 128;   /* green  — completed */
+  --glow-warning: 250, 204, 21;   /* yellow — in_progress, blocked */
+  --glow-danger: 248, 113, 113;   /* red    — failed, danger */
+  --glow-info: 96, 165, 250;      /* blue   — info, pending */
+
   /* Typography */
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
@@ -138,6 +145,40 @@ html.tauri * {
   .glass { background: var(--color-surface-raised); border-color: rgba(255, 255, 255, 0.1); }
   .glass-medium { background: var(--color-surface-overlay); border-color: rgba(255, 255, 255, 0.1); }
   .glass-heavy { background: var(--color-surface-popover); border-color: rgba(255, 255, 255, 0.12); }
+}
+
+/* ─── Glow Accents ─────────────────────────────────────────────────────
+ * Status-matched box-shadow halos for badges, buttons, and active items.
+ * Uses CSS variable RGB triplets from :root (--glow-*).
+ * No layout shift — box-shadow is purely decorative.
+ * ─────────────────────────────────────────────────────────────────────── */
+.glow-success { box-shadow: 0 0 6px rgba(var(--glow-success), 0.25), 0 0 14px rgba(var(--glow-success), 0.08); }
+.glow-warning { box-shadow: 0 0 6px rgba(var(--glow-warning), 0.25), 0 0 14px rgba(var(--glow-warning), 0.08); }
+.glow-danger  { box-shadow: 0 0 6px rgba(var(--glow-danger), 0.25), 0 0 14px rgba(var(--glow-danger), 0.08); }
+.glow-info    { box-shadow: 0 0 6px rgba(var(--glow-info), 0.25), 0 0 14px rgba(var(--glow-info), 0.08); }
+.glow-primary { box-shadow: 0 0 6px rgba(var(--glow-primary), 0.25), 0 0 14px rgba(var(--glow-primary), 0.08); }
+.glow-purple  { box-shadow: 0 0 6px rgba(139, 92, 246, 0.25), 0 0 14px rgba(139, 92, 246, 0.08); }
+
+/* Button glow — visible on hover, transition from no-shadow to glow */
+.btn-glow-primary,
+.btn-glow-danger {
+  transition: box-shadow var(--transition-slow);
+}
+.btn-glow-primary:hover:not(:disabled) {
+  box-shadow: 0 0 16px rgba(var(--glow-primary), 0.35), 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.btn-glow-danger:hover:not(:disabled) {
+  box-shadow: 0 0 16px rgba(var(--glow-danger), 0.35), 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Input focus glow — replaces harsh ring with soft glow */
+.input-focus-glow {
+  transition: box-shadow var(--transition-normal), border-color var(--transition-normal);
+}
+.input-focus-glow:focus {
+  outline: none;
+  border-color: rgba(var(--glow-primary), 0.5);
+  box-shadow: 0 0 0 3px rgba(var(--glow-primary), 0.15), 0 0 8px rgba(var(--glow-primary), 0.1);
 }
 
 /* Card lift hover effect */
