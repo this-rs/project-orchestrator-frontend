@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { Link, useNavigate } from 'react-router-dom'
 import { plansAtom, plansLoadingAtom, planStatusFilterAtom, planRefreshAtom } from '@/atoms'
-import { plansApi, workspacesApi } from '@/services'
+import { plansApi } from '@/services'
 import {
   Card,
   Button,
@@ -19,7 +19,7 @@ import {
   BulkActionBar,
   LoadMoreSentinel,
 } from '@/components/ui'
-import { useViewMode, useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList } from '@/hooks'
+import { useViewMode, useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug } from '@/hooks'
 import { CreatePlanForm } from '@/components/forms'
 import { PlanKanbanBoard, PlanKanbanFilterBar } from '@/components/kanban'
 import type { PlanKanbanFilters } from '@/components/kanban'
@@ -35,7 +35,6 @@ const statusOptions = [
 ]
 
 const defaultFilters: PlanKanbanFilters = {
-  workspace: 'all',
   project: 'all',
   search: '',
   priority_min: undefined,
@@ -55,35 +54,10 @@ export function PlansPage() {
   const formDialog = useFormDialog()
   const toast = useToast()
   const [formLoading, setFormLoading] = useState(false)
+  const wsSlug = useWorkspaceSlug()
 
-  // Kanban filters
+  // Kanban filters (workspace filter removed — implicit via wsSlug)
   const [kanbanFilters, setKanbanFilters] = useState<PlanKanbanFilters>(defaultFilters)
-
-  // Workspace -> project mapping (loaded by the filter bar, but we also need it for fetchFn)
-  const [workspaceProjectIds, setWorkspaceProjectIds] = useState<Record<string, string[]>>({})
-
-  // Load workspace-project mapping once
-  useEffect(() => {
-    async function loadMapping() {
-      try {
-        const workspacesData = await workspacesApi.list({ limit: 100 })
-        const mapping: Record<string, string[]> = {}
-        for (const ws of workspacesData.items || []) {
-          try {
-            const resp = await workspacesApi.listProjects(ws.slug)
-            const wsProjects = Array.isArray(resp) ? resp : []
-            mapping[ws.id] = wsProjects.map((p: { id: string }) => p.id)
-          } catch {
-            mapping[ws.id] = []
-          }
-        }
-        setWorkspaceProjectIds(mapping)
-      } catch {
-        // Filter bar loads its own data too
-      }
-    }
-    loadMapping()
-  }, [])
 
   const handleFilterChange = useCallback(
     <K extends keyof PlanKanbanFilters>(key: K, value: PlanKanbanFilters[K]) => {
@@ -98,7 +72,6 @@ export function PlansPage() {
 
   const activeFilterCount = useMemo(() => {
     let count = 0
-    if (kanbanFilters.workspace !== 'all') count++
     if (kanbanFilters.project !== 'all') count++
     if (kanbanFilters.search) count++
     if (kanbanFilters.priority_min !== undefined) count++
@@ -108,25 +81,26 @@ export function PlansPage() {
     return count
   }, [kanbanFilters])
 
-  // --- Infinite scroll for list mode ---
+  // --- Infinite scroll for list mode (workspace-scoped) ---
   const listFilters = useMemo(
     () => ({
       status: statusFilter !== 'all' ? statusFilter : undefined,
       _refresh: planRefresh,
+      _ws: wsSlug, // trigger reset on workspace change
     }),
-    [statusFilter, planRefresh],
+    [statusFilter, planRefresh, wsSlug],
   )
 
   const listFetcher = useCallback(
     (params: { limit: number; offset: number; status?: string }): Promise<PaginatedResponse<Plan>> => {
-      const apiParams: { limit: number; offset: number; status?: string } = {
+      return plansApi.list({
         limit: params.limit,
         offset: params.offset,
-      }
-      if (params.status) apiParams.status = params.status
-      return plansApi.list(apiParams)
+        status: params.status,
+        workspace_slug: wsSlug,
+      })
     },
-    [],
+    [wsSlug],
   )
 
   const {
@@ -153,29 +127,27 @@ export function PlansPage() {
     }
   }, [plans, loading, viewMode, setPlans, setLoadingAtom])
 
-  // Stable fetchFn for PlanKanbanBoard
+  // Stable fetchFn for PlanKanbanBoard (workspace-scoped via server filter)
   const kanbanFetchFn = useCallback(
     async (params: Record<string, unknown>): Promise<PaginatedResponse<Plan>> => {
-      // Build API params — pass priority filters to backend
-      const apiParams: Record<string, unknown> = { ...params }
+      const apiParams: Record<string, unknown> = {
+        ...params,
+        workspace_slug: wsSlug,
+      }
       if (kanbanFilters.priority_min !== undefined) apiParams.priority_min = kanbanFilters.priority_min
       if (kanbanFilters.priority_max !== undefined) apiParams.priority_max = kanbanFilters.priority_max
       if (kanbanFilters.search) apiParams.search = kanbanFilters.search
 
       const response = await plansApi.list(apiParams as Record<string, string | number | undefined>)
 
-      // Client-side filtering (project, workspace, search fallback)
+      // Client-side filtering (project only — workspace is handled server-side)
       let filtered = response.items || []
 
       if (kanbanFilters.project !== 'all') {
         filtered = filtered.filter((p) => p.project_id === kanbanFilters.project)
       }
-      if (kanbanFilters.workspace !== 'all') {
-        const projectIds = workspaceProjectIds[kanbanFilters.workspace] || []
-        filtered = filtered.filter((p) => p.project_id && projectIds.includes(p.project_id))
-      }
 
-      // Client-side search fallback (in case backend doesn't support it)
+      // Client-side search fallback
       if (kanbanFilters.search) {
         const term = kanbanFilters.search.toLowerCase()
         filtered = filtered.filter(
@@ -191,11 +163,11 @@ export function PlansPage() {
         total: filtered.length,
       }
     },
-    [kanbanFilters, workspaceProjectIds],
+    [kanbanFilters, wsSlug],
   )
 
   // Filters key — triggers column re-fetch when any filter changes
-  const kanbanColumnFilters = useMemo(() => ({ ...kanbanFilters }), [kanbanFilters])
+  const kanbanColumnFilters = useMemo(() => ({ ...kanbanFilters, _ws: wsSlug }), [kanbanFilters, wsSlug])
 
   // Determine which statuses to hide
   const hiddenStatuses = useMemo(() => {
@@ -295,7 +267,7 @@ export function PlansPage() {
           filters={kanbanColumnFilters}
           hiddenStatuses={hiddenStatuses}
           onPlanStatusChange={handlePlanStatusChange}
-          onPlanClick={(planId) => navigate(`/plans/${planId}`)}
+          onPlanClick={(planId) => navigate(`/workspace/${wsSlug}/plans/${planId}`)}
           refreshTrigger={planRefresh}
         />
       ) : plans.length === 0 ? (
@@ -323,6 +295,7 @@ export function PlansPage() {
           <div className="space-y-4">
             {plans.map((plan) => (
               <PlanCard
+                wsSlug={wsSlug}
                 selected={multiSelect.isSelected(plan.id)}
                 onToggleSelect={(shiftKey) => multiSelect.toggle(plan.id, shiftKey)}
                 key={plan.id}
@@ -380,15 +353,17 @@ function PlanCard({
   onDelete,
   selected,
   onToggleSelect,
+  wsSlug,
 }: {
   plan: Plan
   onStatusChange: (status: PlanStatus) => Promise<void>
   onDelete: () => void
   selected?: boolean
   onToggleSelect?: (shiftKey: boolean) => void
+  wsSlug: string
 }) {
   return (
-    <Link to={`/plans/${plan.id}`}>
+    <Link to={`/workspace/${wsSlug}/plans/${plan.id}`}>
       <Card className={`transition-colors ${selected ? 'border-indigo-500/40 bg-indigo-500/[0.05]' : 'hover:border-indigo-500'}`}>
         <div className="flex">
           {onToggleSelect && (

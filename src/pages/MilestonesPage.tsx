@@ -1,13 +1,13 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useAtomValue } from 'jotai'
 import { Link, useNavigate } from 'react-router-dom'
-import { milestoneRefreshAtom, workspaceRefreshAtom } from '@/atoms'
+import { milestoneRefreshAtom, workspaceRefreshAtom, activeWorkspaceAtom } from '@/atoms'
 import { Card, LoadingPage, EmptyState, Badge, ProgressBar, InteractiveMilestoneStatusBadge, ViewToggle, Select, ConfirmDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
-import { workspacesApi } from '@/services'
-import { useViewMode, useConfirmDialog, useToast, useMultiSelect } from '@/hooks'
+import { workspacesApi, projectsApi } from '@/services'
+import { useViewMode, useConfirmDialog, useToast, useMultiSelect, useWorkspaceSlug } from '@/hooks'
 import { MilestoneKanbanBoard } from '@/components/kanban'
 import type { MilestoneWithProgress } from '@/components/kanban'
-import type { MilestoneStatus, Workspace } from '@/types'
+import type { MilestoneStatus } from '@/types'
 
 const statusOptions = [
   { value: 'all', label: 'All Status' },
@@ -20,103 +20,125 @@ const statusOptions = [
 
 export function MilestonesPage() {
   const [allMilestones, setAllMilestones] = useState<MilestoneWithProgress[]>([])
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useViewMode()
   const navigate = useNavigate()
   const confirmDialog = useConfirmDialog()
   const toast = useToast()
+  const wsSlug = useWorkspaceSlug()
+  const activeWorkspace = useAtomValue(activeWorkspaceAtom)
 
   // Filters
-  const [workspaceFilter, setWorkspaceFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [sourceFilter, setSourceFilter] = useState('all')
   const msRefresh = useAtomValue(milestoneRefreshAtom)
   const wsRefresh = useAtomValue(workspaceRefreshAtom)
 
   useEffect(() => {
     async function fetchMilestones() {
-      // Only show loading spinner on initial load, not on WS-triggered refreshes
       const isInitialLoad = allMilestones.length === 0
       if (isInitialLoad) setLoading(true)
       try {
-        const workspacesData = await workspacesApi.list()
-        const workspacesList = workspacesData.items || []
-        setWorkspaces(workspacesList)
-
         const milestones: MilestoneWithProgress[] = []
 
-        for (const workspace of workspacesList) {
-          try {
-            const milestonesResponse = await workspacesApi.listMilestones(workspace.slug)
-            const workspaceMilestones = Array.isArray(milestonesResponse)
-              ? milestonesResponse
-              : (milestonesResponse.items || [])
+        // 1. Workspace milestones
+        try {
+          const milestonesResponse = await workspacesApi.listMilestones(wsSlug)
+          const workspaceMilestones = Array.isArray(milestonesResponse)
+            ? milestonesResponse
+            : (milestonesResponse.items || [])
 
-            for (const milestone of workspaceMilestones) {
-              try {
-                const progress = await workspacesApi.getMilestoneProgress(milestone.id)
-                milestones.push({
-                  ...milestone,
-                  progress,
-                  workspace_name: workspace.name,
-                })
-              } catch {
-                milestones.push({
-                  ...milestone,
-                  workspace_name: workspace.name,
-                })
-              }
+          for (const milestone of workspaceMilestones) {
+            try {
+              const progress = await workspacesApi.getMilestoneProgress(milestone.id)
+              milestones.push({ ...milestone, progress, workspace_name: activeWorkspace?.name })
+            } catch {
+              milestones.push({ ...milestone, workspace_name: activeWorkspace?.name })
             }
-          } catch (error) {
-            console.error(`Failed to fetch milestones for workspace ${workspace.slug}:`, error)
-            toast.error('Failed to load milestones')
           }
+        } catch {
+          // No workspace milestones
+        }
+
+        // 2. Project milestones (from workspace projects)
+        try {
+          const projects = await workspacesApi.listProjects(wsSlug)
+          for (const project of projects) {
+            try {
+              const pmData = await projectsApi.listMilestones(project.id)
+              const projectMilestones = pmData.items || []
+              for (const pm of projectMilestones) {
+                // Adapt project milestone to MilestoneWithProgress shape
+                milestones.push({
+                  id: pm.id,
+                  workspace_id: activeWorkspace?.id || '',
+                  title: pm.title,
+                  description: pm.description,
+                  status: pm.status,
+                  target_date: pm.target_date,
+                  closed_at: pm.closed_at,
+                  created_at: pm.created_at,
+                  tags: [`project:${project.name}`],
+                  workspace_name: project.name,
+                } as MilestoneWithProgress)
+              }
+            } catch {
+              // Skip project milestones on error
+            }
+          }
+        } catch {
+          // No projects
         }
 
         setAllMilestones(milestones)
-      } catch (error) {
-        console.error('Failed to fetch milestones:', error)
+      } catch {
         toast.error('Failed to load milestones')
       } finally {
         if (isInitialLoad) setLoading(false)
       }
     }
     fetchMilestones()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- allMilestones.length used for initial load detection; toast is stable
-  }, [msRefresh, wsRefresh])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsSlug, msRefresh, wsRefresh])
 
   // Filtered milestones
   const filteredMilestones = useMemo(() => {
     let result = allMilestones
-    if (workspaceFilter !== 'all') {
-      result = result.filter((m) => m.workspace_id === workspaceFilter)
-    }
     if (statusFilter !== 'all') {
       result = result.filter((m) => (m.status?.toLowerCase() || 'open') === statusFilter)
     }
+    if (sourceFilter === 'workspace') {
+      result = result.filter((m) => !m.tags?.some((t) => t.startsWith('project:')))
+    } else if (sourceFilter === 'project') {
+      result = result.filter((m) => m.tags?.some((t) => t.startsWith('project:')))
+    }
     return result
-  }, [allMilestones, workspaceFilter, statusFilter])
+  }, [allMilestones, statusFilter, sourceFilter])
 
   const handleStatusChange = useCallback(
     async (milestoneId: string, newStatus: MilestoneStatus) => {
       const original = allMilestones.find((m) => m.id === milestoneId)
+      const isProjectMilestone = original?.tags?.some((t) => t.startsWith('project:'))
       setAllMilestones((prev) =>
         prev.map((m) => (m.id === milestoneId ? { ...m, status: newStatus } : m))
       )
       try {
-        await workspacesApi.updateMilestone(milestoneId, { status: newStatus })
+        if (isProjectMilestone) {
+          await projectsApi.updateMilestone(milestoneId, { status: newStatus })
+        } else {
+          await workspacesApi.updateMilestone(milestoneId, { status: newStatus })
+        }
         toast.success('Status updated')
-      } catch (error) {
+      } catch {
         if (original) {
           setAllMilestones((prev) =>
             prev.map((m) => (m.id === milestoneId ? original : m))
           )
         }
-        console.error('Failed to update milestone status:', error)
         toast.error('Failed to update status')
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [allMilestones],
   )
 
@@ -143,17 +165,18 @@ export function MilestonesPage() {
 
   if (loading) return <LoadingPage />
 
-  const workspaceOptions = [
-    { value: 'all', label: 'All Workspaces' },
-    ...workspaces.map((w) => ({ value: w.id, label: w.name })),
+  const sourceOptions = [
+    { value: 'all', label: 'All Sources' },
+    { value: 'workspace', label: 'Workspace' },
+    { value: 'project', label: 'Project' },
   ]
 
-  const hasFilters = workspaceFilter !== 'all' || statusFilter !== 'all'
+  const hasFilters = statusFilter !== 'all' || sourceFilter !== 'all'
 
   return (
     <PageShell
       title="Milestones"
-      description="Track milestones across workspaces"
+      description="Track milestones for this workspace"
       actions={
         <ViewToggle value={viewMode} onChange={setViewMode} />
       }
@@ -161,10 +184,10 @@ export function MilestonesPage() {
       {/* Filters */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-4 sm:flex-wrap">
         <Select
-          options={workspaceOptions}
-          value={workspaceFilter}
-          onChange={(value) => setWorkspaceFilter(value)}
-          className="w-full sm:w-44"
+          options={sourceOptions}
+          value={sourceFilter}
+          onChange={(value) => setSourceFilter(value)}
+          className="w-full sm:w-40"
         />
         {viewMode === 'list' && (
           <Select
@@ -176,7 +199,7 @@ export function MilestonesPage() {
         )}
         {hasFilters && (
           <button
-            onClick={() => { setWorkspaceFilter('all'); setStatusFilter('all') }}
+            onClick={() => { setSourceFilter('all'); setStatusFilter('all') }}
             className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
           >
             Clear filters
@@ -193,7 +216,7 @@ export function MilestonesPage() {
         <MilestoneKanbanBoard
           milestones={filteredMilestones}
           onMilestoneStatusChange={handleStatusChange}
-          onMilestoneClick={(id) => navigate(`/milestones/${id}`)}
+          onMilestoneClick={(id) => navigate(`/workspace/${wsSlug}/milestones/${id}`)}
         />
       ) : (
         <>
@@ -210,6 +233,7 @@ export function MilestonesPage() {
           <div className="space-y-4">
             {filteredMilestones.map((milestone) => (
               <MilestoneCard
+                wsSlug={wsSlug}
                 selected={multiSelect.isSelected(milestone.id)}
                 onToggleSelect={(shiftKey) => multiSelect.toggle(milestone.id, shiftKey)}
                 key={milestone.id}
@@ -254,19 +278,25 @@ function MilestoneCard({
   onDelete,
   selected,
   onToggleSelect,
+  wsSlug,
 }: {
   milestone: MilestoneWithProgress
   onStatusChange: (status: MilestoneStatus) => Promise<void>
   onDelete: () => void
   selected?: boolean
   onToggleSelect?: (shiftKey: boolean) => void
+  wsSlug: string
 }) {
   const tags = milestone.tags || []
+  const isProjectMilestone = tags.some((t) => t.startsWith('project:'))
 
   const statusKey = (milestone.status?.toLowerCase() || 'open')
+  const detailPath = isProjectMilestone
+    ? `/workspace/${wsSlug}/project-milestones/${milestone.id}`
+    : `/workspace/${wsSlug}/milestones/${milestone.id}`
 
   return (
-    <Link to={`/milestones/${milestone.id}`}>
+    <Link to={detailPath}>
       <Card className={`transition-colors ${selected ? 'border-indigo-500/40 bg-indigo-500/[0.05]' : 'hover:border-indigo-500'}`}>
         <div className="flex">
           {onToggleSelect && (
@@ -282,21 +312,26 @@ function MilestoneCard({
                     status={milestone.status?.toLowerCase() as MilestoneStatus}
                     onStatusChange={onStatusChange}
                   />
+                  {isProjectMilestone ? (
+                    <Badge variant="default">Project</Badge>
+                  ) : (
+                    <Badge variant="info">Workspace</Badge>
+                  )}
                 </div>
                 {milestone.description && (
                   <p className="text-sm text-gray-400 line-clamp-2">{milestone.description}</p>
                 )}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-gray-500">
                   {milestone.workspace_name && (
-                    <span>Workspace: {milestone.workspace_name}</span>
+                    <span>{isProjectMilestone ? `Project: ${milestone.workspace_name}` : `Workspace: ${milestone.workspace_name}`}</span>
                   )}
                   {milestone.target_date && (
                     <span>Target: {new Date(milestone.target_date).toLocaleDateString()}</span>
                   )}
                 </div>
-                {tags.length > 0 && (
+                {tags.filter((t) => !t.startsWith('project:')).length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
-                    {tags.slice(0, 4).map((tag, index) => (
+                    {tags.filter((t) => !t.startsWith('project:')).slice(0, 4).map((tag, index) => (
                       <Badge key={`${tag}-${index}`} variant="default">{tag}</Badge>
                     ))}
                   </div>

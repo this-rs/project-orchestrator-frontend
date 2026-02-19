@@ -1,20 +1,45 @@
-import { useState } from 'react'
-import { Card, CardHeader, CardTitle, CardContent, Button, SearchInput, LoadingPage, EmptyState } from '@/components/ui'
-import { codeApi } from '@/services'
+import { useState, useEffect } from 'react'
+import { Card, CardHeader, CardTitle, CardContent, Button, SearchInput, LoadingPage, EmptyState, Select, PageShell } from '@/components/ui'
+import { codeApi, workspacesApi } from '@/services'
 import type { SearchResult, ArchitectureOverview } from '@/services'
+import { useWorkspaceSlug } from '@/hooks'
 
 export function CodePage() {
+  const wsSlug = useWorkspaceSlug()
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [architecture, setArchitecture] = useState<ArchitectureOverview | null>(null)
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'search' | 'architecture'>('search')
 
+  // Project filter
+  const [projects, setProjects] = useState<{ slug: string; name: string }[]>([])
+  const [selectedProject, setSelectedProject] = useState('all')
+
+  // Load workspace projects for filter
+  useEffect(() => {
+    async function loadProjects() {
+      try {
+        const wsProjects = await workspacesApi.listProjects(wsSlug)
+        setProjects(wsProjects.map((p) => ({ slug: p.slug, name: p.name })))
+      } catch {
+        // No projects available
+      }
+    }
+    loadProjects()
+  }, [wsSlug])
+
+  // Reset architecture when project filter changes
+  useEffect(() => {
+    setArchitecture(null)
+  }, [selectedProject])
+
   const handleSearch = async () => {
     if (!searchQuery.trim()) return
     setLoading(true)
     try {
-      const response = await codeApi.search(searchQuery)
+      const projectSlug = selectedProject !== 'all' ? selectedProject : undefined
+      const response = await codeApi.search(searchQuery, { project_slug: projectSlug })
       setSearchResults(Array.isArray(response) ? response : [])
     } catch (error) {
       console.error('Search failed:', error)
@@ -26,7 +51,8 @@ export function CodePage() {
   const loadArchitecture = async () => {
     setLoading(true)
     try {
-      const data = await codeApi.getArchitecture()
+      const projectSlug = selectedProject !== 'all' ? selectedProject : undefined
+      const data = await codeApi.getArchitecture({ project_slug: projectSlug })
       setArchitecture(data)
     } catch (error) {
       console.error('Failed to load architecture:', error)
@@ -35,10 +61,16 @@ export function CodePage() {
     }
   }
 
+  const projectOptions = [
+    { value: 'all', label: 'All Projects' },
+    ...projects.map((p) => ({ value: p.slug, label: p.name })),
+  ]
+
   return (
-    <div className="pt-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 md:mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-100">Code Explorer</h1>
+    <PageShell
+      title="Code Explorer"
+      description="Search and explore code in workspace projects"
+      actions={
         <div className="flex gap-2">
           <Button
             variant={activeTab === 'search' ? 'primary' : 'secondary'}
@@ -56,7 +88,19 @@ export function CodePage() {
             Architecture
           </Button>
         </div>
-      </div>
+      }
+    >
+      {/* Project filter */}
+      {projects.length > 1 && (
+        <div className="mb-4">
+          <Select
+            options={projectOptions}
+            value={selectedProject}
+            onChange={(value) => setSelectedProject(value)}
+            className="w-full sm:w-48"
+          />
+        </div>
+      )}
 
       {activeTab === 'search' && (
         <div className="space-y-6">
@@ -84,7 +128,7 @@ export function CodePage() {
           ) : searchResults.length === 0 ? (
             <EmptyState
               title="No results"
-              description="Enter a search query to find code across your projects."
+              description="Enter a search query to find code across your workspace projects."
             />
           ) : (
             <div className="space-y-4">
@@ -242,6 +286,6 @@ export function CodePage() {
           )}
         </div>
       )}
-    </div>
+    </PageShell>
   )
 }

@@ -3,6 +3,7 @@ import type {
   Workspace,
   WorkspaceMilestone,
   WorkspaceOverview,
+  Project,
   Resource,
   Component,
   PaginatedResponse,
@@ -38,11 +39,9 @@ export const workspacesApi = {
   getOverview: (slug: string) =>
     api.get<WorkspaceOverview>(`/workspaces/${slug}/overview`),
 
-  // Projects in workspace (backend returns raw array, not { items: [...] })
+  // Projects in workspace (backend returns full Project objects as raw array)
   listProjects: (slug: string) =>
-    api.get<{ id: string; name: string; slug: string }[]>(
-      `/workspaces/${slug}/projects`
-    ),
+    api.get<Project[]>(`/workspaces/${slug}/projects`),
 
   addProject: (slug: string, projectId: string) =>
     api.post(`/workspaces/${slug}/projects`, { project_id: projectId }),

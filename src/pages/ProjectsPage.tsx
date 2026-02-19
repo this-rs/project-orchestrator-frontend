@@ -1,48 +1,48 @@
-import { useState, useMemo, useCallback } from 'react'
-import { useAtomValue } from 'jotai'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { projectRefreshAtom } from '@/atoms'
 import { projectsApi } from '@/services'
-import { Card, CardContent, Button, LoadingPage, EmptyState, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, LoadMoreSentinel } from '@/components/ui'
-import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList } from '@/hooks'
+import { workspacesApi } from '@/services/workspaces'
+import { Card, CardContent, Button, LoadingPage, EmptyState, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
+import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useWorkspaceSlug } from '@/hooks'
 import { CreateProjectForm } from '@/components/forms'
-import type { Project, PaginatedResponse } from '@/types'
+import type { Project } from '@/types'
 
 export function ProjectsPage() {
   const confirmDialog = useConfirmDialog()
   const formDialog = useFormDialog()
   const toast = useToast()
   const [formLoading, setFormLoading] = useState(false)
-  const projRefresh = useAtomValue(projectRefreshAtom)
+  const wsSlug = useWorkspaceSlug()
+  const [projects, setProjects] = useState<Project[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const filters = useMemo(() => ({ _refresh: projRefresh }), [projRefresh])
+  const loadProjects = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await workspacesApi.listProjects(wsSlug)
+      setProjects(data)
+    } catch {
+      setProjects([])
+    } finally {
+      setLoading(false)
+    }
+  }, [wsSlug])
 
-  const fetcher = useCallback(
-    (params: { limit: number; offset: number }): Promise<PaginatedResponse<Project>> => {
-      return projectsApi.list({ limit: params.limit, offset: params.offset })
-    },
-    [],
-  )
+  useEffect(() => { loadProjects() }, [loadProjects])
 
-  const {
-    items: projects,
-    loading,
-    loadingMore,
-    hasMore,
-    total,
-    sentinelRef,
-    reset,
-    removeItems,
-  } = useInfiniteList({ fetcher, filters })
+  const removeItems = (predicate: (p: Project) => boolean) => {
+    setProjects((prev) => prev.filter((p) => !predicate(p)))
+  }
 
   const form = CreateProjectForm({
     onSubmit: async (data) => {
       setFormLoading(true)
       try {
-        await projectsApi.create(data)
+        const created = await projectsApi.create(data)
+        await workspacesApi.addProject(wsSlug, created.id)
         toast.success('Project created')
         formDialog.close()
-        reset()
+        loadProjects()
       } finally {
         setFormLoading(false)
       }
@@ -84,7 +84,7 @@ export function ProjectsPage() {
       description="Track your codebase projects"
       actions={<Button onClick={openCreateDialog}>Create Project</Button>}
     >
-      {projects.length === 0 && total === 0 ? (
+      {projects.length === 0 ? (
         <EmptyState
           title="No projects"
           description="Create a project to start tracking your codebase."
@@ -105,6 +105,7 @@ export function ProjectsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
             {projects.map((project) => (
               <ProjectCard
+                wsSlug={wsSlug}
                 selected={multiSelect.isSelected(project.slug)}
                 onToggleSelect={(shiftKey) => multiSelect.toggle(project.slug, shiftKey)}
                 key={project.id}
@@ -121,7 +122,7 @@ export function ProjectsPage() {
               />
             ))}
           </div>
-          <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
+          {/* No infinite scroll needed — workspace projects count is small */}
         </>
       )}
 
@@ -138,9 +139,9 @@ export function ProjectsPage() {
   )
 }
 
-function ProjectCard({ project, onDelete, selected, onToggleSelect }: { project: Project; onDelete: () => void; selected?: boolean; onToggleSelect?: (shiftKey: boolean) => void }) {
+function ProjectCard({ project, onDelete, selected, onToggleSelect, wsSlug }: { project: Project; onDelete: () => void; selected?: boolean; onToggleSelect?: (shiftKey: boolean) => void; wsSlug: string }) {
   return (
-    <Link to={`/projects/${project.slug}`}>
+    <Link to={`/workspace/${wsSlug}/projects/${project.slug}`}>
       <Card className={`h-full transition-colors ${selected ? 'border-indigo-500/40 bg-indigo-500/[0.05]' : 'hover:border-indigo-500'}`}>
         <div className="flex h-full">
           {onToggleSelect && (
