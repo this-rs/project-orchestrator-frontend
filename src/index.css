@@ -496,6 +496,41 @@ html.tauri * {
   animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Sidebar navigation — directional vertical slide.
+ * data-transition-type="sidebar-nav" + data-nav-direction="up|down" on <html>.
+ * Old content slides out, new content slides in from the matching direction. */
+[data-transition-type="sidebar-nav"] ::view-transition-old(content) {
+  animation: vt-slide-out-up 220ms ease-in both;
+}
+[data-transition-type="sidebar-nav"] ::view-transition-new(content) {
+  animation: vt-slide-in-up 220ms ease-out both;
+}
+[data-transition-type="sidebar-nav"][data-nav-direction="up"] ::view-transition-old(content) {
+  animation-name: vt-slide-out-down;
+}
+[data-transition-type="sidebar-nav"][data-nav-direction="up"] ::view-transition-new(content) {
+  animation-name: vt-slide-in-down;
+}
+
+@keyframes vt-slide-out-up {
+  to { transform: translateY(-30px); opacity: 0; }
+}
+@keyframes vt-slide-in-up {
+  from { transform: translateY(30px); opacity: 0; }
+}
+@keyframes vt-slide-out-down {
+  to { transform: translateY(30px); opacity: 0; }
+}
+@keyframes vt-slide-in-down {
+  from { transform: translateY(-30px); opacity: 0; }
+}
+
+/* Card-click morph — let the crossfade + morph handle it, no extra slide */
+[data-transition-type="card-click"] ::view-transition-old(content),
+[data-transition-type="card-click"] ::view-transition-new(content) {
+  animation-duration: 200ms;
+}
+
 /* prefers-reduced-motion — instant transitions */
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-old(root),

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Menu, Home, Flag, Box, ClipboardList, CheckCircle2, FileText, Code, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
@@ -7,12 +7,14 @@ import { ToastContainer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher'
-import { useMediaQuery, useCrudEventRefresh, useDragRegion, useWindowFullscreen } from '@/hooks'
+import { useMediaQuery, useCrudEventRefresh, useDragRegion, useWindowFullscreen, useViewTransition } from '@/hooks'
+import type { NavDirection } from '@/hooks'
 import { isTauri } from '@/services/env'
 import { workspacesApi } from '@/services/workspaces'
 import { workspacePath } from '@/utils/paths'
 
-function SidebarContent({ collapsed, trafficLightPad, wsSlug }: { collapsed: boolean; trafficLightPad?: boolean; wsSlug: string }) {
+function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { collapsed: boolean; trafficLightPad?: boolean; wsSlug: string; onNavClick?: (href: string, direction: NavDirection) => void }) {
+  const location = useLocation()
   const navGroups = useMemo(() => [
     {
       label: 'Organize',
@@ -37,6 +39,28 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug }: { collapsed: boo
       ],
     },
   ], [wsSlug])
+
+  // Flat list of all nav hrefs for direction detection
+  const allHrefs = useMemo(
+    () => navGroups.flatMap((g) => g.items.map((i) => i.href)),
+    [navGroups],
+  )
+
+  const handleNavClick = useCallback(
+    (e: React.MouseEvent, href: string) => {
+      if (!onNavClick) return
+      // Don't intercept if already on this page
+      if (location.pathname === href || location.pathname.startsWith(href + '/')) return
+      e.preventDefault()
+      const currentIdx = allHrefs.findIndex(
+        (h) => location.pathname === h || location.pathname.startsWith(h + '/'),
+      )
+      const targetIdx = allHrefs.indexOf(href)
+      const direction: NavDirection = targetIdx >= currentIdx ? 'down' : 'up'
+      onNavClick(href, direction)
+    },
+    [onNavClick, allHrefs, location.pathname],
+  )
 
   return (
     <>
@@ -71,6 +95,7 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug }: { collapsed: boo
                     <NavLink
                       to={item.href}
                       end={item.name === 'Overview'}
+                      onClick={(e) => handleNavClick(e, item.href)}
                       className={({ isActive }) =>
                         `flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${
                           isActive
@@ -141,6 +166,15 @@ export function MainLayout() {
     }
   }, [mobileMenuOpen])
 
+  // View transition for sidebar navigation with directional slide
+  const { navigate: vtNavigate } = useViewTransition()
+  const handleSidebarNav = useCallback(
+    (href: string, direction: NavDirection) => {
+      vtNavigate(href, { type: 'sidebar-nav', direction })
+    },
+    [vtNavigate],
+  )
+
   const currentSlug = wsSlug || ''
 
   return (
@@ -152,7 +186,7 @@ export function MainLayout() {
         } hidden md:flex flex-col bg-surface-raised border-r border-border-subtle transition-all duration-200`}
         style={{ viewTransitionName: 'sidebar' }}
       >
-        <SidebarContent collapsed={collapsed} trafficLightPad={trafficLightPad} wsSlug={currentSlug} />
+        <SidebarContent collapsed={collapsed} trafficLightPad={trafficLightPad} wsSlug={currentSlug} onNavClick={handleSidebarNav} />
 
         {/* User menu + Collapse button */}
         <div className={`border-t border-white/[0.06] p-2 ${collapsed ? 'flex flex-col items-center gap-1' : 'flex items-center gap-1'}`}>
@@ -189,7 +223,7 @@ export function MainLayout() {
             mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
-          <SidebarContent collapsed={false} wsSlug={currentSlug} />
+          <SidebarContent collapsed={false} wsSlug={currentSlug} onNavClick={handleSidebarNav} />
 
           {/* User menu + Close button */}
           <div className="border-t border-white/[0.06] p-2 flex items-center gap-1">

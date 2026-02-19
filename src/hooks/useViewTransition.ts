@@ -7,6 +7,9 @@ import { workspacePath } from '@/utils/paths'
 /** Transition types for CSS targeting via data-attribute */
 export type TransitionType = 'sidebar-nav' | 'card-click' | 'back-button' | 'default'
 
+/** Navigation direction for directional slide animations */
+export type NavDirection = 'up' | 'down'
+
 /** Whether the View Transitions API is supported */
 const supportsViewTransitions =
   typeof document !== 'undefined' && 'startViewTransition' in document
@@ -31,9 +34,9 @@ export function useViewTransition() {
   const navigate = useCallback(
     (
       to: string,
-      options?: NavigateOptions & { type?: TransitionType },
+      options?: NavigateOptions & { type?: TransitionType; direction?: NavDirection },
     ) => {
-      const { type = 'default', ...navOptions } = options ?? {}
+      const { type = 'default', direction, ...navOptions } = options ?? {}
 
       // Fallback: direct navigation if View Transitions not supported
       if (!supportsViewTransitions) {
@@ -46,8 +49,11 @@ export function useViewTransition() {
         activeTransition.current.skipTransition()
       }
 
-      // Set transition type for CSS targeting
+      // Set transition type and direction for CSS targeting
       document.documentElement.dataset.transitionType = type
+      if (direction) {
+        document.documentElement.dataset.navDirection = direction
+      }
 
       const transition = document.startViewTransition(() => {
         // flushSync ensures React updates DOM synchronously
@@ -60,14 +66,12 @@ export function useViewTransition() {
       activeTransition.current = transition
 
       // Clean up after transition completes
-      transition.finished.then(() => {
+      const cleanup = () => {
         delete document.documentElement.dataset.transitionType
+        delete document.documentElement.dataset.navDirection
         activeTransition.current = null
-      }).catch(() => {
-        // Transition was skipped or errored — clean up anyway
-        delete document.documentElement.dataset.transitionType
-        activeTransition.current = null
-      })
+      }
+      transition.finished.then(cleanup).catch(cleanup)
     },
     [routerNavigate],
   )
