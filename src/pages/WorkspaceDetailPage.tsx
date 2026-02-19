@@ -7,6 +7,9 @@ import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObs
 import { workspaceRefreshAtom, projectRefreshAtom, milestoneRefreshAtom, taskRefreshAtom } from '@/atoms'
 import { CreateMilestoneForm, CreateResourceForm, CreateComponentForm } from '@/components/forms'
 import type { Workspace, Project, WorkspaceMilestone, Resource, Component, MilestoneProgress } from '@/types'
+import { AnimatePresence } from 'motion/react'
+import { useTourSuggestion } from '@/tutorial/hooks'
+import { TourSuggestionToast } from '@/tutorial/components'
 
 // API response structure
 interface WorkspaceOverviewResponse {
@@ -39,6 +42,7 @@ export function WorkspaceDetailPage() {
   const [components, setComponents] = useState<Component[]>([])
   const [overallProgress, setOverallProgress] = useState<{ completed_tasks: number; total_tasks: number; percentage: number } | null>(null)
   const [loading, setLoading] = useState(true)
+  const suggestion = useTourSuggestion('workspace-detail')
 
   useEffect(() => {
     async function fetchData() {
@@ -182,7 +186,7 @@ export function WorkspaceDetailPage() {
       </section>
 
       {/* Projects */}
-      <section id="projects" className="scroll-mt-20">
+      <section id="projects" className="scroll-mt-20" data-tour="workspace-projects-grid">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -248,7 +252,7 @@ export function WorkspaceDetailPage() {
       </section>
 
       {/* Milestones */}
-      <section id="milestones" className="scroll-mt-20">
+      <section id="milestones" className="scroll-mt-20" data-tour="workspace-milestones">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -291,7 +295,7 @@ export function WorkspaceDetailPage() {
 
       {/* Resources & Components */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-        <section id="resources" className="scroll-mt-20">
+        <section id="resources" className="scroll-mt-20" data-tour="workspace-resources">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -329,7 +333,7 @@ export function WorkspaceDetailPage() {
         </Card>
         </section>
 
-        <section id="components" className="scroll-mt-20">
+        <section id="components" className="scroll-mt-20" data-tour="workspace-components">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -379,6 +383,12 @@ export function WorkspaceDetailPage() {
       </FormDialog>
       <LinkEntityDialog {...linkDialog.dialogProps} />
       <ConfirmDialog {...confirmDialog.dialogProps} />
+
+      <AnimatePresence>
+        {suggestion.isVisible && (
+          <TourSuggestionToast key="tour-suggestion" tourName={suggestion.tourName} displayName={suggestion.displayName} icon={suggestion.icon} onAccept={suggestion.accept} onDismiss={suggestion.dismiss} />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

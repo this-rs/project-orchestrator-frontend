@@ -1,6 +1,9 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { Link, useNavigate } from 'react-router-dom'
+import { AnimatePresence } from 'motion/react'
+import { useTourSuggestion } from '@/tutorial/hooks'
+import { TourSuggestionToast } from '@/tutorial/components'
 import { plansAtom, plansLoadingAtom, planStatusFilterAtom, planRefreshAtom } from '@/atoms'
 import { plansApi, workspacesApi } from '@/services'
 import {
@@ -55,6 +58,7 @@ export function PlansPage() {
   const formDialog = useFormDialog()
   const toast = useToast()
   const [formLoading, setFormLoading] = useState(false)
+  const suggestion = useTourSuggestion('plan-list')
 
   // Kanban filters
   const [kanbanFilters, setKanbanFilters] = useState<PlanKanbanFilters>(defaultFilters)
@@ -264,18 +268,19 @@ export function PlansPage() {
     <PageShell
       title="Plans"
       description="Plan and track implementation phases"
+      dataTour="plans-list"
       actions={
         <>
           {viewMode === 'list' && (
-            <Select
+            <div data-tour="plan-status-filter"><Select
               options={statusOptions}
               value={statusFilter}
               onChange={(value) => setStatusFilter(value as PlanStatus | 'all')}
               className="w-full sm:w-40"
-            />
+            /></div>
           )}
-          <ViewToggle value={viewMode} onChange={setViewMode} />
-          <Button onClick={openCreatePlan}>Create Plan</Button>
+          <div data-tour="plan-view-toggle"><ViewToggle value={viewMode} onChange={setViewMode} /></div>
+          <div data-tour="plan-create-btn"><Button onClick={openCreatePlan}>Create Plan</Button></div>
         </>
       }
     >
@@ -362,6 +367,11 @@ export function PlansPage() {
         {planForm.fields}
       </FormDialog>
       <ConfirmDialog {...confirmDialog.dialogProps} />
+      <AnimatePresence>
+        {suggestion.isVisible && (
+          <TourSuggestionToast key="tour-suggestion" tourName={suggestion.tourName} displayName={suggestion.displayName} icon={suggestion.icon} onAccept={suggestion.accept} onDismiss={suggestion.dismiss} />
+        )}
+      </AnimatePresence>
     </PageShell>
   )
 }

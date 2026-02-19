@@ -82,6 +82,7 @@ export function ProjectsPage() {
     <PageShell
       title="Projects"
       description="Track your codebase projects"
+      dataTour="projects-list"
       actions={<Button onClick={openCreateDialog}>Create Project</Button>}
     >
       {projects.length === 0 && total === 0 ? (

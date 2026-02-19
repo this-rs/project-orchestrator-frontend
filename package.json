@@ -7,7 +7,9 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@cloudworxx/tauri-plugin-mac-rounded-corners": "^1.1.1",
@@ -22,6 +24,9 @@
     "@xyflow/react": "^12.10.0",
     "dagre": "^0.8.5",
     "jotai": "^2.17.1",
+    "lucide-react": "^0.574.0",
+    "motion": "^12.34.2",
+    "nextstepjs": "^2.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
@@ -31,6 +36,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.1.18",
     "@types/react": "^19.0.0",

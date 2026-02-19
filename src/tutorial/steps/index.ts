@@ -1,0 +1,13 @@
+// Tutorial steps barrel export — all tour definitions
+export { testTour } from './test-tour'
+export { mainTour } from './mainTour'
+export { chatTour } from './chatTour'
+export { planListTour } from './planListTour'
+export { planDetailTour } from './planDetailTour'
+export { kanbanTour } from './kanbanTour'
+export { taskDetailTour } from './taskDetailTour'
+export { notesTour } from './notesTour'
+export { codeTour } from './codeTour'
+export { projectDetailTour } from './projectDetailTour'
+export { workspaceDetailTour } from './workspaceDetailTour'
+export { milestoneTour } from './milestoneTour'

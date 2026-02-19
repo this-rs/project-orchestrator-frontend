@@ -10,6 +10,9 @@ import { CreateTaskForm, CreateConstraintForm } from '@/components/forms'
 import { DependencyGraphView } from '@/components/DependencyGraphView'
 import type { Plan, Decision, DependencyGraph, Task, Constraint, Step, PlanStatus, TaskStatus, StepStatus, PaginatedResponse, Project } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
+import { AnimatePresence } from 'motion/react'
+import { useTourSuggestion } from '@/tutorial/hooks'
+import { TourSuggestionToast } from '@/tutorial/components'
 
 interface DecisionWithTask extends Decision {
   taskId: string
@@ -36,6 +39,7 @@ export function PlanDetailPage() {
   const taskRefresh = useAtomValue(taskRefreshAtom)
   const projectRefresh = useAtomValue(projectRefreshAtom)
   const [linkedProject, setLinkedProject] = useState<Project | null>(null)
+  const suggestion = useTourSuggestion('plan-detail')
   const [formLoading, setFormLoading] = useState(false)
   const [tasksExpandAll, setTasksExpandAll] = useState(0)
   const [tasksCollapseAll, setTasksCollapseAll] = useState(0)
@@ -182,7 +186,7 @@ export function PlanDetailPage() {
 
   return (
     <div className="pt-6 space-y-6">
-      <PageHeader
+      <div data-tour="plan-detail-header"><PageHeader
         title={plan.title}
         description={plan.description}
         status={
@@ -254,13 +258,13 @@ export function PlanDetailPage() {
             })}>Link to Project</Button>
           )}
         </div>
-      </PageHeader>
+      </PageHeader></div>
 
-      <SectionNav sections={sections} activeSection={activeSection} />
+      <div data-tour="plan-detail-section-nav"><SectionNav sections={sections} activeSection={activeSection} /></div>
 
       {/* Task Stats */}
       <section id="overview" className="scroll-mt-20">
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 md:gap-4">
+      <div data-tour="plan-detail-stats" className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 md:gap-4">
         <StatCard label="Pending" value={tasksByStatus.pending.length} color="gray" />
         <StatCard label="In Progress" value={tasksByStatus.in_progress.length} color="blue" />
         <StatCard label="Blocked" value={tasksByStatus.blocked.length} color="yellow" />
@@ -271,7 +275,7 @@ export function PlanDetailPage() {
       </section>
 
       {/* Tasks */}
-      <section id="tasks" className="scroll-mt-20">
+      <section id="tasks" data-tour="plan-detail-tasks" className="scroll-mt-20">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -337,7 +341,7 @@ export function PlanDetailPage() {
 
       {/* Constraints & Decisions */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-        <section id="constraints" className="scroll-mt-20">
+        <section id="constraints" data-tour="plan-detail-constraints" className="scroll-mt-20">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between w-full">
@@ -400,7 +404,7 @@ export function PlanDetailPage() {
 
       {/* Dependency Graph */}
       {graph && (graph.nodes || []).length > 0 && (
-        <section id="graph" className="scroll-mt-20">
+        <section id="graph" data-tour="plan-detail-graph" className="scroll-mt-20">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between w-full">
@@ -425,6 +429,11 @@ export function PlanDetailPage() {
       </FormDialog>
       <LinkEntityDialog {...linkDialog.dialogProps} />
       <ConfirmDialog {...confirmDialog.dialogProps} />
+      <AnimatePresence>
+        {suggestion.isVisible && (
+          <TourSuggestionToast key="tour-suggestion" tourName={suggestion.tourName} displayName={suggestion.displayName} icon={suggestion.icon} onAccept={suggestion.accept} onDismiss={suggestion.dismiss} />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

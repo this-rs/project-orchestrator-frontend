@@ -41,7 +41,7 @@ export function KanbanFilterBar({
   )
 
   return (
-    <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3 p-3 bg-[#1a1d27]/50 rounded-lg border border-white/[0.06] mb-4">
+    <div data-tour="kanban-filter-bar" className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3 p-3 bg-[#1a1d27]/50 rounded-lg border border-white/[0.06] mb-4">
       {/* Plan filter */}
       <Select
         options={planOptions}

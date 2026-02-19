@@ -7,6 +7,9 @@ import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObs
 import { taskRefreshAtom, projectRefreshAtom, planRefreshAtom } from '@/atoms'
 import { CreateStepForm, CreateDecisionForm } from '@/components/forms'
 import type { Task, Step, Decision, Commit, TaskStatus, StepStatus } from '@/types'
+import { AnimatePresence } from 'motion/react'
+import { useTourSuggestion } from '@/tutorial/hooks'
+import { TourSuggestionToast } from '@/tutorial/components'
 
 // The API response structure
 interface TaskApiResponse {
@@ -29,6 +32,7 @@ export function TaskDetailPage() {
   const projectRefresh = useAtomValue(projectRefreshAtom)
   const planRefresh = useAtomValue(planRefreshAtom)
   const [formLoading, setFormLoading] = useState(false)
+  const suggestion = useTourSuggestion('task-detail')
   const [task, setTask] = useState<Task | null>(null)
   const [steps, setSteps] = useState<Step[]>([])
   const [decisions, setDecisions] = useState<Decision[]>([])
@@ -178,7 +182,7 @@ export function TaskDetailPage() {
       <SectionNav sections={sections} activeSection={activeSection} />
 
       {/* Steps */}
-      <section id="steps" className="scroll-mt-20">
+      <section id="steps" data-tour="task-detail-steps" className="scroll-mt-20">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -223,7 +227,7 @@ export function TaskDetailPage() {
 
       {/* Acceptance Criteria */}
       {acceptanceCriteria.length > 0 && (
-        <section id="criteria" className="scroll-mt-20">
+        <section id="criteria" data-tour="task-detail-acceptance" className="scroll-mt-20">
         <Card>
           <CardHeader>
             <CardTitle>Acceptance Criteria</CardTitle>
@@ -243,7 +247,7 @@ export function TaskDetailPage() {
       )}
 
       {/* Blockers & Blocking */}
-      <section id="dependencies" className="scroll-mt-20">
+      <section id="dependencies" data-tour="task-detail-dependencies" className="scroll-mt-20">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         <Card>
           <CardHeader>
@@ -324,7 +328,7 @@ export function TaskDetailPage() {
       </section>
 
       {/* Decisions */}
-      <section id="decisions" className="scroll-mt-20">
+      <section id="decisions" className="scroll-mt-20" data-tour="task-detail-decisions">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -396,6 +400,11 @@ export function TaskDetailPage() {
       </FormDialog>
       <LinkEntityDialog {...linkDialog.dialogProps} />
       <ConfirmDialog {...confirmDialog.dialogProps} />
+      <AnimatePresence>
+        {suggestion.isVisible && (
+          <TourSuggestionToast key="tour-suggestion" tourName={suggestion.tourName} displayName={suggestion.displayName} icon={suggestion.icon} onAccept={suggestion.accept} onDismiss={suggestion.dismiss} />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

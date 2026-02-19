@@ -8,6 +8,9 @@ import { useViewMode, useConfirmDialog, useToast, useMultiSelect } from '@/hooks
 import { MilestoneKanbanBoard } from '@/components/kanban'
 import type { MilestoneWithProgress } from '@/components/kanban'
 import type { MilestoneStatus, Workspace } from '@/types'
+import { AnimatePresence } from 'motion/react'
+import { useTourSuggestion } from '@/tutorial/hooks'
+import { TourSuggestionToast } from '@/tutorial/components'
 
 const statusOptions = [
   { value: 'all', label: 'All Status' },
@@ -26,6 +29,7 @@ export function MilestonesPage() {
   const navigate = useNavigate()
   const confirmDialog = useConfirmDialog()
   const toast = useToast()
+  const suggestion = useTourSuggestion('milestones')
 
   // Filters
   const [workspaceFilter, setWorkspaceFilter] = useState('all')
@@ -155,11 +159,11 @@ export function MilestonesPage() {
       title="Milestones"
       description="Track milestones across workspaces"
       actions={
-        <ViewToggle value={viewMode} onChange={setViewMode} />
+        <div data-tour="milestone-view-toggle"><ViewToggle value={viewMode} onChange={setViewMode} /></div>
       }
     >
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-4 sm:flex-wrap">
+      <div data-tour="milestone-filters" className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-4 sm:flex-wrap">
         <Select
           options={workspaceOptions}
           value={workspaceFilter}
@@ -207,7 +211,7 @@ export function MilestonesPage() {
               </button>
             </div>
           )}
-          <div className="space-y-4">
+          <div data-tour="milestones-list-view" className="space-y-4">
             {filteredMilestones.map((milestone) => (
               <MilestoneCard
                 selected={multiSelect.isSelected(milestone.id)}
@@ -236,6 +240,11 @@ export function MilestonesPage() {
         onClear={multiSelect.clear}
       />
       <ConfirmDialog {...confirmDialog.dialogProps} />
+      <AnimatePresence>
+        {suggestion.isVisible && (
+          <TourSuggestionToast key="tour-suggestion" tourName={suggestion.tourName} displayName={suggestion.displayName} icon={suggestion.icon} onAccept={suggestion.accept} onDismiss={suggestion.dismiss} />
+        )}
+      </AnimatePresence>
     </PageShell>
   )
 }

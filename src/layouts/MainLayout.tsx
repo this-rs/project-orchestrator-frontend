@@ -1,12 +1,28 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useAtom, useAtomValue } from 'jotai'
-import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom } from '@/atoms'
+import { NextStepReact } from 'nextstepjs'
+import { useReactRouterAdapter } from 'nextstepjs/adapters/react-router'
+import {
+  sidebarCollapsedAtom,
+  chatPanelModeAtom,
+  chatPanelWidthAtom,
+  eventBusStatusAtom,
+  tutorialStateAtom,
+} from '@/atoms'
 import { ToastContainer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
 import { useMediaQuery, useCrudEventRefresh, useDragRegion, useWindowFullscreen } from '@/hooks'
 import { isTauri } from '@/services/env'
+import type { Tour } from 'nextstepjs'
+import { testTour, mainTour, chatTour, planListTour, planDetailTour, kanbanTour, taskDetailTour, notesTour, codeTour, projectDetailTour, workspaceDetailTour, milestoneTour } from '@/tutorial/steps'
+import { TutorialButton, TutorialCard, TutorialWelcome } from '@/tutorial/components'
+import { useTutorial } from '@/tutorial/hooks'
+import { TOUR_NAMES } from '@/tutorial/constants'
+
+// All tours — test tour + 11 micro-tours (main, chat, plan-list, plan-detail, kanban, task-detail, notes, code, project-detail, workspace-detail, milestones)
+const allTours: Tour[] = [testTour, mainTour, chatTour, planListTour, planDetailTour, kanbanTour, taskDetailTour, notesTour, codeTour, projectDetailTour, workspaceDetailTour, milestoneTour]
 
 const navGroups = [
   {
@@ -89,8 +105,11 @@ export function MainLayout() {
   const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom)
   const [chatMode, setChatMode] = useAtom(chatPanelModeAtom)
   const [chatWidth] = useAtom(chatPanelWidthAtom)
+  const [, setTutorialState] = useAtom(tutorialStateAtom)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [showWelcome, setShowWelcome] = useState(false)
   const location = useLocation()
+  const { isFirstTimeUser, isNextStepVisible, currentTour, closeTour, startTour, skipTour } = useTutorial()
   const isSmUp = useMediaQuery('(min-width: 640px)')
   const chatOpen = chatMode === 'open'
   const chatFullscreen = chatMode === 'fullscreen'
@@ -112,6 +131,14 @@ export function MainLayout() {
     setMobileMenuOpen(false)
   }, [location.pathname])
 
+  // Close micro-tours on navigation — the main tour uses nextRoute/prevRoute
+  // to navigate between pages so it must NOT be closed on route change.
+  useEffect(() => {
+    if (isNextStepVisible && currentTour && currentTour !== TOUR_NAMES.MAIN) {
+      closeTour()
+    }
+  }, [location.pathname]) // eslint-disable-line react-hooks/exhaustive-deps -- close tour on route change only
+
   // Lock body scroll when mobile menu is open
   useEffect(() => {
     if (mobileMenuOpen) {
@@ -122,10 +149,142 @@ export function MainLayout() {
     }
   }, [mobileMenuOpen])
 
+  // Lock body scroll during active tour — NextStepjs scrollIntoView still works
+  // because programmatic scroll bypasses overflow:hidden on body.
+  useEffect(() => {
+    if (isNextStepVisible) {
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = ''
+      }
+    }
+  }, [isNextStepVisible])
+
+  // ---------------------------------------------------------------------------
+  // Welcome modal — auto-show for first-time users
+  // With getOnInit: true on the atom, isFirstTimeUser is correct from the
+  // very first render. We only trigger once (mount-only) using empty deps.
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!isFirstTimeUser || isNextStepVisible) return
+    const id = setTimeout(() => setShowWelcome(true), 800)
+    return () => clearTimeout(id)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- mount-only: getOnInit ensures correct first-render value
+
+  const handleWelcomeStart = useCallback(() => {
+    setShowWelcome(false)
+    // Small delay to let the modal close animation finish
+    setTimeout(() => startTour(TOUR_NAMES.MAIN), 250)
+  }, [startTour])
+
+  const handleWelcomeDismiss = useCallback(() => {
+    setShowWelcome(false)
+    skipTour(TOUR_NAMES.MAIN)
+  }, [skipTour])
+
+  // ---------------------------------------------------------------------------
+  // NextStepjs lifecycle callbacks
+  // ---------------------------------------------------------------------------
+
+  // Auto-open/close chat panel during the main tour so that the
+  // "Quick Actions" step (index 3) targeting [data-tour="chat-quick-actions"]
+  // has its element visible without requiring the user to manually open it.
+  //
+  // Timing is tricky: onStepChange fires *before* setCurrentStep, and
+  // opening the chat changes the layout (margin-right transition on <main>),
+  // which moves the highlighted element. We open the chat at step 3 and
+  // dispatch a window resize after the CSS transition settles so NextStepjs
+  // recalculates the pointer/card position against the new layout.
+  const handleStepChange = useCallback(
+    (step: number, tourName: string | null) => {
+      if (tourName !== TOUR_NAMES.MAIN) return
+
+      // Step 3 = "Quick Actions" inside the chat panel → open it
+      if (step === 3 && chatMode === 'closed') {
+        setChatMode('open')
+        // Wait for the chat panel CSS transition (300ms) to finish,
+        // then nudge NextStepjs to recompute the card position.
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 350)
+      }
+      // Leaving the chat area (step 4+ = projects, plans, etc.) → close it
+      if (step >= 4 && chatMode !== 'closed') {
+        setChatMode('closed')
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 350)
+      }
+    },
+    [chatMode, setChatMode],
+  )
+
+  // Auto-open chat panel when the chat tour starts — all its steps
+  // target elements inside the chat panel that don't exist when closed.
+  // Dispatch a resize after the CSS transition so NextStepjs repositions
+  // the card against the final layout.
+  const handleTourStart = useCallback(
+    (tourName: string | null) => {
+      if (tourName === TOUR_NAMES.CHAT && chatMode === 'closed') {
+        setChatMode('open')
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 350)
+      }
+    },
+    [chatMode, setChatMode],
+  )
+
+  // Persist tour completion in Jotai atom
+  const handleTourComplete = useCallback(
+    (tourName: string | null) => {
+      if (!tourName) return
+      setTutorialState((prev) => ({
+        ...prev,
+        tours: {
+          ...prev.tours,
+          [tourName]: {
+            completed: true,
+            completedAt: new Date().toISOString(),
+            skippedAt: null,
+          },
+        },
+      }))
+    },
+    [setTutorialState],
+  )
+
+  const handleTourSkip = useCallback(
+    (_step: number, tourName: string | null) => {
+      if (!tourName) return
+      setTutorialState((prev) => ({
+        ...prev,
+        tours: {
+          ...prev.tours,
+          [tourName]: {
+            completed: false,
+            completedAt: null,
+            skippedAt: new Date().toISOString(),
+          },
+        },
+      }))
+    },
+    [setTutorialState],
+  )
+
   return (
+    <NextStepReact
+      steps={allTours}
+      navigationAdapter={useReactRouterAdapter}
+      cardComponent={TutorialCard}
+      shadowRgb="0, 0, 0"
+      shadowOpacity="0.6"
+      cardTransition={{ duration: 0.3, ease: 'easeOut' }}
+      clickThroughOverlay={false}
+      onStart={handleTourStart}
+      onStepChange={handleStepChange}
+      onComplete={handleTourComplete}
+      onSkip={handleTourSkip}
+      disableConsoleLogs
+    >
     <div className="flex min-h-0 flex-1 bg-[#0f1117]">
       {/* Desktop Sidebar */}
       <aside
+        data-tour="sidebar-nav"
         className={`${
           collapsed ? 'w-16' : 'w-64'
         } hidden md:flex flex-col bg-[#1a1d27] border-r border-white/[0.06] transition-all duration-200`}
@@ -189,7 +348,7 @@ export function MainLayout() {
         style={{ marginRight: chatOpen && !chatFullscreen && isSmUp ? chatWidth : 0 }}
       >
         {/* Breadcrumb */}
-        <header className="h-16 flex items-center px-4 md:px-6 border-b border-white/[0.06] bg-[#1a1d27]/80 backdrop-blur-sm" onMouseDown={onDragMouseDown}>
+        <header data-tour="header-breadcrumb" className="relative z-20 h-16 flex items-center px-4 md:px-6 border-b border-white/[0.06] bg-[#1a1d27]/80 backdrop-blur-sm" onMouseDown={onDragMouseDown}>
           {/* Hamburger button (mobile only) */}
           <button
             className="mr-3 p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors md:hidden"
@@ -200,6 +359,7 @@ export function MainLayout() {
 
           {/* WS status dot — before breadcrumb, vertically centered */}
           <span
+            data-tour="ws-status"
             className={`w-2 h-2 rounded-full shrink-0 mr-2.5 transition-colors ${
               wsStatus === 'connected'
                 ? 'bg-emerald-400'
@@ -213,8 +373,10 @@ export function MainLayout() {
           <Breadcrumb pathname={location.pathname} />
 
           {/* Chat toggle (only icon in header right) */}
-          <div className="ml-auto flex items-center">
+          <div className="ml-auto flex items-center gap-1">
+            <TutorialButton />
             <button
+              data-tour="chat-toggle"
               onClick={() => setChatMode(chatMode === 'closed' ? 'open' : 'closed')}
               className={`p-2 rounded-lg transition-colors ${chatMode !== 'closed' ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.06]'}`}
               title="Toggle chat"
@@ -225,7 +387,7 @@ export function MainLayout() {
         </header>
 
         {/* Page content */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 md:px-6 pb-6">
+        <div data-tour="main-content" className="flex-1 overflow-y-auto overflow-x-hidden px-4 md:px-6 pb-6">
           <Outlet />
 
           {/* Branding */}
@@ -238,7 +400,13 @@ export function MainLayout() {
 
       <ChatPanel />
       <ToastContainer />
+      <TutorialWelcome
+        open={showWelcome}
+        onStartTour={handleWelcomeStart}
+        onDismiss={handleWelcomeDismiss}
+      />
     </div>
+    </NextStepReact>
   )
 }
 
