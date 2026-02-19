@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { ChevronsUpDown } from 'lucide-react'
+import { ChevronsUpDown, FolderKanban } from 'lucide-react'
 import {
   Card,
   CardHeader,
@@ -18,6 +18,7 @@ import {
   StatusSelect,
   SectionNav,
 } from '@/components/ui'
+import type { ParentLink } from '@/components/ui/PageHeader'
 import { ExpandablePlanRow, ExpandableTaskRow } from '@/components/expandable'
 import { projectsApi, plansApi, tasksApi } from '@/services'
 import { PlanKanbanBoard } from '@/components/kanban'
@@ -193,11 +194,23 @@ export function ProjectMilestoneDetailPage() {
     { id: 'tasks', label: 'Tasks', count: milestoneTasks.length },
   ]
 
+  // Build parent links for navigation
+  const parentLinks: ParentLink[] = []
+  if (project) {
+    parentLinks.push({
+      icon: FolderKanban,
+      label: 'Project',
+      name: project.name,
+      href: workspacePath(wsSlug, `/projects/${project.slug}`),
+    })
+  }
+
   return (
     <div className="pt-6 space-y-6">
       <PageHeader
         title={milestone.title}
         description={milestone.description}
+        parentLinks={parentLinks.length > 0 ? parentLinks : undefined}
         status={
           <StatusSelect
             status={milestone.status?.toLowerCase() as MilestoneStatus}
@@ -230,7 +243,7 @@ export function ProjectMilestoneDetailPage() {
           ...(milestone.closed_at
             ? [{ label: 'Closed', value: new Date(milestone.closed_at).toLocaleDateString() }]
             : []),
-          ...(project ? [{ label: 'Project', value: project.name }] : []),
+          ...(project ? [{ label: 'Project', value: <Link to={workspacePath(wsSlug, `/projects/${project.slug}`)} className="text-indigo-400 hover:text-indigo-300 transition-colors">{project.name}</Link> }] : []),
         ]}
         overflowActions={[
           {

@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
-import { ChevronsUpDown, ChevronRight } from 'lucide-react'
+import { ChevronsUpDown, ChevronRight, Flag } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
-import { plansApi, tasksApi, projectsApi } from '@/services'
+import type { ParentLink } from '@/components/ui/PageHeader'
+import { plansApi, tasksApi, projectsApi, workspacesApi } from '@/services'
 import { KanbanBoard } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
@@ -44,6 +45,7 @@ export function PlanDetailPage() {
   const [tasksExpandAll, setTasksExpandAll] = useState(0)
   const [tasksCollapseAll, setTasksCollapseAll] = useState(0)
   const [tasksAllExpanded, setTasksAllExpanded] = useState(false)
+  const [linkedMilestones, setLinkedMilestones] = useState<Array<{ id: string; title: string; href: string }>>([])
 
   const fetchData = useCallback(async () => {
     if (!planId) return
@@ -99,6 +101,43 @@ export function PlanDetailPage() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  // Resolve linked milestones (workspace milestones that reference this plan)
+  useEffect(() => {
+    if (!planId) return
+    const controller = new AbortController()
+
+    async function resolveMilestones() {
+      const milestones: Array<{ id: string; title: string; href: string }> = []
+      try {
+        const wsMilestones = await workspacesApi.listMilestones(wsSlug, { limit: 100 })
+        const details = await Promise.allSettled(
+          (wsMilestones.items || []).map((ms) => workspacesApi.getMilestone(ms.id))
+        )
+        for (const result of details) {
+          if (result.status === 'fulfilled') {
+            const detail = result.value
+            if (Array.isArray(detail.plans) && detail.plans.some((p) => p.id === planId)) {
+              milestones.push({
+                id: detail.id,
+                title: detail.title,
+                href: workspacePath(wsSlug, `/milestones/${detail.id}`),
+              })
+            }
+          }
+        }
+      } catch {
+        /* graceful degradation — milestone chips simply won't appear */
+      }
+      if (!controller.signal.aborted) {
+        setLinkedMilestones(milestones)
+      }
+    }
+
+    resolveMilestones()
+    return () => controller.abort()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- planId and wsSlug are stable URL params
+  }, [planId, wsSlug])
 
   const handleTaskStatusChange = useCallback(
     async (taskId: string, newStatus: TaskStatus) => {
@@ -188,10 +227,19 @@ export function PlanDetailPage() {
     ...(graph && (graph.nodes || []).length > 0 ? [{ id: 'graph', label: 'Graph', count: (graph.nodes || []).length }] : []),
   ]
 
+  // Build parent links for milestone navigation
+  const parentLinks: ParentLink[] = linkedMilestones.map((ms) => ({
+    icon: Flag,
+    label: 'Milestone',
+    name: ms.title,
+    href: ms.href,
+  }))
+
   return (
     <div className="pt-6 space-y-6">
       <PageHeader
         title={plan.title}
+        parentLinks={parentLinks.length > 0 ? parentLinks : undefined}
         viewTransitionName={`plan-title-${plan.id}`}
         description={plan.description}
         status={
@@ -329,6 +377,9 @@ export function PlanDetailPage() {
                   refreshTrigger={taskRefresh}
                   expandAllSignal={tasksExpandAll}
                   collapseAllSignal={tasksCollapseAll}
+                  planId={plan.id}
+                  planTitle={plan.title}
+                  projectId={plan.project_id}
                 />
               ))}
             </div>
@@ -387,6 +438,7 @@ export function PlanDetailPage() {
                       )}
                       <Link
                         to={workspacePath(wsSlug, `/tasks/${decision.taskId}`)}
+                        state={{ planId: plan.id, planTitle: plan.title, projectId: plan.project_id }}
                         className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
                       >
                         ← {decision.taskTitle}
@@ -438,12 +490,18 @@ function TaskRow({
   refreshTrigger,
   expandAllSignal,
   collapseAllSignal,
+  planId,
+  planTitle,
+  projectId,
 }: {
   task: Task
   onStatusChange: (status: TaskStatus) => Promise<void>
   refreshTrigger?: number
   expandAllSignal?: number
   collapseAllSignal?: number
+  planId?: string
+  planTitle?: string
+  projectId?: string
 }) {
   const wsSlug = useWorkspaceSlug()
   const [expanded, setExpanded] = useState(false)
@@ -511,6 +569,7 @@ function TaskRow({
         </button>
         <Link
           to={workspacePath(wsSlug, `/tasks/${task.id}`)}
+          state={{ planId, planTitle, projectId }}
           className="flex-1 min-w-0 hover:text-indigo-400 transition-colors overflow-hidden"
         >
           <span className="font-medium text-gray-200 block truncate">{task.title || task.description}</span>

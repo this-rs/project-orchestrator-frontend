@@ -75,11 +75,15 @@ export function NestedTaskRow({
   refreshTrigger,
   expandAllSignal,
   collapseAllSignal,
+  planId,
+  planTitle,
 }: {
   task: Task
   refreshTrigger?: number
   expandAllSignal?: number
   collapseAllSignal?: number
+  planId?: string
+  planTitle?: string
 }) {
   const wsSlug = useWorkspaceSlug()
   const [expanded, setExpanded] = useState(false)
@@ -132,6 +136,7 @@ export function NestedTaskRow({
         </button>
         <Link
           to={workspacePath(wsSlug, `/tasks/${task.id}`)}
+          state={planId ? { planId, planTitle } : undefined}
           className="flex-1 min-w-0 text-sm text-gray-300 hover:text-indigo-400 transition-colors truncate"
         >
           {task.title || task.description}
@@ -166,12 +171,15 @@ export function ExpandablePlanRow({
   refreshTrigger,
   expandAllSignal,
   collapseAllSignal,
+  linkState,
 }: {
   plan: Plan
   onStatusChange: (newStatus: PlanStatus) => Promise<void>
   refreshTrigger?: number
   expandAllSignal?: number
   collapseAllSignal?: number
+  /** Extra state to pass to the plan Link (e.g. project context) */
+  linkState?: Record<string, unknown>
 }) {
   const wsSlug = useWorkspaceSlug()
   const [expanded, setExpanded] = useState(false)
@@ -221,6 +229,7 @@ export function ExpandablePlanRow({
         </button>
         <Link
           to={workspacePath(wsSlug, `/plans/${plan.id}`)}
+          state={linkState}
           className="flex-1 min-w-0 hover:text-indigo-400 transition-colors overflow-hidden"
         >
           <span className="font-medium text-gray-200 block truncate">{plan.title}</span>
@@ -237,7 +246,7 @@ export function ExpandablePlanRow({
         <div className="pl-8 pr-3 pb-3 space-y-1.5">
           {tasks.length > 0 ? (
             tasks.map((task) => (
-              <NestedTaskRow key={task.id} task={task} refreshTrigger={refreshTrigger} expandAllSignal={expandAllSignal} collapseAllSignal={collapseAllSignal} />
+              <NestedTaskRow key={task.id} task={task} refreshTrigger={refreshTrigger} expandAllSignal={expandAllSignal} collapseAllSignal={collapseAllSignal} planId={plan.id} planTitle={plan.title} />
             ))
           ) : (
             <div className="text-xs text-gray-500 py-1">No tasks</div>
