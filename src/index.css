@@ -107,6 +107,26 @@ h1, h2, h3 { font-variation-settings: 'wght' 650; }
 h1, h2, h3 { text-wrap: balance; }
 p, .description-text { text-wrap: pretty; }
 
+/* ─── Animated Counter (CSS @property) ─────────────────────────────────
+ * Uses CSS Houdini @property to animate an <integer> custom property.
+ * The browser interpolates the integer value, and counter() displays it.
+ * Fallback: browsers without @property show the final value instantly.
+ * ─────────────────────────────────────────────────────────────────────── */
+@property --counter-value {
+  syntax: '<integer>';
+  initial-value: 0;
+  inherits: false;
+}
+
+.animated-counter {
+  counter-reset: ac var(--counter-value);
+  transition: --counter-value 800ms ease-out;
+}
+
+.animated-counter::after {
+  content: counter(ac);
+}
+
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
