@@ -84,7 +84,7 @@ export function OverflowMenu({ actions, className = '' }: OverflowMenuProps) {
         createPortal(
           <div
             ref={menuRef}
-            className="fixed z-[9999] min-w-[140px] rounded-lg bg-surface-overlay border border-border-default shadow-md py-1"
+            className="fixed z-[9999] min-w-[140px] rounded-lg glass-heavy shadow-md py-1"
             style={{ top: position.top, left: position.left }}
           >
             {actions.map((action) => (

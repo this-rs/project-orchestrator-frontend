@@ -107,6 +107,39 @@ html.tauri * {
 }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
 
+/* ─── Glassmorphism utility classes ─────────────────────────────────────
+ * Semi-transparent surfaces with backdrop-blur revealing the ambient mesh.
+ * Hierarchy: glass (cards) < glass-medium (dialogs) < glass-heavy (dropdowns)
+ * @supports fallback: opaque background when backdrop-filter unsupported.
+ * ─────────────────────────────────────────────────────────────────────── */
+.glass {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.glass-medium {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.glass-heavy {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+/* Fallback: opaque backgrounds when backdrop-filter is not supported */
+@supports not (backdrop-filter: blur(1px)) {
+  .glass { background: var(--color-surface-raised); border-color: rgba(255, 255, 255, 0.1); }
+  .glass-medium { background: var(--color-surface-overlay); border-color: rgba(255, 255, 255, 0.1); }
+  .glass-heavy { background: var(--color-surface-popover); border-color: rgba(255, 255, 255, 0.12); }
+}
+
 /* Card lift hover effect */
 .card-interactive {
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);

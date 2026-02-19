@@ -210,7 +210,7 @@ export function MainLayout() {
         style={{ marginRight: chatOpen && !chatFullscreen && isSmUp ? chatWidth : 0 }}
       >
         {/* Breadcrumb */}
-        <header className="h-16 flex items-center px-4 md:px-6 border-b border-border-subtle bg-surface-raised/80 backdrop-blur-sm" onMouseDown={onDragMouseDown}>
+        <header className="h-16 flex items-center px-4 md:px-6 glass border-t-0 border-x-0 rounded-none" onMouseDown={onDragMouseDown}>
           {/* Hamburger button (mobile only) */}
           <button
             className="mr-3 p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors md:hidden"

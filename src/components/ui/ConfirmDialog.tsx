@@ -94,7 +94,7 @@ export function ConfirmDialog({
 
           {/* Modal */}
           <motion.div
-            className="relative bg-surface-overlay rounded-xl shadow-xl max-w-md w-full px-4 py-4 md:p-6 border border-border-subtle"
+            className="relative glass-medium rounded-xl shadow-xl max-w-md w-full px-4 py-4 md:p-6"
             variants={reducedMotion ? undefined : dialogVariants}
             initial="hidden"
             animate="visible"

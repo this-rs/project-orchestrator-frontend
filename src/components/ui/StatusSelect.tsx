@@ -59,7 +59,7 @@ export function StatusSelect<T extends string>({
         createPortal(
           <div
             ref={menuRef}
-            className="fixed z-[9999] min-w-[160px] rounded-lg bg-surface-overlay border border-border-default shadow-md py-1"
+            className="fixed z-[9999] min-w-[160px] rounded-lg glass-heavy shadow-md py-1"
             style={{ top: position.top, left: position.left }}
           >
             {options.map((option) => {

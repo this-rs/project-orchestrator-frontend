@@ -152,7 +152,7 @@ export function Select({
             id={listboxId}
             role="listbox"
             aria-labelledby={label ? `${id}-label` : undefined}
-            className="fixed z-[9999] rounded-lg bg-surface-overlay border border-border-default shadow-md py-1 max-h-60 overflow-y-auto"
+            className="fixed z-[9999] rounded-lg glass-heavy shadow-md py-1 max-h-60 overflow-y-auto"
             style={{
               top: position.top,
               left: position.left,
