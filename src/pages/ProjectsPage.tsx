@@ -4,7 +4,7 @@ import { useAtomValue } from 'jotai'
 import { activeWorkspaceAtom } from '@/atoms'
 import { projectsApi } from '@/services'
 import { workspacesApi } from '@/services/workspaces'
-import { Card, CardContent, Button, LoadingPage, EmptyState, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
+import { Card, CardContent, Button, EmptyState, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, SkeletonCard } from '@/components/ui'
 import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useWorkspaceSlug } from '@/hooks'
 import { CreateProjectForm } from '@/components/forms'
 import type { Project } from '@/types'
@@ -80,15 +80,19 @@ export function ProjectsPage() {
     })
   }
 
-  if (loading) return <LoadingPage />
-
   return (
     <PageShell
       title="Projects"
       description="Track your codebase projects"
       actions={<Button onClick={openCreateDialog}>Create Project</Button>}
     >
-      {projects.length === 0 ? (
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonCard key={i} lines={2} />
+          ))}
+        </div>
+      ) : projects.length === 0 ? (
         <EmptyState
           title="No projects"
           description="Create a project to start tracking your codebase."

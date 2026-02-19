@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { notesAtom, notesLoadingAtom, noteTypeFilterAtom, noteStatusFilterAtom, noteRefreshAtom } from '@/atoms'
 import { notesApi } from '@/services'
-import { Card, CardContent, Button, LoadingPage, EmptyState, Select, InteractiveNoteStatusBadge, ImportanceBadge, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, CollapsibleMarkdown, LoadMoreSentinel } from '@/components/ui'
+import { Card, CardContent, Button, EmptyState, Select, InteractiveNoteStatusBadge, ImportanceBadge, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, CollapsibleMarkdown, LoadMoreSentinel, SkeletonCard } from '@/components/ui'
 import type { OverflowMenuAction } from '@/components/ui'
 import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug } from '@/hooks'
 import { CreateNoteForm } from '@/components/forms'
@@ -130,8 +130,6 @@ export function NotesPage() {
     })
   }
 
-  if (loading) return <LoadingPage />
-
   return (
     <PageShell
       title="Knowledge Notes"
@@ -154,7 +152,13 @@ export function NotesPage() {
         </>
       }
     >
-      {notes.length === 0 ? (
+      {loading ? (
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <SkeletonCard key={i} lines={3} />
+          ))}
+        </div>
+      ) : notes.length === 0 ? (
         <EmptyState
           title="No notes found"
           description={total === 0 && typeFilter === 'all' && statusFilter === 'all' ? 'Knowledge notes capture important patterns, gotchas, and guidelines.' : 'No notes match the current filters.'}

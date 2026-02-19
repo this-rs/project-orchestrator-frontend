@@ -5,7 +5,6 @@ import { tasksAtom, tasksLoadingAtom, taskStatusFilterAtom, taskRefreshAtom } fr
 import { tasksApi } from '@/services'
 import {
   Card,
-  LoadingPage,
   EmptyState,
   Select,
   InteractiveTaskStatusBadge,
@@ -17,6 +16,7 @@ import {
   SelectZone,
   BulkActionBar,
   LoadMoreSentinel,
+  SkeletonCard,
 } from '@/components/ui'
 import { useKanbanFilters, useViewMode, useConfirmDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug } from '@/hooks'
 import { KanbanBoard, KanbanFilterBar } from '@/components/kanban'
@@ -160,9 +160,7 @@ export function TasksPage() {
     })
   }
 
-  if (loading && viewMode === 'list' && tasks.length === 0) {
-    return <LoadingPage />
-  }
+  const showListSkeleton = loading && viewMode === 'list' && tasks.length === 0
 
   return (
     <PageShell
@@ -203,6 +201,12 @@ export function TasksPage() {
           onTaskClick={handleTaskClick}
           refreshTrigger={taskRefresh}
         />
+      ) : showListSkeleton ? (
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <SkeletonCard key={i} lines={2} />
+          ))}
+        </div>
       ) : tasks.length === 0 ? (
         <EmptyState
           title="No tasks found"

@@ -6,7 +6,6 @@ import { plansApi } from '@/services'
 import {
   Card,
   Button,
-  LoadingPage,
   EmptyState,
   Select,
   InteractivePlanStatusBadge,
@@ -18,6 +17,7 @@ import {
   SelectZone,
   BulkActionBar,
   LoadMoreSentinel,
+  SkeletonCard,
 } from '@/components/ui'
 import { useViewMode, useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug } from '@/hooks'
 import { CreatePlanForm } from '@/components/forms'
@@ -229,9 +229,7 @@ export function PlansPage() {
 
   const openCreatePlan = () => formDialog.open({ title: 'Create Plan', size: 'lg' })
 
-  if (loading && viewMode === 'list' && plans.length === 0) {
-    return <LoadingPage />
-  }
+  const showListSkeleton = loading && viewMode === 'list' && plans.length === 0
 
   return (
     <PageShell
@@ -271,6 +269,12 @@ export function PlansPage() {
           onPlanClick={(planId) => navigate(`/workspace/${wsSlug}/plans/${planId}`)}
           refreshTrigger={planRefresh}
         />
+      ) : showListSkeleton ? (
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <SkeletonCard key={i} lines={2} />
+          ))}
+        </div>
       ) : plans.length === 0 ? (
         <EmptyState
           title="No plans found"
