@@ -124,10 +124,11 @@ export function ChatPanel() {
       return
     }
     if (selectedProject) {
-      // Always use workspace mode when a workspace is active
+      // When allProjectsMode → send workspaceSlug (adds all project dirs)
+      // When single project → send only projectSlug (no extra dirs)
       chat.sendMessage(text, {
         cwd: selectedProject.root_path,
-        workspaceSlug: activeWsSlug || undefined,
+        workspaceSlug: allProjectsMode ? (activeWsSlug || undefined) : undefined,
         projectSlug: allProjectsMode ? undefined : selectedProject.slug,
       })
     }
