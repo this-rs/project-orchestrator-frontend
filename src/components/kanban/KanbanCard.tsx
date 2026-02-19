@@ -42,10 +42,10 @@ export function KanbanCard({ task, onClick }: KanbanCardProps) {
       }}
       className={`rounded-lg border p-3 cursor-grab active:cursor-grabbing transition-all duration-150 select-none ${
         isDragging
-          ? 'opacity-50 rotate-2 shadow-xl border-indigo-500 bg-[#1a1d27]'
+          ? 'opacity-50 rotate-2 shadow-xl border-indigo-500 bg-surface-raised'
           : isBlocked
-            ? 'border-yellow-500/50 bg-[#1a1d27] hover:border-yellow-400'
-            : 'border-white/[0.06] bg-[#1a1d27] hover:border-indigo-500 hover:shadow-lg'
+            ? 'border-yellow-500/50 bg-surface-raised hover:border-yellow-400'
+            : 'border-border-subtle bg-surface-raised hover:border-indigo-500 hover:shadow-lg'
       }`}
     >
       {/* Title */}
@@ -98,7 +98,7 @@ export function KanbanCardOverlay({ task }: { task: KanbanTask }) {
   const planTitle = (task as TaskWithPlan).plan_title
 
   return (
-    <div className="rounded-lg border border-indigo-500 bg-[#1a1d27] p-3 shadow-2xl rotate-2 w-[244px] opacity-90">
+    <div className="rounded-lg border border-indigo-500 bg-surface-raised p-3 shadow-2xl rotate-2 w-[244px] opacity-90">
       <div className="flex items-start justify-between gap-2 mb-1">
         <h4 className="text-sm font-medium text-gray-100 line-clamp-2 flex-1">
           {task.title || (task.description || '').slice(0, 60)}

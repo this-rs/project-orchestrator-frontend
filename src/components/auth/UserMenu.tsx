@@ -78,7 +78,7 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
       </button>
 
       {open && (
-        <div className={`absolute z-50 w-56 rounded-lg border border-white/[0.08] bg-[#1e2130] py-1 shadow-xl ${dropUp ? 'bottom-full left-0 mb-2' : 'right-0 top-full mt-2'}`}>
+        <div className={`absolute z-50 w-56 rounded-lg border border-white/[0.08] bg-surface-popover py-1 shadow-xl ${dropUp ? 'bottom-full left-0 mb-2' : 'right-0 top-full mt-2'}`}>
           <div className="border-b border-white/[0.06] px-4 py-3">
             <p className="truncate text-sm font-medium text-gray-200">{user.name}</p>
             <p className="truncate text-xs text-gray-500">{user.email}</p>

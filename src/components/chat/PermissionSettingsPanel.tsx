@@ -167,7 +167,7 @@ function PatternListEditor({
             + Presets
           </button>
           {showPresets && (
-            <div className="absolute right-0 top-full mt-1 z-20 w-44 bg-[#1e2130] border border-white/[0.08] rounded-lg shadow-xl py-1">
+            <div className="absolute right-0 top-full mt-1 z-20 w-44 bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl py-1">
               {presets.map((preset) => (
                 <button
                   key={preset.label}

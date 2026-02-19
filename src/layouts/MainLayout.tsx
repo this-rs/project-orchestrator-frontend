@@ -143,12 +143,12 @@ export function MainLayout() {
   const currentSlug = wsSlug || ''
 
   return (
-    <div className="flex min-h-0 flex-1 bg-[#0f1117]">
+    <div className="flex min-h-0 flex-1 bg-surface-base">
       {/* Desktop Sidebar */}
       <aside
         className={`${
           collapsed ? 'w-16' : 'w-64'
-        } hidden md:flex flex-col bg-[#1a1d27] border-r border-white/[0.06] transition-all duration-200`}
+        } hidden md:flex flex-col bg-surface-raised border-r border-border-subtle transition-all duration-200`}
       >
         <SidebarContent collapsed={collapsed} trafficLightPad={trafficLightPad} wsSlug={currentSlug} />
 
@@ -183,7 +183,7 @@ export function MainLayout() {
 
         {/* Sidebar panel */}
         <aside
-          className={`absolute left-0 top-0 bottom-0 w-64 flex flex-col bg-[#1a1d27] border-r border-white/[0.06] transition-transform duration-200 ${
+          className={`absolute left-0 top-0 bottom-0 w-64 flex flex-col bg-surface-raised border-r border-border-subtle transition-transform duration-200 ${
             mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
@@ -209,7 +209,7 @@ export function MainLayout() {
         style={{ marginRight: chatOpen && !chatFullscreen && isSmUp ? chatWidth : 0 }}
       >
         {/* Breadcrumb */}
-        <header className="h-16 flex items-center px-4 md:px-6 border-b border-white/[0.06] bg-[#1a1d27]/80 backdrop-blur-sm" onMouseDown={onDragMouseDown}>
+        <header className="h-16 flex items-center px-4 md:px-6 border-b border-border-subtle bg-surface-raised/80 backdrop-blur-sm" onMouseDown={onDragMouseDown}>
           {/* Hamburger button (mobile only) */}
           <button
             className="mr-3 p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors md:hidden"

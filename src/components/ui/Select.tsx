@@ -126,11 +126,11 @@ export function Select({
           onKeyDown={handleKeyDown}
           disabled={disabled}
           className={`
-            w-full flex items-center gap-2 px-3 py-2 bg-[#0f1117] border rounded-lg
+            w-full flex items-center gap-2 px-3 py-2 bg-surface-base border rounded-lg
             text-left text-sm transition-colors
             focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent
             disabled:opacity-50 disabled:cursor-not-allowed
-            ${isOpen ? 'border-indigo-500 ring-2 ring-indigo-500' : error ? 'border-red-500' : 'border-white/[0.1] hover:border-white/[0.2]'}
+            ${isOpen ? 'border-indigo-500 ring-2 ring-indigo-500' : error ? 'border-red-500' : 'border-border-default hover:border-white/[0.2]'}
           `}
         >
           {icon && <span className="shrink-0 text-gray-500">{icon}</span>}
@@ -157,7 +157,7 @@ export function Select({
             id={listboxId}
             role="listbox"
             aria-labelledby={label ? `${id}-label` : undefined}
-            className="fixed z-[9999] rounded-lg bg-[#232733] border border-white/[0.1] shadow-[0_4px_12px_rgba(0,0,0,0.4)] py-1 max-h-60 overflow-y-auto"
+            className="fixed z-[9999] rounded-lg bg-surface-overlay border border-border-default shadow-md py-1 max-h-60 overflow-y-auto"
             style={{
               top: position.top,
               left: position.left,

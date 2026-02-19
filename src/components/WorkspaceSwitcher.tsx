@@ -66,7 +66,7 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute left-2 right-2 top-full mt-1 bg-[#1e2130] border border-white/[0.08] rounded-lg shadow-xl z-50 py-1 max-h-64 overflow-y-auto">
+        <div className="absolute left-2 right-2 top-full mt-1 bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl z-50 py-1 max-h-64 overflow-y-auto">
           {otherWorkspaces.length === 0 ? (
             <div className="px-3 py-2 text-sm text-gray-500">No other workspaces</div>
           ) : (

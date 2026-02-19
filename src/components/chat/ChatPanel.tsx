@@ -177,7 +177,7 @@ export function ChatPanel() {
     return (
       <div
         ref={panelRef}
-        className={`fixed inset-0 z-30 bg-[#1a1d27] flex ${isDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        className={`fixed inset-0 z-30 bg-surface-raised flex ${isDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
       >
         {/* Left sidebar — hidden on mobile, permanent on desktop */}
         {/* Desktop: static sidebar */}
@@ -207,7 +207,7 @@ export function ChatPanel() {
 
         {/* Mobile: full-screen overlay sidebar */}
         {isMobile && showMobileSidebar && (
-          <div className="fixed inset-0 z-40 flex flex-col bg-[#1a1d27]">
+          <div className="fixed inset-0 z-40 flex flex-col bg-surface-raised">
             {/* Mobile sidebar header — taller on Tauri (non-fullscreen) to clear traffic lights */}
             <div className={`flex items-center justify-between px-4 shrink-0 transition-all duration-300 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
               <span className="text-sm font-medium text-gray-300">Conversations</span>
@@ -402,7 +402,7 @@ export function ChatPanel() {
   return (
     <div
       ref={panelRef}
-      className={`fixed z-30 bg-[#1a1d27] border-l border-white/[0.06] flex flex-col ${isDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isOpen ? 'translate-x-0' : 'translate-x-full'} top-0 right-0 bottom-0 w-full`}
+      className={`fixed z-30 bg-surface-raised border-l border-border-subtle flex flex-col ${isDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isOpen ? 'translate-x-0' : 'translate-x-full'} top-0 right-0 bottom-0 w-full`}
       style={{ maxWidth: isMobile ? undefined : panelWidth }}
     >
       {/* Resize handle — hidden on mobile (panel takes full width) */}

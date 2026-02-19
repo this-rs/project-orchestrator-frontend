@@ -202,7 +202,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
               </svg>
             </button>
             {showModeDropdown && (
-              <div className="absolute bottom-full left-0 mb-1 z-20 w-40 bg-[#1e2130] border border-white/[0.08] rounded-lg shadow-xl py-1">
+              <div className="absolute bottom-full left-0 mb-1 z-20 w-40 bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl py-1">
                 {(Object.keys(MODE_LABELS) as PermissionMode[]).map((mode) => {
                   const isActive = effectiveMode === mode
                   const isDefault = mode === serverConfig?.mode
@@ -244,7 +244,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
               </svg>
             </button>
             {showModelDropdown && (
-              <div className="absolute bottom-full left-0 mb-1 z-20 w-52 bg-[#1e2130] border border-white/[0.08] rounded-lg shadow-xl py-1">
+              <div className="absolute bottom-full left-0 mb-1 z-20 w-52 bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl py-1">
                 {AVAILABLE_MODELS.map((opt) => {
                   const isActive = effectiveModel === opt.id
                   return (

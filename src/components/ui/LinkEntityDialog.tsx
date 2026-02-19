@@ -73,8 +73,8 @@ export function LinkEntityDialog({
         onClick={loading ? undefined : onClose}
       />
 
-      <div className="relative bg-[#232733] rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/[0.06] max-w-lg w-full animate-in fade-in zoom-in-95 duration-150">
-        <div className="px-4 py-3 md:px-6 md:py-4 border-b border-white/[0.06]">
+      <div className="relative bg-surface-overlay rounded-xl shadow-xl border border-border-subtle max-w-lg w-full animate-in fade-in zoom-in-95 duration-150">
+        <div className="px-4 py-3 md:px-6 md:py-4 border-b border-border-subtle">
           <h3 id="link-dialog-title" className="text-lg font-semibold text-gray-100">
             {title}
           </h3>
@@ -98,7 +98,7 @@ export function LinkEntityDialog({
             </svg>
             <input
               ref={searchRef}
-              className="w-full pl-10 pr-3 py-2 bg-[#0f1117] border border-white/[0.1] rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full pl-10 pr-3 py-2 bg-surface-base border border-border-default rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               placeholder="Search..."
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
@@ -138,7 +138,7 @@ export function LinkEntityDialog({
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 px-4 py-3 md:px-6 md:py-4 border-t border-white/[0.06]">
+        <div className="flex justify-end gap-3 px-4 py-3 md:px-6 md:py-4 border-t border-border-subtle">
           <Button variant="secondary" size="sm" onClick={onClose} disabled={loading}>
             Cancel
           </Button>

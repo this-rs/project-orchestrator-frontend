@@ -75,9 +75,9 @@ export function FormDialog({
       />
 
       <div
-        className={`relative bg-[#232733] rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/[0.06] ${sizeClasses[size]} w-full animate-in fade-in zoom-in-95 duration-150`}
+        className={`relative bg-surface-overlay rounded-xl shadow-xl border border-border-subtle ${sizeClasses[size]} w-full animate-in fade-in zoom-in-95 duration-150`}
       >
-        <div className="px-4 py-3 md:px-6 md:py-4 border-b border-white/[0.06]">
+        <div className="px-4 py-3 md:px-6 md:py-4 border-b border-border-subtle">
           <h3 id="form-dialog-title" className="text-lg font-semibold text-gray-100">
             {title}
           </h3>
@@ -86,7 +86,7 @@ export function FormDialog({
         <form onSubmit={handleSubmit}>
           <div className="px-4 py-3 md:px-6 md:py-4 space-y-4 max-h-[70vh] md:max-h-[60vh] overflow-y-auto">{children}</div>
 
-          <div className="flex justify-end gap-3 px-4 py-3 md:px-6 md:py-4 border-t border-white/[0.06]">
+          <div className="flex justify-end gap-3 px-4 py-3 md:px-6 md:py-4 border-t border-border-subtle">
             <Button
               ref={cancelRef}
               variant="secondary"

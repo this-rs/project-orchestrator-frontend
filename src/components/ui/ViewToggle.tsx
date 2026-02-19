@@ -6,7 +6,7 @@ interface ViewToggleProps {
 
 export function ViewToggle({ value, onChange, className = '' }: ViewToggleProps) {
   return (
-    <div className={`inline-flex rounded-lg bg-[#1a1d27] p-0.5 ${className}`} role="group">
+    <div className={`inline-flex rounded-lg bg-surface-raised p-0.5 ${className}`} role="group">
       <button
         type="button"
         onClick={() => onChange('list')}

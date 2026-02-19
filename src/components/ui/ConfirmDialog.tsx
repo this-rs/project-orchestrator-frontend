@@ -85,7 +85,7 @@ export function ConfirmDialog({
       />
 
       {/* Modal */}
-      <div className="relative bg-[#232733] rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.5)] max-w-md w-full px-4 py-4 md:p-6 animate-in fade-in zoom-in-95 duration-150 border border-white/[0.06]">
+      <div className="relative bg-surface-overlay rounded-xl shadow-xl max-w-md w-full px-4 py-4 md:p-6 animate-in fade-in zoom-in-95 duration-150 border border-border-subtle">
         <div className="flex gap-3 md:gap-4">
           {/* Icon */}
           <div className={`shrink-0 w-9 h-9 md:w-10 md:h-10 rounded-full ${iconBg} flex items-center justify-center`}>

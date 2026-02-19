@@ -33,7 +33,7 @@ export function WorkspaceSelectorPage() {
 
   if (loading) {
     return (
-      <div className="min-h-dvh flex items-center justify-center bg-[#0f1117]">
+      <div className="min-h-dvh flex items-center justify-center bg-surface-base">
         <div className="animate-pulse text-gray-500">Loading workspaces...</div>
       </div>
     )
@@ -44,7 +44,7 @@ export function WorkspaceSelectorPage() {
   }
 
   return (
-    <div className="min-h-dvh flex items-center justify-center bg-[#0f1117]">
+    <div className="min-h-dvh flex items-center justify-center bg-surface-base">
       <div className="w-full max-w-md space-y-6 px-4">
         <div className="text-center space-y-2">
           <img src="/logo-32.png" alt="PO" className="w-12 h-12 mx-auto rounded-xl" />
@@ -195,7 +195,7 @@ function EmptyWorkspaceOnboarding({ navigate }: { navigate: ReturnType<typeof us
   }
 
   return (
-    <div className="min-h-dvh flex items-center justify-center bg-[#0f1117]">
+    <div className="min-h-dvh flex items-center justify-center bg-surface-base">
       <div className="w-full max-w-sm space-y-6 px-4 text-center">
         <img src="/logo-32.png" alt="PO" className="w-16 h-16 mx-auto rounded-2xl" />
         <div className="space-y-2">

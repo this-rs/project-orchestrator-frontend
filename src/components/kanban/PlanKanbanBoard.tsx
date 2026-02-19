@@ -200,15 +200,15 @@ function PlanKanbanColumn({
     <div className={`flex flex-col flex-1 ${fullWidth ? 'min-w-0' : 'min-w-[200px]'}`}>
       <div className={`flex items-center gap-2 px-3 py-2 rounded-t-lg ${colors.bg} border-l-4 ${colors.border}`}>
         <h3 className={`text-sm font-semibold ${colors.text}`}>{title}</h3>
-        <span className="text-xs text-gray-500 bg-[#1a1d27] rounded-full px-2 py-0.5">
+        <span className="text-xs text-gray-500 bg-surface-raised rounded-full px-2 py-0.5">
           {displayCount}
         </span>
       </div>
 
       <div
         ref={setNodeRef}
-        className={`flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 border-white/[0.06] min-h-[200px] ${fullWidth ? 'max-h-[calc(100dvh-200px)]' : 'max-h-[calc(100vh-280px)]'} overflow-y-auto transition-colors duration-150 ${
-          isOver ? colors.dropHighlight : 'bg-[#1a1d27]/30'
+        className={`flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 border-border-subtle min-h-[200px] ${fullWidth ? 'max-h-[calc(100dvh-200px)]' : 'max-h-[calc(100vh-280px)]'} overflow-y-auto transition-colors duration-150 ${
+          isOver ? colors.dropHighlight : 'bg-surface-raised/30'
         }`}
       >
         {loading ? (

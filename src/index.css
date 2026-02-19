@@ -1,6 +1,31 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/typography';
 
+/* ─── Design Tokens ───────────────────────────────────────────────────
+ * Tailwind v4 @theme — generates utility classes (bg-surface-base, shadow-md…)
+ * AND CSS custom properties (--color-surface-base, --shadow-md…).
+ * Colors support opacity modifiers: bg-surface-raised/50 via color-mix().
+ * ─────────────────────────────────────────────────────────────────── */
+@theme {
+  /* Surface system — 5 layers of depth */
+  --color-surface-base: #0f1117;
+  --color-surface-raised: #1a1d27;
+  --color-surface-popover: #1e2130;
+  --color-surface-overlay: #232733;
+  --color-surface-highlight: #2a2e3d;
+
+  /* Border system */
+  --color-border-subtle: rgba(255, 255, 255, 0.06);
+  --color-border-default: rgba(255, 255, 255, 0.1);
+  --color-border-strong: rgba(255, 255, 255, 0.16);
+
+  /* Dark theme shadows (override Tailwind defaults) */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+
 :root {
   color-scheme: dark;
 
@@ -16,22 +41,6 @@
   --color-error: #ef4444;
   --color-info: #3b82f6;
 
-  /* Surface system — 4 layers of depth */
-  --surface-base: #0f1117;
-  --surface-raised: #1a1d27;
-  --surface-overlay: #232733;
-  --surface-highlight: #2a2e3d;
-
-  /* Border system */
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-default: rgba(255, 255, 255, 0.1);
-  --border-strong: rgba(255, 255, 255, 0.16);
-
-  /* Shadows for dark theme */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
-
   /* Typography */
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
@@ -46,14 +55,14 @@
 
 body {
   @apply min-h-screen antialiased;
-  background-color: var(--surface-base);
+  background-color: var(--color-surface-base);
   color: var(--text-primary);
 }
 
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
-  background-color: var(--surface-base);
+  background-color: var(--color-surface-base);
 }
 
 /*
@@ -74,7 +83,7 @@ html.tauri body {
 .tauri-window {
   overflow: hidden;
   overscroll-behavior: none;
-  background-color: var(--surface-base);
+  background-color: var(--color-surface-base);
 }
 
 /* Disable overscroll bounce (macOS rubber-band) in Tauri desktop */
@@ -157,19 +166,19 @@ html.tauri * {
 
 /* Dependency Graph — React Flow controls themed */
 .dep-graph-controls {
-  background: var(--surface-raised) !important;
+  background: var(--color-surface-raised) !important;
   border-radius: 8px !important;
-  border: 1px solid var(--border-default) !important;
+  border: 1px solid var(--color-border-default) !important;
   box-shadow: var(--shadow-md) !important;
 }
 .dep-graph-controls button {
   background: transparent !important;
-  border-bottom: 1px solid var(--border-subtle) !important;
+  border-bottom: 1px solid var(--color-border-subtle) !important;
   color: var(--text-secondary) !important;
   transition: background var(--transition-fast), color var(--transition-fast);
 }
 .dep-graph-controls button:hover {
-  background: var(--surface-highlight) !important;
+  background: var(--color-surface-highlight) !important;
   color: var(--color-primary-light) !important;
 }
 .dep-graph-controls button svg {
