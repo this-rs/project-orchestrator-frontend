@@ -1,11 +1,13 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useAtomValue } from 'jotai'
 import { Link, useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'motion/react'
 import { milestoneRefreshAtom, workspaceRefreshAtom, activeWorkspaceAtom } from '@/atoms'
-import { Card, LoadingPage, EmptyState, Badge, ProgressBar, InteractiveMilestoneStatusBadge, ViewToggle, Select, ConfirmDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
+import { Card, EmptyState, Badge, ProgressBar, InteractiveMilestoneStatusBadge, ViewToggle, Select, ConfirmDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, SkeletonCard, ErrorState } from '@/components/ui'
 import { workspacesApi, projectsApi } from '@/services'
 import { useViewMode, useConfirmDialog, useToast, useMultiSelect, useWorkspaceSlug } from '@/hooks'
 import { MilestoneKanbanBoard } from '@/components/kanban'
+import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
 import type { MilestoneWithProgress } from '@/components/kanban'
 import type { MilestoneStatus } from '@/types'
 
@@ -21,12 +23,14 @@ const statusOptions = [
 export function MilestonesPage() {
   const [allMilestones, setAllMilestones] = useState<MilestoneWithProgress[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useViewMode()
   const navigate = useNavigate()
   const confirmDialog = useConfirmDialog()
   const toast = useToast()
   const wsSlug = useWorkspaceSlug()
   const activeWorkspace = useAtomValue(activeWorkspaceAtom)
+  const reducedMotion = useReducedMotion()
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('all')
@@ -34,72 +38,74 @@ export function MilestonesPage() {
   const msRefresh = useAtomValue(milestoneRefreshAtom)
   const wsRefresh = useAtomValue(workspaceRefreshAtom)
 
-  useEffect(() => {
-    async function fetchMilestones() {
-      const isInitialLoad = allMilestones.length === 0
-      if (isInitialLoad) setLoading(true)
+  const loadMilestones = useCallback(async () => {
+    const isInitialLoad = allMilestones.length === 0
+    if (isInitialLoad) setLoading(true)
+    setError(null)
+    try {
+      const milestones: MilestoneWithProgress[] = []
+
+      // 1. Workspace milestones
       try {
-        const milestones: MilestoneWithProgress[] = []
+        const milestonesResponse = await workspacesApi.listMilestones(wsSlug)
+        const workspaceMilestones = Array.isArray(milestonesResponse)
+          ? milestonesResponse
+          : (milestonesResponse.items || [])
 
-        // 1. Workspace milestones
-        try {
-          const milestonesResponse = await workspacesApi.listMilestones(wsSlug)
-          const workspaceMilestones = Array.isArray(milestonesResponse)
-            ? milestonesResponse
-            : (milestonesResponse.items || [])
-
-          for (const milestone of workspaceMilestones) {
-            try {
-              const progress = await workspacesApi.getMilestoneProgress(milestone.id)
-              milestones.push({ ...milestone, progress, workspace_name: activeWorkspace?.name })
-            } catch {
-              milestones.push({ ...milestone, workspace_name: activeWorkspace?.name })
-            }
+        for (const milestone of workspaceMilestones) {
+          try {
+            const progress = await workspacesApi.getMilestoneProgress(milestone.id)
+            milestones.push({ ...milestone, progress, workspace_name: activeWorkspace?.name })
+          } catch {
+            milestones.push({ ...milestone, workspace_name: activeWorkspace?.name })
           }
-        } catch {
-          // No workspace milestones
         }
-
-        // 2. Project milestones (from workspace projects)
-        try {
-          const projects = await workspacesApi.listProjects(wsSlug)
-          for (const project of projects) {
-            try {
-              const pmData = await projectsApi.listMilestones(project.id)
-              const projectMilestones = pmData.items || []
-              for (const pm of projectMilestones) {
-                // Adapt project milestone to MilestoneWithProgress shape
-                milestones.push({
-                  id: pm.id,
-                  workspace_id: activeWorkspace?.id || '',
-                  title: pm.title,
-                  description: pm.description,
-                  status: pm.status,
-                  target_date: pm.target_date,
-                  closed_at: pm.closed_at,
-                  created_at: pm.created_at,
-                  tags: [`project:${project.name}`],
-                  workspace_name: project.name,
-                } as MilestoneWithProgress)
-              }
-            } catch {
-              // Skip project milestones on error
-            }
-          }
-        } catch {
-          // No projects
-        }
-
-        setAllMilestones(milestones)
       } catch {
-        toast.error('Failed to load milestones')
-      } finally {
-        if (isInitialLoad) setLoading(false)
+        // No workspace milestones
       }
+
+      // 2. Project milestones (from workspace projects)
+      try {
+        const projects = await workspacesApi.listProjects(wsSlug)
+        for (const project of projects) {
+          try {
+            const pmData = await projectsApi.listMilestones(project.id)
+            const projectMilestones = pmData.items || []
+            for (const pm of projectMilestones) {
+              // Adapt project milestone to MilestoneWithProgress shape
+              milestones.push({
+                id: pm.id,
+                workspace_id: activeWorkspace?.id || '',
+                title: pm.title,
+                description: pm.description,
+                status: pm.status,
+                target_date: pm.target_date,
+                closed_at: pm.closed_at,
+                created_at: pm.created_at,
+                tags: [`project:${project.name}`],
+                workspace_name: project.name,
+              } as MilestoneWithProgress)
+            }
+          } catch {
+            // Skip project milestones on error
+          }
+        }
+      } catch {
+        // No projects
+      }
+
+      setAllMilestones(milestones)
+    } catch {
+      setError('Failed to load milestones')
+    } finally {
+      if (isInitialLoad) setLoading(false)
     }
-    fetchMilestones()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wsSlug, msRefresh, wsRefresh])
+  }, [wsSlug, activeWorkspace?.name, activeWorkspace?.id])
+
+  useEffect(() => {
+    loadMilestones()
+  }, [loadMilestones, msRefresh, wsRefresh])
 
   // Filtered milestones
   const filteredMilestones = useMemo(() => {
@@ -163,8 +169,6 @@ export function MilestonesPage() {
     })
   }
 
-  if (loading) return <LoadingPage />
-
   const sourceOptions = [
     { value: 'all', label: 'All Sources' },
     { value: 'workspace', label: 'Workspace' },
@@ -172,6 +176,7 @@ export function MilestonesPage() {
   ]
 
   const hasFilters = statusFilter !== 'all' || sourceFilter !== 'all'
+  const showListSkeleton = loading && viewMode === 'list'
 
   return (
     <PageShell
@@ -207,16 +212,24 @@ export function MilestonesPage() {
         )}
       </div>
 
-      {filteredMilestones.length === 0 ? (
-        <EmptyState
-          title="No milestones"
-          description={hasFilters ? 'No milestones match the current filters.' : 'Milestones help track major goals across your projects.'}
-        />
-      ) : viewMode === 'kanban' ? (
+      {viewMode === 'kanban' ? (
         <MilestoneKanbanBoard
           milestones={filteredMilestones}
           onMilestoneStatusChange={handleStatusChange}
           onMilestoneClick={(id) => navigate(`/workspace/${wsSlug}/milestones/${id}`)}
+        />
+      ) : showListSkeleton ? (
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <SkeletonCard key={i} lines={3} />
+          ))}
+        </div>
+      ) : error ? (
+        <ErrorState title="Failed to load" description={error} onRetry={loadMilestones} />
+      ) : filteredMilestones.length === 0 ? (
+        <EmptyState
+          title="No milestones"
+          description={hasFilters ? 'No milestones match the current filters.' : 'Milestones help track major goals across your projects.'}
         />
       ) : (
         <>
@@ -230,27 +243,35 @@ export function MilestonesPage() {
               </button>
             </div>
           )}
-          <div className="space-y-4">
-            {filteredMilestones.map((milestone) => (
-              <MilestoneCard
-                wsSlug={wsSlug}
-                selected={multiSelect.isSelected(milestone.id)}
-                onToggleSelect={(shiftKey) => multiSelect.toggle(milestone.id, shiftKey)}
-                key={milestone.id}
-                milestone={milestone}
-                onStatusChange={(newStatus) => handleStatusChange(milestone.id, newStatus)}
-                onDelete={() => confirmDialog.open({
-                  title: 'Delete Milestone',
-                  description: 'This milestone will be permanently deleted.',
-                  onConfirm: async () => {
-                    await workspacesApi.deleteMilestone(milestone.id)
-                    setAllMilestones(prev => prev.filter(m => m.id !== milestone.id))
-                    toast.success('Milestone deleted')
-                  },
-                })}
-              />
-            ))}
-          </div>
+          <motion.div
+            className="space-y-4"
+            variants={reducedMotion ? undefined : staggerContainer}
+            initial="hidden"
+            animate="visible"
+          >
+            <AnimatePresence mode="popLayout">
+              {filteredMilestones.map((milestone) => (
+                <motion.div key={milestone.id} variants={fadeInUp} exit="exit" layout={!reducedMotion}>
+                  <MilestoneCard
+                    wsSlug={wsSlug}
+                    selected={multiSelect.isSelected(milestone.id)}
+                    onToggleSelect={(shiftKey) => multiSelect.toggle(milestone.id, shiftKey)}
+                    milestone={milestone}
+                    onStatusChange={(newStatus) => handleStatusChange(milestone.id, newStatus)}
+                    onDelete={() => confirmDialog.open({
+                      title: 'Delete Milestone',
+                      description: 'This milestone will be permanently deleted.',
+                      onConfirm: async () => {
+                        await workspacesApi.deleteMilestone(milestone.id)
+                        setAllMilestones(prev => prev.filter(m => m.id !== milestone.id))
+                        toast.success('Milestone deleted')
+                      },
+                    })}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
         </>
       )}
 
