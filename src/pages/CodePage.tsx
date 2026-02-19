@@ -39,7 +39,8 @@ export function CodePage() {
     setLoading(true)
     try {
       const projectSlug = selectedProject !== 'all' ? selectedProject : undefined
-      const response = await codeApi.search(searchQuery, { project_slug: projectSlug })
+      const workspaceSlug = selectedProject === 'all' ? wsSlug : undefined
+      const response = await codeApi.search(searchQuery, { project_slug: projectSlug, workspace_slug: workspaceSlug })
       setSearchResults(Array.isArray(response) ? response : [])
     } catch (error) {
       console.error('Search failed:', error)
@@ -52,7 +53,8 @@ export function CodePage() {
     setLoading(true)
     try {
       const projectSlug = selectedProject !== 'all' ? selectedProject : undefined
-      const data = await codeApi.getArchitecture({ project_slug: projectSlug })
+      const workspaceSlug = selectedProject === 'all' ? wsSlug : undefined
+      const data = await codeApi.getArchitecture({ project_slug: projectSlug, workspace_slug: workspaceSlug })
       setArchitecture(data)
     } catch (error) {
       console.error('Failed to load architecture:', error)
@@ -62,7 +64,7 @@ export function CodePage() {
   }
 
   const projectOptions = [
-    { value: 'all', label: 'All Projects' },
+    { value: 'all', label: 'All workspace' },
     ...projects.map((p) => ({ value: p.slug, label: p.name })),
   ]
 

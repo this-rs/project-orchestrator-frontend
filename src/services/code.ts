@@ -58,7 +58,7 @@ export interface ArchitectureOverview {
 
 export const codeApi = {
   // Search
-  search: (query: string, params: { language?: string; limit?: number; project_slug?: string } = {}) =>
+  search: (query: string, params: { language?: string; limit?: number; project_slug?: string; workspace_slug?: string } = {}) =>
     api.get<SearchResult[]>(`/code/search${buildQuery({ query, ...params })}`),
 
   searchInProject: (
@@ -92,7 +92,7 @@ export const codeApi = {
     api.get<ImpactAnalysis>(`/code/impact${buildQuery({ target })}`),
 
   // Architecture
-  getArchitecture: (params: { project_slug?: string } = {}) =>
+  getArchitecture: (params: { project_slug?: string; workspace_slug?: string } = {}) =>
     api.get<ArchitectureOverview>(`/code/architecture${buildQuery(params)}`),
 
   // Similar code
