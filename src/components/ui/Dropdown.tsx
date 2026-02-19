@@ -1,6 +1,4 @@
-import { type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
-import { useDropdownPosition } from '@/hooks'
+import { useState, useRef, useEffect, useId, type ReactNode, type CSSProperties } from 'react'
 
 interface DropdownOption<T> {
   value: T
@@ -23,11 +21,45 @@ export function Dropdown<T extends string>({
   disabled = false,
   className = '',
 }: DropdownProps<T>) {
-  const { isOpen, toggle, close, position, triggerRef, menuRef } = useDropdownPosition()
+  const [isOpen, setIsOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLDivElement>(null)
+  const reactId = useId()
+  const uid = reactId.replace(/:/g, '')
+  const anchorName = `--dd-${uid}`
+  const menuId = `dd-${uid}-menu`
+
+  // Sync React state with native popover toggle events (light-dismiss, etc.)
+  useEffect(() => {
+    const menu = menuRef.current
+    if (!menu) return
+    const handleToggle = (e: Event) => {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync with native popover toggle
+      setIsOpen((e as ToggleEvent).newState === 'open')
+    }
+    menu.addEventListener('toggle', handleToggle)
+    return () => menu.removeEventListener('toggle', handleToggle)
+  }, [])
+
+  const openMenu = () => {
+    try {
+      menuRef.current?.showPopover()
+    } catch {
+      /* already open */
+    }
+  }
+
+  const closeMenu = () => {
+    try {
+      menuRef.current?.hidePopover()
+    } catch {
+      /* already closed */
+    }
+  }
 
   const handleSelect = (value: T) => {
     onSelect(value)
-    close()
+    closeMenu()
   }
 
   return (
@@ -36,37 +68,42 @@ export function Dropdown<T extends string>({
         onClick={(e) => {
           e.preventDefault()
           e.stopPropagation()
-          if (!disabled) toggle()
+          if (!disabled) {
+            if (isOpen) closeMenu()
+            else openMenu()
+          }
         }}
         className={disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
+        style={{ anchorName } as CSSProperties}
       >
         {trigger}
       </div>
 
-      {isOpen &&
-        createPortal(
-          <div
-            ref={menuRef}
-            className="fixed z-[9999] min-w-[120px] rounded-lg bg-surface-overlay border border-border-default shadow-md py-1"
-            style={{ top: position.top, left: position.left }}
+      {/* Popover dropdown — rendered in top layer, positioned via CSS anchor */}
+      <div
+        ref={menuRef}
+        id={menuId}
+        popover="auto"
+        role="menu"
+        className="popover-dropdown glass-heavy rounded-lg shadow-md py-1 min-w-[120px]"
+        style={{ positionAnchor: anchorName } as CSSProperties}
+      >
+        {options.map((option) => (
+          <button
+            key={option.value}
+            role="menuitem"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              handleSelect(option.value)
+            }}
+            className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-white/[0.06] flex items-center gap-2 transition-colors"
           >
-            {options.map((option) => (
-              <button
-                key={option.value}
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  handleSelect(option.value)
-                }}
-                className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-white/[0.06] flex items-center gap-2 transition-colors"
-              >
-                {option.icon}
-                {option.label}
-              </button>
-            ))}
-          </div>,
-          document.body,
-        )}
+            {option.icon}
+            {option.label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

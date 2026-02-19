@@ -1,19 +1,19 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { ChevronsUpDown } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, LinkEntityDialog, ProgressBar, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import { ExpandablePlanRow, ExpandableTaskRow } from '@/components/expandable'
 import { workspacesApi, plansApi, tasksApi } from '@/services'
 import { PlanKanbanBoard } from '@/components/kanban'
-import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
+import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import type { MilestoneDetail, MilestoneProgress, Plan, Project, Task, MilestoneStatus, PlanStatus, PaginatedResponse } from '@/types'
 
 export function MilestoneDetailPage() {
   const { milestoneId } = useParams<{ milestoneId: string }>()
-  const navigate = useNavigate()
+  const { navigate } = useViewTransition()
   const wsSlug = useWorkspaceSlug()
   const [milestone, setMilestone] = useState<MilestoneDetail | null>(null)
   const [progress, setProgress] = useState<MilestoneProgress | null>(null)
@@ -154,6 +154,7 @@ export function MilestoneDetailPage() {
     <div className="pt-6 space-y-6">
       <PageHeader
         title={milestone.title}
+        viewTransitionName={`milestone-title-${milestone.id}`}
         description={milestone.description}
         status={
           <StatusSelect
@@ -188,7 +189,7 @@ export function MilestoneDetailPage() {
           { label: 'Delete', variant: 'danger', onClick: () => confirmDialog.open({
             title: 'Delete Milestone',
             description: 'This will permanently delete this milestone. Tasks linked to it will not be deleted.',
-            onConfirm: async () => { await workspacesApi.deleteMilestone(milestone.id); toast.success('Milestone deleted'); navigate(workspacePath(wsSlug, '/milestones')) }
+            onConfirm: async () => { await workspacesApi.deleteMilestone(milestone.id); toast.success('Milestone deleted'); navigate(workspacePath(wsSlug, '/milestones'), { type: 'back-button' }) }
           }) }
         ]}
       >
@@ -211,7 +212,7 @@ export function MilestoneDetailPage() {
             <CardTitle>Progress</CardTitle>
           </CardHeader>
           <CardContent>
-            <ProgressBar value={progress.percentage} showLabel size="lg" />
+            <ProgressBar value={progress.percentage} showLabel size="lg" gradient shimmer={progress.percentage < 100} />
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
               <div className="text-center p-3 bg-white/[0.06] rounded-lg">
                 <div className="text-2xl font-bold text-green-400">{progress.completed}</div>
@@ -261,7 +262,7 @@ export function MilestoneDetailPage() {
             <PlanKanbanBoard
               fetchFn={kanbanFetchFn}
               onPlanStatusChange={handlePlanStatusChange}
-              onPlanClick={(planId) => navigate(workspacePath(wsSlug, `/plans/${planId}`))}
+              onPlanClick={(planId) => navigate(workspacePath(wsSlug, `/plans/${planId}`), { type: 'card-click' })}
               refreshTrigger={planRefresh}
             />
           ) : (

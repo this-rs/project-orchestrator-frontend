@@ -29,23 +29,47 @@
 :root {
   color-scheme: dark;
 
-  /* Primary palette */
+  /* Primary palette (hex fallback) */
   --color-primary: #6366f1;
   --color-primary-hover: #4f46e5;
   --color-primary-light: #818cf8;
   --color-primary-muted: rgba(99, 102, 241, 0.15);
 
-  /* Semantic colors */
+  /* Semantic colors (hex fallback) */
   --color-success: #22c55e;
   --color-warning: #f59e0b;
   --color-error: #ef4444;
   --color-info: #3b82f6;
 
-  /* Typography */
+  /* Ambient background — gradient mesh aurora orbs */
+  --ambient-spot-1: rgba(99, 102, 241, 0.08);   /* indigo */
+  --ambient-spot-2: rgba(139, 92, 246, 0.06);    /* violet */
+  --ambient-spot-3: rgba(34, 211, 238, 0.05);    /* cyan */
+
+  /* Glow accents — status-matched box-shadow colors */
+  --glow-primary: 99, 102, 241;   /* indigo — active items, CTA */
+  --glow-success: 74, 222, 128;   /* green  — completed */
+  --glow-warning: 250, 204, 21;   /* yellow — in_progress, blocked */
+  --glow-danger: 248, 113, 113;   /* red    — failed, danger */
+  --glow-info: 96, 165, 250;      /* blue   — info, pending */
+
+  /* Typography — color tokens */
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
   --text-tertiary: #64748b;
   --text-muted: #475569;
+
+  /* Fluid type scale — clamp(min, preferred, max)
+   * Scales linearly between 375px and 1440px viewport widths.
+   * Formula: clamp(min, intercept + slope·vw, max)
+   * where slope = (max - min) / (maxVP - minVP) × 100 */
+  --fluid-xs:  0.75rem;                                    /* 12px — constant */
+  --fluid-sm:  clamp(0.8rem,   0.774rem + 0.11vw, 0.875rem);  /* 12.8px → 14px */
+  --fluid-base: clamp(0.9rem,  0.865rem + 0.15vw, 1rem);      /* 14.4px → 16px */
+  --fluid-lg:  clamp(1.05rem,  1.024rem + 0.11vw, 1.125rem);  /* 16.8px → 18px */
+  --fluid-xl:  clamp(1.15rem,  1.115rem + 0.15vw, 1.25rem);   /* 18.4px → 20px */
+  --fluid-2xl: clamp(1.35rem,  1.297rem + 0.23vw, 1.5rem);    /* 21.6px → 24px */
+  --fluid-3xl: clamp(1.6rem,   1.503rem + 0.41vw, 1.875rem);  /* 25.6px → 30px */
 
   /* Transitions */
   --transition-fast: 150ms ease;
@@ -53,10 +77,110 @@
   --transition-slow: 300ms ease;
 }
 
+/* OKLCH progressive enhancement — perceptually uniform colors */
+@supports (color: oklch(0 0 0)) {
+  :root {
+    --color-primary: oklch(0.55 0.18 265);
+    --color-primary-hover: oklch(0.50 0.20 265);
+    --color-primary-light: oklch(0.65 0.15 265);
+    --color-success: oklch(0.65 0.19 145);
+    --color-warning: oklch(0.75 0.17 75);
+    --color-error: oklch(0.60 0.22 25);
+    --color-info: oklch(0.60 0.16 250);
+  }
+}
+
 body {
-  @apply min-h-screen antialiased;
+  @apply min-h-dvh antialiased;
+  overflow: hidden;              /* All scrolling happens inside the app — body must never scroll */
+  font-family: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  font-weight: 350;
   background-color: var(--color-surface-base);
   color: var(--text-primary);
+}
+
+/* Variable font intermediate weights — finer control than standard 400/500/600 */
+h1, h2, h3 { font-variation-settings: 'wght' 650; }
+.font-semibold { font-variation-settings: 'wght' 550; }
+.font-medium   { font-variation-settings: 'wght' 450; }
+
+/* Text wrapping — progressive enhancement (no-op on unsupported browsers) */
+h1, h2, h3 { text-wrap: balance; }
+p, .description-text { text-wrap: pretty; }
+
+/* ─── Animated Counter (CSS @property) ─────────────────────────────────
+ * Uses CSS Houdini @property to animate an <integer> custom property.
+ * The browser interpolates the integer value, and counter() displays it.
+ * Fallback: browsers without @property show the final value instantly.
+ * ─────────────────────────────────────────────────────────────────────── */
+@property --counter-value {
+  syntax: '<integer>';
+  initial-value: 0;
+  inherits: false;
+}
+
+.animated-counter {
+  counter-reset: ac var(--counter-value);
+  transition: --counter-value 800ms ease-out;
+}
+
+.animated-counter::after {
+  content: counter(ac);
+}
+
+/* ─── Content Visibility (list performance) ────────────────────────────
+ * Skip rendering of off-screen items in long lists.
+ * contain-intrinsic-size provides a placeholder height to avoid scroll jumps.
+ * ─────────────────────────────────────────────────────────────────────── */
+.cv-auto       { content-visibility: auto; contain-intrinsic-size: auto 120px; }
+.cv-auto-sm    { content-visibility: auto; contain-intrinsic-size: auto 80px; }
+.cv-auto-lg    { content-visibility: auto; contain-intrinsic-size: auto 160px; }
+
+/* ─── Progress bar shimmer ────────────────────────────────────────── */
+.progress-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.progress-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.15) 50%,
+    transparent 100%
+  );
+  animation: progress-shimmer-slide 1.5s ease-in-out infinite;
+}
+@keyframes progress-shimmer-slide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ─── Pulse indicator ─────────────────────────────────────────────── */
+.pulse-ring {
+  animation: pulse-expand 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+@keyframes pulse-expand {
+  0%   { transform: scale(1);   opacity: 0.75; }
+  75%  { transform: scale(2.5); opacity: 0; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse-ring { animation: none; opacity: 0; }
+}
+
+/* ─── Empty state entrance ────────────────────────────────────────── */
+.empty-state {
+  animation: empty-state-in 400ms ease-out both;
+}
+@keyframes empty-state-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .empty-state { animation: none; }
 }
 
 /* Smooth scrolling */
@@ -102,13 +226,288 @@ html.tauri * {
 }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
 
-/* Card lift hover effect */
+/* ─── Glassmorphism utility classes ─────────────────────────────────────
+ * Semi-transparent surfaces with backdrop-blur revealing the ambient mesh.
+ * Hierarchy: glass (cards) < glass-medium (dialogs) < glass-heavy (dropdowns)
+ * @supports fallback: opaque background when backdrop-filter unsupported.
+ * ─────────────────────────────────────────────────────────────────────── */
+.glass {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.glass-medium {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.glass-heavy {
+  background: rgba(30, 33, 48, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  /* @starting-style entry animation (progressive enhancement) */
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+/* CSS-only entry animation for dropdowns — no JS needed */
+@starting-style {
+  .glass-heavy {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+}
+
+/* Fallback: opaque backgrounds when backdrop-filter is not supported */
+@supports not (backdrop-filter: blur(1px)) {
+  .glass { background: var(--color-surface-raised); border-color: rgba(255, 255, 255, 0.1); }
+  .glass-medium { background: var(--color-surface-overlay); border-color: rgba(255, 255, 255, 0.1); }
+  .glass-heavy { background: var(--color-surface-popover); border-color: rgba(255, 255, 255, 0.12); }
+}
+
+/* ─── Native Popover Dropdown — CSS Anchor Positioning ─────────────────
+ * Replaces createPortal + useDropdownPosition JS with CSS-only positioning.
+ * Uses popover="auto" for top-layer rendering + light-dismiss.
+ * Chrome 127+, Safari 18+, Firefox 149+.
+ * ─────────────────────────────────────────────────────────────────────── */
+.popover-dropdown {
+  /* Reset default popover UA styles */
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  inset: unset;
+
+  /* Anchor positioning — below trigger, matching width */
+  position: fixed;
+  position-area: block-end;
+  min-width: anchor-size(width);
+  width: max-content;
+  margin-top: 4px;
+
+  /* Auto-flip when near viewport edges */
+  position-try-fallbacks: flip-block;
+
+  /* Entry/exit animation */
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition:
+    opacity 150ms ease-out,
+    transform 150ms ease-out,
+    display 150ms allow-discrete,
+    overlay 150ms allow-discrete;
+}
+
+/* Exit state */
+.popover-dropdown:not(:popover-open) {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.96);
+}
+
+/* Entry state */
+@starting-style {
+  .popover-dropdown:popover-open {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.96);
+  }
+}
+
+/* Backdrop — subtle darkening behind popovers */
+.popover-dropdown::backdrop {
+  background: transparent;
+}
+
+/* ─── Popover Tooltip ──────────────────────────────────────────────────
+ * Tooltip using Popover API (manual) + CSS Anchor Positioning.
+ * Shows on hover/focus via JS, positioned relative to anchor element.
+ * Uses popover="manual" for cross-browser compat (upgrade to "hint" when Baseline).
+ * ─────────────────────────────────────────────────────────────────────── */
+.popover-tooltip {
+  /* Reset popover defaults */
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  inset: unset;
+  overflow: visible;
+
+  /* Fixed in top layer, anchor-positioned */
+  position: fixed;
+  position-area: block-start;
+  position-try-fallbacks: flip-block, flip-inline;
+
+  /* Appearance */
+  max-width: 240px;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  background: rgba(17, 17, 17, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e5e7eb;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  text-align: center;
+  white-space: normal;
+  word-wrap: break-word;
+  pointer-events: none;
+
+  /* Entry animation */
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 120ms ease-out,
+    transform 120ms ease-out,
+    display 120ms allow-discrete,
+    overlay 120ms allow-discrete;
+}
+
+/* Exit state */
+.popover-tooltip:not(:popover-open) {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+/* Entry state — @starting-style for open animation */
+@starting-style {
+  .popover-tooltip:popover-open {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* No backdrop for tooltips */
+.popover-tooltip::backdrop {
+  background: transparent;
+}
+
+/* Margin adjustments per position-area */
+.popover-tooltip[style*="block-end"] {
+  margin-bottom: 0;
+  margin-top: 6px;
+}
+
+/* ─── Glow Accents ─────────────────────────────────────────────────────
+ * Status-matched box-shadow halos for badges, buttons, and active items.
+ * Uses CSS variable RGB triplets from :root (--glow-*).
+ * No layout shift — box-shadow is purely decorative.
+ * ─────────────────────────────────────────────────────────────────────── */
+.glow-success { box-shadow: 0 0 6px rgba(var(--glow-success), 0.25), 0 0 14px rgba(var(--glow-success), 0.08); }
+.glow-warning { box-shadow: 0 0 6px rgba(var(--glow-warning), 0.25), 0 0 14px rgba(var(--glow-warning), 0.08); }
+.glow-danger  { box-shadow: 0 0 6px rgba(var(--glow-danger), 0.25), 0 0 14px rgba(var(--glow-danger), 0.08); }
+.glow-info    { box-shadow: 0 0 6px rgba(var(--glow-info), 0.25), 0 0 14px rgba(var(--glow-info), 0.08); }
+.glow-primary { box-shadow: 0 0 6px rgba(var(--glow-primary), 0.25), 0 0 14px rgba(var(--glow-primary), 0.08); }
+.glow-purple  { box-shadow: 0 0 6px rgba(139, 92, 246, 0.25), 0 0 14px rgba(139, 92, 246, 0.08); }
+
+/* Button glow — visible on hover, transition from no-shadow to glow */
+.btn-glow-primary,
+.btn-glow-danger {
+  transition: box-shadow var(--transition-slow);
+}
+.btn-glow-primary:hover:not(:disabled) {
+  box-shadow: 0 0 16px rgba(var(--glow-primary), 0.35), 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.btn-glow-danger:hover:not(:disabled) {
+  box-shadow: 0 0 16px rgba(var(--glow-danger), 0.35), 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Input focus glow — replaces harsh ring with soft glow */
+.input-focus-glow {
+  transition: box-shadow var(--transition-normal), border-color var(--transition-normal);
+}
+.input-focus-glow:focus {
+  outline: none;
+  border-color: rgba(var(--glow-primary), 0.5);
+  box-shadow: 0 0 0 3px rgba(var(--glow-primary), 0.15), 0 0 8px rgba(var(--glow-primary), 0.1);
+}
+
+/* Card hover — lift + border glow + shimmer + smooth transition */
+.card-hover {
+  position: relative;
+  transition: transform var(--transition-normal), box-shadow var(--transition-normal), border-color var(--transition-normal);
+}
+.card-hover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.03) 45%, rgba(255, 255, 255, 0.05) 50%, rgba(255, 255, 255, 0.03) 55%, transparent 60%);
+  opacity: 0;
+  transform: translateX(-100%);
+  transition: opacity var(--transition-normal);
+  pointer-events: none;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  border-color: rgba(var(--glow-primary), 0.2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(var(--glow-primary), 0.15);
+}
+.card-hover:hover::after {
+  opacity: 1;
+  animation: card-shimmer 1.5s ease-out forwards;
+}
+
+@keyframes card-shimmer {
+  to { transform: translateX(100%); }
+}
+
+/* Kanban card hover — no translateY (conflicts with @dnd-kit drag) */
 .card-interactive {
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
 }
 .card-interactive:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
+  border-color: rgba(var(--glow-primary), 0.2);
+  box-shadow: 0 0 0 1px rgba(var(--glow-primary), 0.12), var(--shadow-md);
+}
+
+/* Card focus-visible — same visual as hover for keyboard nav */
+.card-hover:focus-visible {
+  outline: none;
+  transform: translateY(-2px);
+  border-color: rgba(var(--glow-primary), 0.2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(var(--glow-primary), 0.15);
+}
+
+/* ─── Scroll-driven reveal — progressive enhancement (Chrome 115+) ─── */
+@supports (animation-timeline: view()) {
+  .scroll-reveal {
+    animation: scroll-reveal-in linear both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 15%;
+  }
+}
+
+@keyframes scroll-reveal-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Container queries — responsive cards based on container, not viewport ─── */
+.card-container {
+  container-type: inline-size;
+  container-name: card-zone;
+}
+
+/* Cards in narrow containers (<400px): compact vertical layout */
+@container card-zone (max-width: 400px) {
+  .card-responsive { padding: 0.75rem; }
+  .card-responsive .card-title { font-size: 0.875rem; }
+  .card-responsive .card-meta { display: none; }
+}
+
+/* prefers-reduced-motion — disable transforms, shimmer, press, keep color changes */
+@media (prefers-reduced-motion: reduce) {
+  .card-hover:hover,
+  .card-hover:focus-visible { transform: none; }
+  .card-hover:hover::after { animation: none; opacity: 0; }
+  button:active { transform: none !important; }
+  .input-focus-glow:focus { transition: none; }
+  .scroll-reveal { animation: none !important; }
 }
 
 /* Chat markdown — code blocks */
@@ -204,4 +603,161 @@ html.tauri * {
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Ambient Background : gradient mesh aurora ────────────────────────
+ * Three slow-drifting radial-gradient orbs behind all content.
+ * GPU-composited via will-change: transform (only translate, no repaint).
+ * Each .ambient-orb is independently animated for organic drift.
+ * ─────────────────────────────────────────────────────────────────────── */
+.ambient-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.ambient-orb {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform;
+}
+
+/* Orb 1 — indigo, top-left quadrant */
+.ambient-orb--1 {
+  width: 60vmax;
+  height: 60vmax;
+  top: -15%;
+  left: -10%;
+  background: radial-gradient(circle, var(--ambient-spot-1) 0%, transparent 70%);
+  animation: ambient-drift-1 80s ease-in-out infinite alternate;
+}
+
+/* Orb 2 — violet, bottom-right quadrant */
+.ambient-orb--2 {
+  width: 55vmax;
+  height: 55vmax;
+  bottom: -20%;
+  right: -10%;
+  background: radial-gradient(circle, var(--ambient-spot-2) 0%, transparent 70%);
+  animation: ambient-drift-2 90s ease-in-out infinite alternate;
+}
+
+/* Orb 3 — cyan, center-right area */
+.ambient-orb--3 {
+  width: 50vmax;
+  height: 50vmax;
+  top: 10%;
+  right: 5%;
+  background: radial-gradient(circle, var(--ambient-spot-3) 0%, transparent 70%);
+  animation: ambient-drift-3 100s ease-in-out infinite alternate;
+}
+
+@keyframes ambient-drift-1 {
+  0%   { transform: translate(0, 0); }
+  100% { transform: translate(8vw, 6vh); }
+}
+
+@keyframes ambient-drift-2 {
+  0%   { transform: translate(0, 0); }
+  100% { transform: translate(-6vw, -8vh); }
+}
+
+@keyframes ambient-drift-3 {
+  0%   { transform: translate(0, 0); }
+  100% { transform: translate(-5vw, 7vh); }
+}
+
+/* prefers-reduced-motion — static gradient, no animation */
+@media (prefers-reduced-motion: reduce) {
+  .ambient-orb {
+    animation: none !important;
+  }
+}
+
+/* ─── View Transitions — page-level crossfade with stable chrome ─────
+ * Uses the View Transitions API (Chrome 111+, Safari 18+, Firefox 133+).
+ * Progressive enhancement: unsupported browsers get instant navigation.
+ * ─────────────────────────────────────────────────────────────────────── */
+
+/* Default crossfade for all route changes */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+  animation-timing-function: ease-in-out;
+}
+
+/* Content area — named separately so sidebar/header stay stable */
+::view-transition-old(content),
+::view-transition-new(content) {
+  animation-duration: 220ms;
+  animation-timing-function: ease-in-out;
+}
+
+/* Sidebar and header remain stable — no animation, no snapshot flicker */
+::view-transition-group(sidebar),
+::view-transition-group(header) {
+  animation: none;
+}
+::view-transition-old(sidebar),
+::view-transition-new(sidebar),
+::view-transition-old(header),
+::view-transition-new(header) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* Shared element morph — title card ↔ detail page title.
+ * The browser auto-morphs position/size when both old & new pages share the same
+ * view-transition-name. We customize the group animation for a smoother feel. */
+::view-transition-group(*) {
+  animation-duration: 250ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Sidebar navigation — directional vertical slide.
+ * data-transition-type="sidebar-nav" + data-nav-direction="up|down" on <html>.
+ * Old content slides out, new content slides in from the matching direction. */
+[data-transition-type="sidebar-nav"] ::view-transition-old(content) {
+  animation: vt-slide-out-up 220ms ease-in both;
+}
+[data-transition-type="sidebar-nav"] ::view-transition-new(content) {
+  animation: vt-slide-in-up 220ms ease-out both;
+}
+[data-transition-type="sidebar-nav"][data-nav-direction="up"] ::view-transition-old(content) {
+  animation-name: vt-slide-out-down;
+}
+[data-transition-type="sidebar-nav"][data-nav-direction="up"] ::view-transition-new(content) {
+  animation-name: vt-slide-in-down;
+}
+
+@keyframes vt-slide-out-up {
+  to { transform: translateY(-30px); opacity: 0; }
+}
+@keyframes vt-slide-in-up {
+  from { transform: translateY(30px); opacity: 0; }
+}
+@keyframes vt-slide-out-down {
+  to { transform: translateY(30px); opacity: 0; }
+}
+@keyframes vt-slide-in-down {
+  from { transform: translateY(-30px); opacity: 0; }
+}
+
+/* Card-click morph — let the crossfade + morph handle it, no extra slide */
+[data-transition-type="card-click"] ::view-transition-old(content),
+[data-transition-type="card-click"] ::view-transition-new(content) {
+  animation-duration: 200ms;
+}
+
+/* prefers-reduced-motion — instant transitions */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root),
+  ::view-transition-old(content),
+  ::view-transition-new(content),
+  ::view-transition-group(*) {
+    animation-duration: 0s;
+  }
 }

@@ -1,3 +1,4 @@
+export { AmbientBackground } from './AmbientBackground'
 export { Button } from './Button'
 export {
   Badge,
@@ -42,3 +43,8 @@ export { SelectZone, SelectCheckbox } from './SelectCheckbox'
 export { BulkActionBar } from './BulkActionBar'
 export { Skeleton, SkeletonLine, SkeletonBadge, SkeletonCard } from './Skeleton'
 export { ErrorState } from './ErrorState'
+export { Tooltip } from './Tooltip'
+export { AnimatedCounter } from './AnimatedCounter'
+export { StatCard } from './StatCard'
+export { Sparkline } from './Sparkline'
+export { PulseIndicator } from './PulseIndicator'

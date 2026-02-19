@@ -11,6 +11,8 @@ interface PageHeaderProps {
   actions?: ReactNode
   overflowActions?: OverflowMenuAction[]
   children?: ReactNode
+  /** view-transition-name for shared element morph (title ↔ card title) */
+  viewTransitionName?: string
 }
 
 export function PageHeader({
@@ -21,12 +23,16 @@ export function PageHeader({
   actions,
   overflowActions,
   children,
+  viewTransitionName,
 }: PageHeaderProps) {
   return (
     <div className="space-y-3">
       {/* Line 1: Title + Status + Overflow menu */}
       <div className="flex items-start justify-between gap-3">
-        <h1 className="text-xl md:text-2xl font-bold tracking-tight text-gray-100 truncate min-w-0">{title}</h1>
+        <h1
+          className="font-bold tracking-tight text-gray-100 truncate min-w-0"
+          style={{ fontSize: 'var(--fluid-2xl)', ...(viewTransitionName ? { viewTransitionName } : undefined) }}
+        >{title}</h1>
         <div className="flex items-center gap-2 shrink-0">
           {actions}
           {status}

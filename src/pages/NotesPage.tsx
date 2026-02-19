@@ -163,6 +163,7 @@ export function NotesPage() {
         </div>
       ) : notes.length === 0 ? (
         <EmptyState
+          variant={total === 0 && typeFilter === 'all' && statusFilter === 'all' ? 'notes' : undefined}
           title="No notes found"
           description={total === 0 && typeFilter === 'all' && statusFilter === 'all' ? 'Knowledge notes capture important patterns, gotchas, and guidelines.' : 'No notes match the current filters.'}
         />
@@ -311,7 +312,7 @@ function NoteCard({ note, onDelete, onUpdate, selected, onToggleSelect }: NoteCa
   const hiddenCount = anchors.length - visibleAnchors.length
 
   return (
-    <Card className={`border-l-4 ${typeColors[note.note_type] || 'border-l-gray-500'} transition-colors ${selected ? 'border-l-indigo-500 bg-indigo-500/[0.05]' : ''}`}>
+    <Card lazy="sm" className={`border-l-4 ${typeColors[note.note_type] || 'border-l-gray-500'} transition-colors ${selected ? 'border-l-indigo-500 bg-indigo-500/[0.05]' : ''}`}>
       <div className="flex">
         {onToggleSelect && (
           <SelectZone selected={!!selected} onToggle={onToggleSelect} />

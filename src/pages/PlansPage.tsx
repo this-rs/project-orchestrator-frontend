@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { plansAtom, plansLoadingAtom, planStatusFilterAtom, planRefreshAtom } from '@/atoms'
 import { plansApi } from '@/services'
@@ -20,7 +20,7 @@ import {
   LoadMoreSentinel,
   SkeletonCard,
 } from '@/components/ui'
-import { useViewMode, useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug } from '@/hooks'
+import { useViewMode, useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { CreatePlanForm } from '@/components/forms'
 import { PlanKanbanBoard, PlanKanbanFilterBar } from '@/components/kanban'
 import type { PlanKanbanFilters } from '@/components/kanban'
@@ -52,7 +52,7 @@ export function PlansPage() {
   const planRefresh = useAtomValue(planRefreshAtom)
   const reducedMotion = useReducedMotion()
   const [viewMode, setViewMode] = useViewMode()
-  const navigate = useNavigate()
+  const { navigate } = useViewTransition()
   const confirmDialog = useConfirmDialog()
   const formDialog = useFormDialog()
   const toast = useToast()
@@ -276,7 +276,7 @@ export function PlansPage() {
           filters={kanbanColumnFilters}
           hiddenStatuses={hiddenStatuses}
           onPlanStatusChange={handlePlanStatusChange}
-          onPlanClick={(planId) => navigate(`/workspace/${wsSlug}/plans/${planId}`)}
+          onPlanClick={(planId) => navigate(`/workspace/${wsSlug}/plans/${planId}`, { type: 'card-click' })}
           refreshTrigger={planRefresh}
         />
       ) : showListSkeleton ? (
@@ -287,6 +287,7 @@ export function PlansPage() {
         </div>
       ) : plans.length === 0 ? (
         <EmptyState
+          variant={total === 0 && statusFilter === 'all' ? 'plans' : undefined}
           title="No plans found"
           description={
             total === 0 && statusFilter === 'all'
@@ -387,7 +388,7 @@ function PlanCard({
 }) {
   return (
     <Link to={`/workspace/${wsSlug}/plans/${plan.id}`}>
-      <Card className={`transition-colors ${selected ? 'border-indigo-500/40 bg-indigo-500/[0.05]' : 'hover:border-indigo-500'}`}>
+      <Card lazy="lg" className={`transition-colors ${selected ? 'border-indigo-500/40 bg-indigo-500/[0.05]' : 'hover:border-indigo-500'}`}>
         <div className="flex">
           {onToggleSelect && (
             <SelectZone selected={!!selected} onToggle={onToggleSelect} />
@@ -396,7 +397,7 @@ function PlanCard({
           <div className="flex-1 min-w-0 p-3 md:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 sm:gap-3 mb-1">
-                <h3 className="text-base sm:text-lg font-semibold text-gray-100 truncate min-w-0">{plan.title}</h3>
+                <h3 className="text-base sm:text-lg font-semibold text-gray-100 truncate min-w-0" style={{ viewTransitionName: `plan-title-${plan.id}` }}>{plan.title}</h3>
                 <InteractivePlanStatusBadge status={plan.status} onStatusChange={onStatusChange} />
               </div>
               <p className="text-sm text-gray-400 line-clamp-1">{plan.description}</p>

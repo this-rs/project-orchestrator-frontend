@@ -1,11 +1,11 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
 import { ChevronsUpDown, ChevronRight } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import { plansApi, tasksApi, projectsApi } from '@/services'
 import { KanbanBoard } from '@/components/kanban'
-import { useViewMode, useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
+import { useViewMode, useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { chatSuggestedProjectIdAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import { CreateTaskForm, CreateConstraintForm } from '@/components/forms'
@@ -20,7 +20,7 @@ interface DecisionWithTask extends Decision {
 
 export function PlanDetailPage() {
   const { planId } = useParams<{ planId: string }>()
-  const navigate = useNavigate()
+  const { navigate } = useViewTransition()
   const wsSlug = useWorkspaceSlug()
   const [plan, setPlan] = useState<Plan | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
@@ -192,6 +192,7 @@ export function PlanDetailPage() {
     <div className="pt-6 space-y-6">
       <PageHeader
         title={plan.title}
+        viewTransitionName={`plan-title-${plan.id}`}
         description={plan.description}
         status={
           <StatusSelect
@@ -226,7 +227,7 @@ export function PlanDetailPage() {
           { label: 'Delete', variant: 'danger', onClick: () => confirmDialog.open({
             title: 'Delete Plan',
             description: 'This will permanently delete this plan and all its tasks, steps, decisions, and constraints.',
-            onConfirm: async () => { await plansApi.delete(plan.id); toast.success('Plan deleted'); navigate(workspacePath(wsSlug, '/plans')) }
+            onConfirm: async () => { await plansApi.delete(plan.id); toast.success('Plan deleted'); navigate(workspacePath(wsSlug, '/plans'), { type: 'back-button' }) }
           }) }
         ]}
       >
@@ -315,7 +316,7 @@ export function PlanDetailPage() {
             <KanbanBoard
               fetchFn={kanbanFetchFn}
               onTaskStatusChange={handleTaskStatusChange}
-              onTaskClick={(taskId) => navigate(workspacePath(wsSlug, `/tasks/${taskId}`))}
+              onTaskClick={(taskId) => navigate(workspacePath(wsSlug, `/tasks/${taskId}`), { type: 'card-click' })}
               refreshTrigger={taskRefresh}
             />
           ) : (

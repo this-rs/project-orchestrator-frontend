@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { ChevronDown, Plus, Menu } from 'lucide-react'
@@ -20,12 +21,38 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
   const [creating, setCreating] = useState(false)
   const createInputRef = useRef<HTMLInputElement>(null)
   const ref = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number } | null>(null)
 
-  // Close on click outside
+  // Compute menu position from the trigger button
+  const updateMenuPos = useCallback(() => {
+    if (!btnRef.current) return
+    const rect = btnRef.current.getBoundingClientRect()
+    setMenuPos({
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: collapsed ? 220 : rect.width,
+    })
+  }, [collapsed])
+
+  // Update position on open and on scroll/resize
+  useEffect(() => {
+    if (!open) return
+    updateMenuPos()
+    window.addEventListener('resize', updateMenuPos)
+    return () => window.removeEventListener('resize', updateMenuPos)
+  }, [open, updateMenuPos])
+
+  // Close on click outside (check both trigger and portal menu)
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      if (
+        ref.current && !ref.current.contains(target) &&
+        menuRef.current && !menuRef.current.contains(target)
+      ) {
         setOpen(false)
         setShowCreate(false)
         setNewName('')
@@ -42,6 +69,7 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
   return (
     <div ref={ref} className="relative px-2 mb-2">
       <button
+        ref={btnRef}
         onClick={() => setOpen(!open)}
         className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-white/[0.06] transition-colors text-left"
       >
@@ -60,9 +88,13 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
         )}
       </button>
 
-      {/* Dropdown */}
-      {open && (
-        <div className="absolute left-2 right-2 top-full mt-1 bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl z-50 py-1 max-h-64 overflow-y-auto">
+      {/* Dropdown — portal to escape sidebar stacking context */}
+      {open && menuPos && createPortal(
+        <div
+          ref={menuRef}
+          className="fixed glass-heavy rounded-lg shadow-xl z-50 py-1 max-h-64 overflow-y-auto"
+          style={{ top: menuPos.top, left: menuPos.left, width: menuPos.width }}
+        >
           {otherWorkspaces.length === 0 ? (
             <div className="px-3 py-2 text-sm text-gray-500">No other workspaces</div>
           ) : (
@@ -149,7 +181,8 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
               </form>
             </div>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
 
     </div>

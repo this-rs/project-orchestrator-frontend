@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Menu, Home, Flag, Box, ClipboardList, CheckCircle2, FileText, Code, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
@@ -7,12 +7,14 @@ import { ToastContainer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher'
-import { useMediaQuery, useCrudEventRefresh, useDragRegion, useWindowFullscreen } from '@/hooks'
+import { useMediaQuery, useCrudEventRefresh, useDragRegion, useWindowFullscreen, useViewTransition } from '@/hooks'
+import type { NavDirection } from '@/hooks'
 import { isTauri } from '@/services/env'
 import { workspacesApi } from '@/services/workspaces'
 import { workspacePath } from '@/utils/paths'
 
-function SidebarContent({ collapsed, trafficLightPad, wsSlug }: { collapsed: boolean; trafficLightPad?: boolean; wsSlug: string }) {
+function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { collapsed: boolean; trafficLightPad?: boolean; wsSlug: string; onNavClick?: (href: string, direction: NavDirection) => void }) {
+  const location = useLocation()
   const navGroups = useMemo(() => [
     {
       label: 'Organize',
@@ -37,6 +39,28 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug }: { collapsed: boo
       ],
     },
   ], [wsSlug])
+
+  // Flat list of all nav hrefs for direction detection
+  const allHrefs = useMemo(
+    () => navGroups.flatMap((g) => g.items.map((i) => i.href)),
+    [navGroups],
+  )
+
+  const handleNavClick = useCallback(
+    (e: React.MouseEvent, href: string) => {
+      if (!onNavClick) return
+      // Don't intercept if already on this page
+      if (location.pathname === href || location.pathname.startsWith(href + '/')) return
+      e.preventDefault()
+      const currentIdx = allHrefs.findIndex(
+        (h) => location.pathname === h || location.pathname.startsWith(h + '/'),
+      )
+      const targetIdx = allHrefs.indexOf(href)
+      const direction: NavDirection = targetIdx >= currentIdx ? 'down' : 'up'
+      onNavClick(href, direction)
+    },
+    [onNavClick, allHrefs, location.pathname],
+  )
 
   return (
     <>
@@ -71,10 +95,11 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug }: { collapsed: boo
                     <NavLink
                       to={item.href}
                       end={item.name === 'Overview'}
+                      onClick={(e) => handleNavClick(e, item.href)}
                       className={({ isActive }) =>
-                        `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                        `flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${
                           isActive
-                            ? 'bg-indigo-500/15 text-indigo-400 font-medium border-l-[3px] border-indigo-500 -ml-[3px]'
+                            ? 'bg-indigo-500/15 text-indigo-400 font-medium border-l-[3px] border-indigo-500 -ml-[3px] glow-primary'
                             : 'text-gray-400 hover:bg-white/[0.06] hover:text-gray-200'
                         }`
                       }
@@ -141,6 +166,15 @@ export function MainLayout() {
     }
   }, [mobileMenuOpen])
 
+  // View transition for sidebar navigation with directional slide
+  const { navigate: vtNavigate } = useViewTransition()
+  const handleSidebarNav = useCallback(
+    (href: string, direction: NavDirection) => {
+      vtNavigate(href, { type: 'sidebar-nav', direction })
+    },
+    [vtNavigate],
+  )
+
   const currentSlug = wsSlug || ''
 
   return (
@@ -150,8 +184,9 @@ export function MainLayout() {
         className={`${
           collapsed ? 'w-16' : 'w-64'
         } hidden md:flex flex-col bg-surface-raised border-r border-border-subtle transition-all duration-200`}
+        style={{ viewTransitionName: 'sidebar' }}
       >
-        <SidebarContent collapsed={collapsed} trafficLightPad={trafficLightPad} wsSlug={currentSlug} />
+        <SidebarContent collapsed={collapsed} trafficLightPad={trafficLightPad} wsSlug={currentSlug} onNavClick={handleSidebarNav} />
 
         {/* User menu + Collapse button */}
         <div className={`border-t border-white/[0.06] p-2 ${collapsed ? 'flex flex-col items-center gap-1' : 'flex items-center gap-1'}`}>
@@ -188,7 +223,7 @@ export function MainLayout() {
             mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
-          <SidebarContent collapsed={false} wsSlug={currentSlug} />
+          <SidebarContent collapsed={false} wsSlug={currentSlug} onNavClick={handleSidebarNav} />
 
           {/* User menu + Close button */}
           <div className="border-t border-white/[0.06] p-2 flex items-center gap-1">
@@ -210,7 +245,7 @@ export function MainLayout() {
         style={{ marginRight: chatOpen && !chatFullscreen && isSmUp ? chatWidth : 0 }}
       >
         {/* Breadcrumb */}
-        <header className="h-16 flex items-center px-4 md:px-6 border-b border-border-subtle bg-surface-raised/80 backdrop-blur-sm" onMouseDown={onDragMouseDown}>
+        <header className="h-16 flex items-center px-4 md:px-6 border-b border-border-subtle bg-surface-raised/80 backdrop-blur-sm" style={{ viewTransitionName: 'header' }} onMouseDown={onDragMouseDown}>
           {/* Hamburger button (mobile only) */}
           <button
             className="mr-3 p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors md:hidden"
@@ -246,7 +281,7 @@ export function MainLayout() {
         </header>
 
         {/* Page content */}
-        <div className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden px-4 md:px-6 pb-2">
+        <div className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain px-4 md:px-6 pb-2" style={{ viewTransitionName: 'content' }}>
           <div className="flex-1">
             <Outlet />
           </div>
@@ -296,6 +331,12 @@ function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceNa
     return labels[s] || s.charAt(0).toUpperCase() + s.slice(1)
   }
 
+  // Segments whose list page lives at a different route
+  const linkOverrides: Record<string, string> = {
+    'project-milestones': 'milestones',
+    'feature-graphs': 'code',
+  }
+
   return (
     <nav className="flex items-center gap-2 text-sm min-w-0">
       {/* Workspace name as first segment */}
@@ -317,7 +358,10 @@ function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceNa
         const isLast = index === displayParts.length - 1
         const isMiddle = !isFirst && !isLast
         const hideOnMobile = isMiddle && displayParts.length > 2
-        const fullPath = `${basePath}/${displayParts.slice(0, index + 1).join('/')}`
+        const override = linkOverrides[part]
+        const fullPath = override
+          ? `${basePath}/${override}`
+          : `${basePath}/${displayParts.slice(0, index + 1).join('/')}`
         return (
           <span key={`${part}-${index}`} className={`flex items-center gap-2 min-w-0 ${hideOnMobile ? 'hidden sm:flex' : ''}`}>
             <span className="text-gray-600 shrink-0">/</span>

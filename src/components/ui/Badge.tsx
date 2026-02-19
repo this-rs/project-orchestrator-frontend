@@ -13,11 +13,11 @@ interface BadgeProps {
 
 const variantStyles: Record<BadgeVariant, string> = {
   default: 'bg-white/[0.08] text-gray-200 ring-gray-500/20',
-  success: 'bg-green-900/50 text-green-400 ring-green-500/20',
-  warning: 'bg-yellow-900/50 text-yellow-400 ring-yellow-500/20',
-  error: 'bg-red-900/50 text-red-400 ring-red-500/20',
-  info: 'bg-blue-900/50 text-blue-400 ring-blue-500/20',
-  purple: 'bg-purple-900/50 text-purple-400 ring-purple-500/20',
+  success: 'bg-green-900/50 text-green-400 ring-green-500/20 glow-success',
+  warning: 'bg-yellow-900/50 text-yellow-400 ring-yellow-500/20 glow-warning',
+  error: 'bg-red-900/50 text-red-400 ring-red-500/20 glow-danger',
+  info: 'bg-blue-900/50 text-blue-400 ring-blue-500/20 glow-info',
+  purple: 'bg-purple-900/50 text-purple-400 ring-purple-500/20 glow-purple',
 }
 
 export function Badge({ children, variant = 'default', className = '' }: BadgeProps) {

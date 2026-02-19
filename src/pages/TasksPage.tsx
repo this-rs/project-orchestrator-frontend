@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useMemo } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { tasksAtom, tasksLoadingAtom, taskStatusFilterAtom, taskRefreshAtom } from '@/atoms'
 import { tasksApi } from '@/services'
@@ -18,8 +18,9 @@ import {
   BulkActionBar,
   LoadMoreSentinel,
   SkeletonCard,
+  PulseIndicator,
 } from '@/components/ui'
-import { useKanbanFilters, useViewMode, useConfirmDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug } from '@/hooks'
+import { useKanbanFilters, useViewMode, useConfirmDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { KanbanBoard, KanbanFilterBar } from '@/components/kanban'
 import type { TaskWithPlan, TaskStatus, PaginatedResponse } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
@@ -40,7 +41,7 @@ export function TasksPage() {
   const [statusFilter, setStatusFilter] = useAtom(taskStatusFilterAtom)
   const taskRefresh = useAtomValue(taskRefreshAtom)
   const [viewMode, setViewMode] = useViewMode()
-  const navigate = useNavigate()
+  const { navigate } = useViewTransition()
   const confirmDialog = useConfirmDialog()
   const toast = useToast()
   const kanbanFilters = useKanbanFilters()
@@ -143,7 +144,7 @@ export function TasksPage() {
 
   const handleTaskClick = useCallback(
     (taskId: string) => {
-      navigate(`/workspace/${wsSlug}/tasks/${taskId}`)
+      navigate(`/workspace/${wsSlug}/tasks/${taskId}`, { type: 'card-click' })
     },
     [navigate, wsSlug],
   )
@@ -219,6 +220,7 @@ export function TasksPage() {
         </div>
       ) : tasks.length === 0 ? (
         <EmptyState
+          variant={total === 0 && statusFilter === 'all' ? 'tasks' : undefined}
           title="No tasks found"
           description={
             total === 0 && statusFilter === 'all'
@@ -316,7 +318,7 @@ function TaskCard({
   const tags = task.tags || []
   return (
     <Link to={`/workspace/${wsSlug}/tasks/${task.id}`}>
-      <Card className={`transition-colors ${selected ? 'border-indigo-500/40 bg-indigo-500/[0.05]' : 'hover:border-indigo-500'}`}>
+      <Card lazy className={`transition-colors ${selected ? 'border-indigo-500/40 bg-indigo-500/[0.05]' : 'hover:border-indigo-500'}`}>
         <div className="flex">
           {onToggleSelect && (
             <SelectZone selected={!!selected} onToggle={onToggleSelect} />
@@ -326,7 +328,8 @@ function TaskCard({
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-gray-100 truncate min-w-0">
+                  {task.status === 'in_progress' && <PulseIndicator variant="pending" size={8} />}
+                  <h3 className="font-semibold text-gray-100 truncate min-w-0" style={{ viewTransitionName: `task-title-${task.id}` }}>
                     {task.title || (task.description || '').slice(0, 60)}
                   </h3>
                   <InteractiveTaskStatusBadge status={task.status} onStatusChange={onStatusChange} />

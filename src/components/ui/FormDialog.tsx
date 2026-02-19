@@ -82,7 +82,7 @@ export function FormDialog({
           />
 
           <motion.div
-            className={`relative bg-surface-overlay rounded-xl shadow-xl border border-border-subtle ${sizeClasses[size]} w-full`}
+            className={`relative glass-medium rounded-xl shadow-xl ${sizeClasses[size]} w-full`}
             variants={reducedMotion ? undefined : dialogVariants}
             initial="hidden"
             animate="visible"

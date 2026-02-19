@@ -41,7 +41,7 @@ export function ToastContainer() {
         return (
           <div
             key={toast.id}
-            className="pointer-events-auto flex items-stretch bg-surface-overlay rounded-xl shadow-md border border-border-subtle overflow-hidden animate-[slideInRight_200ms_ease-out] min-w-[300px] max-w-[420px]"
+            className="pointer-events-auto flex items-stretch glass-medium rounded-xl shadow-md overflow-hidden animate-[slideInRight_200ms_ease-out] min-w-[300px] max-w-[420px]"
           >
             {/* Color bar */}
             <div className={`w-1 shrink-0 ${config.bar}`} />

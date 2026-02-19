@@ -2,12 +2,15 @@ interface CardProps {
   children: React.ReactNode
   className?: string
   onClick?: () => void
+  /** Enable content-visibility: auto for off-screen rendering skip (use in long lists) */
+  lazy?: boolean | 'sm' | 'lg'
 }
 
-export function Card({ children, className = '', onClick }: CardProps) {
+export function Card({ children, className = '', onClick, lazy }: CardProps) {
+  const cvClass = lazy === true ? 'cv-auto' : lazy === 'sm' ? 'cv-auto-sm' : lazy === 'lg' ? 'cv-auto-lg' : ''
   return (
     <div
-      className={`bg-surface-raised rounded-xl border border-border-subtle shadow-sm overflow-hidden ${onClick ? 'cursor-pointer hover:border-border-strong hover:shadow-md transition-all duration-150' : ''} ${className}`}
+      className={`glass rounded-xl shadow-sm overflow-hidden scroll-reveal ${onClick ? 'cursor-pointer card-hover' : ''} ${cvClass} ${className}`}
       onClick={onClick}
     >
       {children}
@@ -20,7 +23,7 @@ export function CardHeader({ children, className = '' }: { children: React.React
 }
 
 export function CardTitle({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <h3 className={`text-lg font-semibold text-gray-100 ${className}`}>{children}</h3>
+  return <h3 className={`font-semibold text-gray-100 ${className}`} style={{ fontSize: 'var(--fluid-lg)' }}>{children}</h3>
 }
 
 export function CardContent({ children, className = '' }: { children: React.ReactNode; className?: string }) {
