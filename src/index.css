@@ -455,3 +455,45 @@ html.tauri * {
     animation: none !important;
   }
 }
+
+/* ─── View Transitions — page-level crossfade with stable chrome ─────
+ * Uses the View Transitions API (Chrome 111+, Safari 18+, Firefox 133+).
+ * Progressive enhancement: unsupported browsers get instant navigation.
+ * ─────────────────────────────────────────────────────────────────────── */
+
+/* Default crossfade for all route changes */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+  animation-timing-function: ease-in-out;
+}
+
+/* Content area — named separately so sidebar/header stay stable */
+::view-transition-old(content),
+::view-transition-new(content) {
+  animation-duration: 220ms;
+  animation-timing-function: ease-in-out;
+}
+
+/* Sidebar and header remain stable — no animation, no snapshot flicker */
+::view-transition-group(sidebar),
+::view-transition-group(header) {
+  animation: none;
+}
+::view-transition-old(sidebar),
+::view-transition-new(sidebar),
+::view-transition-old(header),
+::view-transition-new(header) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* prefers-reduced-motion — instant transitions */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root),
+  ::view-transition-old(content),
+  ::view-transition-new(content) {
+    animation-duration: 0s;
+  }
+}

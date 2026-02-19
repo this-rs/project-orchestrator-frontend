@@ -150,6 +150,7 @@ export function MainLayout() {
         className={`${
           collapsed ? 'w-16' : 'w-64'
         } hidden md:flex flex-col bg-surface-raised border-r border-border-subtle transition-all duration-200`}
+        style={{ viewTransitionName: 'sidebar' }}
       >
         <SidebarContent collapsed={collapsed} trafficLightPad={trafficLightPad} wsSlug={currentSlug} />
 
@@ -210,7 +211,7 @@ export function MainLayout() {
         style={{ marginRight: chatOpen && !chatFullscreen && isSmUp ? chatWidth : 0 }}
       >
         {/* Breadcrumb */}
-        <header className="h-16 flex items-center px-4 md:px-6 glass border-t-0 border-x-0 rounded-none" onMouseDown={onDragMouseDown}>
+        <header className="h-16 flex items-center px-4 md:px-6 glass border-t-0 border-x-0 rounded-none" style={{ viewTransitionName: 'header' }} onMouseDown={onDragMouseDown}>
           {/* Hamburger button (mobile only) */}
           <button
             className="mr-3 p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors md:hidden"
@@ -246,7 +247,7 @@ export function MainLayout() {
         </header>
 
         {/* Page content */}
-        <div className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden px-4 md:px-6 pb-2">
+        <div className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden px-4 md:px-6 pb-2" style={{ viewTransitionName: 'content' }}>
           <div className="flex-1">
             <Outlet />
           </div>
