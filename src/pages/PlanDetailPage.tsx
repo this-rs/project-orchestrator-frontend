@@ -57,7 +57,7 @@ export function PlanDetailPage() {
         const planData = (planResponse as unknown as { plan: Plan }).plan || planResponse
         setPlan(planData)
         setTasks(tasksData.items || [])
-        setConstraints(constraintsData.items || [])
+        setConstraints(Array.isArray(constraintsData) ? constraintsData : [])
         setGraph(graphData)
 
         // Extract decisions from PlanDetails response — backend nests them in tasks[].decisions[]

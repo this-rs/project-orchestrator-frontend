@@ -57,7 +57,7 @@ export const plansApi = {
 
   // Constraints
   listConstraints: (planId: string) =>
-    api.get<{ items: Constraint[] }>(`/plans/${planId}/constraints`),
+    api.get<Constraint[]>(`/plans/${planId}/constraints`),
 
   addConstraint: (
     planId: string,
