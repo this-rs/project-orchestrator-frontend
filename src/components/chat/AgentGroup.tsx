@@ -5,6 +5,7 @@ import { ThinkingBlock } from './ThinkingBlock'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
+import { ChevronRight } from 'lucide-react'
 
 // ============================================================================
 // Color palette for distinguishing multiple agents
@@ -115,15 +116,7 @@ export function AgentGroup({ parentBlock, childBlocks, allBlocks, isStreaming }:
         />
 
         {/* Chevron */}
-        <svg
-          className={`w-3 h-3 text-gray-500 transition-transform shrink-0 ${expanded ? 'rotate-90' : ''}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-        </svg>
+        <ChevronRight className={`w-3 h-3 text-gray-500 transition-transform shrink-0 ${expanded ? 'rotate-90' : ''}`} />
 
         {/* Robot icon */}
         <span className={`shrink-0 text-sm ${color.text}`}>

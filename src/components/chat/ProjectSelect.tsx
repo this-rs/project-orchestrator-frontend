@@ -4,6 +4,7 @@ import { chatSuggestedProjectIdAtom, chatSelectedProjectAtom, chatAllProjectsMod
 import { Select } from '@/components/ui'
 import { workspacesApi } from '@/services'
 import type { Project } from '@/types'
+import { Archive } from 'lucide-react'
 
 /** Shorten an absolute path by replacing the home directory with ~ */
 function shortenPath(path: string): string {
@@ -81,9 +82,7 @@ export function ProjectSelect() {
         </label>
         {activeWorkspace && (
           <div className="flex items-center gap-1">
-            <svg className="w-3 h-3 text-purple-400/60 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-            </svg>
+            <Archive className="w-3 h-3 text-purple-400/60 shrink-0" />
             <span className="text-[10px] text-purple-400 font-medium truncate">{activeWorkspace.name}</span>
           </div>
         )}

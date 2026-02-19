@@ -10,6 +10,7 @@ import type {
   Project,
 } from '@/types'
 import { Select } from '@/components/ui'
+import { Folder, Trash2, Search, X, Loader2, ChevronRight, MessageCircle } from 'lucide-react'
 
 interface SessionListProps {
   activeSessionId?: string | null
@@ -371,9 +372,7 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
           {/* CWD */}
           {session.cwd && (
             <div className="flex items-center gap-1 mt-0.5 min-w-0">
-              <svg className="w-2.5 h-2.5 text-gray-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-              </svg>
+              <Folder className="w-2.5 h-2.5 text-gray-600 shrink-0" />
               <span className="text-[10px] text-gray-600 truncate">
                 {shortenPath(session.cwd)}
               </span>
@@ -424,9 +423,7 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
           className="shrink-0 p-1 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
           title="Delete session"
         >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
+          <Trash2 className="w-3.5 h-3.5" />
         </button>
       </div>
     )
@@ -453,19 +450,7 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
       <div className="px-3 py-2 border-b border-white/[0.06] space-y-1.5">
         {/* Search input */}
         <div className="relative">
-          <svg
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
-          </svg>
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500" />
           <input
             ref={searchInputRef}
             type="text"
@@ -479,9 +464,7 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
               onClick={handleClearSearch}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
             >
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <X className="w-3 h-3" />
             </button>
           )}
         </div>
@@ -496,7 +479,7 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
               ...projects.map((p) => ({ value: p.slug, label: p.name })),
             ]}
             placeholder="All projects"
-            icon={<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>}
+            icon={<Folder className="w-3 h-3" />}
           />
         )}
       </div>
@@ -507,17 +490,12 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
           // Search results mode
           searching ? (
             <div className="flex items-center justify-center py-8 text-gray-600 text-sm">
-              <svg className="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               Searching...
             </div>
           ) : searchResults.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-gray-600 text-sm">
-              <svg className="w-6 h-6 mb-2 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+              <Search className="w-6 h-6 mb-2 text-gray-700" />
               No results for &ldquo;{debouncedQuery}&rdquo;
             </div>
           ) : (
@@ -581,9 +559,7 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
                           </span>
                         </div>
                         {/* Arrow indicator */}
-                        <svg className="w-3 h-3 text-gray-700 group-hover:text-indigo-400 shrink-0 mt-1 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                        </svg>
+                        <ChevronRight className="w-3 h-3 text-gray-700 group-hover:text-indigo-400 shrink-0 mt-1 transition-colors" />
                       </div>
                     </button>
                   ))}
@@ -602,17 +578,12 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
         ) : // Normal session list mode
         loading ? (
           <div className="flex items-center justify-center py-8 text-gray-600 text-sm">
-            <svg className="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             Loading...
           </div>
         ) : filteredSessions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-gray-600 text-sm">
-            <svg className="w-6 h-6 mb-2 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
+            <MessageCircle className="w-6 h-6 mb-2 text-gray-700" />
             No conversations yet
           </div>
         ) : (
@@ -637,10 +608,7 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
               <div ref={sentinelRef} className="flex items-center justify-center py-3">
                 {isLoadingMore ? (
                   <>
-                    <svg className="w-3.5 h-3.5 animate-spin text-gray-500" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-500" />
                     <span className="ml-1.5 text-[10px] text-gray-600">Loading more...</span>
                   </>
                 ) : (
