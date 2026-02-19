@@ -104,7 +104,7 @@ function App() {
     <Provider>
       <BrowserRouter>
         <div className="tauri-window flex h-dvh flex-col overflow-hidden">
-          <AmbientBackground />
+          {/* <AmbientBackground /> */}
           <div className="flex min-h-0 flex-1 flex-col">
             <UpdateBanner />
             <WebUpdateBanner />

@@ -245,7 +245,7 @@ export function MainLayout() {
         style={{ marginRight: chatOpen && !chatFullscreen && isSmUp ? chatWidth : 0 }}
       >
         {/* Breadcrumb */}
-        <header className="h-16 flex items-center px-4 md:px-6 glass border-t-0 border-x-0 rounded-none" style={{ viewTransitionName: 'header' }} onMouseDown={onDragMouseDown}>
+        <header className="h-16 flex items-center px-4 md:px-6 border-b border-border-subtle bg-surface-raised/80 backdrop-blur-sm" style={{ viewTransitionName: 'header' }} onMouseDown={onDragMouseDown}>
           {/* Hamburger button (mobile only) */}
           <button
             className="mr-3 p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors md:hidden"
@@ -281,7 +281,7 @@ export function MainLayout() {
         </header>
 
         {/* Page content */}
-        <div className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden px-4 md:px-6 pb-2" style={{ viewTransitionName: 'content' }}>
+        <div className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain px-4 md:px-6 pb-2" style={{ viewTransitionName: 'content' }}>
           <div className="flex-1">
             <Outlet />
           </div>
@@ -331,6 +331,12 @@ function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceNa
     return labels[s] || s.charAt(0).toUpperCase() + s.slice(1)
   }
 
+  // Segments whose list page lives at a different route
+  const linkOverrides: Record<string, string> = {
+    'project-milestones': 'milestones',
+    'feature-graphs': 'code',
+  }
+
   return (
     <nav className="flex items-center gap-2 text-sm min-w-0">
       {/* Workspace name as first segment */}
@@ -352,7 +358,10 @@ function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceNa
         const isLast = index === displayParts.length - 1
         const isMiddle = !isFirst && !isLast
         const hideOnMobile = isMiddle && displayParts.length > 2
-        const fullPath = `${basePath}/${displayParts.slice(0, index + 1).join('/')}`
+        const override = linkOverrides[part]
+        const fullPath = override
+          ? `${basePath}/${override}`
+          : `${basePath}/${displayParts.slice(0, index + 1).join('/')}`
         return (
           <span key={`${part}-${index}`} className={`flex items-center gap-2 min-w-0 ${hideOnMobile ? 'hidden sm:flex' : ''}`}>
             <span className="text-gray-600 shrink-0">/</span>

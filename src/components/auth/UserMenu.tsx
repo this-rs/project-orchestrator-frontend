@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useAtomValue } from 'jotai'
 import { LogOut } from 'lucide-react'
 import { authModeAtom, currentUserAtom } from '@/atoms'
@@ -15,13 +16,39 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
   const authMode = useAtomValue(authModeAtom)
   const user = useAtomValue(currentUserAtom)
   const [open, setOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; left?: number; right?: number } | null>(null)
 
-  // Close dropdown on outside click
+  // Compute menu position from the trigger button
+  const updateMenuPos = useCallback(() => {
+    if (!btnRef.current) return
+    const rect = btnRef.current.getBoundingClientRect()
+    if (dropUp) {
+      setMenuPos({ bottom: window.innerHeight - rect.top + 8, left: rect.left })
+    } else {
+      setMenuPos({ top: rect.bottom + 8, left: Math.max(8, rect.right - 224) })
+    }
+  }, [dropUp])
+
+  // Update position on open and on resize
+  useEffect(() => {
+    if (!open) return
+    updateMenuPos()
+    window.addEventListener('resize', updateMenuPos)
+    return () => window.removeEventListener('resize', updateMenuPos)
+  }, [open, updateMenuPos])
+
+  // Close dropdown on outside click (check both trigger and portal dropdown)
   useEffect(() => {
     if (!open) return
     function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      if (
+        triggerRef.current && !triggerRef.current.contains(target) &&
+        dropdownRef.current && !dropdownRef.current.contains(target)
+      ) {
         setOpen(false)
       }
     }
@@ -56,8 +83,9 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
   }
 
   return (
-    <div className="relative" ref={menuRef}>
+    <div className="relative" ref={triggerRef}>
       <button
+        ref={btnRef}
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200 min-w-0"
       >
@@ -78,8 +106,13 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
         )}
       </button>
 
-      {open && (
-        <div className={`absolute z-50 w-56 rounded-lg border border-white/[0.08] bg-surface-popover py-1 shadow-xl ${dropUp ? 'bottom-full left-0 mb-2' : 'right-0 top-full mt-2'}`}>
+      {/* Portal to escape sidebar stacking context */}
+      {open && menuPos && createPortal(
+        <div
+          ref={dropdownRef}
+          className="fixed z-50 w-56 rounded-lg glass-heavy py-1 shadow-xl"
+          style={menuPos}
+        >
           <div className="border-b border-white/[0.06] px-4 py-3">
             <p className="truncate text-sm font-medium text-gray-200">{user.name}</p>
             <p className="truncate text-xs text-gray-500">{user.email}</p>
@@ -94,7 +127,8 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
             </span>
             <span className="text-[10px] text-gray-600">v{__APP_VERSION__}</span>
           </button>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
