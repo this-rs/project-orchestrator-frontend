@@ -157,6 +157,19 @@ p, .description-text { text-wrap: pretty; }
   100% { transform: translateX(100%); }
 }
 
+/* ─── Pulse indicator ─────────────────────────────────────────────── */
+.pulse-ring {
+  animation: pulse-expand 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+@keyframes pulse-expand {
+  0%   { transform: scale(1);   opacity: 0.75; }
+  75%  { transform: scale(2.5); opacity: 0; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse-ring { animation: none; opacity: 0; }
+}
+
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;

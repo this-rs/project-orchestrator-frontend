@@ -9,7 +9,7 @@ import type {
   PermissionMode,
   Project,
 } from '@/types'
-import { Select } from '@/components/ui'
+import { Select, PulseIndicator } from '@/components/ui'
 import { Folder, Trash2, Search, X, Loader2, ChevronRight, MessageCircle } from 'lucide-react'
 
 interface SessionListProps {
@@ -340,10 +340,7 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
           {/* Title + streaming indicator + mode dot */}
           <div className="flex items-center gap-1.5">
             {streamingSessions.has(session.id) && (
-              <span
-                className="shrink-0 w-2 h-2 rounded-full bg-emerald-400 animate-pulse"
-                title="Streaming..."
-              />
+              <PulseIndicator variant="active" size={8} />
             )}
             <span className={`text-sm truncate ${isActive ? 'text-gray-200 font-medium' : 'text-gray-300'}`}>
               {title}

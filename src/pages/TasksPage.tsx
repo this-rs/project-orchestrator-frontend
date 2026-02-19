@@ -18,6 +18,7 @@ import {
   BulkActionBar,
   LoadMoreSentinel,
   SkeletonCard,
+  PulseIndicator,
 } from '@/components/ui'
 import { useKanbanFilters, useViewMode, useConfirmDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { KanbanBoard, KanbanFilterBar } from '@/components/kanban'
@@ -326,6 +327,7 @@ function TaskCard({
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
+                  {task.status === 'in_progress' && <PulseIndicator variant="pending" size={8} />}
                   <h3 className="font-semibold text-gray-100 truncate min-w-0" style={{ viewTransitionName: `task-title-${task.id}` }}>
                     {task.title || (task.description || '').slice(0, 60)}
                   </h3>
