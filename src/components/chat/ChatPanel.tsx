@@ -1,5 +1,5 @@
 import { useAtom } from 'jotai'
-import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, activeWorkspaceSlugAtom } from '@/atoms'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, activeWorkspaceSlugAtom } from '@/atoms'
 import { useChat, useWindowFullscreen } from '@/hooks'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput, type PrefillPayload } from './ChatInput'
@@ -37,6 +37,7 @@ export function ChatPanel() {
   const [showSettings, setShowSettings] = useState(false)
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
   const selectedProject = useAtomValue(chatSelectedProjectAtom)
+  const allProjectsMode = useAtomValue(chatAllProjectsModeAtom)
   const activeWsSlug = useAtomValue(activeWorkspaceSlugAtom)
   const [isDragging, setIsDragging] = useState(false)
   const [sessionTitle, setSessionTitle] = useState<string | null>(null)
@@ -114,7 +115,7 @@ export function ChatPanel() {
   }, [isDragging, setPanelWidth])
 
   // Whether the user has selected a valid context for new conversations
-  const hasContext = !!selectedProject
+  const hasContext = !!selectedProject || (allProjectsMode && !!activeWsSlug)
 
   const handleSend = useCallback((text: string) => {
     if (isNewConversation && !hasContext) return
@@ -127,10 +128,10 @@ export function ChatPanel() {
       chat.sendMessage(text, {
         cwd: selectedProject.root_path,
         workspaceSlug: activeWsSlug || undefined,
-        projectSlug: selectedProject.slug,
+        projectSlug: allProjectsMode ? undefined : selectedProject.slug,
       })
     }
-  }, [isNewConversation, hasContext, selectedProject, activeWsSlug, chat.sendMessage])
+  }, [isNewConversation, hasContext, selectedProject, allProjectsMode, activeWsSlug, chat.sendMessage])
 
   const handleContinue = useCallback(() => {
     chat.sendContinue()

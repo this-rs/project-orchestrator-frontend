@@ -80,8 +80,87 @@ export function WorkspaceSelectorPage() {
             </button>
           ))}
         </div>
+
+        <InlineCreateWorkspace navigate={navigate} />
       </div>
     </div>
+  )
+}
+
+/**
+ * Collapsible inline form to create a new workspace from the selector page.
+ */
+function InlineCreateWorkspace({ navigate }: { navigate: ReturnType<typeof useNavigate> }) {
+  const [showForm, setShowForm] = useState(false)
+  const [name, setName] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (showForm) inputRef.current?.focus()
+  }, [showForm])
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const trimmed = name.trim()
+    if (!trimmed) return
+
+    setCreating(true)
+    setError(null)
+    try {
+      const ws = await workspacesApi.create({ name: trimmed })
+      navigate(workspacePath(ws.slug, '/projects'), { replace: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create workspace')
+      setCreating(false)
+    }
+  }
+
+  if (!showForm) {
+    return (
+      <button
+        onClick={() => setShowForm(true)}
+        className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-dashed border-white/[0.1] hover:border-indigo-500/40 rounded-lg transition-colors text-gray-400 hover:text-indigo-400"
+      >
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+        </svg>
+        Create new workspace
+      </button>
+    )
+  }
+
+  return (
+    <form onSubmit={handleCreate} className="space-y-3 p-4 bg-white/[0.04] border border-white/[0.06] rounded-lg">
+      <input
+        ref={inputRef}
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Workspace name"
+        className="w-full px-3 py-2 bg-white/[0.06] border border-white/[0.1] rounded-lg text-gray-100 placeholder-gray-500 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+        disabled={creating}
+      />
+      {error && <div className="text-sm text-red-400">{error}</div>}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => { setShowForm(false); setName(''); setError(null) }}
+          className="flex-1 px-3 py-2 text-sm text-gray-400 hover:text-gray-200 bg-white/[0.04] rounded-lg transition-colors"
+          disabled={creating}
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={creating || !name.trim()}
+          className="flex-1 px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+        >
+          {creating ? 'Creating...' : 'Create'}
+        </button>
+      </div>
+    </form>
   )
 }
 

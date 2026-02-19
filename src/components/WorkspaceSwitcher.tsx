@@ -3,8 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { workspacesAtom, activeWorkspaceAtom } from '@/atoms'
 import { workspacePath } from '@/utils/paths'
-import { ConfirmDialog } from '@/components/ui'
-import { useConfirmDialog, useToast } from '@/hooks'
 import { workspacesApi } from '@/services'
 
 /**
@@ -16,9 +14,11 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
   const workspaces = useAtomValue(workspacesAtom)
   const activeWorkspace = useAtomValue(activeWorkspaceAtom)
   const [open, setOpen] = useState(false)
+  const [showCreate, setShowCreate] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [creating, setCreating] = useState(false)
+  const createInputRef = useRef<HTMLInputElement>(null)
   const ref = useRef<HTMLDivElement>(null)
-  const confirmDialog = useConfirmDialog()
-  const toast = useToast()
 
   // Close on click outside
   useEffect(() => {
@@ -26,6 +26,8 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false)
+        setShowCreate(false)
+        setNewName('')
       }
     }
     document.addEventListener('mousedown', handler)
@@ -87,6 +89,18 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
           <div className="border-t border-white/[0.06] mt-1 pt-1">
             <button
               onClick={() => {
+                setShowCreate(true)
+                setTimeout(() => createInputRef.current?.focus(), 0)
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-white/[0.06] transition-colors text-left text-sm text-gray-400"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              New workspace
+            </button>
+            <button
+              onClick={() => {
                 setOpen(false)
                 navigate('/workspace-selector')
               }}
@@ -97,31 +111,55 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
               </svg>
               All workspaces
             </button>
-            <button
-              onClick={() => {
-                setOpen(false)
-                confirmDialog.open({
-                  title: 'Delete Workspace',
-                  description: `This will permanently delete "${activeWorkspace.name}". Projects will not be deleted.`,
-                  onConfirm: async () => {
-                    await workspacesApi.delete(activeWorkspace.slug)
-                    toast.success('Workspace deleted')
-                    navigate('/workspace-selector')
-                  },
-                })
-              }}
-              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-red-500/10 transition-colors text-left text-sm text-red-400"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-              Delete workspace
-            </button>
           </div>
+          {showCreate && (
+            <div className="border-t border-white/[0.06] px-3 py-2">
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault()
+                  const trimmed = newName.trim()
+                  if (!trimmed || creating) return
+                  setCreating(true)
+                  try {
+                    const ws = await workspacesApi.create({ name: trimmed })
+                    setOpen(false)
+                    setShowCreate(false)
+                    setNewName('')
+                    navigate(workspacePath(ws.slug, '/projects'))
+                  } catch {
+                    setCreating(false)
+                  }
+                }}
+                className="flex gap-1.5"
+              >
+                <input
+                  ref={createInputRef}
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Name"
+                  className="flex-1 min-w-0 px-2 py-1.5 bg-white/[0.06] border border-white/[0.1] rounded text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                  disabled={creating}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setShowCreate(false)
+                      setNewName('')
+                    }
+                  }}
+                />
+                <button
+                  type="submit"
+                  disabled={creating || !newName.trim()}
+                  className="px-2.5 py-1.5 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium shrink-0"
+                >
+                  {creating ? '...' : 'Create'}
+                </button>
+              </form>
+            </div>
+          )}
         </div>
       )}
 
-      <ConfirmDialog {...confirmDialog.dialogProps} />
     </div>
   )
 }

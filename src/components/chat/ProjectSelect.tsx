@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
-import { chatSuggestedProjectIdAtom, chatSelectedProjectAtom, activeWorkspaceSlugAtom, activeWorkspaceAtom } from '@/atoms'
+import { chatSuggestedProjectIdAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, activeWorkspaceSlugAtom, activeWorkspaceAtom } from '@/atoms'
 import { Select } from '@/components/ui'
 import { workspacesApi } from '@/services'
 import type { Project } from '@/types'
@@ -14,6 +14,7 @@ function shortenPath(path: string): string {
 export function ProjectSelect() {
   const suggestedId = useAtomValue(chatSuggestedProjectIdAtom)
   const [selectedProject, setSelectedProject] = useAtom(chatSelectedProjectAtom)
+  const [allProjectsMode, setAllProjectsMode] = useAtom(chatAllProjectsModeAtom)
   const activeWsSlug = useAtomValue(activeWorkspaceSlugAtom)
   const activeWorkspace = useAtomValue(activeWorkspaceAtom)
   const [projects, setProjects] = useState<Project[]>([])
@@ -87,24 +88,34 @@ export function ProjectSelect() {
         Project
       </label>
       <Select
-        options={projects.map((p) => ({ value: p.id, label: p.name }))}
-        value={selectedProject?.id || ''}
+        options={[
+          { value: '__all__', label: `All projects (${projects.length})` },
+          ...projects.map((p) => ({ value: p.id, label: p.name })),
+        ]}
+        value={allProjectsMode ? '__all__' : (selectedProject?.id || '')}
         onChange={(val) => {
-          const project = projects.find((p) => p.id === val) || null
-          setSelectedProject(project)
+          if (val === '__all__') {
+            setAllProjectsMode(true)
+            // Keep selectedProject as first project for cwd fallback
+            if (!selectedProject && projects.length > 0) {
+              setSelectedProject(projects[0])
+            }
+          } else {
+            setAllProjectsMode(false)
+            const project = projects.find((p) => p.id === val) || null
+            setSelectedProject(project)
+          }
         }}
       />
-      {selectedProject?.root_path && (
+      {!allProjectsMode && selectedProject?.root_path && (
         <div className="text-[10px] text-gray-600 mt-1 truncate font-mono">
           {shortenPath(selectedProject.root_path)}
         </div>
       )}
-
-      {/* Show workspace projects summary */}
-      {projects.length > 1 && (
+      {allProjectsMode && (
         <div className="mt-1.5">
           <div className="text-[10px] text-gray-500">
-            {projects.length} projects · Claude will have access to all
+            Claude will have access to all {projects.length} projects in this workspace
           </div>
         </div>
       )}

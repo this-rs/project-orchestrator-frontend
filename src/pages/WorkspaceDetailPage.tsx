@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, FormDialog, LinkEntityDialog, ProgressBar, PageHeader, SectionNav } from '@/components/ui'
+import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, FormDialog, LinkEntityDialog, ProgressBar, PageHeader, SectionNav, ConfirmDialog } from '@/components/ui'
 import { workspacesApi, projectsApi } from '@/services'
-import { useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
+import { useFormDialog, useLinkDialog, useToast, useConfirmDialog, useSectionObserver, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { workspaceRefreshAtom, projectRefreshAtom, milestoneRefreshAtom, taskRefreshAtom } from '@/atoms'
 import { CreateMilestoneForm, CreateResourceForm, CreateComponentForm } from '@/components/forms'
@@ -21,10 +21,12 @@ interface WorkspaceOverviewResponse {
 
 export function WorkspaceDetailPage() {
   const slug = useWorkspaceSlug()
+  const navigate = useNavigate()
   const milestoneFormDialog = useFormDialog()
   const resourceFormDialog = useFormDialog()
   const componentFormDialog = useFormDialog()
   const linkDialog = useLinkDialog()
+  const confirmDialog = useConfirmDialog()
   const toast = useToast()
   const workspaceRefresh = useAtomValue(workspaceRefreshAtom)
   const projectRefresh = useAtomValue(projectRefreshAtom)
@@ -143,6 +145,23 @@ export function WorkspaceDetailPage() {
       <PageHeader
         title={workspace.name}
         description={workspace.description}
+        overflowActions={[
+          {
+            label: 'Delete workspace',
+            variant: 'danger',
+            onClick: () => {
+              confirmDialog.open({
+                title: 'Delete Workspace',
+                description: `This will permanently delete "${workspace.name}". Projects will not be deleted.`,
+                onConfirm: async () => {
+                  await workspacesApi.delete(workspace.slug)
+                  toast.success('Workspace deleted')
+                  navigate('/workspace-selector')
+                },
+              })
+            },
+          },
+        ]}
       />
 
       <SectionNav sections={sections} activeSection={activeSection} />
@@ -370,6 +389,7 @@ export function WorkspaceDetailPage() {
         {componentForm.fields}
       </FormDialog>
       <LinkEntityDialog {...linkDialog.dialogProps} />
+      <ConfirmDialog {...confirmDialog.dialogProps} />
     </div>
   )
 }
