@@ -228,11 +228,13 @@ html.tauri * {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(var(--glow-primary), 0.15);
 }
 
-/* prefers-reduced-motion — disable transforms and shimmer, keep color changes */
+/* prefers-reduced-motion — disable transforms, shimmer, press, keep color changes */
 @media (prefers-reduced-motion: reduce) {
   .card-hover:hover,
   .card-hover:focus-visible { transform: none; }
   .card-hover:hover::after { animation: none; opacity: 0; }
+  button:active { transform: none !important; }
+  .input-focus-glow:focus { transition: none; }
 }
 
 /* Chat markdown — code blocks */
