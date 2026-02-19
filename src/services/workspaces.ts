@@ -2,6 +2,7 @@ import { api, buildQuery } from './api'
 import type {
   Workspace,
   WorkspaceMilestone,
+  MilestoneDetail,
   WorkspaceOverview,
   Project,
   Resource,
@@ -59,7 +60,7 @@ export const workspacesApi = {
     api.post<WorkspaceMilestone>(`/workspaces/${slug}/milestones`, data),
 
   getMilestone: (id: string) =>
-    api.get<WorkspaceMilestone>(`/workspace-milestones/${id}`),
+    api.get<MilestoneDetail>(`/workspace-milestones/${id}`),
 
   updateMilestone: (id: string, data: Partial<{ title: string; description: string; status: string; target_date: string }>) =>
     api.patch<WorkspaceMilestone>(`/workspace-milestones/${id}`, data),
