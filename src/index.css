@@ -53,11 +53,23 @@
   --glow-danger: 248, 113, 113;   /* red    — failed, danger */
   --glow-info: 96, 165, 250;      /* blue   — info, pending */
 
-  /* Typography */
+  /* Typography — color tokens */
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
   --text-tertiary: #64748b;
   --text-muted: #475569;
+
+  /* Fluid type scale — clamp(min, preferred, max)
+   * Scales linearly between 375px and 1440px viewport widths.
+   * Formula: clamp(min, intercept + slope·vw, max)
+   * where slope = (max - min) / (maxVP - minVP) × 100 */
+  --fluid-xs:  0.75rem;                                    /* 12px — constant */
+  --fluid-sm:  clamp(0.8rem,   0.774rem + 0.11vw, 0.875rem);  /* 12.8px → 14px */
+  --fluid-base: clamp(0.9rem,  0.865rem + 0.15vw, 1rem);      /* 14.4px → 16px */
+  --fluid-lg:  clamp(1.05rem,  1.024rem + 0.11vw, 1.125rem);  /* 16.8px → 18px */
+  --fluid-xl:  clamp(1.15rem,  1.115rem + 0.15vw, 1.25rem);   /* 18.4px → 20px */
+  --fluid-2xl: clamp(1.35rem,  1.297rem + 0.23vw, 1.5rem);    /* 21.6px → 24px */
+  --fluid-3xl: clamp(1.6rem,   1.503rem + 0.41vw, 1.875rem);  /* 25.6px → 30px */
 
   /* Transitions */
   --transition-fast: 150ms ease;

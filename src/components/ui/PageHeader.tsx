@@ -30,8 +30,8 @@ export function PageHeader({
       {/* Line 1: Title + Status + Overflow menu */}
       <div className="flex items-start justify-between gap-3">
         <h1
-          className="text-xl md:text-2xl font-bold tracking-tight text-gray-100 truncate min-w-0"
-          style={viewTransitionName ? { viewTransitionName } : undefined}
+          className="font-bold tracking-tight text-gray-100 truncate min-w-0"
+          style={{ fontSize: 'var(--fluid-2xl)', ...(viewTransitionName ? { viewTransitionName } : undefined) }}
         >{title}</h1>
         <div className="flex items-center gap-2 shrink-0">
           {actions}

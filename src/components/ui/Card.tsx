@@ -20,7 +20,7 @@ export function CardHeader({ children, className = '' }: { children: React.React
 }
 
 export function CardTitle({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <h3 className={`text-lg font-semibold text-gray-100 ${className}`}>{children}</h3>
+  return <h3 className={`font-semibold text-gray-100 ${className}`} style={{ fontSize: 'var(--fluid-lg)' }}>{children}</h3>
 }
 
 export function CardContent({ children, className = '' }: { children: React.ReactNode; className?: string }) {
