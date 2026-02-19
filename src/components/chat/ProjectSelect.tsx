@@ -52,7 +52,7 @@ export function ProjectSelect() {
   useEffect(() => {
     if (!wsSlug) return
     workspacesApi.listProjects(wsSlug).then((data) => {
-      const wsProjs = (data.items || [])
+      const wsProjs = Array.isArray(data) ? data : []
       // Resolve full project details from the loaded projects list
       const fullProjects = wsProjs
         .map((wp) => projects.find((p) => p.id === wp.id))

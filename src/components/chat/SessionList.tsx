@@ -162,8 +162,9 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
       return
     }
     workspacesApi.listProjects(selectedWorkspace).then((data) => {
+      const items = Array.isArray(data) ? data : []
       setWorkspaceProjects(
-        (data.items || []).map((p) => ({ id: p.id, slug: p.slug })),
+        items.map((p) => ({ id: p.id, slug: p.slug })),
       )
     })
   }, [selectedWorkspace])
