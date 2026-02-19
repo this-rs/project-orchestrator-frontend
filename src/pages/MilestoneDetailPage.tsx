@@ -59,7 +59,7 @@ export function MilestoneDetailPage() {
           const projectsResponse = await workspacesApi.listProjects(workspace.slug)
           const workspaceProjects = Array.isArray(projectsResponse)
             ? projectsResponse
-            : (projectsResponse.items || [])
+            : []
           setProjects(workspaceProjects as Project[])
         }
       }

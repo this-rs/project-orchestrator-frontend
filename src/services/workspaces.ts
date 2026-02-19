@@ -38,9 +38,9 @@ export const workspacesApi = {
   getOverview: (slug: string) =>
     api.get<WorkspaceOverview>(`/workspaces/${slug}/overview`),
 
-  // Projects in workspace
+  // Projects in workspace (backend returns raw array, not { items: [...] })
   listProjects: (slug: string) =>
-    api.get<{ items: { id: string; name: string; slug: string }[] }>(
+    api.get<{ id: string; name: string; slug: string }[]>(
       `/workspaces/${slug}/projects`
     ),
 

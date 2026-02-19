@@ -57,7 +57,7 @@ export function PlanDetailPage() {
         const planData = (planResponse as unknown as { plan: Plan }).plan || planResponse
         setPlan(planData)
         setTasks(tasksData.items || [])
-        setConstraints(constraintsData.items || [])
+        setConstraints(Array.isArray(constraintsData) ? constraintsData : [])
         setGraph(graphData)
 
         // Extract decisions from PlanDetails response — backend nests them in tasks[].decisions[]
@@ -588,28 +588,30 @@ function CompactStepRow({ step, index }: { step: Step; index: number }) {
 }
 
 function ConstraintRow({ constraint, onDelete }: { constraint: Constraint; onDelete: () => void }) {
-  const typeColors: Record<string, string> = {
-    performance: 'text-yellow-400',
-    security: 'text-red-400',
-    style: 'text-purple-400',
-    compatibility: 'text-blue-400',
-    testing: 'text-green-400',
-    other: 'text-gray-400',
+  const typeBadgeColors: Record<string, string> = {
+    performance: 'bg-yellow-500/15 text-yellow-400',
+    security: 'bg-red-500/15 text-red-400',
+    style: 'bg-purple-500/15 text-purple-400',
+    compatibility: 'bg-blue-500/15 text-blue-400',
+    testing: 'bg-green-500/15 text-green-400',
+    other: 'bg-white/[0.08] text-gray-400',
   }
 
   return (
-    <div className="flex items-start gap-3 p-2">
-      <span className={`text-xs uppercase font-medium ${typeColors[constraint.constraint_type] || typeColors.other}`}>
-        {constraint.constraint_type}
-      </span>
-      <span className="text-sm text-gray-300 flex-1 min-w-0 break-words">{constraint.description}</span>
-      <button
-        onClick={onDelete}
-        className="text-gray-500 hover:text-red-400 text-sm px-1"
-        title="Delete constraint"
-      >
-        &times;
-      </button>
+    <div className="p-2.5 rounded-lg bg-white/[0.03] space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className={`text-[10px] uppercase font-medium px-2 py-0.5 rounded-full ${typeBadgeColors[constraint.constraint_type] || typeBadgeColors.other}`}>
+          {constraint.constraint_type}
+        </span>
+        <button
+          onClick={onDelete}
+          className="text-gray-500 hover:text-red-400 text-sm px-1 cursor-pointer"
+          title="Delete constraint"
+        >
+          &times;
+        </button>
+      </div>
+      <p className="text-sm text-gray-300 break-words">{constraint.description}</p>
     </div>
   )
 }

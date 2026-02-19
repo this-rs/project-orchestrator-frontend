@@ -44,7 +44,7 @@ export function PlanKanbanFilterBar({
         for (const ws of workspacesData.items || []) {
           try {
             const resp = await workspacesApi.listProjects(ws.slug)
-            const wsProjects = Array.isArray(resp) ? resp : (resp.items || [])
+            const wsProjects = Array.isArray(resp) ? resp : []
             mapping[ws.id] = wsProjects.map((p: { id: string }) => p.id)
           } catch {
             mapping[ws.id] = []

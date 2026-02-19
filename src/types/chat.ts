@@ -25,6 +25,8 @@ export interface ChatSession {
   id: string
   cli_session_id?: string
   project_slug?: string
+  /** Workspace slug if session spans a workspace */
+  workspace_slug?: string
   cwd: string
   title?: string
   model: string
@@ -35,6 +37,8 @@ export interface ChatSession {
   preview?: string
   /** Permission mode override for this session (undefined = global config default) */
   permission_mode?: PermissionMode
+  /** Additional directories exposed to Claude CLI (--add-dir) */
+  add_dirs?: string[]
 }
 
 export interface CreateSessionRequest {
@@ -42,9 +46,13 @@ export interface CreateSessionRequest {
   cwd: string
   session_id?: string
   project_slug?: string
+  /** Workspace slug — resolves all project root_paths as --add-dir */
+  workspace_slug?: string
   model?: string
   /** Permission mode override for this session (default: from server config) */
   permission_mode?: PermissionMode
+  /** Additional directories to expose to Claude CLI (--add-dir) */
+  add_dirs?: string[]
 }
 
 export interface CreateSessionResponse {
@@ -147,6 +155,8 @@ export interface MessageSearchResult {
   session_title?: string
   session_preview?: string
   project_slug?: string
+  /** Workspace slug if session was started on a workspace */
+  workspace_slug?: string
   conversation_id: string
   hits: MessageSearchHit[]
   best_score: number
