@@ -102,6 +102,7 @@ export function ProjectsPage() {
         <ErrorState title="Failed to load" description={error} onRetry={loadProjects} />
       ) : projects.length === 0 ? (
         <EmptyState
+          variant="projects"
           title="No projects"
           description="Create a project to start tracking your codebase."
           action={<Button onClick={openCreateDialog}>Create Project</Button>}

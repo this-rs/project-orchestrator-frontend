@@ -163,6 +163,7 @@ export function NotesPage() {
         </div>
       ) : notes.length === 0 ? (
         <EmptyState
+          variant={total === 0 && typeFilter === 'all' && statusFilter === 'all' ? 'notes' : undefined}
           title="No notes found"
           description={total === 0 && typeFilter === 'all' && statusFilter === 'all' ? 'Knowledge notes capture important patterns, gotchas, and guidelines.' : 'No notes match the current filters.'}
         />

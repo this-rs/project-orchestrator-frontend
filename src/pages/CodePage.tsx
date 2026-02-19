@@ -138,6 +138,7 @@ export function CodePage() {
             <ErrorState title="Search failed" description={searchError} onRetry={handleSearch} />
           ) : searchResults.length === 0 ? (
             <EmptyState
+              variant="search"
               title="No results"
               description="Enter a search query to find code across your workspace projects."
             />

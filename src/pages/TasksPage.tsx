@@ -220,6 +220,7 @@ export function TasksPage() {
         </div>
       ) : tasks.length === 0 ? (
         <EmptyState
+          variant={total === 0 && statusFilter === 'all' ? 'tasks' : undefined}
           title="No tasks found"
           description={
             total === 0 && statusFilter === 'all'

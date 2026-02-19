@@ -287,6 +287,7 @@ export function PlansPage() {
         </div>
       ) : plans.length === 0 ? (
         <EmptyState
+          variant={total === 0 && statusFilter === 'all' ? 'plans' : undefined}
           title="No plans found"
           description={
             total === 0 && statusFilter === 'all'

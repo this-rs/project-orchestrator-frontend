@@ -228,6 +228,7 @@ export function MilestonesPage() {
         <ErrorState title="Failed to load" description={error} onRetry={loadMilestones} />
       ) : filteredMilestones.length === 0 ? (
         <EmptyState
+          variant={!hasFilters ? 'milestones' : undefined}
           title="No milestones"
           description={hasFilters ? 'No milestones match the current filters.' : 'Milestones help track major goals across your projects.'}
         />
