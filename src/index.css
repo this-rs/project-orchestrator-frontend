@@ -172,6 +172,58 @@ html.tauri * {
   .glass-heavy { background: var(--color-surface-popover); border-color: rgba(255, 255, 255, 0.12); }
 }
 
+/* ─── Native Popover Dropdown — CSS Anchor Positioning ─────────────────
+ * Replaces createPortal + useDropdownPosition JS with CSS-only positioning.
+ * Uses popover="auto" for top-layer rendering + light-dismiss.
+ * Chrome 127+, Safari 18+, Firefox 149+.
+ * ─────────────────────────────────────────────────────────────────────── */
+.popover-dropdown {
+  /* Reset default popover UA styles */
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  inset: unset;
+
+  /* Anchor positioning — below trigger, matching width */
+  position: fixed;
+  position-area: block-end;
+  min-width: anchor-size(width);
+  width: max-content;
+  margin-top: 4px;
+
+  /* Auto-flip when near viewport edges */
+  position-try-fallbacks: flip-block;
+
+  /* Entry/exit animation */
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition:
+    opacity 150ms ease-out,
+    transform 150ms ease-out,
+    display 150ms allow-discrete,
+    overlay 150ms allow-discrete;
+}
+
+/* Exit state */
+.popover-dropdown:not(:popover-open) {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.96);
+}
+
+/* Entry state */
+@starting-style {
+  .popover-dropdown:popover-open {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.96);
+  }
+}
+
+/* Backdrop — subtle darkening behind popovers */
+.popover-dropdown::backdrop {
+  background: transparent;
+}
+
 /* ─── Glow Accents ─────────────────────────────────────────────────────
  * Status-matched box-shadow halos for badges, buttons, and active items.
  * Uses CSS variable RGB triplets from :root (--glow-*).

@@ -1,7 +1,5 @@
-import { useState, useId, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import { useState, useEffect, useRef, useId, type ReactNode, type CSSProperties } from 'react'
 import { ChevronDown, Check } from 'lucide-react'
-import { useDropdownPosition } from '@/hooks'
 
 interface SelectOption {
   value: string
@@ -31,29 +29,64 @@ export function Select({
   placeholder,
   icon,
 }: SelectProps) {
-  const { isOpen, toggle, close, position, triggerRef, menuRef } = useDropdownPosition()
+  const [isOpen, setIsOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
-  const id = useId()
-  const listboxId = `${id}-listbox`
+  const reactId = useId()
+  const uid = reactId.replace(/:/g, '')
+  const menuId = `sel-${uid}-listbox`
+  const anchorName = `--sel-${uid}`
+  const menuRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   const selectedLabel = options.find((o) => o.value === value)?.label || placeholder || ''
   const hasValue = options.some((o) => o.value === value)
 
-  const handleSelect = (optionValue: string) => {
-    onChange?.(optionValue)
-    close()
+  // Sync React state with native popover toggle events (light-dismiss, etc.)
+  useEffect(() => {
+    const menu = menuRef.current
+    if (!menu) return
+    const handleToggle = (e: Event) => {
+      const open = (e as ToggleEvent).newState === 'open'
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync with native popover toggle
+      setIsOpen(open)
+      if (!open) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- sync with native popover toggle
+        setActiveIndex(-1)
+      }
+    }
+    menu.addEventListener('toggle', handleToggle)
+    return () => menu.removeEventListener('toggle', handleToggle)
+  }, [])
+
+  const openMenu = () => {
+    try {
+      menuRef.current?.showPopover()
+    } catch {
+      /* already open */
+    }
+    const idx = options.findIndex((o) => o.value === value)
+    setActiveIndex(idx >= 0 ? idx : 0)
+  }
+
+  const closeMenu = () => {
+    try {
+      menuRef.current?.hidePopover()
+    } catch {
+      /* already closed */
+    }
     setActiveIndex(-1)
   }
 
+  const handleSelect = (optionValue: string) => {
+    onChange?.(optionValue)
+    closeMenu()
+    triggerRef.current?.focus()
+  }
+
   const handleTriggerClick = () => {
-    if (!disabled) {
-      toggle()
-      // Reset active index to selected item when opening
-      if (!isOpen) {
-        const idx = options.findIndex((o) => o.value === value)
-        setActiveIndex(idx >= 0 ? idx : 0)
-      }
-    }
+    if (disabled) return
+    if (isOpen) closeMenu()
+    else openMenu()
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -63,9 +96,7 @@ export function Select({
       case 'ArrowDown':
         e.preventDefault()
         if (!isOpen) {
-          toggle()
-          const idx = options.findIndex((o) => o.value === value)
-          setActiveIndex(idx >= 0 ? idx : 0)
+          openMenu()
         } else {
           setActiveIndex((prev) => (prev < options.length - 1 ? prev + 1 : 0))
         }
@@ -82,13 +113,12 @@ export function Select({
         if (isOpen && activeIndex >= 0 && activeIndex < options.length) {
           handleSelect(options[activeIndex].value)
         } else if (!isOpen) {
-          handleTriggerClick()
+          openMenu()
         }
         break
       case 'Escape':
         e.preventDefault()
-        close()
-        setActiveIndex(-1)
+        closeMenu()
         break
       case 'Home':
         if (isOpen) {
@@ -105,94 +135,87 @@ export function Select({
     }
   }
 
-  const activeOptionId = activeIndex >= 0 ? `${id}-option-${activeIndex}` : undefined
+  const activeOptionId = activeIndex >= 0 ? `sel-${uid}-option-${activeIndex}` : undefined
 
   return (
     <div className={`w-full ${className}`}>
       {label && (
-        <label id={`${id}-label`} className="block text-sm font-medium text-gray-300 mb-1">
+        <label id={`sel-${uid}-label`} className="block text-sm font-medium text-gray-300 mb-1">
           {label}
         </label>
       )}
-      <div ref={triggerRef} className="relative">
-        <button
-          type="button"
-          role="combobox"
-          aria-expanded={isOpen}
-          aria-haspopup="listbox"
-          aria-controls={isOpen ? listboxId : undefined}
-          aria-activedescendant={isOpen ? activeOptionId : undefined}
-          aria-labelledby={label ? `${id}-label` : undefined}
-          onClick={handleTriggerClick}
-          onKeyDown={handleKeyDown}
-          disabled={disabled}
-          className={`
-            w-full flex items-center gap-2 px-3 py-2 bg-surface-base border rounded-lg
-            text-left text-sm transition-colors
-            focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent
-            disabled:opacity-50 disabled:cursor-not-allowed
-            ${isOpen ? 'border-indigo-500 ring-2 ring-indigo-500' : error ? 'border-red-500' : 'border-border-default hover:border-white/[0.2]'}
-          `}
-        >
-          {icon && <span className="shrink-0 text-gray-500">{icon}</span>}
-          <span className={`flex-1 truncate ${hasValue ? 'text-gray-100' : 'text-gray-500'}`}>
-            {selectedLabel}
-          </span>
-          <ChevronDown
-            className={`w-4 h-4 shrink-0 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-          />
-        </button>
-      </div>
+      <button
+        ref={triggerRef}
+        type="button"
+        role="combobox"
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
+        aria-controls={menuId}
+        aria-activedescendant={isOpen ? activeOptionId : undefined}
+        aria-labelledby={label ? `sel-${uid}-label` : undefined}
+        onClick={handleTriggerClick}
+        onKeyDown={handleKeyDown}
+        disabled={disabled}
+        className={`
+          w-full flex items-center gap-2 px-3 py-2 bg-surface-base border rounded-lg
+          text-left text-sm transition-colors
+          focus:outline-none input-focus-glow
+          disabled:opacity-50 disabled:cursor-not-allowed
+          ${isOpen ? 'border-indigo-500 ring-2 ring-indigo-500' : error ? 'border-red-500' : 'border-border-default hover:border-white/[0.2]'}
+        `}
+        style={{ anchorName } as CSSProperties}
+      >
+        {icon && <span className="shrink-0 text-gray-500">{icon}</span>}
+        <span className={`flex-1 truncate ${hasValue ? 'text-gray-100' : 'text-gray-500'}`}>
+          {selectedLabel}
+        </span>
+        <ChevronDown
+          className={`w-4 h-4 shrink-0 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+        />
+      </button>
       {error && <p className="mt-1 text-sm text-red-400">{error}</p>}
 
-      {isOpen &&
-        createPortal(
-          <div
-            ref={menuRef}
-            id={listboxId}
-            role="listbox"
-            aria-labelledby={label ? `${id}-label` : undefined}
-            className="fixed z-[9999] rounded-lg glass-heavy shadow-md py-1 max-h-60 overflow-y-auto"
-            style={{
-              top: position.top,
-              left: position.left,
-              width: position.width,
-              minWidth: 120,
-            }}
-          >
-            {options.map((option, index) => {
-              const isSelected = option.value === value
-              const isActive = index === activeIndex
+      {/* Popover dropdown — rendered in top layer, positioned via CSS anchor */}
+      <div
+        ref={menuRef}
+        id={menuId}
+        popover="auto"
+        role="listbox"
+        aria-labelledby={label ? `sel-${uid}-label` : undefined}
+        className="popover-dropdown glass-heavy rounded-lg shadow-md py-1 max-h-60 overflow-y-auto"
+        style={{ positionAnchor: anchorName } as CSSProperties}
+      >
+        {options.map((option, index) => {
+          const isSelected = option.value === value
+          const isActive = index === activeIndex
 
-              return (
-                <button
-                  key={option.value}
-                  id={`${id}-option-${index}`}
-                  role="option"
-                  aria-selected={isSelected}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    handleSelect(option.value)
-                  }}
-                  onMouseEnter={() => setActiveIndex(index)}
-                  className={`
-                    w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors
-                    ${isActive ? 'bg-white/[0.06]' : ''}
-                    ${isSelected ? 'text-indigo-400 font-medium' : 'text-gray-200'}
-                  `}
-                >
-                  {isSelected && (
-                    <Check className="w-3.5 h-3.5 shrink-0 text-indigo-400" strokeWidth={2.5} />
-                  )}
-                  {!isSelected && <span className="w-3.5 shrink-0" />}
-                  {option.label}
-                </button>
-              )
-            })}
-          </div>,
-          document.body,
-        )}
+          return (
+            <button
+              key={option.value}
+              id={`sel-${uid}-option-${index}`}
+              role="option"
+              aria-selected={isSelected}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                handleSelect(option.value)
+              }}
+              onMouseEnter={() => setActiveIndex(index)}
+              className={`
+                w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors
+                ${isActive ? 'bg-white/[0.06]' : ''}
+                ${isSelected ? 'text-indigo-400 font-medium' : 'text-gray-200'}
+              `}
+            >
+              {isSelected && (
+                <Check className="w-3.5 h-3.5 shrink-0 text-indigo-400" strokeWidth={2.5} />
+              )}
+              {!isSelected && <span className="w-3.5 shrink-0" />}
+              {option.label}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
