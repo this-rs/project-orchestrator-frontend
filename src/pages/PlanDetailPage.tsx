@@ -598,18 +598,20 @@ function ConstraintRow({ constraint, onDelete }: { constraint: Constraint; onDel
   }
 
   return (
-    <div className="flex items-start gap-3 p-2 rounded-lg bg-white/[0.03]">
-      <span className={`text-[10px] uppercase font-medium px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0 mt-0.5 ${typeBadgeColors[constraint.constraint_type] || typeBadgeColors.other}`}>
-        {constraint.constraint_type}
-      </span>
-      <span className="text-sm text-gray-300 flex-1 min-w-0 break-words">{constraint.description}</span>
-      <button
-        onClick={onDelete}
-        className="text-gray-500 hover:text-red-400 text-sm px-1 cursor-pointer flex-shrink-0"
-        title="Delete constraint"
-      >
-        &times;
-      </button>
+    <div className="p-2.5 rounded-lg bg-white/[0.03] space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className={`text-[10px] uppercase font-medium px-2 py-0.5 rounded-full ${typeBadgeColors[constraint.constraint_type] || typeBadgeColors.other}`}>
+          {constraint.constraint_type}
+        </span>
+        <button
+          onClick={onDelete}
+          className="text-gray-500 hover:text-red-400 text-sm px-1 cursor-pointer"
+          title="Delete constraint"
+        >
+          &times;
+        </button>
+      </div>
+      <p className="text-sm text-gray-300 break-words">{constraint.description}</p>
     </div>
   )
 }
