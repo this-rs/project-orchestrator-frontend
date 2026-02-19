@@ -29,13 +29,13 @@
 :root {
   color-scheme: dark;
 
-  /* Primary palette */
+  /* Primary palette (hex fallback) */
   --color-primary: #6366f1;
   --color-primary-hover: #4f46e5;
   --color-primary-light: #818cf8;
   --color-primary-muted: rgba(99, 102, 241, 0.15);
 
-  /* Semantic colors */
+  /* Semantic colors (hex fallback) */
   --color-success: #22c55e;
   --color-warning: #f59e0b;
   --color-error: #ef4444;
@@ -63,6 +63,19 @@
   --transition-fast: 150ms ease;
   --transition-normal: 200ms ease;
   --transition-slow: 300ms ease;
+}
+
+/* OKLCH progressive enhancement — perceptually uniform colors */
+@supports (color: oklch(0 0 0)) {
+  :root {
+    --color-primary: oklch(0.55 0.18 265);
+    --color-primary-hover: oklch(0.50 0.20 265);
+    --color-primary-light: oklch(0.65 0.15 265);
+    --color-success: oklch(0.65 0.19 145);
+    --color-warning: oklch(0.75 0.17 75);
+    --color-error: oklch(0.60 0.22 25);
+    --color-info: oklch(0.60 0.16 250);
+  }
 }
 
 body {
@@ -138,6 +151,18 @@ html.tauri * {
   border: 1px solid rgba(255, 255, 255, 0.1);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
+  /* @starting-style entry animation (progressive enhancement) */
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+/* CSS-only entry animation for dropdowns — no JS needed */
+@starting-style {
+  .glass-heavy {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
 }
 
 /* Fallback: opaque backgrounds when backdrop-filter is not supported */
@@ -228,6 +253,33 @@ html.tauri * {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(var(--glow-primary), 0.15);
 }
 
+/* ─── Scroll-driven reveal — progressive enhancement (Chrome 115+) ─── */
+@supports (animation-timeline: view()) {
+  .scroll-reveal {
+    animation: scroll-reveal-in linear both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 15%;
+  }
+}
+
+@keyframes scroll-reveal-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Container queries — responsive cards based on container, not viewport ─── */
+.card-container {
+  container-type: inline-size;
+  container-name: card-zone;
+}
+
+/* Cards in narrow containers (<400px): compact vertical layout */
+@container card-zone (max-width: 400px) {
+  .card-responsive { padding: 0.75rem; }
+  .card-responsive .card-title { font-size: 0.875rem; }
+  .card-responsive .card-meta { display: none; }
+}
+
 /* prefers-reduced-motion — disable transforms, shimmer, press, keep color changes */
 @media (prefers-reduced-motion: reduce) {
   .card-hover:hover,
@@ -235,6 +287,7 @@ html.tauri * {
   .card-hover:hover::after { animation: none; opacity: 0; }
   button:active { transform: none !important; }
   .input-focus-glow:focus { transition: none; }
+  .scroll-reveal { animation: none !important; }
 }
 
 /* Chat markdown — code blocks */
