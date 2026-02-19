@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useAtom, useAtomValue } from 'jotai'
-import { chatSuggestedProjectIdAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, activeWorkspaceSlugAtom, activeWorkspaceAtom } from '@/atoms'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { chatSuggestedProjectIdAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, activeWorkspaceSlugAtom, activeWorkspaceAtom, projectRefreshAtom } from '@/atoms'
 import { Select } from '@/components/ui'
 import { workspacesApi } from '@/services'
 import type { Project } from '@/types'
@@ -18,13 +18,17 @@ export function ProjectSelect() {
   const [allProjectsMode, setAllProjectsMode] = useAtom(chatAllProjectsModeAtom)
   const activeWsSlug = useAtomValue(activeWorkspaceSlugAtom)
   const activeWorkspace = useAtomValue(activeWorkspaceAtom)
+  const setHasProjects = useSetAtom(chatWorkspaceHasProjectsAtom)
+  const projectRefresh = useAtomValue(projectRefreshAtom)
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
 
   // Load projects from the active workspace
+  // Re-fetches when projectRefresh bumps (CRUD event via WebSocket)
   useEffect(() => {
     if (!activeWsSlug) {
       setProjects([])
+      setHasProjects(false)
       setLoading(false)
       return
     }
@@ -33,6 +37,7 @@ export function ProjectSelect() {
     workspacesApi.listProjects(activeWsSlug).then((data) => {
       const items = Array.isArray(data) ? data : []
       setProjects(items)
+      setHasProjects(items.length > 0)
 
       // Auto-select a project for cwd fallback (even in all-workspace mode)
       if (!selectedProject && items.length > 0) {
@@ -48,30 +53,11 @@ export function ProjectSelect() {
       }
       setLoading(false)
     }).catch(() => setLoading(false))
-  }, [activeWsSlug]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeWsSlug, projectRefresh]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (loading) {
-    return (
-      <div className="px-4 py-2">
-        <div className="text-xs text-gray-500">Loading...</div>
-      </div>
-    )
-  }
-
-  if (!activeWsSlug) {
-    return (
-      <div className="px-4 py-2">
-        <div className="text-xs text-red-400">No workspace selected.</div>
-      </div>
-    )
-  }
-
-  if (projects.length === 0) {
-    return (
-      <div className="px-4 py-2">
-        <div className="text-xs text-red-400">No projects in this workspace. Create a project first.</div>
-      </div>
-    )
+  // No projects → ChatPanel handles the empty state placeholder
+  if (loading || !activeWsSlug || projects.length === 0) {
+    return null
   }
 
   return (

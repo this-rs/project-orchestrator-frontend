@@ -1,6 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSetAtom } from 'jotai'
 import { ChevronRight, Plus } from 'lucide-react'
+import { workspacesAtom } from '@/atoms'
 import { workspacesApi } from '@/services/workspaces'
 import { workspacePath } from '@/utils/paths'
 import { ErrorState } from '@/components/ui'
@@ -16,6 +18,7 @@ export function WorkspaceSelectorPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const notFoundSlug = searchParams.get('notFound')
+  const setWorkspacesAtom = useSetAtom(workspacesAtom)
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -59,7 +62,7 @@ export function WorkspaceSelectorPage() {
   }
 
   if (workspaces.length === 0) {
-    return <EmptyWorkspaceOnboarding navigate={navigate} />
+    return <EmptyWorkspaceOnboarding navigate={navigate} setWorkspacesAtom={setWorkspacesAtom} />
   }
 
   return (
@@ -98,7 +101,7 @@ export function WorkspaceSelectorPage() {
           ))}
         </div>
 
-        <InlineCreateWorkspace navigate={navigate} />
+        <InlineCreateWorkspace navigate={navigate} setWorkspacesAtom={setWorkspacesAtom} />
       </div>
     </div>
   )
@@ -107,7 +110,7 @@ export function WorkspaceSelectorPage() {
 /**
  * Collapsible inline form to create a new workspace from the selector page.
  */
-function InlineCreateWorkspace({ navigate }: { navigate: ReturnType<typeof useNavigate> }) {
+function InlineCreateWorkspace({ navigate, setWorkspacesAtom }: { navigate: ReturnType<typeof useNavigate>; setWorkspacesAtom: (fn: (prev: Workspace[]) => Workspace[]) => void }) {
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
   const [creating, setCreating] = useState(false)
@@ -127,6 +130,8 @@ function InlineCreateWorkspace({ navigate }: { navigate: ReturnType<typeof useNa
     setError(null)
     try {
       const ws = await workspacesApi.create({ name: trimmed })
+      // Optimistic update: add to global atom so WorkspaceRouteGuard finds it
+      setWorkspacesAtom((prev) => [...prev, ws])
       navigate(workspacePath(ws.slug, '/projects'), { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create workspace')
@@ -183,7 +188,7 @@ function InlineCreateWorkspace({ navigate }: { navigate: ReturnType<typeof useNa
  * Onboarding screen for first-time users with no workspaces.
  * Shows a friendly welcome message and inline workspace creation form.
  */
-function EmptyWorkspaceOnboarding({ navigate }: { navigate: ReturnType<typeof useNavigate> }) {
+function EmptyWorkspaceOnboarding({ navigate, setWorkspacesAtom }: { navigate: ReturnType<typeof useNavigate>; setWorkspacesAtom: (fn: (prev: Workspace[]) => Workspace[]) => void }) {
   const [name, setName] = useState('')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -202,6 +207,8 @@ function EmptyWorkspaceOnboarding({ navigate }: { navigate: ReturnType<typeof us
     setError(null)
     try {
       const ws = await workspacesApi.create({ name: trimmed })
+      // Optimistic update: add to global atom so WorkspaceRouteGuard finds it
+      setWorkspacesAtom((prev) => [...prev, ws])
       navigate(workspacePath(ws.slug, '/projects'), { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create workspace')

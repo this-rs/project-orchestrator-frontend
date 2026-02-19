@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Menu, Home, Flag, Box, ClipboardList, CheckCircle2, FileText, Code, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
-import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, activeWorkspaceAtom } from '@/atoms'
+import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, activeWorkspaceAtom, workspaceRefreshAtom } from '@/atoms'
 import { ToastContainer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
@@ -132,17 +132,19 @@ export function MainLayout() {
   const isWindowFullscreen = useWindowFullscreen()
   const setWorkspaces = useSetAtom(workspacesAtom)
   const activeWorkspace = useAtomValue(activeWorkspaceAtom)
+  const wsRefresh = useAtomValue(workspaceRefreshAtom)
 
   // Show extra top padding on Tauri desktop (non-fullscreen) to clear native traffic lights
   const trafficLightPad = isTauri && !isWindowFullscreen
 
   // Load workspaces list (for the switcher and route guard)
+  // Re-fetches when wsRefresh bumps (CRUD event via WebSocket)
   useEffect(() => {
     workspacesApi
       .list({ limit: 100, sort_by: 'name', sort_order: 'asc' })
       .then((data) => setWorkspaces(data.items || []))
       .catch(() => {})
-  }, [setWorkspaces])
+  }, [setWorkspaces, wsRefresh])
 
   // Connect to WebSocket CRUD event bus and auto-refresh pages
   useCrudEventRefresh()
