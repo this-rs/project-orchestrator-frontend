@@ -55,6 +55,7 @@ const PAGE_SIZE = 50
 export interface SendMessageOptions {
   cwd: string
   projectSlug?: string
+  workspaceSlug?: string
   permissionMode?: PermissionMode
   model?: string
 }
@@ -63,6 +64,7 @@ export interface SendMessageOptions {
 export interface SessionMeta {
   cwd: string
   projectSlug?: string
+  workspaceSlug?: string
 }
 
 /**
@@ -1545,6 +1547,7 @@ export function useChat() {
           message: text,
           cwd: options!.cwd,
           project_slug: options?.projectSlug,
+          workspace_slug: options?.workspaceSlug,
           permission_mode: options?.permissionMode ?? permissionOverrideRef.current ?? undefined,
           model: options?.model ?? sessionModelRef.current ?? undefined,
         })
@@ -1554,7 +1557,7 @@ export function useChat() {
         setSessionId(response.session_id)
         // Populate session metadata from the options used to create the session
         if (options) {
-          setSessionMeta({ cwd: options.cwd, projectSlug: options.projectSlug })
+          setSessionMeta({ cwd: options.cwd, projectSlug: options.projectSlug, workspaceSlug: options.workspaceSlug })
         }
         // Reset override after use
         if (permissionOverrideRef.current) setPermissionOverride(null)
@@ -1729,7 +1732,7 @@ export function useChat() {
 
     // Fetch session metadata (cwd, project, permission mode) for display in header
     chatApi.getSession(sid).then((session) => {
-      setSessionMeta({ cwd: session.cwd, projectSlug: session.project_slug })
+      setSessionMeta({ cwd: session.cwd, projectSlug: session.project_slug, workspaceSlug: session.workspace_slug })
       // Restore the session's permission mode override
       setPermissionOverride((session.permission_mode as PermissionMode) ?? null)
       // Restore the session's model

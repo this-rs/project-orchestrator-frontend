@@ -427,7 +427,12 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
                 </span>
               </>
             )}
-            {session.project_slug && (
+            {session.workspace_slug && (
+              <span className="text-[10px] bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded-full ml-auto truncate max-w-[100px]">
+                ⬡ {session.workspace_slug}
+              </span>
+            )}
+            {!session.workspace_slug && session.project_slug && (
               <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded-full ml-auto truncate max-w-[100px]">
                 {session.project_slug}
               </span>
@@ -567,7 +572,12 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
                       <span className="text-[10px] text-gray-600">
                         {result.hits.length} match{result.hits.length !== 1 ? 'es' : ''}
                       </span>
-                      {result.project_slug && (
+                      {result.workspace_slug && (
+                        <span className="text-[10px] bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded-full">
+                          ⬡ {result.workspace_slug}
+                        </span>
+                      )}
+                      {!result.workspace_slug && result.project_slug && (
                         <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded-full">
                           {result.project_slug}
                         </span>

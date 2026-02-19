@@ -1,5 +1,5 @@
 import { useAtom } from 'jotai'
-import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom } from '@/atoms'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatSelectedWorkspaceAtom, chatContextModeAtom } from '@/atoms'
 import { useChat, useWindowFullscreen } from '@/hooks'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput, type PrefillPayload } from './ChatInput'
@@ -36,6 +36,8 @@ export function ChatPanel() {
   const [showSettings, setShowSettings] = useState(false)
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
   const selectedProject = useAtomValue(chatSelectedProjectAtom)
+  const selectedWorkspace = useAtomValue(chatSelectedWorkspaceAtom)
+  const contextMode = useAtomValue(chatContextModeAtom)
   const [isDragging, setIsDragging] = useState(false)
   const [sessionTitle, setSessionTitle] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
@@ -111,15 +113,30 @@ export function ChatPanel() {
     }
   }, [isDragging, setPanelWidth])
 
+  // Whether the user has selected a valid context (project or workspace) for new conversations
+  const hasContext = contextMode === 'project' ? !!selectedProject : !!selectedWorkspace
+
   const handleSend = useCallback((text: string) => {
-    if (isNewConversation && !selectedProject) return
-    chat.sendMessage(
-      text,
-      isNewConversation
-        ? { cwd: selectedProject!.root_path, projectSlug: selectedProject!.slug }
-        : undefined,
-    )
-  }, [isNewConversation, selectedProject, chat.sendMessage])
+    if (isNewConversation && !hasContext) return
+    if (!isNewConversation) {
+      chat.sendMessage(text)
+      return
+    }
+    if (contextMode === 'workspace' && selectedWorkspace) {
+      // Workspace mode: use first project's root_path as cwd, pass workspaceSlug
+      // The backend will resolve all workspace projects as --add-dir
+      chat.sendMessage(text, {
+        cwd: selectedProject?.root_path || selectedWorkspace.slug, // fallback, backend resolves
+        workspaceSlug: selectedWorkspace.slug,
+        projectSlug: selectedProject?.slug,
+      })
+    } else if (selectedProject) {
+      chat.sendMessage(text, {
+        cwd: selectedProject.root_path,
+        projectSlug: selectedProject.slug,
+      })
+    }
+  }, [isNewConversation, hasContext, contextMode, selectedProject, selectedWorkspace, chat.sendMessage])
 
   const handleContinue = useCallback(() => {
     chat.sendContinue()
@@ -254,7 +271,16 @@ export function ChatPanel() {
                 <span className="text-sm font-medium text-gray-300 truncate block">
                   {headerTitle}
                 </span>
-                {!isNewConversation && chat.sessionMeta?.projectSlug && (
+                {!isNewConversation && chat.sessionMeta?.workspaceSlug && (
+                  <Link
+                    to={`/workspaces/${chat.sessionMeta.workspaceSlug}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-[10px] text-purple-400 hover:text-purple-300 truncate block transition-colors"
+                  >
+                    ⬡ {chat.sessionMeta.workspaceSlug}
+                  </Link>
+                )}
+                {!isNewConversation && !chat.sessionMeta?.workspaceSlug && chat.sessionMeta?.projectSlug && (
                   <Link
                     to={`/projects/${chat.sessionMeta.projectSlug}`}
                     onClick={(e) => e.stopPropagation()}
@@ -362,7 +388,7 @@ export function ChatPanel() {
                 onSend={handleSend}
                 onInterrupt={chat.interrupt}
                 isStreaming={chat.isStreaming}
-                disabled={isNewConversation && !selectedProject}
+                disabled={isNewConversation && !hasContext}
                 sessionId={chat.sessionId}
                 onChangePermissionMode={chat.changePermissionMode}
                 onChangeModel={chat.changeModel}
@@ -408,7 +434,16 @@ export function ChatPanel() {
               <span className="text-sm font-medium text-gray-300 truncate block">
                 {headerTitle}
               </span>
-              {!isNewConversation && chat.sessionMeta?.projectSlug && (
+              {!isNewConversation && chat.sessionMeta?.workspaceSlug && (
+                <Link
+                  to={`/workspaces/${chat.sessionMeta.workspaceSlug}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-[10px] text-purple-400 hover:text-purple-300 truncate block transition-colors"
+                >
+                  ⬡ {chat.sessionMeta.workspaceSlug}
+                </Link>
+              )}
+              {!isNewConversation && !chat.sessionMeta?.workspaceSlug && chat.sessionMeta?.projectSlug && (
                 <Link
                   to={`/projects/${chat.sessionMeta.projectSlug}`}
                   onClick={(e) => e.stopPropagation()}
@@ -523,7 +558,7 @@ export function ChatPanel() {
             onSend={handleSend}
             onInterrupt={chat.interrupt}
             isStreaming={chat.isStreaming}
-            disabled={isNewConversation && !selectedProject}
+            disabled={isNewConversation && !hasContext}
             sessionId={chat.sessionId}
             onChangePermissionMode={chat.changePermissionMode}
             onChangeModel={chat.changeModel}
