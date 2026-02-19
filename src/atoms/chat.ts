@@ -51,6 +51,9 @@ export const chatSelectedProjectAtom = atom<Project | null>(null)
 /** When true, chat targets the entire workspace (all projects) instead of a single project */
 export const chatAllProjectsModeAtom = atom<boolean>(true)
 
+/** Whether the active workspace has at least one project (set by ProjectSelect after loading) */
+export const chatWorkspaceHasProjectsAtom = atom<boolean>(false)
+
 /** Derived: true when permission mode requires interactive approval (not bypassPermissions) */
 export const chatPermissionInteractiveAtom = atom((get) => {
   const config = get(chatPermissionConfigAtom)

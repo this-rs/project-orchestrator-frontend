@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { useAtomValue } from 'jotai'
+import { useAtomValue, useSetAtom } from 'jotai'
 import { ChevronDown, Plus, Menu } from 'lucide-react'
 import { workspacesAtom, activeWorkspaceAtom } from '@/atoms'
 import { workspacePath } from '@/utils/paths'
@@ -14,6 +14,7 @@ import { workspacesApi } from '@/services'
 export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
   const navigate = useNavigate()
   const workspaces = useAtomValue(workspacesAtom)
+  const setWorkspaces = useSetAtom(workspacesAtom)
   const activeWorkspace = useAtomValue(activeWorkspaceAtom)
   const [open, setOpen] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
@@ -146,6 +147,9 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
                   setCreating(true)
                   try {
                     const ws = await workspacesApi.create({ name: trimmed })
+                    // Optimistic update: add the new workspace to the atom
+                    // so WorkspaceRouteGuard finds it before the WS event arrives
+                    setWorkspaces((prev) => [...prev, ws])
                     setOpen(false)
                     setShowCreate(false)
                     setNewName('')
