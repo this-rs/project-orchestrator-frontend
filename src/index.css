@@ -92,9 +92,16 @@
 
 body {
   @apply min-h-screen antialiased;
+  font-family: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  font-weight: 350;
   background-color: var(--color-surface-base);
   color: var(--text-primary);
 }
+
+/* Variable font intermediate weights — finer control than standard 400/500/600 */
+h1, h2, h3 { font-variation-settings: 'wght' 650; }
+.font-semibold { font-variation-settings: 'wght' 550; }
+.font-medium   { font-variation-settings: 'wght' 450; }
 
 /* Smooth scrolling */
 html {
