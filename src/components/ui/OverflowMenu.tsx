@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import { MoreVertical } from 'lucide-react'
 
 export interface OverflowMenuAction {
   label: string
@@ -76,9 +77,7 @@ export function OverflowMenu({ actions, className = '' }: OverflowMenuProps) {
         className="flex items-center justify-center w-10 h-10 md:w-8 md:h-8 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors"
         aria-label="More actions"
       >
-        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-        </svg>
+        <MoreVertical className="w-5 h-5" />
       </button>
 
       {isOpen &&

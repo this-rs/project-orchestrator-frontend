@@ -1,5 +1,6 @@
 import { useState, useId, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { ChevronDown, Check } from 'lucide-react'
 import { useDropdownPosition } from '@/hooks'
 
 interface SelectOption {
@@ -137,15 +138,9 @@ export function Select({
           <span className={`flex-1 truncate ${hasValue ? 'text-gray-100' : 'text-gray-500'}`}>
             {selectedLabel}
           </span>
-          <svg
+          <ChevronDown
             className={`w-4 h-4 shrink-0 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
+          />
         </button>
       </div>
       {error && <p className="mt-1 text-sm text-red-400">{error}</p>}
@@ -188,15 +183,7 @@ export function Select({
                   `}
                 >
                   {isSelected && (
-                    <svg
-                      className="w-3.5 h-3.5 shrink-0 text-indigo-400"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2.5}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
+                    <Check className="w-3.5 h-3.5 shrink-0 text-indigo-400" strokeWidth={2.5} />
                   )}
                   {!isSelected && <span className="w-3.5 shrink-0" />}
                   {option.label}

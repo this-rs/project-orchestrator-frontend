@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'motion/react'
+import { AlertCircle } from 'lucide-react'
 import { Button } from './Button'
 import { ProgressBar } from './ProgressBar'
 import { dialogVariants, backdropVariants, useReducedMotion } from '@/utils/motion'
@@ -102,9 +103,7 @@ export function ConfirmDialog({
             <div className="flex gap-3 md:gap-4">
               {/* Icon */}
               <div className={`shrink-0 w-9 h-9 md:w-10 md:h-10 rounded-full ${iconBg} flex items-center justify-center`}>
-                <svg className={`w-5 h-5 ${iconColor}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+                <AlertCircle className={`w-5 h-5 ${iconColor}`} />
               </div>
 
               <div className="flex-1 min-w-0">

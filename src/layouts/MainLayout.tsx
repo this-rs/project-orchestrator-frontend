@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { Menu, Home, Flag, Box, ClipboardList, CheckCircle2, FileText, Code, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
 import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, activeWorkspaceAtom } from '@/atoms'
 import { ToastContainer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
@@ -16,23 +17,23 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug }: { collapsed: boo
     {
       label: 'Organize',
       items: [
-        { name: 'Overview', href: workspacePath(wsSlug, '/overview'), icon: HomeIcon },
-        { name: 'Projects', href: workspacePath(wsSlug, '/projects'), icon: CubeIcon },
-        { name: 'Milestones', href: workspacePath(wsSlug, '/milestones'), icon: FlagIcon },
+        { name: 'Overview', href: workspacePath(wsSlug, '/overview'), icon: Home },
+        { name: 'Projects', href: workspacePath(wsSlug, '/projects'), icon: Box },
+        { name: 'Milestones', href: workspacePath(wsSlug, '/milestones'), icon: Flag },
       ],
     },
     {
       label: 'Plan',
       items: [
-        { name: 'Plans', href: workspacePath(wsSlug, '/plans'), icon: ClipboardIcon },
-        { name: 'Tasks', href: workspacePath(wsSlug, '/tasks'), icon: CheckCircleIcon },
+        { name: 'Plans', href: workspacePath(wsSlug, '/plans'), icon: ClipboardList },
+        { name: 'Tasks', href: workspacePath(wsSlug, '/tasks'), icon: CheckCircle2 },
       ],
     },
     {
       label: 'Knowledge',
       items: [
-        { name: 'Notes', href: workspacePath(wsSlug, '/notes'), icon: DocumentIcon },
-        { name: 'Code', href: workspacePath(wsSlug, '/code'), icon: CodeIcon },
+        { name: 'Notes', href: workspacePath(wsSlug, '/notes'), icon: FileText },
+        { name: 'Code', href: workspacePath(wsSlug, '/code'), icon: Code },
       ],
     },
   ], [wsSlug])
@@ -161,9 +162,9 @@ export function MainLayout() {
             className="flex items-center justify-center p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors"
           >
             {collapsed ? (
-              <ChevronRightIcon className="w-5 h-5" />
+              <ChevronRight className="w-5 h-5" />
             ) : (
-              <ChevronLeftIcon className="w-5 h-5" />
+              <ChevronLeft className="w-5 h-5" />
             )}
           </button>
         </div>
@@ -197,7 +198,7 @@ export function MainLayout() {
               onClick={() => setMobileMenuOpen(false)}
               className="flex items-center justify-center p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors"
             >
-              <ChevronLeftIcon className="w-5 h-5" />
+              <ChevronLeft className="w-5 h-5" />
             </button>
           </div>
         </aside>
@@ -215,7 +216,7 @@ export function MainLayout() {
             className="mr-3 p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors md:hidden"
             onClick={() => setMobileMenuOpen(true)}
           >
-            <HamburgerIcon className="w-5 h-5" />
+            <Menu className="w-5 h-5" />
           </button>
 
           {/* WS status dot — before breadcrumb, vertically centered */}
@@ -239,7 +240,7 @@ export function MainLayout() {
               className={`p-2 rounded-lg transition-colors ${chatMode !== 'closed' ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.06]'}`}
               title="Toggle chat"
             >
-              <ChatIcon className="w-5 h-5" />
+              <MessageCircle className="w-5 h-5" />
             </button>
           </div>
         </header>
@@ -335,91 +336,3 @@ function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceNa
   )
 }
 
-// Icons
-function HamburgerIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-    </svg>
-  )
-}
-
-function HomeIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-    </svg>
-  )
-}
-
-function FlagIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
-    </svg>
-  )
-}
-
-function CubeIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-    </svg>
-  )
-}
-
-function ClipboardIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-    </svg>
-  )
-}
-
-function CheckCircleIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  )
-}
-
-function DocumentIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-    </svg>
-  )
-}
-
-function CodeIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-    </svg>
-  )
-}
-
-function ChevronLeftIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-    </svg>
-  )
-}
-
-function ChevronRightIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-    </svg>
-  )
-}
-
-function ChatIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-    </svg>
-  )
-}

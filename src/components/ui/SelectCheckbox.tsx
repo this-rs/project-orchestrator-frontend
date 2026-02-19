@@ -1,3 +1,5 @@
+import { Check } from 'lucide-react'
+
 interface SelectZoneProps {
   selected: boolean
   onToggle: (shiftKey: boolean) => void
@@ -28,9 +30,7 @@ export function SelectZone({ selected, onToggle }: SelectZoneProps) {
         `}
       >
         {selected && (
-          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
+          <Check className="w-3 h-3 text-white" strokeWidth={3} />
         )}
       </div>
     </div>

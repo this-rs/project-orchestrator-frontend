@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useState, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { ChevronRight } from 'lucide-react'
 import { InteractivePlanStatusBadge, TaskStatusBadge } from '@/components/ui'
 import { tasksApi } from '@/services'
 import { useWorkspaceSlug } from '@/hooks'
@@ -17,14 +18,9 @@ export function ChevronIcon({
   className?: string
 }) {
   return (
-    <svg
+    <ChevronRight
       className={`w-4 h-4 transition-transform duration-150 ${expanded ? 'rotate-90' : ''} ${className || ''}`}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-    </svg>
+    />
   )
 }
 
