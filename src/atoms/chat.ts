@@ -49,7 +49,7 @@ export const chatDraftInputAtom = atom<string>('')
 export const chatSelectedProjectAtom = atom<Project | null>(null)
 
 /** When true, chat targets the entire workspace (all projects) instead of a single project */
-export const chatAllProjectsModeAtom = atom<boolean>(false)
+export const chatAllProjectsModeAtom = atom<boolean>(true)
 
 /** Derived: true when permission mode requires interactive approval (not bypassPermissions) */
 export const chatPermissionInteractiveAtom = atom((get) => {

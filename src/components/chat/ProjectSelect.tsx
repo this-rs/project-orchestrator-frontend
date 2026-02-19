@@ -33,12 +33,13 @@ export function ProjectSelect() {
       const items = Array.isArray(data) ? data : []
       setProjects(items)
 
-      // Auto-select project if none selected
+      // Auto-select a project for cwd fallback (even in all-workspace mode)
       if (!selectedProject && items.length > 0) {
         if (suggestedId) {
           const match = items.find((p) => p.id === suggestedId)
           if (match) {
             setSelectedProject(match)
+            setLoading(false)
             return
           }
         }
@@ -85,11 +86,11 @@ export function ProjectSelect() {
       )}
 
       <label className="text-[10px] uppercase tracking-wider text-gray-500 mb-1 block">
-        Project
+        Scope
       </label>
       <Select
         options={[
-          { value: '__all__', label: `All projects (${projects.length})` },
+          { value: '__all__', label: 'All workspace' },
           ...projects.map((p) => ({ value: p.id, label: p.name })),
         ]}
         value={allProjectsMode ? '__all__' : (selectedProject?.id || '')}
@@ -110,13 +111,6 @@ export function ProjectSelect() {
       {!allProjectsMode && selectedProject?.root_path && (
         <div className="text-[10px] text-gray-600 mt-1 truncate font-mono">
           {shortenPath(selectedProject.root_path)}
-        </div>
-      )}
-      {allProjectsMode && (
-        <div className="mt-1.5">
-          <div className="text-[10px] text-gray-500">
-            Claude will have access to all {projects.length} projects in this workspace
-          </div>
         </div>
       )}
     </div>
