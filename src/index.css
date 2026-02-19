@@ -127,6 +127,14 @@ p, .description-text { text-wrap: pretty; }
   content: counter(ac);
 }
 
+/* ─── Content Visibility (list performance) ────────────────────────────
+ * Skip rendering of off-screen items in long lists.
+ * contain-intrinsic-size provides a placeholder height to avoid scroll jumps.
+ * ─────────────────────────────────────────────────────────────────────── */
+.cv-auto       { content-visibility: auto; contain-intrinsic-size: auto 120px; }
+.cv-auto-sm    { content-visibility: auto; contain-intrinsic-size: auto 80px; }
+.cv-auto-lg    { content-visibility: auto; contain-intrinsic-size: auto 160px; }
+
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;

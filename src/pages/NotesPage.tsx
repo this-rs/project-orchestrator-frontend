@@ -311,7 +311,7 @@ function NoteCard({ note, onDelete, onUpdate, selected, onToggleSelect }: NoteCa
   const hiddenCount = anchors.length - visibleAnchors.length
 
   return (
-    <Card className={`border-l-4 ${typeColors[note.note_type] || 'border-l-gray-500'} transition-colors ${selected ? 'border-l-indigo-500 bg-indigo-500/[0.05]' : ''}`}>
+    <Card lazy="sm" className={`border-l-4 ${typeColors[note.note_type] || 'border-l-gray-500'} transition-colors ${selected ? 'border-l-indigo-500 bg-indigo-500/[0.05]' : ''}`}>
       <div className="flex">
         {onToggleSelect && (
           <SelectZone selected={!!selected} onToggle={onToggleSelect} />

@@ -2,12 +2,15 @@ interface CardProps {
   children: React.ReactNode
   className?: string
   onClick?: () => void
+  /** Enable content-visibility: auto for off-screen rendering skip (use in long lists) */
+  lazy?: boolean | 'sm' | 'lg'
 }
 
-export function Card({ children, className = '', onClick }: CardProps) {
+export function Card({ children, className = '', onClick, lazy }: CardProps) {
+  const cvClass = lazy === true ? 'cv-auto' : lazy === 'sm' ? 'cv-auto-sm' : lazy === 'lg' ? 'cv-auto-lg' : ''
   return (
     <div
-      className={`glass rounded-xl shadow-sm overflow-hidden scroll-reveal ${onClick ? 'cursor-pointer card-hover' : ''} ${className}`}
+      className={`glass rounded-xl shadow-sm overflow-hidden scroll-reveal ${onClick ? 'cursor-pointer card-hover' : ''} ${cvClass} ${className}`}
       onClick={onClick}
     >
       {children}
