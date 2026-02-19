@@ -1,13 +1,96 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, ConfirmDialog, LinkEntityDialog, ProgressBar, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
-import { ExpandablePlanRow, ExpandableTaskRow } from '@/components/expandable'
+import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, ConfirmDialog, LinkEntityDialog, ProgressBar, ViewToggle, PageHeader, StatusSelect, SectionNav, InteractivePlanStatusBadge } from '@/components/ui'
+import { ChevronIcon, NestedTaskRow, ExpandableTaskRow } from '@/components/expandable'
 import { workspacesApi, plansApi, tasksApi } from '@/services'
 import { PlanKanbanBoard } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
 import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import type { WorkspaceMilestone, MilestoneProgress, Plan, PlanDetails, Project, TaskWithPlan, MilestoneStatus, PlanStatus, PaginatedResponse } from '@/types'
+
+const NIL_UUID = '00000000-0000-0000-0000-000000000000'
+
+// ── Milestone Plan Row ───────────────────────────────────────────────────────
+// Uses pre-filtered tasks from milestoneTasks instead of fetching independently.
+// This ensures only tasks linked to this milestone appear under each plan.
+function MilestonePlanRow({
+  plan,
+  tasks,
+  onStatusChange,
+  refreshTrigger,
+  expandAllSignal,
+  collapseAllSignal,
+}: {
+  plan: Plan
+  tasks: TaskWithPlan[]
+  onStatusChange: (newStatus: PlanStatus) => Promise<void>
+  refreshTrigger?: number
+  expandAllSignal?: number
+  collapseAllSignal?: number
+}) {
+  const [expanded, setExpanded] = useState(false)
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- signal-driven toggle from parent
+    if (expandAllSignal) setExpanded(true)
+  }, [expandAllSignal])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- signal-driven toggle from parent
+    if (collapseAllSignal) setExpanded(false)
+  }, [collapseAllSignal])
+
+  const toggleExpand = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setExpanded(!expanded)
+  }
+
+  return (
+    <div className="bg-white/[0.06] rounded-lg overflow-hidden">
+      <div className="flex items-center gap-2 p-3">
+        <button
+          onClick={toggleExpand}
+          className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-300 transition-colors"
+          title={expanded ? 'Collapse' : 'Show tasks'}
+        >
+          <ChevronIcon expanded={expanded} />
+        </button>
+        <Link
+          to={`/plans/${plan.id}`}
+          className="flex-1 min-w-0 hover:text-indigo-400 transition-colors overflow-hidden"
+        >
+          <span className="font-medium text-gray-200 block truncate">{plan.title}</span>
+          {plan.description && (
+            <p className="text-sm text-gray-400 line-clamp-1 mt-1">{plan.description}</p>
+          )}
+        </Link>
+        {tasks.length > 0 && (
+          <span className="text-xs text-gray-500 flex-shrink-0">{tasks.length} tasks</span>
+        )}
+        <InteractivePlanStatusBadge status={plan.status} onStatusChange={onStatusChange} />
+      </div>
+      {expanded && (
+        <div className="pl-8 pr-3 pb-3 space-y-1.5">
+          {tasks.length > 0 ? (
+            tasks.map((task) => (
+              <NestedTaskRow
+                key={task.id}
+                task={task}
+                refreshTrigger={refreshTrigger}
+                expandAllSignal={expandAllSignal}
+                collapseAllSignal={collapseAllSignal}
+              />
+            ))
+          ) : (
+            <div className="text-xs text-gray-500 py-1">No tasks</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function MilestoneDetailPage() {
   const { milestoneId } = useParams<{ milestoneId: string }>()
@@ -66,7 +149,7 @@ export function MilestoneDetailPage() {
       // Extract plan IDs directly from milestone tasks (API now returns TaskWithPlan)
       const planIds = new Set(
         (milestoneTasks || [])
-          .filter((t) => t.plan_id)
+          .filter((t) => t.plan_id && t.plan_id !== NIL_UUID)
           .map((t) => t.plan_id),
       )
 
@@ -122,6 +205,35 @@ export function MilestoneDetailPage() {
     [plans],
   )
 
+  // Group milestone tasks by plan — this is the source of truth for the hierarchy.
+  // Tasks are already loaded via listMilestoneTasks (TaskWithPlan[]), so no extra fetch needed.
+  const planData = useMemo(() => {
+    const groups = new Map<string, TaskWithPlan[]>()
+    for (const task of milestoneTasks) {
+      const pid = task.plan_id
+      if (!pid || pid === NIL_UUID) continue
+      const existing = groups.get(pid) || []
+      existing.push(task)
+      groups.set(pid, existing)
+    }
+
+    // Merge with fetched plan details (for status, description, etc.)
+    // Fall back to plan_title from tasks if plan fetch failed
+    return Array.from(groups.entries()).map(([planId, tasks]) => {
+      const fetchedPlan = plans.find((p) => p.id === planId)
+      const plan: Plan = fetchedPlan || {
+        id: planId,
+        title: tasks[0]?.plan_title || 'Untitled Plan',
+        description: '',
+        status: 'draft' as PlanStatus,
+        created_at: '',
+        created_by: '',
+        priority: 0,
+      }
+      return { plan, tasks }
+    })
+  }, [milestoneTasks, plans])
+
   const sectionIds = ['progress', 'plans', 'tasks', 'projects']
   const activeSection = useSectionObserver(sectionIds)
 
@@ -130,7 +242,7 @@ export function MilestoneDetailPage() {
   const tags = milestone.tags || []
   const sections = [
     { id: 'progress', label: 'Progress' },
-    { id: 'plans', label: 'Plans', count: plans.length },
+    { id: 'plans', label: 'Plans', count: planData.length },
     { id: 'tasks', label: 'Tasks', count: milestoneTasks.length },
     { id: 'projects', label: 'Projects', count: projects.length },
   ]
@@ -212,14 +324,14 @@ export function MilestoneDetailPage() {
       )}
       </section>
 
-      {/* Plans section with view toggle */}
+      {/* Plans section — hierarchical: Plan → Tasks → Steps */}
       <section id="plans" className="scroll-mt-20">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <CardTitle>Plans ({plans.length})</CardTitle>
-              {plans.length > 0 && viewMode === 'list' && (
+              <CardTitle>Plans ({planData.length})</CardTitle>
+              {planData.length > 0 && viewMode === 'list' && (
                 <button
                   onClick={() => {
                     if (plansAllExpanded) {
@@ -242,12 +354,12 @@ export function MilestoneDetailPage() {
                 </button>
               )}
             </div>
-            {plans.length > 0 && <ViewToggle value={viewMode} onChange={setViewMode} />}
+            {planData.length > 0 && <ViewToggle value={viewMode} onChange={setViewMode} />}
           </div>
         </CardHeader>
         <CardContent>
-          {plans.length === 0 ? (
-            <p className="text-gray-500 text-sm">No plans for projects in this workspace</p>
+          {planData.length === 0 ? (
+            <p className="text-gray-500 text-sm">No plans linked to tasks in this milestone</p>
           ) : viewMode === 'kanban' ? (
             <PlanKanbanBoard
               fetchFn={kanbanFetchFn}
@@ -257,10 +369,11 @@ export function MilestoneDetailPage() {
             />
           ) : (
             <div className="space-y-2">
-              {plans.map((plan) => (
-                <ExpandablePlanRow
+              {planData.map(({ plan, tasks: planTasks }) => (
+                <MilestonePlanRow
                   key={plan.id}
                   plan={plan}
+                  tasks={planTasks}
                   onStatusChange={async (newStatus: PlanStatus) => {
                     await plansApi.updateStatus(plan.id, newStatus)
                     setPlans(prev => prev.map(p => p.id === plan.id ? { ...p, status: newStatus } : p))
