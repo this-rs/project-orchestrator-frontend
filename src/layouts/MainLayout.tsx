@@ -246,11 +246,13 @@ export function MainLayout() {
         </header>
 
         {/* Page content */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 md:px-6 pb-6">
-          <Outlet />
+        <div className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden px-4 md:px-6 pb-2">
+          <div className="flex-1">
+            <Outlet />
+          </div>
 
           {/* Branding */}
-          <div className="py-8 text-center text-xs tracking-wide">
+          <div className="mt-4 text-center text-xs tracking-wide">
             <div className="text-gray-600">Made by</div>
             <div className="text-gray-500">Freedom From Scratch</div>
           </div>
