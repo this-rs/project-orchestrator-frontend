@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, FormDialog, LinkEntityDialog, ProgressBar, PageHeader, SectionNav, ConfirmDialog } from '@/components/ui'
+import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, FormDialog, LinkEntityDialog, ProgressBar, PageHeader, SectionNav, ConfirmDialog, StatCard } from '@/components/ui'
+import { Box, Flag, FileText, Cpu } from 'lucide-react'
 import { workspacesApi, projectsApi } from '@/services'
 import { useFormDialog, useLinkDialog, useToast, useConfirmDialog, useSectionObserver, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
@@ -190,10 +191,10 @@ export function WorkspaceDetailPage() {
 
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-6">
-          <StatCard label="Projects" value={projects.length} />
-          <StatCard label="Milestones" value={milestones.length} />
-          <StatCard label="Resources" value={resources.length} />
-          <StatCard label="Components" value={components.length} />
+          <StatCard icon={<Box className="w-5 h-5" />} label="Projects" value={projects.length} accent="border-indigo-500" />
+          <StatCard icon={<Flag className="w-5 h-5" />} label="Milestones" value={milestones.length} accent="border-purple-500" delay={100} />
+          <StatCard icon={<FileText className="w-5 h-5" />} label="Resources" value={resources.length} accent="border-cyan-500" delay={200} />
+          <StatCard icon={<Cpu className="w-5 h-5" />} label="Components" value={components.length} accent="border-amber-500" delay={300} />
         </div>
       </section>
 
@@ -399,13 +400,3 @@ export function WorkspaceDetailPage() {
   )
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <Card>
-      <CardContent className="text-center">
-        <div className="text-2xl md:text-3xl font-bold text-indigo-400">{value}</div>
-        <div className="text-sm text-gray-400">{label}</div>
-      </CardContent>
-    </Card>
-  )
-}
