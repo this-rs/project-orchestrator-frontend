@@ -224,6 +224,75 @@ html.tauri * {
   background: transparent;
 }
 
+/* ─── Popover Tooltip ──────────────────────────────────────────────────
+ * Tooltip using Popover API (manual) + CSS Anchor Positioning.
+ * Shows on hover/focus via JS, positioned relative to anchor element.
+ * Uses popover="manual" for cross-browser compat (upgrade to "hint" when Baseline).
+ * ─────────────────────────────────────────────────────────────────────── */
+.popover-tooltip {
+  /* Reset popover defaults */
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  inset: unset;
+  overflow: visible;
+
+  /* Fixed in top layer, anchor-positioned */
+  position: fixed;
+  position-area: block-start;
+  position-try-fallbacks: flip-block, flip-inline;
+
+  /* Appearance */
+  max-width: 240px;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  background: rgba(17, 17, 17, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e5e7eb;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  text-align: center;
+  white-space: normal;
+  word-wrap: break-word;
+  pointer-events: none;
+
+  /* Entry animation */
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 120ms ease-out,
+    transform 120ms ease-out,
+    display 120ms allow-discrete,
+    overlay 120ms allow-discrete;
+}
+
+/* Exit state */
+.popover-tooltip:not(:popover-open) {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+/* Entry state — @starting-style for open animation */
+@starting-style {
+  .popover-tooltip:popover-open {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* No backdrop for tooltips */
+.popover-tooltip::backdrop {
+  background: transparent;
+}
+
+/* Margin adjustments per position-area */
+.popover-tooltip[style*="block-end"] {
+  margin-bottom: 0;
+  margin-top: 6px;
+}
+
 /* ─── Glow Accents ─────────────────────────────────────────────────────
  * Status-matched box-shadow halos for badges, buttons, and active items.
  * Uses CSS variable RGB triplets from :root (--glow-*).
