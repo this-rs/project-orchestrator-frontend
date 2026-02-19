@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useMemo } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { Link, useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'motion/react'
 import { tasksAtom, tasksLoadingAtom, taskStatusFilterAtom, taskRefreshAtom } from '@/atoms'
 import { tasksApi } from '@/services'
 import {
@@ -22,6 +23,7 @@ import { useKanbanFilters, useViewMode, useConfirmDialog, useToast, useMultiSele
 import { KanbanBoard, KanbanFilterBar } from '@/components/kanban'
 import type { TaskWithPlan, TaskStatus, PaginatedResponse } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
+import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
 
 const statusOptions = [
   { value: 'all', label: 'All Status' },
@@ -43,6 +45,7 @@ export function TasksPage() {
   const toast = useToast()
   const kanbanFilters = useKanbanFilters()
   const wsSlug = useWorkspaceSlug()
+  const reducedMotion = useReducedMotion()
 
   // --- Infinite scroll for list mode (workspace-scoped) ---
   const listFilters = useMemo(
@@ -235,36 +238,44 @@ export function TasksPage() {
               </button>
             </div>
           )}
-          <div className="space-y-3">
-            {tasks.map((task) => (
-              <TaskCard
-                wsSlug={wsSlug}
-                selected={multiSelect.isSelected(task.id)}
-                onToggleSelect={(shiftKey) => multiSelect.toggle(task.id, shiftKey)}
-                key={task.id}
-                task={task}
-                onStatusChange={async (newStatus) => {
-                  await tasksApi.update(task.id, { status: newStatus })
-                  updateItem(
-                    (t) => t.id === task.id,
-                    (t) => ({ ...t, status: newStatus }),
-                  )
-                  toast.success('Status updated')
-                }}
-                onDelete={() =>
-                  confirmDialog.open({
-                    title: 'Delete Task',
-                    description: 'This will permanently delete this task and all its steps and decisions.',
-                    onConfirm: async () => {
-                      await tasksApi.delete(task.id)
-                      removeItems((t) => t.id === task.id)
-                      toast.success('Task deleted')
-                    },
-                  })
-                }
-              />
-            ))}
-          </div>
+          <motion.div
+            className="space-y-3"
+            variants={reducedMotion ? undefined : staggerContainer}
+            initial="hidden"
+            animate="visible"
+          >
+            <AnimatePresence mode="popLayout">
+              {tasks.map((task) => (
+                <motion.div key={task.id} variants={fadeInUp} exit="exit" layout={!reducedMotion}>
+                  <TaskCard
+                    wsSlug={wsSlug}
+                    selected={multiSelect.isSelected(task.id)}
+                    onToggleSelect={(shiftKey) => multiSelect.toggle(task.id, shiftKey)}
+                    task={task}
+                    onStatusChange={async (newStatus) => {
+                      await tasksApi.update(task.id, { status: newStatus })
+                      updateItem(
+                        (t) => t.id === task.id,
+                        (t) => ({ ...t, status: newStatus }),
+                      )
+                      toast.success('Status updated')
+                    }}
+                    onDelete={() =>
+                      confirmDialog.open({
+                        title: 'Delete Task',
+                        description: 'This will permanently delete this task and all its steps and decisions.',
+                        onConfirm: async () => {
+                          await tasksApi.delete(task.id)
+                          removeItems((t) => t.id === task.id)
+                          toast.success('Task deleted')
+                        },
+                      })
+                    }
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
           <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
         </>
       )}

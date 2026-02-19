@@ -1,6 +1,8 @@
 import { useEffect, useRef, type ReactNode, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
+import { motion, AnimatePresence } from 'motion/react'
 import { Button } from './Button'
+import { dialogVariants, backdropVariants, useReducedMotion } from '@/utils/motion'
 
 export interface FormDialogProps {
   open: boolean
@@ -32,6 +34,7 @@ export function FormDialog({
   size = 'md',
 }: FormDialogProps) {
   const cancelRef = useRef<HTMLButtonElement>(null)
+  const reducedMotion = useReducedMotion()
 
   useEffect(() => {
     if (open) cancelRef.current?.focus()
@@ -55,55 +58,65 @@ export function FormDialog({
     }
   }, [open])
 
-  if (!open) return null
-
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     await onSubmit()
   }
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="form-dialog-title"
-    >
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={loading ? undefined : onClose}
-      />
+    <AnimatePresence>
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="form-dialog-title"
+        >
+          <motion.div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            variants={reducedMotion ? undefined : backdropVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            onClick={loading ? undefined : onClose}
+          />
 
-      <div
-        className={`relative bg-surface-overlay rounded-xl shadow-xl border border-border-subtle ${sizeClasses[size]} w-full animate-in fade-in zoom-in-95 duration-150`}
-      >
-        <div className="px-4 py-3 md:px-6 md:py-4 border-b border-border-subtle">
-          <h3 id="form-dialog-title" className="text-lg font-semibold text-gray-100">
-            {title}
-          </h3>
+          <motion.div
+            className={`relative bg-surface-overlay rounded-xl shadow-xl border border-border-subtle ${sizeClasses[size]} w-full`}
+            variants={reducedMotion ? undefined : dialogVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+          >
+            <div className="px-4 py-3 md:px-6 md:py-4 border-b border-border-subtle">
+              <h3 id="form-dialog-title" className="text-lg font-semibold text-gray-100">
+                {title}
+              </h3>
+            </div>
+
+            <form onSubmit={handleSubmit}>
+              <div className="px-4 py-3 md:px-6 md:py-4 space-y-4 max-h-[70vh] md:max-h-[60vh] overflow-y-auto">{children}</div>
+
+              <div className="flex justify-end gap-3 px-4 py-3 md:px-6 md:py-4 border-t border-border-subtle">
+                <Button
+                  ref={cancelRef}
+                  variant="secondary"
+                  size="sm"
+                  onClick={onClose}
+                  disabled={loading}
+                  type="button"
+                >
+                  {cancelLabel}
+                </Button>
+                <Button variant="primary" size="sm" type="submit" loading={loading}>
+                  {submitLabel}
+                </Button>
+              </div>
+            </form>
+          </motion.div>
         </div>
-
-        <form onSubmit={handleSubmit}>
-          <div className="px-4 py-3 md:px-6 md:py-4 space-y-4 max-h-[70vh] md:max-h-[60vh] overflow-y-auto">{children}</div>
-
-          <div className="flex justify-end gap-3 px-4 py-3 md:px-6 md:py-4 border-t border-border-subtle">
-            <Button
-              ref={cancelRef}
-              variant="secondary"
-              size="sm"
-              onClick={onClose}
-              disabled={loading}
-              type="button"
-            >
-              {cancelLabel}
-            </Button>
-            <Button variant="primary" size="sm" type="submit" loading={loading}>
-              {submitLabel}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>,
+      )}
+    </AnimatePresence>,
     document.body,
   )
 }

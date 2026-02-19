@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { Link, useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'motion/react'
 import { plansAtom, plansLoadingAtom, planStatusFilterAtom, planRefreshAtom } from '@/atoms'
 import { plansApi } from '@/services'
 import {
@@ -23,6 +24,7 @@ import { useViewMode, useConfirmDialog, useFormDialog, useToast, useMultiSelect,
 import { CreatePlanForm } from '@/components/forms'
 import { PlanKanbanBoard, PlanKanbanFilterBar } from '@/components/kanban'
 import type { PlanKanbanFilters } from '@/components/kanban'
+import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
 import type { Plan, PlanStatus, PaginatedResponse } from '@/types'
 
 const statusOptions = [
@@ -48,6 +50,7 @@ export function PlansPage() {
   const [, setLoadingAtom] = useAtom(plansLoadingAtom)
   const [statusFilter, setStatusFilter] = useAtom(planStatusFilterAtom)
   const planRefresh = useAtomValue(planRefreshAtom)
+  const reducedMotion = useReducedMotion()
   const [viewMode, setViewMode] = useViewMode()
   const navigate = useNavigate()
   const confirmDialog = useConfirmDialog()
@@ -304,36 +307,44 @@ export function PlansPage() {
               </button>
             </div>
           )}
-          <div className="space-y-4">
-            {plans.map((plan) => (
-              <PlanCard
-                wsSlug={wsSlug}
-                selected={multiSelect.isSelected(plan.id)}
-                onToggleSelect={(shiftKey) => multiSelect.toggle(plan.id, shiftKey)}
-                key={plan.id}
-                plan={plan}
-                onStatusChange={async (newStatus) => {
-                  await plansApi.updateStatus(plan.id, newStatus)
-                  updateItem(
-                    (p) => p.id === plan.id,
-                    (p) => ({ ...p, status: newStatus }),
-                  )
-                  toast.success('Status updated')
-                }}
-                onDelete={() =>
-                  confirmDialog.open({
-                    title: 'Delete Plan',
-                    description: 'This plan and all its tasks will be permanently deleted.',
-                    onConfirm: async () => {
-                      await plansApi.delete(plan.id)
-                      removeItems((p) => p.id === plan.id)
-                      toast.success('Plan deleted')
-                    },
-                  })
-                }
-              />
-            ))}
-          </div>
+          <motion.div
+            className="space-y-4"
+            variants={reducedMotion ? undefined : staggerContainer}
+            initial="hidden"
+            animate="visible"
+          >
+            <AnimatePresence mode="popLayout">
+              {plans.map((plan) => (
+                <motion.div key={plan.id} variants={fadeInUp} exit="exit" layout={!reducedMotion}>
+                  <PlanCard
+                    wsSlug={wsSlug}
+                    selected={multiSelect.isSelected(plan.id)}
+                    onToggleSelect={(shiftKey) => multiSelect.toggle(plan.id, shiftKey)}
+                    plan={plan}
+                    onStatusChange={async (newStatus) => {
+                      await plansApi.updateStatus(plan.id, newStatus)
+                      updateItem(
+                        (p) => p.id === plan.id,
+                        (p) => ({ ...p, status: newStatus }),
+                      )
+                      toast.success('Status updated')
+                    }}
+                    onDelete={() =>
+                      confirmDialog.open({
+                        title: 'Delete Plan',
+                        description: 'This plan and all its tasks will be permanently deleted.',
+                        onConfirm: async () => {
+                          await plansApi.delete(plan.id)
+                          removeItems((p) => p.id === plan.id)
+                          toast.success('Plan deleted')
+                        },
+                      })
+                    }
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
           <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
         </>
       )}

@@ -1,11 +1,13 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
+import { motion, AnimatePresence } from 'motion/react'
 import { notesAtom, notesLoadingAtom, noteTypeFilterAtom, noteStatusFilterAtom, noteRefreshAtom } from '@/atoms'
 import { notesApi } from '@/services'
 import { Card, CardContent, Button, EmptyState, Select, InteractiveNoteStatusBadge, ImportanceBadge, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, CollapsibleMarkdown, LoadMoreSentinel, SkeletonCard } from '@/components/ui'
 import type { OverflowMenuAction } from '@/components/ui'
 import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug } from '@/hooks'
 import { CreateNoteForm } from '@/components/forms'
+import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
 import type { Note, NoteType, NoteStatus, NoteScopeType, PaginatedResponse } from '@/types'
 
 // Inline SVG icons (project convention: no icon library)
@@ -48,6 +50,7 @@ export function NotesPage() {
   const toast = useToast()
   const [formLoading, setFormLoading] = useState(false)
   const wsSlug = useWorkspaceSlug()
+  const reducedMotion = useReducedMotion()
 
   const filters = useMemo(
     () => ({
@@ -175,26 +178,34 @@ export function NotesPage() {
               </button>
             </div>
           )}
-          <div className="space-y-4">
-            {notes.map((note) => (
-              <NoteCard
-                selected={multiSelect.isSelected(note.id)}
-                onToggleSelect={(shiftKey) => multiSelect.toggle(note.id, shiftKey)}
-                key={note.id}
-                note={note}
-                onUpdate={(updated) => updateItem((n) => n.id === updated.id, () => updated)}
-                onDelete={() => confirmDialog.open({
-                  title: 'Delete Note',
-                  description: 'This note will be permanently deleted.',
-                  onConfirm: async () => {
-                    await notesApi.delete(note.id)
-                    removeItems((n) => n.id === note.id)
-                    toast.success('Note deleted')
-                  },
-                })}
-              />
-            ))}
-          </div>
+          <motion.div
+            className="space-y-4"
+            variants={reducedMotion ? undefined : staggerContainer}
+            initial="hidden"
+            animate="visible"
+          >
+            <AnimatePresence mode="popLayout">
+              {notes.map((note) => (
+                <motion.div key={note.id} variants={fadeInUp} exit="exit" layout={!reducedMotion}>
+                  <NoteCard
+                    selected={multiSelect.isSelected(note.id)}
+                    onToggleSelect={(shiftKey) => multiSelect.toggle(note.id, shiftKey)}
+                    note={note}
+                    onUpdate={(updated) => updateItem((n) => n.id === updated.id, () => updated)}
+                    onDelete={() => confirmDialog.open({
+                      title: 'Delete Note',
+                      description: 'This note will be permanently deleted.',
+                      onConfirm: async () => {
+                        await notesApi.delete(note.id)
+                        removeItems((n) => n.id === note.id)
+                        toast.success('Note deleted')
+                      },
+                    })}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
           <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
         </>
       )}
