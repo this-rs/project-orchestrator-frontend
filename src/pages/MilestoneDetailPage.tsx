@@ -7,7 +7,7 @@ import { workspacesApi, plansApi, tasksApi } from '@/services'
 import { PlanKanbanBoard } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
 import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
-import type { WorkspaceMilestone, MilestoneProgress, Plan, Project, Task, MilestoneStatus, PlanStatus, PaginatedResponse } from '@/types'
+import type { WorkspaceMilestone, MilestoneProgress, Plan, PlanDetails, Project, TaskWithPlan, MilestoneStatus, PlanStatus, PaginatedResponse } from '@/types'
 
 export function MilestoneDetailPage() {
   const { milestoneId } = useParams<{ milestoneId: string }>()
@@ -16,8 +16,7 @@ export function MilestoneDetailPage() {
   const [progress, setProgress] = useState<MilestoneProgress | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [plans, setPlans] = useState<Plan[]>([])
-  const [milestonePlanIds, setMilestonePlanIds] = useState<Set<string>>(new Set())
-  const [milestoneTasks, setMilestoneTasks] = useState<Task[]>([])
+  const [milestoneTasks, setMilestoneTasks] = useState<TaskWithPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useViewMode()
   const confirmDialog = useConfirmDialog()
@@ -64,31 +63,21 @@ export function MilestoneDetailPage() {
         }
       }
 
-      // Cross-reference tasks to find which plans they belong to
-      const milestoneTaskIds = new Set((milestoneTasks || []).map((t) => t.id))
+      // Extract plan IDs directly from milestone tasks (API now returns TaskWithPlan)
+      const planIds = new Set(
+        (milestoneTasks || [])
+          .filter((t) => t.plan_id)
+          .map((t) => t.plan_id),
+      )
 
-      if (milestoneTaskIds.size > 0) {
-        // Fetch all tasks with plan_id to find which plans these tasks belong to
-        const allTasksData = await tasksApi.list({ limit: 100 })
-        const planIds = new Set(
-          (allTasksData.items || [])
-            .filter((t) => milestoneTaskIds.has(t.id) && t.plan_id)
-            .map((t) => t.plan_id),
+      // Fetch only plans that have tasks in this milestone
+      if (planIds.size > 0) {
+        const planPromises = Array.from(planIds).map((pid) =>
+          plansApi.get(pid).catch(() => null),
         )
-        setMilestonePlanIds(planIds)
-
-        // Fetch only plans that have tasks in this milestone
-        if (planIds.size > 0) {
-          const allPlansData = await plansApi.list({ limit: 100 })
-          const milestonePlans = (allPlansData.items || []).filter((plan) =>
-            planIds.has(plan.id),
-          )
-          setPlans(milestonePlans)
-        } else {
-          setPlans([])
-        }
+        const planResults = await Promise.all(planPromises)
+        setPlans(planResults.filter((p): p is PlanDetails => p !== null))
       } else {
-        setMilestonePlanIds(new Set())
         setPlans([])
       }
     } catch (error) {
@@ -122,18 +111,15 @@ export function MilestoneDetailPage() {
     [plans],
   )
 
-  // Kanban fetchFn: fetches only plans linked to this milestone, filtered by status
+  // Kanban fetchFn: uses plans already loaded from milestone tasks
   const kanbanFetchFn = useCallback(
     async (params: Record<string, unknown>): Promise<PaginatedResponse<Plan>> => {
-      if (milestonePlanIds.size === 0) return { items: [], total: 0, limit: 0, offset: 0 }
+      if (plans.length === 0) return { items: [], total: 0, limit: 0, offset: 0 }
       const status = params.status as string
-      const allPlansData = await plansApi.list({ limit: 100 })
-      const filtered = (allPlansData.items || []).filter(
-        (p) => milestonePlanIds.has(p.id) && p.status === status,
-      )
+      const filtered = plans.filter((p) => p.status === status)
       return { items: filtered, total: filtered.length, limit: filtered.length, offset: 0 }
     },
-    [milestonePlanIds],
+    [plans],
   )
 
   const sectionIds = ['progress', 'plans', 'tasks', 'projects']
