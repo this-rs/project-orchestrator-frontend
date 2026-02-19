@@ -1,5 +1,6 @@
 import { useAtom } from 'jotai'
 import { useCallback, useState } from 'react'
+import { Check, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 import { setupConfigAtom, type McpSetupStatus } from '@/atoms/setup'
 import { isTauri } from '@/services/env'
 import { AVAILABLE_MODELS } from '@/constants/models'
@@ -120,15 +121,7 @@ export function ChatPage() {
                     {m.fullLabel}
                   </span>
                   {config.chatModel === m.id && (
-                    <svg
-                      className="h-4 w-4 text-indigo-400"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth={2.5}
-                      stroke="currentColor"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                    </svg>
+                    <Check className="h-4 w-4 text-indigo-400" />
                   )}
                 </div>
                 <span className="text-xs text-gray-500">{m.description}</span>
@@ -213,15 +206,7 @@ export function ChatPage() {
                     {m.label}
                   </span>
                   {config.chatPermissionMode === m.value && (
-                    <svg
-                      className="h-4 w-4 text-indigo-400"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth={2.5}
-                      stroke="currentColor"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                    </svg>
+                    <Check className="h-4 w-4 text-indigo-400" />
                   )}
                 </div>
                 <span className="text-xs text-gray-500">{m.description}</span>
@@ -245,37 +230,13 @@ export function ChatPage() {
           <div className="flex items-center gap-2">
             {config.claudeCodeDetected && (
               <span className="flex items-center gap-1 text-xs font-medium text-emerald-400">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={2}
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
+                <CheckCircle2 className="h-4 w-4" />
                 Detected
               </span>
             )}
             {detectAttempted && !config.claudeCodeDetected && (
               <span className="flex items-center gap-1 text-xs font-medium text-amber-400">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={2}
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
-                  />
-                </svg>
+                <AlertCircle className="h-4 w-4" />
                 Not found
               </span>
             )}
@@ -301,19 +262,7 @@ export function ChatPage() {
             <div className="flex items-center gap-2">
               {mcpSuccess && (
                 <span className="flex items-center gap-1 text-xs font-medium text-emerald-400">
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={2}
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
+                  <CheckCircle2 className="h-4 w-4" />
                   {config.mcpSetupStatus === 'already_configured' ? 'Already configured' : 'Configured'}
                 </span>
               )}
@@ -324,21 +273,7 @@ export function ChatPage() {
               >
                 {config.mcpSetupStatus === 'configuring' ? (
                   <span className="flex items-center gap-1.5">
-                    <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                      />
-                    </svg>
+                    <Loader2 className="h-3 w-3 animate-spin" />
                     Configuring…
                   </span>
                 ) : (
@@ -365,19 +300,7 @@ export function ChatPage() {
       {/* Info box */}
       <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
         <div className="flex gap-3">
-          <svg
-            className="mt-0.5 h-5 w-5 shrink-0 text-gray-500"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"
-            />
-          </svg>
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-gray-500" />
           <p className="text-xs text-gray-500">
             These settings can be changed at any time in{' '}
             <code className="rounded bg-white/[0.06] px-1 py-0.5 text-gray-400">config.yaml</code>

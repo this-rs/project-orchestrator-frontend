@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
+import { ChevronsUpDown } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, LinkEntityDialog, ProgressBar, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import { ExpandablePlanRow, ExpandableTaskRow } from '@/components/expandable'
 import { workspacesApi, plansApi, tasksApi } from '@/services'
@@ -246,13 +247,7 @@ export function MilestoneDetailPage() {
                   className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
                   title={plansAllExpanded ? 'Collapse all' : 'Expand all'}
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    {plansAllExpanded ? (
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4-4 4 4M4 10l4-4 4 4" />
-                    ) : (
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4 4 4-4M4 14l4 4 4-4" />
-                    )}
-                  </svg>
+                  <ChevronsUpDown className="w-4 h-4" />
                 </button>
               )}
             </div>
@@ -311,13 +306,7 @@ export function MilestoneDetailPage() {
                   className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
                   title={tasksAllExpanded ? 'Collapse all' : 'Expand all'}
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    {tasksAllExpanded ? (
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4-4 4 4M4 10l4-4 4 4" />
-                    ) : (
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4 4 4-4M4 14l4 4 4-4" />
-                    )}
-                  </svg>
+                  <ChevronsUpDown className="w-4 h-4" />
                 </button>
               )}
             </div>

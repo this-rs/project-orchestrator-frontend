@@ -10,6 +10,7 @@
  * Only renders when `window.__TAURI__` is defined (i.e. inside a Tauri webview).
  */
 import { useState, useEffect, useCallback } from 'react'
+import { Download, Loader2, AlertCircle, X } from 'lucide-react'
 
 // ============================================================================
 // Types
@@ -175,19 +176,7 @@ export function UpdateBanner() {
           <div className="flex items-start gap-3">
             {/* Icon */}
             <div className="mt-0.5 flex-shrink-0">
-              <svg
-                className="h-5 w-5 text-blue-600 dark:text-blue-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
-                />
-              </svg>
+              <Download className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
 
             {/* Content */}
@@ -251,25 +240,7 @@ export function UpdateBanner() {
         {/* Installing state */}
         {state.kind === 'installing' && (
           <div className="flex items-center gap-3">
-            <svg
-              className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-              />
-            </svg>
+            <Loader2 className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400" />
             <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
               Installing v{state.version}... The app will restart shortly.
             </p>
@@ -279,19 +250,7 @@ export function UpdateBanner() {
         {/* Error state */}
         {state.kind === 'error' && (
           <div className="flex items-start gap-3">
-            <svg
-              className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-500"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
-              />
-            </svg>
+            <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-500" />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-red-800 dark:text-red-200">
                 Update check failed
@@ -302,14 +261,7 @@ export function UpdateBanner() {
               onClick={handleDismiss}
               className="flex-shrink-0 text-red-400 hover:text-red-600 dark:hover:text-red-300"
             >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
+              <X className="h-4 w-4" />
             </button>
           </div>
         )}

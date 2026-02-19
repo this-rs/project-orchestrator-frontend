@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
+import { ChevronsUpDown, ChevronRight } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import { plansApi, tasksApi, projectsApi } from '@/services'
 import { KanbanBoard } from '@/components/kanban'
@@ -297,13 +298,7 @@ export function PlanDetailPage() {
                   className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
                   title={tasksAllExpanded ? 'Collapse all' : 'Expand all'}
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    {tasksAllExpanded ? (
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4-4 4 4M4 10l4-4 4 4" />
-                    ) : (
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4 4 4-4M4 14l4 4 4-4" />
-                    )}
-                  </svg>
+                  <ChevronsUpDown className="w-4 h-4" />
                 </button>
               )}
             </div>
@@ -511,14 +506,7 @@ function TaskRow({
           className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-300 transition-colors"
           title={expanded ? 'Replier' : 'Voir les steps'}
         >
-          <svg
-            className={`w-4 h-4 transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
+          <ChevronRight className={`w-4 h-4 transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`} />
         </button>
         <Link
           to={workspacePath(wsSlug, `/tasks/${task.id}`)}

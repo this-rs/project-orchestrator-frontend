@@ -1,5 +1,6 @@
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
+import { AlertCircle } from 'lucide-react'
 import type { Task, TaskWithPlan } from '@/types'
 import { Badge } from '@/components/ui'
 
@@ -67,9 +68,7 @@ export function KanbanCard({ task, onClick }: KanbanCardProps) {
       <div className="flex items-center gap-1 flex-wrap">
         {isBlocked && (
           <span className="text-xs text-yellow-400" title="Blocked">
-            <svg className="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+            <AlertCircle className="w-3.5 h-3.5 inline" />
           </span>
         )}
 
