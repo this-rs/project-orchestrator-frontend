@@ -41,6 +41,11 @@
   --color-error: #ef4444;
   --color-info: #3b82f6;
 
+  /* Ambient background — gradient mesh aurora orbs */
+  --ambient-spot-1: rgba(99, 102, 241, 0.08);   /* indigo */
+  --ambient-spot-2: rgba(139, 92, 246, 0.06);    /* violet */
+  --ambient-spot-3: rgba(34, 211, 238, 0.05);    /* cyan */
+
   /* Typography */
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
@@ -204,4 +209,75 @@ html.tauri * {
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Ambient Background : gradient mesh aurora ────────────────────────
+ * Three slow-drifting radial-gradient orbs behind all content.
+ * GPU-composited via will-change: transform (only translate, no repaint).
+ * Each .ambient-orb is independently animated for organic drift.
+ * ─────────────────────────────────────────────────────────────────────── */
+.ambient-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.ambient-orb {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform;
+}
+
+/* Orb 1 — indigo, top-left quadrant */
+.ambient-orb--1 {
+  width: 60vmax;
+  height: 60vmax;
+  top: -15%;
+  left: -10%;
+  background: radial-gradient(circle, var(--ambient-spot-1) 0%, transparent 70%);
+  animation: ambient-drift-1 80s ease-in-out infinite alternate;
+}
+
+/* Orb 2 — violet, bottom-right quadrant */
+.ambient-orb--2 {
+  width: 55vmax;
+  height: 55vmax;
+  bottom: -20%;
+  right: -10%;
+  background: radial-gradient(circle, var(--ambient-spot-2) 0%, transparent 70%);
+  animation: ambient-drift-2 90s ease-in-out infinite alternate;
+}
+
+/* Orb 3 — cyan, center-right area */
+.ambient-orb--3 {
+  width: 50vmax;
+  height: 50vmax;
+  top: 10%;
+  right: 5%;
+  background: radial-gradient(circle, var(--ambient-spot-3) 0%, transparent 70%);
+  animation: ambient-drift-3 100s ease-in-out infinite alternate;
+}
+
+@keyframes ambient-drift-1 {
+  0%   { transform: translate(0, 0); }
+  100% { transform: translate(8vw, 6vh); }
+}
+
+@keyframes ambient-drift-2 {
+  0%   { transform: translate(0, 0); }
+  100% { transform: translate(-6vw, -8vh); }
+}
+
+@keyframes ambient-drift-3 {
+  0%   { transform: translate(0, 0); }
+  100% { transform: translate(-5vw, 7vh); }
+}
+
+/* prefers-reduced-motion — static gradient, no animation */
+@media (prefers-reduced-motion: reduce) {
+  .ambient-orb {
+    animation: none !important;
+  }
 }

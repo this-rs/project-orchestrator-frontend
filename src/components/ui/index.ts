@@ -1,3 +1,4 @@
+export { AmbientBackground } from './AmbientBackground'
 export { Button } from './Button'
 export {
   Badge,

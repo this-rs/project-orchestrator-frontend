@@ -7,6 +7,7 @@ import { SetupGuard } from '@/components/SetupGuard'
 import { WorkspaceRouteGuard } from '@/components/WorkspaceRouteGuard'
 import { UpdateBanner } from '@/components/UpdateBanner'
 import { WebUpdateBanner } from '@/components/ui/WebUpdateBanner'
+import { AmbientBackground } from '@/components/ui'
 import { useTrayNavigation } from '@/hooks'
 import { isTauri } from '@/services/env'
 import { activeWorkspaceSlugAtom } from '@/atoms'
@@ -103,6 +104,7 @@ function App() {
     <Provider>
       <BrowserRouter>
         <div className="tauri-window flex h-dvh flex-col overflow-hidden">
+          <AmbientBackground />
           <div className="flex min-h-0 flex-1 flex-col">
             <UpdateBanner />
             <WebUpdateBanner />
