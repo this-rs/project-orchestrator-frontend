@@ -114,7 +114,8 @@ export function ChatPanel() {
   }, [isDragging, setPanelWidth])
 
   // Whether the user has selected a valid context (project or workspace) for new conversations
-  const hasContext = contextMode === 'project' ? !!selectedProject : !!selectedWorkspace
+  // Workspace mode requires both a workspace AND a selected project (for cwd)
+  const hasContext = contextMode === 'project' ? !!selectedProject : (!!selectedWorkspace && !!selectedProject)
 
   const handleSend = useCallback((text: string) => {
     if (isNewConversation && !hasContext) return
@@ -122,13 +123,13 @@ export function ChatPanel() {
       chat.sendMessage(text)
       return
     }
-    if (contextMode === 'workspace' && selectedWorkspace) {
-      // Workspace mode: use first project's root_path as cwd, pass workspaceSlug
+    if (contextMode === 'workspace' && selectedWorkspace && selectedProject) {
+      // Workspace mode: use selected project's root_path as cwd, pass workspaceSlug
       // The backend will resolve all workspace projects as --add-dir
       chat.sendMessage(text, {
-        cwd: selectedProject?.root_path || selectedWorkspace.slug, // fallback, backend resolves
+        cwd: selectedProject.root_path,
         workspaceSlug: selectedWorkspace.slug,
-        projectSlug: selectedProject?.slug,
+        projectSlug: selectedProject.slug,
       })
     } else if (selectedProject) {
       chat.sendMessage(text, {
