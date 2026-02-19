@@ -131,7 +131,7 @@ function App() {
                         <Route index element={<Navigate to="projects" replace />} />
                         <Route path="overview" element={<WorkspaceDetailPage />} />
                         <Route path="projects" element={<ProjectsPage />} />
-                        <Route path="projects/:slug" element={<ProjectDetailPage />} />
+                        <Route path="projects/:projectSlug" element={<ProjectDetailPage />} />
                         <Route path="milestones" element={<MilestonesPage />} />
                         <Route path="milestones/:milestoneId" element={<MilestoneDetailPage />} />
                         <Route

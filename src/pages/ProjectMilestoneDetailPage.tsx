@@ -19,7 +19,8 @@ import {
 import { ExpandablePlanRow, ExpandableTaskRow } from '@/components/expandable'
 import { projectsApi, plansApi, tasksApi } from '@/services'
 import { PlanKanbanBoard } from '@/components/kanban'
-import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
+import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
+import { workspacePath } from '@/utils/paths'
 import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import type {
   Milestone,
@@ -35,6 +36,7 @@ import type {
 export function ProjectMilestoneDetailPage() {
   const { milestoneId } = useParams<{ milestoneId: string }>()
   const navigate = useNavigate()
+  const wsSlug = useWorkspaceSlug()
   const [milestone, setMilestone] = useState<Milestone | null>(null)
   const [progress, setProgress] = useState<MilestoneProgress | null>(null)
   const [project, setProject] = useState<Project | null>(null)
@@ -236,7 +238,7 @@ export function ProjectMilestoneDetailPage() {
                 onConfirm: async () => {
                   await projectsApi.updateMilestone(milestone.id, { status: 'closed' })
                   toast.success('Milestone deleted')
-                  navigate(project ? `/projects/${project.slug}` : '/projects')
+                  navigate(workspacePath(wsSlug, project ? `/projects/${project.slug}` : '/projects'))
                 },
               }),
           },
@@ -311,7 +313,7 @@ export function ProjectMilestoneDetailPage() {
               <PlanKanbanBoard
                 fetchFn={kanbanFetchFn}
                 onPlanStatusChange={handlePlanStatusChange}
-                onPlanClick={(planId) => navigate(`/plans/${planId}`)}
+                onPlanClick={(planId) => navigate(workspacePath(wsSlug, `/plans/${planId}`))}
                 refreshTrigger={planRefresh}
               />
             ) : (

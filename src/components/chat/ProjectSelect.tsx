@@ -94,7 +94,7 @@ export function ProjectSelect() {
           setSelectedProject(project)
         }}
       />
-      {selectedProject && (
+      {selectedProject?.root_path && (
         <div className="text-[10px] text-gray-600 mt-1 truncate font-mono">
           {shortenPath(selectedProject.root_path)}
         </div>

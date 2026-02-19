@@ -4,7 +4,8 @@ import { useSetAtom, useAtomValue } from 'jotai'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import { plansApi, tasksApi, projectsApi } from '@/services'
 import { KanbanBoard } from '@/components/kanban'
-import { useViewMode, useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
+import { useViewMode, useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
+import { workspacePath } from '@/utils/paths'
 import { chatSuggestedProjectIdAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import { CreateTaskForm, CreateConstraintForm } from '@/components/forms'
 import { DependencyGraphView } from '@/components/DependencyGraphView'
@@ -19,6 +20,7 @@ interface DecisionWithTask extends Decision {
 export function PlanDetailPage() {
   const { planId } = useParams<{ planId: string }>()
   const navigate = useNavigate()
+  const wsSlug = useWorkspaceSlug()
   const [plan, setPlan] = useState<Plan | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
   const [constraints, setConstraints] = useState<Constraint[]>([])
@@ -218,7 +220,7 @@ export function PlanDetailPage() {
           { label: 'Delete', variant: 'danger', onClick: () => confirmDialog.open({
             title: 'Delete Plan',
             description: 'This will permanently delete this plan and all its tasks, steps, decisions, and constraints.',
-            onConfirm: async () => { await plansApi.delete(plan.id); toast.success('Plan deleted'); navigate('/plans') }
+            onConfirm: async () => { await plansApi.delete(plan.id); toast.success('Plan deleted'); navigate(workspacePath(wsSlug, '/plans')) }
           }) }
         ]}
       >
@@ -227,7 +229,7 @@ export function PlanDetailPage() {
           {linkedProject ? (
             <LinkedEntityBadge
               label={linkedProject.name}
-              linkTo={`/projects/${linkedProject.slug}`}
+              linkTo={workspacePath(wsSlug, `/projects/${linkedProject.slug}`)}
               onUnlink={async () => {
                 await plansApi.unlinkFromProject(plan.id)
                 setLinkedProject(null)
@@ -313,7 +315,7 @@ export function PlanDetailPage() {
             <KanbanBoard
               fetchFn={kanbanFetchFn}
               onTaskStatusChange={handleTaskStatusChange}
-              onTaskClick={(taskId) => navigate(`/tasks/${taskId}`)}
+              onTaskClick={(taskId) => navigate(workspacePath(wsSlug, `/tasks/${taskId}`))}
               refreshTrigger={taskRefresh}
             />
           ) : (
@@ -383,7 +385,7 @@ export function PlanDetailPage() {
                         <Badge variant="success">{decision.chosen_option}</Badge>
                       )}
                       <Link
-                        to={`/tasks/${decision.taskId}`}
+                        to={workspacePath(wsSlug, `/tasks/${decision.taskId}`)}
                         className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
                       >
                         ← {decision.taskTitle}
@@ -442,6 +444,7 @@ function TaskRow({
   expandAllSignal?: number
   collapseAllSignal?: number
 }) {
+  const wsSlug = useWorkspaceSlug()
   const [expanded, setExpanded] = useState(false)
   const [steps, setSteps] = useState<Step[] | null>(null)
   const [loadingSteps, setLoadingSteps] = useState(false)
@@ -513,7 +516,7 @@ function TaskRow({
           </svg>
         </button>
         <Link
-          to={`/tasks/${task.id}`}
+          to={workspacePath(wsSlug, `/tasks/${task.id}`)}
           className="flex-1 min-w-0 hover:text-indigo-400 transition-colors overflow-hidden"
         >
           <span className="font-medium text-gray-200 block truncate">{task.title || task.description}</span>

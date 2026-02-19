@@ -3,7 +3,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, TaskStatusBadge, InteractiveStepStatusBadge, ProgressBar, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import { tasksApi } from '@/services'
-import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
+import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
+import { workspacePath } from '@/utils/paths'
 import { taskRefreshAtom, projectRefreshAtom, planRefreshAtom } from '@/atoms'
 import { CreateStepForm, CreateDecisionForm } from '@/components/forms'
 import type { Task, Step, Decision, Commit, TaskStatus, StepStatus } from '@/types'
@@ -20,6 +21,7 @@ interface TaskApiResponse {
 export function TaskDetailPage() {
   const { taskId } = useParams<{ taskId: string }>()
   const navigate = useNavigate()
+  const wsSlug = useWorkspaceSlug()
   const confirmDialog = useConfirmDialog()
   const stepFormDialog = useFormDialog()
   const decisionFormDialog = useFormDialog()
@@ -162,7 +164,7 @@ export function TaskDetailPage() {
           { label: 'Delete', variant: 'danger', onClick: () => confirmDialog.open({
             title: 'Delete Task',
             description: 'This will permanently delete this task and all its steps and decisions.',
-            onConfirm: async () => { await tasksApi.delete(task.id); toast.success('Task deleted'); navigate('/tasks') }
+            onConfirm: async () => { await tasksApi.delete(task.id); toast.success('Task deleted'); navigate(workspacePath(wsSlug, '/tasks')) }
           }) }
         ]}
       >
@@ -275,7 +277,7 @@ export function TaskDetailPage() {
               <div className="space-y-2">
                 {blockers.map((blocker) => (
                   <div key={blocker.id} className="flex items-center justify-between gap-2 p-2 bg-white/[0.06] rounded">
-                    <Link to={`/tasks/${blocker.id}`} className="text-gray-200 truncate min-w-0 hover:text-indigo-400 transition-colors">
+                    <Link to={workspacePath(wsSlug, `/tasks/${blocker.id}`)} className="text-gray-200 truncate min-w-0 hover:text-indigo-400 transition-colors">
                       {blocker.title || blocker.description}
                     </Link>
                     <div className="flex items-center gap-2 shrink-0">
@@ -310,7 +312,7 @@ export function TaskDetailPage() {
               <div className="space-y-2">
                 {blocking.map((blocked) => (
                   <div key={blocked.id} className="flex items-center justify-between gap-2 p-2 bg-white/[0.06] rounded">
-                    <Link to={`/tasks/${blocked.id}`} className="text-gray-200 truncate min-w-0 hover:text-indigo-400 transition-colors">
+                    <Link to={workspacePath(wsSlug, `/tasks/${blocked.id}`)} className="text-gray-200 truncate min-w-0 hover:text-indigo-400 transition-colors">
                       {blocked.title || blocked.description}
                     </Link>
                     <TaskStatusBadge status={blocked.status} />

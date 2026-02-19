@@ -5,13 +5,15 @@ import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, C
 import { ExpandablePlanRow, ExpandableTaskRow } from '@/components/expandable'
 import { workspacesApi, plansApi, tasksApi } from '@/services'
 import { PlanKanbanBoard } from '@/components/kanban'
-import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
+import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
+import { workspacePath } from '@/utils/paths'
 import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import type { WorkspaceMilestone, MilestoneProgress, Plan, Project, Task, MilestoneStatus, PlanStatus, PaginatedResponse } from '@/types'
 
 export function MilestoneDetailPage() {
   const { milestoneId } = useParams<{ milestoneId: string }>()
   const navigate = useNavigate()
+  const wsSlug = useWorkspaceSlug()
   const [milestone, setMilestone] = useState<WorkspaceMilestone | null>(null)
   const [progress, setProgress] = useState<MilestoneProgress | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
@@ -187,7 +189,7 @@ export function MilestoneDetailPage() {
           { label: 'Delete', variant: 'danger', onClick: () => confirmDialog.open({
             title: 'Delete Milestone',
             description: 'This will permanently delete this milestone. Tasks linked to it will not be deleted.',
-            onConfirm: async () => { await workspacesApi.deleteMilestone(milestone.id); toast.success('Milestone deleted'); navigate('/milestones') }
+            onConfirm: async () => { await workspacesApi.deleteMilestone(milestone.id); toast.success('Milestone deleted'); navigate(workspacePath(wsSlug, '/milestones')) }
           }) }
         ]}
       >
@@ -266,7 +268,7 @@ export function MilestoneDetailPage() {
             <PlanKanbanBoard
               fetchFn={kanbanFetchFn}
               onPlanStatusChange={handlePlanStatusChange}
-              onPlanClick={(planId) => navigate(`/plans/${planId}`)}
+              onPlanClick={(planId) => navigate(workspacePath(wsSlug, `/plans/${planId}`))}
               refreshTrigger={planRefresh}
             />
           ) : (
@@ -368,7 +370,7 @@ export function MilestoneDetailPage() {
               {projects.map((project) => (
                 <Link
                   key={project.id}
-                  to={`/projects/${project.slug}`}
+                  to={workspacePath(wsSlug, `/projects/${project.slug}`)}
                   className="flex items-center justify-between gap-2 p-3 bg-white/[0.06] rounded-lg hover:bg-white/[0.08] transition-colors"
                 >
                   <span className="font-medium text-gray-200 truncate min-w-0">{project.name}</span>

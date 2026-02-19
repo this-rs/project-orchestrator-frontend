@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom } from '@/atoms'
+import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, activeWorkspaceAtom } from '@/atoms'
 import { ToastContainer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
@@ -105,6 +105,7 @@ export function MainLayout() {
   const wsStatus = useAtomValue(eventBusStatusAtom)
   const isWindowFullscreen = useWindowFullscreen()
   const setWorkspaces = useSetAtom(workspacesAtom)
+  const activeWorkspace = useAtomValue(activeWorkspaceAtom)
 
   // Show extra top padding on Tauri desktop (non-fullscreen) to clear native traffic lights
   const trafficLightPad = isTauri && !isWindowFullscreen
@@ -229,7 +230,7 @@ export function MainLayout() {
             title={`WebSocket: ${wsStatus}`}
           />
 
-          <Breadcrumb pathname={location.pathname} />
+          <Breadcrumb pathname={location.pathname} workspaceName={activeWorkspace?.name} />
 
           {/* Chat toggle (only icon in header right) */}
           <div className="ml-auto flex items-center">
@@ -263,11 +264,11 @@ export function MainLayout() {
 
 /**
  * Breadcrumb that handles workspace-scoped URLs.
- * Strips the /workspace/:slug prefix and shows meaningful segments.
+ * Shows: WorkspaceName > Section > Entity
  *
- * /workspace/my-ws/plans/abc → Plans / abc
+ * /workspace/my-ws/plans/abc → My Workspace / Plans / abc
  */
-function Breadcrumb({ pathname }: { pathname: string }) {
+function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceName?: string }) {
   const parts = pathname.split('/').filter(Boolean)
 
   // Strip "workspace" and the slug from the display
@@ -275,11 +276,33 @@ function Breadcrumb({ pathname }: { pathname: string }) {
   const displayParts = isWorkspaceScoped ? parts.slice(2) : parts
   const basePath = isWorkspaceScoped ? `/workspace/${parts[1]}` : ''
 
+  // Capitalize and prettify segment names
+  const prettyName = (s: string) => {
+    // Known section labels
+    const labels: Record<string, string> = {
+      overview: 'Overview',
+      projects: 'Projects',
+      plans: 'Plans',
+      tasks: 'Tasks',
+      notes: 'Notes',
+      milestones: 'Milestones',
+      code: 'Code',
+      'project-milestones': 'Milestones',
+      'feature-graphs': 'Feature Graphs',
+    }
+    return labels[s] || s.charAt(0).toUpperCase() + s.slice(1)
+  }
+
   return (
     <nav className="flex items-center gap-2 text-sm min-w-0">
-      <NavLink to={basePath || '/'} className="text-gray-400 hover:text-gray-200 shrink-0">
-        Home
+      {/* Workspace name as first segment */}
+      <NavLink
+        to={basePath || '/'}
+        className={`shrink-0 truncate max-w-[140px] sm:max-w-[200px] ${displayParts.length === 0 ? 'text-gray-200 font-medium' : 'text-gray-400 hover:text-gray-200'}`}
+      >
+        {workspaceName || 'Home'}
       </NavLink>
+      {/* Ellipsis on mobile for long paths */}
       {displayParts.length > 2 && (
         <span className="flex items-center gap-2 min-w-0 sm:hidden">
           <span className="text-gray-600 shrink-0">/</span>
@@ -303,7 +326,7 @@ function Breadcrumb({ pathname }: { pathname: string }) {
                   : 'text-gray-400 hover:text-gray-200'
               }`}
             >
-              {part.charAt(0).toUpperCase() + part.slice(1)}
+              {prettyName(part)}
             </NavLink>
           </span>
         )

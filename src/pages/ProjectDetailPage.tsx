@@ -4,14 +4,16 @@ import { useSetAtom, useAtomValue } from 'jotai'
 import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LoadingPage, Badge, ProgressBar, PageHeader, SectionNav } from '@/components/ui'
 import { ExpandablePlanRow } from '@/components/expandable'
 import { projectsApi, plansApi, featureGraphsApi } from '@/services'
-import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
+import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
+import { workspacePath } from '@/utils/paths'
 import { chatSuggestedProjectIdAtom, projectRefreshAtom, planRefreshAtom, milestoneRefreshAtom, taskRefreshAtom } from '@/atoms'
 import { CreateMilestoneForm, CreateReleaseForm } from '@/components/forms'
 import type { Project, Plan, ProjectRoadmap, PlanStatus, FeatureGraph } from '@/types'
 
 export function ProjectDetailPage() {
-  const { slug } = useParams<{ slug: string }>()
+  const { projectSlug: slug } = useParams<{ projectSlug: string }>()
   const navigate = useNavigate()
+  const wsSlug = useWorkspaceSlug()
   const confirmDialog = useConfirmDialog()
   const milestoneFormDialog = useFormDialog()
   const releaseFormDialog = useFormDialog()
@@ -155,7 +157,7 @@ export function ProjectDetailPage() {
           { label: 'Delete', variant: 'danger', onClick: () => confirmDialog.open({
             title: 'Delete Project',
             description: 'This will permanently delete this project and all associated data.',
-            onConfirm: async () => { await projectsApi.delete(project.slug); toast.success('Project deleted'); navigate('/projects') }
+            onConfirm: async () => { await projectsApi.delete(project.slug); toast.success('Project deleted'); navigate(workspacePath(wsSlug, '/projects')) }
           }) }
         ]}
       />
@@ -250,7 +252,7 @@ export function ProjectDetailPage() {
                   {(roadmap.milestones || []).map(({ milestone, progress }) => (
                     <Link
                       key={milestone.id}
-                      to={`/project-milestones/${milestone.id}`}
+                      to={workspacePath(wsSlug, `/project-milestones/${milestone.id}`)}
                       className="block p-3 bg-white/[0.06] rounded-lg hover:bg-white/[0.08] transition-colors"
                     >
                       <div className="flex items-center justify-between gap-2 mb-2">
@@ -347,7 +349,7 @@ export function ProjectDetailPage() {
                 toast.success('Plan linked')
               },
             })}>Link Plan</Button>
-            <Link to="/plans">
+            <Link to={workspacePath(wsSlug, '/plans')}>
               <Button variant="ghost" size="sm">View All</Button>
             </Link>
           </div>
@@ -391,7 +393,7 @@ export function ProjectDetailPage() {
               {featureGraphs.map((fg) => (
                 <Link
                   key={fg.id}
-                  to={`/feature-graphs/${fg.id}`}
+                  to={workspacePath(wsSlug, `/feature-graphs/${fg.id}`)}
                   className="flex items-center justify-between gap-3 p-3 bg-white/[0.06] rounded-lg hover:bg-white/[0.08] transition-colors group"
                 >
                   <div className="min-w-0 flex-1">

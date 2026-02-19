@@ -11,6 +11,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useSetAtom, useAtomValue } from 'jotai'
 import { Link } from 'react-router-dom'
 import { isTauri } from '@/services/env'
+import { workspacePath } from '@/utils/paths'
 
 const MIN_WIDTH = 320
 const MAX_WIDTH = 800
@@ -429,16 +430,16 @@ export function ChatPanel() {
               </span>
               {!isNewConversation && chat.sessionMeta?.workspaceSlug && (
                 <Link
-                  to={`/workspaces/${chat.sessionMeta.workspaceSlug}`}
+                  to={workspacePath(chat.sessionMeta.workspaceSlug, '/overview')}
                   onClick={(e) => e.stopPropagation()}
                   className="text-[10px] text-purple-400 hover:text-purple-300 truncate block transition-colors"
                 >
                   ⬡ {chat.sessionMeta.workspaceSlug}
                 </Link>
               )}
-              {!isNewConversation && !chat.sessionMeta?.workspaceSlug && chat.sessionMeta?.projectSlug && (
+              {!isNewConversation && !chat.sessionMeta?.workspaceSlug && chat.sessionMeta?.projectSlug && activeWsSlug && (
                 <Link
-                  to={`/projects/${chat.sessionMeta.projectSlug}`}
+                  to={workspacePath(activeWsSlug, `/projects/${chat.sessionMeta.projectSlug}`)}
                   onClick={(e) => e.stopPropagation()}
                   className="text-[10px] text-indigo-400 hover:text-indigo-300 truncate block transition-colors"
                 >

@@ -45,7 +45,7 @@ export function AuthCallbackPage() {
         setAuthToken(token) // Module-level cache for api.ts Bearer header
         setToken(token)
         setUser(user)
-        navigate('/workspaces', { replace: true })
+        navigate('/', { replace: true })
       })
       .catch((e) => {
         if (cancelled) return
