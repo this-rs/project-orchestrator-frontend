@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Select, Button } from '@/components/ui'
-import { projectsApi, workspacesApi } from '@/services'
-import type { Project, Workspace } from '@/types'
+import { workspacesApi } from '@/services'
+import { useWorkspaceSlug } from '@/hooks'
+import type { Project } from '@/types'
 
 export interface PlanKanbanFilters {
-  workspace: string
   project: string
   search: string
   priority_min?: number
@@ -26,52 +26,20 @@ export function PlanKanbanFilterBar({
   onClearFilters,
   activeFilterCount,
 }: PlanKanbanFilterBarProps) {
+  const wsSlug = useWorkspaceSlug()
   const [projects, setProjects] = useState<Project[]>([])
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
-  const [workspaceProjectIds, setWorkspaceProjectIds] = useState<Record<string, string[]>>({})
 
+  // Load projects for the active workspace
   useEffect(() => {
-    async function loadData() {
-      try {
-        const [projectsData, workspacesData] = await Promise.all([
-          projectsApi.list({ limit: 100 }),
-          workspacesApi.list({ limit: 100 }),
-        ])
-        setProjects(projectsData.items || [])
-        setWorkspaces(workspacesData.items || [])
-
-        const mapping: Record<string, string[]> = {}
-        for (const ws of workspacesData.items || []) {
-          try {
-            const resp = await workspacesApi.listProjects(ws.slug)
-            const wsProjects = Array.isArray(resp) ? resp : []
-            mapping[ws.id] = wsProjects.map((p: { id: string }) => p.id)
-          } catch {
-            mapping[ws.id] = []
-          }
-        }
-        setWorkspaceProjectIds(mapping)
-      } catch (error) {
-        console.error('Failed to load filter data:', error)
-      }
-    }
-    loadData()
-  }, [])
-
-  // Projects filtered by selected workspace
-  const filteredProjects =
-    filters.workspace === 'all'
-      ? projects
-      : projects.filter((p) => (workspaceProjectIds[filters.workspace] || []).includes(p.id))
-
-  const workspaceOptions = [
-    { value: 'all', label: 'All Workspaces' },
-    ...workspaces.map((w) => ({ value: w.id, label: w.name })),
-  ]
+    workspacesApi
+      .listProjects(wsSlug)
+      .then((data) => setProjects(Array.isArray(data) ? data : []))
+      .catch(() => setProjects([]))
+  }, [wsSlug])
 
   const projectOptions = [
     { value: 'all', label: 'All Projects' },
-    ...filteredProjects.map((p) => ({ value: p.id, label: p.name })),
+    ...projects.map((p) => ({ value: p.id, label: p.name })),
   ]
 
   return (
@@ -83,17 +51,6 @@ export function PlanKanbanFilterBar({
         value={filters.search}
         onChange={(e) => onFilterChange('search', e.target.value)}
         className="w-40 px-2.5 py-1.5 text-sm bg-[#0f1117] border border-white/[0.1] rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500"
-      />
-
-      {/* Workspace */}
-      <Select
-        options={workspaceOptions}
-        value={filters.workspace}
-        onChange={(value) => {
-          onFilterChange('workspace', value)
-          onFilterChange('project', 'all')
-        }}
-        className="w-44"
       />
 
       {/* Project */}

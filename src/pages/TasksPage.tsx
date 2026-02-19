@@ -18,7 +18,7 @@ import {
   BulkActionBar,
   LoadMoreSentinel,
 } from '@/components/ui'
-import { useKanbanFilters, useViewMode, useConfirmDialog, useToast, useMultiSelect, useInfiniteList } from '@/hooks'
+import { useKanbanFilters, useViewMode, useConfirmDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug } from '@/hooks'
 import { KanbanBoard, KanbanFilterBar } from '@/components/kanban'
 import type { TaskWithPlan, TaskStatus, PaginatedResponse } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
@@ -42,26 +42,28 @@ export function TasksPage() {
   const confirmDialog = useConfirmDialog()
   const toast = useToast()
   const kanbanFilters = useKanbanFilters()
+  const wsSlug = useWorkspaceSlug()
 
-  // --- Infinite scroll for list mode ---
+  // --- Infinite scroll for list mode (workspace-scoped) ---
   const listFilters = useMemo(
     () => ({
       status: statusFilter !== 'all' ? statusFilter : undefined,
       _refresh: taskRefresh,
+      _ws: wsSlug,
     }),
-    [statusFilter, taskRefresh],
+    [statusFilter, taskRefresh, wsSlug],
   )
 
   const listFetcher = useCallback(
     (params: { limit: number; offset: number; status?: string }): Promise<PaginatedResponse<TaskWithPlan>> => {
-      const apiParams: { limit: number; offset: number; status?: string } = {
+      return tasksApi.list({
         limit: params.limit,
         offset: params.offset,
-      }
-      if (params.status) apiParams.status = params.status
-      return tasksApi.list(apiParams)
+        status: params.status,
+        workspace_slug: wsSlug,
+      })
     },
-    [],
+    [wsSlug],
   )
 
   const {
@@ -94,9 +96,9 @@ export function TasksPage() {
   const kanbanFetchFn = useCallback(
     (params: Record<string, unknown>): Promise<PaginatedResponse<KanbanTask>> => {
       const apiFilters = JSON.parse(kanbanApiParamsKey)
-      return tasksApi.list({ ...apiFilters, ...params } as Record<string, string | number | undefined>)
+      return tasksApi.list({ ...apiFilters, ...params, workspace_slug: wsSlug } as Record<string, string | number | undefined>)
     },
-    [kanbanApiParamsKey],
+    [kanbanApiParamsKey, wsSlug],
   )
 
   // Build filters object for useKanbanColumnData (exclude_completed / exclude_failed
@@ -105,8 +107,9 @@ export function TasksPage() {
     const f: Record<string, unknown> = {}
     const apiParams = JSON.parse(kanbanApiParamsKey)
     Object.assign(f, apiParams)
+    f._ws = wsSlug
     return f
-  }, [kanbanApiParamsKey])
+  }, [kanbanApiParamsKey, wsSlug])
 
   // Determine which statuses to hide based on kanban filters
   const hiddenStatuses = useMemo(() => {
@@ -130,9 +133,9 @@ export function TasksPage() {
 
   const handleTaskClick = useCallback(
     (taskId: string) => {
-      navigate(`/tasks/${taskId}`)
+      navigate(`/workspace/${wsSlug}/tasks/${taskId}`)
     },
-    [navigate],
+    [navigate, wsSlug],
   )
 
   const multiSelect = useMultiSelect(tasks, (t) => t.id)
@@ -224,6 +227,7 @@ export function TasksPage() {
           <div className="space-y-3">
             {tasks.map((task) => (
               <TaskCard
+                wsSlug={wsSlug}
                 selected={multiSelect.isSelected(task.id)}
                 onToggleSelect={(shiftKey) => multiSelect.toggle(task.id, shiftKey)}
                 key={task.id}
@@ -278,16 +282,18 @@ function TaskCard({
   onDelete,
   selected,
   onToggleSelect,
+  wsSlug,
 }: {
   task: TaskWithPlan
   onStatusChange: (status: TaskStatus) => Promise<void>
   onDelete: () => void
   selected?: boolean
   onToggleSelect?: (shiftKey: boolean) => void
+  wsSlug: string
 }) {
   const tags = task.tags || []
   return (
-    <Link to={`/tasks/${task.id}`}>
+    <Link to={`/workspace/${wsSlug}/tasks/${task.id}`}>
       <Card className={`transition-colors ${selected ? 'border-indigo-500/40 bg-indigo-500/[0.05]' : 'hover:border-indigo-500'}`}>
         <div className="flex">
           {onToggleSelect && (

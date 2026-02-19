@@ -1,5 +1,5 @@
 import { atom } from 'jotai'
-import type { ChatPanelMode, PermissionConfig, PermissionMode, Project, Workspace, WsConnectionStatus } from '@/types'
+import type { ChatPanelMode, PermissionConfig, PermissionMode, Project, WsConnectionStatus } from '@/types'
 
 /** Hint set by pages that know which project the user is looking at */
 export const chatSuggestedProjectIdAtom = atom<string | null>(null)
@@ -48,11 +48,8 @@ export const chatDraftInputAtom = atom<string>('')
 /** Selected project for new conversations (survives layout switches & new-session) */
 export const chatSelectedProjectAtom = atom<Project | null>(null)
 
-/** Selected workspace for new conversations in workspace mode */
-export const chatSelectedWorkspaceAtom = atom<Workspace | null>(null)
-
-/** Context mode for new conversations: 'project' (single) or 'workspace' (multi-project) */
-export const chatContextModeAtom = atom<'project' | 'workspace'>('project')
+/** When true, chat targets the entire workspace (all projects) instead of a single project */
+export const chatAllProjectsModeAtom = atom<boolean>(true)
 
 /** Derived: true when permission mode requires interactive approval (not bypassPermissions) */
 export const chatPermissionInteractiveAtom = atom((get) => {

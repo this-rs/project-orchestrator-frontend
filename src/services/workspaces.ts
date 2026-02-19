@@ -2,7 +2,9 @@ import { api, buildQuery } from './api'
 import type {
   Workspace,
   WorkspaceMilestone,
+  MilestoneDetail,
   WorkspaceOverview,
+  Project,
   Resource,
   Component,
   PaginatedResponse,
@@ -38,11 +40,9 @@ export const workspacesApi = {
   getOverview: (slug: string) =>
     api.get<WorkspaceOverview>(`/workspaces/${slug}/overview`),
 
-  // Projects in workspace (backend returns raw array, not { items: [...] })
+  // Projects in workspace (backend returns full Project objects as raw array)
   listProjects: (slug: string) =>
-    api.get<{ id: string; name: string; slug: string }[]>(
-      `/workspaces/${slug}/projects`
-    ),
+    api.get<Project[]>(`/workspaces/${slug}/projects`),
 
   addProject: (slug: string, projectId: string) =>
     api.post(`/workspaces/${slug}/projects`, { project_id: projectId }),
@@ -60,7 +60,7 @@ export const workspacesApi = {
     api.post<WorkspaceMilestone>(`/workspaces/${slug}/milestones`, data),
 
   getMilestone: (id: string) =>
-    api.get<WorkspaceMilestone>(`/workspace-milestones/${id}`),
+    api.get<MilestoneDetail>(`/workspace-milestones/${id}`),
 
   updateMilestone: (id: string, data: Partial<{ title: string; description: string; status: string; target_date: string }>) =>
     api.patch<WorkspaceMilestone>(`/workspace-milestones/${id}`, data),

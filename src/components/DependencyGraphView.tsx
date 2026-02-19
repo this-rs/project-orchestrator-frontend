@@ -13,6 +13,8 @@ import {
 } from '@xyflow/react'
 import dagre from 'dagre'
 import type { DependencyGraph } from '@/types'
+import { useWorkspaceSlug } from '@/hooks'
+import { workspacePath } from '@/utils/paths'
 import type { TaskStatus } from '@/types'
 import '@xyflow/react/dist/style.css'
 
@@ -100,14 +102,15 @@ function getLayoutedElements(
 
 function TaskNodeComponent({ data }: NodeProps<Node<TaskNodeData>>) {
   const navigate = useNavigate()
+  const wsSlug = useWorkspaceSlug()
   const colors = statusColors[data.status] || statusColors.pending
 
   const handleClick = useCallback(
     (e: MouseEvent) => {
       e.stopPropagation()
-      navigate(`/tasks/${data.taskId}`)
+      navigate(workspacePath(wsSlug, `/tasks/${data.taskId}`))
     },
-    [data.taskId, navigate],
+    [data.taskId, navigate, wsSlug],
   )
 
   return (

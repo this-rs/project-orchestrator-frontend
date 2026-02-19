@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, ProgressBar, PageHeader, SectionNav } from '@/components/ui'
+import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, FormDialog, LinkEntityDialog, ProgressBar, PageHeader, SectionNav, ConfirmDialog } from '@/components/ui'
 import { workspacesApi, projectsApi } from '@/services'
-import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
+import { useFormDialog, useLinkDialog, useToast, useConfirmDialog, useSectionObserver, useWorkspaceSlug } from '@/hooks'
+import { workspacePath } from '@/utils/paths'
 import { workspaceRefreshAtom, projectRefreshAtom, milestoneRefreshAtom, taskRefreshAtom } from '@/atoms'
 import { CreateMilestoneForm, CreateResourceForm, CreateComponentForm } from '@/components/forms'
 import type { Workspace, Project, WorkspaceMilestone, Resource, Component, MilestoneProgress } from '@/types'
@@ -19,13 +20,13 @@ interface WorkspaceOverviewResponse {
 }
 
 export function WorkspaceDetailPage() {
-  const { slug } = useParams<{ slug: string }>()
+  const slug = useWorkspaceSlug()
   const navigate = useNavigate()
-  const confirmDialog = useConfirmDialog()
   const milestoneFormDialog = useFormDialog()
   const resourceFormDialog = useFormDialog()
   const componentFormDialog = useFormDialog()
   const linkDialog = useLinkDialog()
+  const confirmDialog = useConfirmDialog()
   const toast = useToast()
   const workspaceRefresh = useAtomValue(workspaceRefreshAtom)
   const projectRefresh = useAtomValue(projectRefreshAtom)
@@ -145,11 +146,21 @@ export function WorkspaceDetailPage() {
         title={workspace.name}
         description={workspace.description}
         overflowActions={[
-          { label: 'Delete', variant: 'danger', onClick: () => confirmDialog.open({
-            title: 'Delete Workspace',
-            description: 'This will permanently delete this workspace. Projects will not be deleted.',
-            onConfirm: async () => { await workspacesApi.delete(workspace.slug); toast.success('Workspace deleted'); navigate('/workspaces') }
-          }) }
+          {
+            label: 'Delete workspace',
+            variant: 'danger',
+            onClick: () => {
+              confirmDialog.open({
+                title: 'Delete Workspace',
+                description: `This will permanently delete "${workspace.name}". Projects will not be deleted.`,
+                onConfirm: async () => {
+                  await workspacesApi.delete(workspace.slug)
+                  toast.success('Workspace deleted')
+                  navigate('/workspace-selector')
+                },
+              })
+            },
+          },
         ]}
       />
 
@@ -218,7 +229,7 @@ export function WorkspaceDetailPage() {
                   className="flex items-center justify-between p-3 bg-white/[0.06] rounded-lg"
                 >
                   <Link
-                    to={`/projects/${project.slug}`}
+                    to={workspacePath(slug, `/projects/${project.slug}`)}
                     className="font-medium text-gray-200 hover:text-indigo-400 transition-colors flex-1 min-w-0"
                   >
                     {project.name}
@@ -264,7 +275,7 @@ export function WorkspaceDetailPage() {
               {milestones.map((milestone) => (
                 <Link
                   key={milestone.id}
-                  to={`/milestones/${milestone.id}`}
+                  to={workspacePath(slug, `/milestones/${milestone.id}`)}
                   className="block p-4 bg-white/[0.06] rounded-lg hover:bg-white/[0.06] transition-colors"
                 >
                   <div className="flex items-center justify-between gap-2 mb-2">

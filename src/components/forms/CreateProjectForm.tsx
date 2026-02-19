@@ -12,6 +12,7 @@ export interface CreateProjectFormData {
 interface Props {
   onSubmit: (data: CreateProjectFormData) => Promise<void>
   loading?: boolean
+  workspaceName?: string
 }
 
 async function pickDirectory(): Promise<string | null> {
@@ -20,7 +21,7 @@ async function pickDirectory(): Promise<string | null> {
   return invoke<string | null>('pick_directory')
 }
 
-export function CreateProjectForm({ onSubmit, loading }: Props) {
+export function CreateProjectForm({ onSubmit, loading, workspaceName }: Props) {
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
   const [rootPath, setRootPath] = useState('')
@@ -70,6 +71,16 @@ export function CreateProjectForm({ onSubmit, loading }: Props) {
   return {
     fields: (
       <>
+        {workspaceName && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-purple-500/[0.08] border border-purple-500/20 rounded-lg">
+            <svg className="w-4 h-4 text-purple-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            <span className="text-sm text-purple-300">
+              Will be added to <span className="font-medium">{workspaceName}</span>
+            </span>
+          </div>
+        )}
         <Input
           label="Name"
           placeholder="My Project"

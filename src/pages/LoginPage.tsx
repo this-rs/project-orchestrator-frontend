@@ -62,7 +62,7 @@ export function LoginPage() {
   useEffect(() => {
     if (!providersLoaded) return
     if (isAuthenticated || authMode === 'none') {
-      navigate('/workspaces', { replace: true })
+      navigate('/', { replace: true })
     }
   }, [providersLoaded, isAuthenticated, authMode, navigate])
 

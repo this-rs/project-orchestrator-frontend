@@ -5,18 +5,19 @@ import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, C
 import { ExpandablePlanRow, ExpandableTaskRow } from '@/components/expandable'
 import { workspacesApi, plansApi, tasksApi } from '@/services'
 import { PlanKanbanBoard } from '@/components/kanban'
-import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver } from '@/hooks'
+import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
+import { workspacePath } from '@/utils/paths'
 import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
-import type { WorkspaceMilestone, MilestoneProgress, Plan, Project, Task, MilestoneStatus, PlanStatus, PaginatedResponse } from '@/types'
+import type { MilestoneDetail, MilestoneProgress, Plan, Project, Task, MilestoneStatus, PlanStatus, PaginatedResponse } from '@/types'
 
 export function MilestoneDetailPage() {
   const { milestoneId } = useParams<{ milestoneId: string }>()
   const navigate = useNavigate()
-  const [milestone, setMilestone] = useState<WorkspaceMilestone | null>(null)
+  const wsSlug = useWorkspaceSlug()
+  const [milestone, setMilestone] = useState<MilestoneDetail | null>(null)
   const [progress, setProgress] = useState<MilestoneProgress | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [plans, setPlans] = useState<Plan[]>([])
-  const [milestonePlanIds, setMilestonePlanIds] = useState<Set<string>>(new Set())
   const [milestoneTasks, setMilestoneTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useViewMode()
@@ -40,15 +41,41 @@ export function MilestoneDetailPage() {
     const isInitialLoad = !milestone
     if (isInitialLoad) setLoading(true)
     try {
-      const [milestoneData, progressData, milestoneTasks] = await Promise.all([
-        workspacesApi.getMilestone(milestoneId),
-        workspacesApi.getMilestoneProgress(milestoneId).catch(() => null),
-        workspacesApi.listMilestoneTasks(milestoneId),
-      ])
-
+      // The enriched endpoint returns milestone + plans → tasks → steps + progress
+      const milestoneData = await workspacesApi.getMilestone(milestoneId)
       setMilestone(milestoneData)
-      setProgress(progressData)
-      setMilestoneTasks(milestoneTasks || [])
+
+      // Progress comes directly from the enriched response
+      setProgress(milestoneData.progress || null)
+
+      // Plans come directly from the enriched response (with tasks and steps)
+      const enrichedPlans = (milestoneData.plans || [])
+      // Convert MilestonePlanSummary → Plan for ExpandablePlanRow
+      setPlans(enrichedPlans.map(p => ({
+        id: p.id,
+        title: p.title,
+        description: '',
+        status: (p.status || 'draft') as PlanStatus,
+        created_at: '',
+        created_by: '',
+        priority: 0,
+      })))
+
+      // Flatten all tasks from all plans for the Tasks section
+      setMilestoneTasks(enrichedPlans.flatMap(p =>
+        (p.tasks || []).map(t => ({
+          id: t.id,
+          title: t.title,
+          description: t.description,
+          status: t.status as Task['status'],
+          priority: t.priority,
+          tags: t.tags || [],
+          acceptance_criteria: [],
+          affected_files: [],
+          created_at: t.created_at,
+          completed_at: t.completed_at,
+        } as Task))
+      ))
 
       // Fetch workspace projects (for the Projects section)
       if (milestoneData.workspace_id) {
@@ -62,34 +89,6 @@ export function MilestoneDetailPage() {
             : []
           setProjects(workspaceProjects as Project[])
         }
-      }
-
-      // Cross-reference tasks to find which plans they belong to
-      const milestoneTaskIds = new Set((milestoneTasks || []).map((t) => t.id))
-
-      if (milestoneTaskIds.size > 0) {
-        // Fetch all tasks with plan_id to find which plans these tasks belong to
-        const allTasksData = await tasksApi.list({ limit: 100 })
-        const planIds = new Set(
-          (allTasksData.items || [])
-            .filter((t) => milestoneTaskIds.has(t.id) && t.plan_id)
-            .map((t) => t.plan_id),
-        )
-        setMilestonePlanIds(planIds)
-
-        // Fetch only plans that have tasks in this milestone
-        if (planIds.size > 0) {
-          const allPlansData = await plansApi.list({ limit: 100 })
-          const milestonePlans = (allPlansData.items || []).filter((plan) =>
-            planIds.has(plan.id),
-          )
-          setPlans(milestonePlans)
-        } else {
-          setPlans([])
-        }
-      } else {
-        setMilestonePlanIds(new Set())
-        setPlans([])
       }
     } catch (error) {
       console.error('Failed to fetch milestone:', error)
@@ -122,18 +121,15 @@ export function MilestoneDetailPage() {
     [plans],
   )
 
-  // Kanban fetchFn: fetches only plans linked to this milestone, filtered by status
+  // Kanban fetchFn: uses already-loaded plans, filtered by status
   const kanbanFetchFn = useCallback(
     async (params: Record<string, unknown>): Promise<PaginatedResponse<Plan>> => {
-      if (milestonePlanIds.size === 0) return { items: [], total: 0, limit: 0, offset: 0 }
+      if (plans.length === 0) return { items: [], total: 0, limit: 0, offset: 0 }
       const status = params.status as string
-      const allPlansData = await plansApi.list({ limit: 100 })
-      const filtered = (allPlansData.items || []).filter(
-        (p) => milestonePlanIds.has(p.id) && p.status === status,
-      )
+      const filtered = plans.filter((p) => p.status === status)
       return { items: filtered, total: filtered.length, limit: filtered.length, offset: 0 }
     },
-    [milestonePlanIds],
+    [plans],
   )
 
   const sectionIds = ['progress', 'plans', 'tasks', 'projects']
@@ -187,7 +183,7 @@ export function MilestoneDetailPage() {
           { label: 'Delete', variant: 'danger', onClick: () => confirmDialog.open({
             title: 'Delete Milestone',
             description: 'This will permanently delete this milestone. Tasks linked to it will not be deleted.',
-            onConfirm: async () => { await workspacesApi.deleteMilestone(milestone.id); toast.success('Milestone deleted'); navigate('/milestones') }
+            onConfirm: async () => { await workspacesApi.deleteMilestone(milestone.id); toast.success('Milestone deleted'); navigate(workspacePath(wsSlug, '/milestones')) }
           }) }
         ]}
       >
@@ -266,7 +262,7 @@ export function MilestoneDetailPage() {
             <PlanKanbanBoard
               fetchFn={kanbanFetchFn}
               onPlanStatusChange={handlePlanStatusChange}
-              onPlanClick={(planId) => navigate(`/plans/${planId}`)}
+              onPlanClick={(planId) => navigate(workspacePath(wsSlug, `/plans/${planId}`))}
               refreshTrigger={planRefresh}
             />
           ) : (
@@ -368,7 +364,7 @@ export function MilestoneDetailPage() {
               {projects.map((project) => (
                 <Link
                   key={project.id}
-                  to={`/projects/${project.slug}`}
+                  to={workspacePath(wsSlug, `/projects/${project.slug}`)}
                   className="flex items-center justify-between gap-2 p-3 bg-white/[0.06] rounded-lg hover:bg-white/[0.08] transition-colors"
                 >
                   <span className="font-medium text-gray-200 truncate min-w-0">{project.name}</span>

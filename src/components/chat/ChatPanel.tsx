@@ -1,5 +1,5 @@
 import { useAtom } from 'jotai'
-import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatSelectedWorkspaceAtom, chatContextModeAtom } from '@/atoms'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, activeWorkspaceSlugAtom } from '@/atoms'
 import { useChat, useWindowFullscreen } from '@/hooks'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput, type PrefillPayload } from './ChatInput'
@@ -11,6 +11,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useSetAtom, useAtomValue } from 'jotai'
 import { Link } from 'react-router-dom'
 import { isTauri } from '@/services/env'
+import { workspacePath } from '@/utils/paths'
 
 const MIN_WIDTH = 320
 const MAX_WIDTH = 800
@@ -36,8 +37,8 @@ export function ChatPanel() {
   const [showSettings, setShowSettings] = useState(false)
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
   const selectedProject = useAtomValue(chatSelectedProjectAtom)
-  const selectedWorkspace = useAtomValue(chatSelectedWorkspaceAtom)
-  const contextMode = useAtomValue(chatContextModeAtom)
+  const allProjectsMode = useAtomValue(chatAllProjectsModeAtom)
+  const activeWsSlug = useAtomValue(activeWorkspaceSlugAtom)
   const [isDragging, setIsDragging] = useState(false)
   const [sessionTitle, setSessionTitle] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
@@ -113,9 +114,8 @@ export function ChatPanel() {
     }
   }, [isDragging, setPanelWidth])
 
-  // Whether the user has selected a valid context (project or workspace) for new conversations
-  // Workspace mode requires both a workspace AND a selected project (for cwd)
-  const hasContext = contextMode === 'project' ? !!selectedProject : (!!selectedWorkspace && !!selectedProject)
+  // Whether the user has selected a valid context for new conversations
+  const hasContext = !!selectedProject || (allProjectsMode && !!activeWsSlug)
 
   const handleSend = useCallback((text: string) => {
     if (isNewConversation && !hasContext) return
@@ -123,21 +123,16 @@ export function ChatPanel() {
       chat.sendMessage(text)
       return
     }
-    if (contextMode === 'workspace' && selectedWorkspace && selectedProject) {
-      // Workspace mode: use selected project's root_path as cwd, pass workspaceSlug
-      // The backend will resolve all workspace projects as --add-dir
+    if (selectedProject) {
+      // When allProjectsMode → send workspaceSlug (adds all project dirs)
+      // When single project → send only projectSlug (no extra dirs)
       chat.sendMessage(text, {
         cwd: selectedProject.root_path,
-        workspaceSlug: selectedWorkspace.slug,
-        projectSlug: selectedProject.slug,
-      })
-    } else if (selectedProject) {
-      chat.sendMessage(text, {
-        cwd: selectedProject.root_path,
-        projectSlug: selectedProject.slug,
+        workspaceSlug: allProjectsMode ? (activeWsSlug || undefined) : undefined,
+        projectSlug: allProjectsMode ? undefined : selectedProject.slug,
       })
     }
-  }, [isNewConversation, hasContext, contextMode, selectedProject, selectedWorkspace, chat.sendMessage])
+  }, [isNewConversation, hasContext, selectedProject, allProjectsMode, activeWsSlug, chat.sendMessage])
 
   const handleContinue = useCallback(() => {
     chat.sendContinue()
@@ -274,7 +269,7 @@ export function ChatPanel() {
                 </span>
                 {!isNewConversation && chat.sessionMeta?.workspaceSlug && (
                   <Link
-                    to={`/workspaces/${chat.sessionMeta.workspaceSlug}`}
+                    to={`/workspace/${chat.sessionMeta.workspaceSlug}`}
                     onClick={(e) => e.stopPropagation()}
                     className="text-[10px] text-purple-400 hover:text-purple-300 truncate block transition-colors"
                   >
@@ -283,7 +278,7 @@ export function ChatPanel() {
                 )}
                 {!isNewConversation && !chat.sessionMeta?.workspaceSlug && chat.sessionMeta?.projectSlug && (
                   <Link
-                    to={`/projects/${chat.sessionMeta.projectSlug}`}
+                    to={activeWsSlug ? `/workspace/${activeWsSlug}/projects/${chat.sessionMeta.projectSlug}` : `/projects/${chat.sessionMeta.projectSlug}`}
                     onClick={(e) => e.stopPropagation()}
                     className="text-[10px] text-indigo-400 hover:text-indigo-300 truncate block transition-colors"
                   >
@@ -437,16 +432,16 @@ export function ChatPanel() {
               </span>
               {!isNewConversation && chat.sessionMeta?.workspaceSlug && (
                 <Link
-                  to={`/workspaces/${chat.sessionMeta.workspaceSlug}`}
+                  to={workspacePath(chat.sessionMeta.workspaceSlug, '/overview')}
                   onClick={(e) => e.stopPropagation()}
                   className="text-[10px] text-purple-400 hover:text-purple-300 truncate block transition-colors"
                 >
                   ⬡ {chat.sessionMeta.workspaceSlug}
                 </Link>
               )}
-              {!isNewConversation && !chat.sessionMeta?.workspaceSlug && chat.sessionMeta?.projectSlug && (
+              {!isNewConversation && !chat.sessionMeta?.workspaceSlug && chat.sessionMeta?.projectSlug && activeWsSlug && (
                 <Link
-                  to={`/projects/${chat.sessionMeta.projectSlug}`}
+                  to={workspacePath(activeWsSlug, `/projects/${chat.sessionMeta.projectSlug}`)}
                   onClick={(e) => e.stopPropagation()}
                   className="text-[10px] text-indigo-400 hover:text-indigo-300 truncate block transition-colors"
                 >

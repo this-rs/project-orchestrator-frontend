@@ -1,6 +1,6 @@
 export { LoginPage } from './LoginPage'
 export { AuthCallbackPage } from './AuthCallbackPage'
-export { WorkspacesPage } from './WorkspacesPage'
+export { WorkspaceSelectorPage } from './WorkspaceSelectorPage'
 export { WorkspaceDetailPage } from './WorkspaceDetailPage'
 export { MilestonesPage } from './MilestonesPage'
 export { MilestoneDetailPage } from './MilestoneDetailPage'

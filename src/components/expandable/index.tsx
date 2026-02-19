@@ -3,6 +3,8 @@ import { useState, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { InteractivePlanStatusBadge, TaskStatusBadge } from '@/components/ui'
 import { tasksApi } from '@/services'
+import { useWorkspaceSlug } from '@/hooks'
+import { workspacePath } from '@/utils/paths'
 import type { Plan, Task, Step, PlanStatus, StepStatus } from '@/types'
 
 // ── Chevron icon ──────────────────────────────────────────────────────────────
@@ -83,6 +85,7 @@ export function NestedTaskRow({
   expandAllSignal?: number
   collapseAllSignal?: number
 }) {
+  const wsSlug = useWorkspaceSlug()
   const [expanded, setExpanded] = useState(false)
   const [steps, setSteps] = useState<Step[]>([])
 
@@ -132,7 +135,7 @@ export function NestedTaskRow({
           <ChevronIcon expanded={expanded} className="!w-3 !h-3" />
         </button>
         <Link
-          to={`/tasks/${task.id}`}
+          to={workspacePath(wsSlug, `/tasks/${task.id}`)}
           className="flex-1 min-w-0 text-sm text-gray-300 hover:text-indigo-400 transition-colors truncate"
         >
           {task.title || task.description}
@@ -174,6 +177,7 @@ export function ExpandablePlanRow({
   expandAllSignal?: number
   collapseAllSignal?: number
 }) {
+  const wsSlug = useWorkspaceSlug()
   const [expanded, setExpanded] = useState(false)
   const [tasks, setTasks] = useState<Task[]>([])
 
@@ -220,7 +224,7 @@ export function ExpandablePlanRow({
           <ChevronIcon expanded={expanded} />
         </button>
         <Link
-          to={`/plans/${plan.id}`}
+          to={workspacePath(wsSlug, `/plans/${plan.id}`)}
           className="flex-1 min-w-0 hover:text-indigo-400 transition-colors overflow-hidden"
         >
           <span className="font-medium text-gray-200 block truncate">{plan.title}</span>
@@ -261,6 +265,7 @@ export function ExpandableTaskRow({
   expandAllSignal?: number
   collapseAllSignal?: number
 }) {
+  const wsSlug = useWorkspaceSlug()
   const [expanded, setExpanded] = useState(false)
   const [steps, setSteps] = useState<Step[]>([])
 
@@ -310,7 +315,7 @@ export function ExpandableTaskRow({
           <ChevronIcon expanded={expanded} />
         </button>
         <Link
-          to={`/tasks/${task.id}`}
+          to={workspacePath(wsSlug, `/tasks/${task.id}`)}
           className="flex-1 min-w-0 hover:text-indigo-400 transition-colors overflow-hidden"
         >
           <span className="font-medium text-gray-200 block truncate">{task.title || task.description}</span>

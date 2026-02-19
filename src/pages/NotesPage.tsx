@@ -4,7 +4,7 @@ import { notesAtom, notesLoadingAtom, noteTypeFilterAtom, noteStatusFilterAtom, 
 import { notesApi } from '@/services'
 import { Card, CardContent, Button, LoadingPage, EmptyState, Select, InteractiveNoteStatusBadge, ImportanceBadge, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, CollapsibleMarkdown, LoadMoreSentinel } from '@/components/ui'
 import type { OverflowMenuAction } from '@/components/ui'
-import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList } from '@/hooks'
+import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug } from '@/hooks'
 import { CreateNoteForm } from '@/components/forms'
 import type { Note, NoteType, NoteStatus, NoteScopeType, PaginatedResponse } from '@/types'
 
@@ -47,27 +47,29 @@ export function NotesPage() {
   const formDialog = useFormDialog()
   const toast = useToast()
   const [formLoading, setFormLoading] = useState(false)
+  const wsSlug = useWorkspaceSlug()
 
   const filters = useMemo(
     () => ({
       note_type: typeFilter !== 'all' ? typeFilter : undefined,
       status: statusFilter !== 'all' ? statusFilter : undefined,
       _refresh: noteRefresh,
+      _ws: wsSlug,
     }),
-    [typeFilter, statusFilter, noteRefresh],
+    [typeFilter, statusFilter, noteRefresh, wsSlug],
   )
 
   const fetcher = useCallback(
     (params: { limit: number; offset: number; note_type?: string; status?: string }): Promise<PaginatedResponse<Note>> => {
-      const apiParams: { limit: number; offset: number; note_type?: string; status?: string } = {
+      return notesApi.list({
         limit: params.limit,
         offset: params.offset,
-      }
-      if (params.note_type) apiParams.note_type = params.note_type
-      if (params.status) apiParams.status = params.status
-      return notesApi.list(apiParams)
+        note_type: params.note_type,
+        status: params.status,
+        workspace_slug: wsSlug,
+      })
     },
-    [],
+    [wsSlug],
   )
 
   const {
@@ -89,6 +91,7 @@ export function NotesPage() {
   }, [notes, loading, setNotesAtom, setLoadingAtom])
 
   const noteForm = CreateNoteForm({
+    workspaceSlug: wsSlug,
     onSubmit: async (data) => {
       setFormLoading(true)
       try {
