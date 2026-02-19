@@ -29,10 +29,10 @@ export function WorkspaceRouteGuard() {
     return <Navigate to="/workspace-selector" replace />
   }
 
-  // If workspaces are loaded and slug doesn't match any → redirect
+  // If workspaces are loaded and slug doesn't match any → redirect with notice
   // (workspaces.length === 0 means still loading, so we render optimistically)
   if (workspaces.length > 0 && !workspaces.some((w) => w.slug === slug)) {
-    return <Navigate to="/workspace-selector" replace />
+    return <Navigate to={`/workspace-selector?notFound=${encodeURIComponent(slug)}`} replace />
   }
 
   return <Outlet />

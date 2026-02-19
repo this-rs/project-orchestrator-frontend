@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState, useRef } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { workspacesApi } from '@/services/workspaces'
 import { workspacePath } from '@/utils/paths'
 import type { Workspace } from '@/types'
@@ -12,6 +12,8 @@ import type { Workspace } from '@/types'
  */
 export function WorkspaceSelectorPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const notFoundSlug = searchParams.get('notFound')
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -38,23 +40,7 @@ export function WorkspaceSelectorPage() {
   }
 
   if (workspaces.length === 0) {
-    return (
-      <div className="min-h-dvh flex items-center justify-center bg-[#0f1117]">
-        <div className="text-center space-y-4">
-          <h1 className="text-2xl font-bold text-gray-100">Welcome to Project Orchestrator</h1>
-          <p className="text-gray-400">Create your first workspace to get started.</p>
-          <button
-            onClick={() => {
-              // TODO: open create workspace dialog
-              navigate('/workspace-selector')
-            }}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
-          >
-            Create Workspace
-          </button>
-        </div>
-      </div>
-    )
+    return <EmptyWorkspaceOnboarding navigate={navigate} />
   }
 
   return (
@@ -65,6 +51,12 @@ export function WorkspaceSelectorPage() {
           <h1 className="text-xl font-bold text-gray-100">Select a Workspace</h1>
           <p className="text-sm text-gray-500">Choose which workspace to work in</p>
         </div>
+
+        {notFoundSlug && (
+          <div className="px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-sm text-amber-300">
+            Workspace <span className="font-medium">&quot;{notFoundSlug}&quot;</span> was not found. Please select another workspace.
+          </div>
+        )}
 
         <div className="space-y-2">
           {workspaces.map((ws) => (
@@ -88,6 +80,71 @@ export function WorkspaceSelectorPage() {
             </button>
           ))}
         </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Onboarding screen for first-time users with no workspaces.
+ * Shows a friendly welcome message and inline workspace creation form.
+ */
+function EmptyWorkspaceOnboarding({ navigate }: { navigate: ReturnType<typeof useNavigate> }) {
+  const [name, setName] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const trimmed = name.trim()
+    if (!trimmed) return
+
+    setCreating(true)
+    setError(null)
+    try {
+      const ws = await workspacesApi.create({ name: trimmed })
+      navigate(workspacePath(ws.slug, '/projects'), { replace: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create workspace')
+      setCreating(false)
+    }
+  }
+
+  return (
+    <div className="min-h-dvh flex items-center justify-center bg-[#0f1117]">
+      <div className="w-full max-w-sm space-y-6 px-4 text-center">
+        <img src="/logo-32.png" alt="PO" className="w-16 h-16 mx-auto rounded-2xl" />
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold text-gray-100">Welcome to Project Orchestrator</h1>
+          <p className="text-gray-400 text-sm">Create your first workspace to get started.</p>
+        </div>
+
+        <form onSubmit={handleCreate} className="space-y-3">
+          <input
+            ref={inputRef}
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="My Workspace"
+            className="w-full px-4 py-2.5 bg-white/[0.06] border border-white/[0.1] rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+            disabled={creating}
+          />
+          {error && (
+            <div className="text-sm text-red-400">{error}</div>
+          )}
+          <button
+            type="submit"
+            disabled={creating || !name.trim()}
+            className="w-full px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+          >
+            {creating ? 'Creating...' : 'Create Workspace'}
+          </button>
+        </form>
       </div>
     </div>
   )
