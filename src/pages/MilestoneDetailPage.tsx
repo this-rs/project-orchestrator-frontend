@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, ConfirmDialog, LinkEntityDialog, ProgressBar, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
+import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, LinkEntityDialog, ProgressBar, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import { ExpandablePlanRow, ExpandableTaskRow } from '@/components/expandable'
 import { workspacesApi, plansApi, tasksApi } from '@/services'
 import { PlanKanbanBoard } from '@/components/kanban'
@@ -20,6 +20,7 @@ export function MilestoneDetailPage() {
   const [plans, setPlans] = useState<Plan[]>([])
   const [milestoneTasks, setMilestoneTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useViewMode()
   const confirmDialog = useConfirmDialog()
   const linkDialog = useLinkDialog()
@@ -37,6 +38,7 @@ export function MilestoneDetailPage() {
 
   const refreshData = useCallback(async () => {
     if (!milestoneId) return
+    setError(null)
     // Only show loading spinner on initial load, not on WS-triggered refreshes
     const isInitialLoad = !milestone
     if (isInitialLoad) setLoading(true)
@@ -92,6 +94,7 @@ export function MilestoneDetailPage() {
       }
     } catch (error) {
       console.error('Failed to fetch milestone:', error)
+      setError('Failed to load milestone')
     } finally {
       if (isInitialLoad) setLoading(false)
     }
@@ -135,6 +138,7 @@ export function MilestoneDetailPage() {
   const sectionIds = ['progress', 'plans', 'tasks', 'projects']
   const activeSection = useSectionObserver(sectionIds)
 
+  if (error) return <ErrorState title="Failed to load" description={error} onRetry={refreshData} />
   if (loading || !milestone) return <LoadingPage />
 
   const tags = milestone.tags || []

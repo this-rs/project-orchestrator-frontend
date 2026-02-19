@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, TaskStatusBadge, InteractiveStepStatusBadge, ProgressBar, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
+import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, TaskStatusBadge, InteractiveStepStatusBadge, ProgressBar, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import { tasksApi } from '@/services'
 import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
@@ -38,14 +38,15 @@ export function TaskDetailPage() {
   const [blocking, setBlocking] = useState<Task[]>([])
   const [commits, setCommits] = useState<Commit[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!taskId) return
-      // Only show loading spinner on initial load, not on WS-triggered refreshes
-      const isInitialLoad = !task
-      if (isInitialLoad) setLoading(true)
-      try {
+  const fetchData = useCallback(async () => {
+    if (!taskId) return
+    setError(null)
+    // Only show loading spinner on initial load, not on WS-triggered refreshes
+    const isInitialLoad = !task
+    if (isInitialLoad) setLoading(true)
+    try {
         // The API returns { task, steps, decisions, depends_on, modifies_files }
         const response = await tasksApi.get(taskId) as unknown as TaskApiResponse
 
@@ -65,14 +66,17 @@ export function TaskDetailPage() {
         setBlocking(blockingData.items || [])
         setCommits(commitsData.items || [])
       } catch (error) {
-        console.error('Failed to fetch task:', error)
-      } finally {
-        if (isInitialLoad) setLoading(false)
-      }
+      console.error('Failed to fetch task:', error)
+      setError('Failed to load task')
+    } finally {
+      if (isInitialLoad) setLoading(false)
     }
-    fetchData()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- task is a data object (would cause infinite loop)
   }, [taskId, taskRefresh, projectRefresh, planRefresh])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
   const stepForm = CreateStepForm({
     onSubmit: async (data) => {
@@ -109,6 +113,7 @@ export function TaskDetailPage() {
   const sectionIds = ['steps', 'dependencies', 'decisions']
   const activeSection = useSectionObserver(sectionIds)
 
+  if (error) return <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
   if (loading || !task) return <LoadingPage />
 
   // Use state variables for arrays

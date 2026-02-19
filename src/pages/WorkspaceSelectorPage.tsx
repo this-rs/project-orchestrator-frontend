@@ -1,7 +1,8 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { workspacesApi } from '@/services/workspaces'
 import { workspacePath } from '@/utils/paths'
+import { ErrorState } from '@/components/ui'
 import type { Workspace } from '@/types'
 
 /**
@@ -16,13 +17,22 @@ export function WorkspaceSelectorPage() {
   const notFoundSlug = searchParams.get('notFound')
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    workspacesApi
-      .list({ limit: 100, sort_by: 'name', sort_order: 'asc' })
-      .then((data) => setWorkspaces(data.items || []))
-      .finally(() => setLoading(false))
+  const loadWorkspaces = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await workspacesApi.list({ limit: 100, sort_by: 'name', sort_order: 'asc' })
+      setWorkspaces(data.items || [])
+    } catch {
+      setError('Failed to load workspaces. Is the backend running?')
+    } finally {
+      setLoading(false)
+    }
   }, [])
+
+  useEffect(() => { loadWorkspaces() }, [loadWorkspaces])
 
   // If only one workspace exists, redirect immediately
   useEffect(() => {
@@ -35,6 +45,14 @@ export function WorkspaceSelectorPage() {
     return (
       <div className="min-h-dvh flex items-center justify-center bg-surface-base">
         <div className="animate-pulse text-gray-500">Loading workspaces...</div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center bg-surface-base">
+        <ErrorState title="Connection error" description={error} onRetry={loadWorkspaces} />
       </div>
     )
   }

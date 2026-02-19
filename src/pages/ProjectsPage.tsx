@@ -4,7 +4,7 @@ import { useAtomValue } from 'jotai'
 import { activeWorkspaceAtom } from '@/atoms'
 import { projectsApi } from '@/services'
 import { workspacesApi } from '@/services/workspaces'
-import { Card, CardContent, Button, EmptyState, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, SkeletonCard } from '@/components/ui'
+import { Card, CardContent, Button, EmptyState, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, SkeletonCard, ErrorState } from '@/components/ui'
 import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useWorkspaceSlug } from '@/hooks'
 import { CreateProjectForm } from '@/components/forms'
 import type { Project } from '@/types'
@@ -18,13 +18,16 @@ export function ProjectsPage() {
   const activeWorkspace = useAtomValue(activeWorkspaceAtom)
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const loadProjects = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
       const data = await workspacesApi.listProjects(wsSlug)
       setProjects(data)
     } catch {
+      setError('Failed to load projects')
       setProjects([])
     } finally {
       setLoading(false)
@@ -92,6 +95,8 @@ export function ProjectsPage() {
             <SkeletonCard key={i} lines={2} />
           ))}
         </div>
+      ) : error ? (
+        <ErrorState title="Failed to load" description={error} onRetry={loadProjects} />
       ) : projects.length === 0 ? (
         <EmptyState
           title="No projects"

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Card, CardHeader, CardTitle, CardContent, Button, SearchInput, LoadingPage, EmptyState, Select, PageShell } from '@/components/ui'
+import { Card, CardHeader, CardTitle, CardContent, Button, SearchInput, LoadingPage, EmptyState, Select, PageShell, ErrorState } from '@/components/ui'
 import { codeApi, workspacesApi } from '@/services'
 import type { SearchResult, ArchitectureOverview } from '@/services'
 import { useWorkspaceSlug } from '@/hooks'
@@ -10,6 +10,8 @@ export function CodePage() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [architecture, setArchitecture] = useState<ArchitectureOverview | null>(null)
   const [loading, setLoading] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
+  const [archError, setArchError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'search' | 'architecture'>('search')
 
   // Project filter
@@ -37,13 +39,16 @@ export function CodePage() {
   const handleSearch = async () => {
     if (!searchQuery.trim()) return
     setLoading(true)
+    setSearchError(null)
     try {
       const projectSlug = selectedProject !== 'all' ? selectedProject : undefined
       const workspaceSlug = selectedProject === 'all' ? wsSlug : undefined
       const response = await codeApi.search(searchQuery, { project_slug: projectSlug, workspace_slug: workspaceSlug })
       setSearchResults(Array.isArray(response) ? response : [])
-    } catch (error) {
-      console.error('Search failed:', error)
+    } catch (err) {
+      console.error('Search failed:', err)
+      setSearchError('Search failed. The backend may be unreachable.')
+      setSearchResults([])
     } finally {
       setLoading(false)
     }
@@ -51,13 +56,15 @@ export function CodePage() {
 
   const loadArchitecture = async () => {
     setLoading(true)
+    setArchError(null)
     try {
       const projectSlug = selectedProject !== 'all' ? selectedProject : undefined
       const workspaceSlug = selectedProject === 'all' ? wsSlug : undefined
       const data = await codeApi.getArchitecture({ project_slug: projectSlug, workspace_slug: workspaceSlug })
       setArchitecture(data)
-    } catch (error) {
-      console.error('Failed to load architecture:', error)
+    } catch (err) {
+      console.error('Failed to load architecture:', err)
+      setArchError('Failed to load architecture overview.')
     } finally {
       setLoading(false)
     }
@@ -127,6 +134,8 @@ export function CodePage() {
           {/* Results */}
           {loading ? (
             <LoadingPage />
+          ) : searchError ? (
+            <ErrorState title="Search failed" description={searchError} onRetry={handleSearch} />
           ) : searchResults.length === 0 ? (
             <EmptyState
               title="No results"
@@ -199,6 +208,8 @@ export function CodePage() {
         <div className="space-y-6">
           {loading ? (
             <LoadingPage />
+          ) : archError ? (
+            <ErrorState title="Failed to load" description={archError} onRetry={loadArchitecture} />
           ) : !architecture ? (
             <EmptyState
               title="Architecture not loaded"

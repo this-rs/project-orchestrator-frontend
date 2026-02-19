@@ -121,14 +121,21 @@ export function TasksPage() {
 
   const handleTaskStatusChange = useCallback(
     async (taskId: string, newStatus: TaskStatus) => {
+      const oldTask = tasks.find((t) => t.id === taskId)
       updateItem(
         (t) => t.id === taskId,
         (t) => ({ ...t, status: newStatus }),
       )
-      await tasksApi.update(taskId, { status: newStatus })
-      toast.success('Status updated')
+      try {
+        await tasksApi.update(taskId, { status: newStatus })
+        toast.success('Status updated')
+      } catch {
+        // Rollback optimistic update
+        if (oldTask) updateItem((t) => t.id === taskId, () => oldTask)
+        toast.error('Failed to update status')
+      }
     },
-    [updateItem, toast],
+    [tasks, updateItem, toast],
   )
 
   const handleTaskClick = useCallback(

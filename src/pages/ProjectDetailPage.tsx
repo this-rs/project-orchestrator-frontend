@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
-import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LoadingPage, Badge, ProgressBar, PageHeader, SectionNav } from '@/components/ui'
+import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LoadingPage, ErrorState, Badge, ProgressBar, PageHeader, SectionNav } from '@/components/ui'
 import { ExpandablePlanRow } from '@/components/expandable'
 import { projectsApi, plansApi, featureGraphsApi } from '@/services'
 import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
@@ -29,55 +29,59 @@ export function ProjectDetailPage() {
   const [plans, setPlans] = useState<Plan[]>([])
   const [roadmap, setRoadmap] = useState<ProjectRoadmap | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [featureGraphs, setFeatureGraphs] = useState<FeatureGraph[]>([])
   const [plansExpandAll, setPlansExpandAll] = useState(0)
   const [plansCollapseAll, setPlansCollapseAll] = useState(0)
   const [plansAllExpanded, setPlansAllExpanded] = useState(false)
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!slug) return
-      // Only show loading spinner on initial load, not on WS-triggered refreshes
-      const isInitialLoad = !project
-      if (isInitialLoad) setLoading(true)
+  const fetchData = useCallback(async () => {
+    if (!slug) return
+    setError(null)
+    // Only show loading spinner on initial load, not on WS-triggered refreshes
+    const isInitialLoad = !project
+    if (isInitialLoad) setLoading(true)
+    try {
+      // First get the project
+      const projectData = await projectsApi.get(slug)
+      setProject(projectData)
+      setSuggestedProjectId(projectData.id)
+
+      // Fetch plans filtered by project_id (client-side filter as backend filter doesn't work)
+      const allPlansData = await plansApi.list({ limit: 100 })
+      const projectPlans = (allPlansData.items || []).filter(
+        (plan) => plan.project_id === projectData.id
+      )
+      setPlans(projectPlans)
+
+      // Try to get roadmap
       try {
-        // First get the project
-        const projectData = await projectsApi.get(slug)
-        setProject(projectData)
-        setSuggestedProjectId(projectData.id)
-
-        // Fetch plans filtered by project_id (client-side filter as backend filter doesn't work)
-        const allPlansData = await plansApi.list({ limit: 100 })
-        const projectPlans = (allPlansData.items || []).filter(
-          (plan) => plan.project_id === projectData.id
-        )
-        setPlans(projectPlans)
-
-        // Try to get roadmap
-        try {
-          const roadmapData = await projectsApi.getRoadmap(projectData.id)
-          setRoadmap(roadmapData)
-        } catch {
-          // Roadmap might not be available
-        }
-
-        // Fetch feature graphs for this project
-        try {
-          const fgData = await featureGraphsApi.list({ project_id: projectData.id })
-          setFeatureGraphs(fgData.feature_graphs || [])
-        } catch (fgError) {
-          console.error('Failed to fetch feature graphs:', fgError)
-        }
-      } catch (error) {
-        console.error('Failed to fetch project:', error)
-      } finally {
-        if (isInitialLoad) setLoading(false)
+        const roadmapData = await projectsApi.getRoadmap(projectData.id)
+        setRoadmap(roadmapData)
+      } catch {
+        // Roadmap might not be available
       }
+
+      // Fetch feature graphs for this project
+      try {
+        const fgData = await featureGraphsApi.list({ project_id: projectData.id })
+        setFeatureGraphs(fgData.feature_graphs || [])
+      } catch (fgError) {
+        console.error('Failed to fetch feature graphs:', fgError)
+      }
+    } catch (error) {
+      console.error('Failed to fetch project:', error)
+      setError('Failed to load project')
+    } finally {
+      if (isInitialLoad) setLoading(false)
     }
-    fetchData()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- project is a data object (would cause loop); setSuggestedProjectId is a stable Jotai setter
   }, [slug, projectRefresh, planRefresh, milestoneRefresh, taskRefresh])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
   const handleSync = async () => {
     if (!slug) return
@@ -140,6 +144,7 @@ export function ProjectDetailPage() {
   const sectionIds = [...(hasRoadmap ? ['roadmap'] : []), 'plans', 'feature-graphs']
   const activeSection = useSectionObserver(sectionIds)
 
+  if (error) return <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
   if (loading || !project) return <LoadingPage />
 
   const sections = [

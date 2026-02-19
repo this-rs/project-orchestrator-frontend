@@ -179,14 +179,21 @@ export function PlansPage() {
 
   const handlePlanStatusChange = useCallback(
     async (planId: string, newStatus: PlanStatus) => {
+      const oldPlan = plans.find((p) => p.id === planId)
       updateItem(
         (p) => p.id === planId,
         (p) => ({ ...p, status: newStatus }),
       )
-      await plansApi.updateStatus(planId, newStatus)
-      toast.success('Status updated')
+      try {
+        await plansApi.updateStatus(planId, newStatus)
+        toast.success('Status updated')
+      } catch {
+        // Rollback optimistic update
+        if (oldPlan) updateItem((p) => p.id === planId, () => oldPlan)
+        toast.error('Failed to update status')
+      }
     },
-    [updateItem, toast],
+    [plans, updateItem, toast],
   )
 
   const planForm = CreatePlanForm({

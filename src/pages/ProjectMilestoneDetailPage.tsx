@@ -7,6 +7,7 @@ import {
   CardTitle,
   CardContent,
   LoadingPage,
+  ErrorState,
   Button,
   ConfirmDialog,
   LinkEntityDialog,
@@ -44,6 +45,7 @@ export function ProjectMilestoneDetailPage() {
   const [milestonePlanIds, setMilestonePlanIds] = useState<Set<string>>(new Set())
   const [milestoneTasks, setMilestoneTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useViewMode()
   const confirmDialog = useConfirmDialog()
   const linkDialog = useLinkDialog()
@@ -61,6 +63,7 @@ export function ProjectMilestoneDetailPage() {
 
   const refreshData = useCallback(async () => {
     if (!milestoneId) return
+    setError(null)
     // Only show loading spinner on initial load, not on WS-triggered refreshes
     const isInitialLoad = !milestone
     if (isInitialLoad) setLoading(true)
@@ -120,6 +123,7 @@ export function ProjectMilestoneDetailPage() {
       }
     } catch (error) {
       console.error('Failed to fetch milestone:', error)
+      setError('Failed to load milestone')
     } finally {
       if (isInitialLoad) setLoading(false)
     }
@@ -179,6 +183,7 @@ export function ProjectMilestoneDetailPage() {
   const sectionIds = ['progress', 'plans', 'tasks']
   const activeSection = useSectionObserver(sectionIds)
 
+  if (error) return <ErrorState title="Failed to load" description={error} onRetry={refreshData} />
   if (loading || !milestone) return <LoadingPage />
 
   const sections = [

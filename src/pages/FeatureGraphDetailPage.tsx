@@ -6,6 +6,7 @@ import {
   CardTitle,
   CardContent,
   LoadingPage,
+  ErrorState,
   Badge,
   ConfirmDialog,
   PageHeader,
@@ -128,22 +129,25 @@ export function FeatureGraphDetailPage() {
   const toast = useToast()
   const [detail, setDetail] = useState<FeatureGraphDetail | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!id) return
-      setLoading(true)
-      try {
-        const data = await featureGraphsApi.get(id)
-        setDetail(data)
-      } catch (error) {
-        console.error('Failed to fetch feature graph:', error)
-      } finally {
-        setLoading(false)
-      }
+  async function fetchData() {
+    if (!id) return
+    setError(null)
+    setLoading(true)
+    try {
+      const data = await featureGraphsApi.get(id)
+      setDetail(data)
+    } catch (error) {
+      console.error('Failed to fetch feature graph:', error)
+      setError('Failed to load feature graph')
+    } finally {
+      setLoading(false)
     }
-    fetchData()
-  }, [id])
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchData() }, [id])
 
   // Group entities by role
   const groupedEntities = useMemo(() => {
@@ -170,6 +174,7 @@ export function FeatureGraphDetailPage() {
     return roles
   }, [groupedEntities])
 
+  if (error) return <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
   if (loading || !detail) return <LoadingPage />
 
   const totalEntities = detail.entities.length
