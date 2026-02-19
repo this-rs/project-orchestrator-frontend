@@ -103,6 +103,10 @@ h1, h2, h3 { font-variation-settings: 'wght' 650; }
 .font-semibold { font-variation-settings: 'wght' 550; }
 .font-medium   { font-variation-settings: 'wght' 450; }
 
+/* Text wrapping — progressive enhancement (no-op on unsupported browsers) */
+h1, h2, h3 { text-wrap: balance; }
+p, .description-text { text-wrap: pretty; }
+
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
