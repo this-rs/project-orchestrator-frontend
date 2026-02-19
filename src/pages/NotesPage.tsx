@@ -91,6 +91,7 @@ export function NotesPage() {
   }, [notes, loading, setNotesAtom, setLoadingAtom])
 
   const noteForm = CreateNoteForm({
+    workspaceSlug: wsSlug,
     onSubmit: async (data) => {
       setFormLoading(true)
       try {

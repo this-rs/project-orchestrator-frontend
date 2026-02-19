@@ -1,14 +1,13 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAtomValue } from 'jotai'
-import { chatSessionRefreshAtom } from '@/atoms'
-import { chatApi, getEventBus, projectsApi, workspacesApi } from '@/services'
+import { chatSessionRefreshAtom, activeWorkspaceSlugAtom } from '@/atoms'
+import { chatApi, getEventBus, workspacesApi } from '@/services'
 import type {
   ChatSession,
   CrudEvent,
   MessageSearchResult,
   PermissionMode,
   Project,
-  Workspace,
 } from '@/types'
 import { Select } from '@/components/ui'
 
@@ -119,14 +118,13 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
     return () => { off() }
   }, [])
 
+  // Active workspace from global atom
+  const activeWsSlug = useAtomValue(activeWorkspaceSlugAtom)
+
   // Filter state
   const [projects, setProjects] = useState<Project[]>([])
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
-  const [selectedWorkspace, setSelectedWorkspace] = useState<string>('')
   const [selectedProject, setSelectedProject] = useState<string>('')
-  const [workspaceProjects, setWorkspaceProjects] = useState<
-    { id: string; slug: string }[]
-  >([])
+  const [workspaceProjectSlugs, setWorkspaceProjectSlugs] = useState<Set<string>>(new Set())
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
@@ -145,29 +143,19 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
     return () => clearTimeout(timer)
   }, [searchQuery])
 
-  // Load projects and workspaces on mount
+  // Load workspace projects on mount / workspace change
   useEffect(() => {
-    projectsApi.list({ limit: 100 }).then((data) => {
-      setProjects(data.items || [])
-    })
-    workspacesApi.list({ limit: 100 }).then((data) => {
-      setWorkspaces(data.items || [])
-    })
-  }, [])
-
-  // When workspace changes, load its projects
-  useEffect(() => {
-    if (!selectedWorkspace) {
-      setWorkspaceProjects([])
+    if (!activeWsSlug) {
+      setProjects([])
+      setWorkspaceProjectSlugs(new Set())
       return
     }
-    workspacesApi.listProjects(selectedWorkspace).then((data) => {
+    workspacesApi.listProjects(activeWsSlug).then((data) => {
       const items = Array.isArray(data) ? data : []
-      setWorkspaceProjects(
-        items.map((p) => ({ id: p.id, slug: p.slug })),
-      )
+      setProjects(items)
+      setWorkspaceProjectSlugs(new Set(items.map((p) => p.slug)))
     })
-  }, [selectedWorkspace])
+  }, [activeWsSlug])
 
   // Fetch sessions — initial load resets the list, loadMore appends
   const fetchSessions = useCallback(
@@ -272,34 +260,23 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
     }
   }, [debouncedQuery, selectedProject])
 
-  // Client-side filter by workspace (filter sessions whose project_slug is in workspace projects)
+  // Client-side filter by workspace (filter sessions whose project_slug or workspace_slug matches)
   const filteredSessions = useMemo(() => {
-    if (!selectedWorkspace || workspaceProjects.length === 0) return sessions
-    const slugSet = new Set(workspaceProjects.map((p) => p.slug))
+    if (!activeWsSlug || workspaceProjectSlugs.size === 0) return sessions
     return sessions.filter(
-      (s) => s.project_slug && slugSet.has(s.project_slug),
+      (s) =>
+        s.workspace_slug === activeWsSlug ||
+        (s.project_slug && workspaceProjectSlugs.has(s.project_slug)),
     )
-  }, [sessions, selectedWorkspace, workspaceProjects])
+  }, [sessions, activeWsSlug, workspaceProjectSlugs])
 
   // Group sessions by date
   const groupedSessions = useMemo(() => groupSessionsByDate(filteredSessions), [filteredSessions])
-
-  // Available projects for the project dropdown (scoped by workspace if selected)
-  const availableProjects = useMemo(() => {
-    if (!selectedWorkspace || workspaceProjects.length === 0) return projects
-    const idSet = new Set(workspaceProjects.map((p) => p.id))
-    return projects.filter((p) => idSet.has(p.id))
-  }, [projects, selectedWorkspace, workspaceProjects])
 
   const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation()
     await chatApi.deleteSession(sessionId)
     setSessions((prev) => prev.filter((s) => s.id !== sessionId))
-  }
-
-  const handleWorkspaceChange = (slug: string) => {
-    setSelectedWorkspace(slug)
-    setSelectedProject('') // Reset project filter on workspace change
   }
 
   const handleClearSearch = () => {
@@ -509,27 +486,19 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
           )}
         </div>
 
-        {/* Dropdown filters */}
-        <Select
-          value={selectedWorkspace}
-          onChange={handleWorkspaceChange}
-          options={[
-            { value: '', label: 'All workspaces' },
-            ...workspaces.map((w) => ({ value: w.slug, label: w.name })),
-          ]}
-          placeholder="All workspaces"
-          icon={<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>}
-        />
-        <Select
-          value={selectedProject}
-          onChange={setSelectedProject}
-          options={[
-            { value: '', label: 'All projects' },
-            ...availableProjects.map((p) => ({ value: p.slug, label: p.name })),
-          ]}
-          placeholder="All projects"
-          icon={<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>}
-        />
+        {/* Project filter (scoped to active workspace) */}
+        {projects.length > 0 && (
+          <Select
+            value={selectedProject}
+            onChange={setSelectedProject}
+            options={[
+              { value: '', label: 'All projects' },
+              ...projects.map((p) => ({ value: p.slug, label: p.name })),
+            ]}
+            placeholder="All projects"
+            icon={<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>}
+          />
+        )}
       </div>
 
       {/* Content area: session list or search results */}

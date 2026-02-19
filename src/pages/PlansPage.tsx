@@ -190,6 +190,7 @@ export function PlansPage() {
   )
 
   const planForm = CreatePlanForm({
+    workspaceSlug: wsSlug,
     onSubmit: async (data) => {
       setFormLoading(true)
       try {

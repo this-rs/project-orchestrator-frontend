@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Textarea, Select, Input } from '@/components/ui'
-import { projectsApi } from '@/services'
+import { workspacesApi } from '@/services'
 import type { Project, NoteType, NoteImportance } from '@/types'
 
 export interface CreateNoteFormData {
@@ -15,6 +15,7 @@ interface Props {
   onSubmit: (data: CreateNoteFormData) => Promise<void>
   loading?: boolean
   defaultProjectId?: string
+  workspaceSlug?: string
 }
 
 const typeOptions = [
@@ -35,7 +36,7 @@ const importanceOptions = [
   { value: 'critical', label: 'Critical' },
 ]
 
-export function CreateNoteForm({ onSubmit, loading, defaultProjectId }: Props) {
+export function CreateNoteForm({ onSubmit, loading, defaultProjectId, workspaceSlug }: Props) {
   const [projectId, setProjectId] = useState(defaultProjectId || '')
   const [noteType, setNoteType] = useState<string>('guideline')
   const [content, setContent] = useState('')
@@ -45,17 +46,20 @@ export function CreateNoteForm({ onSubmit, loading, defaultProjectId }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    projectsApi.list({ limit: 100 }).then((res) => setProjects(res.items || [])).catch(() => {})
-  }, [])
+    if (workspaceSlug) {
+      workspacesApi.listProjects(workspaceSlug).then((data) => {
+        setProjects(Array.isArray(data) ? data : [])
+      }).catch(() => {})
+    }
+  }, [workspaceSlug])
 
   const projectOptions = [
-    { value: '', label: 'Select a project' },
+    { value: '', label: 'Global (cross-project)' },
     ...projects.map((p) => ({ value: p.id, label: p.name })),
   ]
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!projectId) errs.project_id = 'Project is required'
     if (!content.trim()) errs.content = 'Content is required'
     setErrors(errs)
     return Object.keys(errs).length === 0

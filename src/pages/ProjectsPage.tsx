@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
+import { useAtomValue } from 'jotai'
+import { activeWorkspaceAtom } from '@/atoms'
 import { projectsApi } from '@/services'
 import { workspacesApi } from '@/services/workspaces'
 import { Card, CardContent, Button, LoadingPage, EmptyState, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
@@ -13,6 +15,7 @@ export function ProjectsPage() {
   const toast = useToast()
   const [formLoading, setFormLoading] = useState(false)
   const wsSlug = useWorkspaceSlug()
+  const activeWorkspace = useAtomValue(activeWorkspaceAtom)
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -35,6 +38,7 @@ export function ProjectsPage() {
   }
 
   const form = CreateProjectForm({
+    workspaceName: activeWorkspace?.name,
     onSubmit: async (data) => {
       setFormLoading(true)
       try {

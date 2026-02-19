@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Input, Textarea, Select } from '@/components/ui'
-import { projectsApi } from '@/services'
+import { workspacesApi } from '@/services'
 import type { Project } from '@/types'
 
 export interface CreatePlanFormData {
@@ -14,9 +14,10 @@ interface Props {
   onSubmit: (data: CreatePlanFormData) => Promise<void>
   loading?: boolean
   defaultProjectId?: string
+  workspaceSlug?: string
 }
 
-export function CreatePlanForm({ onSubmit, loading, defaultProjectId }: Props) {
+export function CreatePlanForm({ onSubmit, loading, defaultProjectId, workspaceSlug }: Props) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState('5')
@@ -25,8 +26,12 @@ export function CreatePlanForm({ onSubmit, loading, defaultProjectId }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    projectsApi.list({ limit: 100 }).then((res) => setProjects(res.items || [])).catch(() => {})
-  }, [])
+    if (workspaceSlug) {
+      workspacesApi.listProjects(workspaceSlug).then((data) => {
+        setProjects(Array.isArray(data) ? data : [])
+      }).catch(() => {})
+    }
+  }, [workspaceSlug])
 
   const projectOptions = [
     { value: '', label: 'No project' },
