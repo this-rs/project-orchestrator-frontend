@@ -154,6 +154,7 @@ export function MilestoneDetailPage() {
     <div className="pt-6 space-y-6">
       <PageHeader
         title={milestone.title}
+        viewTransitionName={`milestone-title-${milestone.id}`}
         description={milestone.description}
         status={
           <StatusSelect

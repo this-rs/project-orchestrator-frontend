@@ -192,6 +192,7 @@ export function PlanDetailPage() {
     <div className="pt-6 space-y-6">
       <PageHeader
         title={plan.title}
+        viewTransitionName={`plan-title-${plan.id}`}
         description={plan.description}
         status={
           <StatusSelect

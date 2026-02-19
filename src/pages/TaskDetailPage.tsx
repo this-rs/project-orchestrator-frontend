@@ -134,6 +134,7 @@ export function TaskDetailPage() {
     <div className="pt-6 space-y-6">
       <PageHeader
         title={task.title || 'Task'}
+        viewTransitionName={`task-title-${task.id}`}
         description={task.description}
         status={
           <StatusSelect

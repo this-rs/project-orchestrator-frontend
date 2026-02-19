@@ -488,12 +488,21 @@ html.tauri * {
   mix-blend-mode: normal;
 }
 
+/* Shared element morph — title card ↔ detail page title.
+ * The browser auto-morphs position/size when both old & new pages share the same
+ * view-transition-name. We customize the group animation for a smoother feel. */
+::view-transition-group(*) {
+  animation-duration: 250ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 /* prefers-reduced-motion — instant transitions */
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-old(root),
   ::view-transition-new(root),
   ::view-transition-old(content),
-  ::view-transition-new(content) {
+  ::view-transition-new(content),
+  ::view-transition-group(*) {
     animation-duration: 0s;
   }
 }
