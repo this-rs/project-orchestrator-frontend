@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useMemo } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { tasksAtom, tasksLoadingAtom, taskStatusFilterAtom, taskRefreshAtom } from '@/atoms'
 import { tasksApi } from '@/services'
@@ -19,7 +19,7 @@ import {
   LoadMoreSentinel,
   SkeletonCard,
 } from '@/components/ui'
-import { useKanbanFilters, useViewMode, useConfirmDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug } from '@/hooks'
+import { useKanbanFilters, useViewMode, useConfirmDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { KanbanBoard, KanbanFilterBar } from '@/components/kanban'
 import type { TaskWithPlan, TaskStatus, PaginatedResponse } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
@@ -40,7 +40,7 @@ export function TasksPage() {
   const [statusFilter, setStatusFilter] = useAtom(taskStatusFilterAtom)
   const taskRefresh = useAtomValue(taskRefreshAtom)
   const [viewMode, setViewMode] = useViewMode()
-  const navigate = useNavigate()
+  const { navigate } = useViewTransition()
   const confirmDialog = useConfirmDialog()
   const toast = useToast()
   const kanbanFilters = useKanbanFilters()
@@ -143,7 +143,7 @@ export function TasksPage() {
 
   const handleTaskClick = useCallback(
     (taskId: string) => {
-      navigate(`/workspace/${wsSlug}/tasks/${taskId}`)
+      navigate(`/workspace/${wsSlug}/tasks/${taskId}`, { type: 'card-click' })
     },
     [navigate, wsSlug],
   )

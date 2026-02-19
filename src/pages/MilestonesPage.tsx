@@ -1,11 +1,11 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useAtomValue } from 'jotai'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { milestoneRefreshAtom, workspaceRefreshAtom, activeWorkspaceAtom } from '@/atoms'
 import { Card, EmptyState, Badge, ProgressBar, InteractiveMilestoneStatusBadge, ViewToggle, Select, ConfirmDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, SkeletonCard, ErrorState } from '@/components/ui'
 import { workspacesApi, projectsApi } from '@/services'
-import { useViewMode, useConfirmDialog, useToast, useMultiSelect, useWorkspaceSlug } from '@/hooks'
+import { useViewMode, useConfirmDialog, useToast, useMultiSelect, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { MilestoneKanbanBoard } from '@/components/kanban'
 import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
 import type { MilestoneWithProgress } from '@/components/kanban'
@@ -25,7 +25,7 @@ export function MilestonesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useViewMode()
-  const navigate = useNavigate()
+  const { navigate } = useViewTransition()
   const confirmDialog = useConfirmDialog()
   const toast = useToast()
   const wsSlug = useWorkspaceSlug()
@@ -216,7 +216,7 @@ export function MilestonesPage() {
         <MilestoneKanbanBoard
           milestones={filteredMilestones}
           onMilestoneStatusChange={handleStatusChange}
-          onMilestoneClick={(id) => navigate(`/workspace/${wsSlug}/milestones/${id}`)}
+          onMilestoneClick={(id) => navigate(`/workspace/${wsSlug}/milestones/${id}`, { type: 'card-click' })}
         />
       ) : showListSkeleton ? (
         <div className="space-y-4">

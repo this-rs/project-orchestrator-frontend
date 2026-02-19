@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { plansAtom, plansLoadingAtom, planStatusFilterAtom, planRefreshAtom } from '@/atoms'
 import { plansApi } from '@/services'
@@ -20,7 +20,7 @@ import {
   LoadMoreSentinel,
   SkeletonCard,
 } from '@/components/ui'
-import { useViewMode, useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug } from '@/hooks'
+import { useViewMode, useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { CreatePlanForm } from '@/components/forms'
 import { PlanKanbanBoard, PlanKanbanFilterBar } from '@/components/kanban'
 import type { PlanKanbanFilters } from '@/components/kanban'
@@ -52,7 +52,7 @@ export function PlansPage() {
   const planRefresh = useAtomValue(planRefreshAtom)
   const reducedMotion = useReducedMotion()
   const [viewMode, setViewMode] = useViewMode()
-  const navigate = useNavigate()
+  const { navigate } = useViewTransition()
   const confirmDialog = useConfirmDialog()
   const formDialog = useFormDialog()
   const toast = useToast()
@@ -276,7 +276,7 @@ export function PlansPage() {
           filters={kanbanColumnFilters}
           hiddenStatuses={hiddenStatuses}
           onPlanStatusChange={handlePlanStatusChange}
-          onPlanClick={(planId) => navigate(`/workspace/${wsSlug}/plans/${planId}`)}
+          onPlanClick={(planId) => navigate(`/workspace/${wsSlug}/plans/${planId}`, { type: 'card-click' })}
           refreshTrigger={planRefresh}
         />
       ) : showListSkeleton ? (

@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, TaskStatusBadge, InteractiveStepStatusBadge, ProgressBar, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import { tasksApi } from '@/services'
-import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
+import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { taskRefreshAtom, projectRefreshAtom, planRefreshAtom } from '@/atoms'
 import { CreateStepForm, CreateDecisionForm } from '@/components/forms'
@@ -20,7 +20,7 @@ interface TaskApiResponse {
 
 export function TaskDetailPage() {
   const { taskId } = useParams<{ taskId: string }>()
-  const navigate = useNavigate()
+  const { navigate } = useViewTransition()
   const wsSlug = useWorkspaceSlug()
   const confirmDialog = useConfirmDialog()
   const stepFormDialog = useFormDialog()
@@ -169,7 +169,7 @@ export function TaskDetailPage() {
           { label: 'Delete', variant: 'danger', onClick: () => confirmDialog.open({
             title: 'Delete Task',
             description: 'This will permanently delete this task and all its steps and decisions.',
-            onConfirm: async () => { await tasksApi.delete(task.id); toast.success('Task deleted'); navigate(workspacePath(wsSlug, '/tasks')) }
+            onConfirm: async () => { await tasksApi.delete(task.id); toast.success('Task deleted'); navigate(workspacePath(wsSlug, '/tasks'), { type: 'back-button' }) }
           }) }
         ]}
       >
