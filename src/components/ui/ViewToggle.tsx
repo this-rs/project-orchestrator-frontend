@@ -1,3 +1,5 @@
+import { List, Columns3 } from 'lucide-react'
+
 interface ViewToggleProps {
   value: 'list' | 'kanban'
   onChange: (view: 'list' | 'kanban') => void
@@ -6,7 +8,7 @@ interface ViewToggleProps {
 
 export function ViewToggle({ value, onChange, className = '' }: ViewToggleProps) {
   return (
-    <div className={`inline-flex rounded-lg bg-[#1a1d27] p-0.5 ${className}`} role="group">
+    <div className={`inline-flex rounded-lg bg-surface-raised p-0.5 ${className}`} role="group">
       <button
         type="button"
         onClick={() => onChange('list')}
@@ -18,9 +20,7 @@ export function ViewToggle({ value, onChange, className = '' }: ViewToggleProps)
         }`}
       >
         {/* List icon */}
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
+        <List className="w-4 h-4" />
         List
       </button>
       <button
@@ -34,9 +34,7 @@ export function ViewToggle({ value, onChange, className = '' }: ViewToggleProps)
         }`}
       >
         {/* Kanban/columns icon */}
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 4v16M15 4v16M3 8h18M3 16h18" />
-        </svg>
+        <Columns3 className="w-4 h-4" />
         Board
       </button>
     </div>

@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
+import { motion, AnimatePresence } from 'motion/react'
 import { activeWorkspaceAtom } from '@/atoms'
 import { projectsApi } from '@/services'
 import { workspacesApi } from '@/services/workspaces'
-import { Card, CardContent, Button, LoadingPage, EmptyState, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar } from '@/components/ui'
+import { Card, CardContent, Button, EmptyState, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, SkeletonCard, ErrorState } from '@/components/ui'
 import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useWorkspaceSlug } from '@/hooks'
 import { CreateProjectForm } from '@/components/forms'
+import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
 import type { Project } from '@/types'
 
 export function ProjectsPage() {
@@ -16,15 +18,19 @@ export function ProjectsPage() {
   const [formLoading, setFormLoading] = useState(false)
   const wsSlug = useWorkspaceSlug()
   const activeWorkspace = useAtomValue(activeWorkspaceAtom)
+  const reducedMotion = useReducedMotion()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const loadProjects = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
       const data = await workspacesApi.listProjects(wsSlug)
       setProjects(data)
     } catch {
+      setError('Failed to load projects')
       setProjects([])
     } finally {
       setLoading(false)
@@ -80,15 +86,21 @@ export function ProjectsPage() {
     })
   }
 
-  if (loading) return <LoadingPage />
-
   return (
     <PageShell
       title="Projects"
       description="Track your codebase projects"
       actions={<Button onClick={openCreateDialog}>Create Project</Button>}
     >
-      {projects.length === 0 ? (
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonCard key={i} lines={2} />
+          ))}
+        </div>
+      ) : error ? (
+        <ErrorState title="Failed to load" description={error} onRetry={loadProjects} />
+      ) : projects.length === 0 ? (
         <EmptyState
           title="No projects"
           description="Create a project to start tracking your codebase."
@@ -106,26 +118,34 @@ export function ProjectsPage() {
               </button>
             </div>
           )}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-            {projects.map((project) => (
-              <ProjectCard
-                wsSlug={wsSlug}
-                selected={multiSelect.isSelected(project.slug)}
-                onToggleSelect={(shiftKey) => multiSelect.toggle(project.slug, shiftKey)}
-                key={project.id}
-                project={project}
-                onDelete={() => confirmDialog.open({
-                  title: 'Delete Project',
-                  description: 'This will permanently delete this project.',
-                  onConfirm: async () => {
-                    await projectsApi.delete(project.slug)
-                    removeItems((p) => p.id === project.id)
-                    toast.success('Project deleted')
-                  },
-                })}
-              />
-            ))}
-          </div>
+          <motion.div
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4"
+            variants={reducedMotion ? undefined : staggerContainer}
+            initial="hidden"
+            animate="visible"
+          >
+            <AnimatePresence mode="popLayout">
+              {projects.map((project) => (
+                <motion.div key={project.id} variants={fadeInUp} exit="exit" layout={!reducedMotion}>
+                  <ProjectCard
+                    wsSlug={wsSlug}
+                    selected={multiSelect.isSelected(project.slug)}
+                    onToggleSelect={(shiftKey) => multiSelect.toggle(project.slug, shiftKey)}
+                    project={project}
+                    onDelete={() => confirmDialog.open({
+                      title: 'Delete Project',
+                      description: 'This will permanently delete this project.',
+                      onConfirm: async () => {
+                        await projectsApi.delete(project.slug)
+                        removeItems((p) => p.id === project.id)
+                        toast.success('Project deleted')
+                      },
+                    })}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
           {/* No infinite scroll needed — workspace projects count is small */}
         </>
       )}

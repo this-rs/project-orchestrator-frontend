@@ -7,7 +7,7 @@ interface CardProps {
 export function Card({ children, className = '', onClick }: CardProps) {
   return (
     <div
-      className={`bg-[#1a1d27] rounded-xl border border-white/[0.06] shadow-[0_1px_2px_rgba(0,0,0,0.3)] overflow-hidden ${onClick ? 'cursor-pointer hover:border-white/[0.16] hover:shadow-[0_4px_12px_rgba(0,0,0,0.4)] transition-all duration-150' : ''} ${className}`}
+      className={`bg-surface-raised rounded-xl border border-border-subtle shadow-sm overflow-hidden ${onClick ? 'cursor-pointer hover:border-border-strong hover:shadow-md transition-all duration-150' : ''} ${className}`}
       onClick={onClick}
     >
       {children}
@@ -16,7 +16,7 @@ export function Card({ children, className = '', onClick }: CardProps) {
 }
 
 export function CardHeader({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <div className={`px-4 py-3 border-b border-white/[0.06] ${className}`}>{children}</div>
+  return <div className={`px-4 py-3 border-b border-border-subtle ${className}`}>{children}</div>
 }
 
 export function CardTitle({ children, className = '' }: { children: React.ReactNode; className?: string }) {
@@ -28,5 +28,5 @@ export function CardContent({ children, className = '' }: { children: React.Reac
 }
 
 export function CardFooter({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <div className={`px-4 py-3 border-t border-white/[0.06] ${className}`}>{children}</div>
+  return <div className={`px-4 py-3 border-t border-border-subtle ${className}`}>{children}</div>
 }

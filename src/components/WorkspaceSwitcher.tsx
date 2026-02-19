@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
+import { ChevronDown, Plus, Menu } from 'lucide-react'
 import { workspacesAtom, activeWorkspaceAtom } from '@/atoms'
 import { workspacePath } from '@/utils/paths'
 import { workspacesApi } from '@/services'
@@ -52,21 +53,16 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
             <span className="flex-1 text-sm font-medium text-gray-200 truncate">
               {activeWorkspace.name}
             </span>
-            <svg
+            <ChevronDown
               className={`w-4 h-4 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
+            />
           </>
         )}
       </button>
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute left-2 right-2 top-full mt-1 bg-[#1e2130] border border-white/[0.08] rounded-lg shadow-xl z-50 py-1 max-h-64 overflow-y-auto">
+        <div className="absolute left-2 right-2 top-full mt-1 bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl z-50 py-1 max-h-64 overflow-y-auto">
           {otherWorkspaces.length === 0 ? (
             <div className="px-3 py-2 text-sm text-gray-500">No other workspaces</div>
           ) : (
@@ -94,9 +90,7 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
               }}
               className="w-full flex items-center gap-2 px-3 py-2 hover:bg-white/[0.06] transition-colors text-left text-sm text-gray-400"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
+              <Plus className="w-4 h-4" />
               New workspace
             </button>
             <button
@@ -106,9 +100,7 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
               }}
               className="w-full flex items-center gap-2 px-3 py-2 hover:bg-white/[0.06] transition-colors text-left text-sm text-gray-400"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+              <Menu className="w-4 h-4" />
               All workspaces
             </button>
           </div>

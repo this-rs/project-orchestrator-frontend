@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
+import { ChevronDown } from 'lucide-react'
 import { Spinner } from './Spinner'
 import { useDropdownPosition } from '@/hooks'
 
@@ -50,9 +51,7 @@ export function StatusSelect<T extends string>({
         )}
         {currentLabel}
         {!loading && (
-          <svg className="w-3.5 h-3.5 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
+          <ChevronDown className="w-3.5 h-3.5 opacity-60" />
         )}
       </button>
 
@@ -60,7 +59,7 @@ export function StatusSelect<T extends string>({
         createPortal(
           <div
             ref={menuRef}
-            className="fixed z-[9999] min-w-[160px] rounded-lg bg-[#232733] border border-white/[0.1] shadow-[0_4px_12px_rgba(0,0,0,0.4)] py-1"
+            className="fixed z-[9999] min-w-[160px] rounded-lg bg-surface-overlay border border-border-default shadow-md py-1"
             style={{ top: position.top, left: position.left }}
           >
             {options.map((option) => {

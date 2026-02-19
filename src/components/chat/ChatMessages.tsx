@@ -4,6 +4,7 @@ import { chatScrollToTurnAtom } from '@/atoms'
 import type { ChatMessage, Project } from '@/types'
 import { ChatMessageBubble } from './ChatMessageBubble'
 import { ChatWelcome } from './ChatWelcome'
+import { Loader2 } from 'lucide-react'
 
 /** Pixel threshold from top to trigger loading older messages */
 const SCROLL_TOP_THRESHOLD = 80
@@ -285,10 +286,7 @@ export const ChatMessages = memo(function ChatMessages({
       return (
         <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
           <div className="flex items-center gap-2">
-            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
+            <Loader2 className="w-4 h-4 animate-spin" />
             <span>Loading messages...</span>
           </div>
         </div>
@@ -313,10 +311,7 @@ export const ChatMessages = memo(function ChatMessages({
       {/* Loading older messages spinner */}
       {isLoadingOlder && (
         <div className="flex items-center justify-center py-3">
-          <svg className="w-4 h-4 animate-spin text-gray-500" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
+          <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
           <span className="ml-2 text-xs text-gray-500">Loading older messages...</span>
         </div>
       )}
@@ -351,10 +346,7 @@ export const ChatMessages = memo(function ChatMessages({
       {/* Loading newer messages spinner */}
       {isLoadingNewer && (
         <div className="flex items-center justify-center py-3">
-          <svg className="w-4 h-4 animate-spin text-gray-500" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
+          <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
           <span className="ml-2 text-xs text-gray-500">Loading newer messages...</span>
         </div>
       )}
@@ -385,10 +377,7 @@ export const ChatMessages = memo(function ChatMessages({
         >
           {isCatchingUp ? (
             <>
-              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
+              <Loader2 className="w-3 h-3 animate-spin" />
               Catching up…
             </>
           ) : (

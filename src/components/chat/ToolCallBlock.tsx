@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { ContentBlock } from '@/types'
 import { ToolContent, getToolSummary, getToolIcon } from './tools'
 import { useElapsedMs, formatDurationShort } from './useElapsedMs'
+import { ChevronRight } from 'lucide-react'
 
 const MCP_PREFIX = 'mcp__project-orchestrator__'
 
@@ -49,15 +50,7 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
         className="flex items-center gap-2 w-full px-3 py-2 text-left text-xs hover:bg-white/[0.02] transition-colors"
       >
         <div className={`w-0.5 h-4 rounded-full shrink-0 ${isError ? 'bg-red-400' : isCancelled ? 'bg-gray-400' : isLoading ? 'bg-amber-400 animate-pulse' : 'bg-green-400'}`} />
-        <svg
-          className={`w-3 h-3 text-gray-500 transition-transform shrink-0 ${expanded ? 'rotate-90' : ''}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-        </svg>
+        <ChevronRight className={`w-3 h-3 text-gray-500 transition-transform shrink-0 ${expanded ? 'rotate-90' : ''}`} />
         {icon && (
           <span className="font-mono text-gray-600 shrink-0 text-[10px]">{icon}</span>
         )}

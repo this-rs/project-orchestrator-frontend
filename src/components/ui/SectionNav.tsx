@@ -18,7 +18,7 @@ export function SectionNav({ sections, activeSection, rightContent }: SectionNav
   }
 
   return (
-    <div className="sticky top-0 z-10 bg-[#1a1d27]/90 backdrop-blur-sm border-b border-white/[0.06] -mx-4 px-4 md:-mx-6 md:px-6 mb-6">
+    <div className="sticky top-0 z-10 bg-surface-raised/90 backdrop-blur-sm border-b border-border-subtle -mx-4 px-4 md:-mx-6 md:px-6 mb-6">
       <div className="flex items-center justify-between gap-4">
         <nav className="flex gap-1 overflow-x-auto">
           {sections.map((section) => (

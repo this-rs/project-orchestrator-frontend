@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
+import { ChevronDown } from 'lucide-react'
 import { ExternalLink } from '@/components/ui/ExternalLink'
 
 const markdownComponents = {
@@ -58,15 +59,9 @@ export function CollapsibleMarkdown({
           onClick={() => setExpanded(!expanded)}
           className="mt-1.5 w-full py-1.5 rounded-md text-xs text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors flex items-center justify-center gap-1"
         >
-          <svg
+          <ChevronDown
             className={`w-3 h-3 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
+          />
           {expanded ? 'Show less' : 'Show more'}
         </button>
       )}

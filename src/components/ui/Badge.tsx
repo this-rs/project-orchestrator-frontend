@@ -30,12 +30,16 @@ export function Badge({ children, variant = 'default', className = '' }: BadgePr
   )
 }
 
-// Default fallback for unknown status
+// ============================================================================
+// STATIC STATUS BADGES
+// ============================================================================
+
 const defaultConfig = { label: 'Unknown', variant: 'default' as BadgeVariant }
 
-// Status-specific badges with fallback handling
-export function TaskStatusBadge({ status }: { status: TaskStatus | undefined | null }) {
-  const config: Record<TaskStatus, { label: string; variant: BadgeVariant }> = {
+type StatusBadgeConfig<T extends string> = Record<T, { label: string; variant: BadgeVariant }>
+
+export const TaskStatusBadge = ({ status }: { status: TaskStatus | undefined | null }) => {
+  const config: StatusBadgeConfig<TaskStatus> = {
     pending: { label: 'Pending', variant: 'default' },
     in_progress: { label: 'In Progress', variant: 'info' },
     blocked: { label: 'Blocked', variant: 'warning' },
@@ -46,8 +50,8 @@ export function TaskStatusBadge({ status }: { status: TaskStatus | undefined | n
   return <Badge variant={variant}>{label}</Badge>
 }
 
-export function PlanStatusBadge({ status }: { status: PlanStatus | undefined | null }) {
-  const config: Record<PlanStatus, { label: string; variant: BadgeVariant }> = {
+export const PlanStatusBadge = ({ status }: { status: PlanStatus | undefined | null }) => {
+  const config: StatusBadgeConfig<PlanStatus> = {
     draft: { label: 'Draft', variant: 'default' },
     approved: { label: 'Approved', variant: 'info' },
     in_progress: { label: 'In Progress', variant: 'purple' },
@@ -58,8 +62,8 @@ export function PlanStatusBadge({ status }: { status: PlanStatus | undefined | n
   return <Badge variant={variant}>{label}</Badge>
 }
 
-export function NoteStatusBadge({ status }: { status: NoteStatus | undefined | null }) {
-  const config: Record<NoteStatus, { label: string; variant: BadgeVariant }> = {
+export const NoteStatusBadge = ({ status }: { status: NoteStatus | undefined | null }) => {
+  const config: StatusBadgeConfig<NoteStatus> = {
     active: { label: 'Active', variant: 'success' },
     needs_review: { label: 'Needs Review', variant: 'warning' },
     stale: { label: 'Stale', variant: 'default' },
@@ -70,8 +74,8 @@ export function NoteStatusBadge({ status }: { status: NoteStatus | undefined | n
   return <Badge variant={variant}>{label}</Badge>
 }
 
-export function ImportanceBadge({ importance }: { importance: NoteImportance | undefined | null }) {
-  const config: Record<NoteImportance, { label: string; variant: BadgeVariant }> = {
+export const ImportanceBadge = ({ importance }: { importance: NoteImportance | undefined | null }) => {
+  const config: StatusBadgeConfig<NoteImportance> = {
     low: { label: 'Low', variant: 'default' },
     medium: { label: 'Medium', variant: 'info' },
     high: { label: 'High', variant: 'warning' },
@@ -81,8 +85,8 @@ export function ImportanceBadge({ importance }: { importance: NoteImportance | u
   return <Badge variant={variant}>{label}</Badge>
 }
 
-export function ReleaseStatusBadge({ status }: { status: ReleaseStatus | undefined | null }) {
-  const config: Record<ReleaseStatus, { label: string; variant: BadgeVariant }> = {
+export const ReleaseStatusBadge = ({ status }: { status: ReleaseStatus | undefined | null }) => {
+  const config: StatusBadgeConfig<ReleaseStatus> = {
     planned: { label: 'Planned', variant: 'default' },
     in_progress: { label: 'In Progress', variant: 'info' },
     released: { label: 'Released', variant: 'success' },
@@ -92,8 +96,8 @@ export function ReleaseStatusBadge({ status }: { status: ReleaseStatus | undefin
   return <Badge variant={variant}>{label}</Badge>
 }
 
-export function StepStatusBadge({ status }: { status: StepStatus | undefined | null }) {
-  const config: Record<StepStatus, { label: string; variant: BadgeVariant }> = {
+export const StepStatusBadge = ({ status }: { status: StepStatus | undefined | null }) => {
+  const config: StatusBadgeConfig<StepStatus> = {
     pending: { label: 'Pending', variant: 'default' },
     in_progress: { label: 'In Progress', variant: 'info' },
     completed: { label: 'Completed', variant: 'success' },
@@ -104,7 +108,7 @@ export function StepStatusBadge({ status }: { status: StepStatus | undefined | n
 }
 
 // ============================================================================
-// INTERACTIVE STATUS BADGES (with dropdown to change status)
+// INTERACTIVE STATUS BADGES — Generic factory
 // ============================================================================
 
 interface InteractiveBadgeProps<T> {
@@ -113,246 +117,108 @@ interface InteractiveBadgeProps<T> {
   disabled?: boolean
 }
 
-export function InteractiveMilestoneStatusBadge({
-  status,
-  onStatusChange,
-  disabled = false,
-}: InteractiveBadgeProps<MilestoneStatus>) {
-  const [loading, setLoading] = useState(false)
+/**
+ * Factory: creates an interactive status badge component from a config map.
+ * The returned component renders a clickable Badge with a Dropdown to change status.
+ *
+ * @param config - Maps each status value to { label, variant }
+ * @param opts.normalizeStatus - If true, lowercases the status before lookup (for MilestoneStatus)
+ */
+function createInteractiveStatusBadge<T extends string>(
+  config: StatusBadgeConfig<T>,
+  opts?: { normalizeStatus?: boolean },
+) {
+  const options = (Object.keys(config) as T[]).map((key) => ({
+    value: key,
+    label: config[key].label,
+  }))
 
-  const config: Record<MilestoneStatus, { label: string; variant: BadgeVariant }> = {
+  return function InteractiveStatusBadge({
+    status,
+    onStatusChange,
+    disabled = false,
+  }: InteractiveBadgeProps<T>) {
+    const [loading, setLoading] = useState(false)
+
+    const handleChange = async (newStatus: T) => {
+      if (newStatus === status) return
+      setLoading(true)
+      try {
+        await onStatusChange(newStatus)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    const resolved = opts?.normalizeStatus
+      ? (status?.toLowerCase() as T | undefined)
+      : status
+    const { label, variant } = (resolved && config[resolved]) || defaultConfig
+
+    if (loading) {
+      return (
+        <Badge variant={variant}>
+          <Spinner size="sm" className="mr-1" />
+          {label}
+        </Badge>
+      )
+    }
+
+    return (
+      <Dropdown
+        trigger={
+          <Badge variant={variant} className="cursor-pointer hover:opacity-80">
+            {label}
+          </Badge>
+        }
+        options={options}
+        onSelect={handleChange}
+        disabled={disabled}
+      />
+    )
+  }
+}
+
+// — Exported interactive badges (same public API, backed by factory) —
+
+export const InteractiveMilestoneStatusBadge = createInteractiveStatusBadge<MilestoneStatus>(
+  {
     planned: { label: 'Planned', variant: 'default' },
     open: { label: 'Open', variant: 'info' },
     in_progress: { label: 'In Progress', variant: 'warning' },
     completed: { label: 'Completed', variant: 'success' },
     closed: { label: 'Closed', variant: 'purple' },
-  }
+  },
+  { normalizeStatus: true },
+)
 
-  const options: { value: MilestoneStatus; label: string }[] = [
-    { value: 'planned', label: 'Planned' },
-    { value: 'open', label: 'Open' },
-    { value: 'in_progress', label: 'In Progress' },
-    { value: 'completed', label: 'Completed' },
-    { value: 'closed', label: 'Closed' },
-  ]
+export const InteractivePlanStatusBadge = createInteractiveStatusBadge<PlanStatus>({
+  draft: { label: 'Draft', variant: 'default' },
+  approved: { label: 'Approved', variant: 'info' },
+  in_progress: { label: 'In Progress', variant: 'purple' },
+  completed: { label: 'Completed', variant: 'success' },
+  cancelled: { label: 'Cancelled', variant: 'error' },
+})
 
-  const handleChange = async (newStatus: MilestoneStatus) => {
-    if (newStatus === status) return
-    setLoading(true)
-    try {
-      await onStatusChange(newStatus)
-    } finally {
-      setLoading(false)
-    }
-  }
+export const InteractiveTaskStatusBadge = createInteractiveStatusBadge<TaskStatus>({
+  pending: { label: 'Pending', variant: 'default' },
+  in_progress: { label: 'In Progress', variant: 'info' },
+  blocked: { label: 'Blocked', variant: 'warning' },
+  completed: { label: 'Completed', variant: 'success' },
+  failed: { label: 'Failed', variant: 'error' },
+})
 
-  const normalizedStatus = status?.toLowerCase() as MilestoneStatus | undefined
-  const { label, variant } = (normalizedStatus && config[normalizedStatus]) || defaultConfig
+export const InteractiveNoteStatusBadge = createInteractiveStatusBadge<NoteStatus>({
+  active: { label: 'Active', variant: 'success' },
+  needs_review: { label: 'Needs Review', variant: 'warning' },
+  stale: { label: 'Stale', variant: 'default' },
+  obsolete: { label: 'Obsolete', variant: 'error' },
+  archived: { label: 'Archived', variant: 'default' },
+})
 
-  if (loading) {
-    return <Badge variant={variant}><Spinner size="sm" className="mr-1" />{label}</Badge>
-  }
-
-  return (
-    <Dropdown
-      trigger={<Badge variant={variant} className="cursor-pointer hover:opacity-80">{label}</Badge>}
-      options={options}
-      onSelect={handleChange}
-      disabled={disabled}
-    />
-  )
-}
-
-export function InteractivePlanStatusBadge({
-  status,
-  onStatusChange,
-  disabled = false,
-}: InteractiveBadgeProps<PlanStatus>) {
-  const [loading, setLoading] = useState(false)
-
-  const config: Record<PlanStatus, { label: string; variant: BadgeVariant }> = {
-    draft: { label: 'Draft', variant: 'default' },
-    approved: { label: 'Approved', variant: 'info' },
-    in_progress: { label: 'In Progress', variant: 'purple' },
-    completed: { label: 'Completed', variant: 'success' },
-    cancelled: { label: 'Cancelled', variant: 'error' },
-  }
-
-  const options: { value: PlanStatus; label: string }[] = [
-    { value: 'draft', label: 'Draft' },
-    { value: 'approved', label: 'Approved' },
-    { value: 'in_progress', label: 'In Progress' },
-    { value: 'completed', label: 'Completed' },
-    { value: 'cancelled', label: 'Cancelled' },
-  ]
-
-  const handleChange = async (newStatus: PlanStatus) => {
-    if (newStatus === status) return
-    setLoading(true)
-    try {
-      await onStatusChange(newStatus)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const { label, variant } = (status && config[status]) || defaultConfig
-
-  if (loading) {
-    return <Badge variant={variant}><Spinner size="sm" className="mr-1" />{label}</Badge>
-  }
-
-  return (
-    <Dropdown
-      trigger={<Badge variant={variant} className="cursor-pointer hover:opacity-80">{label}</Badge>}
-      options={options}
-      onSelect={handleChange}
-      disabled={disabled}
-    />
-  )
-}
-
-export function InteractiveTaskStatusBadge({
-  status,
-  onStatusChange,
-  disabled = false,
-}: InteractiveBadgeProps<TaskStatus>) {
-  const [loading, setLoading] = useState(false)
-
-  const config: Record<TaskStatus, { label: string; variant: BadgeVariant }> = {
-    pending: { label: 'Pending', variant: 'default' },
-    in_progress: { label: 'In Progress', variant: 'info' },
-    blocked: { label: 'Blocked', variant: 'warning' },
-    completed: { label: 'Completed', variant: 'success' },
-    failed: { label: 'Failed', variant: 'error' },
-  }
-
-  const options: { value: TaskStatus; label: string }[] = [
-    { value: 'pending', label: 'Pending' },
-    { value: 'in_progress', label: 'In Progress' },
-    { value: 'blocked', label: 'Blocked' },
-    { value: 'completed', label: 'Completed' },
-    { value: 'failed', label: 'Failed' },
-  ]
-
-  const handleChange = async (newStatus: TaskStatus) => {
-    if (newStatus === status) return
-    setLoading(true)
-    try {
-      await onStatusChange(newStatus)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const { label, variant } = (status && config[status]) || defaultConfig
-
-  if (loading) {
-    return <Badge variant={variant}><Spinner size="sm" className="mr-1" />{label}</Badge>
-  }
-
-  return (
-    <Dropdown
-      trigger={<Badge variant={variant} className="cursor-pointer hover:opacity-80">{label}</Badge>}
-      options={options}
-      onSelect={handleChange}
-      disabled={disabled}
-    />
-  )
-}
-
-export function InteractiveNoteStatusBadge({
-  status,
-  onStatusChange,
-  disabled = false,
-}: InteractiveBadgeProps<NoteStatus>) {
-  const [loading, setLoading] = useState(false)
-
-  const config: Record<NoteStatus, { label: string; variant: BadgeVariant }> = {
-    active: { label: 'Active', variant: 'success' },
-    needs_review: { label: 'Needs Review', variant: 'warning' },
-    stale: { label: 'Stale', variant: 'default' },
-    obsolete: { label: 'Obsolete', variant: 'error' },
-    archived: { label: 'Archived', variant: 'default' },
-  }
-
-  const options: { value: NoteStatus; label: string }[] = [
-    { value: 'active', label: 'Active' },
-    { value: 'needs_review', label: 'Needs Review' },
-    { value: 'stale', label: 'Stale' },
-    { value: 'obsolete', label: 'Obsolete' },
-    { value: 'archived', label: 'Archived' },
-  ]
-
-  const handleChange = async (newStatus: NoteStatus) => {
-    if (newStatus === status) return
-    setLoading(true)
-    try {
-      await onStatusChange(newStatus)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const { label, variant } = (status && config[status]) || defaultConfig
-
-  if (loading) {
-    return <Badge variant={variant}><Spinner size="sm" className="mr-1" />{label}</Badge>
-  }
-
-  return (
-    <Dropdown
-      trigger={<Badge variant={variant} className="cursor-pointer hover:opacity-80">{label}</Badge>}
-      options={options}
-      onSelect={handleChange}
-      disabled={disabled}
-    />
-  )
-}
-
-export function InteractiveStepStatusBadge({
-  status,
-  onStatusChange,
-  disabled = false,
-}: InteractiveBadgeProps<StepStatus>) {
-  const [loading, setLoading] = useState(false)
-
-  const config: Record<StepStatus, { label: string; variant: BadgeVariant }> = {
-    pending: { label: 'Pending', variant: 'default' },
-    in_progress: { label: 'In Progress', variant: 'info' },
-    completed: { label: 'Completed', variant: 'success' },
-    skipped: { label: 'Skipped', variant: 'warning' },
-  }
-
-  const options: { value: StepStatus; label: string }[] = [
-    { value: 'pending', label: 'Pending' },
-    { value: 'in_progress', label: 'In Progress' },
-    { value: 'completed', label: 'Completed' },
-    { value: 'skipped', label: 'Skipped' },
-  ]
-
-  const handleChange = async (newStatus: StepStatus) => {
-    if (newStatus === status) return
-    setLoading(true)
-    try {
-      await onStatusChange(newStatus)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const { label, variant } = (status && config[status]) || defaultConfig
-
-  if (loading) {
-    return <Badge variant={variant}><Spinner size="sm" className="mr-1" />{label}</Badge>
-  }
-
-  return (
-    <Dropdown
-      trigger={<Badge variant={variant} className="cursor-pointer hover:opacity-80">{label}</Badge>}
-      options={options}
-      onSelect={handleChange}
-      disabled={disabled}
-    />
-  )
-}
+export const InteractiveStepStatusBadge = createInteractiveStatusBadge<StepStatus>({
+  pending: { label: 'Pending', variant: 'default' },
+  in_progress: { label: 'In Progress', variant: 'info' },
+  completed: { label: 'Completed', variant: 'success' },
+  skipped: { label: 'Skipped', variant: 'warning' },
+})

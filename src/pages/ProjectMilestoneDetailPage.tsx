@@ -1,12 +1,14 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
+import { ChevronsUpDown } from 'lucide-react'
 import {
   Card,
   CardHeader,
   CardTitle,
   CardContent,
   LoadingPage,
+  ErrorState,
   Button,
   ConfirmDialog,
   LinkEntityDialog,
@@ -44,6 +46,7 @@ export function ProjectMilestoneDetailPage() {
   const [milestonePlanIds, setMilestonePlanIds] = useState<Set<string>>(new Set())
   const [milestoneTasks, setMilestoneTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useViewMode()
   const confirmDialog = useConfirmDialog()
   const linkDialog = useLinkDialog()
@@ -61,6 +64,7 @@ export function ProjectMilestoneDetailPage() {
 
   const refreshData = useCallback(async () => {
     if (!milestoneId) return
+    setError(null)
     // Only show loading spinner on initial load, not on WS-triggered refreshes
     const isInitialLoad = !milestone
     if (isInitialLoad) setLoading(true)
@@ -120,6 +124,7 @@ export function ProjectMilestoneDetailPage() {
       }
     } catch (error) {
       console.error('Failed to fetch milestone:', error)
+      setError('Failed to load milestone')
     } finally {
       if (isInitialLoad) setLoading(false)
     }
@@ -179,6 +184,7 @@ export function ProjectMilestoneDetailPage() {
   const sectionIds = ['progress', 'plans', 'tasks']
   const activeSection = useSectionObserver(sectionIds)
 
+  if (error) return <ErrorState title="Failed to load" description={error} onRetry={refreshData} />
   if (loading || !milestone) return <LoadingPage />
 
   const sections = [
@@ -293,13 +299,7 @@ export function ProjectMilestoneDetailPage() {
                     className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
                     title={plansAllExpanded ? 'Collapse all' : 'Expand all'}
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      {plansAllExpanded ? (
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4-4 4 4M4 10l4-4 4 4" />
-                      ) : (
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4 4 4-4M4 14l4 4 4-4" />
-                      )}
-                    </svg>
+                    <ChevronsUpDown className="w-4 h-4" />
                   </button>
                 )}
               </div>
@@ -360,13 +360,7 @@ export function ProjectMilestoneDetailPage() {
                     className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
                     title={tasksAllExpanded ? 'Collapse all' : 'Expand all'}
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      {tasksAllExpanded ? (
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4-4 4 4M4 10l4-4 4 4" />
-                      ) : (
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4 4 4-4M4 14l4 4 4-4" />
-                      )}
-                    </svg>
+                    <ChevronsUpDown className="w-4 h-4" />
                   </button>
                 )}
               </div>

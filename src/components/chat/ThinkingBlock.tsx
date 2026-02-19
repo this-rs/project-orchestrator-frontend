@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ChevronRight } from 'lucide-react'
 
 interface ThinkingBlockProps {
   content: string
@@ -17,15 +18,7 @@ export function ThinkingBlock({ content, isStreaming }: ThinkingBlockProps) {
         {isStreaming && (
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
         )}
-        <svg
-          className={`w-3 h-3 transition-transform ${expanded ? 'rotate-90' : ''}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-        </svg>
+        <ChevronRight className={`w-3 h-3 transition-transform ${expanded ? 'rotate-90' : ''}`} />
         <span>{isStreaming ? 'Thinking...' : 'Thought process'}</span>
       </button>
       {expanded && (

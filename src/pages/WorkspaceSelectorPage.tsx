@@ -1,7 +1,9 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { ChevronRight, Plus } from 'lucide-react'
 import { workspacesApi } from '@/services/workspaces'
 import { workspacePath } from '@/utils/paths'
+import { ErrorState } from '@/components/ui'
 import type { Workspace } from '@/types'
 
 /**
@@ -16,13 +18,22 @@ export function WorkspaceSelectorPage() {
   const notFoundSlug = searchParams.get('notFound')
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    workspacesApi
-      .list({ limit: 100, sort_by: 'name', sort_order: 'asc' })
-      .then((data) => setWorkspaces(data.items || []))
-      .finally(() => setLoading(false))
+  const loadWorkspaces = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await workspacesApi.list({ limit: 100, sort_by: 'name', sort_order: 'asc' })
+      setWorkspaces(data.items || [])
+    } catch {
+      setError('Failed to load workspaces. Is the backend running?')
+    } finally {
+      setLoading(false)
+    }
   }, [])
+
+  useEffect(() => { loadWorkspaces() }, [loadWorkspaces])
 
   // If only one workspace exists, redirect immediately
   useEffect(() => {
@@ -33,8 +44,16 @@ export function WorkspaceSelectorPage() {
 
   if (loading) {
     return (
-      <div className="min-h-dvh flex items-center justify-center bg-[#0f1117]">
+      <div className="min-h-dvh flex items-center justify-center bg-surface-base">
         <div className="animate-pulse text-gray-500">Loading workspaces...</div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center bg-surface-base">
+        <ErrorState title="Connection error" description={error} onRetry={loadWorkspaces} />
       </div>
     )
   }
@@ -44,7 +63,7 @@ export function WorkspaceSelectorPage() {
   }
 
   return (
-    <div className="min-h-dvh flex items-center justify-center bg-[#0f1117]">
+    <div className="min-h-dvh flex items-center justify-center bg-surface-base">
       <div className="w-full max-w-md space-y-6 px-4">
         <div className="text-center space-y-2">
           <img src="/logo-32.png" alt="PO" className="w-12 h-12 mx-auto rounded-xl" />
@@ -74,9 +93,7 @@ export function WorkspaceSelectorPage() {
                   <div className="text-sm text-gray-500 truncate">{ws.description}</div>
                 )}
               </div>
-              <svg className="w-5 h-5 text-gray-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
+              <ChevronRight className="w-5 h-5 text-gray-600 shrink-0" />
             </button>
           ))}
         </div>
@@ -123,9 +140,7 @@ function InlineCreateWorkspace({ navigate }: { navigate: ReturnType<typeof useNa
         onClick={() => setShowForm(true)}
         className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-dashed border-white/[0.1] hover:border-indigo-500/40 rounded-lg transition-colors text-gray-400 hover:text-indigo-400"
       >
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-        </svg>
+        <Plus className="w-5 h-5" />
         Create new workspace
       </button>
     )
@@ -195,7 +210,7 @@ function EmptyWorkspaceOnboarding({ navigate }: { navigate: ReturnType<typeof us
   }
 
   return (
-    <div className="min-h-dvh flex items-center justify-center bg-[#0f1117]">
+    <div className="min-h-dvh flex items-center justify-center bg-surface-base">
       <div className="w-full max-w-sm space-y-6 px-4 text-center">
         <img src="/logo-32.png" alt="PO" className="w-16 h-16 mx-auto rounded-2xl" />
         <div className="space-y-2">

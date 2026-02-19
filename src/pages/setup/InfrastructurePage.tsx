@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAtom } from 'jotai'
+import { Package, Link as LinkIcon, Info, Globe, Loader2, Wifi, Check, X } from 'lucide-react'
 import { setupConfigAtom } from '@/atoms/setup'
 import { isTauri } from '@/services/env'
 
@@ -25,22 +26,14 @@ export function InfrastructurePage() {
           onClick={() => update({ infraMode: 'docker' })}
           title="Docker (recommended)"
           description="Automatically start Neo4j, MeiliSearch, and NATS in Docker containers. Requires Docker Desktop."
-          icon={
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 7.5l-2.25-1.313M21 7.5v2.25m0-2.25l-2.25 1.313M3 7.5l2.25-1.313M3 7.5l2.25 1.313M3 7.5v2.25m9 3l2.25-1.313M12 12.75l-2.25-1.313M12 12.75V15m0 6.75l2.25-1.313M12 21.75V19.5m0 2.25l-2.25-1.313m0-16.875L12 2.25l2.25 1.313M21 14.25v2.25l-2.25 1.313m-13.5 0L3 16.5v-2.25" />
-            </svg>
-          }
+          icon={<Package className="h-6 w-6" />}
         />
         <ModeCard
           active={config.infraMode === 'external'}
           onClick={() => update({ infraMode: 'external' })}
           title="External servers"
           description="Connect to existing Neo4j, MeiliSearch, and NATS instances running elsewhere."
-          icon={
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
-            </svg>
-          }
+          icon={<LinkIcon className="h-6 w-6" />}
         />
       </div>
 
@@ -124,9 +117,7 @@ export function InfrastructurePage() {
       {config.infraMode === 'docker' && (
         <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-5">
           <div className="flex gap-3">
-            <svg className="mt-0.5 h-5 w-5 shrink-0 text-indigo-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-            </svg>
+            <Info className="mt-0.5 h-5 w-5 shrink-0 text-indigo-400" />
             <div className="text-sm text-gray-300">
               <p className="font-medium text-indigo-400">Docker mode</p>
               <p className="mt-1">
@@ -224,9 +215,7 @@ export function InfrastructurePage() {
           />
           {config.publicUrl.trim() && (
             <div className="mt-3 flex items-center gap-2 rounded-lg border border-indigo-500/20 bg-indigo-500/[0.06] px-4 py-2.5">
-              <svg className="h-4 w-4 shrink-0 text-indigo-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 003 12c0-1.605.42-3.113 1.157-4.418" />
-              </svg>
+              <Globe className="h-4 w-4 shrink-0 text-indigo-400" />
               <span className="text-xs text-indigo-300">
                 Local:{' '}
                 <code className="rounded bg-white/[0.06] px-1 py-0.5 text-gray-400">
@@ -350,34 +339,25 @@ function TestConnectionButton({ service, url }: { service: string; url: string }
     >
       {status === 'testing' && (
         <>
-          <svg className="h-3.5 w-3.5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />
           <span className="text-gray-400">Testing...</span>
         </>
       )}
       {status === 'idle' && (
         <>
-          <svg className="h-3.5 w-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12 20.5h.008v.008H12V20.5z" />
-          </svg>
+          <Wifi className="h-3.5 w-3.5 text-gray-500" />
           <span className="text-gray-500">Test</span>
         </>
       )}
       {status === 'success' && (
         <>
-          <svg className="h-3.5 w-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-          </svg>
+          <Check className="h-3.5 w-3.5 text-emerald-400" />
           <span className="text-emerald-400">Connected</span>
         </>
       )}
       {status === 'failure' && (
         <>
-          <svg className="h-3.5 w-3.5 text-red-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          <X className="h-3.5 w-3.5 text-red-400" />
           <span className="text-red-400">Failed</span>
         </>
       )}

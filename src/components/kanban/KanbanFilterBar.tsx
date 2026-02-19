@@ -41,7 +41,7 @@ export function KanbanFilterBar({
   )
 
   return (
-    <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3 p-3 bg-[#1a1d27]/50 rounded-lg border border-white/[0.06] mb-4">
+    <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3 p-3 bg-surface-raised/50 rounded-lg border border-border-subtle mb-4">
       {/* Plan filter */}
       <Select
         options={planOptions}
@@ -56,7 +56,7 @@ export function KanbanFilterBar({
         placeholder="Assigned to..."
         value={filters.assigned_to || ''}
         onChange={(e) => onFilterChange('assigned_to', e.target.value || undefined)}
-        className="w-full sm:w-36 px-2.5 py-1.5 text-sm bg-[#0f1117] border border-white/[0.1] rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+        className="w-full sm:w-36 px-2.5 py-1.5 text-sm bg-surface-base border border-border-default rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500"
       />
 
       {/* Priority range */}
@@ -67,7 +67,7 @@ export function KanbanFilterBar({
           placeholder="Min"
           value={filters.priority_min ?? ''}
           onChange={(e) => onFilterChange('priority_min', e.target.value ? Number(e.target.value) : undefined)}
-          className="w-14 px-1.5 py-1.5 text-sm bg-[#0f1117] border border-white/[0.1] rounded text-gray-200 focus:outline-none focus:border-indigo-500"
+          className="w-14 px-1.5 py-1.5 text-sm bg-surface-base border border-border-default rounded text-gray-200 focus:outline-none focus:border-indigo-500"
         />
         <span>-</span>
         <input
@@ -75,7 +75,7 @@ export function KanbanFilterBar({
           placeholder="Max"
           value={filters.priority_max ?? ''}
           onChange={(e) => onFilterChange('priority_max', e.target.value ? Number(e.target.value) : undefined)}
-          className="w-14 px-1.5 py-1.5 text-sm bg-[#0f1117] border border-white/[0.1] rounded text-gray-200 focus:outline-none focus:border-indigo-500"
+          className="w-14 px-1.5 py-1.5 text-sm bg-surface-base border border-border-default rounded text-gray-200 focus:outline-none focus:border-indigo-500"
         />
       </div>
 
@@ -88,7 +88,7 @@ export function KanbanFilterBar({
           type="checkbox"
           checked={filters.exclude_completed || false}
           onChange={(e) => onFilterChange('exclude_completed', e.target.checked || undefined)}
-          className="rounded border-white/[0.1] bg-[#0f1117] text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
+          className="rounded border-border-default bg-surface-base text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
         />
         Hide completed
       </label>
@@ -97,7 +97,7 @@ export function KanbanFilterBar({
           type="checkbox"
           checked={filters.exclude_failed || false}
           onChange={(e) => onFilterChange('exclude_failed', e.target.checked || undefined)}
-          className="rounded border-white/[0.1] bg-[#0f1117] text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
+          className="rounded border-border-default bg-surface-base text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
         />
         Hide failed
       </label>

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
+import { Check, X, Loader2, Rocket, RefreshCw, ChevronDown } from 'lucide-react'
 import { setupConfigAtom, configExistsAtom } from '@/atoms/setup'
 import { isTauri } from '@/services/env'
 
@@ -132,9 +133,7 @@ export function LaunchPage() {
         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] p-6">
           <div className="flex items-start gap-3">
             <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-              </svg>
+              <Check className="h-4 w-4" />
             </span>
             <div className="space-y-1">
               <p className="text-sm font-medium text-emerald-300">Configuration saved!</p>
@@ -154,9 +153,7 @@ export function LaunchPage() {
         <div className="rounded-xl border border-red-500/20 bg-red-500/[0.06] p-6">
           <div className="flex items-start gap-3">
             <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-500/20 text-red-400">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <X className="h-4 w-4" />
             </span>
             <div className="space-y-1">
               <p className="text-sm font-medium text-red-300">Configuration failed</p>
@@ -170,10 +167,7 @@ export function LaunchPage() {
       {phase === 'restarting' && (
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
           <div className="flex items-center justify-center gap-3">
-            <svg className="h-5 w-5 animate-spin text-indigo-400" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
+            <Loader2 className="h-5 w-5 animate-spin text-indigo-400" />
             <span className="text-sm text-gray-400">Restarting application...</span>
           </div>
         </div>
@@ -186,19 +180,14 @@ export function LaunchPage() {
             onClick={handleGenerate}
             className="flex items-center gap-2 rounded-xl bg-indigo-600 px-8 py-3 text-sm font-medium text-white transition hover:bg-indigo-500"
           >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
-            </svg>
+            <Rocket className="h-5 w-5" />
             Generate Config &amp; Save
           </button>
         )}
 
         {phase === 'generating' && (
           <div className="flex items-center gap-2 text-sm text-gray-400">
-            <svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
+            <Loader2 className="h-5 w-5 animate-spin" />
             Generating configuration...
           </div>
         )}
@@ -208,9 +197,7 @@ export function LaunchPage() {
             onClick={handleRestart}
             className="flex items-center gap-2 rounded-xl bg-emerald-600 px-8 py-3 text-sm font-medium text-white transition hover:bg-emerald-500"
           >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M2.985 19.644l3.181-3.183" />
-            </svg>
+            <RefreshCw className="h-5 w-5" />
             Restart Application
           </button>
         )}
@@ -370,15 +357,7 @@ function CreditsSection() {
             MIT AND BUSL-1.1 &mdash; &copy; 2026 FFS SAS
           </p>
         </div>
-        <svg
-          className={`h-4 w-4 shrink-0 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={2}
-          stroke="currentColor"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-        </svg>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (

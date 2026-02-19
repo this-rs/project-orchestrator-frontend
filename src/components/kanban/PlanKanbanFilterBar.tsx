@@ -43,14 +43,14 @@ export function PlanKanbanFilterBar({
   ]
 
   return (
-    <div className="flex flex-wrap items-center gap-3 p-3 bg-[#1a1d27]/50 rounded-lg border border-white/[0.06] mb-4">
+    <div className="flex flex-wrap items-center gap-3 p-3 bg-surface-raised/50 rounded-lg border border-border-subtle mb-4">
       {/* Search */}
       <input
         type="text"
         placeholder="Search title..."
         value={filters.search}
         onChange={(e) => onFilterChange('search', e.target.value)}
-        className="w-40 px-2.5 py-1.5 text-sm bg-[#0f1117] border border-white/[0.1] rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+        className="w-40 px-2.5 py-1.5 text-sm bg-surface-base border border-border-default rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500"
       />
 
       {/* Project */}
@@ -71,7 +71,7 @@ export function PlanKanbanFilterBar({
           onChange={(e) =>
             onFilterChange('priority_min', e.target.value ? Number(e.target.value) : undefined)
           }
-          className="w-14 px-1.5 py-1.5 text-sm bg-[#0f1117] border border-white/[0.1] rounded text-gray-200 focus:outline-none focus:border-indigo-500"
+          className="w-14 px-1.5 py-1.5 text-sm bg-surface-base border border-border-default rounded text-gray-200 focus:outline-none focus:border-indigo-500"
         />
         <span>-</span>
         <input
@@ -81,7 +81,7 @@ export function PlanKanbanFilterBar({
           onChange={(e) =>
             onFilterChange('priority_max', e.target.value ? Number(e.target.value) : undefined)
           }
-          className="w-14 px-1.5 py-1.5 text-sm bg-[#0f1117] border border-white/[0.1] rounded text-gray-200 focus:outline-none focus:border-indigo-500"
+          className="w-14 px-1.5 py-1.5 text-sm bg-surface-base border border-border-default rounded text-gray-200 focus:outline-none focus:border-indigo-500"
         />
       </div>
 
@@ -94,7 +94,7 @@ export function PlanKanbanFilterBar({
           type="checkbox"
           checked={filters.hide_completed}
           onChange={(e) => onFilterChange('hide_completed', e.target.checked)}
-          className="rounded border-white/[0.1] bg-[#0f1117] text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
+          className="rounded border-border-default bg-surface-base text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
         />
         Hide completed
       </label>
@@ -103,7 +103,7 @@ export function PlanKanbanFilterBar({
           type="checkbox"
           checked={filters.hide_cancelled}
           onChange={(e) => onFilterChange('hide_cancelled', e.target.checked)}
-          className="rounded border-white/[0.1] bg-[#0f1117] text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
+          className="rounded border-border-default bg-surface-base text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
         />
         Hide cancelled
       </label>

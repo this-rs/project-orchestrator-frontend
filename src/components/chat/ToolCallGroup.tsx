@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import type { ContentBlock } from '@/types'
 import { ToolCallBlock } from './ToolCallBlock'
 import { formatDurationShort } from './useElapsedMs'
+import { ChevronRight } from 'lucide-react'
 
 interface ToolCallGroupProps {
   toolBlocks: ContentBlock[]
@@ -104,15 +105,7 @@ export function ToolCallGroup({ toolBlocks, allBlocks }: ToolCallGroupProps) {
                   : 'bg-green-400'
           }`}
         />
-        <svg
-          className={`w-3 h-3 text-gray-500 transition-transform shrink-0 ${expanded ? 'rotate-90' : ''}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-        </svg>
+        <ChevronRight className={`w-3 h-3 text-gray-500 transition-transform shrink-0 ${expanded ? 'rotate-90' : ''}`} />
         <span className="font-mono text-gray-400">
           {toolBlocks.length} tools
           <span className="text-gray-600 ml-2">({summary})</span>

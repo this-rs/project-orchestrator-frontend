@@ -1,6 +1,7 @@
 import { useRef, useCallback } from 'react'
 import { useWelcomeData } from '@/hooks'
 import type { Project, Plan } from '@/types'
+import { Play, Lightbulb, Zap, Building, Search, BarChart3, ClipboardList, Check, FileEdit, RefreshCw, MessageCircle, Clock } from 'lucide-react'
 
 // ============================================================================
 // PROPS
@@ -81,41 +82,17 @@ function QuickActionIcon({ type }: { type: QuickAction['icon'] }) {
   const cls = 'w-4 h-4 shrink-0'
   switch (type) {
     case 'next':
-      return (
-        <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 3l14 9-14 9V3z" />
-        </svg>
-      )
+      return <Play className={cls} />
     case 'plan':
-      return (
-        <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-        </svg>
-      )
+      return <Lightbulb className={cls} />
     case 'impact':
-      return (
-        <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
-      )
+      return <Zap className={cls} />
     case 'arch':
-      return (
-        <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-        </svg>
-      )
+      return <Building className={cls} />
     case 'search':
-      return (
-        <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-      )
+      return <Search className={cls} />
     case 'roadmap':
-      return (
-        <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-        </svg>
-      )
+      return <BarChart3 className={cls} />
   }
 }
 
@@ -313,9 +290,7 @@ export function ChatWelcome({
               {/* Active plans count */}
               {activePlans.length > 0 && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.06]">
-                  <svg className="w-3.5 h-3.5 text-indigo-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
+                  <ClipboardList className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                   <span className="text-xs text-gray-400">
                     <span className="text-gray-200 font-medium">{activePlans.length}</span>
                     {' '}active plan{activePlans.length !== 1 ? 's' : ''}
@@ -326,9 +301,7 @@ export function ChatWelcome({
               {/* Notes needing review */}
               {notesNeedingReview.length > 0 ? (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.06]">
-                  <svg className="w-3.5 h-3.5 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
+                  <Search className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                   <span className="text-xs text-gray-400">
                     <span className="text-amber-300 font-medium">{notesNeedingReview.length}</span>
                     {' '}to review
@@ -336,9 +309,7 @@ export function ChatWelcome({
                 </div>
               ) : (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.06]">
-                  <svg className="w-3.5 h-3.5 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
+                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                   <span className="text-xs text-gray-500">All clear</span>
                 </div>
               )}
@@ -346,9 +317,7 @@ export function ChatWelcome({
               {/* Total active notes */}
               {totalActiveNotes > 0 && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.06]">
-                  <svg className="w-3.5 h-3.5 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
+                  <FileEdit className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                   <span className="text-xs text-gray-400">
                     <span className="text-gray-200 font-medium">{totalActiveNotes}</span>
                     {' '}notes
@@ -359,9 +328,7 @@ export function ChatWelcome({
               {/* Last sync */}
               {lastSyncDate && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.06]">
-                  <svg className="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
+                  <RefreshCw className="w-3.5 h-3.5 text-gray-500 shrink-0" />
                   <span className="text-xs text-gray-500">
                     Synced {relativeTime(lastSyncDate)}
                   </span>
@@ -375,9 +342,7 @@ export function ChatWelcome({
               const st = planStatusStyle(topPlan.status)
               return (
                 <div className="flex items-center gap-2 mt-2 px-3 py-2 rounded-lg border border-white/[0.06]">
-                  <svg className="w-3.5 h-3.5 text-indigo-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+                  <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                   <span className="text-xs text-gray-400 truncate min-w-0">
                     {topPlan.title ?? 'Untitled'}
                   </span>
@@ -413,9 +378,7 @@ export function ChatWelcome({
                   onClick={() => handleSelectSession(session.id, session.title ?? undefined)}
                   className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-colors hover:bg-white/[0.04] group"
                 >
-                  <svg className="w-3.5 h-3.5 text-gray-600 group-hover:text-gray-400 shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
+                  <MessageCircle className="w-3.5 h-3.5 text-gray-600 group-hover:text-gray-400 shrink-0 transition-colors" />
                   <span className="text-xs text-gray-400 group-hover:text-gray-300 truncate min-w-0 transition-colors">
                     {session.title ?? session.preview ?? 'Untitled conversation'}
                   </span>

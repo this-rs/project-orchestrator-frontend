@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAtomValue } from 'jotai'
+import { LogOut } from 'lucide-react'
 import { authModeAtom, currentUserAtom } from '@/atoms'
 import { forceLogout } from '@/services/authManager'
 
@@ -78,7 +79,7 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
       </button>
 
       {open && (
-        <div className={`absolute z-50 w-56 rounded-lg border border-white/[0.08] bg-[#1e2130] py-1 shadow-xl ${dropUp ? 'bottom-full left-0 mb-2' : 'right-0 top-full mt-2'}`}>
+        <div className={`absolute z-50 w-56 rounded-lg border border-white/[0.08] bg-surface-popover py-1 shadow-xl ${dropUp ? 'bottom-full left-0 mb-2' : 'right-0 top-full mt-2'}`}>
           <div className="border-b border-white/[0.06] px-4 py-3">
             <p className="truncate text-sm font-medium text-gray-200">{user.name}</p>
             <p className="truncate text-xs text-gray-500">{user.email}</p>
@@ -100,9 +101,5 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
 }
 
 function LogoutIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-    </svg>
-  )
+  return <LogOut className={className} />
 }

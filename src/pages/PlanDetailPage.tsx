@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
-import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
+import { ChevronsUpDown, ChevronRight } from 'lucide-react'
+import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import { plansApi, tasksApi, projectsApi } from '@/services'
 import { KanbanBoard } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
@@ -27,6 +28,7 @@ export function PlanDetailPage() {
   const [decisions, setDecisions] = useState<DecisionWithTask[]>([])
   const [graph, setGraph] = useState<DependencyGraph | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useViewMode()
   const confirmDialog = useConfirmDialog()
   const taskFormDialog = useFormDialog()
@@ -43,57 +45,60 @@ export function PlanDetailPage() {
   const [tasksCollapseAll, setTasksCollapseAll] = useState(0)
   const [tasksAllExpanded, setTasksAllExpanded] = useState(false)
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!planId) return
-      // Only show loading spinner on initial load, not on WS-triggered refreshes
-      const isInitialLoad = !plan
-      if (isInitialLoad) setLoading(true)
-      try {
-        const [planResponse, tasksData, constraintsData, graphData] = await Promise.all([
-          plansApi.get(planId),
-          tasksApi.list({ plan_id: planId, limit: 100 }),
-          plansApi.listConstraints(planId),
-          plansApi.getDependencyGraph(planId).catch(() => null),
-        ])
-        const planData = (planResponse as unknown as { plan: Plan }).plan || planResponse
-        setPlan(planData)
-        setTasks(tasksData.items || [])
-        setConstraints(Array.isArray(constraintsData) ? constraintsData : [])
-        setGraph(graphData)
+  const fetchData = useCallback(async () => {
+    if (!planId) return
+    setError(null)
+    // Only show loading spinner on initial load, not on WS-triggered refreshes
+    const isInitialLoad = !plan
+    if (isInitialLoad) setLoading(true)
+    try {
+      const [planResponse, tasksData, constraintsData, graphData] = await Promise.all([
+        plansApi.get(planId),
+        tasksApi.list({ plan_id: planId, limit: 100 }),
+        plansApi.listConstraints(planId),
+        plansApi.getDependencyGraph(planId).catch(() => null),
+      ])
+      const planData = (planResponse as unknown as { plan: Plan }).plan || planResponse
+      setPlan(planData)
+      setTasks(tasksData.items || [])
+      setConstraints(Array.isArray(constraintsData) ? constraintsData : [])
+      setGraph(graphData)
 
-        // Extract decisions from PlanDetails response — backend nests them in tasks[].decisions[]
-        const rawTasks = (planResponse as unknown as { tasks?: { task?: Task; decisions?: Decision[] }[] }).tasks || []
-        const allDecisions: DecisionWithTask[] = rawTasks.flatMap((td) => {
-          const taskInfo = td.task
-          return (td.decisions || []).map((d) => ({
-            ...d,
-            taskId: taskInfo?.id || '',
-            taskTitle: taskInfo?.title || taskInfo?.description || 'Untitled task',
-          }))
-        })
-        setDecisions(allDecisions)
+      // Extract decisions from PlanDetails response — backend nests them in tasks[].decisions[]
+      const rawTasks = (planResponse as unknown as { tasks?: { task?: Task; decisions?: Decision[] }[] }).tasks || []
+      const allDecisions: DecisionWithTask[] = rawTasks.flatMap((td) => {
+        const taskInfo = td.task
+        return (td.decisions || []).map((d) => ({
+          ...d,
+          taskId: taskInfo?.id || '',
+          taskTitle: taskInfo?.title || taskInfo?.description || 'Untitled task',
+        }))
+      })
+      setDecisions(allDecisions)
 
-        // Load linked project if exists
-        if (planData.project_id) {
-          try {
-            const allProjects = await projectsApi.list()
-            const proj = (allProjects.items || []).find(p => p.id === planData.project_id)
-            setLinkedProject(proj || null)
-            if (proj) setSuggestedProjectId(proj.id)
-          } catch { setLinkedProject(null) }
-        } else {
-          setLinkedProject(null)
-        }
-      } catch (error) {
-        console.error('Failed to fetch plan:', error)
-      } finally {
-        if (isInitialLoad) setLoading(false)
+      // Load linked project if exists
+      if (planData.project_id) {
+        try {
+          const allProjects = await projectsApi.list()
+          const proj = (allProjects.items || []).find(p => p.id === planData.project_id)
+          setLinkedProject(proj || null)
+          if (proj) setSuggestedProjectId(proj.id)
+        } catch { setLinkedProject(null) }
+      } else {
+        setLinkedProject(null)
       }
+    } catch (error) {
+      console.error('Failed to fetch plan:', error)
+      setError('Failed to load plan')
+    } finally {
+      if (isInitialLoad) setLoading(false)
     }
-    fetchData()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- plan and setSuggestedProjectId: plan is a data object (would cause loop), Jotai setter is stable
   }, [planId, planRefresh, taskRefresh, projectRefresh])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
   const handleTaskStatusChange = useCallback(
     async (taskId: string, newStatus: TaskStatus) => {
@@ -164,6 +169,7 @@ export function PlanDetailPage() {
     [tasks],
   )
 
+  if (error) return <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
   if (loading || !plan) return <LoadingPage />
 
   const tasksByStatus = {
@@ -292,13 +298,7 @@ export function PlanDetailPage() {
                   className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
                   title={tasksAllExpanded ? 'Collapse all' : 'Expand all'}
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    {tasksAllExpanded ? (
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4-4 4 4M4 10l4-4 4 4" />
-                    ) : (
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4 4 4-4M4 14l4 4 4-4" />
-                    )}
-                  </svg>
+                  <ChevronsUpDown className="w-4 h-4" />
                 </button>
               )}
             </div>
@@ -506,14 +506,7 @@ function TaskRow({
           className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-300 transition-colors"
           title={expanded ? 'Replier' : 'Voir les steps'}
         >
-          <svg
-            className={`w-4 h-4 transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
+          <ChevronRight className={`w-4 h-4 transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`} />
         </button>
         <Link
           to={workspacePath(wsSlug, `/tasks/${task.id}`)}

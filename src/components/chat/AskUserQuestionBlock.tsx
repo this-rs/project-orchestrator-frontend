@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
 import type { ContentBlock, AskUserQuestion } from '@/types'
+import { Check } from 'lucide-react'
 
 interface AskUserQuestionBlockProps {
   block: ContentBlock
@@ -134,9 +135,7 @@ export function AskUserQuestionBlock({ block, onRespond, disabled }: AskUserQues
                       }
                     `}>
                       {isSelected && (
-                        <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 12 12">
-                          <path d="M10.28 2.28L3.989 8.575 1.695 6.28A1 1 0 00.28 7.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 2.28z" />
-                        </svg>
+                        <Check className="w-2.5 h-2.5 text-white" />
                       )}
                     </span>
                     <span className="flex flex-col items-start">
@@ -155,9 +154,7 @@ export function AskUserQuestionBlock({ block, onRespond, disabled }: AskUserQues
         {/* Persisted response summary */}
         <div className="pt-2 border-t border-emerald-500/10">
           <p className="text-xs text-gray-500 flex items-center gap-1.5">
-            <svg className="w-3 h-3 text-emerald-500" fill="currentColor" viewBox="0 0 12 12">
-              <path d="M10.28 2.28L3.989 8.575 1.695 6.28A1 1 0 00.28 7.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 2.28z" />
-            </svg>
+            <Check className="w-3 h-3 text-emerald-500" />
             Answered: <span className="text-gray-400">{persistedResponse}</span>
           </p>
         </div>
@@ -212,9 +209,7 @@ export function AskUserQuestionBlock({ block, onRespond, disabled }: AskUserQues
                     `}>
                       {isSelected && (
                         q.multiSelect ? (
-                          <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 12 12">
-                            <path d="M10.28 2.28L3.989 8.575 1.695 6.28A1 1 0 00.28 7.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 2.28z" />
-                          </svg>
+                          <Check className="w-2.5 h-2.5 text-white" />
                         ) : (
                           <span className="w-1.5 h-1.5 rounded-full bg-white" />
                         )

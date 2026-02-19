@@ -77,7 +77,7 @@ export function TitleBar() {
         onMouseEnter={show}
         onMouseLeave={scheduleHide}
         data-tauri-drag-region
-        className={`fixed left-0 right-0 top-0 z-[9998] flex h-7 select-none items-center bg-[#0f1117]/90 pl-2 backdrop-blur-sm transition-all duration-200 ${
+        className={`fixed left-0 right-0 top-0 z-[9998] flex h-7 select-none items-center bg-surface-base/90 pl-2 backdrop-blur-sm transition-all duration-200 ${
           visible
             ? 'translate-y-0 opacity-100'
             : '-translate-y-full opacity-0'

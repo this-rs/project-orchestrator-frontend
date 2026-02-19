@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
 import { authTokenAtom, currentUserAtom } from '@/atoms'
+import { AlertCircle } from 'lucide-react'
 import { authApi, setAuthToken } from '@/services'
 import { Spinner } from '@/components/ui'
 
@@ -62,9 +63,7 @@ export function AuthCallbackPage() {
       <div className="flex flex-1 items-center justify-center bg-[var(--surface-base)]">
         <div className="w-full max-w-sm space-y-6 px-6 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-900/50">
-            <svg className="h-6 w-6 text-red-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-            </svg>
+            <AlertCircle className="h-6 w-6 text-red-400" />
           </div>
           <div>
             <h2 className="text-lg font-semibold text-white">Authentication failed</h2>

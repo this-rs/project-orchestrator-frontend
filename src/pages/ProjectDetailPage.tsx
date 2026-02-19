@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
-import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LoadingPage, Badge, ProgressBar, PageHeader, SectionNav } from '@/components/ui'
+import { FolderOpen, Clipboard, RefreshCw, ChevronsUpDown, Trash2 } from 'lucide-react'
+import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LoadingPage, ErrorState, Badge, ProgressBar, PageHeader, SectionNav } from '@/components/ui'
 import { ExpandablePlanRow } from '@/components/expandable'
 import { projectsApi, plansApi, featureGraphsApi } from '@/services'
 import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
@@ -29,55 +30,59 @@ export function ProjectDetailPage() {
   const [plans, setPlans] = useState<Plan[]>([])
   const [roadmap, setRoadmap] = useState<ProjectRoadmap | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [featureGraphs, setFeatureGraphs] = useState<FeatureGraph[]>([])
   const [plansExpandAll, setPlansExpandAll] = useState(0)
   const [plansCollapseAll, setPlansCollapseAll] = useState(0)
   const [plansAllExpanded, setPlansAllExpanded] = useState(false)
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!slug) return
-      // Only show loading spinner on initial load, not on WS-triggered refreshes
-      const isInitialLoad = !project
-      if (isInitialLoad) setLoading(true)
+  const fetchData = useCallback(async () => {
+    if (!slug) return
+    setError(null)
+    // Only show loading spinner on initial load, not on WS-triggered refreshes
+    const isInitialLoad = !project
+    if (isInitialLoad) setLoading(true)
+    try {
+      // First get the project
+      const projectData = await projectsApi.get(slug)
+      setProject(projectData)
+      setSuggestedProjectId(projectData.id)
+
+      // Fetch plans filtered by project_id (client-side filter as backend filter doesn't work)
+      const allPlansData = await plansApi.list({ limit: 100 })
+      const projectPlans = (allPlansData.items || []).filter(
+        (plan) => plan.project_id === projectData.id
+      )
+      setPlans(projectPlans)
+
+      // Try to get roadmap
       try {
-        // First get the project
-        const projectData = await projectsApi.get(slug)
-        setProject(projectData)
-        setSuggestedProjectId(projectData.id)
-
-        // Fetch plans filtered by project_id (client-side filter as backend filter doesn't work)
-        const allPlansData = await plansApi.list({ limit: 100 })
-        const projectPlans = (allPlansData.items || []).filter(
-          (plan) => plan.project_id === projectData.id
-        )
-        setPlans(projectPlans)
-
-        // Try to get roadmap
-        try {
-          const roadmapData = await projectsApi.getRoadmap(projectData.id)
-          setRoadmap(roadmapData)
-        } catch {
-          // Roadmap might not be available
-        }
-
-        // Fetch feature graphs for this project
-        try {
-          const fgData = await featureGraphsApi.list({ project_id: projectData.id })
-          setFeatureGraphs(fgData.feature_graphs || [])
-        } catch (fgError) {
-          console.error('Failed to fetch feature graphs:', fgError)
-        }
-      } catch (error) {
-        console.error('Failed to fetch project:', error)
-      } finally {
-        if (isInitialLoad) setLoading(false)
+        const roadmapData = await projectsApi.getRoadmap(projectData.id)
+        setRoadmap(roadmapData)
+      } catch {
+        // Roadmap might not be available
       }
+
+      // Fetch feature graphs for this project
+      try {
+        const fgData = await featureGraphsApi.list({ project_id: projectData.id })
+        setFeatureGraphs(fgData.feature_graphs || [])
+      } catch (fgError) {
+        console.error('Failed to fetch feature graphs:', fgError)
+      }
+    } catch (error) {
+      console.error('Failed to fetch project:', error)
+      setError('Failed to load project')
+    } finally {
+      if (isInitialLoad) setLoading(false)
     }
-    fetchData()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- project is a data object (would cause loop); setSuggestedProjectId is a stable Jotai setter
   }, [slug, projectRefresh, planRefresh, milestoneRefresh, taskRefresh])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
   const handleSync = async () => {
     if (!slug) return
@@ -140,6 +145,7 @@ export function ProjectDetailPage() {
   const sectionIds = [...(hasRoadmap ? ['roadmap'] : []), 'plans', 'feature-graphs']
   const activeSection = useSectionObserver(sectionIds)
 
+  if (error) return <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
   if (loading || !project) return <LoadingPage />
 
   const sections = [
@@ -169,9 +175,7 @@ export function ProjectDetailPage() {
           <div className="flex items-center gap-2">
             {project.root_path && (
               <div className="flex items-center gap-1.5 bg-white/[0.04] border border-white/[0.08] rounded-md px-2.5 py-1 group">
-                <svg className="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
-                </svg>
+                <FolderOpen className="w-3.5 h-3.5 text-gray-500 shrink-0" />
                 <span className="text-xs text-gray-400 font-mono truncate max-w-[200px] md:max-w-xs" title={project.root_path}>
                   {project.root_path}
                 </span>
@@ -183,9 +187,7 @@ export function ProjectDetailPage() {
                   className="ml-0.5 p-0.5 rounded text-gray-600 opacity-0 group-hover:opacity-100 hover:text-gray-300 hover:bg-white/[0.08] transition-all"
                   title="Copy path"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
-                  </svg>
+                  <Clipboard className="w-3.5 h-3.5" />
                 </button>
               </div>
             )}
@@ -195,9 +197,7 @@ export function ProjectDetailPage() {
               className="p-1.5 rounded-md text-gray-500 hover:text-indigo-400 hover:bg-white/[0.08] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               title={syncing ? 'Syncing...' : `Sync codebase${project.last_synced ? `\nLast sync: ${new Date(project.last_synced).toLocaleString()}` : ''}`}
             >
-              <svg className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M21.015 4.356v4.992" />
-              </svg>
+              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
             </button>
           </div>
         }
@@ -321,13 +321,7 @@ export function ProjectDetailPage() {
                 className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
                 title={plansAllExpanded ? 'Collapse all' : 'Expand all'}
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  {plansAllExpanded ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4-4 4 4M4 10l4-4 4 4" />
-                  ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8l4 4 4-4M4 14l4 4 4-4" />
-                  )}
-                </svg>
+                <ChevronsUpDown className="w-4 h-4" />
               </button>
             )}
           </div>
@@ -429,9 +423,7 @@ export function ProjectDetailPage() {
                     className="p-1.5 rounded text-gray-600 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-white/[0.08] transition-all shrink-0"
                     title="Delete"
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                    </svg>
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </Link>
               ))}

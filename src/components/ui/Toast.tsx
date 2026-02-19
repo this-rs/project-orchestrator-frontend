@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
+import { Check, X, Info, AlertCircle } from 'lucide-react'
 import { toastMessagesAtom } from '@/atoms'
 
 type ToastType = 'success' | 'error' | 'info' | 'warning'
@@ -7,35 +8,19 @@ type ToastType = 'success' | 'error' | 'info' | 'warning'
 const typeConfig: Record<ToastType, { bar: string; icon: ReactNode }> = {
   success: {
     bar: 'bg-green-500',
-    icon: (
-      <svg className="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-      </svg>
-    ),
+    icon: <Check className="w-5 h-5 text-green-400" />,
   },
   error: {
     bar: 'bg-red-500',
-    icon: (
-      <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-      </svg>
-    ),
+    icon: <X className="w-5 h-5 text-red-400" />,
   },
   info: {
     bar: 'bg-blue-500',
-    icon: (
-      <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
+    icon: <Info className="w-5 h-5 text-blue-400" />,
   },
   warning: {
     bar: 'bg-yellow-500',
-    icon: (
-      <svg className="w-5 h-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
+    icon: <AlertCircle className="w-5 h-5 text-yellow-400" />,
   },
 }
 
@@ -56,7 +41,7 @@ export function ToastContainer() {
         return (
           <div
             key={toast.id}
-            className="pointer-events-auto flex items-stretch bg-[#232733] rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.4)] border border-white/[0.06] overflow-hidden animate-[slideInRight_200ms_ease-out] min-w-[300px] max-w-[420px]"
+            className="pointer-events-auto flex items-stretch bg-surface-overlay rounded-xl shadow-md border border-border-subtle overflow-hidden animate-[slideInRight_200ms_ease-out] min-w-[300px] max-w-[420px]"
           >
             {/* Color bar */}
             <div className={`w-1 shrink-0 ${config.bar}`} />
@@ -69,9 +54,7 @@ export function ToastContainer() {
                 onClick={() => dismiss(toast.id)}
                 className="shrink-0 text-gray-500 hover:text-gray-300 transition-colors"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X className="w-4 h-4" />
               </button>
             </div>
 

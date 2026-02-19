@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { Card, CardHeader, CardTitle, CardContent, LoadingPage, Badge, Button, FormDialog, LinkEntityDialog, ProgressBar, PageHeader, SectionNav, ConfirmDialog } from '@/components/ui'
+import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, FormDialog, LinkEntityDialog, ProgressBar, PageHeader, SectionNav, ConfirmDialog } from '@/components/ui'
 import { workspacesApi, projectsApi } from '@/services'
 import { useFormDialog, useLinkDialog, useToast, useConfirmDialog, useSectionObserver, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
@@ -40,44 +40,48 @@ export function WorkspaceDetailPage() {
   const [components, setComponents] = useState<Component[]>([])
   const [overallProgress, setOverallProgress] = useState<{ completed_tasks: number; total_tasks: number; percentage: number } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!slug) return
-      // Only show loading spinner on initial load, not on WS-triggered refreshes
-      const isInitialLoad = !workspace
-      if (isInitialLoad) setLoading(true)
-      try {
-        const overviewData = await workspacesApi.getOverview(slug) as unknown as WorkspaceOverviewResponse
+  const fetchData = useCallback(async () => {
+    if (!slug) return
+    setError(null)
+    // Only show loading spinner on initial load, not on WS-triggered refreshes
+    const isInitialLoad = !workspace
+    if (isInitialLoad) setLoading(true)
+    try {
+      const overviewData = await workspacesApi.getOverview(slug) as unknown as WorkspaceOverviewResponse
 
-        setWorkspace(overviewData.workspace)
-        setProjects(overviewData.projects || [])
-        setResources(overviewData.resources || [])
-        setComponents(overviewData.components || [])
-        setOverallProgress(overviewData.progress || null)
+      setWorkspace(overviewData.workspace)
+      setProjects(overviewData.projects || [])
+      setResources(overviewData.resources || [])
+      setComponents(overviewData.components || [])
+      setOverallProgress(overviewData.progress || null)
 
-        // Use milestones from overview and fetch progress for each
-        const milestoneItems = overviewData.milestones || []
-        const milestonesWithProgress = await Promise.all(
-          milestoneItems.map(async (m) => {
-            try {
-              const progress = await workspacesApi.getMilestoneProgress(m.id)
-              return { ...m, progress }
-            } catch {
-              return { ...m, progress: undefined }
-            }
-          })
-        )
-        setMilestones(milestonesWithProgress)
-      } catch (error) {
-        console.error('Failed to fetch workspace:', error)
-      } finally {
-        if (isInitialLoad) setLoading(false)
-      }
+      // Use milestones from overview and fetch progress for each
+      const milestoneItems = overviewData.milestones || []
+      const milestonesWithProgress = await Promise.all(
+        milestoneItems.map(async (m) => {
+          try {
+            const progress = await workspacesApi.getMilestoneProgress(m.id)
+            return { ...m, progress }
+          } catch {
+            return { ...m, progress: undefined }
+          }
+        })
+      )
+      setMilestones(milestonesWithProgress)
+    } catch (error) {
+      console.error('Failed to fetch workspace:', error)
+      setError('Failed to load workspace')
+    } finally {
+      if (isInitialLoad) setLoading(false)
     }
-    fetchData()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- workspace is a data object (would cause infinite loop)
   }, [slug, workspaceRefresh, projectRefresh, milestoneRefresh, taskRefresh])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
   const milestoneForm = CreateMilestoneForm({
     onSubmit: async (data) => {
@@ -130,6 +134,7 @@ export function WorkspaceDetailPage() {
   const sectionIds = ['overview', 'projects', 'milestones', 'resources', 'components']
   const activeSection = useSectionObserver(sectionIds)
 
+  if (error) return <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
   if (loading || !workspace) return <LoadingPage />
 
   const sections = [

@@ -35,8 +35,8 @@ export function PlanKanbanCard({ plan, onClick }: PlanKanbanCardProps) {
       }}
       className={`rounded-lg border p-3 cursor-grab active:cursor-grabbing transition-all duration-150 select-none ${
         isDragging
-          ? 'opacity-50 rotate-2 shadow-xl border-indigo-500 bg-[#1a1d27]'
-          : 'border-white/[0.06] bg-[#1a1d27] hover:border-indigo-500 hover:shadow-lg'
+          ? 'opacity-50 rotate-2 shadow-xl border-indigo-500 bg-surface-raised'
+          : 'border-border-subtle bg-surface-raised hover:border-indigo-500 hover:shadow-lg'
       }`}
     >
       {/* Title */}
@@ -75,7 +75,7 @@ export function PlanKanbanCard({ plan, onClick }: PlanKanbanCardProps) {
 /** Card rendered in the DragOverlay (no drag listeners) */
 export function PlanKanbanCardOverlay({ plan }: { plan: Plan }) {
   return (
-    <div className="rounded-lg border border-indigo-500 bg-[#1a1d27] p-3 shadow-2xl rotate-2 w-[244px] opacity-90">
+    <div className="rounded-lg border border-indigo-500 bg-surface-raised p-3 shadow-2xl rotate-2 w-[244px] opacity-90">
       <div className="flex items-start justify-between gap-2 mb-1">
         <h4 className="text-sm font-medium text-gray-100 line-clamp-2 flex-1">
           {plan.title}

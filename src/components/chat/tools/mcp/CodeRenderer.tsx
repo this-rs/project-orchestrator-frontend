@@ -13,6 +13,7 @@ import {
   CollapsibleList,
 } from './utils'
 import { detectLanguage, tokenizeLine } from '../syntax'
+import { Check, Copy } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
 // Copy-path button — small clipboard icon that copies a file path on click
@@ -35,13 +36,9 @@ function CopyPathButton({ path }: { path: string }) {
       className="shrink-0 p-0.5 rounded hover:bg-white/[0.08] text-gray-600 hover:text-gray-400 transition-colors"
     >
       {copied ? (
-        <svg className="w-3 h-3 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-        </svg>
+        <Check className="w-3 h-3 text-green-400" />
       ) : (
-        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-        </svg>
+        <Copy className="w-3 h-3" />
       )}
     </button>
   )

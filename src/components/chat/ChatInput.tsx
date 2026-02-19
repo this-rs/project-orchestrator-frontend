@@ -4,6 +4,7 @@ import { chatDraftInputAtom, chatSessionPermissionOverrideAtom, chatPermissionCo
 import { AVAILABLE_MODELS, DEFAULT_MODEL_ID, getModelShortLabel, getModelDotColor } from '@/constants/models'
 import { chatApi } from '@/services/chat'
 import type { PermissionMode } from '@/types'
+import { ChevronDown, Loader2, Square, ArrowRight } from 'lucide-react'
 
 const MODE_LABELS: Record<PermissionMode, string> = {
   bypassPermissions: 'Bypass',
@@ -197,12 +198,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
               {modeOverride && !sessionId && (
                 <span className="text-[8px] text-indigo-400 ml-0.5">(override)</span>
               )}
-              <svg className="w-2.5 h-2.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-              </svg>
+              <ChevronDown className="w-2.5 h-2.5 text-gray-500" />
             </button>
             {showModeDropdown && (
-              <div className="absolute bottom-full left-0 mb-1 z-20 w-40 bg-[#1e2130] border border-white/[0.08] rounded-lg shadow-xl py-1">
+              <div className="absolute bottom-full left-0 mb-1 z-20 w-40 bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl py-1">
                 {(Object.keys(MODE_LABELS) as PermissionMode[]).map((mode) => {
                   const isActive = effectiveMode === mode
                   const isDefault = mode === serverConfig?.mode
@@ -239,12 +238,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
             >
               <span className={`w-1.5 h-1.5 rounded-full ${getModelDotColor(effectiveModel)}`} />
               <span>{getModelShortLabel(effectiveModel)}</span>
-              <svg className="w-2.5 h-2.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-              </svg>
+              <ChevronDown className="w-2.5 h-2.5 text-gray-500" />
             </button>
             {showModelDropdown && (
-              <div className="absolute bottom-full left-0 mb-1 z-20 w-52 bg-[#1e2130] border border-white/[0.08] rounded-lg shadow-xl py-1">
+              <div className="absolute bottom-full left-0 mb-1 z-20 w-52 bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl py-1">
                 {AVAILABLE_MODELS.map((opt) => {
                   const isActive = effectiveModel === opt.id
                   return (
@@ -313,14 +310,9 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
             title={isStopping ? 'Stopping...' : 'Stop generating'}
           >
             {isStopping ? (
-              <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : (
-              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                <rect x="6" y="6" width="12" height="12" rx="1" />
-              </svg>
+              <Square className="w-3.5 h-3.5 fill-current" />
             )}
           </button>
         </div>
@@ -331,9 +323,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
           className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 transition-colors disabled:opacity-30"
           title="Send message"
         >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
-          </svg>
+          <ArrowRight className="w-3.5 h-3.5" />
         </button>
       </div>
     </div>

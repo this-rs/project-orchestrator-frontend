@@ -1,4 +1,5 @@
 import type { ContentBlock } from '@/types'
+import { FastForward } from 'lucide-react'
 
 interface ContinueIndicatorBlockProps {
   block: ContentBlock
@@ -15,19 +16,7 @@ export function ContinueIndicatorBlock({ block }: ContinueIndicatorBlockProps) {
       {/* Center content */}
       <div className="flex items-center gap-2 text-gray-500">
         {/* Forward/play icon */}
-        <svg
-          className="w-3.5 h-3.5 text-gray-500"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={1.5}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 0 1 0 1.954l-7.108 4.061A1.125 1.125 0 0 1 3 16.811V8.69ZM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 0 1 0 1.954l-7.108 4.061a1.125 1.125 0 0 1-1.683-.977V8.69Z"
-          />
-        </svg>
+        <FastForward className="w-3.5 h-3.5 text-gray-500" />
 
         <span className="text-xs whitespace-nowrap">Continued</span>
 

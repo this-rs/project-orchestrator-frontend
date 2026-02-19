@@ -1,21 +1,23 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
+import { motion, AnimatePresence } from 'motion/react'
+import { FileText, Code, FolderOpen, Package, Shapes, AlertTriangle } from 'lucide-react'
 import { notesAtom, notesLoadingAtom, noteTypeFilterAtom, noteStatusFilterAtom, noteRefreshAtom } from '@/atoms'
 import { notesApi } from '@/services'
-import { Card, CardContent, Button, LoadingPage, EmptyState, Select, InteractiveNoteStatusBadge, ImportanceBadge, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, CollapsibleMarkdown, LoadMoreSentinel } from '@/components/ui'
+import { Card, CardContent, Button, EmptyState, Select, InteractiveNoteStatusBadge, ImportanceBadge, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, CollapsibleMarkdown, LoadMoreSentinel, SkeletonCard } from '@/components/ui'
 import type { OverflowMenuAction } from '@/components/ui'
 import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug } from '@/hooks'
 import { CreateNoteForm } from '@/components/forms'
+import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
 import type { Note, NoteType, NoteStatus, NoteScopeType, PaginatedResponse } from '@/types'
 
-// Inline SVG icons (project convention: no icon library)
 const iconClass = 'w-3 h-3 flex-shrink-0'
-const FileTextIcon = () => <svg className={iconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /><path d="M14 2v4a2 2 0 0 0 2 2h4" /><path d="M10 13H8" /><path d="M16 17H8" /><path d="M16 13h-2" /></svg>
-const CodeIcon = () => <svg className={iconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>
-const FolderIcon = () => <svg className={iconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2" /></svg>
-const BoxIcon = () => <svg className={iconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" /><path d="m3.3 7 8.7 5 8.7-5" /><path d="M12 22V12" /></svg>
-const ShapesIcon = () => <svg className={iconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z" /><rect x="3" y="14" width="7" height="7" rx="1" /><circle cx="17.5" cy="17.5" r="3.5" /></svg>
-const AlertTriangleIcon = () => <svg className={iconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>
+const FileTextIcon = () => <FileText className={iconClass} />
+const CodeIcon = () => <Code className={iconClass} />
+const FolderIcon = () => <FolderOpen className={iconClass} />
+const BoxIcon = () => <Package className={iconClass} />
+const ShapesIcon = () => <Shapes className={iconClass} />
+const AlertTriangleIcon = () => <AlertTriangle className={iconClass} />
 
 const typeOptions = [
   { value: 'all', label: 'All Types' },
@@ -48,6 +50,7 @@ export function NotesPage() {
   const toast = useToast()
   const [formLoading, setFormLoading] = useState(false)
   const wsSlug = useWorkspaceSlug()
+  const reducedMotion = useReducedMotion()
 
   const filters = useMemo(
     () => ({
@@ -130,8 +133,6 @@ export function NotesPage() {
     })
   }
 
-  if (loading) return <LoadingPage />
-
   return (
     <PageShell
       title="Knowledge Notes"
@@ -154,7 +155,13 @@ export function NotesPage() {
         </>
       }
     >
-      {notes.length === 0 ? (
+      {loading ? (
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <SkeletonCard key={i} lines={3} />
+          ))}
+        </div>
+      ) : notes.length === 0 ? (
         <EmptyState
           title="No notes found"
           description={total === 0 && typeFilter === 'all' && statusFilter === 'all' ? 'Knowledge notes capture important patterns, gotchas, and guidelines.' : 'No notes match the current filters.'}
@@ -171,26 +178,34 @@ export function NotesPage() {
               </button>
             </div>
           )}
-          <div className="space-y-4">
-            {notes.map((note) => (
-              <NoteCard
-                selected={multiSelect.isSelected(note.id)}
-                onToggleSelect={(shiftKey) => multiSelect.toggle(note.id, shiftKey)}
-                key={note.id}
-                note={note}
-                onUpdate={(updated) => updateItem((n) => n.id === updated.id, () => updated)}
-                onDelete={() => confirmDialog.open({
-                  title: 'Delete Note',
-                  description: 'This note will be permanently deleted.',
-                  onConfirm: async () => {
-                    await notesApi.delete(note.id)
-                    removeItems((n) => n.id === note.id)
-                    toast.success('Note deleted')
-                  },
-                })}
-              />
-            ))}
-          </div>
+          <motion.div
+            className="space-y-4"
+            variants={reducedMotion ? undefined : staggerContainer}
+            initial="hidden"
+            animate="visible"
+          >
+            <AnimatePresence mode="popLayout">
+              {notes.map((note) => (
+                <motion.div key={note.id} variants={fadeInUp} exit="exit" layout={!reducedMotion}>
+                  <NoteCard
+                    selected={multiSelect.isSelected(note.id)}
+                    onToggleSelect={(shiftKey) => multiSelect.toggle(note.id, shiftKey)}
+                    note={note}
+                    onUpdate={(updated) => updateItem((n) => n.id === updated.id, () => updated)}
+                    onDelete={() => confirmDialog.open({
+                      title: 'Delete Note',
+                      description: 'This note will be permanently deleted.',
+                      onConfirm: async () => {
+                        await notesApi.delete(note.id)
+                        removeItems((n) => n.id === note.id)
+                        toast.success('Note deleted')
+                      },
+                    })}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
           <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
         </>
       )}

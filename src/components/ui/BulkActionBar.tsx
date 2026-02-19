@@ -11,7 +11,7 @@ export function BulkActionBar({ count, onDelete, onClear, deleting }: BulkAction
   if (count === 0) return null
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-[#232733] border border-white/[0.1] shadow-[0_4px_24px_rgba(0,0,0,0.5)] rounded-xl px-3 py-2 sm:px-5 sm:py-3 flex items-center gap-3 sm:gap-4">
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-surface-overlay border border-border-default shadow-lg rounded-xl px-3 py-2 sm:px-5 sm:py-3 flex items-center gap-3 sm:gap-4">
       <span className="text-sm text-gray-300 whitespace-nowrap">
         {count} selected
       </span>
