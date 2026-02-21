@@ -65,6 +65,14 @@ export function useCrudEventRefresh() {
               bumpNote((c) => c + 1)
               break
             case 'workspace':
+              bumpWorkspace((c) => c + 1)
+              // When projects are added/removed from a workspace (linked/unlinked),
+              // also bump project refresh so workspace-scoped project lists update
+              // (e.g. ChatPanel's ProjectSelect, overview page).
+              if (event.action === 'linked' || event.action === 'unlinked') {
+                bumpProject((c) => c + 1)
+              }
+              break
             case 'workspace_milestone':
             case 'resource':
             case 'component':

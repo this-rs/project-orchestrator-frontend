@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { useAtomValue } from 'jotai'
+import { useAtomValue, useSetAtom } from 'jotai'
 import { motion, AnimatePresence } from 'motion/react'
-import { activeWorkspaceAtom } from '@/atoms'
+import { activeWorkspaceAtom, projectRefreshAtom } from '@/atoms'
 import { projectsApi } from '@/services'
 import { workspacesApi } from '@/services/workspaces'
 import { Card, CardContent, Button, EmptyState, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, SkeletonCard, ErrorState } from '@/components/ui'
@@ -18,6 +18,7 @@ export function ProjectsPage() {
   const [formLoading, setFormLoading] = useState(false)
   const wsSlug = useWorkspaceSlug()
   const activeWorkspace = useAtomValue(activeWorkspaceAtom)
+  const bumpProjectRefresh = useSetAtom(projectRefreshAtom)
   const reducedMotion = useReducedMotion()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
@@ -50,6 +51,11 @@ export function ProjectsPage() {
       try {
         const created = await projectsApi.create(data)
         await workspacesApi.addProject(wsSlug, created.id)
+        // Bump global project refresh so other components (ChatPanel ProjectSelect,
+        // overview, etc.) re-fetch the workspace project list immediately.
+        // Without this, they rely on the WebSocket CRUD event which has a 500ms
+        // debounce and may race with the addProject call.
+        bumpProjectRefresh((c) => c + 1)
         toast.success('Project created')
         formDialog.close()
         loadProjects()
@@ -81,6 +87,7 @@ export function ProjectsPage() {
         const slugs = new Set(items.map((p) => p.slug))
         removeItems((p) => slugs.has(p.slug))
         multiSelect.clear()
+        bumpProjectRefresh((c) => c + 1)
         toast.success(`Deleted ${count} project${count > 1 ? 's' : ''}`)
       },
     })
@@ -139,6 +146,7 @@ export function ProjectsPage() {
                       onConfirm: async () => {
                         await projectsApi.delete(project.slug)
                         removeItems((p) => p.id === project.id)
+                        bumpProjectRefresh((c) => c + 1)
                         toast.success('Project deleted')
                       },
                     })}
