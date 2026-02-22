@@ -17,6 +17,48 @@ export interface PermissionConfig {
   default_model?: string
 }
 
+/** Full chat configuration (matches backend ChatConfigResponse) */
+export interface ChatConfig {
+  /** Permission mode */
+  mode: PermissionMode
+  /** Tool patterns to explicitly allow */
+  allowed_tools: string[]
+  /** Tool patterns to explicitly disallow */
+  disallowed_tools: string[]
+  /** Default model from backend config */
+  default_model: string
+  /** Process PATH for Claude CLI subprocess (null = inherited from system) */
+  process_path: string | null
+  /** Explicit Claude CLI binary path (null = auto-detected) */
+  claude_cli_path: string | null
+  /** Whether to auto-update CLI on startup */
+  auto_update_cli: boolean
+}
+
+/** Response from GET /api/chat/detect-path */
+export interface DetectPathResponse {
+  path: string | null
+  error?: string
+}
+
+/** CLI version status from GET /api/chat/cli/status */
+export interface CliVersionStatus {
+  installed: boolean
+  installed_version: string | null
+  latest_version: string | null
+  update_available: boolean
+  is_local_build: boolean
+  cli_path: string | null
+}
+
+/** CLI install result from POST /api/chat/cli/install */
+export interface CliInstallResult {
+  success: boolean
+  version: string | null
+  message: string
+  cli_path: string | null
+}
+
 // ============================================================================
 // CHAT SESSION
 // ============================================================================

@@ -1,8 +1,12 @@
 import { api, buildQuery } from './api'
 import type {
+  ChatConfig,
   ChatSession,
+  CliInstallResult,
+  CliVersionStatus,
   CreateSessionRequest,
   CreateSessionResponse,
+  DetectPathResponse,
   PaginatedResponse,
   MessageHistoryResponse,
   MessageSearchResult,
@@ -53,4 +57,22 @@ export const chatApi = {
 
   updatePermissionConfig: (config: PermissionConfig) =>
     api.put<PermissionConfig>('/chat/config/permissions', config),
+
+  // Full chat config (unified GET/PATCH — includes permissions + env config)
+  getChatConfig: () =>
+    api.get<ChatConfig>('/chat/config'),
+
+  updateChatConfig: (patch: Partial<ChatConfig>) =>
+    api.patch<ChatConfig>('/chat/config', patch),
+
+  // PATH detection
+  detectPath: () =>
+    api.get<DetectPathResponse>('/chat/detect-path'),
+
+  // CLI version management
+  getCliStatus: () =>
+    api.get<CliVersionStatus>('/chat/cli/status'),
+
+  installCli: (version?: string) =>
+    api.post<CliInstallResult>('/chat/cli/install', { version: version ?? null }),
 }

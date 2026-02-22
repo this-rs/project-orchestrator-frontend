@@ -3,8 +3,8 @@ import { useAtom } from 'jotai'
 import { chatPermissionConfigAtom } from '@/atoms'
 import { chatApi } from '@/services/chat'
 import { useToast } from '@/hooks'
-import type { PermissionMode, PermissionConfig } from '@/types'
-import { X, Settings, Loader2 } from 'lucide-react'
+import type { PermissionMode, CliVersionStatus } from '@/types'
+import { X, Settings, Loader2, RotateCw, Download, Terminal, FolderCog } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
 // Mode metadata
@@ -229,30 +229,61 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
   const [serverConfig, setServerConfig] = useAtom(chatPermissionConfigAtom)
   const toast = useToast()
 
-  // Local working copy
+  // Local working copy — permissions
   const [localMode, setLocalMode] = useState<PermissionMode>('bypassPermissions')
   const [localAllowed, setLocalAllowed] = useState<string[]>([])
   const [localDisallowed, setLocalDisallowed] = useState<string[]>([])
+
+  // Local working copy — environment
+  const [localProcessPath, setLocalProcessPath] = useState('')
+  const [localCliPath, setLocalCliPath] = useState('')
+  const [localAutoUpdate, setLocalAutoUpdate] = useState(false)
+  const [serverProcessPath, setServerProcessPath] = useState<string | null>(null)
+  const [serverCliPath, setServerCliPath] = useState<string | null>(null)
+  const [serverAutoUpdate, setServerAutoUpdate] = useState(false)
+
+  // UI state
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [detecting, setDetecting] = useState(false)
 
-  // Fetch config on mount
+  // CLI version state
+  const [cliStatus, setCliStatus] = useState<CliVersionStatus | null>(null)
+  const [checkingCli, setCheckingCli] = useState(false)
+  const [installingCli, setInstallingCli] = useState(false)
+
+  // Fetch full chat config on mount
   useEffect(() => {
     let cancelled = false
     const load = async () => {
       try {
         setLoading(true)
         setError(null)
-        const config = await chatApi.getPermissionConfig()
+        const config = await chatApi.getChatConfig()
         if (cancelled) return
-        setServerConfig(config)
+        // Update permission atom
+        setServerConfig({
+          mode: config.mode,
+          allowed_tools: config.allowed_tools,
+          disallowed_tools: config.disallowed_tools,
+          default_model: config.default_model,
+        })
+        // Local permission state
         setLocalMode(config.mode)
         setLocalAllowed([...(config.allowed_tools ?? [])])
         setLocalDisallowed([...(config.disallowed_tools ?? [])])
+        // Local env state
+        setLocalProcessPath(config.process_path ?? '')
+        setLocalCliPath(config.claude_cli_path ?? '')
+        setLocalAutoUpdate(config.auto_update_cli)
+        // Server snapshots for change detection
+        setServerProcessPath(config.process_path)
+        setServerCliPath(config.claude_cli_path)
+        setServerAutoUpdate(config.auto_update_cli)
       } catch (err) {
         if (cancelled) return
-        setError(err instanceof Error ? err.message : 'Failed to load permission config')
+        setError(err instanceof Error ? err.message : 'Failed to load chat config')
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -263,36 +294,106 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
     }
   }, [setServerConfig])
 
-  // Detect unsaved changes
-  const hasChanges =
+  // Detect unsaved changes (permissions + env)
+  const hasPermChanges =
     serverConfig !== null &&
     (localMode !== serverConfig.mode ||
       JSON.stringify(localAllowed) !== JSON.stringify(serverConfig.allowed_tools) ||
       JSON.stringify(localDisallowed) !== JSON.stringify(serverConfig.disallowed_tools))
 
+  const hasEnvChanges =
+    (localProcessPath || null) !== (serverProcessPath || null) ||
+    (localCliPath || null) !== (serverCliPath || null) ||
+    localAutoUpdate !== serverAutoUpdate
+
+  const hasChanges = hasPermChanges || hasEnvChanges
+
   const handleSave = useCallback(async () => {
-    const config: PermissionConfig = {
-      mode: localMode,
-      allowed_tools: localAllowed,
-      disallowed_tools: localDisallowed,
-    }
     try {
       setSaving(true)
-      const saved = await chatApi.updatePermissionConfig(config)
-      setServerConfig(saved)
-      toast.success('Permission settings saved')
+      // Use the unified PATCH endpoint to save everything at once
+      const saved = await chatApi.updateChatConfig({
+        mode: localMode,
+        allowed_tools: localAllowed,
+        disallowed_tools: localDisallowed,
+        process_path: localProcessPath || null,
+        claude_cli_path: localCliPath || null,
+        auto_update_cli: localAutoUpdate,
+      })
+      // Update atoms and server snapshots
+      setServerConfig({
+        mode: saved.mode,
+        allowed_tools: saved.allowed_tools,
+        disallowed_tools: saved.disallowed_tools,
+        default_model: saved.default_model,
+      })
+      setServerProcessPath(saved.process_path)
+      setServerCliPath(saved.claude_cli_path)
+      setServerAutoUpdate(saved.auto_update_cli)
+      toast.success('Settings saved')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save')
     } finally {
       setSaving(false)
     }
-  }, [localMode, localAllowed, localDisallowed, setServerConfig, toast])
+  }, [localMode, localAllowed, localDisallowed, localProcessPath, localCliPath, localAutoUpdate, setServerConfig, toast])
 
   const handleCancel = () => {
     if (serverConfig) {
       setLocalMode(serverConfig.mode)
       setLocalAllowed([...(serverConfig.allowed_tools ?? [])])
       setLocalDisallowed([...(serverConfig.disallowed_tools ?? [])])
+    }
+    setLocalProcessPath(serverProcessPath ?? '')
+    setLocalCliPath(serverCliPath ?? '')
+    setLocalAutoUpdate(serverAutoUpdate)
+  }
+
+  const handleDetectPath = async () => {
+    try {
+      setDetecting(true)
+      const res = await chatApi.detectPath()
+      if (res.path) {
+        setLocalProcessPath(res.path)
+        toast.success('PATH detected from login shell')
+      } else {
+        toast.error(res.error ?? 'Could not detect PATH')
+      }
+    } catch {
+      toast.error('Failed to detect PATH')
+    } finally {
+      setDetecting(false)
+    }
+  }
+
+  const handleCheckCli = async () => {
+    try {
+      setCheckingCli(true)
+      const status = await chatApi.getCliStatus()
+      setCliStatus(status)
+    } catch {
+      toast.error('Failed to check CLI status')
+    } finally {
+      setCheckingCli(false)
+    }
+  }
+
+  const handleInstallCli = async (version?: string) => {
+    try {
+      setInstallingCli(true)
+      const result = await chatApi.installCli(version)
+      if (result.success) {
+        toast.success(result.message)
+        // Refresh status after install
+        const status = await chatApi.getCliStatus()
+        setCliStatus(status)
+      } else {
+        toast.error(result.message)
+      }
+    } catch {
+      toast.error('Failed to install CLI')
+    } finally {
+      setInstallingCli(false)
     }
   }
 
@@ -390,6 +491,155 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
                 presets={DISALLOWED_PRESETS}
                 danger
               />
+            </section>
+
+            {/* --- Environment --- */}
+            <section className="space-y-3">
+              <div className="flex items-center gap-1.5">
+                <FolderCog className="w-3.5 h-3.5 text-gray-400" />
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Environment</h3>
+              </div>
+
+              {/* Process PATH */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-medium text-gray-300">Process PATH</h4>
+                    <p className="text-[10px] text-gray-500">PATH for Claude&apos;s shell commands</p>
+                  </div>
+                  <button
+                    onClick={handleDetectPath}
+                    disabled={detecting}
+                    className="flex items-center gap-1 text-[10px] text-indigo-400 hover:text-indigo-300 transition-colors disabled:opacity-50"
+                  >
+                    {detecting ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <RotateCw className="w-3 h-3" />
+                    )}
+                    Detect
+                  </button>
+                </div>
+                <input
+                  value={localProcessPath}
+                  onChange={(e) => setLocalProcessPath(e.target.value)}
+                  placeholder="Inherited from system"
+                  className="w-full bg-white/[0.04] border border-white/[0.06] rounded px-2 py-1.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/40 font-mono"
+                />
+                {!localProcessPath && (
+                  <p className="text-[10px] text-gray-600 italic">No custom PATH — inheriting from parent process</p>
+                )}
+              </div>
+
+              {/* Claude CLI Path */}
+              <div className="space-y-1.5">
+                <div>
+                  <h4 className="text-xs font-medium text-gray-300">Claude CLI Path</h4>
+                  <p className="text-[10px] text-gray-500">Explicit path to the Claude binary (optional)</p>
+                </div>
+                <input
+                  value={localCliPath}
+                  onChange={(e) => setLocalCliPath(e.target.value)}
+                  placeholder="Auto-detected"
+                  className="w-full bg-white/[0.04] border border-white/[0.06] rounded px-2 py-1.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/40 font-mono"
+                />
+              </div>
+            </section>
+
+            {/* --- Claude Code CLI --- */}
+            <section className="space-y-3">
+              <div className="flex items-center gap-1.5">
+                <Terminal className="w-3.5 h-3.5 text-gray-400" />
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Claude Code CLI</h3>
+              </div>
+
+              {/* CLI Status */}
+              <div className="rounded-lg bg-white/[0.02] border border-white/[0.06] px-3 py-2.5 space-y-2">
+                {cliStatus === null ? (
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-gray-500">Click to check CLI version</p>
+                    <button
+                      onClick={handleCheckCli}
+                      disabled={checkingCli}
+                      className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium bg-white/[0.06] text-gray-400 hover:text-gray-200 hover:bg-white/[0.08] transition-colors disabled:opacity-50"
+                    >
+                      {checkingCli ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCw className="w-3 h-3" />}
+                      Check
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${cliStatus.installed ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                        <span className="text-xs text-gray-300">
+                          {cliStatus.installed
+                            ? <>Version <span className="font-mono text-gray-200">{cliStatus.installed_version}</span></>
+                            : 'Not installed'}
+                        </span>
+                        {cliStatus.is_local_build && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                            Local build
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={handleCheckCli}
+                        disabled={checkingCli}
+                        className="p-1 rounded text-gray-500 hover:text-gray-300 transition-colors disabled:opacity-50"
+                        title="Refresh"
+                      >
+                        {checkingCli ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCw className="w-3 h-3" />}
+                      </button>
+                    </div>
+
+                    {cliStatus.latest_version && (
+                      <p className="text-[10px] text-gray-500">
+                        Latest: <span className="font-mono">{cliStatus.latest_version}</span>
+                        {cliStatus.update_available && !cliStatus.is_local_build && (
+                          <span className="ml-1.5 text-emerald-400">— Update available!</span>
+                        )}
+                      </p>
+                    )}
+
+                    {cliStatus.update_available && (
+                      <button
+                        onClick={() => handleInstallCli(cliStatus.latest_version ?? undefined)}
+                        disabled={installingCli}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 transition-colors disabled:opacity-50 w-full justify-center"
+                      >
+                        {installingCli ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Download className="w-3.5 h-3.5" />
+                        )}
+                        {installingCli
+                          ? 'Installing...'
+                          : cliStatus.is_local_build
+                            ? 'Install via npm'
+                            : `Install ${cliStatus.latest_version}`}
+                      </button>
+                    )}
+
+                    {cliStatus.cli_path && (
+                      <p className="text-[10px] text-gray-600 font-mono truncate" title={cliStatus.cli_path}>
+                        {cliStatus.cli_path}
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Auto-update toggle */}
+              <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={localAutoUpdate}
+                  onChange={(e) => setLocalAutoUpdate(e.target.checked)}
+                  className="rounded border-white/20 bg-white/[0.04] text-indigo-500 focus:ring-indigo-500/30 focus:ring-offset-0"
+                />
+                Auto-update CLI on startup
+              </label>
             </section>
 
             {/* Current mode summary */}
