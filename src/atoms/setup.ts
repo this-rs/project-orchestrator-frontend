@@ -131,10 +131,19 @@ export interface SetupConfig {
   chatAutoUpdateCli: boolean
   chatAutoUpdateApp: boolean
 
+  // Step 3c — Embedding provider
+  embeddingProvider: 'local' | 'http' | 'disabled'
+  embeddingFastembedModel: string
+  embeddingUrl: string
+  embeddingModel: string
+  embeddingApiKey: string
+  embeddingDimensions: number
+
   // Reconfigure mode indicators (read-only, set by read_config)
   hasOidcSecret: boolean
   hasNeo4jPassword: boolean
   hasMeilisearchKey: boolean
+  hasEmbeddingApiKey: boolean
 }
 
 export const defaultSetupConfig: SetupConfig = {
@@ -185,10 +194,19 @@ export const defaultSetupConfig: SetupConfig = {
   chatAutoUpdateCli: false,
   chatAutoUpdateApp: true,
 
+  // Embedding provider
+  embeddingProvider: 'local',
+  embeddingFastembedModel: 'multilingual-e5-base',
+  embeddingUrl: '',
+  embeddingModel: '',
+  embeddingApiKey: '',
+  embeddingDimensions: 768,
+
   // Reconfigure mode indicators
   hasOidcSecret: false,
   hasNeo4jPassword: false,
   hasMeilisearchKey: false,
+  hasEmbeddingApiKey: false,
 }
 
 /** The full wizard configuration, shared across all setup steps */

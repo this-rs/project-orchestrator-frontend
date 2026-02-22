@@ -151,6 +151,19 @@ export function LaunchPage() {
           <SummaryRow label="CLI Path" value={config.chatClaudeCliPath} />
         )}
         <SummaryRow label="Auto-update CLI" value={config.chatAutoUpdateCli ? 'Enabled' : 'Disabled'} />
+
+        <div className="border-t border-white/[0.04] pt-2" />
+
+        <SummaryRow
+          label="Embeddings"
+          value={
+            config.embeddingProvider === 'local'
+              ? `Local ONNX (${config.embeddingFastembedModel})`
+              : config.embeddingProvider === 'http'
+                ? `HTTP API (${config.embeddingModel || config.embeddingUrl || 'default'})`
+                : 'Disabled'
+          }
+        />
       </div>
 
       {/* Success message */}

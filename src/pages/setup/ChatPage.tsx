@@ -302,6 +302,127 @@ export function ChatPage() {
         </div>
       </div>
 
+      {/* Embedding Provider */}
+      <div className="space-y-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
+        <div>
+          <h3 className="text-sm font-medium text-gray-300">Embedding Provider</h3>
+          <p className="mt-1 text-xs text-gray-500">
+            Vector embeddings power semantic search on knowledge notes and automatic synapse creation.
+          </p>
+        </div>
+
+        {/* Provider selection */}
+        <div className="grid gap-3 sm:grid-cols-3">
+          {([
+            { value: 'local' as const, label: 'Local (ONNX)', description: 'In-process inference via fastembed — no external dependency' },
+            { value: 'http' as const, label: 'HTTP API', description: 'OpenAI-compatible endpoint (Ollama, OpenAI, vLLM…)' },
+            { value: 'disabled' as const, label: 'Disabled', description: 'No embeddings — semantic search unavailable' },
+          ]).map((p) => (
+            <button
+              key={p.value}
+              onClick={() => update({ embeddingProvider: p.value })}
+              className={`flex flex-col items-start gap-1.5 rounded-xl border p-4 text-left transition ${
+                config.embeddingProvider === p.value
+                  ? 'border-indigo-500/50 bg-indigo-500/10'
+                  : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]'
+              }`}
+            >
+              <div className="flex w-full items-center justify-between">
+                <span className={`text-sm font-medium ${config.embeddingProvider === p.value ? 'text-white' : 'text-gray-300'}`}>
+                  {p.label}
+                </span>
+                {config.embeddingProvider === p.value && <Check className="h-4 w-4 text-indigo-400" />}
+              </div>
+              <span className="text-xs text-gray-500">{p.description}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Local model picker */}
+        {config.embeddingProvider === 'local' && (
+          <div className="border-t border-white/[0.06] pt-4 space-y-2">
+            <label className="block text-xs font-medium text-gray-400">FastEmbed Model</label>
+            <select
+              value={config.embeddingFastembedModel}
+              onChange={(e) => update({ embeddingFastembedModel: e.target.value })}
+              className="w-full rounded-lg border border-white/[0.06] bg-white/[0.04] px-3 py-2 text-sm text-gray-200 focus:border-indigo-500/40 focus:outline-none"
+            >
+              <optgroup label="Multilingual (recommended)">
+                <option value="multilingual-e5-base">multilingual-e5-base (768d, ~400 MB)</option>
+                <option value="multilingual-e5-small">multilingual-e5-small (384d, ~120 MB)</option>
+                <option value="multilingual-e5-large">multilingual-e5-large (1024d, ~1.1 GB)</option>
+              </optgroup>
+              <optgroup label="English only">
+                <option value="bge-small-en-v1.5">bge-small-en-v1.5 (384d)</option>
+                <option value="bge-base-en-v1.5">bge-base-en-v1.5 (768d)</option>
+                <option value="all-minilm-l6-v2">all-MiniLM-L6-v2 (384d)</option>
+                <option value="nomic-embed-text-v1.5">nomic-embed-text-v1.5 (768d)</option>
+                <option value="gte-base-en-v1.5">gte-base-en-v1.5 (768d)</option>
+              </optgroup>
+              <optgroup label="Large / High-quality">
+                <option value="bge-m3">bge-m3 (1024d, multilingual)</option>
+                <option value="bge-large-en-v1.5">bge-large-en-v1.5 (1024d)</option>
+                <option value="snowflake-arctic-embed-l">snowflake-arctic-embed-l (1024d)</option>
+              </optgroup>
+            </select>
+            <p className="text-xs text-gray-500">
+              Default: <span className="font-mono">multilingual-e5-base</span> — multilingual FR/EN support, 768 dimensions.
+            </p>
+          </div>
+        )}
+
+        {/* HTTP provider settings */}
+        {config.embeddingProvider === 'http' && (
+          <div className="border-t border-white/[0.06] pt-4 space-y-4">
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-gray-400">Endpoint URL</label>
+              <input
+                value={config.embeddingUrl}
+                onChange={(e) => update({ embeddingUrl: e.target.value })}
+                placeholder="http://localhost:11434/v1/embeddings"
+                className="w-full rounded-lg border border-white/[0.06] bg-white/[0.04] px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-indigo-500/40 focus:outline-none font-mono"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="block text-xs font-medium text-gray-400">Model</label>
+                <input
+                  value={config.embeddingModel}
+                  onChange={(e) => update({ embeddingModel: e.target.value })}
+                  placeholder="nomic-embed-text"
+                  className="w-full rounded-lg border border-white/[0.06] bg-white/[0.04] px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-indigo-500/40 focus:outline-none font-mono"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-xs font-medium text-gray-400">Dimensions</label>
+                <input
+                  type="number"
+                  value={config.embeddingDimensions}
+                  onChange={(e) => update({ embeddingDimensions: parseInt(e.target.value) || 768 })}
+                  placeholder="768"
+                  className="w-full rounded-lg border border-white/[0.06] bg-white/[0.04] px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-indigo-500/40 focus:outline-none font-mono"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-gray-400">
+                API Key
+                {config.hasEmbeddingApiKey && !config.embeddingApiKey && (
+                  <span className="ml-2 text-emerald-400 font-normal">Secret exists — leave blank to keep</span>
+                )}
+              </label>
+              <input
+                type="password"
+                value={config.embeddingApiKey}
+                onChange={(e) => update({ embeddingApiKey: e.target.value })}
+                placeholder={config.hasEmbeddingApiKey ? '••••••••' : 'Optional (for OpenAI, Voyage…)'}
+                className="w-full rounded-lg border border-white/[0.06] bg-white/[0.04] px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-indigo-500/40 focus:outline-none font-mono"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Claude Code CLI — detection, paths, version management, auto-update */}
       <div className="space-y-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
         {/* Detection */}
