@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAtomValue, useSetAtom } from 'jotai'
+import { useAtom, useSetAtom } from 'jotai'
 import { Check, X, Loader2, Rocket, RefreshCw, ChevronDown } from 'lucide-react'
 import { setupConfigAtom, configExistsAtom } from '@/atoms/setup'
 import { isTauri } from '@/services/env'
@@ -7,7 +7,7 @@ import { isTauri } from '@/services/env'
 type LaunchPhase = 'review' | 'generating' | 'generated' | 'restarting' | 'error'
 
 export function LaunchPage() {
-  const config = useAtomValue(setupConfigAtom)
+  const [config, setConfig] = useAtom(setupConfigAtom)
   const setConfigExists = useSetAtom(configExistsAtom)
   const [phase, setPhase] = useState<LaunchPhase>('review')
   const [configPath, setConfigPath] = useState<string>('')
@@ -57,6 +57,24 @@ export function LaunchPage() {
           Review your configuration and generate the config file.
         </p>
       </div>
+
+      {/* Auto-update application toggle */}
+      {isTauri && (
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={config.chatAutoUpdateApp}
+              onChange={(e) => setConfig((prev) => ({ ...prev, chatAutoUpdateApp: e.target.checked }))}
+              className="rounded border-white/20 bg-white/[0.04] text-indigo-500 focus:ring-indigo-500/30 focus:ring-offset-0"
+            />
+            <div>
+              <span className="text-sm text-gray-300">Auto-update application on startup</span>
+              <p className="text-xs text-gray-500">Check for new versions of Project Orchestrator when the app starts</p>
+            </div>
+          </label>
+        </div>
+      )}
 
       {/* Configuration summary */}
       <div className="space-y-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
@@ -132,7 +150,6 @@ export function LaunchPage() {
         {config.chatClaudeCliPath && (
           <SummaryRow label="CLI Path" value={config.chatClaudeCliPath} />
         )}
-        <SummaryRow label="Auto-update App" value={config.chatAutoUpdateApp ? 'Enabled' : 'Disabled'} />
         <SummaryRow label="Auto-update CLI" value={config.chatAutoUpdateCli ? 'Enabled' : 'Disabled'} />
       </div>
 

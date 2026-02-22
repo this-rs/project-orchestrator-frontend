@@ -1,9 +1,8 @@
 import { useAtom } from 'jotai'
-import { useCallback, useState } from 'react'
-import { Check, CheckCircle2, AlertCircle, Loader2, RotateCw, Download, FolderCog, Terminal } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Check, CheckCircle2, AlertCircle, Loader2, RotateCw, Download } from 'lucide-react'
 import { setupConfigAtom, type McpSetupStatus } from '@/atoms/setup'
 import { isTauri } from '@/services/env'
-import { chatApi } from '@/services/chat'
 import { useToast } from '@/hooks'
 import { AVAILABLE_MODELS } from '@/constants/models'
 import type { CliVersionStatus } from '@/types'
@@ -42,6 +41,23 @@ export function ChatPage() {
 
   const update = (patch: Partial<typeof config>) =>
     setConfig((prev) => ({ ...prev, ...patch }))
+
+  // Auto-detect PATH on mount when running in Tauri and no PATH is set yet
+  useEffect(() => {
+    if (!isTauri || config.chatProcessPath) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core')
+        const path = await invoke<string | null>('detect_shell_path')
+        if (!cancelled && path) {
+          setConfig((prev) => prev.chatProcessPath ? prev : { ...prev, chatProcessPath: path })
+        }
+      } catch { /* silently ignore — user can detect manually */ }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
+  }, [])
 
   // Detect Claude Code CLI via Tauri invoke
   const handleDetect = useCallback(async () => {
@@ -94,27 +110,18 @@ export function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- update is a local helper that changes on every render
   }, [config.serverPort])
 
-  // Detect PATH from login shell
+  // Detect PATH from login shell (Tauri-only, no backend needed)
   const handleDetectPath = useCallback(async () => {
+    if (!isTauri) return
     try {
       setDetectingPath(true)
-      if (isTauri) {
-        try {
-          const { invoke } = await import('@tauri-apps/api/core')
-          const path = await invoke<string | null>('detect_shell_path')
-          if (path) {
-            update({ chatProcessPath: path })
-            toast.success('PATH detected from login shell')
-            return
-          }
-        } catch { /* fall through */ }
-      }
-      const res = await chatApi.detectPath()
-      if (res.path) {
-        update({ chatProcessPath: res.path })
+      const { invoke } = await import('@tauri-apps/api/core')
+      const path = await invoke<string | null>('detect_shell_path')
+      if (path) {
+        update({ chatProcessPath: path })
         toast.success('PATH detected from login shell')
       } else {
-        toast.error(res.error ?? 'Could not detect PATH')
+        toast.error('Could not detect PATH from login shell')
       }
     } catch {
       toast.error('Failed to detect PATH')
@@ -124,12 +131,17 @@ export function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- update is a local helper
   }, [toast])
 
-  // Check CLI version
+  // Check CLI version via Tauri invoke (no backend/auth required)
   const handleCheckCli = useCallback(async () => {
     try {
       setCheckingCli(true)
-      const status = await chatApi.getCliStatus()
-      setCliStatus(status)
+      if (isTauri) {
+        const { invoke } = await import('@tauri-apps/api/core')
+        const status = await invoke<CliVersionStatus>('check_cli_status')
+        setCliStatus(status)
+      } else {
+        toast.error('CLI check is only available in the desktop app')
+      }
     } catch {
       toast.error('Failed to check CLI status')
     } finally {
@@ -137,17 +149,21 @@ export function ChatPage() {
     }
   }, [toast])
 
-  // Install/update CLI
+  // Install/update CLI via Tauri invoke (no backend/auth required)
   const handleInstallCli = useCallback(async (version?: string) => {
     try {
       setInstallingCli(true)
-      const result = await chatApi.installCli(version)
-      if (result.success) {
-        toast.success(result.message)
-        const status = await chatApi.getCliStatus()
-        setCliStatus(status)
-      } else {
-        toast.error(result.message)
+      if (isTauri) {
+        const { invoke } = await import('@tauri-apps/api/core')
+        const result = await invoke<{ success: boolean; version: string | null; message: string; cli_path: string | null }>('install_cli', { version: version ?? null })
+        if (result.success) {
+          toast.success(result.message)
+          // Refresh status after install
+          const status = await invoke<CliVersionStatus>('check_cli_status')
+          setCliStatus(status)
+        } else {
+          toast.error(result.message)
+        }
       }
     } catch {
       toast.error('Failed to install CLI')
@@ -286,7 +302,7 @@ export function ChatPage() {
         </div>
       </div>
 
-      {/* Claude Code detection + MCP configuration */}
+      {/* Claude Code CLI — detection, paths, version management, auto-update */}
       <div className="space-y-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
         {/* Detection */}
         <div className="flex items-start justify-between gap-4">
@@ -319,64 +335,8 @@ export function ChatPage() {
           </div>
         </div>
 
-        {/* MCP Configuration separator */}
-        <div className="border-t border-white/[0.06] pt-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h3 className="text-sm font-medium text-gray-300">MCP Server Configuration</h3>
-              <p className="mt-1 text-xs text-gray-500">
-                Configure Claude Code to use Project Orchestrator as an MCP server. This enables
-                Claude Code to access your projects, plans, and knowledge graph.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              {mcpSuccess && (
-                <span className="flex items-center gap-1 text-xs font-medium text-emerald-400">
-                  <CheckCircle2 className="h-4 w-4" />
-                  {config.mcpSetupStatus === 'already_configured' ? 'Already configured' : 'Configured'}
-                </span>
-              )}
-              <button
-                onClick={handleConfigureMcp}
-                disabled={config.mcpSetupStatus === 'configuring' || mcpSuccess}
-                className="rounded-lg border border-white/[0.1] bg-indigo-600/20 px-3 py-1.5 text-xs font-medium text-indigo-300 transition hover:bg-indigo-600/30 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {config.mcpSetupStatus === 'configuring' ? (
-                  <span className="flex items-center gap-1.5">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Configuring…
-                  </span>
-                ) : (
-                  'Configure MCP'
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Status message */}
-          {config.mcpSetupStatus === 'error' && (
-            <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-400">
-              {config.mcpSetupMessage}
-            </div>
-          )}
-          {mcpSuccess && config.mcpSetupMessage && (
-            <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">
-              {config.mcpSetupMessage}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Environment & CLI settings */}
-      <div className="space-y-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
-        {/* Environment header */}
-        <div className="flex items-center gap-2">
-          <FolderCog className="h-4 w-4 text-gray-400" />
-          <h3 className="text-sm font-medium text-gray-300">Environment</h3>
-        </div>
-
         {/* Process PATH */}
-        <div className="space-y-2">
+        <div className="border-t border-white/[0.06] pt-4 space-y-2">
           <div className="flex items-center justify-between">
             <div>
               <label className="block text-xs font-medium text-gray-400">Process PATH</label>
@@ -418,10 +378,7 @@ export function ChatPage() {
 
         {/* CLI Version Management */}
         <div className="border-t border-white/[0.06] pt-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Terminal className="h-4 w-4 text-gray-400" />
-            <h3 className="text-sm font-medium text-gray-300">CLI Version Management</h3>
-          </div>
+          <h4 className="text-xs font-medium text-gray-400 mb-3">CLI Version Management</h4>
 
           <div className="rounded-lg bg-white/[0.02] border border-white/[0.06] px-4 py-3 space-y-2">
             {cliStatus === null ? (
@@ -496,20 +453,8 @@ export function ChatPage() {
           </div>
         </div>
 
-        {/* Auto-update toggles */}
-        <div className="border-t border-white/[0.06] pt-4 space-y-3">
-          <label className="flex items-center gap-3 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={config.chatAutoUpdateApp}
-              onChange={(e) => update({ chatAutoUpdateApp: e.target.checked })}
-              className="rounded border-white/20 bg-white/[0.04] text-indigo-500 focus:ring-indigo-500/30 focus:ring-offset-0"
-            />
-            <div>
-              <span className="text-sm text-gray-300">Auto-update application on startup</span>
-              <p className="text-xs text-gray-500">Check for new versions when the app starts</p>
-            </div>
-          </label>
+        {/* Auto-update CLI toggle */}
+        <div className="border-t border-white/[0.06] pt-4">
           <label className="flex items-center gap-3 cursor-pointer select-none">
             <input
               type="checkbox"
@@ -523,6 +468,53 @@ export function ChatPage() {
             </div>
           </label>
         </div>
+      </div>
+
+      {/* MCP Server Configuration */}
+      <div className="space-y-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-medium text-gray-300">MCP Server Configuration</h3>
+            <p className="mt-1 text-xs text-gray-500">
+              Configure Claude Code to use Project Orchestrator as an MCP server. This enables
+              Claude Code to access your projects, plans, and knowledge graph.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {mcpSuccess && (
+              <span className="flex items-center gap-1 text-xs font-medium text-emerald-400">
+                <CheckCircle2 className="h-4 w-4" />
+                {config.mcpSetupStatus === 'already_configured' ? 'Already configured' : 'Configured'}
+              </span>
+            )}
+            <button
+              onClick={handleConfigureMcp}
+              disabled={config.mcpSetupStatus === 'configuring' || mcpSuccess}
+              className="rounded-lg border border-white/[0.1] bg-indigo-600/20 px-3 py-1.5 text-xs font-medium text-indigo-300 transition hover:bg-indigo-600/30 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {config.mcpSetupStatus === 'configuring' ? (
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Configuring…
+                </span>
+              ) : (
+                'Configure MCP'
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Status message */}
+        {config.mcpSetupStatus === 'error' && (
+          <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+            {config.mcpSetupMessage}
+          </div>
+        )}
+        {mcpSuccess && config.mcpSetupMessage && (
+          <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">
+            {config.mcpSetupMessage}
+          </div>
+        )}
       </div>
 
       {/* Info box */}

@@ -132,6 +132,11 @@ export function SetupWizard() {
             chatPermissionMode: (['default', 'acceptEdits', 'bypassPermissions', 'plan'].includes(existing.chatPermissionMode as string)
               ? existing.chatPermissionMode
               : prev.chatPermissionMode) as SetupConfig['chatPermissionMode'],
+            // Desktop-only settings (PATH, CLI, auto-update)
+            chatProcessPath: (existing.chatProcessPath as string) || '',
+            chatClaudeCliPath: (existing.chatClaudeCliPath as string) || '',
+            chatAutoUpdateCli: (existing.chatAutoUpdateCli as boolean) ?? prev.chatAutoUpdateCli,
+            chatAutoUpdateApp: (existing.chatAutoUpdateApp as boolean) ?? prev.chatAutoUpdateApp,
             // Reconfigure indicators
             hasOidcSecret: (existing.hasOidcSecret as boolean) || false,
             hasNeo4jPassword: (existing.hasNeo4jPassword as boolean) || false,
