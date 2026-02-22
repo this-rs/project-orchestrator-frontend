@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
-import { useAtomValue } from 'jotai'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { useAtomValue, useSetAtom } from 'jotai'
 import { LogOut, Settings } from 'lucide-react'
 import { authModeAtom, currentUserAtom } from '@/atoms'
+import { settingsReturnUrlAtom } from '@/atoms/setup'
 import { forceLogout } from '@/services/authManager'
 import { isTauri } from '@/services/env'
 
@@ -81,6 +82,8 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
     .toUpperCase()
 
   const navigate = useNavigate()
+  const location = useLocation()
+  const setSettingsReturnUrl = useSetAtom(settingsReturnUrlAtom)
 
   const handleLogout = () => {
     forceLogout()
@@ -88,6 +91,7 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
 
   const handleSettings = () => {
     setOpen(false)
+    setSettingsReturnUrl(location.pathname + location.search)
     navigate('/settings')
   }
 

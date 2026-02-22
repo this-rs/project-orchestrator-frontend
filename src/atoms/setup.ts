@@ -213,3 +213,9 @@ export const trayNavigationAtom = atom<boolean>(
  *  /projects?from=tray but the backend wasn't configured yet, SetupGuard
  *  saves '/projects' here before redirecting to /setup. */
 export const trayReturnUrlAtom = atom<string | null>(null)
+
+/** URL to return to when leaving the Settings page.
+ *  Set by UserMenu (via Jotai) or by the tray (via sessionStorage).
+ *  SettingsPage reads this to navigate back instead of using navigate(-1),
+ *  which fails when the page was opened from the tray (no browser history). */
+export const settingsReturnUrlAtom = atom<string | null>(null)
