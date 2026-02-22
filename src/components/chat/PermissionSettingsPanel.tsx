@@ -253,34 +253,63 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
   const [checkingCli, setCheckingCli] = useState(false)
   const [installingCli, setInstallingCli] = useState(false)
 
-  // Fetch full chat config on mount
+  // Fetch config on mount — try unified endpoint, fallback to permissions-only
   useEffect(() => {
     let cancelled = false
     const load = async () => {
       try {
         setLoading(true)
         setError(null)
-        const config = await chatApi.getChatConfig()
+
+        // Try the unified chat config endpoint first (includes env fields)
+        // Falls back to permissions-only endpoint if the backend doesn't support it yet
+        let permMode: PermissionMode = 'bypassPermissions'
+        let allowedTools: string[] = []
+        let disallowedTools: string[] = []
+        let defaultModel: string | undefined
+        let processPath: string | null = null
+        let cliPath: string | null = null
+        let autoUpdate = false
+
+        try {
+          const config = await chatApi.getChatConfig()
+          permMode = config.mode
+          allowedTools = config.allowed_tools ?? []
+          disallowedTools = config.disallowed_tools ?? []
+          defaultModel = config.default_model
+          processPath = config.process_path
+          cliPath = config.claude_cli_path
+          autoUpdate = config.auto_update_cli
+        } catch {
+          // Unified endpoint not available — fallback to legacy permissions endpoint
+          const perm = await chatApi.getPermissionConfig()
+          permMode = perm.mode
+          allowedTools = perm.allowed_tools ?? []
+          disallowedTools = perm.disallowed_tools ?? []
+          defaultModel = perm.default_model
+        }
+
         if (cancelled) return
+
         // Update permission atom
         setServerConfig({
-          mode: config.mode,
-          allowed_tools: config.allowed_tools,
-          disallowed_tools: config.disallowed_tools,
-          default_model: config.default_model,
+          mode: permMode,
+          allowed_tools: allowedTools,
+          disallowed_tools: disallowedTools,
+          default_model: defaultModel,
         })
         // Local permission state
-        setLocalMode(config.mode)
-        setLocalAllowed([...(config.allowed_tools ?? [])])
-        setLocalDisallowed([...(config.disallowed_tools ?? [])])
+        setLocalMode(permMode)
+        setLocalAllowed([...allowedTools])
+        setLocalDisallowed([...disallowedTools])
         // Local env state
-        setLocalProcessPath(config.process_path ?? '')
-        setLocalCliPath(config.claude_cli_path ?? '')
-        setLocalAutoUpdate(config.auto_update_cli)
+        setLocalProcessPath(processPath ?? '')
+        setLocalCliPath(cliPath ?? '')
+        setLocalAutoUpdate(autoUpdate)
         // Server snapshots for change detection
-        setServerProcessPath(config.process_path)
-        setServerCliPath(config.claude_cli_path)
-        setServerAutoUpdate(config.auto_update_cli)
+        setServerProcessPath(processPath)
+        setServerCliPath(cliPath)
+        setServerAutoUpdate(autoUpdate)
       } catch (err) {
         if (cancelled) return
         setError(err instanceof Error ? err.message : 'Failed to load chat config')
@@ -311,25 +340,40 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
   const handleSave = useCallback(async () => {
     try {
       setSaving(true)
-      // Use the unified PATCH endpoint to save everything at once
-      const saved = await chatApi.updateChatConfig({
-        mode: localMode,
-        allowed_tools: localAllowed,
-        disallowed_tools: localDisallowed,
-        process_path: localProcessPath || null,
-        claude_cli_path: localCliPath || null,
-        auto_update_cli: localAutoUpdate,
-      })
-      // Update atoms and server snapshots
-      setServerConfig({
-        mode: saved.mode,
-        allowed_tools: saved.allowed_tools,
-        disallowed_tools: saved.disallowed_tools,
-        default_model: saved.default_model,
-      })
-      setServerProcessPath(saved.process_path)
-      setServerCliPath(saved.claude_cli_path)
-      setServerAutoUpdate(saved.auto_update_cli)
+      // Try the unified PATCH endpoint first, fallback to permissions-only PUT
+      try {
+        const saved = await chatApi.updateChatConfig({
+          mode: localMode,
+          allowed_tools: localAllowed,
+          disallowed_tools: localDisallowed,
+          process_path: localProcessPath || null,
+          claude_cli_path: localCliPath || null,
+          auto_update_cli: localAutoUpdate,
+        })
+        // Update atoms and server snapshots
+        setServerConfig({
+          mode: saved.mode,
+          allowed_tools: saved.allowed_tools,
+          disallowed_tools: saved.disallowed_tools,
+          default_model: saved.default_model,
+        })
+        setServerProcessPath(saved.process_path)
+        setServerCliPath(saved.claude_cli_path)
+        setServerAutoUpdate(saved.auto_update_cli)
+      } catch {
+        // Unified endpoint not available — fallback to permissions-only
+        const saved = await chatApi.updatePermissionConfig({
+          mode: localMode,
+          allowed_tools: localAllowed,
+          disallowed_tools: localDisallowed,
+        })
+        setServerConfig({
+          mode: saved.mode,
+          allowed_tools: saved.allowed_tools,
+          disallowed_tools: saved.disallowed_tools,
+          default_model: saved.default_model,
+        })
+      }
       toast.success('Settings saved')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save')
