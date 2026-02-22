@@ -29,6 +29,7 @@ import {
   CodePage,
   FeatureGraphDetailPage,
   NotFoundPage,
+  SettingsPage,
   SetupWizard,
 } from '@/pages'
 
@@ -125,6 +126,9 @@ function App() {
 
                     {/* Workspace selector (no sidebar) */}
                     <Route path="/workspace-selector" element={<WorkspaceSelectorPage />} />
+
+                    {/* Settings page (Tauri-only, no sidebar) */}
+                    <Route path="/settings" element={<SettingsPage />} />
 
                     {/* ===== Workspace-scoped routes ===== */}
                     <Route path="/workspace/:slug" element={<WorkspaceRouteGuard />}>

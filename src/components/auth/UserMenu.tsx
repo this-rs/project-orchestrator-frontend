@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { LogOut } from 'lucide-react'
+import { LogOut, Settings } from 'lucide-react'
 import { authModeAtom, currentUserAtom } from '@/atoms'
 import { forceLogout } from '@/services/authManager'
+import { isTauri } from '@/services/env'
 
 interface UserMenuProps {
   /** Open dropdown upward (for sidebar bottom placement) */
@@ -78,8 +80,15 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
     .slice(0, 2)
     .toUpperCase()
 
+  const navigate = useNavigate()
+
   const handleLogout = () => {
     forceLogout()
+  }
+
+  const handleSettings = () => {
+    setOpen(false)
+    navigate('/settings')
   }
 
   return (
@@ -117,6 +126,15 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
             <p className="truncate text-sm font-medium text-gray-200">{user.name}</p>
             <p className="truncate text-xs text-gray-500">{user.email}</p>
           </div>
+          {isTauri && (
+            <button
+              onClick={handleSettings}
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200"
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </button>
+          )}
           <button
             onClick={handleLogout}
             className="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200"

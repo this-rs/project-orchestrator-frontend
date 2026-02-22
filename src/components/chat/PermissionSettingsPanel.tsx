@@ -223,7 +223,8 @@ function PatternListEditor({
 // ---------------------------------------------------------------------------
 
 interface PermissionSettingsPanelProps {
-  onClose: () => void
+  /** Close handler. When omitted, the panel renders without a header (standalone mode for Settings page). */
+  onClose?: () => void
 }
 
 export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProps) {
@@ -472,21 +473,22 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      {/* Panel header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06] shrink-0">
-        <div className="flex items-center gap-2">
-          {/* Gear icon */}
-          <Settings className="w-4 h-4 text-gray-400" />
-          <span className="text-sm font-medium text-gray-300">Permission Settings</span>
+      {/* Panel header — shown only in embedded/panel mode (onClose provided) */}
+      {onClose && (
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06] shrink-0">
+          <div className="flex items-center gap-2">
+            <Settings className="w-4 h-4 text-gray-400" />
+            <span className="text-sm font-medium text-gray-300">Permission Settings</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
+            title="Close settings"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
-          title="Close settings"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
+      )}
 
       {/* Body — scrollable */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
