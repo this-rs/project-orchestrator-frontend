@@ -428,6 +428,23 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
         lastEventWasMaxTurns = false
         break
 
+      case 'retrying': {
+        const msg = lastAssistant(createdAt)
+        const attempt = evt.attempt as number | undefined
+        const maxAttempts = evt.max_attempts as number | undefined
+        const errorMsg = evt.error_message as string | undefined
+        msg.blocks.push({
+          id: nextBlockId(),
+          type: 'retry_indicator',
+          content: maxAttempts
+            ? `Retrying... (${attempt}/${maxAttempts})`
+            : `Retrying... (attempt ${attempt})`,
+          metadata: { attempt, max_attempts: maxAttempts, error_message: errorMsg },
+        })
+        lastEventWasMaxTurns = false
+        break
+      }
+
       default:
         // Unknown event type — skip
         lastEventWasMaxTurns = false
@@ -1032,6 +1049,28 @@ export function useChat() {
           })
           if (!event.replaying) {
             setIsStreaming(true) // backend will send a new stream shortly
+          }
+          break
+        }
+
+        case 'retrying': {
+          // Backend is retrying after a retryable API error (500/529)
+          const retryData = event.replaying
+            ? (event as { data?: Record<string, unknown> }).data ?? event
+            : event
+          const attempt = (retryData as { attempt?: number }).attempt
+          const maxAttempts = (retryData as { max_attempts?: number }).max_attempts
+          const errorMsg = (retryData as { error_message?: string }).error_message
+          lastMsg.blocks.push({
+            id: nextBlockId(),
+            type: 'retry_indicator',
+            content: maxAttempts
+              ? `Retrying... (${attempt}/${maxAttempts})`
+              : `Retrying... (attempt ${attempt})`,
+            metadata: { attempt, max_attempts: maxAttempts, error_message: errorMsg },
+          })
+          if (!event.replaying) {
+            setIsStreaming(true) // backend will retry shortly
           }
           break
         }

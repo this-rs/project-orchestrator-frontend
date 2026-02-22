@@ -16,6 +16,7 @@ import { ResultMaxTurnsBlock } from './ResultMaxTurnsBlock'
 import { ResultErrorBlock } from './ResultErrorBlock'
 import { SystemInitBlock } from './SystemInitBlock'
 import { ContinueIndicatorBlock } from './ContinueIndicatorBlock'
+import { RetryIndicatorBlock } from './RetryIndicatorBlock'
 
 /**
  * Markdown link component: uses ExternalLink which renders differently
@@ -301,6 +302,14 @@ export function ChatMessageBubble({ message, isStreaming, onRespondPermission, o
             case 'continue_indicator':
               return (
                 <ContinueIndicatorBlock
+                  key={block.id}
+                  block={block}
+                />
+              )
+
+            case 'retry_indicator':
+              return (
+                <RetryIndicatorBlock
                   key={block.id}
                   block={block}
                 />
