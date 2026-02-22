@@ -33,6 +33,8 @@ export interface ChatConfig {
   claude_cli_path: string | null
   /** Whether to auto-update CLI on startup */
   auto_update_cli: boolean
+  /** Whether to auto-update the Tauri application on startup */
+  auto_update_app: boolean
 }
 
 /** Response from GET /api/chat/detect-path */

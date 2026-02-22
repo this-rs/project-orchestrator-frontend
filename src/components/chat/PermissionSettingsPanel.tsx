@@ -3,6 +3,7 @@ import { useAtom } from 'jotai'
 import { chatPermissionConfigAtom } from '@/atoms'
 import { chatApi } from '@/services/chat'
 import { useToast } from '@/hooks'
+import { isTauri } from '@/services/env'
 import type { PermissionMode, CliVersionStatus } from '@/types'
 import { X, Settings, Loader2, RotateCw, Download, Terminal, FolderCog } from 'lucide-react'
 
@@ -238,9 +239,11 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
   const [localProcessPath, setLocalProcessPath] = useState('')
   const [localCliPath, setLocalCliPath] = useState('')
   const [localAutoUpdate, setLocalAutoUpdate] = useState(false)
+  const [localAutoUpdateApp, setLocalAutoUpdateApp] = useState(true)
   const [serverProcessPath, setServerProcessPath] = useState<string | null>(null)
   const [serverCliPath, setServerCliPath] = useState<string | null>(null)
   const [serverAutoUpdate, setServerAutoUpdate] = useState(false)
+  const [serverAutoUpdateApp, setServerAutoUpdateApp] = useState(true)
 
   // UI state
   const [loading, setLoading] = useState(true)
@@ -270,6 +273,7 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
         let processPath: string | null = null
         let cliPath: string | null = null
         let autoUpdate = false
+        let autoUpdateApp = true
 
         try {
           const config = await chatApi.getChatConfig()
@@ -280,6 +284,7 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
           processPath = config.process_path
           cliPath = config.claude_cli_path
           autoUpdate = config.auto_update_cli
+          autoUpdateApp = config.auto_update_app
         } catch {
           // Unified endpoint not available — fallback to legacy permissions endpoint
           const perm = await chatApi.getPermissionConfig()
@@ -306,10 +311,12 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
         setLocalProcessPath(processPath ?? '')
         setLocalCliPath(cliPath ?? '')
         setLocalAutoUpdate(autoUpdate)
+        setLocalAutoUpdateApp(autoUpdateApp)
         // Server snapshots for change detection
         setServerProcessPath(processPath)
         setServerCliPath(cliPath)
         setServerAutoUpdate(autoUpdate)
+        setServerAutoUpdateApp(autoUpdateApp)
       } catch (err) {
         if (cancelled) return
         setError(err instanceof Error ? err.message : 'Failed to load chat config')
@@ -333,7 +340,8 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
   const hasEnvChanges =
     (localProcessPath || null) !== (serverProcessPath || null) ||
     (localCliPath || null) !== (serverCliPath || null) ||
-    localAutoUpdate !== serverAutoUpdate
+    localAutoUpdate !== serverAutoUpdate ||
+    localAutoUpdateApp !== serverAutoUpdateApp
 
   const hasChanges = hasPermChanges || hasEnvChanges
 
@@ -349,6 +357,7 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
           process_path: localProcessPath || null,
           claude_cli_path: localCliPath || null,
           auto_update_cli: localAutoUpdate,
+          auto_update_app: localAutoUpdateApp,
         })
         // Update atoms and server snapshots
         setServerConfig({
@@ -360,6 +369,7 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
         setServerProcessPath(saved.process_path)
         setServerCliPath(saved.claude_cli_path)
         setServerAutoUpdate(saved.auto_update_cli)
+        setServerAutoUpdateApp(saved.auto_update_app)
       } catch {
         // Unified endpoint not available — fallback to permissions-only
         const saved = await chatApi.updatePermissionConfig({
@@ -380,7 +390,7 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
     } finally {
       setSaving(false)
     }
-  }, [localMode, localAllowed, localDisallowed, localProcessPath, localCliPath, localAutoUpdate, setServerConfig, toast])
+  }, [localMode, localAllowed, localDisallowed, localProcessPath, localCliPath, localAutoUpdate, localAutoUpdateApp, setServerConfig, toast])
 
   const handleCancel = () => {
     if (serverConfig) {
@@ -391,11 +401,27 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
     setLocalProcessPath(serverProcessPath ?? '')
     setLocalCliPath(serverCliPath ?? '')
     setLocalAutoUpdate(serverAutoUpdate)
+    setLocalAutoUpdateApp(serverAutoUpdateApp)
   }
 
   const handleDetectPath = async () => {
     try {
       setDetecting(true)
+      // Prefer Tauri invoke (works even before backend starts, e.g. in setup wizard)
+      if (isTauri) {
+        try {
+          const { invoke } = await import('@tauri-apps/api/core')
+          const path = await invoke<string | null>('detect_shell_path')
+          if (path) {
+            setLocalProcessPath(path)
+            toast.success('PATH detected from login shell')
+            return
+          }
+        } catch {
+          // Tauri invoke failed — fall through to REST endpoint
+        }
+      }
+      // Fallback: REST endpoint
       const res = await chatApi.detectPath()
       if (res.path) {
         setLocalProcessPath(res.path)
@@ -674,16 +700,27 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
                 )}
               </div>
 
-              {/* Auto-update toggle */}
-              <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={localAutoUpdate}
-                  onChange={(e) => setLocalAutoUpdate(e.target.checked)}
-                  className="rounded border-white/20 bg-white/[0.04] text-indigo-500 focus:ring-indigo-500/30 focus:ring-offset-0"
-                />
-                Auto-update CLI on startup
-              </label>
+              {/* Auto-update toggles */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={localAutoUpdateApp}
+                    onChange={(e) => setLocalAutoUpdateApp(e.target.checked)}
+                    className="rounded border-white/20 bg-white/[0.04] text-indigo-500 focus:ring-indigo-500/30 focus:ring-offset-0"
+                  />
+                  Auto-update application on startup
+                </label>
+                <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={localAutoUpdate}
+                    onChange={(e) => setLocalAutoUpdate(e.target.checked)}
+                    className="rounded border-white/20 bg-white/[0.04] text-indigo-500 focus:ring-indigo-500/30 focus:ring-offset-0"
+                  />
+                  Auto-update CLI on startup
+                </label>
+              </div>
             </section>
 
             {/* Current mode summary */}
