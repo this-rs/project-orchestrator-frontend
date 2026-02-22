@@ -126,6 +126,14 @@ export function LaunchPage() {
             : 'Plan Only (read-only)'
           }
         />
+        {config.chatProcessPath && (
+          <SummaryRow label="Process PATH" value={config.chatProcessPath.length > 60 ? config.chatProcessPath.slice(0, 57) + '...' : config.chatProcessPath} />
+        )}
+        {config.chatClaudeCliPath && (
+          <SummaryRow label="CLI Path" value={config.chatClaudeCliPath} />
+        )}
+        <SummaryRow label="Auto-update App" value={config.chatAutoUpdateApp ? 'Enabled' : 'Disabled'} />
+        <SummaryRow label="Auto-update CLI" value={config.chatAutoUpdateCli ? 'Enabled' : 'Disabled'} />
       </div>
 
       {/* Success message */}

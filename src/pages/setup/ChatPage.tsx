@@ -1,9 +1,12 @@
 import { useAtom } from 'jotai'
 import { useCallback, useState } from 'react'
-import { Check, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
+import { Check, CheckCircle2, AlertCircle, Loader2, RotateCw, Download, FolderCog, Terminal } from 'lucide-react'
 import { setupConfigAtom, type McpSetupStatus } from '@/atoms/setup'
 import { isTauri } from '@/services/env'
+import { chatApi } from '@/services/chat'
+import { useToast } from '@/hooks'
 import { AVAILABLE_MODELS } from '@/constants/models'
+import type { CliVersionStatus } from '@/types'
 
 const PERMISSION_MODES = [
   {
@@ -31,6 +34,11 @@ const PERMISSION_MODES = [
 export function ChatPage() {
   const [config, setConfig] = useAtom(setupConfigAtom)
   const [detectAttempted, setDetectAttempted] = useState(false)
+  const [detectingPath, setDetectingPath] = useState(false)
+  const [cliStatus, setCliStatus] = useState<CliVersionStatus | null>(null)
+  const [checkingCli, setCheckingCli] = useState(false)
+  const [installingCli, setInstallingCli] = useState(false)
+  const toast = useToast()
 
   const update = (patch: Partial<typeof config>) =>
     setConfig((prev) => ({ ...prev, ...patch }))
@@ -85,6 +93,68 @@ export function ChatPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- update is a local helper that changes on every render
   }, [config.serverPort])
+
+  // Detect PATH from login shell
+  const handleDetectPath = useCallback(async () => {
+    try {
+      setDetectingPath(true)
+      if (isTauri) {
+        try {
+          const { invoke } = await import('@tauri-apps/api/core')
+          const path = await invoke<string | null>('detect_shell_path')
+          if (path) {
+            update({ chatProcessPath: path })
+            toast.success('PATH detected from login shell')
+            return
+          }
+        } catch { /* fall through */ }
+      }
+      const res = await chatApi.detectPath()
+      if (res.path) {
+        update({ chatProcessPath: res.path })
+        toast.success('PATH detected from login shell')
+      } else {
+        toast.error(res.error ?? 'Could not detect PATH')
+      }
+    } catch {
+      toast.error('Failed to detect PATH')
+    } finally {
+      setDetectingPath(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- update is a local helper
+  }, [toast])
+
+  // Check CLI version
+  const handleCheckCli = useCallback(async () => {
+    try {
+      setCheckingCli(true)
+      const status = await chatApi.getCliStatus()
+      setCliStatus(status)
+    } catch {
+      toast.error('Failed to check CLI status')
+    } finally {
+      setCheckingCli(false)
+    }
+  }, [toast])
+
+  // Install/update CLI
+  const handleInstallCli = useCallback(async (version?: string) => {
+    try {
+      setInstallingCli(true)
+      const result = await chatApi.installCli(version)
+      if (result.success) {
+        toast.success(result.message)
+        const status = await chatApi.getCliStatus()
+        setCliStatus(status)
+      } else {
+        toast.error(result.message)
+      }
+    } catch {
+      toast.error('Failed to install CLI')
+    } finally {
+      setInstallingCli(false)
+    }
+  }, [toast])
 
   const mcpSuccess =
     config.mcpSetupStatus === 'configured' || config.mcpSetupStatus === 'already_configured'
@@ -294,6 +364,164 @@ export function ChatPage() {
               {config.mcpSetupMessage}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Environment & CLI settings */}
+      <div className="space-y-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
+        {/* Environment header */}
+        <div className="flex items-center gap-2">
+          <FolderCog className="h-4 w-4 text-gray-400" />
+          <h3 className="text-sm font-medium text-gray-300">Environment</h3>
+        </div>
+
+        {/* Process PATH */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="block text-xs font-medium text-gray-400">Process PATH</label>
+              <p className="text-xs text-gray-500">PATH for Claude&apos;s shell commands</p>
+            </div>
+            <button
+              onClick={handleDetectPath}
+              disabled={detectingPath}
+              className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors disabled:opacity-50"
+            >
+              {detectingPath ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCw className="h-3 w-3" />}
+              Detect
+            </button>
+          </div>
+          <input
+            value={config.chatProcessPath}
+            onChange={(e) => update({ chatProcessPath: e.target.value })}
+            placeholder="Inherited from system"
+            className="w-full rounded-lg border border-white/[0.06] bg-white/[0.04] px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-indigo-500/40 focus:outline-none font-mono"
+          />
+          {!config.chatProcessPath && (
+            <p className="text-xs text-gray-600 italic">No custom PATH — inheriting from parent process</p>
+          )}
+        </div>
+
+        {/* Claude CLI Path */}
+        <div className="space-y-2">
+          <div>
+            <label className="block text-xs font-medium text-gray-400">Claude CLI Path</label>
+            <p className="text-xs text-gray-500">Explicit path to the Claude binary (optional)</p>
+          </div>
+          <input
+            value={config.chatClaudeCliPath}
+            onChange={(e) => update({ chatClaudeCliPath: e.target.value })}
+            placeholder="Auto-detected"
+            className="w-full rounded-lg border border-white/[0.06] bg-white/[0.04] px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-indigo-500/40 focus:outline-none font-mono"
+          />
+        </div>
+
+        {/* CLI Version Management */}
+        <div className="border-t border-white/[0.06] pt-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Terminal className="h-4 w-4 text-gray-400" />
+            <h3 className="text-sm font-medium text-gray-300">CLI Version Management</h3>
+          </div>
+
+          <div className="rounded-lg bg-white/[0.02] border border-white/[0.06] px-4 py-3 space-y-2">
+            {cliStatus === null ? (
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-500">Click to check CLI version</p>
+                <button
+                  onClick={handleCheckCli}
+                  disabled={checkingCli}
+                  className="flex items-center gap-1.5 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-gray-300 transition hover:bg-white/[0.08] disabled:opacity-50"
+                >
+                  {checkingCli ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCw className="h-3 w-3" />}
+                  Check
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2 w-2 rounded-full ${cliStatus.installed ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                    <span className="text-xs text-gray-300">
+                      {cliStatus.installed
+                        ? <>Version <span className="font-mono text-gray-200">{cliStatus.installed_version}</span></>
+                        : 'Not installed'}
+                    </span>
+                    {cliStatus.is_local_build && (
+                      <span className="rounded px-1.5 py-0.5 text-[9px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                        Local build
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleCheckCli}
+                    disabled={checkingCli}
+                    className="p-1 rounded text-gray-500 hover:text-gray-300 transition-colors disabled:opacity-50"
+                    title="Refresh"
+                  >
+                    {checkingCli ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCw className="h-3 w-3" />}
+                  </button>
+                </div>
+
+                {cliStatus.latest_version && (
+                  <p className="text-xs text-gray-500">
+                    Latest: <span className="font-mono">{cliStatus.latest_version}</span>
+                    {cliStatus.update_available && !cliStatus.is_local_build && (
+                      <span className="ml-1.5 text-emerald-400">— Update available!</span>
+                    )}
+                  </p>
+                )}
+
+                {cliStatus.update_available && (
+                  <button
+                    onClick={() => handleInstallCli(cliStatus.latest_version ?? undefined)}
+                    disabled={installingCli}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-indigo-600/20 px-3 py-2 text-xs font-medium text-indigo-300 transition hover:bg-indigo-600/30 disabled:opacity-50"
+                  >
+                    {installingCli ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                    {installingCli
+                      ? 'Installing...'
+                      : cliStatus.is_local_build
+                        ? 'Install via npm'
+                        : `Install ${cliStatus.latest_version}`}
+                  </button>
+                )}
+
+                {cliStatus.cli_path && (
+                  <p className="text-xs text-gray-600 font-mono truncate" title={cliStatus.cli_path}>
+                    {cliStatus.cli_path}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Auto-update toggles */}
+        <div className="border-t border-white/[0.06] pt-4 space-y-3">
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={config.chatAutoUpdateApp}
+              onChange={(e) => update({ chatAutoUpdateApp: e.target.checked })}
+              className="rounded border-white/20 bg-white/[0.04] text-indigo-500 focus:ring-indigo-500/30 focus:ring-offset-0"
+            />
+            <div>
+              <span className="text-sm text-gray-300">Auto-update application on startup</span>
+              <p className="text-xs text-gray-500">Check for new versions when the app starts</p>
+            </div>
+          </label>
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={config.chatAutoUpdateCli}
+              onChange={(e) => update({ chatAutoUpdateCli: e.target.checked })}
+              className="rounded border-white/20 bg-white/[0.04] text-indigo-500 focus:ring-indigo-500/30 focus:ring-offset-0"
+            />
+            <div>
+              <span className="text-sm text-gray-300">Auto-update CLI on startup</span>
+              <p className="text-xs text-gray-500">Keep Claude Code CLI up to date automatically</p>
+            </div>
+          </label>
         </div>
       </div>
 

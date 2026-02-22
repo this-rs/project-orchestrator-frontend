@@ -125,6 +125,12 @@ export interface SetupConfig {
   mcpSetupStatus: McpSetupStatus
   mcpSetupMessage: string
 
+  // Step 3b — Desktop-only settings (PATH, CLI, auto-update)
+  chatProcessPath: string
+  chatClaudeCliPath: string
+  chatAutoUpdateCli: boolean
+  chatAutoUpdateApp: boolean
+
   // Reconfigure mode indicators (read-only, set by read_config)
   hasOidcSecret: boolean
   hasNeo4jPassword: boolean
@@ -172,6 +178,12 @@ export const defaultSetupConfig: SetupConfig = {
   claudeCodeDetected: false,
   mcpSetupStatus: 'idle' as McpSetupStatus,
   mcpSetupMessage: '',
+
+  // Desktop-only settings
+  chatProcessPath: '',
+  chatClaudeCliPath: '',
+  chatAutoUpdateCli: false,
+  chatAutoUpdateApp: true,
 
   // Reconfigure mode indicators
   hasOidcSecret: false,
