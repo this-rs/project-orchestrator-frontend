@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { setupStepAtom, setupConfigAtom, configExistsAtom, trayNavigationAtom, OIDC_PROVIDERS, type SetupConfig, type OidcProvider } from '@/atoms/setup'
+import { setupStepAtom, setupConfigAtom, configExistsAtom, trayNavigationAtom, infraValidAtom, chatValidAtom, OIDC_PROVIDERS, type SetupConfig, type OidcProvider } from '@/atoms/setup'
 import { authModeAtom, currentUserAtom } from '@/atoms'
 import { fetchSetupStatus, isTauri } from '@/services/env'
 import { Spinner } from '@/components/ui'
@@ -41,6 +41,8 @@ export function SetupWizard() {
   const setSetupConfig = useSetAtom(setupConfigAtom)
   const navigate = useNavigate()
   const isTrayNavigation = useAtomValue(trayNavigationAtom)
+  const infraValid = useAtomValue(infraValidAtom)
+  const chatValid = useAtomValue(chatValidAtom)
   const authMode = useAtomValue(authModeAtom)
   const currentUser = useAtomValue(currentUserAtom)
   const [checking, setChecking] = useState(!isTrayNavigation)
@@ -190,11 +192,24 @@ export function SetupWizard() {
   const StepComponent = STEP_COMPONENTS[step] || InfrastructurePage
   const isLaunchStep = step === 3
 
+  // ── Compute nextDisabled per step ─────────────────────────────────
+  // In reconfigure mode (tray), navigation is always free (warnings only).
+  // In first-setup mode, each step has blocking prerequisites.
+  const nextDisabled = (() => {
+    if (isTrayNavigation) return false
+    switch (step) {
+      case 0: return !infraValid   // Infrastructure: Docker running OR connections tested
+      case 2: return !chatValid    // Chat AI: CLI installed AND embedding ready
+      default: return false        // Auth (step 1) and Launch (step 3): no blocking
+    }
+  })()
+
   return (
     <SetupLayout
       hideNav={isLaunchStep}
       freeNavigation={isTrayNavigation}
       showClose={isTrayNavigation}
+      nextDisabled={nextDisabled}
     >
       <StepComponent />
     </SetupLayout>

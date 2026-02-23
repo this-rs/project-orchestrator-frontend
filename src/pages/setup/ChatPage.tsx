@@ -1,7 +1,7 @@
-import { useAtom } from 'jotai'
+import { useAtom, useSetAtom, useAtomValue } from 'jotai'
 import { useCallback, useEffect, useState } from 'react'
-import { Check, CheckCircle2, AlertCircle, Loader2, RotateCw, Download } from 'lucide-react'
-import { setupConfigAtom, type McpSetupStatus } from '@/atoms/setup'
+import { Check, CheckCircle2, AlertCircle, Loader2, RotateCw, Download, XCircle } from 'lucide-react'
+import { setupConfigAtom, chatValidAtom, trayNavigationAtom, type McpSetupStatus } from '@/atoms/setup'
 import { isTauri } from '@/services/env'
 import { useToast } from '@/hooks'
 import { AVAILABLE_MODELS } from '@/constants/models'
@@ -32,15 +32,112 @@ const PERMISSION_MODES = [
 
 export function ChatPage() {
   const [config, setConfig] = useAtom(setupConfigAtom)
-  const [detectAttempted, setDetectAttempted] = useState(false)
+  const setChatValid = useSetAtom(chatValidAtom)
+  const isTrayNavigation = useAtomValue(trayNavigationAtom)
   const [detectingPath, setDetectingPath] = useState(false)
   const [cliStatus, setCliStatus] = useState<CliVersionStatus | null>(null)
   const [checkingCli, setCheckingCli] = useState(false)
   const [installingCli, setInstallingCli] = useState(false)
+  const [cliDetected, setCliDetected] = useState(false)
+  const [cliAutoChecked, setCliAutoChecked] = useState(false)
+  const [installError, setInstallError] = useState<string | null>(null)
+  // Embedding model states
+  const [embeddingReady, setEmbeddingReady] = useState(config.embeddingProvider === 'disabled')
+  const [embeddingModelChecked, setEmbeddingModelChecked] = useState(false)
+  const [embeddingModelAvailable, setEmbeddingModelAvailable] = useState(false)
+  const [embeddingEstimatedSize, setEmbeddingEstimatedSize] = useState(0)
+  const [downloadingModel, setDownloadingModel] = useState(false)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+  // HTTP embedding endpoint test states
+  const [embeddingTestResult, setEmbeddingTestResult] = useState<{ success: boolean; dimensions?: number; latencyMs?: number } | null>(null)
+  const [testingEmbedding, setTestingEmbedding] = useState(false)
   const toast = useToast()
 
   const update = (patch: Partial<typeof config>) =>
     setConfig((prev) => ({ ...prev, ...patch }))
+
+  // ── Auto-detect CLI at mount ──────────────────────────────────────
+  useEffect(() => {
+    if (!isTauri || cliAutoChecked) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core')
+        const status = await invoke<CliVersionStatus>('check_cli_status')
+        if (cancelled) return
+        setCliStatus(status)
+        const detected = status.installed
+        setCliDetected(detected)
+        setConfig((prev) => ({ ...prev, claudeCodeDetected: detected }))
+      } catch {
+        if (!cancelled) {
+          setCliDetected(false)
+        }
+      } finally {
+        if (!cancelled) setCliAutoChecked(true)
+      }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
+  }, [])
+
+  // ── Propagate chatValidAtom ──────────────────────────────────────
+  useEffect(() => {
+    if (isTrayNavigation) {
+      setChatValid(true)
+      return
+    }
+    if (!isTauri) {
+      setChatValid(true)
+      return
+    }
+    setChatValid(cliDetected && embeddingReady)
+  }, [cliDetected, embeddingReady, isTrayNavigation, setChatValid])
+
+  // ── Check local embedding model availability ────────────────────────
+  useEffect(() => {
+    if (config.embeddingProvider !== 'local' || !isTauri) return
+    let cancelled = false
+    setEmbeddingModelChecked(false)
+    ;(async () => {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core')
+        const status = await invoke<{ available: boolean; cachePath: string | null; estimatedSizeMb: number }>(
+          'check_embedding_model', { modelName: config.embeddingFastembedModel }
+        )
+        if (cancelled) return
+        setEmbeddingModelAvailable(status.available)
+        setEmbeddingEstimatedSize(status.estimatedSizeMb)
+        setEmbeddingReady(status.available)
+      } catch {
+        if (!cancelled) {
+          setEmbeddingModelAvailable(false)
+          setEmbeddingReady(false)
+        }
+      } finally {
+        if (!cancelled) setEmbeddingModelChecked(true)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [config.embeddingProvider, config.embeddingFastembedModel])
+
+  // ── Update embeddingReady when provider changes ────────────────────
+  useEffect(() => {
+    if (config.embeddingProvider === 'disabled') {
+      setEmbeddingReady(true)
+    } else if (config.embeddingProvider === 'http') {
+      // HTTP: ready only after successful test
+      setEmbeddingReady(embeddingTestResult?.success === true)
+    }
+    // local provider is handled by the check_embedding_model useEffect above
+  }, [config.embeddingProvider, embeddingTestResult])
+
+  // ── Reset HTTP test when URL/model/apiKey change ───────────────────
+  useEffect(() => {
+    if (config.embeddingProvider !== 'http') return
+    setEmbeddingTestResult(null)
+    setEmbeddingReady(false)
+  }, [config.embeddingUrl, config.embeddingModel, config.embeddingApiKey, config.embeddingProvider])
 
   // Auto-detect PATH on mount when running in Tauri and no PATH is set yet
   useEffect(() => {
@@ -57,23 +154,6 @@ export function ChatPage() {
     })()
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
-  }, [])
-
-  // Detect Claude Code CLI via Tauri invoke
-  const handleDetect = useCallback(async () => {
-    setDetectAttempted(true)
-    if (!isTauri) {
-      update({ claudeCodeDetected: false })
-      return
-    }
-    try {
-      const { invoke } = await import('@tauri-apps/api/core')
-      const detected = await invoke<boolean>('detect_claude_code')
-      update({ claudeCodeDetected: detected })
-    } catch {
-      update({ claudeCodeDetected: false })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- update is a local helper that changes on every render
   }, [])
 
   // Configure Claude Code MCP server via Tauri invoke
@@ -139,6 +219,8 @@ export function ChatPage() {
         const { invoke } = await import('@tauri-apps/api/core')
         const status = await invoke<CliVersionStatus>('check_cli_status')
         setCliStatus(status)
+        setCliDetected(status.installed)
+        setConfig((prev) => ({ ...prev, claudeCodeDetected: status.installed }))
       } else {
         toast.error('CLI check is only available in the desktop app')
       }
@@ -147,30 +229,103 @@ export function ChatPage() {
     } finally {
       setCheckingCli(false)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setConfig changes on render
   }, [toast])
 
   // Install/update CLI via Tauri invoke (no backend/auth required)
   const handleInstallCli = useCallback(async (version?: string) => {
     try {
       setInstallingCli(true)
+      setInstallError(null)
       if (isTauri) {
         const { invoke } = await import('@tauri-apps/api/core')
         const result = await invoke<{ success: boolean; version: string | null; message: string; cli_path: string | null }>('install_cli', { version: version ?? null })
         if (result.success) {
           toast.success(result.message)
-          // Refresh status after install
+          // Refresh status after install — update cliDetected
           const status = await invoke<CliVersionStatus>('check_cli_status')
           setCliStatus(status)
+          setCliDetected(status.installed)
+          setConfig((prev) => ({ ...prev, claudeCodeDetected: status.installed }))
         } else {
+          setInstallError(result.message)
           toast.error(result.message)
         }
       }
-    } catch {
-      toast.error('Failed to install CLI')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to install CLI'
+      setInstallError(msg)
+      toast.error(msg)
     } finally {
       setInstallingCli(false)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setConfig changes on render
   }, [toast])
+
+  // ── Download local ONNX model ────────────────────────────────────
+  const handleDownloadModel = useCallback(async () => {
+    if (!isTauri) return
+    setDownloadingModel(true)
+    setDownloadError(null)
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const result = await invoke<{ success: boolean; modelPath: string; error: string | null }>(
+        'download_embedding_model', { modelName: config.embeddingFastembedModel }
+      )
+      if (result.success) {
+        setEmbeddingModelAvailable(true)
+        setEmbeddingReady(true)
+        toast.success('Embedding model downloaded successfully')
+      } else {
+        setDownloadError(result.error || 'Download failed')
+        toast.error(result.error || 'Download failed')
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Download failed'
+      setDownloadError(msg)
+      toast.error(msg)
+    } finally {
+      setDownloadingModel(false)
+    }
+  }, [config.embeddingFastembedModel, toast])
+
+  // ── Test HTTP embedding endpoint ────────────────────────────────────
+  const handleTestEmbedding = useCallback(async () => {
+    if (!isTauri) return
+    setTestingEmbedding(true)
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const result = await invoke<{ success: boolean; dimensions: number | null; latencyMs: number; error: string | null }>(
+        'test_embedding_endpoint', {
+          url: config.embeddingUrl,
+          model: config.embeddingModel,
+          apiKey: config.embeddingApiKey || null,
+        }
+      )
+      setEmbeddingTestResult({
+        success: result.success,
+        dimensions: result.dimensions ?? undefined,
+        latencyMs: result.latencyMs,
+      })
+      if (result.success) {
+        setEmbeddingReady(true)
+        if (result.dimensions) {
+          update({ embeddingDimensions: result.dimensions })
+        }
+        toast.success(`Endpoint OK — ${result.dimensions}d, ${result.latencyMs}ms`)
+      } else {
+        setEmbeddingReady(false)
+        toast.error(result.error || 'Test failed')
+      }
+    } catch (e) {
+      setEmbeddingTestResult({ success: false })
+      setEmbeddingReady(false)
+      toast.error(e instanceof Error ? e.message : 'Test failed')
+    } finally {
+      setTestingEmbedding(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- update changes on render
+  }, [config.embeddingUrl, config.embeddingModel, config.embeddingApiKey, toast])
 
   const mcpSuccess =
     config.mcpSetupStatus === 'configured' || config.mcpSetupStatus === 'already_configured'
@@ -368,6 +523,62 @@ export function ChatPage() {
             <p className="text-xs text-gray-500">
               Default: <span className="font-mono">multilingual-e5-base</span> — multilingual FR/EN support, 768 dimensions.
             </p>
+
+            {/* Model availability status */}
+            {isTauri && !embeddingModelChecked && (
+              <div className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                <span className="text-xs text-gray-400">Checking model cache…</span>
+              </div>
+            )}
+
+            {isTauri && embeddingModelChecked && embeddingModelAvailable && (
+              <div className="flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.08] p-3">
+                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                <span className="text-xs font-medium text-emerald-400">Model downloaded — ready to use</span>
+              </div>
+            )}
+
+            {isTauri && embeddingModelChecked && !embeddingModelAvailable && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.06] p-3 space-y-2">
+                <div className="flex items-start gap-3">
+                  <Download className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                  <div className="flex-1">
+                    <p className="text-xs font-medium text-amber-400">Model not downloaded</p>
+                    <p className="text-xs text-gray-400">
+                      The ONNX model needs to be downloaded before embeddings can work.
+                      {embeddingEstimatedSize > 0 && (
+                        <span className="ml-1 text-gray-500">
+                          Estimated size: ~{embeddingEstimatedSize >= 1000 ? `${(embeddingEstimatedSize / 1000).toFixed(1)} GB` : `${embeddingEstimatedSize} MB`}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                {downloadError && (
+                  <p className="rounded border border-red-500/20 bg-red-500/10 px-2 py-1 text-xs text-red-300">
+                    {downloadError}
+                  </p>
+                )}
+                <button
+                  onClick={handleDownloadModel}
+                  disabled={downloadingModel}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-amber-500/15 px-3 py-2 text-xs font-medium text-amber-300 transition hover:bg-amber-500/25 disabled:opacity-50"
+                >
+                  {downloadingModel ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Downloading model — this may take a minute…
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-3.5 w-3.5" />
+                      {downloadError ? 'Retry Download' : `Download Model${embeddingEstimatedSize > 0 ? ` (~${embeddingEstimatedSize >= 1000 ? `${(embeddingEstimatedSize / 1000).toFixed(1)} GB` : `${embeddingEstimatedSize} MB`})` : ''}`}
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -419,42 +630,123 @@ export function ChatPage() {
                 className="w-full rounded-lg border border-white/[0.06] bg-white/[0.04] px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-indigo-500/40 focus:outline-none font-mono"
               />
             </div>
+
+            {/* Test endpoint button + result badge */}
+            <div className="space-y-2">
+              <button
+                onClick={handleTestEmbedding}
+                disabled={testingEmbedding || !config.embeddingUrl || !config.embeddingModel}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-xs font-medium text-indigo-300 transition hover:bg-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {testingEmbedding ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Testing endpoint…
+                  </>
+                ) : (
+                  <>
+                    <RotateCw className="h-3.5 w-3.5" />
+                    {embeddingTestResult ? 'Re-test Endpoint' : 'Test Endpoint'}
+                  </>
+                )}
+              </button>
+
+              {embeddingTestResult && embeddingTestResult.success && (
+                <div className="flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.08] p-3">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                  <div className="text-xs">
+                    <span className="font-medium text-emerald-400">Endpoint OK</span>
+                    <span className="ml-2 text-gray-400">
+                      {embeddingTestResult.dimensions && <>{embeddingTestResult.dimensions}d</>}
+                      {embeddingTestResult.latencyMs != null && <> · {embeddingTestResult.latencyMs}ms</>}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {embeddingTestResult && !embeddingTestResult.success && (
+                <div className="flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/[0.08] p-3">
+                  <XCircle className="h-4 w-4 shrink-0 text-red-400" />
+                  <span className="text-xs font-medium text-red-400">Test failed — check URL, model, and API key</span>
+                </div>
+              )}
+
+              {!embeddingTestResult && !testingEmbedding && (
+                <p className="text-xs text-gray-500 italic">
+                  A successful test is required before proceeding.
+                </p>
+              )}
+            </div>
           </div>
         )}
       </div>
 
       {/* Claude Code CLI — detection, paths, version management, auto-update */}
       <div className="space-y-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
-        {/* Detection */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h3 className="text-sm font-medium text-gray-300">Claude Code CLI</h3>
-            <p className="mt-1 text-xs text-gray-500">
-              The chat feature requires Claude Code to be installed on this machine. Click detect to
-              check if it&apos;s available.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {config.claudeCodeDetected && (
-              <span className="flex items-center gap-1 text-xs font-medium text-emerald-400">
-                <CheckCircle2 className="h-4 w-4" />
-                Detected
-              </span>
-            )}
-            {detectAttempted && !config.claudeCodeDetected && (
-              <span className="flex items-center gap-1 text-xs font-medium text-amber-400">
-                <AlertCircle className="h-4 w-4" />
-                Not found
-              </span>
-            )}
-            <button
-              onClick={handleDetect}
-              className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-gray-300 transition hover:bg-white/[0.08]"
-            >
-              Detect
-            </button>
-          </div>
+        {/* CLI status banner */}
+        <div>
+          <h3 className="text-sm font-medium text-gray-300">Claude Code CLI</h3>
+          <p className="mt-1 text-xs text-gray-500">
+            The chat feature requires Claude Code to be installed on this machine.
+          </p>
         </div>
+
+        {isTauri && !cliAutoChecked && (
+          <div className="flex items-center gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+            <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+            <span className="text-xs text-gray-400">Detecting Claude Code CLI...</span>
+          </div>
+        )}
+
+        {isTauri && cliAutoChecked && !cliDetected && (
+          <div className="rounded-lg border border-red-500/30 bg-red-500/[0.08] p-4">
+            <div className="flex items-start gap-3">
+              <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-400" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-400">Claude Code CLI is required</p>
+                <p className="mt-1 text-xs text-gray-400">
+                  Install Claude Code CLI to enable the AI chat feature.
+                </p>
+                {installError && (
+                  <p className="mt-2 rounded border border-red-500/20 bg-red-500/10 px-2 py-1 text-xs text-red-300">
+                    {installError}
+                  </p>
+                )}
+                <button
+                  onClick={() => handleInstallCli()}
+                  disabled={installingCli}
+                  className="mt-3 flex items-center gap-2 rounded-lg bg-red-500/20 px-4 py-2 text-sm font-medium text-red-300 transition hover:bg-red-500/30 disabled:opacity-50"
+                >
+                  {installingCli ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Installing via official installer...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4" />
+                      {installError ? 'Retry Install' : 'Install Claude Code CLI'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isTauri && cliAutoChecked && cliDetected && (
+          <div className="flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.08] p-3">
+            <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-emerald-400">Claude Code CLI</span>
+              {cliStatus?.installed_version && (
+                <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-xs font-mono text-emerald-300">
+                  v{cliStatus.installed_version}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Process PATH */}
         <div className="border-t border-white/[0.06] pt-4 space-y-2">

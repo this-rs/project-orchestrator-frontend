@@ -175,13 +175,20 @@ export function SetupLayout({
             <div className="text-xs text-gray-600">
               Step {step + 1} of {STEPS.length}
             </div>
-            <button
-              onClick={handleNext}
-              disabled={nextDisabled}
-              className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {nextLabel || (isLast ? 'Finish' : 'Next')}
-            </button>
+            <div className="relative group">
+              <button
+                onClick={handleNext}
+                disabled={nextDisabled}
+                className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-indigo-600"
+              >
+                {nextLabel || (isLast ? 'Finish' : 'Next')}
+              </button>
+              {nextDisabled && (
+                <div className="pointer-events-none absolute bottom-full right-0 mb-2 whitespace-nowrap rounded-lg bg-gray-900 px-3 py-1.5 text-xs text-gray-300 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 border border-white/[0.08]">
+                  Complete the prerequisites to continue
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

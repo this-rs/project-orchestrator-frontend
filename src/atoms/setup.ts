@@ -249,3 +249,34 @@ export const trayReturnUrlAtom = atom<string | null>(null)
  *  SettingsPage reads this to navigate back instead of using navigate(-1),
  *  which fails when the page was opened from the tray (no browser history). */
 export const settingsReturnUrlAtom = atom<string | null>(null)
+
+// ============================================================================
+// Setup wizard validation atoms (blocking navigation)
+// ============================================================================
+
+/**
+ * True when the Infrastructure step prerequisites are met.
+ *
+ * - Docker mode: Docker Desktop must be running (`status === 'running'`)
+ * - External mode: all required connection tests must pass
+ *   (Neo4j + Meilisearch always, NATS only if enabled)
+ *
+ * Written by InfrastructurePage, read by SetupWizard to compute nextDisabled.
+ * Defaults to `false` — the user must satisfy the prerequisites to proceed.
+ */
+export const infraValidAtom = atom<boolean>(false)
+
+/**
+ * True when the Chat AI step prerequisites are met.
+ *
+ * Both conditions must be true:
+ * - Claude Code CLI detected (installed)
+ * - Embedding model ready:
+ *   - Local provider: ONNX model downloaded
+ *   - HTTP provider: test endpoint successful
+ *   - Disabled provider: always true
+ *
+ * Written by ChatPage, read by SetupWizard to compute nextDisabled.
+ * Defaults to `false` — the user must satisfy the prerequisites to proceed.
+ */
+export const chatValidAtom = atom<boolean>(false)
