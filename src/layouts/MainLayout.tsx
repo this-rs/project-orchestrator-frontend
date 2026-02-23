@@ -12,9 +12,21 @@ import type { NavDirection } from '@/hooks'
 import { isTauri } from '@/services/env'
 import { workspacesApi } from '@/services/workspaces'
 import { workspacePath } from '@/utils/paths'
+import type { Project } from '@/types'
 
 function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { collapsed: boolean; trafficLightPad?: boolean; wsSlug: string; onNavClick?: (href: string, direction: NavDirection) => void }) {
   const location = useLocation()
+  const [projects, setProjects] = useState<Project[]>([])
+
+  // Load projects for the workspace (for sidebar sub-items)
+  useEffect(() => {
+    if (!wsSlug) return
+    workspacesApi
+      .listProjects(wsSlug)
+      .then((data) => setProjects(data))
+      .catch(() => setProjects([]))
+  }, [wsSlug])
+
   const navGroups = useMemo(() => [
     {
       label: 'Organize',
@@ -62,20 +74,14 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
     [onNavClick, allHrefs, location.pathname],
   )
 
+  // Check if Projects section is active (for showing sub-items)
+  const projectsHref = workspacePath(wsSlug, '/projects')
+  const isProjectsActive = location.pathname === projectsHref || location.pathname.startsWith(projectsHref + '/')
+
   return (
     <>
-      {/* Logo — taller on Tauri (non-fullscreen) to clear native traffic lights */}
-      <div className={`flex items-center px-4 transition-all duration-300 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-16'}`}>
-        <div className="flex items-center gap-3">
-          <img src="/logo-32.png" alt="PO" className="w-8 h-8 rounded-lg" />
-          {!collapsed && (
-            <span className="font-semibold text-gray-100">Project Orchestrator</span>
-          )}
-        </div>
-      </div>
-
-      {/* Workspace Switcher */}
-      <WorkspaceSwitcher collapsed={collapsed} />
+      {/* Workspace Switcher (logo + workspace name) */}
+      <WorkspaceSwitcher collapsed={collapsed} trafficLightPad={trafficLightPad} />
 
       {/* Navigation */}
       <nav className="flex-1 py-4 overflow-y-auto">
@@ -94,11 +100,11 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
                   <li key={item.name}>
                     <NavLink
                       to={item.href}
-                      end={item.name === 'Overview'}
+                      end={item.name === 'Overview' || item.name === 'Projects'}
                       onClick={(e) => handleNavClick(e, item.href)}
                       className={({ isActive }) =>
                         `flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${
-                          isActive
+                          isActive || (item.name === 'Projects' && isProjectsActive)
                             ? 'bg-indigo-500/15 text-indigo-400 font-medium border-l-[3px] border-indigo-500 -ml-[3px] glow-primary'
                             : 'text-gray-400 hover:bg-white/[0.06] hover:text-gray-200'
                         }`
@@ -107,6 +113,28 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
                       <item.icon className="w-5 h-5 flex-shrink-0" />
                       {!collapsed && <span>{item.name}</span>}
                     </NavLink>
+
+                    {/* Project sub-items — shown when Projects is active */}
+                    {item.name === 'Projects' && isProjectsActive && !collapsed && projects.length > 0 && (
+                      <ul className="mt-1 ml-5 space-y-0.5 border-l border-white/[0.06] pl-3">
+                        {projects.map((project) => (
+                          <li key={project.id}>
+                            <NavLink
+                              to={workspacePath(wsSlug, `/projects/${project.slug}`)}
+                              className={({ isActive }) =>
+                                `block px-2 py-1.5 rounded-md text-xs transition-colors truncate ${
+                                  isActive
+                                    ? 'text-indigo-400 bg-indigo-500/10 font-medium'
+                                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.04]'
+                                }`
+                              }
+                            >
+                              {project.name}
+                            </NavLink>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </li>
                 ))}
               </ul>

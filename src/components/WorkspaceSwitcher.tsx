@@ -8,10 +8,11 @@ import { workspacePath } from '@/utils/paths'
 import { workspacesApi } from '@/services'
 
 /**
- * Dropdown in the sidebar that shows the active workspace
- * and lets the user switch to another one.
+ * Combined logo + workspace selector in the sidebar header.
+ * Shows the app icon alongside the active workspace name with a dropdown
+ * to switch workspaces.
  */
-export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
+export function WorkspaceSwitcher({ collapsed, trafficLightPad }: { collapsed: boolean; trafficLightPad?: boolean }) {
   const navigate = useNavigate()
   const workspaces = useAtomValue(workspacesAtom)
   const setWorkspaces = useSetAtom(workspacesAtom)
@@ -68,18 +69,16 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
   const otherWorkspaces = workspaces.filter((w) => w.slug !== activeWorkspace.slug)
 
   return (
-    <div ref={ref} className="relative px-2 mb-2">
+    <div ref={ref} className={`px-2 transition-all duration-300 ${trafficLightPad ? 'pt-7' : ''}`}>
       <button
         ref={btnRef}
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-white/[0.06] transition-colors text-left"
+        className={`w-full flex items-center gap-3 rounded-lg hover:bg-white/[0.06] transition-colors text-left ${collapsed ? 'justify-center px-2 py-3' : 'px-3 py-3'}`}
       >
-        <div className="w-7 h-7 rounded-md bg-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold text-sm shrink-0">
-          {activeWorkspace.name.charAt(0).toUpperCase()}
-        </div>
+        <img src="/logo-32.png" alt="PO" className="w-8 h-8 rounded-lg shrink-0" />
         {!collapsed && (
           <>
-            <span className="flex-1 text-sm font-medium text-gray-200 truncate">
+            <span className="flex-1 text-sm font-semibold text-gray-100 truncate">
               {activeWorkspace.name}
             </span>
             <ChevronDown
@@ -108,9 +107,6 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
                 }}
                 className="w-full flex items-center gap-2 px-3 py-2 hover:bg-white/[0.06] transition-colors text-left"
               >
-                <div className="w-6 h-6 rounded-md bg-white/[0.06] flex items-center justify-center text-gray-400 font-medium text-xs shrink-0">
-                  {ws.name.charAt(0).toUpperCase()}
-                </div>
                 <span className="text-sm text-gray-300 truncate">{ws.name}</span>
               </button>
             ))
