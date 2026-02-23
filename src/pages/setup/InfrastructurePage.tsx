@@ -150,13 +150,13 @@ export function InfrastructurePage() {
     if (config.infraMode === 'docker') {
       setInfraValid(dockerStatus === 'running')
     } else {
-      // External mode: neo4j + meilisearch must pass, nats only if enabled
+      // External mode: neo4j + meilisearch + nats must all pass
       const neo4jOk = connectionTested.neo4j === true
       const meiliOk = connectionTested.meilisearch === true
-      const natsOk = connectionTested.nats === true || !config.natsEnabled
+      const natsOk = connectionTested.nats === true
       setInfraValid(neo4jOk && meiliOk && natsOk)
     }
-  }, [config.infraMode, dockerStatus, connectionTested, config.natsEnabled, isTrayNavigation, setInfraValid])
+  }, [config.infraMode, dockerStatus, connectionTested, isTrayNavigation, setInfraValid])
 
   return (
     <div className="space-y-8">
@@ -241,23 +241,21 @@ export function InfrastructurePage() {
             </div>
           </div>
 
-          {/* NATS connection — only shown when NATS is enabled in external mode */}
-          {config.natsEnabled && (
-            <div className="border-t border-white/[0.06] pt-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium text-gray-300">NATS Connection</h3>
-                <TestConnectionButton service="nats" url={config.natsUrl || 'nats://localhost:4222'} tested={connectionTested.nats} onResult={(ok) => handleConnectionTestResult('nats', ok)} />
-              </div>
-              <div className="mt-3">
-                <Field
-                  label="URL"
-                  value={config.natsUrl}
-                  onChange={(v) => update({ natsUrl: v })}
-                  placeholder="nats://localhost:4222"
-                />
-              </div>
+          {/* NATS connection */}
+          <div className="border-t border-white/[0.06] pt-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-gray-300">NATS Connection</h3>
+              <TestConnectionButton service="nats" url={config.natsUrl || 'nats://localhost:4222'} tested={connectionTested.nats} onResult={(ok) => handleConnectionTestResult('nats', ok)} />
             </div>
-          )}
+            <div className="mt-3">
+              <Field
+                label="URL"
+                value={config.natsUrl}
+                onChange={(v) => update({ natsUrl: v })}
+                placeholder="nats://localhost:4222"
+              />
+            </div>
+          </div>
         </div>
       )}
 
@@ -274,21 +272,18 @@ export function InfrastructurePage() {
             />
           )}
 
-          {/* Docker info — dynamic based on NATS toggle */}
+          {/* Docker info */}
           <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-5">
             <div className="flex gap-3">
               <Info className="mt-0.5 h-5 w-5 shrink-0 text-indigo-400" />
               <div className="text-sm text-gray-300">
                 <p className="font-medium text-indigo-400">Docker mode</p>
                 <p className="mt-1">
-                  {config.natsEnabled
-                    ? 'Neo4j, MeiliSearch, and NATS will be started automatically as Docker containers.'
-                    : 'Neo4j and MeiliSearch will be started automatically as Docker containers.'}
+                  Neo4j, MeiliSearch, and NATS will be started automatically as Docker containers.
                   {' '}Make sure Docker Desktop is running on your machine.
                 </p>
                 <p className="mt-2 text-gray-500">
-                  Ports: Neo4j (7474, 7687) &middot; MeiliSearch (7700)
-                  {config.natsEnabled && <> &middot; NATS (4222)</>}
+                  Ports: Neo4j (7474, 7687) &middot; MeiliSearch (7700) &middot; NATS (4222)
                   {' '}&middot; API ({config.serverPort})
                 </p>
               </div>
@@ -296,33 +291,6 @@ export function InfrastructurePage() {
           </div>
         </div>
       )}
-
-      {/* NATS toggle — visible in both modes */}
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
-        <label className="flex cursor-pointer items-start gap-3">
-          <input
-            type="checkbox"
-            checked={config.natsEnabled}
-            onChange={(e) => update({ natsEnabled: e.target.checked })}
-            className="mt-0.5 h-4 w-4 rounded border-white/20 bg-white/[0.04] text-indigo-600 focus:ring-indigo-500/30 focus:ring-offset-0 accent-indigo-600"
-          />
-          <div>
-            <span className="text-sm font-medium text-gray-300">
-              Enable real-time events (NATS)
-            </span>
-            <p className="mt-1 text-xs text-gray-500">
-              Enables live updates via NATS pub/sub. Required for multi-instance deployments
-              and real-time synchronization between the desktop app, web UI, and MCP server.
-            </p>
-            {!config.natsEnabled && (
-              <p className="mt-1.5 text-xs text-amber-400/70">
-                Without NATS, events are only broadcast in-process. Changes made in one instance
-                won&apos;t appear in others until refresh.
-              </p>
-            )}
-          </div>
-        </label>
-      </div>
 
       {/* Server port */}
       <div>
