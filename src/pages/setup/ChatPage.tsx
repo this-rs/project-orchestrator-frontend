@@ -260,14 +260,24 @@ export function ChatPage() {
         // may have succeeded even if download_cli reported failure (e.g. the
         // official script installed to ~/.local/bin but post-install checks
         // didn't find it in the process PATH).
-        const status = await invoke<CliVersionStatus>('check_cli_status')
+        let status: CliVersionStatus | null = null
+        try {
+          status = await invoke<CliVersionStatus>('check_cli_status')
+        } catch {
+          // check_cli_status failed — fall through to result-only logic
+        }
 
-        if (result.success || status.installed) {
+        if (result.success || status?.installed) {
           toast.success(result.success ? result.message : 'Claude Code detected successfully')
-          setCliStatus(status)
-          setCliDetected(status.installed)
+          if (status) {
+            setCliStatus(status)
+            setCliDetected(status.installed)
+            setConfig((prev) => ({ ...prev, claudeCodeDetected: status!.installed }))
+          } else {
+            setCliDetected(true)
+            setConfig((prev) => ({ ...prev, claudeCodeDetected: true }))
+          }
           setInstallError(null)
-          setConfig((prev) => ({ ...prev, claudeCodeDetected: status.installed }))
         } else {
           setInstallError(result.message)
           toast.error(result.message)
@@ -609,8 +619,13 @@ export function ChatPage() {
                         <ProgressBar value={downloadProgress.percentage} shimmer size="md" />
                         <div className="flex items-center justify-between text-[10px] text-amber-400/70">
                           <span>{formatBytes(downloadProgress.downloadedBytes)} / {formatBytes(downloadProgress.totalBytes)}</span>
-                          <span>{downloadProgress.percentage.toFixed(0)}%</span>
+                          <span>{Math.min(100, downloadProgress.percentage).toFixed(0)}%</span>
                         </div>
+                      </div>
+                    ) : downloadProgress && downloadProgress.downloadedBytes > 0 ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>{formatBytes(downloadProgress.downloadedBytes)} downloaded…</span>
                       </div>
                     ) : (
                       <div className="flex items-center justify-center gap-2">
