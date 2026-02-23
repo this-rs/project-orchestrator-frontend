@@ -59,7 +59,7 @@ export function SetupLayout({
   }
 
   const handleClose = () => {
-    navigate('/', { replace: true })
+    navigate(-1)
   }
 
   return (
