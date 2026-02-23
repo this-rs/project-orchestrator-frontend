@@ -51,7 +51,7 @@ export function SettingsPage() {
 
     // 3. Last workspace
     if (lastSlug) {
-      navigate(workspacePath(lastSlug, '/projects'))
+      navigate(workspacePath(lastSlug, '/overview'))
       return
     }
 

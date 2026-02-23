@@ -41,7 +41,7 @@ export function WorkspaceSelectorPage() {
   // If only one workspace exists, redirect immediately
   useEffect(() => {
     if (!loading && workspaces.length === 1) {
-      navigate(workspacePath(workspaces[0].slug, '/projects'), { replace: true })
+      navigate(workspacePath(workspaces[0].slug, '/overview'), { replace: true })
     }
   }, [loading, workspaces, navigate])
 
@@ -84,7 +84,7 @@ export function WorkspaceSelectorPage() {
           {workspaces.map((ws) => (
             <button
               key={ws.id}
-              onClick={() => navigate(workspacePath(ws.slug, '/projects'), { replace: true })}
+              onClick={() => navigate(workspacePath(ws.slug, '/overview'), { replace: true })}
               className="w-full flex items-center gap-3 px-4 py-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] rounded-lg transition-colors text-left"
             >
               <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold text-lg">
@@ -132,7 +132,7 @@ function InlineCreateWorkspace({ navigate, setWorkspacesAtom }: { navigate: Retu
       const ws = await workspacesApi.create({ name: trimmed })
       // Optimistic update: add to global atom so WorkspaceRouteGuard finds it
       setWorkspacesAtom((prev) => [...prev, ws])
-      navigate(workspacePath(ws.slug, '/projects'), { replace: true })
+      navigate(workspacePath(ws.slug, '/overview'), { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create workspace')
       setCreating(false)
@@ -209,7 +209,7 @@ function EmptyWorkspaceOnboarding({ navigate, setWorkspacesAtom }: { navigate: R
       const ws = await workspacesApi.create({ name: trimmed })
       // Optimistic update: add to global atom so WorkspaceRouteGuard finds it
       setWorkspacesAtom((prev) => [...prev, ws])
-      navigate(workspacePath(ws.slug, '/projects'), { replace: true })
+      navigate(workspacePath(ws.slug, '/overview'), { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create workspace')
       setCreating(false)

@@ -103,7 +103,7 @@ export function WorkspaceSwitcher({ collapsed, trafficLightPad }: { collapsed: b
                 key={ws.id}
                 onClick={() => {
                   setOpen(false)
-                  navigate(workspacePath(ws.slug, '/projects'))
+                  navigate(workspacePath(ws.slug, '/overview'))
                 }}
                 className="w-full flex items-center gap-2 px-3 py-2 hover:bg-white/[0.06] transition-colors text-left"
               >
@@ -149,7 +149,7 @@ export function WorkspaceSwitcher({ collapsed, trafficLightPad }: { collapsed: b
                     setOpen(false)
                     setShowCreate(false)
                     setNewName('')
-                    navigate(workspacePath(ws.slug, '/projects'))
+                    navigate(workspacePath(ws.slug, '/overview'))
                   } catch {
                     setCreating(false)
                   }

@@ -52,7 +52,7 @@ function TrayNavigationCapture() {
 function RootRedirect() {
   const lastSlug = useAtomValue(activeWorkspaceSlugAtom)
   if (lastSlug) {
-    return <Navigate to={workspacePath(lastSlug, '/projects')} replace />
+    return <Navigate to={workspacePath(lastSlug, '/overview')} replace />
   }
   return <Navigate to="/workspace-selector" replace />
 }
