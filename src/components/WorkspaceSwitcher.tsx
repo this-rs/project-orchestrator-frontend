@@ -73,7 +73,7 @@ export function WorkspaceSwitcher({ collapsed, trafficLightPad }: { collapsed: b
       <button
         ref={btnRef}
         onClick={() => setOpen(!open)}
-        className={`w-full flex items-center gap-3 rounded-lg hover:bg-white/[0.06] transition-colors text-left ${collapsed ? 'justify-center px-2 py-3' : 'px-3 py-3'}`}
+        className={`group w-full flex items-center gap-3 rounded-lg transition-colors text-left ${collapsed ? 'justify-center px-2 py-3' : 'px-3 py-3'}`}
       >
         <img src="/logo-32.png" alt="PO" className="w-8 h-8 rounded-lg shrink-0" />
         {!collapsed && (
@@ -81,9 +81,11 @@ export function WorkspaceSwitcher({ collapsed, trafficLightPad }: { collapsed: b
             <span className="flex-1 text-sm font-semibold text-gray-100 truncate">
               {activeWorkspace.name}
             </span>
-            <ChevronDown
-              className={`w-4 h-4 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`}
-            />
+            <span className={`flex items-center justify-center w-6 h-6 rounded-md transition-colors ${open ? 'bg-white/[0.08]' : 'group-hover:bg-white/[0.08]'}`}>
+              <ChevronDown
+                className={`w-4 h-4 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`}
+              />
+            </span>
           </>
         )}
       </button>
