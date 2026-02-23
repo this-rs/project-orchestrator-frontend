@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useId, type ReactNode, type CSSProperties } from 'react'
+import { useState, useEffect, useRef, useId, useCallback, type ReactNode, type CSSProperties } from 'react'
 import { ChevronDown, Check } from 'lucide-react'
 
 interface SelectOption {
@@ -17,6 +17,13 @@ interface SelectProps {
   placeholder?: string
   icon?: ReactNode
 }
+
+/**
+ * Detect CSS Anchor Positioning support once at module level.
+ * Tauri WebKit (macOS WKWebView) does not support it, so we need a JS fallback.
+ */
+const supportsAnchorPositioning =
+  typeof CSS !== 'undefined' && CSS.supports('position-area', 'block-end')
 
 export function Select({
   options,
@@ -58,12 +65,31 @@ export function Select({
     return () => menu.removeEventListener('toggle', handleToggle)
   }, [])
 
+  /**
+   * JS fallback: position the dropdown relative to the trigger button
+   * when CSS Anchor Positioning is not supported (Tauri WebKit).
+   */
+  const applyFallbackPosition = useCallback(() => {
+    if (supportsAnchorPositioning) return
+    const trigger = triggerRef.current
+    const menu = menuRef.current
+    if (!trigger || !menu) return
+
+    const rect = trigger.getBoundingClientRect()
+    menu.style.position = 'fixed'
+    menu.style.left = `${rect.left}px`
+    menu.style.top = `${rect.bottom + 4}px`
+    menu.style.minWidth = `${rect.width}px`
+    menu.style.width = 'max-content'
+  }, [])
+
   const openMenu = () => {
     try {
       menuRef.current?.showPopover()
     } catch {
       /* already open */
     }
+    applyFallbackPosition()
     const idx = options.findIndex((o) => o.value === value)
     setActiveIndex(idx >= 0 ? idx : 0)
   }
@@ -137,6 +163,14 @@ export function Select({
 
   const activeOptionId = activeIndex >= 0 ? `sel-${uid}-option-${activeIndex}` : undefined
 
+  // Only apply CSS anchor styles when supported
+  const triggerStyle: CSSProperties = supportsAnchorPositioning
+    ? { anchorName } as CSSProperties
+    : {}
+  const menuStyle: CSSProperties = supportsAnchorPositioning
+    ? { positionAnchor: anchorName } as CSSProperties
+    : {}
+
   return (
     <div className={`w-full ${className}`}>
       {label && (
@@ -163,7 +197,7 @@ export function Select({
           disabled:opacity-50 disabled:cursor-not-allowed
           ${isOpen ? 'border-indigo-500 ring-2 ring-indigo-500' : error ? 'border-red-500' : 'border-border-default hover:border-white/[0.2]'}
         `}
-        style={{ anchorName } as CSSProperties}
+        style={triggerStyle}
       >
         {icon && <span className="shrink-0 text-gray-500">{icon}</span>}
         <span className={`flex-1 truncate ${hasValue ? 'text-gray-100' : 'text-gray-500'}`}>
@@ -175,7 +209,7 @@ export function Select({
       </button>
       {error && <p className="mt-1 text-sm text-red-400">{error}</p>}
 
-      {/* Popover dropdown — rendered in top layer, positioned via CSS anchor */}
+      {/* Popover dropdown — CSS anchor when supported, JS fallback otherwise */}
       <div
         ref={menuRef}
         id={menuId}
@@ -183,7 +217,7 @@ export function Select({
         role="listbox"
         aria-labelledby={label ? `sel-${uid}-label` : undefined}
         className="popover-dropdown glass-heavy rounded-lg shadow-md py-1 max-h-60 overflow-y-auto"
-        style={{ positionAnchor: anchorName } as CSSProperties}
+        style={menuStyle}
       >
         {options.map((option, index) => {
           const isSelected = option.value === value
