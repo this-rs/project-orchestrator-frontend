@@ -112,7 +112,8 @@ export interface TaskWithPlan extends Task {
 }
 
 // ============================================================================
-// MILESTONE DETAIL (enriched response from GET /workspace-milestones/:id)
+// MILESTONE DETAIL (enriched responses from GET /milestones/:id and
+// GET /workspace-milestones/:id)
 // ============================================================================
 
 export interface MilestoneStepSummary {
@@ -144,6 +145,13 @@ export interface MilestonePlanSummary {
 
 export interface MilestoneDetail extends WorkspaceMilestone {
   plans: MilestonePlanSummary[]
+  progress: MilestoneProgress
+}
+
+export interface ProjectMilestoneDetail {
+  milestone: Milestone
+  plans: MilestonePlanSummary[]
+  tasks: Task[]
   progress: MilestoneProgress
 }
 

@@ -21,6 +21,7 @@ import {
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { ExpandablePlanRow, ExpandableTaskRow } from '@/components/expandable'
 import { projectsApi, plansApi, tasksApi } from '@/services'
+// plansApi: used for status updates; tasksApi: used for Add Task dialog
 import { PlanKanbanBoard } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
@@ -44,7 +45,6 @@ export function ProjectMilestoneDetailPage() {
   const [progress, setProgress] = useState<MilestoneProgress | null>(null)
   const [project, setProject] = useState<Project | null>(null)
   const [plans, setPlans] = useState<Plan[]>([])
-  const [milestonePlanIds, setMilestonePlanIds] = useState<Set<string>>(new Set())
   const [milestoneTasks, setMilestoneTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -70,15 +70,39 @@ export function ProjectMilestoneDetailPage() {
     const isInitialLoad = !milestone
     if (isInitialLoad) setLoading(true)
     try {
-      const [response, progressData] = await Promise.all([
-        projectsApi.getMilestone(milestoneId),
-        projectsApi.getMilestoneProgress(milestoneId).catch(() => null),
-      ])
+      // Enriched endpoint returns { milestone, plans[], tasks[], progress }
+      const response = await projectsApi.getMilestone(milestoneId)
 
-      // API returns { milestone: {...}, tasks: [...] }
       setMilestone(response.milestone)
-      setMilestoneTasks(response.tasks || [])
-      setProgress(progressData)
+      setProgress(response.progress || null)
+
+      // Plans come directly from the enriched response
+      const enrichedPlans = response.plans || []
+      setPlans(enrichedPlans.map((p) => ({
+        id: p.id,
+        title: p.title,
+        description: '',
+        status: (p.status || 'draft') as PlanStatus,
+        created_at: '',
+        created_by: '',
+        priority: 0,
+      })))
+
+      // Flatten all tasks from all plans for the Tasks section
+      setMilestoneTasks(enrichedPlans.flatMap((p) =>
+        (p.tasks || []).map((t) => ({
+          id: t.id,
+          title: t.title,
+          description: t.description,
+          status: t.status as Task['status'],
+          priority: t.priority,
+          tags: t.tags || [],
+          acceptance_criteria: [],
+          affected_files: [],
+          created_at: t.created_at,
+          completed_at: t.completed_at,
+        } as Task)),
+      ))
 
       // Fetch the parent project
       if (response.milestone.project_id) {
@@ -87,38 +111,7 @@ export function ProjectMilestoneDetailPage() {
           const proj = (projectsData.items || []).find(
             (p) => p.id === response.milestone.project_id,
           )
-          if (proj) {
-            setProject(proj)
-
-            // Backend doesn't return plan_id in milestone tasks, so we need to cross-reference
-            // Get task IDs from this milestone
-            const milestoneTaskIds = new Set((response.tasks || []).map((t) => t.id))
-
-            if (milestoneTaskIds.size > 0) {
-              // Fetch all tasks with plan_id to find which plans these tasks belong to
-              const allTasksData = await tasksApi.list({ limit: 100 })
-              const planIds = new Set(
-                (allTasksData.items || [])
-                  .filter((t) => milestoneTaskIds.has(t.id) && t.plan_id)
-                  .map((t) => t.plan_id),
-              )
-              setMilestonePlanIds(planIds)
-
-              // Fetch only plans that have tasks in this milestone
-              if (planIds.size > 0) {
-                const allPlansData = await plansApi.list({ limit: 100 })
-                const milestonePlans = (allPlansData.items || []).filter((plan) =>
-                  planIds.has(plan.id),
-                )
-                setPlans(milestonePlans)
-              } else {
-                setPlans([])
-              }
-            } else {
-              setMilestonePlanIds(new Set())
-              setPlans([])
-            }
-          }
+          if (proj) setProject(proj)
         } catch {
           // Project lookup failed
         }
@@ -155,32 +148,24 @@ export function ProjectMilestoneDetailPage() {
     [plans],
   )
 
-  // Kanban fetchFn: fetches plans for this milestone, filters by status
+  // Kanban fetchFn: uses already-loaded plans, filtered by status
   const kanbanFetchFn = useCallback(
     async (params: Record<string, unknown>): Promise<PaginatedResponse<Plan>> => {
-      if (milestonePlanIds.size === 0) return { items: [], total: 0, limit: 0, offset: 0 }
+      if (plans.length === 0) return { items: [], total: 0, limit: 0, offset: 0 }
       const status = params.status as string
-      const allPlansData = await plansApi.list({ limit: 100 })
-      const filtered = (allPlansData.items || []).filter(
-        (p) => milestonePlanIds.has(p.id) && p.status === status,
-      )
+      const filtered = plans.filter((p) => p.status === status)
       return { items: filtered, total: filtered.length, limit: filtered.length, offset: 0 }
     },
-    [milestonePlanIds],
+    [plans],
   )
 
   const handleAddTask = useCallback(async (taskId: string) => {
     if (!milestoneId) return
     await projectsApi.addTaskToMilestone(milestoneId, taskId)
-    // Re-fetch milestone to get updated tasks list + progress
-    const [response, newProgress] = await Promise.all([
-      projectsApi.getMilestone(milestoneId),
-      projectsApi.getMilestoneProgress(milestoneId).catch(() => null),
-    ])
-    setMilestoneTasks(response.tasks || [])
-    setProgress(newProgress)
+    // Re-fetch enriched milestone data
+    await refreshData()
     toast.success('Task added')
-  }, [milestoneId, toast])
+  }, [milestoneId, toast, refreshData])
 
   const sectionIds = ['progress', 'plans', 'tasks']
   const activeSection = useSectionObserver(sectionIds)
