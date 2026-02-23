@@ -240,12 +240,18 @@ export function ChatPage() {
       if (isTauri) {
         const { invoke } = await import('@tauri-apps/api/core')
         const result = await invoke<{ success: boolean; version: string | null; message: string; cli_path: string | null }>('install_cli', { version: version ?? null })
-        if (result.success) {
-          toast.success(result.message)
-          // Refresh status after install — update cliDetected
-          const status = await invoke<CliVersionStatus>('check_cli_status')
+
+        // Always verify CLI status after install attempt — the install script
+        // may have succeeded even if download_cli reported failure (e.g. the
+        // official script installed to ~/.local/bin but post-install checks
+        // didn't find it in the process PATH).
+        const status = await invoke<CliVersionStatus>('check_cli_status')
+
+        if (result.success || status.installed) {
+          toast.success(result.success ? result.message : 'Claude Code detected successfully')
           setCliStatus(status)
           setCliDetected(status.installed)
+          setInstallError(null)
           setConfig((prev) => ({ ...prev, claudeCodeDetected: status.installed }))
         } else {
           setInstallError(result.message)
