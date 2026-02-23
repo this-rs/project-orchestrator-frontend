@@ -551,16 +551,16 @@ export function ChatPage() {
               className="w-full rounded-lg border border-white/[0.06] bg-white/[0.04] px-3 py-2 text-sm text-gray-200 focus:border-indigo-500/40 focus:outline-none"
             >
               <optgroup label="Multilingual (recommended)">
-                <option value="multilingual-e5-base">multilingual-e5-base (768d, ~400 MB)</option>
-                <option value="multilingual-e5-small">multilingual-e5-small (384d, ~120 MB)</option>
-                <option value="multilingual-e5-large">multilingual-e5-large (1024d, ~1.1 GB)</option>
+                <option value="multilingual-e5-base">multilingual-e5-base (768d, ~1.1 GB)</option>
+                <option value="multilingual-e5-small">multilingual-e5-small (384d, ~500 MB)</option>
+                <option value="multilingual-e5-large">multilingual-e5-large (1024d, ~2.3 GB)</option>
               </optgroup>
               <optgroup label="English only">
-                <option value="bge-small-en-v1.5">bge-small-en-v1.5 (384d)</option>
-                <option value="bge-base-en-v1.5">bge-base-en-v1.5 (768d)</option>
-                <option value="all-minilm-l6-v2">all-MiniLM-L6-v2 (384d)</option>
-                <option value="nomic-embed-text-v1.5">nomic-embed-text-v1.5 (768d)</option>
-                <option value="gte-base-en-v1.5">gte-base-en-v1.5 (768d)</option>
+                <option value="bge-small-en-v1.5">bge-small-en-v1.5 (384d, ~150 MB)</option>
+                <option value="bge-base-en-v1.5">bge-base-en-v1.5 (768d, ~450 MB)</option>
+                <option value="all-minilm-l6-v2">all-MiniLM-L6-v2 (384d, ~100 MB)</option>
+                <option value="nomic-embed-text-v1.5">nomic-embed-text-v1.5 (768d, ~550 MB)</option>
+                <option value="gte-base-en-v1.5">gte-base-en-v1.5 (768d, ~550 MB)</option>
               </optgroup>
               <optgroup label="Large / High-quality">
                 <option value="bge-m3">bge-m3 (1024d, multilingual)</option>

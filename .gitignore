@@ -29,4 +29,7 @@ dist-ssr
 .env.*.local
 .claude/
 
+# Fastembed ONNX model cache (should be in ~/.fastembed_cache, not CWD)
+.fastembed_cache/
+
 /vite.config.ts
