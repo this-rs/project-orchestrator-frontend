@@ -56,7 +56,6 @@ export function PlansPage() {
   const confirmDialog = useConfirmDialog()
   const formDialog = useFormDialog()
   const toast = useToast()
-  const [formLoading, setFormLoading] = useState(false)
   const wsSlug = useWorkspaceSlug()
 
   // Kanban filters (workspace filter removed — implicit via wsSlug)
@@ -202,17 +201,10 @@ export function PlansPage() {
   const planForm = CreatePlanForm({
     workspaceSlug: wsSlug,
     onSubmit: async (data) => {
-      setFormLoading(true)
-      try {
-        await plansApi.create(data)
-        toast.success('Plan created')
-        formDialog.close()
-        reset()
-      } finally {
-        setFormLoading(false)
-      }
+      await plansApi.create(data)
+      toast.success('Plan created')
+      reset()
     },
-    loading: formLoading,
   })
 
   const multiSelect = useMultiSelect(plans, (p) => p.id)
@@ -355,7 +347,7 @@ export function PlansPage() {
         onDelete={handleBulkDelete}
         onClear={multiSelect.clear}
       />
-      <FormDialog {...formDialog.dialogProps} onSubmit={planForm.submit} loading={formLoading}>
+      <FormDialog {...formDialog.dialogProps} onSubmit={planForm.submit}>
         {planForm.fields}
       </FormDialog>
       <ConfirmDialog {...confirmDialog.dialogProps} />

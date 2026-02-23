@@ -15,7 +15,6 @@ export function ProjectsPage() {
   const confirmDialog = useConfirmDialog()
   const formDialog = useFormDialog()
   const toast = useToast()
-  const [formLoading, setFormLoading] = useState(false)
   const wsSlug = useWorkspaceSlug()
   const activeWorkspace = useAtomValue(activeWorkspaceAtom)
   const bumpProjectRefresh = useSetAtom(projectRefreshAtom)
@@ -47,23 +46,16 @@ export function ProjectsPage() {
   const form = CreateProjectForm({
     workspaceName: activeWorkspace?.name,
     onSubmit: async (data) => {
-      setFormLoading(true)
-      try {
-        const created = await projectsApi.create(data)
-        await workspacesApi.addProject(wsSlug, created.id)
-        // Bump global project refresh so other components (ChatPanel ProjectSelect,
-        // overview, etc.) re-fetch the workspace project list immediately.
-        // Without this, they rely on the WebSocket CRUD event which has a 500ms
-        // debounce and may race with the addProject call.
-        bumpProjectRefresh((c) => c + 1)
-        toast.success('Project created')
-        formDialog.close()
-        loadProjects()
-      } finally {
-        setFormLoading(false)
-      }
+      const created = await projectsApi.create(data)
+      await workspacesApi.addProject(wsSlug, created.id)
+      // Bump global project refresh so other components (ChatPanel ProjectSelect,
+      // overview, etc.) re-fetch the workspace project list immediately.
+      // Without this, they rely on the WebSocket CRUD event which has a 500ms
+      // debounce and may race with the addProject call.
+      bumpProjectRefresh((c) => c + 1)
+      toast.success('Project created')
+      loadProjects()
     },
-    loading: formLoading,
   })
 
   const openCreateDialog = () => {
@@ -164,7 +156,7 @@ export function ProjectsPage() {
         onDelete={handleBulkDelete}
         onClear={multiSelect.clear}
       />
-      <FormDialog {...formDialog.dialogProps} onSubmit={form.submit} loading={formLoading}>
+      <FormDialog {...formDialog.dialogProps} onSubmit={form.submit}>
         {form.fields}
       </FormDialog>
       <ConfirmDialog {...confirmDialog.dialogProps} />

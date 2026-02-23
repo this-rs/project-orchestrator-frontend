@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useMemo, useCallback } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { motion, AnimatePresence } from 'motion/react'
 import { FileText, Code, FolderOpen, Package, Shapes, AlertTriangle } from 'lucide-react'
@@ -48,7 +48,6 @@ export function NotesPage() {
   const confirmDialog = useConfirmDialog()
   const formDialog = useFormDialog()
   const toast = useToast()
-  const [formLoading, setFormLoading] = useState(false)
   const wsSlug = useWorkspaceSlug()
   const reducedMotion = useReducedMotion()
 
@@ -96,17 +95,10 @@ export function NotesPage() {
   const noteForm = CreateNoteForm({
     workspaceSlug: wsSlug,
     onSubmit: async (data) => {
-      setFormLoading(true)
-      try {
-        await notesApi.create(data)
-        toast.success('Note created')
-        formDialog.close()
-        reset()
-      } finally {
-        setFormLoading(false)
-      }
+      await notesApi.create(data)
+      toast.success('Note created')
+      reset()
     },
-    loading: formLoading,
   })
 
   const openCreateNote = () => formDialog.open({ title: 'Create Note', size: 'lg' })
@@ -216,7 +208,7 @@ export function NotesPage() {
         onDelete={handleBulkDelete}
         onClear={multiSelect.clear}
       />
-      <FormDialog {...formDialog.dialogProps} onSubmit={noteForm.submit} loading={formLoading}>
+      <FormDialog {...formDialog.dialogProps} onSubmit={noteForm.submit}>
         {noteForm.fields}
       </FormDialog>
       <ConfirmDialog {...confirmDialog.dialogProps} />

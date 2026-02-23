@@ -13,7 +13,6 @@ export interface CreateNoteFormData {
 
 interface Props {
   onSubmit: (data: CreateNoteFormData) => Promise<void>
-  loading?: boolean
   defaultProjectId?: string
   workspaceSlug?: string
 }
@@ -36,7 +35,7 @@ const importanceOptions = [
   { value: 'critical', label: 'Critical' },
 ]
 
-export function CreateNoteForm({ onSubmit, loading, defaultProjectId, workspaceSlug }: Props) {
+export function CreateNoteForm({ onSubmit, defaultProjectId, workspaceSlug }: Props) {
   const [projectId, setProjectId] = useState(defaultProjectId || '')
   const [noteType, setNoteType] = useState<string>('guideline')
   const [content, setContent] = useState('')
@@ -74,7 +73,6 @@ export function CreateNoteForm({ onSubmit, loading, defaultProjectId, workspaceS
           value={projectId}
           onChange={(value) => setProjectId(value)}
           error={errors.project_id}
-          disabled={loading}
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <Select
@@ -82,14 +80,12 @@ export function CreateNoteForm({ onSubmit, loading, defaultProjectId, workspaceS
             options={typeOptions}
             value={noteType}
             onChange={(value) => setNoteType(value)}
-            disabled={loading}
           />
           <Select
             label="Importance"
             options={importanceOptions}
             value={importance}
             onChange={(value) => setImportance(value)}
-            disabled={loading}
           />
         </div>
         <Textarea
@@ -98,7 +94,6 @@ export function CreateNoteForm({ onSubmit, loading, defaultProjectId, workspaceS
           value={content}
           onChange={(e) => setContent(e.target.value)}
           error={errors.content}
-          disabled={loading}
           autoFocus
           rows={5}
         />
@@ -107,12 +102,11 @@ export function CreateNoteForm({ onSubmit, loading, defaultProjectId, workspaceS
           placeholder="Comma-separated tags"
           value={tags}
           onChange={(e) => setTags(e.target.value)}
-          disabled={loading}
         />
       </>
     ),
     submit: async () => {
-      if (!validate()) return
+      if (!validate()) return false
       await onSubmit({
         project_id: projectId,
         note_type: noteType as NoteType,

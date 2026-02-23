@@ -10,7 +10,6 @@ export interface CreateConstraintFormData {
 
 interface Props {
   onSubmit: (data: CreateConstraintFormData) => Promise<void>
-  loading?: boolean
 }
 
 const typeOptions = [
@@ -30,7 +29,7 @@ const severityOptions = [
   { value: 'critical', label: 'Critical' },
 ]
 
-export function CreateConstraintForm({ onSubmit, loading }: Props) {
+export function CreateConstraintForm({ onSubmit }: Props) {
   const [constraintType, setConstraintType] = useState<string>('other')
   const [description, setDescription] = useState('')
   const [severity, setSeverity] = useState('')
@@ -52,14 +51,12 @@ export function CreateConstraintForm({ onSubmit, loading }: Props) {
             options={typeOptions}
             value={constraintType}
             onChange={(value) => setConstraintType(value)}
-            disabled={loading}
           />
           <Select
             label="Severity"
             options={severityOptions}
             value={severity}
             onChange={(value) => setSeverity(value)}
-            disabled={loading}
           />
         </div>
         <Input
@@ -68,13 +65,12 @@ export function CreateConstraintForm({ onSubmit, loading }: Props) {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           error={errors.description}
-          disabled={loading}
           autoFocus
         />
       </>
     ),
     submit: async () => {
-      if (!validate()) return
+      if (!validate()) return false
       await onSubmit({
         constraint_type: constraintType as ConstraintType,
         description: description.trim(),

@@ -25,7 +25,6 @@ export function ProjectDetailPage() {
   const planRefresh = useAtomValue(planRefreshAtom)
   const milestoneRefresh = useAtomValue(milestoneRefreshAtom)
   const taskRefresh = useAtomValue(taskRefreshAtom)
-  const [formLoading, setFormLoading] = useState(false)
   const [project, setProject] = useState<Project | null>(null)
   const [plans, setPlans] = useState<Plan[]>([])
   const [roadmap, setRoadmap] = useState<ProjectRoadmap | null>(null)
@@ -104,41 +103,27 @@ export function ProjectDetailPage() {
   const milestoneForm = CreateMilestoneForm({
     onSubmit: async (data) => {
       if (!project) return
-      setFormLoading(true)
+      await projectsApi.createMilestone(project.id, data)
+      toast.success('Milestone added')
+      // Refresh roadmap
       try {
-        await projectsApi.createMilestone(project.id, data)
-        milestoneFormDialog.close()
-        toast.success('Milestone added')
-        // Refresh roadmap
-        try {
-          const roadmapData = await projectsApi.getRoadmap(project.id)
-          setRoadmap(roadmapData)
-        } catch { /* ignore */ }
-      } finally {
-        setFormLoading(false)
-      }
+        const roadmapData = await projectsApi.getRoadmap(project.id)
+        setRoadmap(roadmapData)
+      } catch { /* ignore */ }
     },
-    loading: formLoading,
   })
 
   const releaseForm = CreateReleaseForm({
     onSubmit: async (data) => {
       if (!project) return
-      setFormLoading(true)
+      await projectsApi.createRelease(project.id, data)
+      toast.success('Release added')
+      // Refresh roadmap
       try {
-        await projectsApi.createRelease(project.id, data)
-        releaseFormDialog.close()
-        toast.success('Release added')
-        // Refresh roadmap
-        try {
-          const roadmapData = await projectsApi.getRoadmap(project.id)
-          setRoadmap(roadmapData)
-        } catch { /* ignore */ }
-      } finally {
-        setFormLoading(false)
-      }
+        const roadmapData = await projectsApi.getRoadmap(project.id)
+        setRoadmap(roadmapData)
+      } catch { /* ignore */ }
     },
-    loading: formLoading,
   })
 
   const hasRoadmap = roadmap && ((roadmap.milestones || []).length > 0 || roadmap.releases.length > 0)
@@ -436,10 +421,10 @@ export function ProjectDetailPage() {
       </Card>
       </section>
 
-      <FormDialog {...milestoneFormDialog.dialogProps} onSubmit={milestoneForm.submit} loading={formLoading}>
+      <FormDialog {...milestoneFormDialog.dialogProps} onSubmit={milestoneForm.submit}>
         {milestoneForm.fields}
       </FormDialog>
-      <FormDialog {...releaseFormDialog.dialogProps} onSubmit={releaseForm.submit} loading={formLoading}>
+      <FormDialog {...releaseFormDialog.dialogProps} onSubmit={releaseForm.submit}>
         {releaseForm.fields}
       </FormDialog>
       <LinkEntityDialog {...linkDialog.dialogProps} />

@@ -12,12 +12,11 @@ export interface CreatePlanFormData {
 
 interface Props {
   onSubmit: (data: CreatePlanFormData) => Promise<void>
-  loading?: boolean
   defaultProjectId?: string
   workspaceSlug?: string
 }
 
-export function CreatePlanForm({ onSubmit, loading, defaultProjectId, workspaceSlug }: Props) {
+export function CreatePlanForm({ onSubmit, defaultProjectId, workspaceSlug }: Props) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState('5')
@@ -55,7 +54,6 @@ export function CreatePlanForm({ onSubmit, loading, defaultProjectId, workspaceS
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           error={errors.title}
-          disabled={loading}
           autoFocus
         />
         <Textarea
@@ -64,7 +62,6 @@ export function CreatePlanForm({ onSubmit, loading, defaultProjectId, workspaceS
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           error={errors.description}
-          disabled={loading}
           rows={4}
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -75,20 +72,18 @@ export function CreatePlanForm({ onSubmit, loading, defaultProjectId, workspaceS
             max={10}
             value={priority}
             onChange={(e) => setPriority(e.target.value)}
-            disabled={loading}
           />
           <Select
             label="Project"
             options={projectOptions}
             value={projectId}
             onChange={(value) => setProjectId(value)}
-            disabled={loading}
           />
         </div>
       </>
     ),
     submit: async () => {
-      if (!validate()) return
+      if (!validate()) return false
       await onSubmit({
         title: title.trim(),
         description: description.trim(),

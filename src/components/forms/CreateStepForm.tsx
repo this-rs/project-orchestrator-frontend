@@ -8,10 +8,9 @@ export interface CreateStepFormData {
 
 interface Props {
   onSubmit: (data: CreateStepFormData) => Promise<void>
-  loading?: boolean
 }
 
-export function CreateStepForm({ onSubmit, loading }: Props) {
+export function CreateStepForm({ onSubmit }: Props) {
   const [description, setDescription] = useState('')
   const [verification, setVerification] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -32,7 +31,6 @@ export function CreateStepForm({ onSubmit, loading }: Props) {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           error={errors.description}
-          disabled={loading}
           autoFocus
           rows={3}
         />
@@ -41,12 +39,11 @@ export function CreateStepForm({ onSubmit, loading }: Props) {
           placeholder="How to verify this step is complete (optional)"
           value={verification}
           onChange={(e) => setVerification(e.target.value)}
-          disabled={loading}
         />
       </>
     ),
     submit: async () => {
-      if (!validate()) return
+      if (!validate()) return false
       await onSubmit({
         description: description.trim(),
         verification: verification.trim() || undefined,

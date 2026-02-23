@@ -14,7 +14,6 @@ export interface CreateResourceFormData {
 
 interface Props {
   onSubmit: (data: CreateResourceFormData) => Promise<void>
-  loading?: boolean
 }
 
 const typeOptions = [
@@ -29,7 +28,7 @@ const typeOptions = [
   { value: 'other', label: 'Other' },
 ]
 
-export function CreateResourceForm({ onSubmit, loading }: Props) {
+export function CreateResourceForm({ onSubmit }: Props) {
   const [name, setName] = useState('')
   const [resourceType, setResourceType] = useState<string>('other')
   const [filePath, setFilePath] = useState('')
@@ -56,7 +55,7 @@ export function CreateResourceForm({ onSubmit, loading }: Props) {
           value={name}
           onChange={(e) => setName(e.target.value)}
           error={errors.name}
-          disabled={loading}
+
           autoFocus
         />
         <Select
@@ -64,7 +63,7 @@ export function CreateResourceForm({ onSubmit, loading }: Props) {
           options={typeOptions}
           value={resourceType}
           onChange={(value) => setResourceType(value)}
-          disabled={loading}
+
         />
         <Input
           label="File Path"
@@ -72,7 +71,7 @@ export function CreateResourceForm({ onSubmit, loading }: Props) {
           value={filePath}
           onChange={(e) => setFilePath(e.target.value)}
           error={errors.file_path}
-          disabled={loading}
+
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <Input
@@ -80,14 +79,14 @@ export function CreateResourceForm({ onSubmit, loading }: Props) {
             placeholder="https://..."
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            disabled={loading}
+  
           />
           <Input
             label="Format"
             placeholder="json, yaml, etc."
             value={format}
             onChange={(e) => setFormat(e.target.value)}
-            disabled={loading}
+  
           />
         </div>
         <Input
@@ -95,20 +94,20 @@ export function CreateResourceForm({ onSubmit, loading }: Props) {
           placeholder="1.0.0"
           value={version}
           onChange={(e) => setVersion(e.target.value)}
-          disabled={loading}
+
         />
         <Textarea
           label="Description"
           placeholder="Optional description..."
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          disabled={loading}
+
           rows={2}
         />
       </>
     ),
     submit: async () => {
-      if (!validate()) return
+      if (!validate()) return false
       await onSubmit({
         name: name.trim(),
         resource_type: resourceType as ResourceType,

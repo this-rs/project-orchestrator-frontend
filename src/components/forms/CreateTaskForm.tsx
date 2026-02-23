@@ -11,10 +11,9 @@ export interface CreateTaskFormData {
 
 interface Props {
   onSubmit: (data: CreateTaskFormData) => Promise<void>
-  loading?: boolean
 }
 
-export function CreateTaskForm({ onSubmit, loading }: Props) {
+export function CreateTaskForm({ onSubmit }: Props) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState('')
@@ -37,7 +36,6 @@ export function CreateTaskForm({ onSubmit, loading }: Props) {
           placeholder="Task title (optional)"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          disabled={loading}
           autoFocus
         />
         <Textarea
@@ -46,7 +44,6 @@ export function CreateTaskForm({ onSubmit, loading }: Props) {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           error={errors.description}
-          disabled={loading}
           rows={4}
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -58,7 +55,6 @@ export function CreateTaskForm({ onSubmit, loading }: Props) {
             placeholder="1-10"
             value={priority}
             onChange={(e) => setPriority(e.target.value)}
-            disabled={loading}
           />
           <Input
             label="Estimated Complexity"
@@ -68,7 +64,6 @@ export function CreateTaskForm({ onSubmit, loading }: Props) {
             placeholder="1-10"
             value={complexity}
             onChange={(e) => setComplexity(e.target.value)}
-            disabled={loading}
           />
         </div>
         <Input
@@ -76,12 +71,11 @@ export function CreateTaskForm({ onSubmit, loading }: Props) {
           placeholder="Comma-separated tags"
           value={tags}
           onChange={(e) => setTags(e.target.value)}
-          disabled={loading}
         />
       </>
     ),
     submit: async () => {
-      if (!validate()) return
+      if (!validate()) return false
       await onSubmit({
         title: title.trim() || undefined as unknown as string,
         description: description.trim(),

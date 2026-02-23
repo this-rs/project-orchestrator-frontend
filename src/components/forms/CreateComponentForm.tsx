@@ -12,7 +12,6 @@ export interface CreateComponentFormData {
 
 interface Props {
   onSubmit: (data: CreateComponentFormData) => Promise<void>
-  loading?: boolean
 }
 
 const typeOptions = [
@@ -27,7 +26,7 @@ const typeOptions = [
   { value: 'other', label: 'Other' },
 ]
 
-export function CreateComponentForm({ onSubmit, loading }: Props) {
+export function CreateComponentForm({ onSubmit }: Props) {
   const [name, setName] = useState('')
   const [componentType, setComponentType] = useState<string>('service')
   const [description, setDescription] = useState('')
@@ -51,7 +50,7 @@ export function CreateComponentForm({ onSubmit, loading }: Props) {
           value={name}
           onChange={(e) => setName(e.target.value)}
           error={errors.name}
-          disabled={loading}
+
           autoFocus
         />
         <Select
@@ -59,14 +58,14 @@ export function CreateComponentForm({ onSubmit, loading }: Props) {
           options={typeOptions}
           value={componentType}
           onChange={(value) => setComponentType(value)}
-          disabled={loading}
+
         />
         <Textarea
           label="Description"
           placeholder="Optional description..."
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          disabled={loading}
+
           rows={2}
         />
         <Input
@@ -74,19 +73,19 @@ export function CreateComponentForm({ onSubmit, loading }: Props) {
           placeholder="node, python, rust, etc."
           value={runtime}
           onChange={(e) => setRuntime(e.target.value)}
-          disabled={loading}
+
         />
         <Input
           label="Tags"
           placeholder="Comma-separated tags"
           value={tags}
           onChange={(e) => setTags(e.target.value)}
-          disabled={loading}
+
         />
       </>
     ),
     submit: async () => {
-      if (!validate()) return
+      if (!validate()) return false
       await onSubmit({
         name: name.trim(),
         component_type: componentType as ComponentType,

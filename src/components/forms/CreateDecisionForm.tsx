@@ -10,10 +10,9 @@ export interface CreateDecisionFormData {
 
 interface Props {
   onSubmit: (data: CreateDecisionFormData) => Promise<void>
-  loading?: boolean
 }
 
-export function CreateDecisionForm({ onSubmit, loading }: Props) {
+export function CreateDecisionForm({ onSubmit }: Props) {
   const [description, setDescription] = useState('')
   const [rationale, setRationale] = useState('')
   const [alternatives, setAlternatives] = useState('')
@@ -37,7 +36,6 @@ export function CreateDecisionForm({ onSubmit, loading }: Props) {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           error={errors.description}
-          disabled={loading}
           autoFocus
         />
         <Textarea
@@ -46,7 +44,6 @@ export function CreateDecisionForm({ onSubmit, loading }: Props) {
           value={rationale}
           onChange={(e) => setRationale(e.target.value)}
           error={errors.rationale}
-          disabled={loading}
           rows={3}
         />
         <Input
@@ -54,19 +51,17 @@ export function CreateDecisionForm({ onSubmit, loading }: Props) {
           placeholder="Comma-separated alternatives considered"
           value={alternatives}
           onChange={(e) => setAlternatives(e.target.value)}
-          disabled={loading}
         />
         <Input
           label="Chosen Option"
           placeholder="The selected option (optional)"
           value={chosenOption}
           onChange={(e) => setChosenOption(e.target.value)}
-          disabled={loading}
         />
       </>
     ),
     submit: async () => {
-      if (!validate()) return
+      if (!validate()) return false
       await onSubmit({
         description: description.trim(),
         rationale: rationale.trim(),

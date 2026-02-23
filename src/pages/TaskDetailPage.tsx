@@ -42,7 +42,6 @@ export function TaskDetailPage() {
   const taskRefresh = useAtomValue(taskRefreshAtom)
   const projectRefresh = useAtomValue(projectRefreshAtom)
   const planRefresh = useAtomValue(planRefreshAtom)
-  const [formLoading, setFormLoading] = useState(false)
   const [task, setTask] = useState<Task | null>(null)
   const [steps, setSteps] = useState<Step[]>([])
   const [decisions, setDecisions] = useState<Decision[]>([])
@@ -149,33 +148,19 @@ export function TaskDetailPage() {
   const stepForm = CreateStepForm({
     onSubmit: async (data) => {
       if (!taskId) return
-      setFormLoading(true)
-      try {
-        const newStep = await tasksApi.addStep(taskId, data)
-        setSteps((prev) => [...prev, newStep])
-        stepFormDialog.close()
-        toast.success('Step added')
-      } finally {
-        setFormLoading(false)
-      }
+      const newStep = await tasksApi.addStep(taskId, data)
+      setSteps((prev) => [...prev, newStep])
+      toast.success('Step added')
     },
-    loading: formLoading,
   })
 
   const decisionForm = CreateDecisionForm({
     onSubmit: async (data) => {
       if (!taskId) return
-      setFormLoading(true)
-      try {
-        const newDecision = await tasksApi.addDecision(taskId, data)
-        setDecisions((prev) => [...prev, newDecision])
-        decisionFormDialog.close()
-        toast.success('Decision added')
-      } finally {
-        setFormLoading(false)
-      }
+      const newDecision = await tasksApi.addDecision(taskId, data)
+      setDecisions((prev) => [...prev, newDecision])
+      toast.success('Decision added')
     },
-    loading: formLoading,
   })
 
   const sectionIds = ['steps', 'dependencies', 'decisions']
@@ -492,10 +477,10 @@ export function TaskDetailPage() {
         </section>
       )}
 
-      <FormDialog {...stepFormDialog.dialogProps} onSubmit={stepForm.submit} loading={formLoading}>
+      <FormDialog {...stepFormDialog.dialogProps} onSubmit={stepForm.submit}>
         {stepForm.fields}
       </FormDialog>
-      <FormDialog {...decisionFormDialog.dialogProps} onSubmit={decisionForm.submit} loading={formLoading}>
+      <FormDialog {...decisionFormDialog.dialogProps} onSubmit={decisionForm.submit}>
         {decisionForm.fields}
       </FormDialog>
       <LinkEntityDialog {...linkDialog.dialogProps} />

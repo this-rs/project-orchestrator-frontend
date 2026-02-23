@@ -10,10 +10,9 @@ export interface CreateMilestoneFormData {
 
 interface Props {
   onSubmit: (data: CreateMilestoneFormData) => Promise<void>
-  loading?: boolean
 }
 
-export function CreateMilestoneForm({ onSubmit, loading }: Props) {
+export function CreateMilestoneForm({ onSubmit }: Props) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [targetDate, setTargetDate] = useState('')
@@ -36,7 +35,7 @@ export function CreateMilestoneForm({ onSubmit, loading }: Props) {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           error={errors.title}
-          disabled={loading}
+
           autoFocus
         />
         <Textarea
@@ -44,7 +43,7 @@ export function CreateMilestoneForm({ onSubmit, loading }: Props) {
           placeholder="Optional description..."
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          disabled={loading}
+
           rows={3}
         />
         <Input
@@ -52,19 +51,19 @@ export function CreateMilestoneForm({ onSubmit, loading }: Props) {
           type="date"
           value={targetDate}
           onChange={(e) => setTargetDate(e.target.value)}
-          disabled={loading}
+
         />
         <Input
           label="Tags"
           placeholder="Comma-separated tags"
           value={tags}
           onChange={(e) => setTags(e.target.value)}
-          disabled={loading}
+
         />
       </>
     ),
     submit: async () => {
-      if (!validate()) return
+      if (!validate()) return false
       await onSubmit({
         title: title.trim(),
         description: description.trim() || undefined,

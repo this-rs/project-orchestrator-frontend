@@ -12,7 +12,6 @@ export interface CreateProjectFormData {
 
 interface Props {
   onSubmit: (data: CreateProjectFormData) => Promise<void>
-  loading?: boolean
   workspaceName?: string
 }
 
@@ -22,7 +21,7 @@ async function pickDirectory(): Promise<string | null> {
   return invoke<string | null>('pick_directory')
 }
 
-export function CreateProjectForm({ onSubmit, loading, workspaceName }: Props) {
+export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
   const [rootPath, setRootPath] = useState('')
@@ -86,7 +85,6 @@ export function CreateProjectForm({ onSubmit, loading, workspaceName }: Props) {
           value={name}
           onChange={(e) => handleNameChange(e.target.value)}
           error={errors.name}
-          disabled={loading}
           autoFocus
         />
         <Input
@@ -94,7 +92,6 @@ export function CreateProjectForm({ onSubmit, loading, workspaceName }: Props) {
           placeholder="my-project"
           value={slug}
           onChange={(e) => setSlug(e.target.value)}
-          disabled={loading}
         />
         <div className="w-full">
           <label className="block text-sm font-medium text-gray-300 mb-1">
@@ -112,13 +109,11 @@ export function CreateProjectForm({ onSubmit, loading, workspaceName }: Props) {
               placeholder="/path/to/project"
               value={rootPath}
               onChange={(e) => setRootPath(e.target.value)}
-              disabled={loading}
             />
             {isTauri && (
               <button
                 type="button"
                 onClick={handleBrowse}
-                disabled={loading}
                 className="
                   shrink-0 px-3 py-2 bg-white/[0.06] border border-white/[0.1] rounded-lg
                   text-gray-300 hover:bg-white/[0.1] hover:text-gray-100
@@ -140,13 +135,12 @@ export function CreateProjectForm({ onSubmit, loading, workspaceName }: Props) {
           placeholder="Optional description..."
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          disabled={loading}
           rows={3}
         />
       </>
     ),
     submit: async () => {
-      if (!validate()) return
+      if (!validate()) return false
       await onSubmit({
         name: name.trim(),
         slug: slug.trim() || (undefined as unknown as string),

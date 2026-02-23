@@ -1,17 +1,19 @@
-import { useEffect, useRef, type ReactNode, type FormEvent } from 'react'
+import { useState, useEffect, useRef, type ReactNode, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { Button } from './Button'
+import { useToast } from '@/hooks/useToast'
 import { dialogVariants, backdropVariants, useReducedMotion } from '@/utils/motion'
 
 export interface FormDialogProps {
   open: boolean
   onClose: () => void
-  onSubmit: () => Promise<void> | void
+  onSubmit: () => Promise<false | void> | false | void
   title: string
   children: ReactNode
   submitLabel?: string
   cancelLabel?: string
+  /** @deprecated Prefer letting FormDialog manage loading internally. Kept for backward compat. */
   loading?: boolean
   size?: 'sm' | 'md' | 'lg'
 }
@@ -35,6 +37,15 @@ export function FormDialog({
 }: FormDialogProps) {
   const cancelRef = useRef<HTMLButtonElement>(null)
   const reducedMotion = useReducedMotion()
+  const toast = useToast()
+  const [submitting, setSubmitting] = useState(false)
+
+  const isLoading = loading || submitting
+
+  // Reset submitting state when dialog closes (e.g. after auto-close or manual cancel)
+  useEffect(() => {
+    if (!open) setSubmitting(false)
+  }, [open])
 
   useEffect(() => {
     if (open) cancelRef.current?.focus()
@@ -43,11 +54,11 @@ export function FormDialog({
   useEffect(() => {
     if (!open) return
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !loading) onClose()
+      if (e.key === 'Escape' && !isLoading) onClose()
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [open, onClose, loading])
+  }, [open, onClose, isLoading])
 
   useEffect(() => {
     if (open) {
@@ -60,7 +71,17 @@ export function FormDialog({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    await onSubmit()
+    setSubmitting(true)
+    try {
+      const result = await onSubmit()
+      if (result !== false) {
+        onClose()
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return createPortal(
@@ -78,7 +99,7 @@ export function FormDialog({
             initial="hidden"
             animate="visible"
             exit="exit"
-            onClick={loading ? undefined : onClose}
+            onClick={isLoading ? undefined : onClose}
           />
 
           <motion.div
@@ -95,7 +116,9 @@ export function FormDialog({
             </div>
 
             <form onSubmit={handleSubmit}>
-              <div className="px-4 py-3 md:px-6 md:py-4 space-y-4 max-h-[70vh] md:max-h-[60vh] overflow-y-auto">{children}</div>
+              <fieldset disabled={isLoading} className="contents">
+                <div className="px-4 py-3 md:px-6 md:py-4 space-y-4 max-h-[70vh] md:max-h-[60vh] overflow-y-auto">{children}</div>
+              </fieldset>
 
               <div className="flex justify-end gap-3 px-4 py-3 md:px-6 md:py-4 border-t border-border-subtle">
                 <Button
@@ -103,12 +126,12 @@ export function FormDialog({
                   variant="secondary"
                   size="sm"
                   onClick={onClose}
-                  disabled={loading}
+                  disabled={isLoading}
                   type="button"
                 >
                   {cancelLabel}
                 </Button>
-                <Button variant="primary" size="sm" type="submit" loading={loading}>
+                <Button variant="primary" size="sm" type="submit" loading={isLoading}>
                   {submitLabel}
                 </Button>
               </div>

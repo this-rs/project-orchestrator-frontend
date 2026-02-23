@@ -33,7 +33,6 @@ export function WorkspaceDetailPage() {
   const projectRefresh = useAtomValue(projectRefreshAtom)
   const milestoneRefresh = useAtomValue(milestoneRefreshAtom)
   const taskRefresh = useAtomValue(taskRefreshAtom)
-  const [formLoading, setFormLoading] = useState(false)
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [milestones, setMilestones] = useState<(WorkspaceMilestone & { progress?: MilestoneProgress })[]>([])
@@ -87,49 +86,28 @@ export function WorkspaceDetailPage() {
   const milestoneForm = CreateMilestoneForm({
     onSubmit: async (data) => {
       if (!slug) return
-      setFormLoading(true)
-      try {
-        const newMilestone = await workspacesApi.createMilestone(slug, data)
-        setMilestones((prev) => [...prev, { ...newMilestone, progress: undefined }])
-        milestoneFormDialog.close()
-        toast.success('Milestone added')
-      } finally {
-        setFormLoading(false)
-      }
+      const newMilestone = await workspacesApi.createMilestone(slug, data)
+      setMilestones((prev) => [...prev, { ...newMilestone, progress: undefined }])
+      toast.success('Milestone added')
     },
-    loading: formLoading,
   })
 
   const resourceForm = CreateResourceForm({
     onSubmit: async (data) => {
       if (!slug) return
-      setFormLoading(true)
-      try {
-        const newResource = await workspacesApi.createResource(slug, data)
-        setResources((prev) => [...prev, newResource])
-        resourceFormDialog.close()
-        toast.success('Resource added')
-      } finally {
-        setFormLoading(false)
-      }
+      const newResource = await workspacesApi.createResource(slug, data)
+      setResources((prev) => [...prev, newResource])
+      toast.success('Resource added')
     },
-    loading: formLoading,
   })
 
   const componentForm = CreateComponentForm({
     onSubmit: async (data) => {
       if (!slug) return
-      setFormLoading(true)
-      try {
-        const newComponent = await workspacesApi.createComponent(slug, data)
-        setComponents((prev) => [...prev, newComponent])
-        componentFormDialog.close()
-        toast.success('Component added')
-      } finally {
-        setFormLoading(false)
-      }
+      const newComponent = await workspacesApi.createComponent(slug, data)
+      setComponents((prev) => [...prev, newComponent])
+      toast.success('Component added')
     },
-    loading: formLoading,
   })
 
   const sectionIds = ['overview', 'projects', 'milestones', 'resources', 'components']
@@ -385,13 +363,13 @@ export function WorkspaceDetailPage() {
         </section>
       </div>
 
-      <FormDialog {...milestoneFormDialog.dialogProps} onSubmit={milestoneForm.submit} loading={formLoading}>
+      <FormDialog {...milestoneFormDialog.dialogProps} onSubmit={milestoneForm.submit}>
         {milestoneForm.fields}
       </FormDialog>
-      <FormDialog {...resourceFormDialog.dialogProps} onSubmit={resourceForm.submit} loading={formLoading}>
+      <FormDialog {...resourceFormDialog.dialogProps} onSubmit={resourceForm.submit}>
         {resourceForm.fields}
       </FormDialog>
-      <FormDialog {...componentFormDialog.dialogProps} onSubmit={componentForm.submit} loading={formLoading}>
+      <FormDialog {...componentFormDialog.dialogProps} onSubmit={componentForm.submit}>
         {componentForm.fields}
       </FormDialog>
       <LinkEntityDialog {...linkDialog.dialogProps} />

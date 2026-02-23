@@ -41,7 +41,6 @@ export function PlanDetailPage() {
   const taskRefresh = useAtomValue(taskRefreshAtom)
   const projectRefresh = useAtomValue(projectRefreshAtom)
   const [linkedProject, setLinkedProject] = useState<Project | null>(null)
-  const [formLoading, setFormLoading] = useState(false)
   const [tasksExpandAll, setTasksExpandAll] = useState(0)
   const [tasksCollapseAll, setTasksCollapseAll] = useState(0)
   const [tasksAllExpanded, setTasksAllExpanded] = useState(false)
@@ -169,33 +168,19 @@ export function PlanDetailPage() {
   const taskForm = CreateTaskForm({
     onSubmit: async (data) => {
       if (!planId) return
-      setFormLoading(true)
-      try {
-        const newTask = await plansApi.createTask(planId, data)
-        setTasks((prev) => [...prev, newTask])
-        taskFormDialog.close()
-        toast.success('Task added')
-      } finally {
-        setFormLoading(false)
-      }
+      const newTask = await plansApi.createTask(planId, data)
+      setTasks((prev) => [...prev, newTask])
+      toast.success('Task added')
     },
-    loading: formLoading,
   })
 
   const constraintForm = CreateConstraintForm({
     onSubmit: async (data) => {
       if (!planId) return
-      setFormLoading(true)
-      try {
-        const newConstraint = await plansApi.addConstraint(planId, data)
-        setConstraints((prev) => [...prev, newConstraint])
-        constraintFormDialog.close()
-        toast.success('Constraint added')
-      } finally {
-        setFormLoading(false)
-      }
+      const newConstraint = await plansApi.addConstraint(planId, data)
+      setConstraints((prev) => [...prev, newConstraint])
+      toast.success('Constraint added')
     },
-    loading: formLoading,
   })
 
   const sectionIds = ['overview', 'tasks', 'constraints', 'decisions', ...(graph && (graph.nodes || []).length > 0 ? ['graph'] : [])]
@@ -472,10 +457,10 @@ export function PlanDetailPage() {
         </section>
       )}
 
-      <FormDialog {...taskFormDialog.dialogProps} onSubmit={taskForm.submit} loading={formLoading}>
+      <FormDialog {...taskFormDialog.dialogProps} onSubmit={taskForm.submit}>
         {taskForm.fields}
       </FormDialog>
-      <FormDialog {...constraintFormDialog.dialogProps} onSubmit={constraintForm.submit} loading={formLoading}>
+      <FormDialog {...constraintFormDialog.dialogProps} onSubmit={constraintForm.submit}>
         {constraintForm.fields}
       </FormDialog>
       <LinkEntityDialog {...linkDialog.dialogProps} />

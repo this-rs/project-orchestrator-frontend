@@ -10,10 +10,9 @@ export interface CreateReleaseFormData {
 
 interface Props {
   onSubmit: (data: CreateReleaseFormData) => Promise<void>
-  loading?: boolean
 }
 
-export function CreateReleaseForm({ onSubmit, loading }: Props) {
+export function CreateReleaseForm({ onSubmit }: Props) {
   const [version, setVersion] = useState('')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -36,7 +35,7 @@ export function CreateReleaseForm({ onSubmit, loading }: Props) {
           value={version}
           onChange={(e) => setVersion(e.target.value)}
           error={errors.version}
-          disabled={loading}
+
           autoFocus
         />
         <Input
@@ -44,14 +43,14 @@ export function CreateReleaseForm({ onSubmit, loading }: Props) {
           placeholder="Release title (optional)"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          disabled={loading}
+
         />
         <Textarea
           label="Description"
           placeholder="Optional description..."
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          disabled={loading}
+
           rows={3}
         />
         <Input
@@ -59,12 +58,12 @@ export function CreateReleaseForm({ onSubmit, loading }: Props) {
           type="date"
           value={targetDate}
           onChange={(e) => setTargetDate(e.target.value)}
-          disabled={loading}
+
         />
       </>
     ),
     submit: async () => {
-      if (!validate()) return
+      if (!validate()) return false
       await onSubmit({
         version: version.trim(),
         title: title.trim() || undefined,
