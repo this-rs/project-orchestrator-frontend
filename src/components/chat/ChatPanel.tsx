@@ -182,9 +182,8 @@ export function ChatPanel() {
         ref={panelRef}
         className={`fixed inset-0 z-30 bg-surface-raised flex ${isDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
       >
-        {/* Left sidebar — hidden on mobile, permanent on desktop, hidden when no projects */}
+        {/* Left sidebar — hidden on mobile, permanent on desktop */}
         {/* Desktop: static sidebar */}
-        {workspaceHasProjects && (
         <div className="hidden md:flex w-72 shrink-0 border-r border-white/[0.06] flex-col">
           {/* Sidebar header — taller on Tauri (non-fullscreen) to clear traffic lights */}
           <div className={`flex items-center justify-between px-4 shrink-0 transition-all duration-300 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
@@ -206,10 +205,9 @@ export function ChatPanel() {
             embedded
           />
         </div>
-        )}
 
         {/* Mobile: full-screen overlay sidebar */}
-        {isMobile && showMobileSidebar && workspaceHasProjects && (
+        {isMobile && showMobileSidebar && (
           <div className="fixed inset-0 z-40 flex flex-col bg-surface-raised">
             {/* Mobile sidebar header — taller on Tauri (non-fullscreen) to clear traffic lights */}
             <div className={`flex items-center justify-between px-4 shrink-0 transition-all duration-300 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
@@ -253,9 +251,8 @@ export function ChatPanel() {
             <div className="min-w-0 flex items-center gap-2">
               {/* Mobile: hamburger to toggle sidebar */}
               <button
-                onClick={() => { if (isMobile && workspaceHasProjects) setShowMobileSidebar(true) }}
-                disabled={!workspaceHasProjects}
-                className={`shrink-0 p-1.5 rounded-md transition-colors md:hidden ${!workspaceHasProjects ? 'text-gray-600 cursor-not-allowed' : showMobileSidebar ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
+                onClick={() => { if (isMobile) setShowMobileSidebar(true) }}
+                className={`shrink-0 p-1.5 rounded-md transition-colors md:hidden ${showMobileSidebar ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
                 title="Sessions"
               >
                 <Menu className="w-4 h-4" />
@@ -401,9 +398,8 @@ export function ChatPanel() {
       <div className="h-14 flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <button
-            onClick={() => { if (workspaceHasProjects) { setShowSessions(!showSessions); setShowSettings(false) } }}
-            disabled={!workspaceHasProjects}
-            className={`shrink-0 p-1.5 rounded-md transition-colors ${!workspaceHasProjects ? 'text-gray-600 cursor-not-allowed' : showSessions ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
+            onClick={() => { setShowSessions(!showSessions); setShowSettings(false) }}
+            className={`shrink-0 p-1.5 rounded-md transition-colors ${showSessions ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
             title="Sessions"
           >
             <Menu className="w-4 h-4" />
@@ -457,9 +453,8 @@ export function ChatPanel() {
             )}
           </button>
           <button
-            onClick={() => { if (workspaceHasProjects) setMode('fullscreen') }}
-            disabled={!workspaceHasProjects}
-            className={`p-1.5 rounded-md transition-colors hidden md:flex ${!workspaceHasProjects ? 'text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
+            onClick={() => setMode('fullscreen')}
+            className="p-1.5 rounded-md transition-colors hidden md:flex text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]"
             title="Fullscreen"
           >
             <Maximize2 className="w-4 h-4" />

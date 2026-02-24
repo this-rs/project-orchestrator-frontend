@@ -125,7 +125,6 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
   // Filter state
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedProject, setSelectedProject] = useState<string>('')
-  const [workspaceProjectSlugs, setWorkspaceProjectSlugs] = useState<Set<string>>(new Set())
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
@@ -144,17 +143,15 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
     return () => clearTimeout(timer)
   }, [searchQuery])
 
-  // Load workspace projects on mount / workspace change
+  // Load workspace projects on mount / workspace change (for project filter dropdown)
   useEffect(() => {
     if (!activeWsSlug) {
       setProjects([])
-      setWorkspaceProjectSlugs(new Set())
       return
     }
     workspacesApi.listProjects(activeWsSlug).then((data) => {
       const items = Array.isArray(data) ? data : []
       setProjects(items)
-      setWorkspaceProjectSlugs(new Set(items.map((p) => p.slug)))
     })
   }, [activeWsSlug])
 
@@ -169,12 +166,14 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
       }
 
       try {
-        const params: { limit: number; offset: number; project_slug?: string } = {
+        const params: { limit: number; offset: number; project_slug?: string; workspace_slug?: string } = {
           limit: SESSION_PAGE_SIZE,
           offset: loadMore ? offsetRef.current : 0,
         }
         if (selectedProject) {
           params.project_slug = selectedProject
+        } else if (activeWsSlug) {
+          params.workspace_slug = activeWsSlug
         }
         const data = await chatApi.listSessions(params)
         const newItems = data.items || []
@@ -197,7 +196,7 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
         }
       }
     },
-    [selectedProject],
+    [selectedProject, activeWsSlug],
   )
 
   // Initial load + refresh on filter/CRUD changes
@@ -261,18 +260,8 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
     }
   }, [debouncedQuery, selectedProject])
 
-  // Client-side filter by workspace (filter sessions whose project_slug or workspace_slug matches)
-  const filteredSessions = useMemo(() => {
-    if (!activeWsSlug || workspaceProjectSlugs.size === 0) return sessions
-    return sessions.filter(
-      (s) =>
-        s.workspace_slug === activeWsSlug ||
-        (s.project_slug && workspaceProjectSlugs.has(s.project_slug)),
-    )
-  }, [sessions, activeWsSlug, workspaceProjectSlugs])
-
-  // Group sessions by date
-  const groupedSessions = useMemo(() => groupSessionsByDate(filteredSessions), [filteredSessions])
+  // Group sessions by date (backend handles workspace/project filtering via API params)
+  const groupedSessions = useMemo(() => groupSessionsByDate(sessions), [sessions])
 
   const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation()
@@ -578,7 +567,7 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             Loading...
           </div>
-        ) : filteredSessions.length === 0 ? (
+        ) : sessions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-gray-600 text-sm">
             <MessageCircle className="w-6 h-6 mb-2 text-gray-700" />
             No conversations yet
