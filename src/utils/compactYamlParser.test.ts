@@ -274,6 +274,93 @@ test('parse success response', () => {
 })
 
 // ---------------------------------------------------------------------------
+// parseResult — JSON, compact YAML, MCP content-block unwrapping
+// ---------------------------------------------------------------------------
+
+// Import parseResult from the utils module (relative to the test's location)
+import { parseResult } from '../components/chat/tools/mcp/utils'
+
+console.log('\n── parseResult Tests ──\n')
+
+test('parseResult: plain JSON object', () => {
+  const input = JSON.stringify({ id: 'abc', status: 'ok' })
+  const result = parseResult(input) as Record<string, unknown>
+  assert(result.id === 'abc', `id should be abc, got ${result.id}`)
+  assert(result.status === 'ok', `status should be ok, got ${result.status}`)
+})
+
+test('parseResult: compact YAML string', () => {
+  const input = `id: abc-123\ntitle: My Task\nstatus: completed`
+  const result = parseResult(input) as Record<string, unknown>
+  assert(result.id === 'abc-123', `id should be abc-123, got ${result.id}`)
+  assert(result.title === 'My Task', `title should be My Task, got ${result.title}`)
+  assert(result.status === 'completed', `status should be completed`)
+})
+
+test('parseResult: MCP content-block array wrapping JSON', () => {
+  // This is what arrives when ContentValue::Structured is used by the Claude CLI
+  const innerData = { functions: ['foo', 'bar'], structs: ['Baz'] }
+  const contentBlocks = [{ type: 'text', text: JSON.stringify(innerData) }]
+  const input = JSON.stringify(contentBlocks)
+
+  const result = parseResult(input) as Record<string, unknown>
+  assert(deepEqual(result.functions, ['foo', 'bar']), `functions should be [foo, bar], got ${JSON.stringify(result.functions)}`)
+  assert(deepEqual(result.structs, ['Baz']), `structs should be [Baz], got ${JSON.stringify(result.structs)}`)
+})
+
+test('parseResult: MCP content-block array wrapping compact YAML', () => {
+  // MCP content-block with compact YAML inside (from json_to_compact)
+  const compactYaml = `id: abc\ntitle: Test\nstatus: pending\npriority: 2`
+  const contentBlocks = [{ type: 'text', text: compactYaml }]
+  const input = JSON.stringify(contentBlocks)
+
+  const result = parseResult(input) as Record<string, unknown>
+  assert(result.id === 'abc', `id should be abc, got ${result.id}`)
+  assert(result.title === 'Test', `title should be Test, got ${result.title}`)
+  assert(result.priority === 2, `priority should be 2, got ${result.priority}`)
+})
+
+test('parseResult: MCP content-block with file_symbols compact YAML', () => {
+  const compactYaml = `functions:\n  - name: handle_request\n    file_path: src/api.rs\n    line: 42\n  - name: parse_input\n    file_path: src/parser.rs\n    line: 10\nstructs:\n  - name: Config\n    file_path: src/config.rs\n    line: 1`
+  const contentBlocks = [{ type: 'text', text: compactYaml }]
+  const input = JSON.stringify(contentBlocks)
+
+  const result = parseResult(input) as Record<string, unknown>
+  const functions = result.functions as Record<string, unknown>[]
+  const structs = result.structs as Record<string, unknown>[]
+  assert(Array.isArray(functions), `functions should be array, got ${typeof functions}`)
+  assert(functions.length === 2, `functions should have 2 items, got ${functions.length}`)
+  assert(functions[0].name === 'handle_request', `first function name should be handle_request`)
+  assert(Array.isArray(structs), `structs should be array, got ${typeof structs}`)
+  assert(structs[0].name === 'Config', `first struct name should be Config`)
+})
+
+test('parseResult: MCP multi content-block concatenation', () => {
+  // Multiple text blocks should be concatenated
+  const contentBlocks = [
+    { type: 'text', text: 'id: abc' },
+    { type: 'text', text: '\ntitle: Test' },
+  ]
+  const input = JSON.stringify(contentBlocks)
+
+  const result = parseResult(input) as Record<string, unknown>
+  assert(result.id === 'abc', `id should be abc, got ${result.id}`)
+  assert(result.title === 'Test', `title should be Test, got ${result.title}`)
+})
+
+test('parseResult: null/undefined/empty', () => {
+  assert(parseResult(undefined) === null, 'undefined should return null')
+  assert(parseResult('') === null, 'empty string should return null')
+})
+
+test('parseResult: regular JSON array (not content-blocks)', () => {
+  // A normal JSON array that is NOT content-blocks should pass through
+  const input = JSON.stringify([1, 2, 3])
+  const result = parseResult(input)
+  assert(deepEqual(result, [1, 2, 3]), `should return [1, 2, 3], got ${JSON.stringify(result)}`)
+})
+
+// ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------
 

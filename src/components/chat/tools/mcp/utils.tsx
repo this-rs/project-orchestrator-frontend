@@ -254,17 +254,60 @@ export function ErrorDisplay({ content }: { content: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Parse tool result — tries JSON first, then compact YAML format
+// Parse tool result — handles JSON, MCP content-block arrays, compact YAML
 // ---------------------------------------------------------------------------
+
+/**
+ * Unwrap MCP content-block array if present.
+ *
+ * When tool results come through the Claude CLI as `ContentValue::Structured`,
+ * the backend serializes them as `[{ "type": "text", "text": "..." }, ...]`.
+ * The frontend's useChat.ts then JSON.stringify's this array into the block's
+ * `content` field. After JSON.parse we get the array back — we need to extract
+ * the actual text and re-parse it (JSON or compact YAML).
+ *
+ * Returns the extracted text if the value is a content-block array, otherwise
+ * returns `null` to signal no unwrapping was needed.
+ */
+function unwrapContentBlocks(val: unknown): string | null {
+  if (!Array.isArray(val)) return null
+
+  // Must contain at least one {type: "text", text: string} block
+  const textBlocks = val.filter(
+    (b): b is { type: string; text: string } =>
+      b != null && typeof b === 'object' && 'type' in b && b.type === 'text' && typeof (b as Record<string, unknown>).text === 'string',
+  )
+  if (textBlocks.length === 0) return null
+
+  return textBlocks.length === 1
+    ? textBlocks[0].text
+    : textBlocks.map((b) => b.text).join('\n')
+}
 
 export function parseResult(content: string | undefined): unknown {
   if (!content) return null
+
   // Try JSON first (fastest path)
   try {
-    return JSON.parse(content)
+    const json = JSON.parse(content)
+
+    // Check if the JSON is an MCP content-block array: [{type:"text", text:"..."}]
+    const innerText = unwrapContentBlocks(json)
+    if (innerText !== null) {
+      // Re-parse the unwrapped text (could be JSON data or compact YAML)
+      try {
+        return JSON.parse(innerText)
+      } catch {
+        // Not JSON inside — try compact YAML
+      }
+      return parseCompactYaml(innerText) ?? json
+    }
+
+    return json
   } catch {
     // Not JSON — try compact YAML (from backend's json_to_compact formatter)
   }
+
   return parseCompactYaml(content)
 }
 
