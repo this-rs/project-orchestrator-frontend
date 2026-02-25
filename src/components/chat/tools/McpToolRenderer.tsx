@@ -107,9 +107,13 @@ export function McpToolRenderer(props: ToolRendererProps) {
   const { toolName, toolInput, resultContent, isError, isLoading } = props
 
   // Extract action name from "mcp__project-orchestrator__<action>"
-  const action = toolName.startsWith(MCP_PREFIX)
+  // The chat system uses "mega tools" (tool groups like "code", "project")
+  // where the real sub-action is in toolInput.action (e.g. "get_file_symbols").
+  const rawAction = toolName.startsWith(MCP_PREFIX)
     ? toolName.slice(MCP_PREFIX.length)
     : toolName
+  const subAction = typeof toolInput.action === 'string' ? toolInput.action : undefined
+  const action = subAction ?? rawAction
 
   // If error, show error display with generic params
   if (isError && resultContent) {

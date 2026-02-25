@@ -265,9 +265,12 @@ const MCP_SUMMARY_MAP: Record<string, (input: Record<string, unknown>) => string
  * MCP tool: contextual summary based on action name + input params.
  */
 export function getMcpSummary(toolName: string, toolInput: Record<string, unknown>): string {
-  const action = toolName.startsWith(MCP_PREFIX)
+  const rawAction = toolName.startsWith(MCP_PREFIX)
     ? toolName.slice(MCP_PREFIX.length)
     : toolName
+  // Chat system uses "mega tools" (tool groups) — real action is in toolInput.action
+  const subAction = typeof toolInput.action === 'string' ? toolInput.action : undefined
+  const action = subAction ?? rawAction
   const fn = MCP_SUMMARY_MAP[action]
   if (fn) return fn(toolInput)
   // Fallback: humanize the action name
