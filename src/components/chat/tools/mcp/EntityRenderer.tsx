@@ -12,10 +12,52 @@ import {
 } from './utils'
 
 // ---------------------------------------------------------------------------
+// Data normalization — flatten nested backend structures
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalize PlanDetails from backend.
+ *
+ * Backend PlanDetails = { plan: PlanNode, tasks: [TaskDetails], constraints: [...] }
+ * where PlanNode fields are NOT serde-flattened. TaskDetails = { task: TaskNode, steps, decisions, ... }.
+ * We flatten plan fields + each task's TaskNode to the top level so renderers find
+ * `data.title` (not `data.plan.title`) and `t.title` (not `t.task.title`).
+ */
+function normalizePlanData(raw: Record<string, unknown>): Record<string, unknown> {
+  const planObj = raw.plan as Record<string, unknown> | undefined
+  const data = (planObj && typeof planObj === 'object')
+    ? { ...raw, ...planObj }
+    : raw
+
+  // Normalize tasks: unwrap TaskDetails.task
+  const rawTasks = data.tasks as Record<string, unknown>[] | undefined
+  if (rawTasks) {
+    data.tasks = rawTasks.map(normalizeTaskData)
+  }
+
+  return data
+}
+
+/**
+ * Normalize TaskDetails from backend.
+ *
+ * TaskDetails = { task: TaskNode, steps, decisions, depends_on, modifies_files }
+ * Flattens task: TaskNode fields into top level.
+ */
+function normalizeTaskData(raw: Record<string, unknown>): Record<string, unknown> {
+  const taskObj = raw.task as Record<string, unknown> | undefined
+  if (taskObj && typeof taskObj === 'object') {
+    return { ...raw, ...taskObj }
+  }
+  return raw
+}
+
+// ---------------------------------------------------------------------------
 // Plan card
 // ---------------------------------------------------------------------------
 
-function PlanCard({ data }: { data: Record<string, unknown> }) {
+function PlanCard({ data: rawData }: { data: Record<string, unknown> }) {
+  const data = normalizePlanData(rawData)
   const tasks = data.tasks as Record<string, unknown>[] | undefined
   const constraints = data.constraints as Record<string, unknown>[] | undefined
   const completedTasks = tasks?.filter(t => t.status === 'completed').length ?? 0
@@ -89,7 +131,8 @@ function PlanCard({ data }: { data: Record<string, unknown> }) {
 // Task card
 // ---------------------------------------------------------------------------
 
-function TaskCard({ data }: { data: Record<string, unknown> }) {
+function TaskCard({ data: rawData }: { data: Record<string, unknown> }) {
+  const data = normalizeTaskData(rawData)
   const steps = data.steps as Record<string, unknown>[] | undefined
   const decisions = data.decisions as Record<string, unknown>[] | undefined
   const criteria = data.acceptance_criteria as string[] | undefined
@@ -258,7 +301,8 @@ function NoteCard({ data }: { data: Record<string, unknown> }) {
 // ---------------------------------------------------------------------------
 
 function MilestoneCard({ data }: { data: Record<string, unknown> }) {
-  const tasks = data.tasks as Record<string, unknown>[] | undefined
+  const rawTasks = data.tasks as Record<string, unknown>[] | undefined
+  const tasks = rawTasks?.map(normalizeTaskData)
   const completedTasks = tasks?.filter(t => t.status === 'completed').length ?? 0
   const id = String(data.id ?? '')
 

@@ -260,7 +260,6 @@ const ENTITY_ACTIONS = new Set([
   'get_feature_graph', 'add_to_feature_graph', 'auto_build_feature_graph',
   'reinforce_neurons', 'decay_synapses', 'backfill_synapses',
   'cleanup_sync_data', 'cleanup_cross_project_calls',
-  'search_neurons',
 ])
 
 /**
@@ -342,6 +341,16 @@ export function inferFromData(parsed: unknown): { category: McpCategory; action:
   if (hasAnyKey(obj, ['blockers', 'blocked'])) return { category: 'progress', action: 'get_task_blockers' }
   if (Array.isArray(obj.milestones) && Array.isArray(obj.releases)) {
     return { category: 'progress', action: 'get_project_roadmap' }
+  }
+
+  // --- Entity detection: nested structures (no flatten) ---
+  // PlanDetails: { plan: PlanNode, tasks: [TaskDetails], constraints: [...] }
+  if (obj.plan && typeof obj.plan === 'object' && Array.isArray(obj.tasks)) {
+    return { category: 'entity', action: 'get_plan' }
+  }
+  // TaskDetails: { task: TaskNode, steps: [...], decisions: [...] }
+  if (obj.task && typeof obj.task === 'object' && Array.isArray(obj.steps)) {
+    return { category: 'entity', action: 'get_task' }
   }
 
   // --- Entity detection (single object with id) ---
