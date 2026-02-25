@@ -51,7 +51,7 @@ function extractListData(parsed: unknown): ListData | null {
   // Search results & other named collections:
   // decisions, notes, hits, steps, tasks, constraints, milestones, releases, etc.
   const collectionKeys = [
-    'decisions', 'notes', 'hits', 'steps', 'tasks', 'constraints',
+    'decisions', 'notes', 'hits', 'results', 'steps', 'tasks', 'constraints',
     'milestones', 'releases', 'components', 'resources', 'sessions',
     'workspaces', 'projects', 'plans', 'feature_graphs', 'neurons',
     'blockers', 'blocked',
@@ -268,6 +268,59 @@ function NoteRow({ item, searchQuery }: RowProps) {
 }
 
 // ---------------------------------------------------------------------------
+// Neuron row (search_neurons — note with activation score)
+// ---------------------------------------------------------------------------
+
+function NeuronRow({ item, searchQuery }: RowProps) {
+  const id = String(item.id ?? '')
+  const score = typeof item.activation_score === 'number' ? item.activation_score : null
+  const source = item.source as string | undefined
+  const energy = typeof item.energy === 'number' ? item.energy : null
+
+  return (
+    <div className="flex items-center gap-3 px-2 py-1.5 hover:bg-white/[0.02] rounded">
+      {/* Activation score bar */}
+      {score != null && (
+        <div className="shrink-0 w-10 text-right">
+          <span className={`font-mono text-[10px] ${score >= 0.7 ? 'text-green-400' : score >= 0.4 ? 'text-amber-400' : 'text-gray-500'}`}>
+            {score.toFixed(2)}
+          </span>
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          {item.note_type ? (
+            <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-900/30 text-purple-400 border border-purple-800/20">
+              {String(item.note_type)}
+            </span>
+          ) : null}
+          {item.importance ? <StatusBadge status={String(item.importance)} /> : null}
+          {source && source !== 'Direct' && (
+            <span className="px-1 py-0.5 rounded text-[9px] bg-cyan-900/30 text-cyan-400 border border-cyan-800/20">
+              {String(source)}
+            </span>
+          )}
+          {energy != null && (
+            <span className="text-[9px] text-gray-600 font-mono" title="Energy level">
+              E:{energy.toFixed(1)}
+            </span>
+          )}
+        </div>
+        <div className="text-gray-400 mt-0.5 truncate">
+          {hl((item.content as string) ?? '', searchQuery, 120)}
+        </div>
+        {Array.isArray(item.tags) && item.tags.length > 0 && (
+          <div className="mt-1">
+            <TagList tags={item.tags as string[]} />
+          </div>
+        )}
+      </div>
+      <ShortId id={id} entityType="note" />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Step row
 // ---------------------------------------------------------------------------
 
@@ -433,7 +486,7 @@ const ROW_MAP: Record<string, RowComponent> = {
   search_decisions: ({ item, searchQuery, action }) => <GenericRow item={item} searchQuery={searchQuery} action={action} />,
   search_notes: ({ item, searchQuery }) => <NoteRow item={item} searchQuery={searchQuery} />,
   search_notes_semantic: ({ item, searchQuery }) => <NoteRow item={item} searchQuery={searchQuery} />,
-  search_neurons: ({ item, searchQuery, action }) => <GenericRow item={item} searchQuery={searchQuery} action={action} />,
+  search_neurons: ({ item, searchQuery }) => <NeuronRow item={item} searchQuery={searchQuery} />,
   get_notes_needing_review: ({ item, searchQuery }) => <NoteRow item={item} searchQuery={searchQuery} />,
   get_entity_notes: ({ item, searchQuery }) => <NoteRow item={item} searchQuery={searchQuery} />,
   get_propagated_notes: ({ item, searchQuery }) => <NoteRow item={item} searchQuery={searchQuery} />,
