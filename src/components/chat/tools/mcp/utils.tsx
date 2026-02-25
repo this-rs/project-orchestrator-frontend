@@ -7,21 +7,27 @@
 
 /* eslint-disable react-refresh/only-export-components */
 
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
+import { workspacePath } from '@/utils/paths'
 
 // ---------------------------------------------------------------------------
-// Entity quick-link — maps entity types to frontend routes
+// Entity quick-link — maps entity types to workspace-scoped frontend routes
 // ---------------------------------------------------------------------------
 
-const ENTITY_ROUTES: Record<string, (id: string) => string> = {
-  plan: (id) => `/plans/${id}`,
-  task: (id) => `/tasks/${id}`,
-  project: (slug) => `/projects/${slug}`,
-  milestone: (id) => `/milestones/${id}`,
-  project_milestone: (id) => `/project-milestones/${id}`,
-  workspace: (slug) => `/workspaces/${slug}`,
-  release: (id) => `/plans/${id}`, // no dedicated page, link to parent
-  note: () => `/notes`,
+/** Build a workspace-scoped path, falling back to flat path if no workspace */
+function wsRoute(wsSlug: string | undefined, path: string): string {
+  return wsSlug ? workspacePath(wsSlug, path) : path
+}
+
+const ENTITY_ROUTES: Record<string, (wsSlug: string | undefined, id: string) => string> = {
+  plan: (ws, id) => wsRoute(ws, `/plans/${id}`),
+  task: (ws, id) => wsRoute(ws, `/tasks/${id}`),
+  project: (ws, slug) => wsRoute(ws, `/projects/${slug}`),
+  milestone: (ws, id) => wsRoute(ws, `/milestones/${id}`),
+  project_milestone: (ws, id) => wsRoute(ws, `/project-milestones/${id}`),
+  workspace: (_ws, slug) => `/workspace/${slug}`,
+  release: (ws, id) => wsRoute(ws, `/plans/${id}`), // no dedicated page, link to parent plan
+  note: (ws) => wsRoute(ws, `/notes`),
 }
 
 export function EntityLink({ entityType, id, children }: {
@@ -29,11 +35,12 @@ export function EntityLink({ entityType, id, children }: {
   id: string
   children: React.ReactNode
 }) {
+  const { slug: wsSlug } = useParams<{ slug: string }>()
   const routeFn = ENTITY_ROUTES[entityType]
   if (!routeFn || !id) return <>{children}</>
   return (
     <Link
-      to={routeFn(id)}
+      to={routeFn(wsSlug, id)}
       className="hover:text-indigo-400 hover:underline decoration-indigo-400/30 underline-offset-2 transition-colors"
     >
       {children}
