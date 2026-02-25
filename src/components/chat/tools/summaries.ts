@@ -270,9 +270,52 @@ export function getMcpSummary(toolName: string, toolInput: Record<string, unknow
     : toolName
   // Chat system uses "mega tools" (tool groups) — real action is in toolInput.action
   const subAction = typeof toolInput.action === 'string' ? toolInput.action : undefined
+
+  // Try sub-action directly (compound actions like "get_file_symbols")
+  if (subAction) {
+    const fn = MCP_SUMMARY_MAP[subAction]
+    if (fn) return fn(toolInput)
+  }
+
+  // Try mega-tool resolution: ("project", "list") → "list_projects"
+  if (subAction) {
+    const resolved = resolveMegaToolSummary(rawAction, subAction)
+    if (resolved) {
+      const fn = MCP_SUMMARY_MAP[resolved]
+      if (fn) return fn(toolInput)
+      return resolved.replace(/_/g, ' ')
+    }
+  }
+
+  // Fallback to raw action
   const action = subAction ?? rawAction
   const fn = MCP_SUMMARY_MAP[action]
   if (fn) return fn(toolInput)
-  // Fallback: humanize the action name
   return action.replace(/_/g, ' ')
+}
+
+/** Lightweight mega-tool resolution for summaries (avoids importing from mcp/index) */
+function resolveMegaToolSummary(megaTool: string, shortAction: string): string | null {
+  // Fast lookup: maps common (megaTool, shortAction) → legacy name
+  const MEGA_MAP: Record<string, Record<string, string>> = {
+    project: { list: 'list_projects', create: 'create_project', get: 'get_project', update: 'update_project', delete: 'delete_project', sync: 'sync_project', get_roadmap: 'get_project_roadmap', list_plans: 'list_project_plans' },
+    plan: { list: 'list_plans', create: 'create_plan', get: 'get_plan', update_status: 'update_plan_status', delete: 'delete_plan', get_dependency_graph: 'get_dependency_graph', get_critical_path: 'get_critical_path' },
+    task: { list: 'list_tasks', create: 'create_task', get: 'get_task', update: 'update_task', delete: 'delete_task', get_next: 'get_next_task', get_context: 'get_task_context', get_prompt: 'get_task_prompt', get_blockers: 'get_task_blockers' },
+    step: { list: 'list_steps', create: 'create_step', update: 'update_step', get: 'get_step', get_progress: 'get_step_progress' },
+    decision: { add: 'add_decision', search: 'search_decisions', get: 'get_decision' },
+    constraint: { list: 'list_constraints', add: 'add_constraint', get: 'get_constraint' },
+    release: { list: 'list_releases', create: 'create_release', get: 'get_release', update: 'update_release' },
+    milestone: { list: 'list_milestones', create: 'create_milestone', get: 'get_milestone', update: 'update_milestone', get_progress: 'get_milestone_progress' },
+    commit: { create: 'create_commit', link_to_task: 'link_commit_to_task', link_to_plan: 'link_commit_to_plan' },
+    note: { list: 'list_notes', create: 'create_note', get: 'get_note', update: 'update_note', search: 'search_notes', search_semantic: 'search_notes_semantic', get_context: 'get_context_notes', confirm: 'confirm_note', invalidate: 'invalidate_note' },
+    workspace: { list: 'list_workspaces', create: 'create_workspace', get: 'get_workspace', get_overview: 'get_workspace_overview', get_topology: 'get_workspace_topology', list_projects: 'list_workspace_projects' },
+    workspace_milestone: { list: 'list_workspace_milestones', create: 'create_workspace_milestone', get: 'get_workspace_milestone', get_progress: 'get_workspace_milestone_progress' },
+    resource: { list: 'list_resources', create: 'create_resource', get: 'get_resource' },
+    component: { list: 'list_components', create: 'create_component', get: 'get_component' },
+    chat: { list_sessions: 'list_chat_sessions', get_session: 'get_chat_session', send_message: 'chat_send_message', list_messages: 'list_chat_messages' },
+    feature_graph: { list: 'list_feature_graphs', create: 'create_feature_graph', get: 'get_feature_graph' },
+    code: { search: 'search_code', search_project: 'search_project_code', get_file_symbols: 'get_file_symbols', find_references: 'find_references', get_call_graph: 'get_call_graph', analyze_impact: 'analyze_impact', get_architecture: 'get_architecture', get_file_dependencies: 'get_file_dependencies' },
+    admin: { sync_directory: 'sync_directory', start_watch: 'start_watch', stop_watch: 'stop_watch', watch_status: 'watch_status' },
+  }
+  return MEGA_MAP[megaTool]?.[shortAction] ?? null
 }

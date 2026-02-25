@@ -82,8 +82,8 @@ export function getToolSummary(
 ): string | undefined {
   const fn = SUMMARY_REGISTRY[toolName]
   if (fn) return fn(toolInput)
-  // MCP tools: contextual summary via getMcpSummary
-  if (toolName.startsWith(MCP_PREFIX)) {
+  // MCP tools (with prefix) or mega-tools (with toolInput.action)
+  if (toolName.startsWith(MCP_PREFIX) || typeof toolInput.action === 'string') {
     return getMcpSummary(toolName, toolInput)
   }
   return undefined
@@ -106,12 +106,14 @@ const ICON_REGISTRY: Record<string, string> = {
 }
 
 /**
- * Detect the action verb from an MCP tool name and return a specific icon.
+ * Detect the action verb from an MCP tool name (or mega-tool action) and return an icon.
  */
-export function getMcpIcon(toolName: string): string {
-  const action = toolName.startsWith(MCP_PREFIX)
+export function getMcpIcon(toolName: string, toolInput?: Record<string, unknown>): string {
+  // Use toolInput.action (mega-tool sub-action) if available, otherwise strip prefix
+  const subAction = typeof toolInput?.action === 'string' ? toolInput.action : undefined
+  const action = subAction ?? (toolName.startsWith(MCP_PREFIX)
     ? toolName.slice(MCP_PREFIX.length)
-    : toolName
+    : toolName)
   if (/^(create|add)/.test(action)) return '+'
   if (/^update/.test(action)) return '↻'
   if (/^delete/.test(action)) return '✕'
@@ -126,9 +128,11 @@ export function getMcpIcon(toolName: string): string {
 /**
  * Get a short icon/symbol for a tool. Returns undefined for unknown tools.
  */
-export function getToolIcon(toolName: string): string | undefined {
+export function getToolIcon(toolName: string, toolInput?: Record<string, unknown>): string | undefined {
   if (ICON_REGISTRY[toolName]) return ICON_REGISTRY[toolName]
-  if (toolName.startsWith(MCP_PREFIX)) return getMcpIcon(toolName)
+  if (toolName.startsWith(MCP_PREFIX) || typeof toolInput?.action === 'string') {
+    return getMcpIcon(toolName, toolInput)
+  }
   return undefined
 }
 
@@ -144,7 +148,7 @@ export function getToolIcon(toolName: string): string | undefined {
  * the react-hooks/static-components ESLint rule.
  */
 export function ToolContent(props: ToolRendererProps) {
-  const { toolName } = props
+  const { toolName, toolInput } = props
 
   // 1. Exact match
   if (TOOL_REGISTRY[toolName]) {
@@ -152,8 +156,8 @@ export function ToolContent(props: ToolRendererProps) {
     return <Matched {...props} />
   }
 
-  // 2. MCP prefix match
-  if (toolName.startsWith(MCP_PREFIX) && TOOL_REGISTRY['__mcp__']) {
+  // 2. MCP prefix match or mega-tool (has toolInput.action from chat system)
+  if ((toolName.startsWith(MCP_PREFIX) || typeof toolInput?.action === 'string') && TOOL_REGISTRY['__mcp__']) {
     const McpRenderer = TOOL_REGISTRY['__mcp__']
     return <McpRenderer {...props} />
   }

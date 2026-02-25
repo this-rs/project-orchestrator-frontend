@@ -11,6 +11,8 @@
 import type { ToolRendererProps } from './types'
 import {
   classifyAction,
+  resolveAction,
+  inferFromData,
   ListRenderer,
   EntityRenderer,
   ChatRenderer,
@@ -108,12 +110,13 @@ export function McpToolRenderer(props: ToolRendererProps) {
 
   // Extract action name from "mcp__project-orchestrator__<action>"
   // The chat system uses "mega tools" (tool groups like "code", "project")
-  // where the real sub-action is in toolInput.action (e.g. "get_file_symbols").
+  // where the real sub-action is in toolInput.action (e.g. "get_file_symbols" or "list").
+  // Short actions like "list" need mega-tool resolution: ("project","list") → "list_projects"
   const rawAction = toolName.startsWith(MCP_PREFIX)
     ? toolName.slice(MCP_PREFIX.length)
     : toolName
   const subAction = typeof toolInput.action === 'string' ? toolInput.action : undefined
-  const action = subAction ?? rawAction
+  const action = resolveAction(rawAction, subAction)
 
   // If error, show error display with generic params
   if (isError && resultContent) {
@@ -145,26 +148,36 @@ export function McpToolRenderer(props: ToolRendererProps) {
     return <GenericMcpView {...props} />
   }
 
-  // Classify and dispatch
-  const category = classifyAction(action)
+  // Classify and dispatch (with data-driven fallback)
+  let category = classifyAction(action)
+  let effectiveAction = action
+
+  // If classification fails, try to infer from data shape
+  if (category === 'unknown' && parsed != null) {
+    const inferred = inferFromData(parsed)
+    if (inferred) {
+      category = inferred.category
+      effectiveAction = inferred.action
+    }
+  }
 
   let rendered: React.ReactNode = null
 
   switch (category) {
     case 'list':
-      rendered = <ListRenderer action={action} parsed={parsed} toolInput={toolInput} />
+      rendered = <ListRenderer action={effectiveAction} parsed={parsed} toolInput={toolInput} />
       break
     case 'chat':
-      rendered = <ChatRenderer action={action} parsed={parsed} toolInput={toolInput} />
+      rendered = <ChatRenderer action={effectiveAction} parsed={parsed} toolInput={toolInput} />
       break
     case 'code':
-      rendered = <CodeRenderer action={action} parsed={parsed} toolInput={toolInput} />
+      rendered = <CodeRenderer action={effectiveAction} parsed={parsed} toolInput={toolInput} />
       break
     case 'progress':
-      rendered = <ProgressRenderer action={action} parsed={parsed} toolInput={toolInput} />
+      rendered = <ProgressRenderer action={effectiveAction} parsed={parsed} toolInput={toolInput} />
       break
     case 'entity':
-      rendered = <EntityRenderer action={action} parsed={parsed} toolInput={toolInput} />
+      rendered = <EntityRenderer action={effectiveAction} parsed={parsed} toolInput={toolInput} />
       break
     default:
       return <GenericMcpView {...props} />

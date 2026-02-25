@@ -7,10 +7,12 @@ import { ChevronRight } from 'lucide-react'
 const MCP_PREFIX = 'mcp__project-orchestrator__'
 
 /** Map an MCP action verb to a micro-badge color class, or null for read-only */
-function getMcpBadgeColor(toolName: string): string | null {
-  const action = toolName.startsWith(MCP_PREFIX)
+function getMcpBadgeColor(toolName: string, toolInput?: Record<string, unknown>): string | null {
+  // Use toolInput.action (mega-tool sub-action) for better classification
+  const subAction = typeof toolInput?.action === 'string' ? toolInput.action : undefined
+  const action = subAction ?? (toolName.startsWith(MCP_PREFIX)
     ? toolName.slice(MCP_PREFIX.length)
-    : toolName
+    : toolName)
   if (/^(create|add)/.test(action)) return 'bg-green-400'
   if (/^update/.test(action)) return 'bg-blue-400'
   if (/^delete/.test(action)) return 'bg-red-400'
@@ -36,12 +38,12 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
   const createdAt = block.metadata?.created_at as string | undefined
   const elapsedMs = useElapsedMs(createdAt, isLoading)
 
-  const icon = getToolIcon(toolName)
+  const icon = getToolIcon(toolName, toolInput)
   const summary = getToolSummary(toolName, toolInput)
   const headerText = summary || toolName
 
-  const isMcp = toolName.startsWith(MCP_PREFIX)
-  const badgeColor = isMcp ? getMcpBadgeColor(toolName) : null
+  const isMcp = toolName.startsWith(MCP_PREFIX) || typeof toolInput.action === 'string'
+  const badgeColor = isMcp ? getMcpBadgeColor(toolName, toolInput) : null
 
   return (
     <div className="my-2 rounded-lg bg-white/[0.04] border border-white/[0.06] overflow-hidden">

@@ -53,7 +53,8 @@ function extractListData(parsed: unknown): ListData | null {
   const collectionKeys = [
     'decisions', 'notes', 'hits', 'steps', 'tasks', 'constraints',
     'milestones', 'releases', 'components', 'resources', 'sessions',
-    'workspaces', 'projects', 'plans',
+    'workspaces', 'projects', 'plans', 'feature_graphs', 'neurons',
+    'blockers', 'blocked',
   ]
   for (const key of collectionKeys) {
     if (Array.isArray(obj[key])) {
@@ -431,10 +432,14 @@ const ROW_MAP: Record<string, RowComponent> = {
   // Search results
   search_decisions: ({ item, searchQuery, action }) => <GenericRow item={item} searchQuery={searchQuery} action={action} />,
   search_notes: ({ item, searchQuery }) => <NoteRow item={item} searchQuery={searchQuery} />,
+  search_notes_semantic: ({ item, searchQuery }) => <NoteRow item={item} searchQuery={searchQuery} />,
+  search_neurons: ({ item, searchQuery, action }) => <GenericRow item={item} searchQuery={searchQuery} action={action} />,
   get_notes_needing_review: ({ item, searchQuery }) => <NoteRow item={item} searchQuery={searchQuery} />,
   get_entity_notes: ({ item, searchQuery }) => <NoteRow item={item} searchQuery={searchQuery} />,
   get_propagated_notes: ({ item, searchQuery }) => <NoteRow item={item} searchQuery={searchQuery} />,
   get_context_notes: ({ item, searchQuery }) => <NoteRow item={item} searchQuery={searchQuery} />,
+  // Feature graphs
+  list_feature_graphs: ({ item, searchQuery, action }) => <GenericRow item={item} searchQuery={searchQuery} action={action} />,
 }
 
 // ---------------------------------------------------------------------------
