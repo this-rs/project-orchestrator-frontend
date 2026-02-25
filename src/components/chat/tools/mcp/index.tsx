@@ -26,7 +26,8 @@ const LIST_ACTIONS = new Set([
   'list_steps', 'list_milestones', 'list_workspace_milestones',
   'list_all_workspace_milestones', 'list_releases', 'list_constraints',
   'list_workspaces', 'list_workspace_projects', 'list_resources',
-  'list_components', 'search_decisions', 'search_notes',
+  'list_components', 'list_feature_graphs',
+  'search_decisions', 'search_notes', 'search_notes_semantic', 'search_neurons',
   'get_notes_needing_review', 'get_entity_notes', 'get_propagated_notes',
   'get_context_notes',
 ])
@@ -41,6 +42,7 @@ const CODE_ACTIONS = new Set([
   'get_call_graph', 'analyze_impact', 'get_architecture',
   'find_trait_implementations', 'find_type_traits', 'get_impl_blocks',
   'get_file_dependencies',
+  'get_code_communities', 'get_code_health', 'get_node_importance',
 ])
 
 const PROGRESS_ACTIONS = new Set([
@@ -84,8 +86,15 @@ const ENTITY_ACTIONS = new Set([
   'confirm_note', 'invalidate_note', 'supersede_note',
   'sync_project', 'sync_directory', 'start_watch', 'stop_watch',
   'watch_status', 'get_meilisearch_stats', 'delete_meilisearch_orphans',
-  'update_staleness_scores',
+  'update_staleness_scores', 'update_energy_scores',
   'get_plan_commits', 'get_task_commits',
+  'link_plan_to_milestone', 'unlink_plan_from_milestone',
+  'link_plan_to_workspace_milestone', 'unlink_plan_from_workspace_milestone',
+  'get_feature_graph', 'create_feature_graph', 'delete_feature_graph',
+  'auto_build_feature_graph', 'add_to_feature_graph',
+  'plan_implementation',
+  'reinforce_neurons', 'decay_synapses', 'backfill_synapses',
+  'cleanup_sync_data', 'cleanup_cross_project_calls',
 ])
 
 /**
@@ -104,6 +113,7 @@ export function classifyAction(action: string): McpCategory {
   if (action.startsWith('search_')) return 'code'
   if (action.startsWith('get_') && action.endsWith('_progress')) return 'progress'
   if (action.startsWith('create_') || action.startsWith('update_') || action.startsWith('delete_') ||
-      action.startsWith('link_') || action.startsWith('add_') || action.startsWith('remove_')) return 'entity'
+      action.startsWith('link_') || action.startsWith('unlink_') ||
+      action.startsWith('add_') || action.startsWith('remove_')) return 'entity'
   return 'unknown'
 }

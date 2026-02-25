@@ -246,9 +246,16 @@ function CallGraphNode({ item, direction }: { item: Record<string, unknown>; dir
   )
 }
 
+/** Normalize call graph items: strings → { name: string }, objects pass through */
+function normalizeCallGraphItems(raw: unknown[]): Record<string, unknown>[] {
+  return raw.map((item) =>
+    typeof item === 'string' ? { name: item } : (item as Record<string, unknown>),
+  )
+}
+
 function CallGraph({ data }: { data: Record<string, unknown> }) {
-  const callers = (data.callers ?? data.called_by ?? []) as Record<string, unknown>[]
-  const callees = (data.callees ?? data.calls ?? []) as Record<string, unknown>[]
+  const callers = normalizeCallGraphItems((data.callers ?? data.called_by ?? []) as unknown[])
+  const callees = normalizeCallGraphItems((data.callees ?? data.calls ?? []) as unknown[])
 
   return (
     <McpContainer>
