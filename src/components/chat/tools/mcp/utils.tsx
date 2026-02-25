@@ -254,16 +254,18 @@ export function ErrorDisplay({ content }: { content: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Parse JSON result safely
+// Parse tool result — tries JSON first, then compact YAML format
 // ---------------------------------------------------------------------------
 
 export function parseResult(content: string | undefined): unknown {
   if (!content) return null
+  // Try JSON first (fastest path)
   try {
     return JSON.parse(content)
   } catch {
-    return null
+    // Not JSON — try compact YAML (from backend's json_to_compact formatter)
   }
+  return parseCompactYaml(content)
 }
 
 // ---------------------------------------------------------------------------
@@ -433,6 +435,7 @@ export function highlightSearchTerms(text: string, query: string | undefined | n
 // ---------------------------------------------------------------------------
 
 import { useState } from 'react'
+import { parseCompactYaml } from '@/utils/compactYamlParser'
 
 /**
  * Collapsible list: shows first `limit` items, with expand toggle.
