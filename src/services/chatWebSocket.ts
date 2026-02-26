@@ -169,7 +169,14 @@ export class ChatWebSocket {
               return
             }
 
-            // Handle session_closed
+            // Handle session_dormant (CLI cleaned up due to idle timeout, WS stays alive)
+            // The user can still send messages — resume_session() will spawn a fresh CLI.
+            if (data.type === 'session_dormant') {
+              console.info('Chat WS: session dormant (CLI idle cleanup). Will resume on next message.')
+              return
+            }
+
+            // Handle session_closed (explicit close — future use)
             if (data.type === 'session_closed') {
               this.shouldReconnect = false
               this.setStatus('disconnected')
