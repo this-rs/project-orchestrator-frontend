@@ -24,13 +24,14 @@ async function pickDirectory(): Promise<string | null> {
 export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
+  const [slugTouched, setSlugTouched] = useState(false)
   const [rootPath, setRootPath] = useState('')
   const [description, setDescription] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const handleNameChange = (value: string) => {
     setName(value)
-    if (!slug) {
+    if (!slugTouched) {
       setSlug(
         value
           .toLowerCase()
@@ -91,7 +92,10 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
           label="Slug"
           placeholder="my-project"
           value={slug}
-          onChange={(e) => setSlug(e.target.value)}
+          onChange={(e) => {
+            setSlugTouched(true)
+            setSlug(e.target.value)
+          }}
         />
         <div className="w-full">
           <label className="block text-sm font-medium text-gray-300 mb-1">

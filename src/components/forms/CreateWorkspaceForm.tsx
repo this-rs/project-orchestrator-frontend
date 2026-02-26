@@ -15,12 +15,13 @@ interface Props {
 export function CreateWorkspaceForm({ onSubmit, loading }: Props) {
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
+  const [slugTouched, setSlugTouched] = useState(false)
   const [description, setDescription] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const handleNameChange = (value: string) => {
     setName(value)
-    if (!slug) {
+    if (!slugTouched) {
       setSlug(value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''))
     }
   }
@@ -48,7 +49,10 @@ export function CreateWorkspaceForm({ onSubmit, loading }: Props) {
           label="Slug"
           placeholder="my-workspace"
           value={slug}
-          onChange={(e) => setSlug(e.target.value)}
+          onChange={(e) => {
+            setSlugTouched(true)
+            setSlug(e.target.value)
+          }}
           disabled={loading}
         />
         <Textarea

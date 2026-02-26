@@ -106,7 +106,13 @@ async function request<T>(
     return {} as T
   }
 
-  return response.json()
+  // Some endpoints return 201/200 with empty body — avoid JSON.parse("") SyntaxError
+  const text = await response.text()
+  if (!text) {
+    return {} as T
+  }
+
+  return JSON.parse(text) as T
 }
 
 export const api = {
