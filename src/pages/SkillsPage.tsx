@@ -1,8 +1,8 @@
 import { useState, useMemo, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { motion, AnimatePresence } from 'motion/react'
-import { Brain, Trash2, Zap } from 'lucide-react'
+import { Brain, Trash2, Zap, Upload } from 'lucide-react'
 import { skillRefreshAtom } from '@/atoms/events'
 import { skillsApi } from '@/services'
 import {
@@ -20,7 +20,7 @@ import {
   LoadMoreSentinel,
 } from '@/components/ui'
 import { useConfirmDialog, useFormDialog, useToast, useInfiniteList, useWorkspaceSlug } from '@/hooks'
-import { CreateSkillForm } from '@/components/forms'
+import { CreateSkillForm, ImportSkillForm } from '@/components/forms'
 import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
 import type { Skill, SkillStatus, PaginatedResponse } from '@/types'
 import { workspacePath } from '@/utils/paths'
@@ -70,8 +70,10 @@ export function SkillsPage() {
   const [statusFilter, setStatusFilter] = useState<SkillStatus | 'all'>('all')
   const [projectFilter, setProjectFilter] = useState<string>('all')
   const skillRefresh = useAtomValue(skillRefreshAtom)
+  const navigate = useNavigate()
   const confirmDialog = useConfirmDialog()
   const formDialog = useFormDialog()
+  const importDialog = useFormDialog()
   const toast = useToast()
   const wsSlug = useWorkspaceSlug()
   const reducedMotion = useReducedMotion()
@@ -143,7 +145,17 @@ export function SkillsPage() {
     },
   })
 
+  const importForm = ImportSkillForm({
+    projects,
+    onSubmit: async (data) => {
+      const result = await skillsApi.importSkill(data)
+      toast.success(`Skill imported (${result.notes_created} notes, ${result.decisions_imported} decisions)`)
+      navigate(workspacePath(wsSlug, `/skills/${result.skill_id}`))
+    },
+  })
+
   const openCreate = () => formDialog.open({ title: 'Create Skill', size: 'md' })
+  const openImport = () => importDialog.open({ title: 'Import Skill', size: 'md', submitLabel: 'Import' })
 
   const handleDelete = (skill: Skill) => {
     confirmDialog.open({
@@ -185,6 +197,10 @@ export function SkillsPage() {
             onChange={setProjectFilter}
             className="w-full sm:w-44"
           />
+          <Button variant="secondary" onClick={openImport}>
+            <Upload className="w-4 h-4 mr-1.5" />
+            Import
+          </Button>
           <Button onClick={openCreate}>
             <Brain className="w-4 h-4 mr-1.5" />
             Create Skill
@@ -234,6 +250,9 @@ export function SkillsPage() {
 
       <FormDialog {...formDialog.dialogProps} onSubmit={skillForm.submit}>
         {skillForm.fields}
+      </FormDialog>
+      <FormDialog {...importDialog.dialogProps} onSubmit={importForm.submit} submitLabel="Import">
+        {importForm.fields}
       </FormDialog>
       <ConfirmDialog {...confirmDialog.dialogProps} />
     </PageShell>
