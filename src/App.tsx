@@ -27,6 +27,7 @@ import {
   TaskDetailPage,
   NotesPage,
   CodePage,
+  DecisionsPage,
   SkillsPage,
   SkillDetailPage,
   FeatureGraphDetailPage,
@@ -150,6 +151,7 @@ function App() {
                         <Route path="tasks" element={<TasksPage />} />
                         <Route path="tasks/:taskId" element={<TaskDetailPage />} />
                         <Route path="notes" element={<NotesPage />} />
+                        <Route path="decisions" element={<DecisionsPage />} />
                         <Route path="code" element={<CodePage />} />
                         <Route path="skills" element={<SkillsPage />} />
                         <Route path="skills/:id" element={<SkillDetailPage />} />

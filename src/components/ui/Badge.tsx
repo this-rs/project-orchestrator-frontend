@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { TaskStatus, PlanStatus, NoteStatus, NoteImportance, ReleaseStatus, StepStatus, MilestoneStatus, SkillStatus } from '@/types'
+import type { TaskStatus, PlanStatus, NoteStatus, NoteImportance, ReleaseStatus, StepStatus, MilestoneStatus, SkillStatus, DecisionStatus } from '@/types'
 import { Dropdown } from './Dropdown'
 import { Spinner } from './Spinner'
 
@@ -241,4 +241,22 @@ export const InteractiveSkillStatusBadge = createInteractiveStatusBadge<SkillSta
   dormant: { label: 'Dormant', variant: 'error' },
   archived: { label: 'Archived', variant: 'default' },
   imported: { label: 'Imported', variant: 'info' },
+})
+
+export const DecisionStatusBadge = ({ status }: { status: DecisionStatus | undefined | null }) => {
+  const config: StatusBadgeConfig<DecisionStatus> = {
+    proposed: { label: 'Proposed', variant: 'info' },
+    accepted: { label: 'Accepted', variant: 'success' },
+    deprecated: { label: 'Deprecated', variant: 'warning' },
+    superseded: { label: 'Superseded', variant: 'default' },
+  }
+  const { label, variant } = (status && config[status]) || defaultConfig
+  return <Badge variant={variant}>{label}</Badge>
+}
+
+export const InteractiveDecisionStatusBadge = createInteractiveStatusBadge<DecisionStatus>({
+  proposed: { label: 'Proposed', variant: 'info' },
+  accepted: { label: 'Accepted', variant: 'success' },
+  deprecated: { label: 'Deprecated', variant: 'warning' },
+  superseded: { label: 'Superseded', variant: 'default' },
 })

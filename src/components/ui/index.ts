@@ -15,6 +15,8 @@ export {
   InteractiveStepStatusBadge,
   SkillStatusBadge,
   InteractiveSkillStatusBadge,
+  DecisionStatusBadge,
+  InteractiveDecisionStatusBadge,
 } from './Badge'
 export { Card, CardHeader, CardTitle, CardContent, CardFooter } from './Card'
 export { Input, SearchInput } from './Input'
