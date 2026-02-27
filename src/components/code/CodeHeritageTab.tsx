@@ -65,6 +65,11 @@ export function CodeHeritageTab() {
 
   return (
     <div className="space-y-6">
+      <p className="text-sm text-gray-400">
+        Explore inheritance relationships: class hierarchy (parents and children), transitive
+        subclasses, and interface or trait implementors across the codebase.
+      </p>
+
       {/* ── Search Bar ───────────────────────────────────────────── */}
       <Card>
         <CardContent>

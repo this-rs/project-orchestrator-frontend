@@ -185,6 +185,12 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
 
   return (
     <div className="space-y-6">
+      <p className="text-sm text-gray-400">
+        Codebase health indicators: god functions, orphan files, coupling metrics, and neural
+        knowledge fabric status. Explore hotspots, knowledge gaps, and risk assessment to prioritize
+        technical debt.
+      </p>
+
       {/* ── KPI Cards ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <KpiCard

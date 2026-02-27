@@ -34,6 +34,11 @@ export function CodeSearchTab({ projectSlug, workspaceSlug }: CodeSearchTabProps
 
   return (
     <div className="space-y-6">
+      <p className="text-sm text-gray-400">
+        Semantic search across all files, functions and structs in your codebase. Results are ranked
+        by relevance using MeiliSearch.
+      </p>
+
       {/* Search Box */}
       <Card>
         <CardContent>

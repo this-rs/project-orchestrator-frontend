@@ -252,6 +252,12 @@ export function CodeCommunitiesTab({ projectSlug }: CodeCommunitiesTabProps) {
 
   return (
     <div className="space-y-4">
+      <p className="text-sm text-gray-400">
+        Clusters of files and functions that are tightly coupled, detected via Louvain community
+        analysis on the multi-layer knowledge fabric. Click a member to inspect its importance
+        metrics.
+      </p>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="text-sm text-gray-400">

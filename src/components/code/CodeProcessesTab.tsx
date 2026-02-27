@@ -125,6 +125,11 @@ export function CodeProcessesTab({ projectSlug }: CodeProcessesTabProps) {
 
   return (
     <div className="space-y-6">
+      <p className="text-sm text-gray-400">
+        Business processes detected by tracing call chains from entry points (HTTP handlers, CLI
+        commands, main functions). Expand a process to see its step-by-step execution flow.
+      </p>
+
       {/* ── Entry Points ─────────────────────────────────────────── */}
       <Card>
         <CardHeader>

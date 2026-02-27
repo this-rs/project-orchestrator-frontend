@@ -50,6 +50,10 @@ export function CodeArchitectureTab({ projectSlug, workspaceSlug }: CodeArchitec
 
   return (
     <div className="space-y-6">
+      <p className="text-sm text-gray-400">
+        High-level overview of the codebase structure: most connected files, language breakdown, and
+        dependency statistics. Useful to understand the shape of a project at a glance.
+      </p>
       {/* Overview Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
         <div className="p-4 bg-white/[0.06] rounded-lg text-center">
