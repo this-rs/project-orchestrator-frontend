@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Button, Select, PageShell, EmptyState } from '@/components/ui'
 import { workspacesApi } from '@/services'
 import { useWorkspaceSlug } from '@/hooks'
-import { CodeSearchTab, CodeArchitectureTab, CodeHealthTab } from '@/components/code'
+import { CodeSearchTab, CodeArchitectureTab, CodeHealthTab, CodeCommunitiesTab } from '@/components/code'
 
 type CodeTab = 'search' | 'architecture' | 'health' | 'communities' | 'processes' | 'heritage'
 
@@ -93,17 +93,7 @@ export function CodePage() {
       )}
 
       {activeTab === 'communities' && (
-        !projectSlug ? (
-          <EmptyState
-            title="Select a project"
-            description="Community analysis requires a specific project. Please select one from the filter above."
-          />
-        ) : (
-          <EmptyState
-            title="Communities"
-            description="Coming soon — Module clusters, cohesion scores, and community visualization."
-          />
-        )
+        <CodeCommunitiesTab projectSlug={projectSlug} />
       )}
 
       {activeTab === 'processes' && (
