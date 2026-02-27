@@ -275,7 +275,7 @@ function SkillCard({ skill, wsSlug, onStatusChange, onDelete }: SkillCardProps) 
     <Card className="group relative">
       <Link to={workspacePath(wsSlug, `/skills/${skill.id}`)} className="block">
         <CardContent>
-          {/* Header: name + status */}
+          {/* Header: name + status + delete */}
           <div className="flex items-start justify-between gap-2 mb-3">
             <div className="min-w-0 flex-1">
               <h3 className="text-sm font-semibold text-gray-100 truncate">{skill.name}</h3>
@@ -283,8 +283,19 @@ function SkillCard({ skill, wsSlug, onStatusChange, onDelete }: SkillCardProps) 
                 <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{skill.description}</p>
               )}
             </div>
-            <div onClick={(e) => e.preventDefault()}>
+            <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.preventDefault()}>
               <InteractiveSkillStatusBadge status={skill.status} onStatusChange={onStatusChange} />
+              <button
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onDelete()
+                }}
+                className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                title="Delete skill"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
 
@@ -345,18 +356,6 @@ function SkillCard({ skill, wsSlug, onStatusChange, onDelete }: SkillCardProps) 
         </CardContent>
       </Link>
 
-      {/* Delete button (top-right, visible on hover) */}
-      <button
-        onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          onDelete()
-        }}
-        className="absolute top-3 right-3 p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
-        title="Delete skill"
-      >
-        <Trash2 className="w-3.5 h-3.5" />
-      </button>
     </Card>
   )
 }
