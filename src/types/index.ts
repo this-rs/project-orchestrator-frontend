@@ -28,6 +28,8 @@ export type NoteStatus = 'active' | 'needs_review' | 'stale' | 'obsolete' | 'arc
 
 export type NoteImportance = 'low' | 'medium' | 'high' | 'critical'
 
+export type DecisionStatus = 'proposed' | 'accepted' | 'deprecated' | 'superseded'
+
 export type ConstraintType = 'performance' | 'security' | 'style' | 'compatibility' | 'testing' | 'other'
 
 export type ResourceType =
@@ -174,6 +176,25 @@ export interface Decision {
   chosen_option?: string
   decided_by: string
   decided_at: string
+  status: DecisionStatus
+}
+
+export interface DecisionAffects {
+  entity_type: string
+  entity_id: string
+  entity_name?: string
+  impact_description?: string
+}
+
+export interface DecisionTimelineEntry {
+  decision: Decision
+  supersedes_chain?: string[]
+  superseded_by?: string
+}
+
+export interface DecisionSearchHit {
+  decision: Decision
+  score: number
 }
 
 export interface Constraint {
