@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Card, CardHeader, CardTitle, CardContent, Button, EmptyState, ErrorState } from '@/components/ui'
 import { AlertTriangle, FileX, Link2, RefreshCw, Activity, Brain, Zap, Skull } from 'lucide-react'
 import { codeApi } from '@/services'
@@ -9,6 +9,24 @@ import type {
   RiskFile,
   RiskAssessmentSummary,
 } from '@/types'
+
+// ── Strip common base path ──────────────────────────────────────────────
+
+/** Find the longest common directory prefix among all paths */
+function findCommonPrefix(paths: string[]): string {
+  if (paths.length === 0) return ''
+  const parts = paths[0].split('/')
+  let prefix = ''
+  for (let i = 0; i < parts.length; i++) {
+    const candidate = parts.slice(0, i + 1).join('/') + '/'
+    if (paths.every((p) => p.startsWith(candidate))) {
+      prefix = candidate
+    } else {
+      break
+    }
+  }
+  return prefix
+}
 
 interface CodeHealthTabProps {
   projectSlug: string | null
@@ -66,12 +84,13 @@ function DensityBar({ density }: { density: number }) {
   )
 }
 
-// ── Truncated file path ─────────────────────────────────────────────────
+// ── File path display (with common prefix stripped) ─────────────────────
 
-function FilePath({ path }: { path: string }) {
+function FilePath({ path, basePath }: { path: string; basePath: string }) {
+  const display = basePath && path.startsWith(basePath) ? path.slice(basePath.length) : path
   return (
     <span className="font-mono text-sm text-gray-200 truncate block max-w-[300px] lg:max-w-[400px]" title={path}>
-      {path}
+      {display}
     </span>
   )
 }
@@ -153,6 +172,16 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
 
   const maxChurn = hotspots.length > 0 ? Math.max(...hotspots.map((h) => h.churn_score)) : 1
 
+  // Compute common base path across all file paths for cleaner display
+  const basePath = useMemo(() => {
+    const allPaths = [
+      ...hotspots.map((h) => h.path),
+      ...knowledgeGaps.map((g) => g.path),
+      ...riskFiles.map((r) => r.path),
+    ]
+    return findCommonPrefix(allPaths)
+  }, [hotspots, knowledgeGaps, riskFiles])
+
   return (
     <div className="space-y-6">
       {/* ── KPI Cards ──────────────────────────────────────────────── */}
@@ -178,7 +207,7 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
           value={health.coupling_metrics.avg_clustering_coefficient.toFixed(3)}
           color="text-gray-300"
           iconColor="text-indigo-400"
-          subtitle={`most coupled: ${truncatePath(health.coupling_metrics.most_coupled_file)}`}
+          subtitle={`most coupled: ${stripBase(health.coupling_metrics.most_coupled_file, basePath)}`}
         />
         <KpiCard
           icon={<RefreshCw className="w-5 h-5" />}
@@ -245,7 +274,7 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
                   <tbody>
                     {hotspots.map((h) => (
                       <tr key={h.path} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
-                        <td className="py-2 pr-4"><FilePath path={h.path} /></td>
+                        <td className="py-2 pr-4"><FilePath path={h.path} basePath={basePath} /></td>
                         <td className="py-2 pr-4"><ChurnBar score={h.churn_score} max={maxChurn} /></td>
                         <td className="py-2 text-right text-gray-400 tabular-nums">{h.commit_count}</td>
                       </tr>
@@ -292,7 +321,7 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
                   <tbody>
                     {knowledgeGaps.map((g) => (
                       <tr key={g.path} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
-                        <td className="py-2 pr-4"><FilePath path={g.path} /></td>
+                        <td className="py-2 pr-4"><FilePath path={g.path} basePath={basePath} /></td>
                         <td className="py-2 pr-4"><DensityBar density={g.knowledge_density} /></td>
                         <td className="py-2 text-right text-gray-400 tabular-nums">{g.note_count}</td>
                         <td className="py-2 text-right text-gray-400 tabular-nums">{g.decision_count}</td>
@@ -356,7 +385,7 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
                         key={r.path}
                         className={`border-b border-white/[0.04] hover:bg-white/[0.02] ${RISK_ROW_BG[r.risk_level] || ''}`}
                       >
-                        <td className="py-2 pr-4"><FilePath path={r.path} /></td>
+                        <td className="py-2 pr-4"><FilePath path={r.path} basePath={basePath} /></td>
                         <td className="py-2 pr-4"><RiskBadge level={r.risk_level} /></td>
                         <td className="py-2 text-right text-gray-400 tabular-nums">{r.risk_score.toFixed(3)}</td>
                         <td className="py-2 text-right text-gray-400 tabular-nums">{r.factors.pagerank.toFixed(4)}</td>
@@ -422,7 +451,7 @@ function KpiCard({
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-function truncatePath(path: string, maxLen = 30): string {
-  if (!path || path.length <= maxLen) return path || '—'
-  return '…' + path.slice(-maxLen)
+function stripBase(path: string, basePath: string): string {
+  if (!path) return '—'
+  return basePath && path.startsWith(basePath) ? path.slice(basePath.length) : path
 }
