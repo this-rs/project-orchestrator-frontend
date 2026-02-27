@@ -566,7 +566,7 @@ export interface ProcessesResponse {
 export interface EntryPoint {
   id: string
   score: number
-  type: string
+  type?: string
 }
 
 export interface EntryPointsResponse {

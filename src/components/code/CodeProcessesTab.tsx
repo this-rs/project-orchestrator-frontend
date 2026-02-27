@@ -19,7 +19,8 @@ const EP_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNod
 
 const DEFAULT_EP_STYLE = { bg: 'bg-gray-500/15', text: 'text-gray-400', icon: <Zap className="w-3.5 h-3.5" /> }
 
-function getEpStyle(type: string) {
+function getEpStyle(type?: string) {
+  if (!type) return DEFAULT_EP_STYLE
   return EP_STYLES[type.toLowerCase()] || DEFAULT_EP_STYLE
 }
 
@@ -159,7 +160,7 @@ export function CodeProcessesTab({ projectSlug }: CodeProcessesTabProps) {
                     <span className="text-xs font-mono truncate max-w-[200px]">
                       {shortName(ep.id)}
                     </span>
-                    <span className="text-xs opacity-60 capitalize">{ep.type}</span>
+                    {ep.type && <span className="text-xs opacity-60 capitalize">{ep.type}</span>}
                   </div>
                 )
               })}
