@@ -423,16 +423,18 @@ export interface CodeHealth {
   circular_dependency_count: number
   hotspots: ChangeHotspot[]
   knowledge_gaps: KnowledgeGap[]
-  risk_assessment: RiskAssessmentSummary
+  risk_assessment: RiskAssessmentSummary | null
   neural_metrics: NeuralMetrics
 }
 
 // --- Hotspots ---
 
 export interface ChangeHotspot {
-  file: string
-  churn_score: number
+  path: string
   commit_count: number
+  total_churn: number
+  co_change_count: number
+  churn_score: number
 }
 
 export interface HotspotsResponse {
@@ -444,9 +446,10 @@ export interface HotspotsResponse {
 // --- Knowledge Gaps ---
 
 export interface KnowledgeGap {
-  file: string
+  path: string
+  note_count: number
+  decision_count: number
   knowledge_density: number
-  symbol_count: number
 }
 
 export interface KnowledgeGapsResponse {
@@ -459,15 +462,24 @@ export interface KnowledgeGapsResponse {
 
 export type RiskLevel = 'critical' | 'high' | 'medium' | 'low'
 
+export interface RiskFactors {
+  pagerank: number
+  churn: number
+  knowledge_gap: number
+  betweenness: number
+}
+
 export interface RiskFile {
-  file: string
+  path: string
   risk_score: number
   risk_level: RiskLevel
-  factors?: string[]
+  factors: RiskFactors
 }
 
 export interface RiskAssessmentSummary {
+  files_assessed?: number
   avg_risk_score: number
+  max_risk_score?: number
   critical_count: number
   high_count: number
   medium_count: number

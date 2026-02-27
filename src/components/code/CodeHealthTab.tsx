@@ -244,8 +244,8 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
                   </thead>
                   <tbody>
                     {hotspots.map((h) => (
-                      <tr key={h.file} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
-                        <td className="py-2 pr-4"><FilePath path={h.file} /></td>
+                      <tr key={h.path} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
+                        <td className="py-2 pr-4"><FilePath path={h.path} /></td>
                         <td className="py-2 pr-4"><ChurnBar score={h.churn_score} max={maxChurn} /></td>
                         <td className="py-2 text-right text-gray-400 tabular-nums">{h.commit_count}</td>
                       </tr>
@@ -285,15 +285,17 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
                     <tr className="border-b border-white/[0.08] text-gray-500 text-left">
                       <th className="pb-2 font-medium">File</th>
                       <th className="pb-2 font-medium">Knowledge Density</th>
-                      <th className="pb-2 font-medium text-right">Symbols</th>
+                      <th className="pb-2 font-medium text-right">Notes</th>
+                      <th className="pb-2 font-medium text-right">Decisions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {knowledgeGaps.map((g) => (
-                      <tr key={g.file} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
-                        <td className="py-2 pr-4"><FilePath path={g.file} /></td>
+                      <tr key={g.path} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
+                        <td className="py-2 pr-4"><FilePath path={g.path} /></td>
                         <td className="py-2 pr-4"><DensityBar density={g.knowledge_density} /></td>
-                        <td className="py-2 text-right text-gray-400 tabular-nums">{g.symbol_count}</td>
+                        <td className="py-2 text-right text-gray-400 tabular-nums">{g.note_count}</td>
+                        <td className="py-2 text-right text-gray-400 tabular-nums">{g.decision_count}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -340,29 +342,27 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
                   <thead>
                     <tr className="border-b border-white/[0.08] text-gray-500 text-left">
                       <th className="pb-2 font-medium">File</th>
-                      <th className="pb-2 font-medium">Risk</th>
                       <th className="pb-2 font-medium">Level</th>
                       <th className="pb-2 font-medium text-right">Score</th>
+                      <th className="pb-2 font-medium text-right">PageRank</th>
+                      <th className="pb-2 font-medium text-right">Churn</th>
+                      <th className="pb-2 font-medium text-right">K-Gap</th>
+                      <th className="pb-2 font-medium text-right">Between.</th>
                     </tr>
                   </thead>
                   <tbody>
                     {riskFiles.map((r) => (
                       <tr
-                        key={r.file}
+                        key={r.path}
                         className={`border-b border-white/[0.04] hover:bg-white/[0.02] ${RISK_ROW_BG[r.risk_level] || ''}`}
                       >
-                        <td className="py-2 pr-4"><FilePath path={r.file} /></td>
-                        <td className="py-2 pr-4">
-                          <div className="flex flex-wrap gap-1">
-                            {(Array.isArray(r.factors) ? r.factors : []).slice(0, 3).map((f) => (
-                              <span key={f} className="px-1.5 py-0.5 bg-white/[0.06] rounded text-xs text-gray-400">
-                                {f}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
+                        <td className="py-2 pr-4"><FilePath path={r.path} /></td>
                         <td className="py-2 pr-4"><RiskBadge level={r.risk_level} /></td>
                         <td className="py-2 text-right text-gray-400 tabular-nums">{r.risk_score.toFixed(3)}</td>
+                        <td className="py-2 text-right text-gray-400 tabular-nums">{r.factors.pagerank.toFixed(4)}</td>
+                        <td className="py-2 text-right text-gray-400 tabular-nums">{r.factors.churn.toFixed(3)}</td>
+                        <td className="py-2 text-right text-gray-400 tabular-nums">{r.factors.knowledge_gap.toFixed(3)}</td>
+                        <td className="py-2 text-right text-gray-400 tabular-nums">{r.factors.betweenness.toFixed(4)}</td>
                       </tr>
                     ))}
                   </tbody>
