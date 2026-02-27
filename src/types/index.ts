@@ -575,6 +575,179 @@ export interface EntryPointsResponse {
 }
 
 // ============================================================================
+// NEURAL SKILLS
+// ============================================================================
+
+export type SkillStatus = 'emerging' | 'active' | 'dormant' | 'archived' | 'imported'
+
+export type SkillTriggerPatternType = 'regex' | 'file_glob' | 'semantic' | 'mcp_action'
+
+export interface SkillTriggerPattern {
+  pattern_type: SkillTriggerPatternType
+  pattern_value: string
+  confidence_threshold: number
+  quality_score?: number | null
+}
+
+export interface Skill {
+  id: string
+  project_id: string
+  name: string
+  description?: string
+  status: SkillStatus
+  trigger_patterns: SkillTriggerPattern[]
+  context_template?: string | null
+  energy: number
+  cohesion: number
+  coverage: number
+  note_count: number
+  decision_count: number
+  activation_count: number
+  hit_rate: number
+  last_activated?: string | null
+  version: number
+  fingerprint?: string | null
+  imported_at?: string | null
+  is_validated: boolean
+  tags: string[]
+  created_at: string
+  updated_at: string
+}
+
+/** GET /skills/:id/members → { notes: Note[], decisions: Decision[] } */
+export interface SkillMembers {
+  notes: Note[]
+  decisions: Decision[]
+}
+
+// --- Skill Health ---
+
+export type SkillHealthRecommendation = 'healthy' | 'needs_attention' | 'at_risk' | 'should_archive'
+
+export interface SkillHealth {
+  skill_id: string
+  skill_name: string
+  status: string
+  activation_count: number
+  hit_rate: number
+  energy: number
+  cohesion: number
+  note_count: number
+  decision_count: number
+  days_since_import?: number | null
+  is_validated: boolean
+  in_probation: boolean
+  probation_days_remaining?: number | null
+  recommendation: SkillHealthRecommendation
+  explanation: string
+}
+
+// --- Skill Activation ---
+
+export type ActivationSource = 'direct' | { propagated: { via: string; hops: number } }
+
+export interface ActivatedNote {
+  note: Note
+  activation_score: number
+  source: ActivationSource
+  entity_type: string
+}
+
+export interface SkillActivationResult {
+  skill: Skill
+  activated_notes: ActivatedNote[]
+  relevant_decisions: Decision[]
+  context_text: string
+  confidence: number
+}
+
+// --- Skill Package (Export/Import) ---
+
+export interface PortableSkillTrigger {
+  pattern_type: SkillTriggerPatternType
+  pattern_value: string
+  confidence_threshold: number
+}
+
+export interface PortableSkill {
+  name: string
+  description?: string
+  trigger_patterns: PortableSkillTrigger[]
+  context_template?: string | null
+  tags: string[]
+  cohesion: number
+}
+
+export interface PortableNote {
+  note_type: NoteType
+  importance: NoteImportance
+  content: string
+  tags: string[]
+}
+
+export interface PortableDecision {
+  description: string
+  rationale: string
+  alternatives: string[]
+  chosen_option?: string | null
+}
+
+export interface SkillPackageMetadata {
+  format: string
+  exported_at: string
+  source_project?: string | null
+  stats: {
+    note_count: number
+    decision_count: number
+    trigger_count: number
+    activation_count: number
+  }
+}
+
+export interface SkillPackage {
+  schema_version: number
+  metadata: SkillPackageMetadata
+  skill: PortableSkill
+  notes: PortableNote[]
+  decisions: PortableDecision[]
+}
+
+// --- Skill Import ---
+
+export interface ImportConflict {
+  skill_name: string
+  existing_skill_id: string
+  strategy_applied: 'skip' | 'merge' | 'replace'
+}
+
+export interface SkillImportResult {
+  skill_id: string
+  notes_created: number
+  decisions_imported: number
+  synapses_created: number
+  conflict?: ImportConflict | null
+  was_merged: boolean
+  source_project?: string | null
+}
+
+// --- Skill Requests ---
+
+export interface CreateSkillRequest {
+  project_id: string
+  name: string
+  description?: string
+  tags?: string[]
+  trigger_patterns?: SkillTriggerPattern[]
+  context_template?: string
+}
+
+export interface ImportSkillRequest {
+  project_id: string
+  package: SkillPackage
+  conflict_strategy?: 'skip' | 'merge' | 'replace'
+}
+
+// ============================================================================
 // FEATURE GRAPHS
 // ============================================================================
 
