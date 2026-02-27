@@ -145,6 +145,17 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
     loadAll()
   }, [loadAll])
 
+  // Compute common base path across all file paths for cleaner display
+  // Must be before early returns to satisfy React hooks rules
+  const basePath = useMemo(() => {
+    const allPaths = [
+      ...hotspots.map((h) => h.path),
+      ...knowledgeGaps.map((g) => g.path),
+      ...riskFiles.map((r) => r.path),
+    ]
+    return findCommonPrefix(allPaths)
+  }, [hotspots, knowledgeGaps, riskFiles])
+
   if (!projectSlug) {
     return (
       <EmptyState
@@ -171,16 +182,6 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
   if (!health) return null
 
   const maxChurn = hotspots.length > 0 ? Math.max(...hotspots.map((h) => h.churn_score)) : 1
-
-  // Compute common base path across all file paths for cleaner display
-  const basePath = useMemo(() => {
-    const allPaths = [
-      ...hotspots.map((h) => h.path),
-      ...knowledgeGaps.map((g) => g.path),
-      ...riskFiles.map((r) => r.path),
-    ]
-    return findCommonPrefix(allPaths)
-  }, [hotspots, knowledgeGaps, riskFiles])
 
   return (
     <div className="space-y-6">
