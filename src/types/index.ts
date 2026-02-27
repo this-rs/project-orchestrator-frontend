@@ -495,13 +495,38 @@ export interface RiskAssessmentResponse {
 
 // --- Node Importance ---
 
+export interface NodeImportanceMetrics {
+  pagerank?: number
+  betweenness?: number
+  clustering_coefficient?: number | null
+  community_id?: number | null
+  in_degree: number
+  out_degree: number
+}
+
+export interface NodeImportanceFabricMetrics {
+  fabric_pagerank?: number | null
+  fabric_betweenness?: number | null
+  fabric_community_id?: number | null
+  fabric_community_label?: string | null
+}
+
+export interface NodeImportancePercentiles {
+  pagerank_p80: number
+  pagerank_p95: number
+  betweenness_p80: number
+  betweenness_p95: number
+}
+
 export interface NodeImportance {
   node: string
   node_type: string
-  pagerank: number
-  betweenness_centrality: number
-  closeness_centrality: number
-  harmonic_centrality: number
+  risk_level?: RiskLevel
+  summary?: string
+  message?: string
+  metrics: NodeImportanceMetrics
+  fabric_metrics?: NodeImportanceFabricMetrics
+  percentiles?: NodeImportancePercentiles
 }
 
 // --- Heritage (Class Hierarchy) ---

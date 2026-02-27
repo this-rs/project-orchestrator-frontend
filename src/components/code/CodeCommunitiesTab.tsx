@@ -41,6 +41,15 @@ function shortName(member: string): string {
   return member
 }
 
+// ── Risk badge styles ────────────────────────────────────────────────────
+
+const RISK_BADGE_STYLES: Record<string, string> = {
+  critical: 'bg-red-500/20 text-red-400',
+  high: 'bg-orange-500/20 text-orange-400',
+  medium: 'bg-amber-500/20 text-amber-400',
+  low: 'bg-emerald-500/20 text-emerald-400',
+}
+
 // ── Node Importance Popup ───────────────────────────────────────────────
 
 function NodePopup({
@@ -101,12 +110,53 @@ function NodePopup({
           <p className="text-sm text-gray-500">Could not load importance data.</p>
         ) : data ? (
           <div className="space-y-3">
+            {/* Risk level + summary */}
+            {data.risk_level && (
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${RISK_BADGE_STYLES[data.risk_level]}`}>
+                  {data.risk_level}
+                </span>
+              </div>
+            )}
+            {data.summary && (
+              <p className="text-xs text-gray-400 leading-relaxed">{data.summary}</p>
+            )}
+            {data.message && !data.summary && (
+              <p className="text-xs text-gray-500 italic">{data.message}</p>
+            )}
+
+            {/* Core metrics */}
             <div className="grid grid-cols-2 gap-3">
-              <MetricItem label="PageRank" value={data.pagerank.toFixed(4)} />
-              <MetricItem label="Betweenness" value={data.betweenness_centrality.toFixed(4)} />
-              <MetricItem label="Closeness" value={data.closeness_centrality.toFixed(4)} />
-              <MetricItem label="Harmonic" value={data.harmonic_centrality.toFixed(4)} />
+              {data.metrics.pagerank != null && (
+                <MetricItem label="PageRank" value={data.metrics.pagerank.toFixed(4)} />
+              )}
+              {data.metrics.betweenness != null && (
+                <MetricItem label="Betweenness" value={data.metrics.betweenness.toFixed(4)} />
+              )}
+              <MetricItem label="In-degree" value={String(data.metrics.in_degree)} />
+              <MetricItem label="Out-degree" value={String(data.metrics.out_degree)} />
+              {data.metrics.clustering_coefficient != null && (
+                <MetricItem label="Clustering" value={data.metrics.clustering_coefficient.toFixed(4)} />
+              )}
             </div>
+
+            {/* Fabric metrics (when available) */}
+            {data.fabric_metrics && (data.fabric_metrics.fabric_pagerank != null || data.fabric_metrics.fabric_community_label) && (
+              <div>
+                <div className="text-xs text-gray-500 mb-2">Fabric</div>
+                <div className="grid grid-cols-2 gap-3">
+                  {data.fabric_metrics.fabric_pagerank != null && (
+                    <MetricItem label="Fabric PR" value={data.fabric_metrics.fabric_pagerank.toFixed(4)} />
+                  )}
+                  {data.fabric_metrics.fabric_betweenness != null && (
+                    <MetricItem label="Fabric Btw" value={data.fabric_metrics.fabric_betweenness.toFixed(4)} />
+                  )}
+                  {data.fabric_metrics.fabric_community_label && (
+                    <MetricItem label="Community" value={data.fabric_metrics.fabric_community_label} />
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         ) : null}
       </div>
