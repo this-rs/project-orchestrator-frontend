@@ -463,7 +463,7 @@ export interface RiskFile {
   file: string
   risk_score: number
   risk_level: RiskLevel
-  factors: string[]
+  factors?: string[]
 }
 
 export interface RiskAssessmentSummary {

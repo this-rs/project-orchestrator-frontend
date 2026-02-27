@@ -354,7 +354,7 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
                         <td className="py-2 pr-4"><FilePath path={r.file} /></td>
                         <td className="py-2 pr-4">
                           <div className="flex flex-wrap gap-1">
-                            {r.factors.slice(0, 3).map((f) => (
+                            {(Array.isArray(r.factors) ? r.factors : []).slice(0, 3).map((f) => (
                               <span key={f} className="px-1.5 py-0.5 bg-white/[0.06] rounded text-xs text-gray-400">
                                 {f}
                               </span>
