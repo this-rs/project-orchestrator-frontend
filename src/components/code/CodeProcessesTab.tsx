@@ -225,10 +225,8 @@ export function CodeProcessesTab({ projectSlug }: CodeProcessesTabProps) {
                             .map((step, idx) => (
                               <div key={idx} className="flex gap-3 pb-4 last:pb-0">
                                 {/* Timeline column: circle + connector line */}
-                                <div className="flex flex-col items-center shrink-0">
-                                  <div className="w-[22px] h-[22px] rounded-full bg-gray-800 border-2 border-indigo-500/50 flex items-center justify-center">
-                                    <span className="text-[9px] font-bold text-indigo-400">{step.order}</span>
-                                  </div>
+                                <div className="flex flex-col items-center shrink-0 pt-1.5">
+                                  <div className="w-2 h-2 rounded-full bg-indigo-500/60" />
                                   {idx < processSteps.length - 1 && (
                                     <div className="w-px flex-1 bg-white/[0.1] mt-1" />
                                   )}
