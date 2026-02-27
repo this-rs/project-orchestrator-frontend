@@ -1,0 +1,343 @@
+import { useState, useMemo, useCallback } from 'react'
+import { Link } from 'react-router-dom'
+import { useAtomValue } from 'jotai'
+import { motion, AnimatePresence } from 'motion/react'
+import { Brain, Trash2, Zap } from 'lucide-react'
+import { skillRefreshAtom } from '@/atoms/events'
+import { skillsApi } from '@/services'
+import {
+  Card,
+  CardContent,
+  Badge,
+  Button,
+  EmptyState,
+  Select,
+  InteractiveSkillStatusBadge,
+  ConfirmDialog,
+  FormDialog,
+  PageShell,
+  SkeletonCard,
+  LoadMoreSentinel,
+} from '@/components/ui'
+import { useConfirmDialog, useFormDialog, useToast, useInfiniteList, useWorkspaceSlug } from '@/hooks'
+import { CreateSkillForm } from '@/components/forms'
+import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
+import type { Skill, SkillStatus, PaginatedResponse } from '@/types'
+import { workspacePath } from '@/utils/paths'
+
+// ── Filter options ──────────────────────────────────────────────────────
+
+const statusOptions = [
+  { value: 'all', label: 'All Status' },
+  { value: 'emerging', label: 'Emerging' },
+  { value: 'active', label: 'Active' },
+  { value: 'dormant', label: 'Dormant' },
+  { value: 'archived', label: 'Archived' },
+  { value: 'imported', label: 'Imported' },
+]
+
+// ── Energy bar colors ───────────────────────────────────────────────────
+
+function energyColor(energy: number): string {
+  if (energy >= 0.7) return 'bg-emerald-500'
+  if (energy >= 0.3) return 'bg-amber-500'
+  return 'bg-red-500'
+}
+
+function cohesionColor(cohesion: number): string {
+  if (cohesion >= 0.7) return 'bg-indigo-500'
+  if (cohesion >= 0.4) return 'bg-indigo-400'
+  return 'bg-indigo-300/60'
+}
+
+// ── Relative time ───────────────────────────────────────────────────────
+
+function relativeTime(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days}d ago`
+  return new Date(dateStr).toLocaleDateString()
+}
+
+// ── Main page ───────────────────────────────────────────────────────────
+
+export function SkillsPage() {
+  const [statusFilter, setStatusFilter] = useState<SkillStatus | 'all'>('all')
+  const [projectFilter, setProjectFilter] = useState<string>('all')
+  const skillRefresh = useAtomValue(skillRefreshAtom)
+  const confirmDialog = useConfirmDialog()
+  const formDialog = useFormDialog()
+  const toast = useToast()
+  const wsSlug = useWorkspaceSlug()
+  const reducedMotion = useReducedMotion()
+
+  // Load projects for filter dropdown
+  const [projects, setProjects] = useState<{ id: string; name: string; slug: string }[]>([])
+  useState(() => {
+    import('@/services').then(({ workspacesApi }) => {
+      if (!wsSlug) return
+      workspacesApi
+        .listProjects(wsSlug)
+        .then(setProjects)
+        .catch(() => {})
+    })
+  })
+
+  const projectOptions = useMemo(
+    () => [{ value: 'all', label: 'All Projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))],
+    [projects],
+  )
+
+  const filters = useMemo(
+    () => ({
+      status: statusFilter !== 'all' ? statusFilter : undefined,
+      project_id: projectFilter !== 'all' ? projectFilter : undefined,
+      _refresh: skillRefresh,
+    }),
+    [statusFilter, projectFilter, skillRefresh],
+  )
+
+  const fetcher = useCallback(
+    (params: { limit: number; offset: number; status?: string; project_id?: string }): Promise<PaginatedResponse<Skill>> => {
+      const typedParams = {
+        limit: params.limit,
+        offset: params.offset,
+        status: params.status as SkillStatus | undefined,
+      }
+      if (!params.project_id) {
+        // Skills API requires project_id — if none selected, try first project
+        const firstProject = projects[0]
+        if (!firstProject) {
+          return Promise.resolve({ items: [], total: 0, limit: params.limit, offset: params.offset })
+        }
+        return skillsApi.list({ ...typedParams, project_id: firstProject.id })
+      }
+      return skillsApi.list({ ...typedParams, project_id: params.project_id })
+    },
+    [projects],
+  )
+
+  const {
+    items: skills,
+    loading,
+    loadingMore,
+    hasMore,
+    total,
+    sentinelRef,
+    reset,
+    removeItems,
+    updateItem,
+  } = useInfiniteList({ fetcher, filters, enabled: projects.length > 0 })
+
+  const skillForm = CreateSkillForm({
+    projects,
+    onSubmit: async (data) => {
+      await skillsApi.create(data)
+      toast.success('Skill created')
+      reset()
+    },
+  })
+
+  const openCreate = () => formDialog.open({ title: 'Create Skill', size: 'md' })
+
+  const handleDelete = (skill: Skill) => {
+    confirmDialog.open({
+      title: 'Delete Skill',
+      description: `Permanently delete "${skill.name}"? This cannot be undone.`,
+      onConfirm: async () => {
+        await skillsApi.delete(skill.id)
+        removeItems((s) => s.id === skill.id)
+        toast.success('Skill deleted')
+      },
+    })
+  }
+
+  const handleStatusChange = async (skill: Skill, newStatus: SkillStatus) => {
+    try {
+      const updated = await skillsApi.update(skill.id, { status: newStatus })
+      updateItem((s) => s.id === skill.id, () => updated)
+      toast.success(`Status changed to ${newStatus}`)
+    } catch {
+      toast.error('Failed to update status')
+    }
+  }
+
+  return (
+    <PageShell
+      title="Neural Skills"
+      description="Emergent knowledge clusters with activation, health and export capabilities"
+      actions={
+        <>
+          <Select
+            options={statusOptions}
+            value={statusFilter}
+            onChange={(v) => setStatusFilter(v as SkillStatus | 'all')}
+            className="w-full sm:w-36"
+          />
+          <Select
+            options={projectOptions}
+            value={projectFilter}
+            onChange={setProjectFilter}
+            className="w-full sm:w-44"
+          />
+          <Button onClick={openCreate}>
+            <Brain className="w-4 h-4 mr-1.5" />
+            Create Skill
+          </Button>
+        </>
+      }
+    >
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <SkeletonCard key={i} lines={4} />
+          ))}
+        </div>
+      ) : skills.length === 0 ? (
+        <EmptyState
+          title={total === 0 && statusFilter === 'all' ? 'No skills detected' : 'No matching skills'}
+          description={
+            total === 0 && statusFilter === 'all'
+              ? 'Neural skills emerge from knowledge patterns. Use the backend skill detection to discover them, or create one manually.'
+              : 'No skills match the current filters.'
+          }
+        />
+      ) : (
+        <>
+          <motion.div
+            className="grid grid-cols-1 md:grid-cols-2 gap-4"
+            variants={reducedMotion ? undefined : staggerContainer}
+            initial="hidden"
+            animate="visible"
+          >
+            <AnimatePresence mode="popLayout">
+              {skills.map((skill) => (
+                <motion.div key={skill.id} variants={fadeInUp} exit="exit" layout={!reducedMotion}>
+                  <SkillCard
+                    skill={skill}
+                    wsSlug={wsSlug}
+                    onStatusChange={(status) => handleStatusChange(skill, status)}
+                    onDelete={() => handleDelete(skill)}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
+          <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
+        </>
+      )}
+
+      <FormDialog {...formDialog.dialogProps} onSubmit={skillForm.submit}>
+        {skillForm.fields}
+      </FormDialog>
+      <ConfirmDialog {...confirmDialog.dialogProps} />
+    </PageShell>
+  )
+}
+
+// ── Skill Card ──────────────────────────────────────────────────────────
+
+interface SkillCardProps {
+  skill: Skill
+  wsSlug: string
+  onStatusChange: (status: SkillStatus) => Promise<void>
+  onDelete: () => void
+}
+
+function SkillCard({ skill, wsSlug, onStatusChange, onDelete }: SkillCardProps) {
+  const memberCount = skill.note_count + skill.decision_count
+
+  return (
+    <Card className="group relative">
+      <Link to={workspacePath(wsSlug, `/skills/${skill.id}`)} className="block">
+        <CardContent>
+          {/* Header: name + status */}
+          <div className="flex items-start justify-between gap-2 mb-3">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-semibold text-gray-100 truncate">{skill.name}</h3>
+              {skill.description && (
+                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{skill.description}</p>
+              )}
+            </div>
+            <div onClick={(e) => e.preventDefault()}>
+              <InteractiveSkillStatusBadge status={skill.status} onStatusChange={onStatusChange} />
+            </div>
+          </div>
+
+          {/* Energy bar */}
+          <div className="mb-2">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] uppercase tracking-wider text-gray-500">Energy</span>
+              <span className="text-xs text-gray-400">{(skill.energy * 100).toFixed(0)}%</span>
+            </div>
+            <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${energyColor(skill.energy)}`}
+                style={{ width: `${Math.max(skill.energy * 100, 1)}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Cohesion bar */}
+          <div className="mb-3">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] uppercase tracking-wider text-gray-500">Cohesion</span>
+              <span className="text-xs text-gray-400">{(skill.cohesion * 100).toFixed(0)}%</span>
+            </div>
+            <div className="h-1 bg-white/[0.06] rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${cohesionColor(skill.cohesion)}`}
+                style={{ width: `${Math.max(skill.cohesion * 100, 1)}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Tags */}
+          {skill.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-3">
+              {skill.tags.slice(0, 5).map((tag) => (
+                <Badge key={tag} variant="default">{tag}</Badge>
+              ))}
+              {skill.tags.length > 5 && (
+                <span className="text-xs text-gray-500">+{skill.tags.length - 5}</span>
+              )}
+            </div>
+          )}
+
+          {/* Footer: metrics */}
+          <div className="flex items-center gap-4 text-xs text-gray-500">
+            <span className="flex items-center gap-1">
+              <Brain className="w-3 h-3" />
+              {memberCount} members
+            </span>
+            {skill.activation_count > 0 && (
+              <span className="flex items-center gap-1">
+                <Zap className="w-3 h-3" />
+                {skill.activation_count} activations
+              </span>
+            )}
+            <span className="ml-auto">{relativeTime(skill.created_at)}</span>
+          </div>
+        </CardContent>
+      </Link>
+
+      {/* Delete button (top-right, visible on hover) */}
+      <button
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          onDelete()
+        }}
+        className="absolute top-3 right-3 p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+        title="Delete skill"
+      >
+        <Trash2 className="w-3.5 h-3.5" />
+      </button>
+    </Card>
+  )
+}

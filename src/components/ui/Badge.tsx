@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { TaskStatus, PlanStatus, NoteStatus, NoteImportance, ReleaseStatus, StepStatus, MilestoneStatus } from '@/types'
+import type { TaskStatus, PlanStatus, NoteStatus, NoteImportance, ReleaseStatus, StepStatus, MilestoneStatus, SkillStatus } from '@/types'
 import { Dropdown } from './Dropdown'
 import { Spinner } from './Spinner'
 
@@ -221,4 +221,24 @@ export const InteractiveStepStatusBadge = createInteractiveStatusBadge<StepStatu
   in_progress: { label: 'In Progress', variant: 'info' },
   completed: { label: 'Completed', variant: 'success' },
   skipped: { label: 'Skipped', variant: 'warning' },
+})
+
+export const SkillStatusBadge = ({ status }: { status: SkillStatus | undefined | null }) => {
+  const config: StatusBadgeConfig<SkillStatus> = {
+    emerging: { label: 'Emerging', variant: 'warning' },
+    active: { label: 'Active', variant: 'success' },
+    dormant: { label: 'Dormant', variant: 'error' },
+    archived: { label: 'Archived', variant: 'default' },
+    imported: { label: 'Imported', variant: 'info' },
+  }
+  const { label, variant } = (status && config[status]) || defaultConfig
+  return <Badge variant={variant}>{label}</Badge>
+}
+
+export const InteractiveSkillStatusBadge = createInteractiveStatusBadge<SkillStatus>({
+  emerging: { label: 'Emerging', variant: 'warning' },
+  active: { label: 'Active', variant: 'success' },
+  dormant: { label: 'Dormant', variant: 'error' },
+  archived: { label: 'Archived', variant: 'default' },
+  imported: { label: 'Imported', variant: 'info' },
 })

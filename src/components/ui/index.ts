@@ -13,6 +13,8 @@ export {
   InteractiveTaskStatusBadge,
   InteractiveNoteStatusBadge,
   InteractiveStepStatusBadge,
+  SkillStatusBadge,
+  InteractiveSkillStatusBadge,
 } from './Badge'
 export { Card, CardHeader, CardTitle, CardContent, CardFooter } from './Card'
 export { Input, SearchInput } from './Input'

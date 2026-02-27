@@ -27,6 +27,7 @@ import {
   TaskDetailPage,
   NotesPage,
   CodePage,
+  SkillsPage,
   FeatureGraphDetailPage,
   NotFoundPage,
   SettingsPage,
@@ -149,6 +150,7 @@ function App() {
                         <Route path="tasks/:taskId" element={<TaskDetailPage />} />
                         <Route path="notes" element={<NotesPage />} />
                         <Route path="code" element={<CodePage />} />
+                        <Route path="skills" element={<SkillsPage />} />
                         <Route path="feature-graphs/:id" element={<FeatureGraphDetailPage />} />
                         <Route path="*" element={<NotFoundPage embedded />} />
                       </Route>

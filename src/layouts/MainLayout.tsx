@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Menu, Home, Flag, Box, ClipboardList, CheckCircle2, FileText, Code, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
+import { Menu, Home, Flag, Box, ClipboardList, CheckCircle2, FileText, Code, Brain, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
 import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, activeWorkspaceAtom, workspaceRefreshAtom } from '@/atoms'
 import { ToastContainer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
@@ -47,6 +47,7 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
       label: 'Knowledge',
       items: [
         { name: 'Notes', href: workspacePath(wsSlug, '/notes'), icon: FileText },
+        { name: 'Skills', href: workspacePath(wsSlug, '/skills'), icon: Brain },
         { name: 'Code', href: workspacePath(wsSlug, '/code'), icon: Code },
       ],
     },
@@ -355,6 +356,7 @@ function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceNa
       notes: 'Notes',
       milestones: 'Milestones',
       code: 'Code',
+      skills: 'Skills',
       'project-milestones': 'Milestones',
       'feature-graphs': 'Feature Graphs',
     }
