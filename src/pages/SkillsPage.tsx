@@ -1,21 +1,21 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { motion, AnimatePresence } from 'motion/react'
-import { Brain, Trash2, Zap, Upload } from 'lucide-react'
+import { Brain, Trash2, Zap, Upload, Sparkles, FileText } from 'lucide-react'
 import { skillRefreshAtom } from '@/atoms/events'
-import { skillsApi } from '@/services'
+import { skillsApi, adminApi, notesApi } from '@/services'
 import {
   Card,
   CardContent,
   Badge,
   Button,
-  EmptyState,
   Select,
   InteractiveSkillStatusBadge,
   ConfirmDialog,
   FormDialog,
   PageShell,
+  Spinner,
   SkeletonCard,
   LoadMoreSentinel,
 } from '@/components/ui'
@@ -78,6 +78,9 @@ export function SkillsPage() {
   const wsSlug = useWorkspaceSlug()
   const reducedMotion = useReducedMotion()
 
+  const [detecting, setDetecting] = useState(false)
+  const [noteCount, setNoteCount] = useState<number | null>(null)
+
   // Load projects for filter dropdown
   const [projects, setProjects] = useState<{ id: string; name: string; slug: string }[]>([])
   useState(() => {
@@ -89,6 +92,16 @@ export function SkillsPage() {
         .catch(() => {})
     })
   })
+
+  // Resolve active project id (explicit filter or first project)
+  const activeProjectId = projectFilter !== 'all' ? projectFilter : projects[0]?.id
+
+  // Fetch note count for the active project
+  useEffect(() => {
+    if (!activeProjectId) return
+    setNoteCount(null)
+    notesApi.list({ project_id: activeProjectId, limit: 1 }).then((res) => setNoteCount(res.total)).catch(() => {})
+  }, [activeProjectId])
 
   const projectOptions = useMemo(
     () => [{ value: 'all', label: 'All Projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))],
@@ -157,6 +170,24 @@ export function SkillsPage() {
   const openCreate = () => formDialog.open({ title: 'Create Skill', size: 'md' })
   const openImport = () => importDialog.open({ title: 'Import Skill', size: 'md', submitLabel: 'Import' })
 
+  const handleDetectSkills = async () => {
+    if (!activeProjectId) return
+    setDetecting(true)
+    try {
+      const result = await adminApi.detectSkills(activeProjectId)
+      if (result.status === 'InsufficientData') {
+        toast.error(result.message || 'Not enough data for skill detection')
+      } else {
+        toast.success(`Detected ${result.skills_created} new skills (${result.skills_updated} updated)`)
+        reset()
+      }
+    } catch {
+      toast.error('Failed to run skill detection')
+    } finally {
+      setDetecting(false)
+    }
+  }
+
   const handleDelete = (skill: Skill) => {
     confirmDialog.open({
       title: 'Delete Skill',
@@ -215,14 +246,19 @@ export function SkillsPage() {
           ))}
         </div>
       ) : skills.length === 0 ? (
-        <EmptyState
-          title={total === 0 && statusFilter === 'all' ? 'No skills detected' : 'No matching skills'}
-          description={
-            total === 0 && statusFilter === 'all'
-              ? 'Neural skills emerge from knowledge patterns. Use the backend skill detection to discover them, or create one manually.'
-              : 'No skills match the current filters.'
-          }
-        />
+        total === 0 && statusFilter === 'all' ? (
+          <SkillsEmptyState
+            noteCount={noteCount}
+            detecting={detecting}
+            onDetect={handleDetectSkills}
+            onCreate={openCreate}
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-white/[0.06] rounded-2xl">
+            <h3 className="text-lg font-medium text-gray-200 mb-1">No matching skills</h3>
+            <p className="text-sm text-gray-400 max-w-xs">No skills match the current filters.</p>
+          </div>
+        )
       ) : (
         <>
           <motion.div
@@ -256,6 +292,86 @@ export function SkillsPage() {
       </FormDialog>
       <ConfirmDialog {...confirmDialog.dialogProps} />
     </PageShell>
+  )
+}
+
+// ── Skills Empty State ──────────────────────────────────────────────────
+
+const MIN_NOTES_FOR_DETECTION = 15
+
+interface SkillsEmptyStateProps {
+  noteCount: number | null
+  detecting: boolean
+  onDetect: () => void
+  onCreate: () => void
+}
+
+function SkillsEmptyState({ noteCount, detecting, onDetect, onCreate }: SkillsEmptyStateProps) {
+  const ready = noteCount !== null && noteCount >= MIN_NOTES_FOR_DETECTION
+  const progress = noteCount !== null ? Math.min(noteCount / MIN_NOTES_FOR_DETECTION, 1) : 0
+
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-white/[0.06] rounded-2xl">
+      <div className="w-16 h-16 rounded-full bg-white/[0.03] flex items-center justify-center text-gray-500 mb-4">
+        <Brain className="w-8 h-8" />
+      </div>
+
+      <h3 className="text-lg font-medium text-gray-200 mb-1">No skills detected</h3>
+      <p className="text-sm text-gray-400 mb-6 max-w-sm">
+        Neural skills emerge automatically from clusters of related knowledge notes.
+      </p>
+
+      {/* Note count progress */}
+      {noteCount !== null && (
+        <div className="w-64 mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <span className="flex items-center gap-1.5 text-xs text-gray-400">
+              <FileText className="w-3.5 h-3.5" />
+              {noteCount} / {MIN_NOTES_FOR_DETECTION} notes
+            </span>
+            {ready ? (
+              <span className="text-xs text-emerald-400">Ready</span>
+            ) : (
+              <span className="text-xs text-gray-500">{MIN_NOTES_FOR_DETECTION - noteCount} more needed</span>
+            )}
+          </div>
+          <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${ready ? 'bg-emerald-500' : 'bg-indigo-500/70'}`}
+              style={{ width: `${Math.max(progress * 100, 2)}%` }}
+            />
+          </div>
+          {!ready && (
+            <p className="text-xs text-gray-500 mt-2">
+              Add knowledge notes (gotchas, patterns, guidelines) to your project to enable detection.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex items-center gap-3">
+        {ready && (
+          <Button onClick={onDetect} disabled={detecting}>
+            {detecting ? (
+              <>
+                <Spinner size="sm" className="mr-1.5" />
+                Detecting...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 mr-1.5" />
+                Detect Skills
+              </>
+            )}
+          </Button>
+        )}
+        <Button variant="secondary" onClick={onCreate}>
+          <Brain className="w-4 h-4 mr-1.5" />
+          Create Manually
+        </Button>
+      </div>
+    </div>
   )
 }
 

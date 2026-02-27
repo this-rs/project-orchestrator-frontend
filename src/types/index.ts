@@ -747,6 +747,21 @@ export interface ImportSkillRequest {
   conflict_strategy?: 'skip' | 'merge' | 'replace'
 }
 
+// --- Skill Detection ---
+
+export interface SkillDetectionResult {
+  status: 'Success' | 'InsufficientData'
+  skills_detected: number
+  skills_created: number
+  skills_updated: number
+  total_notes: number
+  total_synapses: number
+  modularity: number
+  message: string
+  skill_ids: string[]
+  elapsed_ms: number
+}
+
 // ============================================================================
 // FEATURE GRAPHS
 // ============================================================================
