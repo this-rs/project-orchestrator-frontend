@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Card, CardContent, Button, EmptyState, ErrorState } from '@/components/ui'
-import { FileText, Code, Sparkles, X, Loader2 } from 'lucide-react'
+import { Card, CardContent, Button, Dialog, EmptyState, ErrorState } from '@/components/ui'
+import { FileText, Code, Sparkles, Loader2 } from 'lucide-react'
 import { codeApi } from '@/services'
 import type { CodeCommunity, NodeImportance } from '@/types'
 
@@ -50,16 +50,14 @@ const RISK_BADGE_STYLES: Record<string, string> = {
   low: 'bg-emerald-500/20 text-emerald-400',
 }
 
-// ── Node Importance Popup ───────────────────────────────────────────────
+// ── Node Importance Dialog Content ───────────────────────────────────────
 
-function NodePopup({
+function NodeImportanceContent({
   member,
   projectSlug,
-  onClose,
 }: {
   member: string
   projectSlug: string
-  onClose: () => void
 }) {
   const [data, setData] = useState<NodeImportance | null>(null)
   const [loading, setLoading] = useState(true)
@@ -84,82 +82,85 @@ function NodePopup({
       }
     }
     load()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [member, projectSlug])
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-6">
+        <Loader2 className="w-5 h-5 animate-spin text-gray-500" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return <p className="text-sm text-gray-500">Could not load importance data.</p>
+  }
+
+  if (!data) return null
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div
-        className="bg-gray-800 border border-white/[0.1] rounded-xl p-5 max-w-md w-full mx-4 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-gray-200 truncate pr-4" title={member}>
-            {shortName(member)}
-          </h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-300">
-            <X className="w-4 h-4" />
-          </button>
+    <div className="space-y-3">
+      {/* Risk level + summary */}
+      {data.risk_level && (
+        <div className="flex items-center gap-2 mb-1">
+          <span
+            className={`px-2 py-0.5 rounded-full text-xs font-medium ${RISK_BADGE_STYLES[data.risk_level]}`}
+          >
+            {data.risk_level}
+          </span>
         </div>
+      )}
+      {data.summary && <p className="text-xs text-gray-400 leading-relaxed">{data.summary}</p>}
+      {data.message && !data.summary && (
+        <p className="text-xs text-gray-500 italic">{data.message}</p>
+      )}
 
-        {loading ? (
-          <div className="flex items-center justify-center py-6">
-            <Loader2 className="w-5 h-5 animate-spin text-gray-500" />
-          </div>
-        ) : error ? (
-          <p className="text-sm text-gray-500">Could not load importance data.</p>
-        ) : data ? (
-          <div className="space-y-3">
-            {/* Risk level + summary */}
-            {data.risk_level && (
-              <div className="flex items-center gap-2 mb-1">
-                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${RISK_BADGE_STYLES[data.risk_level]}`}>
-                  {data.risk_level}
-                </span>
-              </div>
-            )}
-            {data.summary && (
-              <p className="text-xs text-gray-400 leading-relaxed">{data.summary}</p>
-            )}
-            {data.message && !data.summary && (
-              <p className="text-xs text-gray-500 italic">{data.message}</p>
-            )}
+      {/* Core metrics */}
+      <div className="grid grid-cols-2 gap-3">
+        {data.metrics.pagerank != null && (
+          <MetricItem label="PageRank" value={data.metrics.pagerank.toFixed(4)} />
+        )}
+        {data.metrics.betweenness != null && (
+          <MetricItem label="Betweenness" value={data.metrics.betweenness.toFixed(4)} />
+        )}
+        <MetricItem label="In-degree" value={String(data.metrics.in_degree)} />
+        <MetricItem label="Out-degree" value={String(data.metrics.out_degree)} />
+        {data.metrics.clustering_coefficient != null && (
+          <MetricItem label="Clustering" value={data.metrics.clustering_coefficient.toFixed(4)} />
+        )}
+      </div>
 
-            {/* Core metrics */}
+      {/* Fabric metrics (when available) */}
+      {data.fabric_metrics &&
+        (data.fabric_metrics.fabric_pagerank != null ||
+          data.fabric_metrics.fabric_community_label) && (
+          <div>
+            <div className="text-xs text-gray-500 mb-2">Fabric</div>
             <div className="grid grid-cols-2 gap-3">
-              {data.metrics.pagerank != null && (
-                <MetricItem label="PageRank" value={data.metrics.pagerank.toFixed(4)} />
+              {data.fabric_metrics.fabric_pagerank != null && (
+                <MetricItem
+                  label="Fabric PR"
+                  value={data.fabric_metrics.fabric_pagerank.toFixed(4)}
+                />
               )}
-              {data.metrics.betweenness != null && (
-                <MetricItem label="Betweenness" value={data.metrics.betweenness.toFixed(4)} />
+              {data.fabric_metrics.fabric_betweenness != null && (
+                <MetricItem
+                  label="Fabric Btw"
+                  value={data.fabric_metrics.fabric_betweenness.toFixed(4)}
+                />
               )}
-              <MetricItem label="In-degree" value={String(data.metrics.in_degree)} />
-              <MetricItem label="Out-degree" value={String(data.metrics.out_degree)} />
-              {data.metrics.clustering_coefficient != null && (
-                <MetricItem label="Clustering" value={data.metrics.clustering_coefficient.toFixed(4)} />
+              {data.fabric_metrics.fabric_community_label && (
+                <MetricItem
+                  label="Community"
+                  value={data.fabric_metrics.fabric_community_label}
+                />
               )}
             </div>
-
-            {/* Fabric metrics (when available) */}
-            {data.fabric_metrics && (data.fabric_metrics.fabric_pagerank != null || data.fabric_metrics.fabric_community_label) && (
-              <div>
-                <div className="text-xs text-gray-500 mb-2">Fabric</div>
-                <div className="grid grid-cols-2 gap-3">
-                  {data.fabric_metrics.fabric_pagerank != null && (
-                    <MetricItem label="Fabric PR" value={data.fabric_metrics.fabric_pagerank.toFixed(4)} />
-                  )}
-                  {data.fabric_metrics.fabric_betweenness != null && (
-                    <MetricItem label="Fabric Btw" value={data.fabric_metrics.fabric_betweenness.toFixed(4)} />
-                  )}
-                  {data.fabric_metrics.fabric_community_label && (
-                    <MetricItem label="Community" value={data.fabric_metrics.fabric_community_label} />
-                  )}
-                </div>
-              </div>
-            )}
           </div>
-        ) : null}
-      </div>
+        )}
     </div>
   )
 }
@@ -421,14 +422,16 @@ export function CodeCommunitiesTab({ projectSlug }: CodeCommunitiesTabProps) {
         </div>
       </div>
 
-      {/* Node Importance Popup */}
-      {selectedMember && projectSlug && (
-        <NodePopup
-          member={selectedMember}
-          projectSlug={projectSlug}
-          onClose={() => setSelectedMember(null)}
-        />
-      )}
+      {/* Node Importance Dialog */}
+      <Dialog
+        open={!!selectedMember}
+        onClose={() => setSelectedMember(null)}
+        title={selectedMember ? shortName(selectedMember) : ''}
+      >
+        {selectedMember && projectSlug && (
+          <NodeImportanceContent member={selectedMember} projectSlug={projectSlug} />
+        )}
+      </Dialog>
     </div>
   )
 }
