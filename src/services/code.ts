@@ -1,5 +1,20 @@
 import { api, buildQuery } from './api'
-import type { FunctionNode, StructNode, TraitNode } from '@/types'
+import type {
+  FunctionNode,
+  StructNode,
+  TraitNode,
+  CodeCommunities,
+  CodeHealth,
+  NodeImportance,
+  HotspotsResponse,
+  KnowledgeGapsResponse,
+  RiskAssessmentResponse,
+  ClassHierarchy,
+  SubclassesResponse,
+  InterfaceImplementorsResponse,
+  ProcessesResponse,
+  EntryPointsResponse,
+} from '@/types'
 
 export interface SearchDocument {
   id: string
@@ -114,4 +129,62 @@ export const codeApi = {
     api.get<{ items: { file_path: string; line_start: number; line_end: number; methods: string[] }[] }>(
       `/code/impl-blocks${buildQuery({ type_name: typeName, limit })}`
     ),
+
+  // ── Structural Analytics ──────────────────────────────────────────────
+
+  getCommunities: (params: { project_slug: string; min_size?: number }) =>
+    api.get<CodeCommunities>(`/code/communities${buildQuery(params)}`),
+
+  getHealth: (params: { project_slug: string; god_function_threshold?: number }) =>
+    api.get<CodeHealth>(`/code/health${buildQuery(params)}`),
+
+  getNodeImportance: (params: { project_slug: string; node_path: string; node_type?: string }) =>
+    api.get<NodeImportance>(`/code/node-importance${buildQuery(params)}`),
+
+  getHotspots: (params: { project_slug: string; limit?: number }) =>
+    api.get<HotspotsResponse>(`/code/hotspots${buildQuery(params)}`),
+
+  getKnowledgeGaps: (params: { project_slug: string; limit?: number }) =>
+    api.get<KnowledgeGapsResponse>(`/code/knowledge-gaps${buildQuery(params)}`),
+
+  getRiskAssessment: (params: { project_slug: string; limit?: number }) =>
+    api.get<RiskAssessmentResponse>(`/code/risk-assessment${buildQuery(params)}`),
+
+  // ── Heritage Navigation ───────────────────────────────────────────────
+
+  getClassHierarchy: (params: { type_name: string; max_depth?: number }) =>
+    api.get<ClassHierarchy>(`/code/class-hierarchy${buildQuery(params)}`),
+
+  findSubclasses: (params: { class_name: string }) =>
+    api.get<SubclassesResponse>(`/code/subclasses${buildQuery(params)}`),
+
+  findInterfaceImplementors: (params: { interface_name: string }) =>
+    api.get<InterfaceImplementorsResponse>(`/code/interface-implementors${buildQuery(params)}`),
+
+  // ── Process Detection ─────────────────────────────────────────────────
+
+  detectProcesses: (data: { project_slug: string }) =>
+    api.post('/code/processes/detect', data),
+
+  listProcesses: (params: { project_slug: string }) =>
+    api.get<ProcessesResponse>(`/code/processes${buildQuery(params)}`),
+
+  getProcessDetail: (params: { process_id: string }) =>
+    api.get(`/code/processes/detail${buildQuery(params)}`),
+
+  getEntryPoints: (params: { project_slug: string; limit?: number }) =>
+    api.get<EntryPointsResponse>(`/code/entry-points${buildQuery(params)}`),
+
+  // ── Community Enrichment & Implementation Planner ─────────────────────
+
+  enrichCommunities: (data: { project_slug: string }) =>
+    api.post<CodeCommunities>('/code/communities/enrich', data),
+
+  planImplementation: (data: {
+    project_slug: string
+    description: string
+    entry_points?: string[]
+    scope?: string
+    auto_create_plan?: boolean
+  }) => api.post('/code/plan-implementation', data),
 }

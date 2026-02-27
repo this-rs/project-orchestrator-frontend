@@ -369,6 +369,175 @@ export interface TraitNode {
 }
 
 // ============================================================================
+// CODE ANALYTICS
+// ============================================================================
+
+// --- Communities ---
+
+export interface CodeCommunity {
+  id: string
+  label: string
+  size: number
+  key_files: string[]
+  cohesion?: number
+  enriched_by?: string
+  members?: string[]
+}
+
+export interface CodeCommunities {
+  communities: CodeCommunity[]
+  total_files: number
+  community_count: number
+}
+
+// --- Health ---
+
+export interface GodFunction {
+  name: string
+  file: string
+  in_degree: number
+  out_degree: number
+}
+
+export interface CouplingMetrics {
+  avg_clustering_coefficient: number
+  max_clustering_coefficient: number
+  most_coupled_file: string
+}
+
+export interface NeuralMetrics {
+  active_synapses: number
+  avg_energy: number
+  weak_synapses_ratio: number
+  dead_notes_count: number
+}
+
+export interface CodeHealth {
+  god_functions: GodFunction[]
+  god_function_count: number
+  god_function_threshold: number
+  orphan_files: string[]
+  orphan_file_count: number
+  coupling_metrics: CouplingMetrics
+  circular_dependencies: string[]
+  circular_dependency_count: number
+  hotspots: ChangeHotspot[]
+  knowledge_gaps: KnowledgeGap[]
+  risk_assessment: RiskAssessmentSummary
+  neural_metrics: NeuralMetrics
+}
+
+// --- Hotspots ---
+
+export interface ChangeHotspot {
+  file: string
+  churn_score: number
+  commit_count: number
+}
+
+export interface HotspotsResponse {
+  hotspots: ChangeHotspot[]
+  total_files: number
+  limit: number
+}
+
+// --- Knowledge Gaps ---
+
+export interface KnowledgeGap {
+  file: string
+  knowledge_density: number
+  symbol_count: number
+}
+
+export interface KnowledgeGapsResponse {
+  knowledge_gaps: KnowledgeGap[]
+  total_files: number
+  limit: number
+}
+
+// --- Risk Assessment ---
+
+export type RiskLevel = 'critical' | 'high' | 'medium' | 'low'
+
+export interface RiskFile {
+  file: string
+  risk_score: number
+  risk_level: RiskLevel
+  factors: string[]
+}
+
+export interface RiskAssessmentSummary {
+  avg_risk_score: number
+  critical_count: number
+  high_count: number
+  medium_count: number
+  low_count: number
+}
+
+export interface RiskAssessmentResponse {
+  risk_files: RiskFile[]
+  total_files: number
+  limit: number
+  summary: RiskAssessmentSummary
+}
+
+// --- Node Importance ---
+
+export interface NodeImportance {
+  node: string
+  node_type: string
+  pagerank: number
+  betweenness_centrality: number
+  closeness_centrality: number
+  harmonic_centrality: number
+}
+
+// --- Heritage (Class Hierarchy) ---
+
+export interface ClassHierarchy {
+  type_name: string
+  parents: string[]
+  children: string[]
+  depth: number
+}
+
+export interface SubclassesResponse {
+  class_name: string
+  subclasses: string[]
+  total: number
+}
+
+export interface InterfaceImplementorsResponse {
+  interface_name: string
+  implementors: string[]
+  total: number
+}
+
+// --- Process Detection ---
+
+export interface ProcessSummary {
+  id: string
+  label: string
+  total: number
+}
+
+export interface ProcessesResponse {
+  processes: ProcessSummary[]
+  total: number
+}
+
+export interface EntryPoint {
+  id: string
+  score: number
+  type: string
+}
+
+export interface EntryPointsResponse {
+  entry_points: EntryPoint[]
+  total: number
+}
+
+// ============================================================================
 // FEATURE GRAPHS
 // ============================================================================
 
