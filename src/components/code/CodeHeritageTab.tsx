@@ -23,9 +23,11 @@ export function CodeHeritageTab() {
   const [implementors, setImplementors] = useState<InterfaceImplementorsResponse | null>(null)
   const [searched, setSearched] = useState(false)
 
-  const handleSearch = async () => {
+  const handleSearch = async (overrideMode?: HeritageMode) => {
     const trimmed = query.trim()
     if (!trimmed) return
+
+    const activeMode = overrideMode ?? mode
 
     setLoading(true)
     setSearched(true)
@@ -35,7 +37,7 @@ export function CodeHeritageTab() {
     setImplementors(null)
 
     try {
-      switch (mode) {
+      switch (activeMode) {
         case 'hierarchy': {
           const data = await codeApi.getClassHierarchy({ type_name: trimmed, max_depth: 10 })
           setHierarchy(data)
@@ -74,11 +76,16 @@ export function CodeHeritageTab() {
                 variant={mode === m.key ? 'primary' : 'secondary'}
                 size="sm"
                 onClick={() => {
+                  if (m.key === mode) return
                   setMode(m.key)
-                  setSearched(false)
-                  setHierarchy(null)
-                  setSubclasses(null)
-                  setImplementors(null)
+                  if (query.trim()) {
+                    handleSearch(m.key)
+                  } else {
+                    setSearched(false)
+                    setHierarchy(null)
+                    setSubclasses(null)
+                    setImplementors(null)
+                  }
                 }}
               >
                 {m.label}
@@ -95,7 +102,7 @@ export function CodeHeritageTab() {
               placeholder={currentConfig.placeholder}
               className="flex-1"
             />
-            <Button onClick={handleSearch} loading={loading}>
+            <Button onClick={() => handleSearch()} loading={loading}>
               <Search className="w-4 h-4 mr-1.5" />
               Search
             </Button>
