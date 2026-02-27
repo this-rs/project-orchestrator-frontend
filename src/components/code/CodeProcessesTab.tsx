@@ -219,20 +219,22 @@ export function CodeProcessesTab({ projectSlug }: CodeProcessesTabProps) {
                       ) : processSteps.length === 0 ? (
                         <p className="text-sm text-gray-500 py-2">No steps available.</p>
                       ) : (
-                        <div className="relative pl-6">
-                          {/* Vertical line */}
-                          <div className="absolute left-[9px] top-2 bottom-2 w-px bg-white/[0.1]" />
-
+                        <div className="relative">
                           {processSteps
                             .sort((a, b) => a.order - b.order)
                             .map((step, idx) => (
-                              <div key={idx} className="relative flex items-start gap-3 pb-4 last:pb-0">
-                                {/* Circle */}
-                                <div className="absolute left-[-15px] top-1 w-[18px] h-[18px] rounded-full bg-gray-800 border-2 border-indigo-500/50 flex items-center justify-center">
-                                  <span className="text-[9px] font-bold text-indigo-400">{step.order}</span>
+                              <div key={idx} className="flex gap-3 pb-4 last:pb-0">
+                                {/* Timeline column: circle + connector line */}
+                                <div className="flex flex-col items-center shrink-0">
+                                  <div className="w-[22px] h-[22px] rounded-full bg-gray-800 border-2 border-indigo-500/50 flex items-center justify-center">
+                                    <span className="text-[9px] font-bold text-indigo-400">{step.order}</span>
+                                  </div>
+                                  {idx < processSteps.length - 1 && (
+                                    <div className="w-px flex-1 bg-white/[0.1] mt-1" />
+                                  )}
                                 </div>
                                 {/* Content */}
-                                <div className="min-w-0">
+                                <div className="min-w-0 pt-0.5">
                                   <div className="text-sm font-mono text-gray-200">
                                     {step.function_name}
                                   </div>
