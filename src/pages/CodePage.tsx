@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Button, Select, PageShell, EmptyState } from '@/components/ui'
+import { Button, Select, PageShell } from '@/components/ui'
 import { workspacesApi } from '@/services'
 import { useWorkspaceSlug } from '@/hooks'
-import { CodeSearchTab, CodeArchitectureTab, CodeHealthTab, CodeCommunitiesTab, CodeProcessesTab } from '@/components/code'
+import { CodeSearchTab, CodeArchitectureTab, CodeHealthTab, CodeCommunitiesTab, CodeProcessesTab, CodeHeritageTab } from '@/components/code'
 
 type CodeTab = 'search' | 'architecture' | 'health' | 'communities' | 'processes' | 'heritage'
 
@@ -101,10 +101,7 @@ export function CodePage() {
       )}
 
       {activeTab === 'heritage' && (
-        <EmptyState
-          title="Heritage"
-          description="Coming soon — Class hierarchy, subclasses, and interface implementors."
-        />
+        <CodeHeritageTab />
       )}
     </PageShell>
   )
