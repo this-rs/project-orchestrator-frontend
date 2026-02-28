@@ -326,7 +326,7 @@ function GraphLegend({ hasRelations }: { hasRelations: boolean }) {
   ]
 
   return (
-    <div className="absolute bottom-3 left-3 z-10 glass-medium rounded-lg px-3 py-2.5 max-w-[260px]">
+    <div className="absolute top-3 right-3 z-10 glass-medium rounded-lg px-3 py-2.5 max-w-[260px]">
       <span className="text-[10px] uppercase tracking-wider text-gray-500 mb-1.5 block">Nodes</span>
       <div className="flex flex-wrap gap-x-3 gap-y-1 mb-2">
         {types.map((t) => (
