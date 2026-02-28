@@ -6,7 +6,6 @@ import {
   type Node,
   type Edge,
   type NodeProps,
-  type OnSelectionChangeParams,
 } from '@xyflow/react'
 import { Zap, RefreshCw, TrendingDown, Search } from 'lucide-react'
 import { notesApi } from '@/services'
@@ -335,25 +334,47 @@ export function NeuronExplorer({ projectSlug }: NeuronExplorerProps) {
   const results = searchResponse?.results || []
   const metadata = searchResponse?.metadata
 
+  // Inject `selected` flag into nodes based on our manual selection state
   const { graphNodes, graphEdges } = useMemo(() => {
     const { nodes, edges } = layoutNeurons(results)
-    return { graphNodes: nodes, graphEdges: edges }
-  }, [results])
-
-  const handleSelectionChange = useCallback(
-    ({ nodes }: OnSelectionChangeParams) => {
-      setSelectedNeuronIds(new Set(nodes.map((n) => n.id)))
-    },
-    [],
-  )
+    const withSelection = nodes.map((n) => ({
+      ...n,
+      selected: selectedNeuronIds.has(n.id),
+    }))
+    return { graphNodes: withSelection, graphEdges: edges }
+  }, [results, selectedNeuronIds])
 
   const handleNodeClick = useCallback(
-    (_: React.MouseEvent, node: Node<NeuronNodeData>) => {
+    (event: React.MouseEvent, node: Node<NeuronNodeData>) => {
+      const isMulti = event.metaKey || event.ctrlKey
+
+      if (isMulti) {
+        // Toggle this node in/out of selection
+        setSelectedNeuronIds((prev) => {
+          const next = new Set(prev)
+          if (next.has(node.id)) {
+            next.delete(node.id)
+          } else {
+            next.add(node.id)
+          }
+          return next
+        })
+      } else {
+        // Single select: only this node
+        setSelectedNeuronIds(new Set([node.id]))
+      }
+
+      // Always show detail for clicked node
       const neuron = results.find((r) => r.id === node.id)
       if (neuron) setDetailNeuron(neuron)
     },
     [results],
   )
+
+  const handlePaneClick = useCallback(() => {
+    setSelectedNeuronIds(new Set())
+    setDetailNeuron(null)
+  }, [])
 
   // ── Actions ─────────────────────────────────────────────────────────
 
@@ -463,19 +484,17 @@ export function NeuronExplorer({ projectSlug }: NeuronExplorerProps) {
             nodes={graphNodes}
             edges={graphEdges}
             nodeTypes={nodeTypes}
-            onSelectionChange={handleSelectionChange}
             onNodeClick={handleNodeClick}
+            onPaneClick={handlePaneClick}
             fitView
             fitViewOptions={{ padding: 0.3 }}
             minZoom={0.3}
             maxZoom={2}
             proOptions={{ hideAttribution: true }}
-            nodesDraggable
+            nodesDraggable={false}
             nodesConnectable={false}
-            elementsSelectable
-            selectionOnDrag
-            selectNodesOnDrag
-            panOnDrag={[1]} // middle mouse button to pan
+            elementsSelectable={false}
+            panOnDrag
             zoomOnScroll
             zoomOnPinch
           >
