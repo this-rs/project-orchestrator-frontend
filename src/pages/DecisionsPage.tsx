@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { Trash2, CheckCircle2 } from 'lucide-react'
-import { decisionsApi } from '@/services'
+import { decisionsApi, workspacesApi } from '@/services'
 import {
   Card,
   CardContent,
@@ -57,11 +57,29 @@ export function DecisionsPage() {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const initialLoadDone = useRef(false)
 
+  // Project filter
+  const [projects, setProjects] = useState<{ slug: string; name: string }[]>([])
+  const [selectedProject, setSelectedProject] = useState('all')
+
+  useEffect(() => {
+    async function loadProjects() {
+      try {
+        const wsProjects = await workspacesApi.listProjects(wsSlug)
+        setProjects(wsProjects.map((p) => ({ slug: p.slug, name: p.name })))
+      } catch {
+        // No projects available
+      }
+    }
+    loadProjects()
+  }, [wsSlug])
+
+  const projectSlug = selectedProject !== 'all' ? selectedProject : undefined
+
   const fetchDecisions = useCallback(
     async (query: string) => {
       if (!initialLoadDone.current) setLoading(true)
       try {
-        const results = await decisionsApi.search({ q: query || '*', limit: 100 })
+        const results = await decisionsApi.search({ q: query || '*', limit: 100, project_slug: projectSlug })
         setDecisions(results)
         initialLoadDone.current = true
       } catch {
@@ -71,12 +89,12 @@ export function DecisionsPage() {
         setLoading(false)
       }
     },
-    [toast],
+    [toast, projectSlug],
   )
 
-  // Initial load
+  // Initial load + reload on project change
   useEffect(() => {
-    fetchDecisions('')
+    fetchDecisions(searchQuery)
   }, [fetchDecisions])
 
   // Debounced search
@@ -124,6 +142,17 @@ export function DecisionsPage() {
             placeholder="Search decisions..."
             className="w-full sm:w-56"
           />
+          {projects.length > 1 && (
+            <Select
+              options={[
+                { value: 'all', label: 'All projects' },
+                ...projects.map((p) => ({ value: p.slug, label: p.name })),
+              ]}
+              value={selectedProject}
+              onChange={(v) => setSelectedProject(v)}
+              className="w-full sm:w-48"
+            />
+          )}
           <Select
             options={statusOptions}
             value={statusFilter}
