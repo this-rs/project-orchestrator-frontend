@@ -33,6 +33,7 @@ import {
   SkillDetailPage,
   FeatureGraphsPage,
   FeatureGraphDetailPage,
+  AdminPage,
   NotFoundPage,
   SettingsPage,
   SetupWizard,
@@ -160,6 +161,7 @@ function App() {
                         <Route path="skills/:id" element={<SkillDetailPage />} />
                         <Route path="feature-graphs" element={<FeatureGraphsPage />} />
                         <Route path="feature-graphs/:id" element={<FeatureGraphDetailPage />} />
+                        <Route path="admin" element={<AdminPage />} />
                         <Route path="*" element={<NotFoundPage embedded />} />
                       </Route>
                     </Route>
