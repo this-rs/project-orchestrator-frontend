@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
-import { ChevronsUpDown, ChevronRight, Flag } from 'lucide-react'
+import { ChevronsUpDown, ChevronRight, Flag, FolderKanban } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, InteractiveDecisionStatusBadge, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { plansApi, tasksApi, projectsApi, workspacesApi, decisionsApi } from '@/services'
@@ -44,7 +44,7 @@ export function PlanDetailPage() {
   const [tasksExpandAll, setTasksExpandAll] = useState(0)
   const [tasksCollapseAll, setTasksCollapseAll] = useState(0)
   const [tasksAllExpanded, setTasksAllExpanded] = useState(false)
-  const [linkedMilestones, setLinkedMilestones] = useState<Array<{ id: string; title: string; href: string }>>([])
+  const [linkedMilestones, setLinkedMilestones] = useState<Array<{ id: string; title: string; href: string; type: 'workspace' | 'project' }>>([])
 
   const fetchData = useCallback(async () => {
     if (!planId) return
@@ -101,19 +101,20 @@ export function PlanDetailPage() {
     fetchData()
   }, [fetchData])
 
-  // Resolve linked milestones (workspace milestones that reference this plan)
+  // Resolve linked milestones (workspace + project milestones that reference this plan)
   useEffect(() => {
     if (!planId) return
     const controller = new AbortController()
 
     async function resolveMilestones() {
-      const milestones: Array<{ id: string; title: string; href: string }> = []
+      const milestones: Array<{ id: string; title: string; href: string; type: 'workspace' | 'project' }> = []
       try {
+        // 1. Workspace milestones
         const wsMilestones = await workspacesApi.listMilestones(wsSlug, { limit: 100 })
-        const details = await Promise.allSettled(
+        const wsDetails = await Promise.allSettled(
           (wsMilestones.items || []).map((ms) => workspacesApi.getMilestone(ms.id))
         )
-        for (const result of details) {
+        for (const result of wsDetails) {
           if (result.status === 'fulfilled') {
             const detail = result.value
             if (Array.isArray(detail.plans) && detail.plans.some((p) => p.id === planId)) {
@@ -121,8 +122,34 @@ export function PlanDetailPage() {
                 id: detail.id,
                 title: detail.title,
                 href: workspacePath(wsSlug, `/milestones/${detail.id}`),
+                type: 'workspace',
               })
             }
+          }
+        }
+
+        // 2. Project milestones (if the plan is linked to a project)
+        if (plan?.project_id) {
+          try {
+            const projMilestones = await projectsApi.listMilestones(plan.project_id, { limit: 100 })
+            const projDetails = await Promise.allSettled(
+              (projMilestones.items || []).map((ms) => projectsApi.getMilestone(ms.id))
+            )
+            for (const result of projDetails) {
+              if (result.status === 'fulfilled') {
+                const detail = result.value
+                if (Array.isArray(detail.plans) && detail.plans.some((p) => p.id === planId)) {
+                  milestones.push({
+                    id: detail.milestone.id,
+                    title: detail.milestone.title,
+                    href: workspacePath(wsSlug, `/project-milestones/${detail.milestone.id}`),
+                    type: 'project',
+                  })
+                }
+              }
+            }
+          } catch {
+            /* graceful degradation */
           }
         }
       } catch {
@@ -135,8 +162,8 @@ export function PlanDetailPage() {
 
     resolveMilestones()
     return () => controller.abort()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- planId and wsSlug are stable URL params
-  }, [planId, wsSlug])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- planId, wsSlug and plan?.project_id are stable
+  }, [planId, wsSlug, plan?.project_id])
 
   const handleTaskStatusChange = useCallback(
     async (taskId: string, newStatus: TaskStatus) => {
@@ -236,8 +263,8 @@ export function PlanDetailPage() {
 
   // Build parent links for milestone navigation
   const parentLinks: ParentLink[] = linkedMilestones.map((ms) => ({
-    icon: Flag,
-    label: 'Milestone',
+    icon: ms.type === 'project' ? FolderKanban : Flag,
+    label: ms.type === 'project' ? 'Project Milestone' : 'Milestone',
     name: ms.title,
     href: ms.href,
   }))
