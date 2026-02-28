@@ -11,6 +11,7 @@ import {
   type NodeMouseHandler,
   Handle,
   Position,
+  MarkerType,
 } from '@xyflow/react'
 import dagre from 'dagre'
 import { motion, AnimatePresence } from 'motion/react'
@@ -34,7 +35,7 @@ import type { ParentLink } from '@/components/ui/PageHeader'
 import { featureGraphsApi, projectsApi } from '@/services'
 import { useConfirmDialog, useFormDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
-import type { FeatureGraphDetail, FeatureGraphEntity, FeatureGraphRole, Project } from '@/types'
+import type { FeatureGraphDetail, FeatureGraphEntity, FeatureGraphRelation, FeatureGraphRole, Project } from '@/types'
 import '@xyflow/react/dist/style.css'
 
 // ============================================================================
@@ -111,6 +112,17 @@ const entityTypeColors: Record<string, { bg: string; border: string; text: strin
   enum: { bg: '#022c22', border: '#10b981', text: '#6ee7b7', minimap: '#10b981' },
 }
 
+const relationColors: Record<string, { stroke: string; dashed: boolean; label: string }> = {
+  CALLS: { stroke: '#6b7280', dashed: false, label: 'Calls' },
+  IMPORTS: { stroke: '#60a5fa', dashed: true, label: 'Imports' },
+  EXTENDS: { stroke: '#a855f7', dashed: false, label: 'Extends' },
+  IMPLEMENTS: { stroke: '#f97316', dashed: false, label: 'Implements' },
+  IMPLEMENTS_TRAIT: { stroke: '#f97316', dashed: false, label: 'Impl Trait' },
+  IMPLEMENTS_FOR: { stroke: '#f59e0b', dashed: true, label: 'Impl For' },
+}
+
+const defaultRelationColor = { stroke: '#4b5563', dashed: false, label: 'Related' }
+
 const defaultEntityColors = { bg: '#1f2937', border: '#6b7280', text: '#d1d5db', minimap: '#6b7280' }
 
 // ============================================================================
@@ -180,34 +192,24 @@ const nodeTypes = { entityNode: EntityNodeComponent }
 // DAGRE LAYOUT
 // ============================================================================
 
-function layoutEntities(entities: FeatureGraphEntity[]): { nodes: Node<EntityNodeData>[]; edges: Edge[]; height: number } {
+function layoutEntities(
+  entities: FeatureGraphEntity[],
+  relations: FeatureGraphRelation[] = [],
+): { nodes: Node<EntityNodeData>[]; edges: Edge[]; height: number } {
   const g = new dagre.graphlib.Graph()
   g.setDefaultEdgeLabel(() => ({}))
-  g.setGraph({ rankdir: 'TB', nodesep: 30, ranksep: 80, marginx: 20, marginy: 20 })
+  g.setGraph({ rankdir: 'TB', nodesep: 40, ranksep: 90, marginx: 20, marginy: 20 })
 
   const nodeWidth = 200
   const nodeHeight = 40
 
-  // Group by role and sort by ROLE_ORDER
-  const roleGroups = new Map<string, FeatureGraphEntity[]>()
-  for (const entity of entities) {
-    const role = entity.role || 'unknown'
-    const group = roleGroups.get(role) || []
-    group.push(entity)
-    roleGroups.set(role, group)
-  }
-
-  const orderedRoles: string[] = []
-  for (const role of ROLE_ORDER) {
-    if (roleGroups.has(role)) orderedRoles.push(role)
-  }
-  for (const role of roleGroups.keys()) {
-    if (!orderedRoles.includes(role)) orderedRoles.push(role)
-  }
+  // Build entity_id → node_id mapping (entity_id is the canonical identifier from backend)
+  const entityIdToNodeId = new Map<string, string>()
 
   // Create nodes
   const rfNodes: Node<EntityNodeData>[] = entities.map((entity, idx) => {
     const nodeId = `${entity.entity_type}-${entity.entity_id}-${idx}`
+    entityIdToNodeId.set(entity.entity_id, nodeId)
     g.setNode(nodeId, { width: nodeWidth, height: nodeHeight })
     return {
       id: nodeId,
@@ -221,30 +223,67 @@ function layoutEntities(entities: FeatureGraphEntity[]): { nodes: Node<EntityNod
     }
   })
 
-  // Create virtual edges between role tiers for hierarchical layout
-  const virtualEdges: Edge[] = []
-  let prevRoleNodes: string[] = []
+  // Create real edges from relations
+  const rfEdges: Edge[] = []
+  for (const rel of relations) {
+    const sourceId = entityIdToNodeId.get(rel.source_id)
+    const targetId = entityIdToNodeId.get(rel.target_id)
+    if (!sourceId || !targetId) continue
 
-  for (const role of orderedRoles) {
-    const roleEntities = roleGroups.get(role) || []
-    const currentRoleNodes = roleEntities.map((e) => {
-      const idx = entities.indexOf(e)
-      return `${e.entity_type}-${e.entity_id}-${idx}`
+    const color = relationColors[rel.relation_type] || defaultRelationColor
+    g.setEdge(sourceId, targetId)
+    rfEdges.push({
+      id: `rel-${rel.source_id}-${rel.relation_type}-${rel.target_id}`,
+      source: sourceId,
+      target: targetId,
+      style: {
+        stroke: color.stroke,
+        strokeWidth: 1.5,
+        strokeDasharray: color.dashed ? '6 3' : undefined,
+      },
+      markerEnd: { type: MarkerType.ArrowClosed, color: color.stroke, width: 14, height: 14 },
+      label: color.label,
+      labelStyle: { fill: color.stroke, fontSize: 10, fontWeight: 500 },
+      labelBgStyle: { fill: '#111827', fillOpacity: 0.8 },
+      labelBgPadding: [4, 2] as [number, number],
     })
+  }
 
-    // Connect first node of each tier to first node of previous tier
-    if (prevRoleNodes.length > 0 && currentRoleNodes.length > 0) {
-      const edgeId = `virtual-${role}`
-      g.setEdge(prevRoleNodes[0], currentRoleNodes[0])
-      virtualEdges.push({
-        id: edgeId,
-        source: prevRoleNodes[0],
-        target: currentRoleNodes[0],
-        style: { stroke: 'transparent' },
-        hidden: true,
-      })
+  // If no real edges, add virtual tier edges so dagre still produces a nice hierarchical layout
+  if (rfEdges.length === 0) {
+    const roleGroups = new Map<string, string[]>()
+    for (const entity of entities) {
+      const role = entity.role || 'unknown'
+      const nodeId = entityIdToNodeId.get(entity.entity_id)
+      if (!nodeId) continue
+      const group = roleGroups.get(role) || []
+      group.push(nodeId)
+      roleGroups.set(role, group)
     }
-    prevRoleNodes = currentRoleNodes
+
+    const orderedRoles: string[] = []
+    for (const role of ROLE_ORDER) {
+      if (roleGroups.has(role)) orderedRoles.push(role)
+    }
+    for (const role of roleGroups.keys()) {
+      if (!orderedRoles.includes(role)) orderedRoles.push(role)
+    }
+
+    let prevNodes: string[] = []
+    for (const role of orderedRoles) {
+      const current = roleGroups.get(role) || []
+      if (prevNodes.length > 0 && current.length > 0) {
+        g.setEdge(prevNodes[0], current[0])
+        rfEdges.push({
+          id: `virtual-${role}`,
+          source: prevNodes[0],
+          target: current[0],
+          style: { stroke: 'transparent' },
+          hidden: true,
+        })
+      }
+      prevNodes = current
+    }
   }
 
   dagre.layout(g)
@@ -263,14 +302,14 @@ function layoutEntities(entities: FeatureGraphEntity[]): { nodes: Node<EntityNod
   const maxY = layoutedNodes.reduce((max, n) => Math.max(max, n.position.y), 0)
   const height = Math.max(400, Math.min(700, maxY + 120))
 
-  return { nodes: layoutedNodes, edges: virtualEdges, height }
+  return { nodes: layoutedNodes, edges: rfEdges, height }
 }
 
 // ============================================================================
 // LEGEND
 // ============================================================================
 
-function GraphLegend() {
+function GraphLegend({ hasRelations }: { hasRelations: boolean }) {
   const types = [
     { label: 'File', color: '#3b82f6' },
     { label: 'Function', color: '#22c55e' },
@@ -279,10 +318,17 @@ function GraphLegend() {
     { label: 'Enum', color: '#10b981' },
   ]
 
+  const edges = [
+    { label: 'Calls', color: '#6b7280', dashed: false },
+    { label: 'Imports', color: '#60a5fa', dashed: true },
+    { label: 'Extends', color: '#a855f7', dashed: false },
+    { label: 'Implements', color: '#f97316', dashed: false },
+  ]
+
   return (
-    <div className="absolute bottom-3 left-3 z-10 glass-medium rounded-lg px-3 py-2">
-      <span className="text-[10px] uppercase tracking-wider text-gray-500 mb-1.5 block">Entity Types</span>
-      <div className="flex flex-wrap gap-x-3 gap-y-1">
+    <div className="absolute bottom-3 left-3 z-10 glass-medium rounded-lg px-3 py-2.5 max-w-[260px]">
+      <span className="text-[10px] uppercase tracking-wider text-gray-500 mb-1.5 block">Nodes</span>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 mb-2">
         {types.map((t) => (
           <div key={t.label} className="flex items-center gap-1.5">
             <div className="w-2.5 h-2.5 rounded-sm" style={{ background: t.color }} />
@@ -290,6 +336,19 @@ function GraphLegend() {
           </div>
         ))}
       </div>
+      {hasRelations && (
+        <>
+          <span className="text-[10px] uppercase tracking-wider text-gray-500 mb-1.5 block">Edges</span>
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            {edges.map((e) => (
+              <div key={e.label} className="flex items-center gap-1.5">
+                <div className="w-4 h-0 border-t-[2px]" style={{ borderColor: e.color, borderStyle: e.dashed ? 'dashed' : 'solid' }} />
+                <span className="text-xs text-gray-400">{e.label}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -538,7 +597,7 @@ export function FeatureGraphDetailPage() {
     if (!detail?.entities || detail.entities.length === 0) {
       return { graphNodes: [], graphEdges: [], graphHeight: 400 }
     }
-    const { nodes, edges, height } = layoutEntities(detail.entities)
+    const { nodes, edges, height } = layoutEntities(detail.entities, detail.relations || [])
     return { graphNodes: nodes, graphEdges: edges, graphHeight: height }
   }, [detail])
 
@@ -720,7 +779,7 @@ export function FeatureGraphDetailPage() {
                     style={{ background: '#111827' }}
                   />
                 </ReactFlow>
-                <GraphLegend />
+                <GraphLegend hasRelations={(detail.relations?.length ?? 0) > 0} />
                 <AnimatePresence>
                   {selectedEntity && (
                     <EntitySidePanel

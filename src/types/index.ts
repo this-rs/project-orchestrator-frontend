@@ -887,8 +887,17 @@ export interface FeatureGraphEntity {
   role?: FeatureGraphRole | string
 }
 
+export interface FeatureGraphRelation {
+  source_type: string
+  source_id: string
+  target_type: string
+  target_id: string
+  relation_type: string
+}
+
 export interface FeatureGraphDetail extends FeatureGraph {
   entities: FeatureGraphEntity[]
+  relations?: FeatureGraphRelation[]
 }
 
 export interface CreateFeatureGraphRequest {
