@@ -89,12 +89,14 @@ export function DecisionsPage() {
         setLoading(false)
       }
     },
-    [toast, projectSlug],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable (Jotai setter)
+    [projectSlug],
   )
 
   // Initial load + reload on project change
   useEffect(() => {
     fetchDecisions(searchQuery)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- searchQuery handled by debounce, not this effect
   }, [fetchDecisions])
 
   // Debounced search
