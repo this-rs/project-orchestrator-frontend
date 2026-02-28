@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react'
 import { Button, Select, PageShell } from '@/components/ui'
 import { workspacesApi } from '@/services'
 import { useWorkspaceSlug } from '@/hooks'
-import { CodeSearchTab, CodeArchitectureTab, CodeHealthTab, CodeCommunitiesTab, CodeProcessesTab, CodeHeritageTab } from '@/components/code'
+import { CodeSearchTab, CodeArchitectureTab, CodeHealthTab, CodeCommunitiesTab, CodeProcessesTab, CodeHeritageTab, FileHistoryTab } from '@/components/code'
 
-type CodeTab = 'search' | 'architecture' | 'health' | 'communities' | 'processes' | 'heritage'
+type CodeTab = 'search' | 'architecture' | 'health' | 'communities' | 'processes' | 'heritage' | 'history'
 
 const TAB_CONFIG: { key: CodeTab; label: string; requiresProject?: boolean }[] = [
   { key: 'search', label: 'Search' },
@@ -13,6 +13,7 @@ const TAB_CONFIG: { key: CodeTab; label: string; requiresProject?: boolean }[] =
   { key: 'communities', label: 'Communities', requiresProject: true },
   { key: 'processes', label: 'Processes', requiresProject: true },
   { key: 'heritage', label: 'Heritage' },
+  { key: 'history', label: 'File History' },
 ]
 
 export function CodePage() {
@@ -102,6 +103,10 @@ export function CodePage() {
 
       {activeTab === 'heritage' && (
         <CodeHeritageTab />
+      )}
+
+      {activeTab === 'history' && (
+        <FileHistoryTab projectSlug={projectSlug} workspaceSlug={wsSlug} />
       )}
     </PageShell>
   )
