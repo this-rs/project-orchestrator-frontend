@@ -79,6 +79,12 @@ export const workspacesApi = {
   getMilestoneProgress: (id: string) =>
     api.get<MilestoneProgress>(`/workspace-milestones/${id}/progress`),
 
+  linkPlanToMilestone: (milestoneId: string, planId: string) =>
+    api.post<{ linked: boolean }>(`/workspace-milestones/${milestoneId}/plans`, { plan_id: planId }),
+
+  unlinkPlanFromMilestone: (milestoneId: string, planId: string) =>
+    api.delete<{ unlinked: boolean }>(`/workspace-milestones/${milestoneId}/plans/${planId}`),
+
   // Resources
   listResources: (slug: string, params: { resource_type?: string; limit?: number; offset?: number } = {}) =>
     api.get<PaginatedResponse<Resource>>(`/workspaces/${slug}/resources${buildQuery(params)}`),

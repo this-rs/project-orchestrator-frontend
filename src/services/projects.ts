@@ -62,6 +62,12 @@ export const projectsApi = {
   getMilestoneProgress: (milestoneId: string) =>
     api.get<MilestoneProgress>(`/milestones/${milestoneId}/progress`),
 
+  linkPlanToMilestone: (milestoneId: string, planId: string) =>
+    api.post<{ linked: boolean }>(`/milestones/${milestoneId}/plans`, { plan_id: planId }),
+
+  unlinkPlanFromMilestone: (milestoneId: string, planId: string) =>
+    api.delete<{ unlinked: boolean }>(`/milestones/${milestoneId}/plans/${planId}`),
+
   // Releases
   listReleases: (projectId: string, params: { status?: string; limit?: number; offset?: number } = {}) =>
     api.get<PaginatedResponse<Release>>(`/projects/${projectId}/releases${buildQuery(params)}`),
