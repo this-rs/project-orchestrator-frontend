@@ -1161,3 +1161,93 @@ export interface CreateComponentRequest {
   config?: Record<string, unknown>
   tags?: string[]
 }
+
+// ============================================================================
+// ADMIN
+// ============================================================================
+
+export interface SyncResult {
+  files_synced: number
+  files_skipped: number
+  files_deleted: number
+  symbols_deleted: number
+  errors: string[]
+}
+
+export interface WatchStatus {
+  running: boolean
+  watched_paths: string[]
+}
+
+export interface BackfillJobStatus {
+  status: 'idle' | 'running' | 'completed' | 'failed' | 'cancelled'
+  progress?: { current: number; total: number; percentage: number }
+  started_at?: string
+  finished_at?: string
+  error?: string
+}
+
+export interface MeilisearchStats {
+  code_documents: number
+  is_indexing: boolean
+}
+
+export interface BackfillDecisionEmbeddingsResult {
+  decisions_processed: number
+  embeddings_created: number
+}
+
+export interface BackfillDiscussedResult {
+  sessions_processed: number
+  entities_found: number
+  relations_created: number
+}
+
+export interface BackfillTouchesResult {
+  commits_parsed: number
+  commits_backfilled: number
+  touches_created: number
+}
+
+export interface FabricScoresResult {
+  nodes_updated: number
+  computation_ms: number
+  fabric_scores_computed: boolean
+  communities: number
+  components: number
+  churn_scores_computed: number
+  knowledge_density_computed: number
+  risk_scores_computed: number
+}
+
+export interface BootstrapKnowledgeFabricResult {
+  steps_completed: {
+    step: string
+    commits_parsed?: number
+    commits_backfilled?: number
+    touches_created?: number
+    decisions_processed?: number
+    embeddings_created?: number
+    sessions_processed?: number
+    entities_found?: number
+    relations_created?: number
+    nodes_updated?: number
+    communities?: number
+    files_scored?: number
+  }[]
+  steps_failed: { step: string; error: string }[]
+  total_time_ms: number
+}
+
+export interface SkillMaintenanceResult {
+  level: string
+  lifecycle: string
+  synapses_decayed: number
+  synapses_pruned: number
+  evolution: unknown
+  skills_detected: number
+  warnings: string[]
+  elapsed_ms: number
+}
+
+export type MaintenanceLevel = 'hourly' | 'daily' | 'weekly' | 'full'
