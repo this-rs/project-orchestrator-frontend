@@ -414,6 +414,34 @@ export interface Commit {
   files_changed?: string[]
 }
 
+export interface CommitFile {
+  file_path: string
+  additions: number
+  deletions: number
+}
+
+export interface FileHistoryEntry {
+  commit_sha: string
+  message: string
+  author: string
+  date: string
+  additions: number
+  deletions: number
+}
+
+export interface CoChangeEdge {
+  file_a: string
+  file_b: string
+  co_change_count: number
+  confidence: number
+}
+
+export interface CoChanger {
+  file_path: string
+  co_change_count: number
+  confidence: number
+}
+
 // ============================================================================
 // CODE STRUCTURE
 // ============================================================================
