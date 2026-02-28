@@ -891,6 +891,36 @@ export interface FeatureGraphDetail extends FeatureGraph {
   entities: FeatureGraphEntity[]
 }
 
+export interface CreateFeatureGraphRequest {
+  name: string
+  description?: string
+  project_id: string
+}
+
+export interface AutoBuildFeatureGraphRequest {
+  name: string
+  description?: string
+  project_id: string
+  entry_function: string
+  depth?: number
+  include_relations?: string[]
+  filter_community?: boolean
+}
+
+export interface AddFeatureGraphEntityRequest {
+  entity_type: 'file' | 'function' | 'struct' | 'trait' | 'enum'
+  entity_id: string
+  role?: FeatureGraphRole
+}
+
+export interface AddFeatureGraphEntityResponse {
+  added: boolean
+  feature_graph_id: string
+  entity_type: string
+  entity_id: string
+  role?: string
+}
+
 // ============================================================================
 // API RESPONSES
 // ============================================================================
