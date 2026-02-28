@@ -56,13 +56,17 @@ export function DecisionsPage() {
   const reducedMotion = useReducedMotion()
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
+  const initialLoadDone = useRef(false)
+
   const fetchDecisions = useCallback(
     async (query: string) => {
-      setLoading(true)
+      // Only show full-page spinner on first load, not on subsequent searches
+      if (!initialLoadDone.current) setLoading(true)
       try {
         // Use search endpoint — returns all decisions when query is empty-ish
         const results = await decisionsApi.search({ q: query || '*', limit: 100 })
         setDecisions(results)
+        initialLoadDone.current = true
       } catch {
         toast.error('Failed to load decisions')
         setDecisions([])
