@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Menu, Home, Flag, Box, ClipboardList, CheckCircle2, FileText, Scale, Code, Brain, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
+import { Menu, Home, Flag, Box, ClipboardList, CheckCircle2, FileText, Scale, Code, Brain, GitGraph, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
 import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, activeWorkspaceAtom, workspaceRefreshAtom } from '@/atoms'
 import { ToastContainer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
@@ -50,6 +50,7 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
         { name: 'Decisions', href: workspacePath(wsSlug, '/decisions'), icon: Scale },
         { name: 'Skills', href: workspacePath(wsSlug, '/skills'), icon: Brain },
         { name: 'Code', href: workspacePath(wsSlug, '/code'), icon: Code },
+        { name: 'Feature Graphs', href: workspacePath(wsSlug, '/feature-graphs'), icon: GitGraph },
       ],
     },
   ], [wsSlug])
@@ -368,7 +369,7 @@ function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceNa
   // Segments whose list page lives at a different route
   const linkOverrides: Record<string, string> = {
     'project-milestones': 'milestones',
-    'feature-graphs': 'code',
+    'feature-graphs': 'feature-graphs',
   }
 
   return (

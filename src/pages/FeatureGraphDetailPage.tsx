@@ -220,7 +220,7 @@ export function FeatureGraphDetailPage() {
                 onConfirm: async () => {
                   await featureGraphsApi.delete(detail.id)
                   toast.success('Feature graph deleted')
-                  navigate(workspacePath(wsSlug, '/code'))
+                  navigate(workspacePath(wsSlug, '/feature-graphs'))
                 },
               }),
           },

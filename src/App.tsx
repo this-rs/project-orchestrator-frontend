@@ -31,6 +31,7 @@ import {
   DecisionDetailPage,
   SkillsPage,
   SkillDetailPage,
+  FeatureGraphsPage,
   FeatureGraphDetailPage,
   NotFoundPage,
   SettingsPage,
@@ -157,6 +158,7 @@ function App() {
                         <Route path="code" element={<CodePage />} />
                         <Route path="skills" element={<SkillsPage />} />
                         <Route path="skills/:id" element={<SkillDetailPage />} />
+                        <Route path="feature-graphs" element={<FeatureGraphsPage />} />
                         <Route path="feature-graphs/:id" element={<FeatureGraphDetailPage />} />
                         <Route path="*" element={<NotFoundPage embedded />} />
                       </Route>
