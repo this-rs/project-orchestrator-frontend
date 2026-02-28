@@ -71,11 +71,13 @@ export const plansApi = {
   deleteConstraint: (constraintId: string) =>
     api.delete(`/constraints/${constraintId}`),
 
-  // Commits
-  getCommits: (planId: string) =>
-    api.get<{ items: { sha: string; message: string; author?: string; timestamp: string }[] }>(
+  // Commits — backend returns CommitNode[] (flat array with "hash" field)
+  getCommits: async (planId: string) => {
+    const raw = await api.get<{ hash: string; message: string; author: string; timestamp: string }[]>(
       `/plans/${planId}/commits`
-    ),
+    )
+    return { items: (raw || []).map(c => ({ sha: c.hash, message: c.message, author: c.author, timestamp: c.timestamp })) }
+  },
 
   linkCommit: (planId: string, commitSha: string) =>
     api.post(`/plans/${planId}/commits`, { commit_sha: commitSha }),

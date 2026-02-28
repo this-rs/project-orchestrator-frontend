@@ -11,7 +11,7 @@ import {
 } from '@xyflow/react'
 import { Card, CardHeader, CardTitle, CardContent, EmptyState } from '@/components/ui'
 import { GitBranch } from 'lucide-react'
-import { commitsApi } from '@/services'
+import { commitsApi, projectsApi } from '@/services'
 import type { CoChangeEdge } from '@/types'
 import '@xyflow/react/dist/style.css'
 
@@ -158,7 +158,9 @@ export function CoChangeGraph({ projectSlug }: CoChangeGraphProps) {
     async function load() {
       setLoading(true)
       try {
-        const res = await commitsApi.getCoChangeGraph(projectSlug)
+        // Resolve slug → project ID first
+        const project = await projectsApi.get(projectSlug)
+        const res = await commitsApi.getCoChangeGraph(project.id)
         setEdges(res.edges || [])
       } catch {
         setEdges([])
@@ -208,7 +210,7 @@ export function CoChangeGraph({ projectSlug }: CoChangeGraphProps) {
       source: e.file_a,
       target: e.file_b,
       style: {
-        stroke: edgeColor(e.confidence),
+        stroke: edgeColor(e.co_change_count / maxCount),
         strokeWidth: Math.max(1, Math.min(6, (e.co_change_count / maxCount) * 6)),
         opacity: 0.7,
       },

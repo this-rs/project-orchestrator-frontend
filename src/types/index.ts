@@ -433,13 +433,13 @@ export interface CoChangeEdge {
   file_a: string
   file_b: string
   co_change_count: number
-  confidence: number
+  last_at?: string
 }
 
 export interface CoChanger {
   file_path: string
   co_change_count: number
-  confidence: number
+  last_at?: string
 }
 
 // ============================================================================

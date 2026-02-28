@@ -78,11 +78,13 @@ export const tasksApi = {
     }
   ) => api.post<Decision>(`/tasks/${taskId}/decisions`, data),
 
-  // Commits
-  getCommits: (taskId: string) =>
-    api.get<{ items: { sha: string; message: string; author?: string; timestamp: string }[] }>(
+  // Commits — backend returns CommitNode[] (flat array with "hash" field)
+  getCommits: async (taskId: string) => {
+    const raw = await api.get<{ hash: string; message: string; author: string; timestamp: string }[]>(
       `/tasks/${taskId}/commits`
-    ),
+    )
+    return { items: (raw || []).map(c => ({ sha: c.hash, message: c.message, author: c.author, timestamp: c.timestamp })) }
+  },
 
   linkCommit: (taskId: string, commitSha: string) =>
     api.post(`/tasks/${taskId}/commits`, { commit_sha: commitSha }),
