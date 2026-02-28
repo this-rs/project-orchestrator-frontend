@@ -38,6 +38,7 @@ export function TaskDetailPage() {
   const confirmDialog = useConfirmDialog()
   const stepFormDialog = useFormDialog()
   const decisionFormDialog = useFormDialog()
+  const commitFormDialog = useFormDialog()
   const linkDialog = useLinkDialog()
   const toast = useToast()
   const taskRefresh = useAtomValue(taskRefreshAtom)
@@ -49,6 +50,7 @@ export function TaskDetailPage() {
   const [blockers, setBlockers] = useState<Task[]>([])
   const [blocking, setBlocking] = useState<Task[]>([])
   const [commits, setCommits] = useState<Commit[]>([])
+  const [commitShaInput, setCommitShaInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -494,14 +496,7 @@ export function TaskDetailPage() {
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => {
-                const sha = prompt('Enter commit SHA to link:')
-                if (sha && sha.trim() && taskId) {
-                  tasksApi.linkCommit(taskId, sha.trim())
-                    .then(() => { toast.success('Commit linked'); fetchData() })
-                    .catch(() => toast.error('Failed to link commit'))
-                }
-              }}
+              onClick={() => { setCommitShaInput(''); commitFormDialog.open({ title: 'Link Commit', submitLabel: 'Link', size: 'sm' }) }}
             >
               Link Commit
             </Button>
@@ -522,6 +517,31 @@ export function TaskDetailPage() {
       </FormDialog>
       <FormDialog {...decisionFormDialog.dialogProps} onSubmit={decisionForm.submit}>
         {decisionForm.fields}
+      </FormDialog>
+      <FormDialog
+        {...commitFormDialog.dialogProps}
+        onSubmit={async () => {
+          const sha = commitShaInput.trim()
+          if (!sha || !taskId) return false
+          await tasksApi.linkCommit(taskId, sha)
+          toast.success('Commit linked')
+          setCommitShaInput('')
+          fetchData()
+        }}
+      >
+        <div className="space-y-3">
+          <label className="block text-sm font-medium text-gray-300">Commit SHA</label>
+          <input
+            type="text"
+            value={commitShaInput}
+            onChange={(e) => setCommitShaInput(e.target.value)}
+            placeholder="e.g. a1b2c3d or full 40-char SHA"
+            pattern="[a-f0-9]{7,40}"
+            className="w-full px-3 py-2 bg-white/[0.06] border border-white/[0.08] rounded-lg text-sm text-gray-200 placeholder:text-gray-500 font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500/50 focus:border-indigo-500/50"
+            autoFocus
+          />
+          <p className="text-xs text-gray-500">Enter a 7–40 character hex commit hash to link to this task.</p>
+        </div>
       </FormDialog>
       <LinkEntityDialog {...linkDialog.dialogProps} />
       <ConfirmDialog {...confirmDialog.dialogProps} />
