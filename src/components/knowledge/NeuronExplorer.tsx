@@ -331,8 +331,24 @@ export function NeuronExplorer({ projectSlug }: NeuronExplorerProps) {
     debounceRef.current = setTimeout(() => doSearch(value), 500)
   }
 
-  const results = searchResponse?.results || []
+  const rawResults = searchResponse?.results || []
   const metadata = searchResponse?.metadata
+
+  // Client-side quality filter: if all direct match scores are clustered in a
+  // narrow band (< 5% spread), the query didn't meaningfully match anything —
+  // the embedding model returns high similarity for any input.
+  const { results, lowQuality } = useMemo(() => {
+    if (rawResults.length === 0) return { results: rawResults, lowQuality: false }
+    const directScores = rawResults
+      .filter((r) => r.source.type === 'direct')
+      .map((r) => r.activation_score)
+    if (directScores.length < 2) return { results: rawResults, lowQuality: false }
+    const maxScore = Math.max(...directScores)
+    const minScore = Math.min(...directScores)
+    const spread = maxScore - minScore
+    // If score spread is < 5% of max, results are undifferentiated
+    return { results: rawResults, lowQuality: spread < maxScore * 0.05 }
+  }, [rawResults])
 
   // Inject `selected` flag into nodes based on our manual selection state
   const { graphNodes, graphEdges } = useMemo(() => {
@@ -461,6 +477,16 @@ export function NeuronExplorer({ projectSlug }: NeuronExplorerProps) {
               Decay
             </Button>
           </div>
+        </div>
+      )}
+
+      {/* Low quality warning */}
+      {!searching && lowQuality && results.length > 0 && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-900/20 border border-yellow-800/30 text-yellow-400 text-xs">
+          <span className="font-medium">Low confidence:</span>
+          <span className="text-yellow-500">
+            All results have nearly identical scores — the query may not meaningfully match any notes.
+          </span>
         </div>
       )}
 
