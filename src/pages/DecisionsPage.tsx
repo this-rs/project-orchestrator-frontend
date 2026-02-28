@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { Trash2, CheckCircle2 } from 'lucide-react'
-import { decisionsApi } from '@/services'
+import { decisionsApi, workspacesApi } from '@/services'
+import type { Project } from '@/types'
 import {
   Card,
   CardContent,
@@ -54,18 +55,39 @@ export function DecisionsPage() {
   const toast = useToast()
   const wsSlug = useWorkspaceSlug()
   const reducedMotion = useReducedMotion()
+  const [projects, setProjects] = useState<Project[]>([])
+  const [projectFilter, setProjectFilter] = useState<string>('all')
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
-
   const initialLoadDone = useRef(false)
 
+  // Fetch workspace projects on mount
+  useEffect(() => {
+    workspacesApi.listProjects(wsSlug).then(setProjects).catch(() => {})
+  }, [wsSlug])
+
   const fetchDecisions = useCallback(
-    async (query: string) => {
-      // Only show full-page spinner on first load, not on subsequent searches
+    async (query: string, slugs: string[], selectedProject: string) => {
+      if (slugs.length === 0) return
       if (!initialLoadDone.current) setLoading(true)
       try {
-        // Use search endpoint — returns all decisions when query is empty-ish
-        const results = await decisionsApi.search({ q: query || '*', limit: 100 })
-        setDecisions(results)
+        const q = query || '*'
+        // Filter by selected project or search across all workspace projects
+        const targetSlugs = selectedProject !== 'all' ? [selectedProject] : slugs
+        const results = await Promise.all(
+          targetSlugs.map((slug) => decisionsApi.search({ q, limit: 100, project_slug: slug })),
+        )
+        // Merge and deduplicate by id
+        const seen = new Set<string>()
+        const merged: Decision[] = []
+        for (const batch of results) {
+          for (const d of batch) {
+            if (!seen.has(d.id)) {
+              seen.add(d.id)
+              merged.push(d)
+            }
+          }
+        }
+        setDecisions(merged)
         initialLoadDone.current = true
       } catch {
         toast.error('Failed to load decisions')
@@ -77,17 +99,21 @@ export function DecisionsPage() {
     [toast],
   )
 
-  // Initial load
+  // Fetch when projects are loaded or project filter changes
+  const projectSlugs = projects.map((p) => p.slug)
   useEffect(() => {
-    fetchDecisions('')
-  }, [fetchDecisions])
+    if (projectSlugs.length > 0) {
+      fetchDecisions(searchQuery, projectSlugs, projectFilter)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectSlugs.join(','), projectFilter])
 
   // Debounced search
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     setSearchQuery(value)
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => fetchDecisions(value), 300)
+    debounceRef.current = setTimeout(() => fetchDecisions(value, projectSlugs, projectFilter), 300)
   }
 
   // Client-side status filter
@@ -127,6 +153,17 @@ export function DecisionsPage() {
             placeholder="Search decisions..."
             className="w-full sm:w-56"
           />
+          {projects.length > 1 && (
+            <Select
+              options={[
+                { value: 'all', label: 'All Projects' },
+                ...projects.map((p) => ({ value: p.slug, label: p.name })),
+              ]}
+              value={projectFilter}
+              onChange={(v) => setProjectFilter(v)}
+              className="w-full sm:w-44"
+            />
+          )}
           <Select
             options={statusOptions}
             value={statusFilter}
