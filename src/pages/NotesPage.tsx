@@ -8,6 +8,7 @@ import { Card, CardContent, Button, EmptyState, Select, SearchInput, Interactive
 import type { OverflowMenuAction } from '@/components/ui'
 import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug } from '@/hooks'
 import { CreateNoteForm } from '@/components/forms'
+import { NeuronExplorer } from '@/components/knowledge'
 import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
 import type { Note, NoteType, NoteStatus, NoteScopeType, PaginatedResponse } from '@/types'
 
@@ -240,10 +241,7 @@ export function NotesPage() {
       )}
 
       {activeTab === 'graph' && (
-        <EmptyState
-          title="Knowledge Graph"
-          description="Neural network visualization coming soon. This will show notes as neurons with weighted synapses."
-        />
+        <NeuronExplorer workspaceSlug={wsSlug} />
       )}
 
       <FormDialog {...formDialog.dialogProps} onSubmit={noteForm.submit}>
