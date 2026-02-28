@@ -9,6 +9,7 @@ import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObs
 import { workspacePath } from '@/utils/paths'
 import { taskRefreshAtom, projectRefreshAtom, planRefreshAtom } from '@/atoms'
 import { CreateStepForm, CreateDecisionForm } from '@/components/forms'
+import { CommitList } from '@/components/commits'
 import type { Task, Step, Decision, Commit, TaskStatus, StepStatus, DecisionStatus, Project } from '@/types'
 
 // The API response structure
@@ -488,16 +489,7 @@ export function TaskDetailPage() {
             <CardTitle>Commits ({commits.length})</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {commits.map((commit) => (
-                <div key={commit.sha} className="p-2 bg-white/[0.06] rounded">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="font-mono text-xs text-indigo-400 shrink-0">{commit.sha.slice(0, 7)}</span>
-                    <span className="text-gray-200 truncate min-w-0">{commit.message}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <CommitList commits={commits} />
           </CardContent>
         </Card>
         </section>
