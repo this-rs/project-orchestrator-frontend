@@ -2,14 +2,14 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useLocation } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { ClipboardList, FolderKanban } from 'lucide-react'
-import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, TaskStatusBadge, InteractiveStepStatusBadge, ProgressBar, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
+import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, TaskStatusBadge, InteractiveStepStatusBadge, InteractiveDecisionStatusBadge, ProgressBar, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
-import { tasksApi, plansApi, projectsApi } from '@/services'
+import { tasksApi, plansApi, projectsApi, decisionsApi } from '@/services'
 import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { taskRefreshAtom, projectRefreshAtom, planRefreshAtom } from '@/atoms'
 import { CreateStepForm, CreateDecisionForm } from '@/components/forms'
-import type { Task, Step, Decision, Commit, TaskStatus, StepStatus, Project } from '@/types'
+import type { Task, Step, Decision, Commit, TaskStatus, StepStatus, DecisionStatus, Project } from '@/types'
 
 // The API response structure
 interface TaskApiResponse {
@@ -162,6 +162,28 @@ export function TaskDetailPage() {
       toast.success('Decision added')
     },
   })
+
+  const handleDecisionStatusChange = async (decision: Decision, newStatus: DecisionStatus) => {
+    try {
+      await decisionsApi.update(decision.id, { status: newStatus })
+      setDecisions((prev) => prev.map((d) => (d.id === decision.id ? { ...d, status: newStatus } : d)))
+      toast.success(`Decision status → ${newStatus}`)
+    } catch {
+      toast.error('Failed to update decision status')
+    }
+  }
+
+  const handleDeleteDecision = (decision: Decision) => {
+    confirmDialog.open({
+      title: 'Delete Decision',
+      description: 'Permanently delete this decision? This cannot be undone.',
+      onConfirm: async () => {
+        await decisionsApi.delete(decision.id)
+        setDecisions((prev) => prev.filter((d) => d.id !== decision.id))
+        toast.success('Decision deleted')
+      },
+    })
+  }
 
   const sectionIds = ['steps', 'dependencies', 'decisions']
   const activeSection = useSectionObserver(sectionIds)
@@ -416,18 +438,22 @@ export function TaskDetailPage() {
       <section id="decisions" className="scroll-mt-20">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Decisions ({decisions.length})</CardTitle>
-            <Button size="sm" onClick={() => decisionFormDialog.open({ title: 'Add Decision', size: 'lg' })}>Add Decision</Button>
-          </div>
+          <CardTitle>Decisions ({decisions.length})</CardTitle>
+          <Button size="sm" onClick={() => decisionFormDialog.open({ title: 'Add Decision', size: 'lg' })}>Add Decision</Button>
         </CardHeader>
         <CardContent>
           {decisions.length === 0 ? (
             <p className="text-gray-500 text-sm">No decisions recorded</p>
           ) : (
-            <div className="space-y-3">
-              {decisions.map((decision, index) => (
-                <DecisionRow key={decision.id || index} decision={decision} />
+            <div className="space-y-2">
+              {decisions.map((decision) => (
+                <DecisionRow
+                  key={decision.id}
+                  decision={decision}
+                  wsSlug={wsSlug}
+                  onStatusChange={(status) => handleDecisionStatusChange(decision, status)}
+                  onDelete={() => handleDeleteDecision(decision)}
+                />
               ))}
             </div>
           )}
@@ -533,20 +559,52 @@ function StepRow({
   )
 }
 
-function DecisionRow({ decision }: { decision: Decision }) {
+interface DecisionRowProps {
+  decision: Decision
+  wsSlug: string
+  onStatusChange: (status: DecisionStatus) => Promise<void>
+  onDelete: () => void
+}
+
+function DecisionRow({ decision, wsSlug, onStatusChange, onDelete }: DecisionRowProps) {
   const alternatives = decision.alternatives || []
   return (
-    <div className="p-3 bg-white/[0.06] rounded-lg overflow-hidden">
-      <p className="font-medium text-gray-200 mb-1 break-words">{decision.description}</p>
-      <p className="text-sm text-gray-400 mb-2 break-words">{decision.rationale}</p>
-      {alternatives.length > 0 && (
-        <div className="text-xs text-gray-500 mb-2">
-          Alternatives: {alternatives.join(', ')}
+    <Link
+      to={workspacePath(wsSlug, `/decisions/${decision.id}`)}
+      className="block p-3 bg-white/[0.06] rounded-lg overflow-hidden hover:bg-white/[0.09] transition-colors group/dec"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-gray-200 mb-1 break-words line-clamp-2">{decision.description}</p>
+          {decision.rationale && (
+            <p className="text-sm text-gray-400 mb-2 break-words line-clamp-2">{decision.rationale}</p>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {decision.chosen_option && (
+              <Badge variant="success">Chosen: {decision.chosen_option}</Badge>
+            )}
+            {alternatives.length > 0 && (
+              <span className="text-xs text-gray-500">
+                {alternatives.length} alternative{alternatives.length > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
         </div>
-      )}
-      {decision.chosen_option && (
-        <Badge variant="success">Chosen: {decision.chosen_option}</Badge>
-      )}
-    </div>
+        <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.preventDefault()}>
+          <InteractiveDecisionStatusBadge status={decision.status} onStatusChange={onStatusChange} />
+          <button
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onDelete()
+            }}
+            className="p-1 rounded text-gray-600 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover/dec:opacity-100 transition-all"
+            title="Delete decision"
+          >
+            &times;
+          </button>
+        </div>
+      </div>
+    </Link>
   )
 }

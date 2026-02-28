@@ -2,16 +2,16 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
 import { ChevronsUpDown, ChevronRight, Flag } from 'lucide-react'
-import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
+import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, InteractiveDecisionStatusBadge, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
-import { plansApi, tasksApi, projectsApi, workspacesApi } from '@/services'
+import { plansApi, tasksApi, projectsApi, workspacesApi, decisionsApi } from '@/services'
 import { KanbanBoard } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { chatSuggestedProjectIdAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import { CreateTaskForm, CreateConstraintForm } from '@/components/forms'
 import { DependencyGraphView } from '@/components/DependencyGraphView'
-import type { Plan, Decision, DependencyGraph, Task, Constraint, Step, PlanStatus, TaskStatus, StepStatus, PaginatedResponse, Project } from '@/types'
+import type { Plan, Decision, DecisionStatus, DependencyGraph, Task, Constraint, Step, PlanStatus, TaskStatus, StepStatus, PaginatedResponse, Project } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
 
 interface DecisionWithTask extends Decision {
@@ -182,6 +182,28 @@ export function PlanDetailPage() {
       toast.success('Constraint added')
     },
   })
+
+  const handleDecisionStatusChange = async (decision: DecisionWithTask, newStatus: DecisionStatus) => {
+    try {
+      await decisionsApi.update(decision.id, { status: newStatus })
+      setDecisions((prev) => prev.map((d) => (d.id === decision.id ? { ...d, status: newStatus } : d)))
+      toast.success(`Decision status → ${newStatus}`)
+    } catch {
+      toast.error('Failed to update decision status')
+    }
+  }
+
+  const handleDeleteDecision = (decision: DecisionWithTask) => {
+    confirmDialog.open({
+      title: 'Delete Decision',
+      description: 'Permanently delete this decision? This cannot be undone.',
+      onConfirm: async () => {
+        await decisionsApi.delete(decision.id)
+        setDecisions((prev) => prev.filter((d) => d.id !== decision.id))
+        toast.success('Decision deleted')
+      },
+    })
+  }
 
   const sectionIds = ['overview', 'tasks', 'constraints', 'decisions', ...(graph && (graph.nodes || []).length > 0 ? ['graph'] : [])]
   const activeSection = useSectionObserver(sectionIds)
@@ -410,26 +432,46 @@ export function PlanDetailPage() {
             {decisions.length === 0 ? (
               <p className="text-gray-500 text-sm">No decisions recorded</p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {decisions.map((decision) => (
-                  <div key={decision.id} className="p-3 bg-white/[0.06] rounded-lg overflow-hidden">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-medium text-gray-200 break-words min-w-0">{decision.description}</p>
+                  <Link
+                    key={decision.id}
+                    to={workspacePath(wsSlug, `/decisions/${decision.id}`)}
+                    className="block p-3 bg-white/[0.06] rounded-lg overflow-hidden hover:bg-white/[0.09] transition-colors group/dec"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-gray-200 break-words line-clamp-2 mb-1">{decision.description}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {decision.chosen_option && (
+                            <Badge variant="success">{decision.chosen_option}</Badge>
+                          )}
+                          <Link
+                            to={workspacePath(wsSlug, `/tasks/${decision.taskId}`)}
+                            state={{ planId: plan.id, planTitle: plan.title, projectId: plan.project_id }}
+                            className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            ← {decision.taskTitle}
+                          </Link>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.preventDefault()}>
+                        <InteractiveDecisionStatusBadge status={decision.status} onStatusChange={(status) => handleDecisionStatusChange(decision, status)} />
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            handleDeleteDecision(decision)
+                          }}
+                          className="p-1 rounded text-gray-600 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover/dec:opacity-100 transition-all"
+                          title="Delete decision"
+                        >
+                          &times;
+                        </button>
+                      </div>
                     </div>
-                    <p className="text-sm text-gray-400 break-words">{decision.rationale}</p>
-                    <div className="flex items-center gap-2 mt-2 flex-wrap">
-                      {decision.chosen_option && (
-                        <Badge variant="success">{decision.chosen_option}</Badge>
-                      )}
-                      <Link
-                        to={workspacePath(wsSlug, `/tasks/${decision.taskId}`)}
-                        state={{ planId: plan.id, planTitle: plan.title, projectId: plan.project_id }}
-                        className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-                      >
-                        ← {decision.taskTitle}
-                      </Link>
-                    </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
