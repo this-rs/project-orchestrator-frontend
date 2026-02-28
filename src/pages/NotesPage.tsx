@@ -258,9 +258,15 @@ interface SemanticSearchTabProps {
   workspaceSlug: string
 }
 
+interface SemanticHit {
+  note: Note
+  score: number
+  highlights: string[] | null
+}
+
 function SemanticSearchTab({ workspaceSlug }: SemanticSearchTabProps) {
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<(Note & { score: number })[]>([])
+  const [results, setResults] = useState<SemanticHit[]>([])
   const [searching, setSearching] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
   const toast = useToast()
@@ -276,7 +282,8 @@ function SemanticSearchTab({ workspaceSlug }: SemanticSearchTabProps) {
       setSearching(true)
       try {
         const res = await notesApi.searchSemantic({ query: q, workspace_slug: workspaceSlug, limit: 20 })
-        setResults(res.items || [])
+        // Backend returns flat array: [{ note, score, highlights }]
+        setResults(Array.isArray(res) ? res : [])
         setHasSearched(true)
       } catch {
         toast.error('Semantic search failed')
@@ -317,29 +324,29 @@ function SemanticSearchTab({ workspaceSlug }: SemanticSearchTabProps) {
 
       {!searching && results.length > 0 && (
         <div className="space-y-3">
-          {results.map((note) => (
-            <Card key={note.id} className={`border-l-4 ${note.note_type === 'gotcha' ? 'border-l-red-500' : note.note_type === 'guideline' ? 'border-l-blue-500' : note.note_type === 'pattern' ? 'border-l-purple-500' : note.note_type === 'tip' ? 'border-l-green-500' : 'border-l-gray-500'}`}>
+          {results.map((hit) => (
+            <Card key={hit.note.id} className={`border-l-4 ${hit.note.note_type === 'gotcha' ? 'border-l-red-500' : hit.note.note_type === 'guideline' ? 'border-l-blue-500' : hit.note.note_type === 'pattern' ? 'border-l-purple-500' : hit.note.note_type === 'tip' ? 'border-l-green-500' : 'border-l-gray-500'}`}>
               <CardContent>
                 {/* Score bar */}
                 <div className="flex items-center gap-3 mb-2">
                   <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
                     <div
                       className="h-full rounded-full bg-gradient-to-r from-blue-500 to-emerald-400 transition-all"
-                      style={{ width: `${Math.min(note.score * 100, 100)}%` }}
+                      style={{ width: `${Math.min(hit.score * 100, 100)}%` }}
                     />
                   </div>
                   <span className="text-xs font-mono text-gray-400 shrink-0">
-                    {(note.score * 100).toFixed(0)}%
+                    {(hit.score * 100).toFixed(0)}%
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <Badge variant="default">{note.note_type}</Badge>
-                  <ImportanceBadge importance={note.importance} />
-                  {note.tags?.map((tag, i) => (
+                  <Badge variant="default">{hit.note.note_type}</Badge>
+                  <ImportanceBadge importance={hit.note.importance} />
+                  {hit.note.tags?.map((tag, i) => (
                     <Badge key={`${tag}-${i}`} variant="default">{tag}</Badge>
                   ))}
                 </div>
-                <CollapsibleMarkdown content={note.content} />
+                <CollapsibleMarkdown content={hit.note.content} />
               </CardContent>
             </Card>
           ))}

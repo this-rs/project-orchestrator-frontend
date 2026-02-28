@@ -96,8 +96,9 @@ export const notesApi = {
   // ── Knowledge Fabric ────────────────────────────────────────────────
 
   // Semantic search (vector cosine similarity)
+  // Backend returns flat array: [{ note, score, highlights }]
   searchSemantic: (params: { query: string; project_slug?: string; workspace_slug?: string; limit?: number }) =>
-    api.get<{ items: (Note & { score: number })[] }>(`/notes/search-semantic${buildQuery(params)}`),
+    api.get<{ note: Note; score: number; highlights: string[] | null }[]>(`/notes/search-semantic${buildQuery(params)}`),
 
   // Neuron search (spreading activation)
   searchNeurons: (params: { query: string; project_slug?: string; max_results?: number; max_hops?: number; min_score?: number }) =>
