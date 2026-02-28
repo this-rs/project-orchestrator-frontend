@@ -79,7 +79,14 @@ export function DecisionsPage() {
     async (query: string) => {
       if (!initialLoadDone.current) setLoading(true)
       try {
-        const results = await decisionsApi.search({ q: query || '*', limit: 100, project_slug: projectSlug })
+        const results = await decisionsApi.search({
+          q: query || '*',
+          limit: 100,
+          project_slug: projectSlug,
+          // When "All projects" is selected, filter by workspace to only show
+          // decisions belonging to projects in the current workspace
+          workspace_slug: !projectSlug ? wsSlug : undefined,
+        })
         setDecisions(results)
         initialLoadDone.current = true
       } catch {
@@ -90,7 +97,7 @@ export function DecisionsPage() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable (Jotai setter)
-    [projectSlug],
+    [projectSlug, wsSlug],
   )
 
   // Initial load + reload on project change

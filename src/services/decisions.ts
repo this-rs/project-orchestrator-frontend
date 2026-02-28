@@ -11,7 +11,7 @@ export const decisionsApi = {
   // ── Search ────────────────────────────────────────────────────────────
 
   /** BM25 keyword search — uses `q` param (not `query`) */
-  search: (params: { q: string; limit?: number; project_slug?: string }) =>
+  search: (params: { q: string; limit?: number; project_slug?: string; workspace_slug?: string }) =>
     api.get<Decision[]>(`/decisions/search${buildQuery(params)}`),
 
   /** Semantic vector search — uses `query` param + `project_id` */
