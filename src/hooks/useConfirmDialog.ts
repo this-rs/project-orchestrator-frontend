@@ -5,7 +5,7 @@ interface ConfirmConfig {
   title: string
   description?: string
   confirmLabel?: string
-  variant?: 'danger' | 'warning'
+  variant?: 'danger' | 'warning' | 'info'
   onConfirm: () => Promise<void>
 }
 

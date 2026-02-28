@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'motion/react'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, Info } from 'lucide-react'
 import { Button } from './Button'
 import { ProgressBar } from './ProgressBar'
 import { dialogVariants, backdropVariants, useReducedMotion } from '@/utils/motion'
@@ -14,7 +14,7 @@ export interface ConfirmDialogProps {
   description?: string
   confirmLabel?: string
   cancelLabel?: string
-  variant?: 'danger' | 'warning'
+  variant?: 'danger' | 'warning' | 'info'
   progress?: { current: number; total: number } | null
 }
 
@@ -24,7 +24,7 @@ export function ConfirmDialog({
   onConfirm,
   title,
   description,
-  confirmLabel = 'Delete',
+  confirmLabel,
   cancelLabel = 'Cancel',
   variant = 'danger',
   progress,
@@ -70,8 +70,11 @@ export function ConfirmDialog({
     }
   }
 
-  const iconColor = variant === 'danger' ? 'text-red-400' : 'text-yellow-400'
-  const iconBg = variant === 'danger' ? 'bg-red-500/10' : 'bg-yellow-500/10'
+  const resolvedConfirmLabel = confirmLabel ?? (variant === 'info' ? 'Confirm' : 'Delete')
+  const isInfo = variant === 'info'
+  const IconComponent = isInfo ? Info : AlertCircle
+  const iconColor = isInfo ? 'text-indigo-400' : variant === 'danger' ? 'text-red-400' : 'text-yellow-400'
+  const iconBg = isInfo ? 'bg-indigo-500/10' : variant === 'danger' ? 'bg-red-500/10' : 'bg-yellow-500/10'
 
   return createPortal(
     <AnimatePresence>
@@ -103,7 +106,7 @@ export function ConfirmDialog({
             <div className="flex gap-3 md:gap-4">
               {/* Icon */}
               <div className={`shrink-0 w-9 h-9 md:w-10 md:h-10 rounded-full ${iconBg} flex items-center justify-center`}>
-                <AlertCircle className={`w-5 h-5 ${iconColor}`} />
+                <IconComponent className={`w-5 h-5 ${iconColor}`} />
               </div>
 
               <div className="flex-1 min-w-0">
@@ -136,12 +139,12 @@ export function ConfirmDialog({
                 {cancelLabel}
               </Button>
               <Button
-                variant="danger"
+                variant={isInfo ? 'primary' : 'danger'}
                 size="sm"
                 onClick={handleConfirm}
                 loading={loading}
               >
-                {confirmLabel}
+                {resolvedConfirmLabel}
               </Button>
             </div>
           </motion.div>
