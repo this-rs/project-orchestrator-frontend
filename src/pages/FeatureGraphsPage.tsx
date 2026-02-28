@@ -71,22 +71,21 @@ export function FeatureGraphsPage() {
   )
 
   // Fetch feature graphs
-  const fetchGraphs = useCallback(async () => {
-    setLoading(true)
+  const fetchGraphs = useCallback(async (showLoader = false) => {
+    if (showLoader) setLoading(true)
     try {
       const projectId = selectedProject !== 'all' ? selectedProject : undefined
       const res = await featureGraphsApi.list(projectId ? { project_id: projectId } : {})
       setGraphs(res.feature_graphs || [])
     } catch {
-      toast.error('Failed to load feature graphs')
       setGraphs([])
     } finally {
       setLoading(false)
     }
-  }, [selectedProject, toast])
+  }, [selectedProject])
 
   useEffect(() => {
-    fetchGraphs()
+    fetchGraphs(true)
   }, [fetchGraphs])
 
   // Resolve project name from id
