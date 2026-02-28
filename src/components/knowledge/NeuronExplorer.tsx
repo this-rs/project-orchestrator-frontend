@@ -32,7 +32,7 @@ interface NeuronNodeData extends Record<string, unknown> {
   noteType: string
   importance: string
   activationScore: number
-  source: 'Direct' | 'Propagated'
+  sourceType: 'direct' | 'propagated'
   energy: number
   tags: string[]
   noteId: string
@@ -57,8 +57,8 @@ function energyBorder(energy: number): string {
 }
 
 const sourceColors = {
-  Direct: { border: '#6366f1', bg: '#1e1b4b' },
-  Propagated: { border: '#f59e0b', bg: '#422006' },
+  direct: { border: '#6366f1', bg: '#1e1b4b' },
+  propagated: { border: '#f59e0b', bg: '#422006' },
 }
 
 // ── Radial layout ───────────────────────────────────────────────────────
@@ -69,8 +69,8 @@ function layoutNeurons(results: NeuronSearchResult[]): {
 } {
   if (results.length === 0) return { nodes: [], edges: [] }
 
-  const direct = results.filter((r) => r.source === 'Direct')
-  const propagated = results.filter((r) => r.source === 'Propagated')
+  const direct = results.filter((r) => r.source.type === 'direct')
+  const propagated = results.filter((r) => r.source.type === 'propagated')
 
   const nodes: Node<NeuronNodeData>[] = []
   const edges: Edge[] = []
@@ -96,7 +96,7 @@ function layoutNeurons(results: NeuronSearchResult[]): {
         noteType: r.note_type,
         importance: r.importance,
         activationScore: r.activation_score,
-        source: r.source,
+        sourceType: r.source.type,
         energy: r.energy,
         tags: r.tags,
         noteId: r.id,
@@ -122,7 +122,7 @@ function layoutNeurons(results: NeuronSearchResult[]): {
         noteType: r.note_type,
         importance: r.importance,
         activationScore: r.activation_score,
-        source: r.source,
+        sourceType: r.source.type,
         energy: r.energy,
         tags: r.tags,
         noteId: r.id,
@@ -163,8 +163,8 @@ function layoutNeurons(results: NeuronSearchResult[]): {
 
 function NeuronNodeComponent({ data, selected }: NodeProps<Node<NeuronNodeData>>) {
   const size = 60 + data.activationScore * 40
-  const isDirect = data.source === 'Direct'
-  const colors = isDirect ? sourceColors.Direct : sourceColors.Propagated
+  const isDirect = data.sourceType === 'direct'
+  const colors = isDirect ? sourceColors.direct : sourceColors.propagated
 
   return (
     <div
@@ -222,12 +222,12 @@ function NeuronDetail({ neuron, onClose }: NeuronDetailProps) {
           <ImportanceBadge importance={neuron.importance as NoteImportance} />
           <span
             className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${
-              neuron.source === 'Direct'
+              neuron.source.type === 'direct'
                 ? 'bg-indigo-500/15 text-indigo-400'
                 : 'bg-amber-500/15 text-amber-400'
             }`}
           >
-            {neuron.source}
+            {neuron.source.type}
           </span>
         </div>
 
@@ -476,7 +476,7 @@ export function NeuronExplorer({ projectSlug }: NeuronExplorerProps) {
             zoomOnPinch
           >
             <Background color="#374151" gap={20} size={1} />
-            <Controls showInteractive={false} />
+            <Controls showInteractive={false} className="dep-graph-controls" />
           </ReactFlow>
 
           {/* Detail panel */}
@@ -487,11 +487,11 @@ export function NeuronExplorer({ projectSlug }: NeuronExplorerProps) {
           {/* Legend */}
           <div className="absolute bottom-12 left-2 z-10 flex items-center gap-3 px-2.5 py-1.5 rounded-md bg-black/60 backdrop-blur-sm text-[10px] text-gray-400">
             <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: sourceColors.Direct.border }} />
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: sourceColors.direct.border }} />
               Direct
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: sourceColors.Propagated.border }} />
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: sourceColors.propagated.border }} />
               Propagated
             </span>
             <span className="flex items-center gap-1">

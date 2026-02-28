@@ -209,13 +209,19 @@ export interface Constraint {
 // KNOWLEDGE FABRIC — Neurons, Propagation, Context
 // ============================================================================
 
+export interface NeuronActivationSource {
+  type: 'direct' | 'propagated'
+  via?: string // note id (only when propagated)
+  hops?: number // (only when propagated)
+}
+
 export interface NeuronSearchResult {
   id: string
   content: string
   note_type: string
   importance: string
   activation_score: number
-  source: 'Direct' | 'Propagated'
+  source: NeuronActivationSource
   energy: number
   tags: string[]
   project_id?: string
