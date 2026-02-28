@@ -236,7 +236,7 @@ export function PlanDetailPage() {
     })
   }
 
-  const sectionIds = ['overview', 'tasks', 'constraints', 'decisions', ...(commits.length > 0 ? ['commits'] : []), ...(graph && (graph.nodes || []).length > 0 ? ['graph'] : [])]
+  const sectionIds = ['overview', 'tasks', 'constraints', 'decisions', 'commits', ...(graph && (graph.nodes || []).length > 0 ? ['graph'] : [])]
   const activeSection = useSectionObserver(sectionIds)
 
   // Build a fresh status map from local tasks state (includes optimistic updates)
@@ -262,7 +262,7 @@ export function PlanDetailPage() {
     { id: 'tasks', label: 'Tasks', count: tasks.length },
     { id: 'constraints', label: 'Constraints', count: constraints.length },
     { id: 'decisions', label: 'Decisions', count: decisions.length },
-    ...(commits.length > 0 ? [{ id: 'commits', label: 'Commits', count: commits.length }] : []),
+    { id: 'commits', label: 'Commits', count: commits.length },
     ...(graph && (graph.nodes || []).length > 0 ? [{ id: 'graph', label: 'Graph', count: (graph.nodes || []).length }] : []),
   ]
 
@@ -513,23 +513,39 @@ export function PlanDetailPage() {
       </div>
 
       {/* Commits */}
-      {commits.length > 0 && (
-        <section id="commits" className="scroll-mt-20">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-2">
-                <GitCommitHorizontal className="w-4 h-4 text-gray-500" />
-                <CardTitle>Commits ({commits.length})</CardTitle>
-              </div>
+      <section id="commits" className="scroll-mt-20">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2">
+              <GitCommitHorizontal className="w-4 h-4 text-gray-500" />
+              <CardTitle>Commits ({commits.length})</CardTitle>
             </div>
-          </CardHeader>
-          <CardContent>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                const sha = prompt('Enter commit SHA to link:')
+                if (sha && sha.trim() && planId) {
+                  plansApi.linkCommit(planId, sha.trim())
+                    .then(() => { toast.success('Commit linked'); fetchData() })
+                    .catch(() => toast.error('Failed to link commit'))
+                }
+              }}
+            >
+              Link Commit
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {commits.length > 0 ? (
             <CommitList commits={commits} />
-          </CardContent>
-        </Card>
-        </section>
-      )}
+          ) : (
+            <p className="text-sm text-gray-500 py-4 text-center">No commits linked to this plan yet</p>
+          )}
+        </CardContent>
+      </Card>
+      </section>
 
       {/* Dependency Graph */}
       {graph && (graph.nodes || []).length > 0 && (

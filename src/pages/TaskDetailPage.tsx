@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useLocation } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { ClipboardList, FolderKanban } from 'lucide-react'
+import { ClipboardList, FolderKanban, GitCommitHorizontal } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, TaskStatusBadge, InteractiveStepStatusBadge, InteractiveDecisionStatusBadge, ProgressBar, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { tasksApi, plansApi, projectsApi, decisionsApi } from '@/services'
@@ -186,7 +186,7 @@ export function TaskDetailPage() {
     })
   }
 
-  const sectionIds = ['steps', 'dependencies', 'decisions']
+  const sectionIds = ['steps', 'dependencies', 'decisions', 'commits']
   const activeSection = useSectionObserver(sectionIds)
 
   if (error) return <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
@@ -204,6 +204,7 @@ export function TaskDetailPage() {
     { id: 'steps', label: 'Steps', count: steps.length },
     { id: 'dependencies', label: 'Dependencies', count: blockers.length + blocking.length },
     { id: 'decisions', label: 'Decisions', count: decisions.length },
+    { id: 'commits', label: 'Commits', count: commits.length },
   ]
 
   // Build parent links for navigation
@@ -482,18 +483,39 @@ export function TaskDetailPage() {
       )}
 
       {/* Commits */}
-      {commits.length > 0 && (
-        <section id="commits" className="scroll-mt-20">
-        <Card>
-          <CardHeader>
-            <CardTitle>Commits ({commits.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
+      <section id="commits" className="scroll-mt-20">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2">
+              <GitCommitHorizontal className="w-4 h-4 text-gray-500" />
+              <CardTitle>Commits ({commits.length})</CardTitle>
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                const sha = prompt('Enter commit SHA to link:')
+                if (sha && sha.trim() && taskId) {
+                  tasksApi.linkCommit(taskId, sha.trim())
+                    .then(() => { toast.success('Commit linked'); fetchData() })
+                    .catch(() => toast.error('Failed to link commit'))
+                }
+              }}
+            >
+              Link Commit
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {commits.length > 0 ? (
             <CommitList commits={commits} />
-          </CardContent>
-        </Card>
-        </section>
-      )}
+          ) : (
+            <p className="text-sm text-gray-500 py-4 text-center">No commits linked to this task yet</p>
+          )}
+        </CardContent>
+      </Card>
+      </section>
 
       <FormDialog {...stepFormDialog.dialogProps} onSubmit={stepForm.submit}>
         {stepForm.fields}
