@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { ChevronsUpDown, FolderKanban } from 'lucide-react'
+import { ChevronsUpDown, FolderKanban, Unlink, Link2 } from 'lucide-react'
 import {
   Card,
   CardHeader,
@@ -301,12 +301,33 @@ export function ProjectMilestoneDetailPage() {
                   </button>
                 )}
               </div>
-              {plans.length > 0 && <ViewToggle value={viewMode} onChange={setViewMode} />}
+              <div className="flex items-center gap-2">
+                {plans.length > 0 && <ViewToggle value={viewMode} onChange={setViewMode} />}
+                <Button size="sm" onClick={() => linkDialog.open({
+                  title: 'Link Plan to Milestone',
+                  submitLabel: 'Link',
+                  fetchOptions: async () => {
+                    const data = await plansApi.list({ project_id: project?.id, limit: 100 })
+                    const existingIds = new Set(plans.map(p => p.id))
+                    return (data.items || [])
+                      .filter(p => !existingIds.has(p.id))
+                      .map(p => ({ value: p.id, label: p.title || 'Untitled', description: p.status }))
+                  },
+                  onLink: async (planId) => {
+                    await projectsApi.linkPlanToMilestone(milestoneId!, planId)
+                    await refreshData()
+                    toast.success('Plan linked')
+                  },
+                })}>
+                  <Link2 className="w-3.5 h-3.5 mr-1" />
+                  Link Plan
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
             {plans.length === 0 ? (
-              <p className="text-gray-500 text-sm">No plans for this project</p>
+              <p className="text-gray-500 text-sm">No plans linked to this milestone</p>
             ) : viewMode === 'kanban' ? (
               <PlanKanbanBoard
                 fetchFn={kanbanFetchFn}
@@ -317,20 +338,36 @@ export function ProjectMilestoneDetailPage() {
             ) : (
               <div className="space-y-2">
                 {plans.map((plan) => (
-                  <ExpandablePlanRow
-                    key={plan.id}
-                    plan={plan}
-                    onStatusChange={async (newStatus: PlanStatus) => {
-                      await plansApi.updateStatus(plan.id, newStatus)
-                      setPlans((prev) =>
-                        prev.map((p) => (p.id === plan.id ? { ...p, status: newStatus } : p)),
-                      )
-                      toast.success('Status updated')
-                    }}
-                    refreshTrigger={taskRefresh}
-                    expandAllSignal={plansExpandAll}
-                    collapseAllSignal={plansCollapseAll}
-                  />
+                  <div key={plan.id} className="relative group/plan">
+                    <ExpandablePlanRow
+                      plan={plan}
+                      onStatusChange={async (newStatus: PlanStatus) => {
+                        await plansApi.updateStatus(plan.id, newStatus)
+                        setPlans((prev) =>
+                          prev.map((p) => (p.id === plan.id ? { ...p, status: newStatus } : p)),
+                        )
+                        toast.success('Status updated')
+                      }}
+                      refreshTrigger={taskRefresh}
+                      expandAllSignal={plansExpandAll}
+                      collapseAllSignal={plansCollapseAll}
+                    />
+                    <button
+                      onClick={() => confirmDialog.open({
+                        title: 'Unlink Plan',
+                        description: `Unlink "${plan.title}" from this milestone? The plan itself will not be deleted.`,
+                        onConfirm: async () => {
+                          await projectsApi.unlinkPlanFromMilestone(milestoneId!, plan.id)
+                          await refreshData()
+                          toast.success('Plan unlinked')
+                        },
+                      })}
+                      className="absolute top-3 right-2 p-1 rounded text-gray-600 hover:text-red-400 hover:bg-white/[0.06] opacity-0 group-hover/plan:opacity-100 transition-all"
+                      title="Unlink plan from milestone"
+                    >
+                      <Unlink className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
