@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
-import { ChevronsUpDown, ChevronRight, Flag, FolderKanban } from 'lucide-react'
+import { ChevronsUpDown, ChevronRight, Flag, FolderKanban, GitCommitHorizontal } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, InteractiveDecisionStatusBadge, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { plansApi, tasksApi, projectsApi, workspacesApi, decisionsApi } from '@/services'
@@ -11,7 +11,8 @@ import { workspacePath } from '@/utils/paths'
 import { chatSuggestedProjectIdAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import { CreateTaskForm, CreateConstraintForm } from '@/components/forms'
 import { DependencyGraphView } from '@/components/DependencyGraphView'
-import type { Plan, Decision, DecisionStatus, DependencyGraph, Task, Constraint, Step, PlanStatus, TaskStatus, StepStatus, PaginatedResponse, Project } from '@/types'
+import { CommitList } from '@/components/commits'
+import type { Plan, Decision, DecisionStatus, DependencyGraph, Task, Constraint, Step, Commit, PlanStatus, TaskStatus, StepStatus, PaginatedResponse, Project } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
 
 interface DecisionWithTask extends Decision {
@@ -27,6 +28,7 @@ export function PlanDetailPage() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [constraints, setConstraints] = useState<Constraint[]>([])
   const [decisions, setDecisions] = useState<DecisionWithTask[]>([])
+  const [commits, setCommits] = useState<Commit[]>([])
   const [graph, setGraph] = useState<DependencyGraph | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -53,17 +55,19 @@ export function PlanDetailPage() {
     const isInitialLoad = !plan
     if (isInitialLoad) setLoading(true)
     try {
-      const [planResponse, tasksData, constraintsData, graphData] = await Promise.all([
+      const [planResponse, tasksData, constraintsData, graphData, commitsData] = await Promise.all([
         plansApi.get(planId),
         tasksApi.list({ plan_id: planId, limit: 100 }),
         plansApi.listConstraints(planId),
         plansApi.getDependencyGraph(planId).catch(() => null),
+        plansApi.getCommits(planId).catch(() => ({ items: [] })),
       ])
       const planData = (planResponse as unknown as { plan: Plan }).plan || planResponse
       setPlan(planData)
       setTasks(tasksData.items || [])
       setConstraints(Array.isArray(constraintsData) ? constraintsData : [])
       setGraph(graphData)
+      setCommits(commitsData.items || [])
 
       // Extract decisions from PlanDetails response — backend nests them in tasks[].decisions[]
       const rawTasks = (planResponse as unknown as { tasks?: { task?: Task; decisions?: Decision[] }[] }).tasks || []
@@ -232,7 +236,7 @@ export function PlanDetailPage() {
     })
   }
 
-  const sectionIds = ['overview', 'tasks', 'constraints', 'decisions', ...(graph && (graph.nodes || []).length > 0 ? ['graph'] : [])]
+  const sectionIds = ['overview', 'tasks', 'constraints', 'decisions', ...(commits.length > 0 ? ['commits'] : []), ...(graph && (graph.nodes || []).length > 0 ? ['graph'] : [])]
   const activeSection = useSectionObserver(sectionIds)
 
   // Build a fresh status map from local tasks state (includes optimistic updates)
@@ -258,6 +262,7 @@ export function PlanDetailPage() {
     { id: 'tasks', label: 'Tasks', count: tasks.length },
     { id: 'constraints', label: 'Constraints', count: constraints.length },
     { id: 'decisions', label: 'Decisions', count: decisions.length },
+    ...(commits.length > 0 ? [{ id: 'commits', label: 'Commits', count: commits.length }] : []),
     ...(graph && (graph.nodes || []).length > 0 ? [{ id: 'graph', label: 'Graph', count: (graph.nodes || []).length }] : []),
   ]
 
@@ -506,6 +511,25 @@ export function PlanDetailPage() {
         </Card>
         </section>
       </div>
+
+      {/* Commits */}
+      {commits.length > 0 && (
+        <section id="commits" className="scroll-mt-20">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-2">
+                <GitCommitHorizontal className="w-4 h-4 text-gray-500" />
+                <CardTitle>Commits ({commits.length})</CardTitle>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <CommitList commits={commits} />
+          </CardContent>
+        </Card>
+        </section>
+      )}
 
       {/* Dependency Graph */}
       {graph && (graph.nodes || []).length > 0 && (
