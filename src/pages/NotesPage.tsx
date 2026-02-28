@@ -1,15 +1,23 @@
-import { useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { motion, AnimatePresence } from 'motion/react'
-import { FileText, Code, FolderOpen, Package, Shapes, AlertTriangle } from 'lucide-react'
+import { FileText, Code, FolderOpen, Package, Shapes, AlertTriangle, Search, Brain } from 'lucide-react'
 import { notesAtom, notesLoadingAtom, noteTypeFilterAtom, noteStatusFilterAtom, noteRefreshAtom } from '@/atoms'
 import { notesApi } from '@/services'
-import { Card, CardContent, Button, EmptyState, Select, InteractiveNoteStatusBadge, ImportanceBadge, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, CollapsibleMarkdown, LoadMoreSentinel, SkeletonCard } from '@/components/ui'
+import { Card, CardContent, Button, EmptyState, Select, SearchInput, InteractiveNoteStatusBadge, ImportanceBadge, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, CollapsibleMarkdown, LoadMoreSentinel, SkeletonCard, Spinner } from '@/components/ui'
 import type { OverflowMenuAction } from '@/components/ui'
 import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug } from '@/hooks'
 import { CreateNoteForm } from '@/components/forms'
 import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
 import type { Note, NoteType, NoteStatus, NoteScopeType, PaginatedResponse } from '@/types'
+
+type NotesTab = 'list' | 'semantic' | 'graph'
+
+const TAB_CONFIG: { key: NotesTab; label: string; icon: typeof Search }[] = [
+  { key: 'list', label: 'List', icon: FileText },
+  { key: 'semantic', label: 'Semantic Search', icon: Search },
+  { key: 'graph', label: 'Knowledge Graph', icon: Brain },
+]
 
 const iconClass = 'w-3 h-3 flex-shrink-0'
 const FileTextIcon = () => <FileText className={iconClass} />
@@ -40,6 +48,7 @@ const statusOptions = [
 ]
 
 export function NotesPage() {
+  const [activeTab, setActiveTab] = useState<NotesTab>('list')
   const [, setNotesAtom] = useAtom(notesAtom)
   const [, setLoadingAtom] = useAtom(notesLoadingAtom)
   const [typeFilter, setTypeFilter] = useAtom(noteTypeFilterAtom)
@@ -130,23 +139,38 @@ export function NotesPage() {
       title="Knowledge Notes"
       description="Capture knowledge and decisions"
       actions={
-        <>
-          <Select
-            options={typeOptions}
-            value={typeFilter}
-            onChange={(value) => setTypeFilter(value as NoteType | 'all')}
-            className="w-full sm:w-36"
-          />
-          <Select
-            options={statusOptions}
-            value={statusFilter}
-            onChange={(value) => setStatusFilter(value as NoteStatus | 'all')}
-            className="w-full sm:w-36"
-          />
-          <Button onClick={openCreateNote}>Create Note</Button>
-        </>
+        <div className="flex flex-wrap gap-2">
+          {TAB_CONFIG.map((tab) => (
+            <Button
+              key={tab.key}
+              variant={activeTab === tab.key ? 'primary' : 'secondary'}
+              size="sm"
+              onClick={() => setActiveTab(tab.key)}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </div>
       }
     >
+      {activeTab === 'list' && (
+        <>
+          {/* List tab filters */}
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <Select
+              options={typeOptions}
+              value={typeFilter}
+              onChange={(value) => setTypeFilter(value as NoteType | 'all')}
+              className="w-full sm:w-36"
+            />
+            <Select
+              options={statusOptions}
+              value={statusFilter}
+              onChange={(value) => setStatusFilter(value as NoteStatus | 'all')}
+              className="w-full sm:w-36"
+            />
+            <Button onClick={openCreateNote}>Create Note</Button>
+          </div>
       {loading ? (
         <div className="space-y-4">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -208,11 +232,126 @@ export function NotesPage() {
         onDelete={handleBulkDelete}
         onClear={multiSelect.clear}
       />
+        </>
+      )}
+
+      {activeTab === 'semantic' && (
+        <SemanticSearchTab workspaceSlug={wsSlug} />
+      )}
+
+      {activeTab === 'graph' && (
+        <EmptyState
+          title="Knowledge Graph"
+          description="Neural network visualization coming soon. This will show notes as neurons with weighted synapses."
+        />
+      )}
+
       <FormDialog {...formDialog.dialogProps} onSubmit={noteForm.submit}>
         {noteForm.fields}
       </FormDialog>
       <ConfirmDialog {...confirmDialog.dialogProps} />
     </PageShell>
+  )
+}
+
+// ── Semantic Search Tab ──────────────────────────────────────────────────
+
+interface SemanticSearchTabProps {
+  workspaceSlug: string
+}
+
+function SemanticSearchTab({ workspaceSlug }: SemanticSearchTabProps) {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<(Note & { score: number })[]>([])
+  const [searching, setSearching] = useState(false)
+  const [hasSearched, setHasSearched] = useState(false)
+  const toast = useToast()
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  const doSearch = useCallback(
+    async (q: string) => {
+      if (!q.trim()) {
+        setResults([])
+        setHasSearched(false)
+        return
+      }
+      setSearching(true)
+      try {
+        const res = await notesApi.searchSemantic({ query: q, workspace_slug: workspaceSlug, limit: 20 })
+        setResults(res.items || [])
+        setHasSearched(true)
+      } catch {
+        toast.error('Semantic search failed')
+        setResults([])
+      } finally {
+        setSearching(false)
+      }
+    },
+    [workspaceSlug, toast],
+  )
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setQuery(value)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => doSearch(value), 400)
+  }
+
+  return (
+    <div className="space-y-4">
+      <SearchInput
+        value={query}
+        onChange={handleChange}
+        placeholder="Search notes by meaning..."
+        className="w-full"
+        autoFocus
+      />
+
+      {searching && (
+        <div className="flex items-center justify-center py-12">
+          <Spinner />
+        </div>
+      )}
+
+      {!searching && hasSearched && results.length === 0 && (
+        <EmptyState title="No semantic matches" description="Try a different phrasing — semantic search finds notes by meaning, not exact words." />
+      )}
+
+      {!searching && results.length > 0 && (
+        <div className="space-y-3">
+          {results.map((note) => (
+            <Card key={note.id} className={`border-l-4 ${note.note_type === 'gotcha' ? 'border-l-red-500' : note.note_type === 'guideline' ? 'border-l-blue-500' : note.note_type === 'pattern' ? 'border-l-purple-500' : note.note_type === 'tip' ? 'border-l-green-500' : 'border-l-gray-500'}`}>
+              <CardContent>
+                {/* Score bar */}
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-blue-500 to-emerald-400 transition-all"
+                      style={{ width: `${Math.min(note.score * 100, 100)}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-mono text-gray-400 shrink-0">
+                    {(note.score * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <Badge variant="default">{note.note_type}</Badge>
+                  <ImportanceBadge importance={note.importance} />
+                  {note.tags?.map((tag, i) => (
+                    <Badge key={`${tag}-${i}`} variant="default">{tag}</Badge>
+                  ))}
+                </div>
+                <CollapsibleMarkdown content={note.content} />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {!searching && !hasSearched && (
+        <EmptyState title="Semantic Search" description="Type a question or concept to find notes by meaning. Finds related notes even without exact keyword matches." />
+      )}
+    </div>
   )
 }
 
