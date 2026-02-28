@@ -75,21 +75,25 @@ function layoutNeurons(results: NeuronSearchResult[]): {
   const nodes: Node<NeuronNodeData>[] = []
   const edges: Edge[] = []
 
-  const centerX = 400
-  const centerY = 300
+  // Dynamic radii: ensure nodes don't overlap
+  // Each node is ~80-100px wide, so we need circumference > count * spacing
+  const nodeSpacing = 110 // min px between node centers
+  const innerRadius = direct.length <= 1 ? 0 : Math.max(150, (direct.length * nodeSpacing) / (2 * Math.PI))
+  const outerRadius = Math.max(innerRadius + 180, (propagated.length * nodeSpacing) / (2 * Math.PI))
+
+  const centerX = outerRadius + 100
+  const centerY = outerRadius + 100
 
   // Place direct matches in inner ring
-  const innerRadius = direct.length <= 1 ? 0 : 120
   direct.forEach((r, i) => {
     const angle = (2 * Math.PI * i) / Math.max(direct.length, 1) - Math.PI / 2
     const x = direct.length <= 1 ? centerX : centerX + innerRadius * Math.cos(angle)
     const y = direct.length <= 1 ? centerY : centerY + innerRadius * Math.sin(angle)
-    const size = 60 + r.activation_score * 40
 
     nodes.push({
       id: r.id,
       type: 'neuronNode',
-      position: { x: x - size / 2, y: y - size / 2 },
+      position: { x: x - 40, y: y - 40 },
       data: {
         label: r.content.slice(0, 50) + (r.content.length > 50 ? '...' : ''),
         content: r.content,
@@ -105,17 +109,15 @@ function layoutNeurons(results: NeuronSearchResult[]): {
   })
 
   // Place propagated matches in outer ring
-  const outerRadius = 280
   propagated.forEach((r, i) => {
     const angle = (2 * Math.PI * i) / Math.max(propagated.length, 1) - Math.PI / 2
     const x = centerX + outerRadius * Math.cos(angle)
     const y = centerY + outerRadius * Math.sin(angle)
-    const size = 50 + r.activation_score * 30
 
     nodes.push({
       id: r.id,
       type: 'neuronNode',
-      position: { x: x - size / 2, y: y - size / 2 },
+      position: { x: x - 35, y: y - 35 },
       data: {
         label: r.content.slice(0, 50) + (r.content.length > 50 ? '...' : ''),
         content: r.content,
@@ -129,12 +131,14 @@ function layoutNeurons(results: NeuronSearchResult[]): {
       },
     })
 
-    // Connect propagated to closest direct match (activation path)
-    if (direct.length > 0) {
-      const closestDirect = direct[i % direct.length]
+    // Connect propagated to the direct match it was activated via (or round-robin fallback)
+    const viaId = r.source.via
+    const sourceNode = viaId ? direct.find((d) => d.id === viaId) : null
+    const connectTo = sourceNode || (direct.length > 0 ? direct[i % direct.length] : null)
+    if (connectTo) {
       edges.push({
-        id: `e-${closestDirect.id}-${r.id}`,
-        source: closestDirect.id,
+        id: `e-${connectTo.id}-${r.id}`,
+        source: connectTo.id,
         target: r.id,
         style: {
           stroke: '#4b5563',
@@ -209,7 +213,7 @@ interface NeuronDetailProps {
 
 function NeuronDetail({ neuron, onClose }: NeuronDetailProps) {
   return (
-    <div className="absolute right-2 top-2 z-10 w-72 bg-[var(--surface-raised)] border border-white/[0.08] rounded-lg shadow-xl overflow-hidden">
+    <div className="absolute right-2 top-2 z-10 w-72 bg-[var(--surface-raised)]/80 backdrop-blur-xl border border-white/[0.08] rounded-lg shadow-2xl overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.06]">
         <span className="text-xs font-semibold text-gray-200">Neuron Detail</span>
         <button onClick={onClose} className="text-xs text-gray-500 hover:text-gray-300">
