@@ -206,6 +206,74 @@ export interface Constraint {
 }
 
 // ============================================================================
+// KNOWLEDGE FABRIC — Neurons, Propagation, Context
+// ============================================================================
+
+export interface NeuronSearchResult {
+  id: string
+  content: string
+  note_type: string
+  importance: string
+  activation_score: number
+  source: 'Direct' | 'Propagated'
+  energy: number
+  tags: string[]
+  project_id?: string
+}
+
+export interface NeuronSearchResponse {
+  results: NeuronSearchResult[]
+  metadata: {
+    total_activated: number
+    direct_matches: number
+    propagated_matches: number
+    query_time_ms: number
+    max_hops: number
+    min_score: number
+  }
+}
+
+export interface ReinforceResult {
+  neurons_boosted: number
+  synapses_reinforced: number
+  energy_boost: number
+  synapse_boost: number
+}
+
+export interface DecayResult {
+  synapses_decayed: number
+  synapses_pruned: number
+  decay_amount: number
+  prune_threshold: number
+}
+
+export interface EnergyUpdateResult {
+  notes_updated: number
+  half_life_days: number
+}
+
+export interface PropagatedNote extends Note {
+  relevance_score: number
+  propagation_path?: string
+  relation_type?: string
+  distance?: number
+}
+
+export interface ContextKnowledge {
+  notes: Note[]
+  decisions: Decision[]
+  commits: Commit[]
+  entity_type: string
+  entity_id: string
+}
+
+export interface PropagatedKnowledge {
+  notes: (Note & { source_relation: string })[]
+  decisions: (Decision & { source_relation: string })[]
+  relation_stats: { imports: number; co_changed: number; affects: number }
+}
+
+// ============================================================================
 // RELEASES & MILESTONES
 // ============================================================================
 

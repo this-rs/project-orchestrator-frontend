@@ -1,5 +1,16 @@
 import { api, buildQuery } from './api'
-import type { Note, PaginatedResponse, CreateNoteRequest } from '@/types'
+import type {
+  Note,
+  PaginatedResponse,
+  CreateNoteRequest,
+  NeuronSearchResponse,
+  ReinforceResult,
+  DecayResult,
+  EnergyUpdateResult,
+  PropagatedNote,
+  ContextKnowledge,
+  PropagatedKnowledge,
+} from '@/types'
 
 interface ListParams {
   project_id?: string
@@ -81,4 +92,42 @@ export const notesApi = {
   // Project notes
   getProjectNotes: (projectId: string) =>
     api.get<{ items: Note[] }>(`/projects/${projectId}/notes`),
+
+  // ── Knowledge Fabric ────────────────────────────────────────────────
+
+  // Semantic search (vector cosine similarity)
+  searchSemantic: (params: { query: string; project_slug?: string; workspace_slug?: string; limit?: number }) =>
+    api.get<{ items: (Note & { score: number })[] }>(`/notes/search-semantic${buildQuery(params)}`),
+
+  // Neuron search (spreading activation)
+  searchNeurons: (params: { query: string; project_slug?: string; max_results?: number; max_hops?: number; min_score?: number }) =>
+    api.get<NeuronSearchResponse>(`/notes/neurons/search${buildQuery(params)}`),
+
+  // Reinforce synapses between co-activated notes (min 2 note_ids)
+  reinforceNeurons: (data: { note_ids: string[]; energy_boost?: number; synapse_boost?: number }) =>
+    api.post<ReinforceResult>('/notes/neurons/reinforce', data),
+
+  // Decay weak synapses
+  decaySynapses: (data?: { decay_amount?: number; prune_threshold?: number }) =>
+    api.post<DecayResult>('/notes/neurons/decay', data || {}),
+
+  // Recalculate energy scores for all notes
+  updateEnergy: (data?: { half_life?: number }) =>
+    api.post<EnergyUpdateResult>('/notes/update-energy', data || {}),
+
+  // Propagated notes via graph (IMPORTS, CO_CHANGED, AFFECTS)
+  getPropagatedNotes: (params: { entity_type: string; entity_id: string; max_depth?: number; min_score?: number; relation_types?: string }) =>
+    api.get<{ items: PropagatedNote[] }>(`/notes/propagated${buildQuery(params)}`),
+
+  // Unified context: notes + decisions + commits for an entity
+  getContextKnowledge: (params: { entity_type: string; entity_id: string; max_depth?: number; min_score?: number }) =>
+    api.get<ContextKnowledge>(`/notes/context-knowledge${buildQuery(params)}`),
+
+  // Enriched propagated knowledge with relation stats
+  getPropagatedKnowledge: (params: { entity_type: string; entity_id: string; max_depth?: number; min_score?: number; relation_types?: string }) =>
+    api.get<PropagatedKnowledge>(`/notes/propagated-knowledge${buildQuery(params)}`),
+
+  // Notes directly linked to an entity
+  getEntityNotes: (entityType: string, entityId: string) =>
+    api.get<{ items: Note[] }>(`/entities/${entityType}/${entityId}/notes`),
 }
