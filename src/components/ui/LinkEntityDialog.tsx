@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Search } from 'lucide-react'
+import { motion, AnimatePresence } from 'motion/react'
+import { Search, Link2 } from 'lucide-react'
 import { Button } from './Button'
 import { Spinner } from './Spinner'
+import { dialogVariants, backdropVariants, useReducedMotion } from '@/utils/motion'
 import type { LinkOption } from '@/hooks/useLinkDialog'
 
 export interface LinkEntityDialogProps {
@@ -35,6 +37,7 @@ export function LinkEntityDialog({
   onSearchChange,
 }: LinkEntityDialogProps) {
   const searchRef = useRef<HTMLInputElement>(null)
+  const reducedMotion = useReducedMotion()
 
   useEffect(() => {
     if (open) {
@@ -60,89 +63,109 @@ export function LinkEntityDialog({
     }
   }, [open])
 
-  if (!open) return null
-
   return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="link-dialog-title"
-    >
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={loading ? undefined : onClose}
-      />
+    <AnimatePresence>
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="link-dialog-title"
+        >
+          {/* Overlay */}
+          <motion.div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            variants={reducedMotion ? undefined : backdropVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            onClick={loading ? undefined : onClose}
+          />
 
-      <div className="relative bg-surface-overlay rounded-xl shadow-xl border border-border-subtle max-w-lg w-full animate-in fade-in zoom-in-95 duration-150">
-        <div className="px-4 py-3 md:px-6 md:py-4 border-b border-border-subtle">
-          <h3 id="link-dialog-title" className="text-lg font-semibold text-gray-100">
-            {title}
-          </h3>
-        </div>
-
-        <div className="px-4 py-3 md:px-6 md:py-4">
-          {/* Search */}
-          <div className="relative mb-3">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-            <input
-              ref={searchRef}
-              className="w-full pl-10 pr-3 py-2 bg-surface-base border border-border-default rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              disabled={loading}
-            />
-          </div>
-
-          {/* Options list */}
-          <div className="max-h-[50vh] md:max-h-[40vh] overflow-y-auto space-y-1">
-            {fetching ? (
-              <div className="flex items-center justify-center py-8">
-                <Spinner />
-              </div>
-            ) : options.length === 0 ? (
-              <div className="flex items-center justify-center py-8 text-sm text-gray-500">
-                No items available
-              </div>
-            ) : (
-              options.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => onSelect(option.value)}
-                  className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${
-                    selectedId === option.value
-                      ? 'bg-indigo-500/20 ring-2 ring-indigo-500'
-                      : 'bg-white/[0.04] hover:bg-white/[0.08]'
-                  }`}
-                >
-                  <div className="font-medium text-gray-200 text-sm">{option.label}</div>
-                  {option.description && (
-                    <div className="text-xs text-gray-500 mt-0.5">{option.description}</div>
-                  )}
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-3 px-4 py-3 md:px-6 md:py-4 border-t border-border-subtle">
-          <Button variant="secondary" size="sm" onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={onSubmit}
-            loading={loading}
-            disabled={!selectedId || loading}
+          {/* Modal */}
+          <motion.div
+            className="relative glass-medium rounded-xl shadow-xl max-w-lg w-full"
+            variants={reducedMotion ? undefined : dialogVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
           >
-            {submitLabel}
-          </Button>
+            {/* Header */}
+            <div className="flex items-center gap-3 px-4 py-4 md:px-6">
+              <div className="shrink-0 w-9 h-9 md:w-10 md:h-10 rounded-full bg-indigo-500/10 flex items-center justify-center">
+                <Link2 className="w-5 h-5 text-indigo-400" />
+              </div>
+              <h3 id="link-dialog-title" className="text-lg font-semibold text-gray-100">
+                {title}
+              </h3>
+            </div>
+
+            {/* Content */}
+            <div className="px-4 pb-3 md:px-6">
+              {/* Search */}
+              <div className="relative mb-3">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                <input
+                  ref={searchRef}
+                  className="w-full pl-10 pr-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={(e) => onSearchChange(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+
+              {/* Options list */}
+              <div className="max-h-[50vh] md:max-h-[40vh] overflow-y-auto space-y-1">
+                {fetching ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Spinner />
+                  </div>
+                ) : options.length === 0 ? (
+                  <div className="flex items-center justify-center py-8 text-sm text-gray-500">
+                    No items available
+                  </div>
+                ) : (
+                  options.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => onSelect(option.value)}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${
+                        selectedId === option.value
+                          ? 'bg-indigo-500/20 ring-2 ring-indigo-500'
+                          : 'bg-white/[0.04] hover:bg-white/[0.08]'
+                      }`}
+                    >
+                      <div className="font-medium text-gray-200 text-sm">{option.label}</div>
+                      {option.description && (
+                        <div className="text-xs text-gray-500 mt-0.5">{option.description}</div>
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3 px-4 py-4 md:px-6">
+              <Button variant="secondary" size="sm" onClick={onClose} disabled={loading}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={onSubmit}
+                loading={loading}
+                disabled={!selectedId || loading}
+              >
+                {submitLabel}
+              </Button>
+            </div>
+          </motion.div>
         </div>
-      </div>
-    </div>,
+      )}
+    </AnimatePresence>,
     document.body,
   )
 }
