@@ -183,9 +183,15 @@ export class ChatWebSocket {
               return
             }
 
-            // Track lastEventSeq for reconnection
-            if (typeof data.seq === 'number' && data.seq > this._lastEventSeq) {
-              this._lastEventSeq = data.seq
+            // Track lastEventSeq for reconnection.
+            // When the initial connection uses MAX_SAFE_INTEGER (skip-replay mode),
+            // no real seq will ever exceed it, so we'd never update. Fix: if
+            // _lastEventSeq is above the skip-replay threshold, accept the first
+            // real seq we see — then subsequent events update normally via >.
+            if (typeof data.seq === 'number' && data.seq > 0) {
+              if (this._lastEventSeq >= 1_000_000_000_000 || data.seq > this._lastEventSeq) {
+                this._lastEventSeq = data.seq
+              }
             }
 
             // Forward as ChatEvent to the callback

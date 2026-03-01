@@ -1198,13 +1198,23 @@ export function useChat() {
     const ws = getWs()
     ws.setCallbacks({
       onEvent: handleEvent,
-      onStatusChange: setWsStatus,
+      onStatusChange: (status) => {
+        setWsStatus(status)
+        // When the server disconnects mid-stream, isStreaming stays true with
+        // no Result event to clear it. Reset on reconnecting — the server will
+        // send a fresh streaming_status via the Phase 1.5b snapshot if a stream
+        // is actually active after reconnection.
+        if (status === 'reconnecting') {
+          setIsStreaming(false)
+          setIsCompacting(false)
+        }
+      },
       onReplayComplete: () => {
         setIsReplaying(false)
         setIsLoadingHistory(false)
       },
     })
-  }, [getWs, handleEvent, setWsStatus, setIsReplaying])
+  }, [getWs, handleEvent, setWsStatus, setIsReplaying, setIsStreaming, setIsCompacting])
 
   // Cleanup on unmount
   useEffect(() => {
