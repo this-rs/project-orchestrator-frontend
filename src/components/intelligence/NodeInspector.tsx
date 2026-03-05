@@ -1,10 +1,10 @@
-import { memo, useState, useCallback } from 'react'
+import { memo } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { selectedNodeAtom, selectedNodeIdAtom } from '@/atoms/intelligence'
 import { ENTITY_COLORS } from '@/constants/intelligence'
 import type { IntelligenceNodeData, FileNodeData, NoteNodeData, DecisionNodeData, SkillNodeData } from '@/types/intelligence'
-import { notesApi } from '@/services/notes'
 import { FileContextCard } from './cards/FileContextCard'
+import { NoteContextCard } from './cards/NoteContextCard'
 import {
   FileCode2,
   Box,
@@ -14,16 +14,8 @@ import {
   CheckSquare,
   Brain,
   X,
-  Check,
-  XCircle,
-  AlertTriangle,
-  Lightbulb,
-  BookOpen,
-  Zap,
-  Eye,
-  Activity,
-  Tag,
   Hash,
+  Zap,
 } from 'lucide-react'
 
 // ============================================================================
@@ -39,15 +31,6 @@ const entityIcons: Record<string, typeof Box> = {
   plan: LayoutList,
   task: CheckSquare,
   skill: Brain,
-}
-
-const noteTypeIcons: Record<string, typeof StickyNote> = {
-  gotcha: AlertTriangle,
-  tip: Lightbulb,
-  guideline: BookOpen,
-  pattern: Zap,
-  context: Eye,
-  observation: Activity,
 }
 
 // ============================================================================
@@ -98,137 +81,6 @@ function StatusBadge({ status }: { status: string }) {
     >
       {status}
     </span>
-  )
-}
-
-// ============================================================================
-// NOTE DETAIL PANEL
-// ============================================================================
-
-function NoteDetailPanel({ data, entityId }: { data: NoteNodeData; entityId: string }) {
-  const [confirming, setConfirming] = useState(false)
-  const [invalidating, setInvalidating] = useState(false)
-  const [actionDone, setActionDone] = useState<'confirmed' | 'invalidated' | null>(null)
-  const [actionError, setActionError] = useState<string | null>(null)
-
-  const NoteIcon = noteTypeIcons[data.noteType] ?? StickyNote
-
-  const handleConfirm = useCallback(async () => {
-    setConfirming(true)
-    setActionError(null)
-    try {
-      await notesApi.confirm(entityId)
-      setActionDone('confirmed')
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Failed to confirm')
-    } finally {
-      setConfirming(false)
-    }
-  }, [entityId])
-
-  const handleInvalidate = useCallback(async () => {
-    setInvalidating(true)
-    setActionError(null)
-    try {
-      await notesApi.invalidate(entityId, 'Invalidated from graph inspector')
-      setActionDone('invalidated')
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Failed to invalidate')
-    } finally {
-      setInvalidating(false)
-    }
-  }, [entityId])
-
-  return (
-    <div className="space-y-3">
-      {/* Type & importance row */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <div
-          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium border"
-          style={{ backgroundColor: '#422006', color: '#fbbf24', borderColor: '#854d0e' }}
-        >
-          <NoteIcon size={10} />
-          {data.noteType}
-        </div>
-        <StatusBadge status={data.status} />
-        {data.importance && (
-          <span className="text-[10px] text-slate-500">
-            importance: <span className="text-slate-400 font-medium">{data.importance}</span>
-          </span>
-        )}
-      </div>
-
-      {/* Energy & Staleness gauges */}
-      <div className="space-y-1.5">
-        <MiniGauge label="Energy" value={data.energy} color="#22d3ee" />
-        <MiniGauge label="Staleness" value={data.staleness} color={data.staleness > 0.7 ? '#f87171' : data.staleness > 0.4 ? '#fb923c' : '#4ade80'} />
-      </div>
-
-      {/* Tags */}
-      {data.tags && data.tags.length > 0 && (
-        <div className="flex items-center gap-1 flex-wrap">
-          <Tag size={10} className="text-slate-500 shrink-0" />
-          {data.tags.map((tag) => (
-            <span
-              key={tag}
-              className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-mono rounded bg-slate-800 text-slate-400 border border-slate-700"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Content preview */}
-      <div className="bg-slate-800/50 rounded-md p-2 border border-slate-700/50">
-        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">Content</p>
-        <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap line-clamp-6">
-          {data.label}
-        </p>
-      </div>
-
-      {/* Action buttons */}
-      {!actionDone && (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleConfirm}
-            disabled={confirming || invalidating}
-            className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors
-              bg-emerald-950/60 border-emerald-800 text-emerald-400 hover:bg-emerald-900/60 hover:text-emerald-300
-              disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Check size={12} />
-            {confirming ? 'Confirming...' : 'Confirm'}
-          </button>
-          <button
-            onClick={handleInvalidate}
-            disabled={confirming || invalidating}
-            className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors
-              bg-red-950/60 border-red-800 text-red-400 hover:bg-red-900/60 hover:text-red-300
-              disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <XCircle size={12} />
-            {invalidating ? 'Invalidating...' : 'Invalidate'}
-          </button>
-        </div>
-      )}
-
-      {/* Action result */}
-      {actionDone && (
-        <div className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border ${
-          actionDone === 'confirmed'
-            ? 'bg-emerald-950/40 border-emerald-800 text-emerald-400'
-            : 'bg-red-950/40 border-red-800 text-red-400'
-        }`}>
-          {actionDone === 'confirmed' ? <Check size={12} /> : <XCircle size={12} />}
-          Note {actionDone} successfully
-        </div>
-      )}
-
-      {actionError && (
-        <p className="text-[10px] text-red-400 px-1">{actionError}</p>
-      )}
-    </div>
   )
 }
 
@@ -382,7 +234,7 @@ function NodeInspectorComponent() {
         {entityType === 'file' ? (
           <FileContextCard data={data as FileNodeData} entityId={data.entityId} />
         ) : entityType === 'note' ? (
-          <NoteDetailPanel data={data as NoteNodeData} entityId={data.entityId} />
+          <NoteContextCard data={data as NoteNodeData} entityId={data.entityId} />
         ) : entityType === 'decision' ? (
           <DecisionDetailPanel data={data as DecisionNodeData} />
         ) : entityType === 'skill' ? (
