@@ -517,18 +517,25 @@ function renderCanvas(
 ) {
   // NOTE: clearRect is done in the draw loop before DPR transform
 
-  // ── Grid dots (subtle) ──────────────────────────────────────────────
+  // ── Grid dots (batched single path, density-capped) ────────────────
   const gridSpacing = cam.zoom < 0.5 ? 200 : cam.zoom < 2 ? 80 : cam.zoom < 6 ? 40 : 20
-  ctx.fillStyle = '#1e293b'
   const [gx0, gy0] = screenToWorld(0, 0, cam)
   const [gx1, gy1] = screenToWorld(width, height, cam)
   const startX = Math.floor(gx0 / gridSpacing) * gridSpacing
   const startY = Math.floor(gy0 / gridSpacing) * gridSpacing
-  for (let x = startX; x <= gx1; x += gridSpacing) {
-    for (let y = startY; y <= gy1; y += gridSpacing) {
-      const [sx, sy] = worldToScreen(x, y, cam)
-      ctx.fillRect(sx - 0.5, sy - 0.5, 1, 1)
+  const gridCols = Math.ceil((gx1 - startX) / gridSpacing)
+  const gridRows = Math.ceil((gy1 - startY) / gridSpacing)
+
+  if (gridCols * gridRows < 6000) {
+    ctx.fillStyle = '#1e293b'
+    ctx.beginPath()
+    for (let x = startX; x <= gx1; x += gridSpacing) {
+      for (let y = startY; y <= gy1; y += gridSpacing) {
+        const [sx, sy] = worldToScreen(x, y, cam)
+        ctx.rect(sx - 0.5, sy - 0.5, 1, 1)
+      }
     }
+    ctx.fill()
   }
 
   // ── Skill hulls (behind everything) ─────────────────────────────────
@@ -588,10 +595,13 @@ function renderCanvas(
     }
   }
 
-  // ── Synapses (edges between points) ─────────────────────────────────
+  // ── Synapses (batched path rendering) ────────────────────────────────
   if (showSynapses && synapses.length > 0) {
     const pointMap = new Map(points.map((p) => [p.id, p]))
+    const highlighted: { sx: number; sy: number; tx: number; ty: number }[] = []
 
+    // Batch all non-highlighted synapses into a single path
+    ctx.beginPath()
     for (const syn of synapses) {
       const src = pointMap.get(syn.source)
       const tgt = pointMap.get(syn.target)
@@ -600,27 +610,38 @@ function renderCanvas(
       const [sx, sy] = worldToScreen(src.x, src.y, cam)
       const [tx, ty] = worldToScreen(tgt.x, tgt.y, cam)
 
-      // Only render if at least partially on screen
-      if (
-        Math.max(sx, tx) < -50 || Math.min(sx, tx) > width + 50 ||
-        Math.max(sy, ty) < -50 || Math.min(sy, ty) > height + 50
-      ) continue
+      if (Math.max(sx, tx) < -50 || Math.min(sx, tx) > width + 50 ||
+          Math.max(sy, ty) < -50 || Math.min(sy, ty) > height + 50) continue
 
-      const alpha = Math.max(0.05, Math.min(0.6, syn.weight))
-      const isHighlighted = hoveredId != null && (syn.source === hoveredId || syn.target === hoveredId)
-
-      ctx.beginPath()
+      if (hoveredId != null && (syn.source === hoveredId || syn.target === hoveredId)) {
+        highlighted.push({ sx, sy, tx, ty })
+        continue
+      }
       ctx.moveTo(sx, sy)
       ctx.lineTo(tx, ty)
-      ctx.strokeStyle = isHighlighted
-        ? `${SYNAPSE_COLOR}cc`
-        : `${SYNAPSE_COLOR}${Math.round(alpha * 255).toString(16).padStart(2, '0')}`
-      ctx.lineWidth = isHighlighted ? 1.5 : Math.max(0.3, syn.weight * 1.5)
+    }
+    ctx.strokeStyle = `${SYNAPSE_COLOR}25`
+    ctx.lineWidth = 0.5
+    ctx.stroke()
+
+    // Highlighted synapses in separate batch
+    if (highlighted.length > 0) {
+      ctx.beginPath()
+      for (const { sx, sy, tx, ty } of highlighted) {
+        ctx.moveTo(sx, sy)
+        ctx.lineTo(tx, ty)
+      }
+      ctx.strokeStyle = `${SYNAPSE_COLOR}cc`
+      ctx.lineWidth = 1.5
       ctx.stroke()
     }
   }
 
   // ── Points ──────────────────────────────────────────────────────────
+  // LOD: skip borders and labels for large datasets at low zoom
+  const showBorders = points.length < 800 || cam.zoom > 2
+  const showLabels = cam.zoom > 4
+
   for (const point of points) {
     const [sx, sy] = worldToScreen(point.x, point.y, cam)
     const baseR = IMPORTANCE_RADIUS[point.importance] ?? 3.5
@@ -650,13 +671,15 @@ function renderCanvas(
     ctx.fillStyle = `${color}${hexAlpha}`
     ctx.fill()
 
-    // Border ring
-    ctx.strokeStyle = isSelected ? '#f0f0f0' : isInSelection ? '#22d3ee' : isHovered ? '#ffffff' : `${color}66`
-    ctx.lineWidth = isSelected ? 1.5 : isInSelection ? 1 : isHovered ? 1.5 : 0.5
-    ctx.stroke()
+    // Border ring (skip for performance with many points at low zoom)
+    if (showBorders || isHovered || isSelected || isInSelection) {
+      ctx.strokeStyle = isSelected ? '#f0f0f0' : isInSelection ? '#22d3ee' : isHovered ? '#ffffff' : `${color}66`
+      ctx.lineWidth = isSelected ? 1.5 : isInSelection ? 1 : isHovered ? 1.5 : 0.5
+      ctx.stroke()
+    }
 
     // Semantic zoom: show labels at high zoom levels
-    if (cam.zoom > 4 && point.content_preview) {
+    if (showLabels && point.content_preview) {
       const label = point.content_preview.length > 50
         ? point.content_preview.slice(0, 47) + '…'
         : point.content_preview
@@ -729,7 +752,7 @@ export default function VectorSpaceExplorer() {
   // Canvas ref
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const animFrameRef = useRef<number>(0)
+  const [canvasSize, setCanvasSize] = useState(0) // resize trigger
 
   // ── Fetch data ────────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -795,25 +818,25 @@ export default function VectorSpaceExplorer() {
         const dpr = window.devicePixelRatio || 1
         canvas.width = Math.round(width * dpr)
         canvas.height = Math.round(height * dpr)
+        setCanvasSize(canvas.width + canvas.height) // trigger redraw
       }
     })
     observer.observe(container)
     return () => observer.disconnect()
   }, [])
 
-  // ── Render loop ───────────────────────────────────────────────────────
+  // ── Render (single frame per state change — no continuous loop) ──────
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !data) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const draw = () => {
+    const frameId = requestAnimationFrame(() => {
       const dpr = window.devicePixelRatio || 1
       const w = canvas.width / dpr
       const h = canvas.height / dpr
 
-      // Reset transform and apply DPR scaling each frame
       ctx.setTransform(1, 0, 0, 1, 0, 0)
       ctx.clearRect(0, 0, canvas.width, canvas.height)
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -831,11 +854,9 @@ export default function VectorSpaceExplorer() {
         showSynapses,
         showSkills,
       )
-      animFrameRef.current = requestAnimationFrame(draw)
-    }
-    animFrameRef.current = requestAnimationFrame(draw)
-    return () => cancelAnimationFrame(animFrameRef.current)
-  }, [data, camera, hoveredPoint, selectedPoint, selectedIds, lassoPoints, showSynapses, showSkills])
+    })
+    return () => cancelAnimationFrame(frameId)
+  }, [data, camera, hoveredPoint, selectedPoint, selectedIds, lassoPoints, showSynapses, showSkills, canvasSize])
 
   // ── Reinforce neurons action ──────────────────────────────────────────
   const handleReinforce = useCallback(async () => {
