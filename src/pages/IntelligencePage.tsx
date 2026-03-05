@@ -21,15 +21,24 @@ import {
   Sparkles,
   LayoutList,
   CheckSquare,
+  Wrench,
+  Loader2,
+  Check,
+  Timer,
+  BrainCircuit,
+  Waves,
+  Search,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { LoadingPage } from '@/components/ui/Spinner'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { intelligenceApi } from '@/services/intelligence'
 import { codeApi } from '@/services/code'
+import { adminApi } from '@/services/admin'
+import { projectsApi } from '@/services/projects'
 import { intelligenceSummaryAtom } from '@/atoms/intelligence'
 import type { IntelligenceSummary } from '@/types/intelligence'
-import type { CodeHealth } from '@/types'
+import type { CodeHealth, Project } from '@/types'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 
@@ -323,6 +332,67 @@ function HotspotRow({ path, score }: { path: string; score: number }) {
 }
 
 // ============================================================================
+// QUICK ACTION BUTTON
+// ============================================================================
+
+interface ActionResult {
+  key: string
+  status: 'idle' | 'running' | 'success' | 'error'
+  message?: string
+}
+
+function QuickActionButton({
+  label,
+  icon: Icon,
+  color,
+  description,
+  actionState,
+  onClick,
+}: {
+  label: string
+  icon: typeof Brain
+  color: string
+  description: string
+  actionState: ActionResult
+  onClick: () => void
+}) {
+  const isRunning = actionState.status === 'running'
+  const isDone = actionState.status === 'success'
+  const isError = actionState.status === 'error'
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={isRunning}
+      className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-slate-800/50 border border-slate-700/50 hover:bg-slate-800 hover:border-slate-600 transition-colors text-left disabled:opacity-60 disabled:cursor-not-allowed group w-full"
+    >
+      <div
+        className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 mt-0.5"
+        style={{ backgroundColor: `${color}15` }}
+      >
+        {isRunning ? (
+          <Loader2 size={14} color={color} className="animate-spin" />
+        ) : isDone ? (
+          <Check size={14} className="text-emerald-400" />
+        ) : (
+          <Icon size={14} color={color} />
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-slate-300 group-hover:text-slate-200">{label}</p>
+        <p className="text-[10px] text-slate-600 leading-tight mt-0.5">{description}</p>
+        {isDone && actionState.message && (
+          <p className="text-[10px] text-emerald-500 mt-0.5">{actionState.message}</p>
+        )}
+        {isError && actionState.message && (
+          <p className="text-[10px] text-red-400 mt-0.5">{actionState.message}</p>
+        )}
+      </div>
+    </button>
+  )
+}
+
+// ============================================================================
 // MAIN PAGE
 // ============================================================================
 
@@ -332,23 +402,50 @@ export function IntelligencePage() {
   const navigate = useNavigate()
   const [summary, setSummary] = useAtom(intelligenceSummaryAtom)
   const [health, setHealth] = useState<CodeHealth | null>(null)
+  const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+
+  // Quick action states
+  const [actions, setActions] = useState<Record<string, ActionResult>>({})
+
+  const getAction = (key: string): ActionResult =>
+    actions[key] ?? { key, status: 'idle' }
+
+  const runAction = useCallback(
+    async (key: string, fn: () => Promise<string>) => {
+      setActions((prev) => ({ ...prev, [key]: { key, status: 'running' } }))
+      try {
+        const message = await fn()
+        setActions((prev) => ({ ...prev, [key]: { key, status: 'success', message } }))
+        // Auto-clear after 4s
+        setTimeout(() => {
+          setActions((prev) => ({ ...prev, [key]: { key, status: 'idle' } }))
+        }, 4000)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Action failed'
+        setActions((prev) => ({ ...prev, [key]: { key, status: 'error', message } }))
+      }
+    },
+    [],
+  )
 
   const fetchAll = useCallback(async () => {
     if (!projectSlug) return
     setError(null)
     try {
-      const [summaryData, healthData] = await Promise.allSettled([
+      const [summaryData, healthData, projectData] = await Promise.allSettled([
         intelligenceApi.getSummary(projectSlug),
         codeApi.getHealth({ project_slug: projectSlug }),
+        projectsApi.get(projectSlug),
       ])
 
       if (summaryData.status === 'fulfilled') setSummary(summaryData.value)
       else throw new Error(summaryData.reason?.message ?? 'Failed to load intelligence data')
 
       if (healthData.status === 'fulfilled') setHealth(healthData.value)
+      if (projectData.status === 'fulfilled') setProject(projectData.value)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load intelligence data')
     }
@@ -713,6 +810,110 @@ export function IntelligencePage() {
           </CardContent>
         </Card>
       )}
+
+      {/* ── Quick Actions (maintenance) ────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Wrench size={16} className="text-slate-400" />
+            Quick Actions
+            <span className="text-[10px] text-slate-600 font-normal ml-auto">
+              Knowledge graph maintenance
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            <QuickActionButton
+              label="Update Staleness"
+              icon={Timer}
+              color="#fb923c"
+              description="Recalculate staleness scores for all notes"
+              actionState={getAction('staleness')}
+              onClick={() =>
+                runAction('staleness', async () => {
+                  const r = await adminApi.updateStaleness()
+                  await handleRefresh()
+                  return `${r.notes_updated} notes updated`
+                })
+              }
+            />
+            <QuickActionButton
+              label="Recalculate Energy"
+              icon={Zap}
+              color="#22d3ee"
+              description="Update neural energy scores based on activity"
+              actionState={getAction('energy')}
+              onClick={() =>
+                runAction('energy', async () => {
+                  const r = await adminApi.updateEnergy()
+                  await handleRefresh()
+                  return `${r.notes_updated} notes updated (half-life: ${r.half_life_days}d)`
+                })
+              }
+            />
+            <QuickActionButton
+              label="Decay Synapses"
+              icon={Waves}
+              color="#a78bfa"
+              description="Decay weak synapses and prune dead connections"
+              actionState={getAction('decay')}
+              onClick={() =>
+                runAction('decay', async () => {
+                  const r = await adminApi.decayNeurons()
+                  await handleRefresh()
+                  return `${r.synapses_decayed} decayed, ${r.synapses_pruned} pruned`
+                })
+              }
+            />
+            {project && (
+              <>
+                <QuickActionButton
+                  label="Update Fabric Scores"
+                  icon={Network}
+                  color="#94a3b8"
+                  description="Recalculate GDS metrics (PageRank, communities)"
+                  actionState={getAction('fabric')}
+                  onClick={() =>
+                    runAction('fabric', async () => {
+                      const r = await adminApi.updateFabricScores({ project_id: project.id })
+                      await handleRefresh()
+                      return `${r.nodes_updated} nodes, ${r.communities} communities`
+                    })
+                  }
+                />
+                <QuickActionButton
+                  label="Detect Skills"
+                  icon={BrainCircuit}
+                  color="#ec4899"
+                  description="Auto-detect emergent skills from note clusters"
+                  actionState={getAction('skills')}
+                  onClick={() =>
+                    runAction('skills', async () => {
+                      const r = await adminApi.detectSkills(project.id)
+                      await handleRefresh()
+                      return `${r.skills_created ?? 0} new, ${r.skills_updated ?? 0} updated`
+                    })
+                  }
+                />
+                <QuickActionButton
+                  label="Backfill Synapses"
+                  icon={Search}
+                  color="#06b6d4"
+                  description="Create missing synapses from semantic similarity"
+                  actionState={getAction('backfill')}
+                  onClick={() =>
+                    runAction('backfill', async () => {
+                      await adminApi.startBackfillSynapses()
+                      return 'Backfill job started'
+                    })
+                  }
+                />
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
