@@ -33,11 +33,14 @@ import {
   SkillDetailPage,
   FeatureGraphsPage,
   FeatureGraphDetailPage,
+  IntelligencePage,
   AdminPage,
+
   NotFoundPage,
   SettingsPage,
   SetupWizard,
 } from '@/pages'
+import IntelligenceGraphPage from '@/components/intelligence/IntelligenceGraphPage'
 
 /**
  * Captures the `?from=tray` query parameter on first render and stores
@@ -161,6 +164,8 @@ function App() {
                         <Route path="skills/:id" element={<SkillDetailPage />} />
                         <Route path="feature-graphs" element={<FeatureGraphsPage />} />
                         <Route path="feature-graphs/:id" element={<FeatureGraphDetailPage />} />
+                        <Route path="projects/:projectSlug/intelligence" element={<IntelligencePage />} />
+                        <Route path="projects/:projectSlug/intelligence/graph" element={<IntelligenceGraphPage />} />
                         <Route path="admin" element={<AdminPage />} />
                         <Route path="*" element={<NotFoundPage embedded />} />
                       </Route>

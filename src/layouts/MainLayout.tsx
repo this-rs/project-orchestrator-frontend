@@ -368,6 +368,8 @@ function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceNa
       skills: 'Skills',
       'project-milestones': 'Milestones',
       'feature-graphs': 'Feature Graphs',
+      intelligence: 'Intelligence',
+      graph: 'Graph',
     }
     return labels[s] || s.charAt(0).toUpperCase() + s.slice(1)
   }
