@@ -1,6 +1,8 @@
 import { memo } from 'react'
+import { useAtom } from 'jotai'
 import type { IntelligenceLayer, VisibilityMode } from '@/types/intelligence'
 import { LAYERS, LAYER_ORDER, VISIBILITY_PRESETS } from '@/constants/intelligence'
+import { energyHeatmapAtom } from '@/atoms/intelligence'
 import {
   Eye,
   EyeOff,
@@ -10,6 +12,7 @@ import {
   KanbanSquare,
   Zap,
   Layers,
+  Flame,
 } from 'lucide-react'
 
 const presetIcons: Record<string, typeof Layers> = {
@@ -32,6 +35,8 @@ function LayerControlsComponent({
   onToggleLayer,
   onApplyPreset,
 }: LayerControlsProps) {
+  const [heatmapEnabled, setHeatmapEnabled] = useAtom(energyHeatmapAtom)
+
   return (
     <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
       {/* Presets */}
@@ -80,6 +85,22 @@ function LayerControlsComponent({
             </button>
           )
         })}
+      </div>
+
+      {/* Overlay toggles */}
+      <div className="flex flex-col gap-0.5 rounded-lg bg-slate-900/90 backdrop-blur-sm border border-slate-700 p-1.5">
+        <button
+          onClick={() => setHeatmapEnabled(!heatmapEnabled)}
+          className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors ${
+            heatmapEnabled
+              ? 'text-amber-300 bg-amber-950/40'
+              : 'text-slate-500 hover:text-slate-400'
+          }`}
+          title="Color note nodes by energy level (red=low, green=high)"
+        >
+          <Flame size={12} className={heatmapEnabled ? 'text-amber-400' : ''} />
+          <span className="font-medium">Energy Heatmap</span>
+        </button>
       </div>
     </div>
   )

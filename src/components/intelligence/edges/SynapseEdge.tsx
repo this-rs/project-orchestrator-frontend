@@ -6,7 +6,8 @@ import { EDGE_STYLES } from '@/constants/intelligence'
 
 /**
  * Animated synapse edge — cyan pulsing edge for neural connections.
- * Weight controls opacity and stroke width.
+ * Weight controls both opacity (0.3–1.0) and stroke width (0.5–4px).
+ * Glow layer intensity scales with weight for strong synapses.
  */
 function SynapseEdgeComponent({
   id,
@@ -29,31 +30,37 @@ function SynapseEdgeComponent({
 
   const style = EDGE_STYLES.SYNAPSE
   const weight = data?.weight ?? 0.5
-  const opacity = 0.3 + weight * 0.7
+
+  // Weight → visual mapping
+  const opacity = 0.3 + weight * 0.7                  // 0.3 → 1.0
+  const strokeWidth = 0.5 + weight * 3.5              // 0.5px → 4px
+  const glowWidth = strokeWidth + 2 + weight * 2      // extra glow for strong synapses
+  const glowOpacity = opacity * (0.2 + weight * 0.3)  // stronger glow at high weight
+  const animSpeed = 3 - weight * 1.5                   // faster animation for stronger synapses (1.5s → 3s)
 
   return (
     <>
-      {/* Glow layer */}
+      {/* Glow layer — stronger for high-weight synapses */}
       <BaseEdge
         id={`${id}-glow`}
         path={edgePath}
         style={{
           stroke: style.color,
-          strokeWidth: style.strokeWidth + 2,
-          opacity: opacity * 0.3,
-          filter: 'blur(3px)',
+          strokeWidth: glowWidth,
+          opacity: glowOpacity,
+          filter: `blur(${3 + weight * 2}px)`,
         }}
       />
-      {/* Main edge */}
+      {/* Main edge — weight drives thickness */}
       <BaseEdge
         id={id}
         path={edgePath}
         style={{
           stroke: style.color,
-          strokeWidth: style.strokeWidth,
+          strokeWidth,
           opacity,
           strokeDasharray: '6 4',
-          animation: 'synapse-flow 2s linear infinite',
+          animation: `synapse-flow ${animSpeed}s linear infinite`,
         }}
       />
     </>

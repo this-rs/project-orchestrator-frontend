@@ -86,6 +86,11 @@ export const visibleEdgesAtom = atom<IntelligenceEdge[]>((get) => {
   })
 })
 
+// ── Visual overlays ─────────────────────────────────────────────────────
+
+/** Energy heatmap overlay — recolors note nodes by energy (red→green) */
+export const energyHeatmapAtom = atom<boolean>(false)
+
 // ── Search / filter ──────────────────────────────────────────────────────────
 
 /** Search query for filtering nodes */
