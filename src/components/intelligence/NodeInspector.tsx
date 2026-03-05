@@ -2,8 +2,9 @@ import { memo, useState, useCallback } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { selectedNodeAtom, selectedNodeIdAtom } from '@/atoms/intelligence'
 import { ENTITY_COLORS } from '@/constants/intelligence'
-import type { IntelligenceNodeData, NoteNodeData, DecisionNodeData, SkillNodeData } from '@/types/intelligence'
+import type { IntelligenceNodeData, FileNodeData, NoteNodeData, DecisionNodeData, SkillNodeData } from '@/types/intelligence'
 import { notesApi } from '@/services/notes'
+import { FileContextCard } from './cards/FileContextCard'
 import {
   FileCode2,
   Box,
@@ -378,7 +379,9 @@ function NodeInspectorComponent() {
 
       {/* Detail Panel — type-specific */}
       <div className="p-3">
-        {entityType === 'note' ? (
+        {entityType === 'file' ? (
+          <FileContextCard data={data as FileNodeData} entityId={data.entityId} />
+        ) : entityType === 'note' ? (
           <NoteDetailPanel data={data as NoteNodeData} entityId={data.entityId} />
         ) : entityType === 'decision' ? (
           <DecisionDetailPanel data={data as DecisionNodeData} />
