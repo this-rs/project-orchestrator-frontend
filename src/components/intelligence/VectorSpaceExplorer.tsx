@@ -62,11 +62,13 @@ const POINT_COLORS: Record<string, string> = {
   skill: ENTITY_COLORS.skill,     // #EC4899 pink
 }
 
+const WORLD_SIZE = 1000 // Normalize UMAP coords to this range for natural zoom levels
+
 const IMPORTANCE_RADIUS: Record<string, number> = {
-  critical: 5,
-  high: 4,
-  medium: 3,
-  low: 2,
+  critical: 7,
+  high: 5.5,
+  medium: 4,
+  low: 3,
 }
 
 const SYNAPSE_COLOR = '#22D3EE'   // cyan — matches neural layer
@@ -692,19 +694,19 @@ function renderCanvas(
     }
   }
 
-  // ── Points ──────────────────────────────────────────────────────────
+  // ── Points (Pass 1: circles + borders) ──────────────────────────────
   const showLabels = cam.zoom > 2
 
   for (const point of points) {
     const [sx, sy] = worldToScreen(point.x, point.y, cam)
-    const baseR = IMPORTANCE_RADIUS[point.importance] ?? 3.5
+    const baseR = IMPORTANCE_RADIUS[point.importance] ?? 4
     const r = screenPtRadius(baseR, cam.zoom)
 
-    // Frustum culling (screen-space radius + margin)
-    if (sx + r + 6 < 0 || sx - r - 6 > width || sy + r + 6 < 0 || sy - r - 6 > height) continue
+    // Frustum culling
+    if (sx + r + 8 < 0 || sx - r - 8 > width || sy + r + 8 < 0 || sy - r - 8 > height) continue
 
     const color = POINT_COLORS[point.type] ?? '#94a3b8'
-    const energyAlpha = Math.max(0.25, Math.min(1, point.energy))
+    const energyAlpha = Math.max(0.3, Math.min(1, point.energy))
     const isHovered = point.id === hoveredId
     const isSelected = point.id === selectedId
     const isInSelection = selectedIds.has(point.id)
@@ -712,8 +714,8 @@ function renderCanvas(
     // Glow for hovered / selected / multi-selected point
     if (isHovered || isSelected || isInSelection) {
       ctx.beginPath()
-      ctx.arc(sx, sy, r + (isSelected ? 5 : 4), 0, Math.PI * 2)
-      ctx.fillStyle = isInSelection ? '#22d3ee20' : `${color}25`
+      ctx.arc(sx, sy, r + (isSelected ? 6 : 5), 0, Math.PI * 2)
+      ctx.fillStyle = isInSelection ? '#22d3ee25' : `${color}30`
       ctx.fill()
     }
 
@@ -724,21 +726,34 @@ function renderCanvas(
     ctx.fillStyle = `${color}${hexAlpha}`
     ctx.fill()
 
-    // Border ring (always drawn for crispness)
-    ctx.strokeStyle = isSelected ? '#f0f0f0' : isInSelection ? '#22d3ee' : isHovered ? '#ffffff' : `${color}55`
-    ctx.lineWidth = isSelected ? 1.5 : isInSelection ? 1 : isHovered ? 1.5 : 0.5
+    // Border ring (always drawn — thicker for crispness)
+    ctx.strokeStyle = isSelected ? '#f0f0f0' : isInSelection ? '#22d3ee' : isHovered ? '#ffffff' : `${color}88`
+    ctx.lineWidth = isSelected ? 2 : isInSelection ? 1.5 : isHovered ? 2 : 1
     ctx.stroke()
+  }
 
-    // Semantic zoom: show labels when zoomed in
-    if (showLabels && point.content_preview) {
+  // ── Points (Pass 2: labels on top of ALL circles) ──────────────────
+  if (showLabels) {
+    ctx.font = '10px -apple-system, system-ui, sans-serif'
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'middle'
+
+    for (const point of points) {
+      if (!point.content_preview) continue
+      const [sx, sy] = worldToScreen(point.x, point.y, cam)
+      // Frustum culling (labels extend rightward)
+      if (sx > width + 10 || sx < -200 || sy < -10 || sy > height + 10) continue
+
+      const baseR = IMPORTANCE_RADIUS[point.importance] ?? 4
+      const r = screenPtRadius(baseR, cam.zoom)
+      const isHovered = point.id === hoveredId
+      const isSelected = point.id === selectedId
+
       const maxLen = cam.zoom > 6 ? 60 : cam.zoom > 3 ? 35 : 20
       const label = point.content_preview.length > maxLen
         ? point.content_preview.slice(0, maxLen - 1) + '…'
         : point.content_preview
-      ctx.font = '10px -apple-system, system-ui, sans-serif'
-      ctx.fillStyle = isHovered || isSelected ? '#cbd5e1cc' : '#94a3b899'
-      ctx.textAlign = 'left'
-      ctx.textBaseline = 'middle'
+      ctx.fillStyle = isHovered || isSelected ? '#e2e8f0' : '#94a3b8aa'
       ctx.fillText(label, sx + r + 5, sy)
     }
   }
@@ -902,36 +917,52 @@ export default function VectorSpaceExplorer() {
     setError(null)
     try {
       const result = await intelligenceApi.getEmbeddingsProjection(projectSlug)
-      setData(result)
 
-      // Auto-fit camera to data bounds
+      // ── Normalize UMAP coordinates to [0, WORLD_SIZE] ──────────────
+      // UMAP outputs tiny ranges (e.g. -15..15) causing extreme auto-fit
+      // zoom levels (100x+). Normalization keeps zoom ≈ 0.5-1.5 so points
+      // are naturally spaced and interactions feel like a real map.
       if (result.points.length > 0) {
-        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+        let rMinX = Infinity, rMaxX = -Infinity, rMinY = Infinity, rMaxY = -Infinity
         for (const p of result.points) {
-          if (p.x < minX) minX = p.x
-          if (p.x > maxX) maxX = p.x
-          if (p.y < minY) minY = p.y
-          if (p.y > maxY) maxY = p.y
+          if (p.x < rMinX) rMinX = p.x
+          if (p.x > rMaxX) rMaxX = p.x
+          if (p.y < rMinY) rMinY = p.y
+          if (p.y > rMaxY) rMaxY = p.y
         }
+        const rangeX = rMaxX - rMinX || 1
+        const rangeY = rMaxY - rMinY || 1
+        const maxRange = Math.max(rangeX, rangeY)
+        const scale = WORLD_SIZE / maxRange
+        // Center the smaller axis so data is visually centered
+        const offsetX = (WORLD_SIZE - rangeX * scale) / 2
+        const offsetY = (WORLD_SIZE - rangeY * scale) / 2
+        for (const p of result.points) {
+          p.x = (p.x - rMinX) * scale + offsetX
+          p.y = (p.y - rMinY) * scale + offsetY
+        }
+
+        // ── Auto-fit camera to normalized bounds ──────────────────────
         const canvas = canvasRef.current
         const dpr = window.devicePixelRatio || 1
         const w = canvas ? canvas.width / dpr : 800
         const h = canvas ? canvas.height / dpr : 600
-        const dx = maxX - minX || 1
-        const dy = maxY - minY || 1
-        const padding = 80
+        const nw = rangeX * scale // normalized data width
+        const nh = rangeY * scale // normalized data height
+        const padding = 60
         const zoom = Math.min(
-          (w - padding * 2) / dx,
-          (h - padding * 2) / dy,
+          (w - padding * 2) / nw,
+          (h - padding * 2) / nh,
           MAX_ZOOM,
         )
-        const newCam = {
-          x: minX - padding / zoom,
-          y: minY - padding / zoom,
+        rs.current.camera = {
+          x: offsetX - padding / zoom,
+          y: offsetY - padding / zoom,
           zoom: Math.max(MIN_ZOOM, zoom),
         }
-        rs.current.camera = newCam
       }
+
+      setData(result)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load projection data')
     }
@@ -1176,7 +1207,9 @@ export default function VectorSpaceExplorer() {
     }
   }, [data, lassoMode, scheduleFrame, finalizeLasso, startInertia])
 
-  // ── Wheel: trackpad scroll = pan, pinch/Ctrl+wheel = zoom ─────────
+  // ── Wheel: ALL scroll/wheel/pinch → zoom (centered on cursor) ────
+  // Pan is done exclusively via drag. This matches Google Maps / canvas
+  // tool conventions: scroll = zoom, drag = pan.
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -1188,33 +1221,25 @@ export default function VectorSpaceExplorer() {
       const rect = canvas.getBoundingClientRect()
       const mx = e.clientX - rect.left
       const my = e.clientY - rect.top
+      const cam = rs.current.camera
+      const [wx, wy] = screenToWorld(mx, my, cam)
 
-      if (e.ctrlKey || e.metaKey) {
-        // ── Pinch gesture or Ctrl+wheel → ZOOM ──
-        const cam = rs.current.camera
-        const [wx, wy] = screenToWorld(mx, my, cam)
-        const dy = Math.max(-50, Math.min(50, e.deltaY))
-        // Asymmetric formula for natural feel
-        const factor = dy <= 0
-          ? 1 - (2 * dy) / 100
-          : 1 / (1 + (2 * dy) / 100)
-        const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, cam.zoom * factor))
-        rs.current.camera = {
-          x: wx - mx / newZoom,
-          y: wy - my / newZoom,
-          zoom: newZoom,
-        }
-      } else {
-        // ── Two-finger scroll or mouse wheel → PAN ──
-        const cam = rs.current.camera
-        const lineMultiplier = e.deltaMode === 1 ? 8 : 1
-        const dx = (e.shiftKey ? e.deltaY : e.deltaX) * lineMultiplier
-        const dy = (e.shiftKey ? 0 : e.deltaY) * lineMultiplier
-        rs.current.camera = {
-          ...cam,
-          x: cam.x + dx / cam.zoom,
-          y: cam.y + dy / cam.zoom,
-        }
+      // Normalize delta to pixels
+      let dy = e.deltaY
+      if (e.deltaMode === 1) dy *= 16  // line mode → pixels
+      if (e.deltaMode === 2) dy *= 100 // page mode → pixels
+
+      // Pinch gestures (ctrlKey on macOS) send much smaller deltas
+      // → use higher sensitivity. Regular wheel/scroll → gentler.
+      const sensitivity = (e.ctrlKey || e.metaKey) ? 80 : 300
+      dy = Math.max(-300, Math.min(300, dy))
+      const factor = Math.pow(2, -dy / sensitivity)
+      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, cam.zoom * factor))
+
+      rs.current.camera = {
+        x: wx - mx / newZoom,
+        y: wy - my / newZoom,
+        zoom: newZoom,
       }
 
       scheduleFrame()
@@ -1272,7 +1297,7 @@ export default function VectorSpaceExplorer() {
     }
     const dx = maxX - minX || 1
     const dy = maxY - minY || 1
-    const padding = 80
+    const padding = 60
     const zoom = Math.min((w - padding * 2) / dx, (h - padding * 2) / dy, MAX_ZOOM)
     animateCamera({
       x: minX - padding / zoom,
