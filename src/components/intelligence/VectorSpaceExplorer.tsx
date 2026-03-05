@@ -64,19 +64,24 @@ const POINT_COLORS: Record<string, string> = {
 }
 
 const IMPORTANCE_RADIUS: Record<string, number> = {
-  critical: 10,
-  high: 7,
-  medium: 5,
-  low: 3,
+  critical: 6,
+  high: 4.5,
+  medium: 3.5,
+  low: 2.5,
 }
 
 const SYNAPSE_COLOR = '#22D3EE'   // cyan — matches neural layer
 const SKILL_HULL_ALPHA = 0.08
 const SKILL_BORDER_ALPHA = 0.4
 
-const MIN_ZOOM = 0.3
-const MAX_ZOOM = 8
-const ZOOM_STEP = 1.15
+const MIN_ZOOM = 0.1
+const MAX_ZOOM = 20
+const ZOOM_STEP = 1.25 // for button clicks only
+
+/** Screen-space point radius with subtle logarithmic zoom scaling */
+function screenPtRadius(base: number, zoom: number): number {
+  return base * Math.min(2, 0.8 + Math.log2(Math.max(1, zoom)) * 0.25)
+}
 
 // ============================================================================
 // CAMERA (pan + zoom transform)
@@ -147,7 +152,7 @@ function findPointAtScreen(
   for (let i = points.length - 1; i >= 0; i--) {
     const p = points[i]
     const [px, py] = worldToScreen(p.x, p.y, cam)
-    const r = (IMPORTANCE_RADIUS[p.importance] ?? 5) * cam.zoom
+    const r = screenPtRadius(IMPORTANCE_RADIUS[p.importance] ?? 3.5, cam.zoom)
     const dx = sx - px
     const dy = sy - py
     if (dx * dx + dy * dy <= (r + 4) * (r + 4)) return p
@@ -275,8 +280,8 @@ function Legend({
               <div
                 className="rounded-full bg-slate-500"
                 style={{
-                  width: IMPORTANCE_RADIUS[imp] * 1.2,
-                  height: IMPORTANCE_RADIUS[imp] * 1.2,
+                  width: IMPORTANCE_RADIUS[imp] * 2,
+                  height: IMPORTANCE_RADIUS[imp] * 2,
                 }}
               />
               <span className="text-[8px] text-slate-600">{imp[0].toUpperCase()}</span>
@@ -513,7 +518,7 @@ function renderCanvas(
   // NOTE: clearRect is done in the draw loop before DPR transform
 
   // ── Grid dots (subtle) ──────────────────────────────────────────────
-  const gridSpacing = 50
+  const gridSpacing = cam.zoom < 0.5 ? 200 : cam.zoom < 2 ? 80 : cam.zoom < 6 ? 40 : 20
   ctx.fillStyle = '#1e293b'
   const [gx0, gy0] = screenToWorld(0, 0, cam)
   const [gx1, gy1] = screenToWorld(width, height, cam)
@@ -575,7 +580,7 @@ function renderCanvas(
 
       // Skill label at centroid
       const [lcx, lcy] = worldToScreen(cx, cy, cam)
-      ctx.font = `bold ${Math.max(9, 11 * cam.zoom)}px ui-sans-serif, system-ui, sans-serif`
+      ctx.font = `bold ${Math.max(8, Math.min(13, 10 * Math.sqrt(cam.zoom)))}px ui-sans-serif, system-ui, sans-serif`
       ctx.fillStyle = `${skillColor}99`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
@@ -610,24 +615,22 @@ function renderCanvas(
       ctx.strokeStyle = isHighlighted
         ? `${SYNAPSE_COLOR}cc`
         : `${SYNAPSE_COLOR}${Math.round(alpha * 255).toString(16).padStart(2, '0')}`
-      ctx.lineWidth = isHighlighted ? 2 : Math.max(0.5, syn.weight * 2)
+      ctx.lineWidth = isHighlighted ? 1.5 : Math.max(0.3, syn.weight * 1.5)
       ctx.stroke()
     }
   }
 
   // ── Points ──────────────────────────────────────────────────────────
-  const isSemanticZoom = cam.zoom > 2.5 // show labels at close zoom
-
   for (const point of points) {
     const [sx, sy] = worldToScreen(point.x, point.y, cam)
+    const baseR = IMPORTANCE_RADIUS[point.importance] ?? 3.5
+    const r = screenPtRadius(baseR, cam.zoom)
 
-    // Frustum culling
-    const r = (IMPORTANCE_RADIUS[point.importance] ?? 5) * cam.zoom
-    if (sx + r < 0 || sx - r > width || sy + r < 0 || sy - r > height) continue
+    // Frustum culling (screen-space radius + margin)
+    if (sx + r + 6 < 0 || sx - r - 6 > width || sy + r + 6 < 0 || sy - r - 6 > height) continue
 
     const color = POINT_COLORS[point.type] ?? '#94a3b8'
-    const radius = IMPORTANCE_RADIUS[point.importance] ?? 5
-    const energyAlpha = Math.max(0.2, Math.min(1, point.energy))
+    const energyAlpha = Math.max(0.25, Math.min(1, point.energy))
     const isHovered = point.id === hoveredId
     const isSelected = point.id === selectedId
     const isInSelection = selectedIds.has(point.id)
@@ -635,34 +638,33 @@ function renderCanvas(
     // Glow for hovered / selected / multi-selected point
     if (isHovered || isSelected || isInSelection) {
       ctx.beginPath()
-      ctx.arc(sx, sy, radius * cam.zoom + (isSelected ? 10 : 8), 0, Math.PI * 2)
-      ctx.fillStyle = isInSelection ? '#22d3ee25' : `${color}30`
+      ctx.arc(sx, sy, r + (isSelected ? 5 : 4), 0, Math.PI * 2)
+      ctx.fillStyle = isInSelection ? '#22d3ee20' : `${color}25`
       ctx.fill()
     }
 
     // Main circle
     ctx.beginPath()
-    ctx.arc(sx, sy, radius * cam.zoom, 0, Math.PI * 2)
+    ctx.arc(sx, sy, r, 0, Math.PI * 2)
     const hexAlpha = Math.round(energyAlpha * 255).toString(16).padStart(2, '0')
     ctx.fillStyle = `${color}${hexAlpha}`
     ctx.fill()
 
     // Border ring
-    ctx.strokeStyle = isSelected ? '#f0f0f0' : isInSelection ? '#22d3ee' : isHovered ? '#ffffff' : `${color}88`
-    ctx.lineWidth = isSelected ? 2.5 : isInSelection ? 2 : isHovered ? 2 : 1
+    ctx.strokeStyle = isSelected ? '#f0f0f0' : isInSelection ? '#22d3ee' : isHovered ? '#ffffff' : `${color}66`
+    ctx.lineWidth = isSelected ? 1.5 : isInSelection ? 1 : isHovered ? 1.5 : 0.5
     ctx.stroke()
 
-    // Semantic zoom: show truncated content_preview at close zoom
-    if (isSemanticZoom && point.content_preview) {
-      const label = point.content_preview.length > 40
-        ? point.content_preview.slice(0, 37) + '…'
+    // Semantic zoom: show labels at high zoom levels
+    if (cam.zoom > 4 && point.content_preview) {
+      const label = point.content_preview.length > 50
+        ? point.content_preview.slice(0, 47) + '…'
         : point.content_preview
-      const fontSize = Math.min(11, Math.max(8, 9 * (cam.zoom / 3)))
-      ctx.font = `${fontSize}px ui-sans-serif, system-ui, sans-serif`
-      ctx.fillStyle = '#94a3b8cc'
+      ctx.font = '10px ui-sans-serif, system-ui, sans-serif'
+      ctx.fillStyle = '#94a3b8aa'
       ctx.textAlign = 'left'
       ctx.textBaseline = 'middle'
-      ctx.fillText(label, sx + radius * cam.zoom + 4, sy)
+      ctx.fillText(label, sx + r + 4, sy)
     }
   }
 
@@ -747,8 +749,9 @@ export default function VectorSpaceExplorer() {
           if (p.y > maxY) maxY = p.y
         }
         const canvas = canvasRef.current
-        const w = canvas?.width ?? 800
-        const h = canvas?.height ?? 600
+        const dpr = window.devicePixelRatio || 1
+        const w = canvas ? canvas.width / dpr : 800
+        const h = canvas ? canvas.height / dpr : 600
         const dx = maxX - minX || 1
         const dy = maxY - minY || 1
         const padding = 60
@@ -792,8 +795,6 @@ export default function VectorSpaceExplorer() {
         const dpr = window.devicePixelRatio || 1
         canvas.width = Math.round(width * dpr)
         canvas.height = Math.round(height * dpr)
-        canvas.style.width = `${width}px`
-        canvas.style.height = `${height}px`
       }
     })
     observer.observe(container)
@@ -992,7 +993,8 @@ export default function VectorSpaceExplorer() {
       // World position under cursor before zoom
       const [wx, wy] = screenToWorld(mx, my, camera)
 
-      const factor = e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP
+      // Continuous zoom: proportional to scroll delta for smooth trackpad support
+      const factor = Math.pow(1.001, -e.deltaY)
       const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, camera.zoom * factor))
 
       // Adjust camera so the same world point stays under cursor
@@ -1178,7 +1180,7 @@ export default function VectorSpaceExplorer() {
       {/* ── Canvas Area ───────────────────────────────────────────────── */}
       <div
         ref={containerRef}
-        className="flex-1 relative bg-[#0c1322] overflow-hidden"
+        className="flex-1 relative bg-[#0c1322] overflow-hidden touch-none select-none"
         style={{
           cursor: lassoMode
             ? 'crosshair'
