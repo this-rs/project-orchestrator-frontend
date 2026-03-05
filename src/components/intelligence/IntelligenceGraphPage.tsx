@@ -80,10 +80,31 @@ export default function IntelligenceGraphPage() {
 
   return (
     <div className="relative h-full w-full">
-      {/* Synapse animation keyframes */}
+      {/* Synapse animation keyframes + dark theme overrides for Controls & MiniMap */}
       <style>{`
         @keyframes synapse-flow {
           to { stroke-dashoffset: -20; }
+        }
+        /* ReactFlow Controls — dark theme */
+        .react-flow__controls {
+          box-shadow: 0 0 6px rgba(0,0,0,0.4) !important;
+        }
+        .react-flow__controls-button {
+          background: #1e293b !important;
+          border-color: #334155 !important;
+          fill: #e2e8f0 !important;
+          color: #e2e8f0 !important;
+        }
+        .react-flow__controls-button:hover {
+          background: #334155 !important;
+        }
+        .react-flow__controls-button svg {
+          fill: #e2e8f0 !important;
+        }
+        /* MiniMap — dark theme node visibility */
+        .react-flow__minimap {
+          background: #0f172a !important;
+          border-color: #334155 !important;
         }
       `}</style>
 
@@ -106,6 +127,7 @@ export default function IntelligenceGraphPage() {
         fitViewOptions={{ padding: 0.15 }}
         minZoom={0.1}
         maxZoom={2.5}
+        colorMode="dark"
         proOptions={{ hideAttribution: true }}
         nodesDraggable
         nodesConnectable={false}
