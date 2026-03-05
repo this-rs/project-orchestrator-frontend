@@ -5,6 +5,7 @@ import { ENTITY_COLORS } from '@/constants/intelligence'
 import type { IntelligenceNodeData, FileNodeData, NoteNodeData, DecisionNodeData, SkillNodeData } from '@/types/intelligence'
 import { FileContextCard } from './cards/FileContextCard'
 import { NoteContextCard } from './cards/NoteContextCard'
+import { SkillContextCard } from './cards/SkillContextCard'
 import {
   FileCode2,
   Box,
@@ -14,8 +15,6 @@ import {
   CheckSquare,
   Brain,
   X,
-  Hash,
-  Zap,
 } from 'lucide-react'
 
 // ============================================================================
@@ -31,28 +30,6 @@ const entityIcons: Record<string, typeof Box> = {
   plan: LayoutList,
   task: CheckSquare,
   skill: Brain,
-}
-
-// ============================================================================
-// MINI GAUGE
-// ============================================================================
-
-function MiniGauge({ label, value, color, max = 1 }: { label: string; value: number; color: string; max?: number }) {
-  const pct = Math.min(100, Math.max(0, (value / max) * 100))
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-[10px] text-slate-500 min-w-[60px] shrink-0">{label}</span>
-      <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-        <div
-          className="h-full rounded-full transition-all duration-300"
-          style={{ width: `${pct}%`, backgroundColor: color }}
-        />
-      </div>
-      <span className="text-[10px] font-mono text-slate-400 min-w-[32px] text-right">
-        {(value * 100).toFixed(0)}%
-      </span>
-    </div>
-  )
 }
 
 // ============================================================================
@@ -122,33 +99,6 @@ function DecisionDetailPanel({ data }: { data: DecisionNodeData }) {
         <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap line-clamp-6">
           {data.label}
         </p>
-      </div>
-    </div>
-  )
-}
-
-// ============================================================================
-// SKILL DETAIL PANEL
-// ============================================================================
-
-function SkillDetailPanel({ data }: { data: SkillNodeData }) {
-  return (
-    <div className="space-y-3">
-      {/* Status */}
-      <div className="flex items-center gap-2">
-        <StatusBadge status={data.status} />
-        <span className="text-[10px] text-slate-500">
-          <Hash size={9} className="inline mr-0.5" />{data.noteCount} notes
-        </span>
-        <span className="text-[10px] text-slate-500">
-          <Zap size={9} className="inline mr-0.5" />{data.activationCount} activations
-        </span>
-      </div>
-
-      {/* Energy & Cohesion */}
-      <div className="space-y-1.5">
-        <MiniGauge label="Energy" value={data.energy} color="#ec4899" />
-        <MiniGauge label="Cohesion" value={data.cohesion} color="#a78bfa" />
       </div>
     </div>
   )
@@ -238,7 +188,7 @@ function NodeInspectorComponent() {
         ) : entityType === 'decision' ? (
           <DecisionDetailPanel data={data as DecisionNodeData} />
         ) : entityType === 'skill' ? (
-          <SkillDetailPanel data={data as SkillNodeData} />
+          <SkillContextCard data={data as SkillNodeData} entityId={data.entityId} />
         ) : (
           <GenericPropertiesPanel data={data} />
         )}
