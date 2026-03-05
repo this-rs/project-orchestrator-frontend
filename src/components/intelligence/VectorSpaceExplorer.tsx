@@ -510,7 +510,7 @@ function renderCanvas(
   showSynapses: boolean,
   showSkills: boolean,
 ) {
-  ctx.clearRect(0, 0, width, height)
+  // NOTE: clearRect is done in the draw loop before DPR transform
 
   // ── Grid dots (subtle) ──────────────────────────────────────────────
   const gridSpacing = 50
@@ -788,13 +788,12 @@ export default function VectorSpaceExplorer() {
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect
+        if (width === 0 || height === 0) continue
         const dpr = window.devicePixelRatio || 1
-        canvas.width = width * dpr
-        canvas.height = height * dpr
+        canvas.width = Math.round(width * dpr)
+        canvas.height = Math.round(height * dpr)
         canvas.style.width = `${width}px`
         canvas.style.height = `${height}px`
-        const ctx = canvas.getContext('2d')
-        if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       }
     })
     observer.observe(container)
@@ -812,6 +811,12 @@ export default function VectorSpaceExplorer() {
       const dpr = window.devicePixelRatio || 1
       const w = canvas.width / dpr
       const h = canvas.height / dpr
+
+      // Reset transform and apply DPR scaling each frame
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
       renderCanvas(
         ctx, w, h,
         data.points,
