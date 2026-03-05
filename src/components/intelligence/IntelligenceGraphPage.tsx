@@ -12,8 +12,10 @@ import '@xyflow/react/dist/style.css'
 import { intelligenceNodeTypes } from './nodes'
 import { intelligenceEdgeTypes } from './edges'
 import { useIntelligenceGraph } from './useIntelligenceGraph'
+import { useGraphWebSocket } from './useGraphWebSocket'
 import { NodeInspector } from './NodeInspector'
 import { LayerControls } from './LayerControls'
+import { LiveIndicator } from './LiveIndicator'
 import { SpreadingActivation, activationSearchOpenAtom } from './SpreadingActivation'
 import { ENTITY_COLORS } from '@/constants/intelligence'
 import { intelligenceLoadingAtom, intelligenceErrorAtom, hoveredNodeIdAtom } from '@/atoms/intelligence'
@@ -40,6 +42,9 @@ export default function IntelligenceGraphPage() {
     applyPreset,
     fetchGraph,
   } = useIntelligenceGraph(projectSlug)
+
+  // Real-time WebSocket updates
+  const { connected: wsConnected, lastEventAt } = useGraphWebSocket(projectSlug)
 
   const onNodeClick = useCallback(
     (_event: ReactMouseEvent, node: IntelligenceNode) => {
@@ -229,6 +234,11 @@ export default function IntelligenceGraphPage() {
 
       {/* Node Inspector (right sidebar overlay) */}
       {selectedNodeId && <NodeInspector />}
+
+      {/* Live indicator (top-right) */}
+      <div className="absolute top-3 right-3 z-10">
+        <LiveIndicator connected={wsConnected} lastEventAt={lastEventAt} />
+      </div>
 
       {/* Keyboard shortcut hint (bottom-center) */}
       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 text-[10px] text-slate-600">
