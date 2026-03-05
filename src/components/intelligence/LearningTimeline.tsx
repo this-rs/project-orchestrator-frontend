@@ -24,6 +24,9 @@ import {
   Calendar,
   Activity,
   TrendingUp,
+  Play,
+  Pause,
+  RotateCcw,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { ErrorState } from '@/components/ui/ErrorState'
@@ -206,15 +209,21 @@ function TimelineTrack({
   endDate,
   onEventHover,
   hoveredId,
+  playbackPosition,
 }: {
   events: TimelineEvent[]
   startDate: Date
   endDate: Date
   onEventHover: (ev: TimelineEvent | null) => void
   hoveredId: string | null
+  /** 0–1 normalized playback cursor position, null = no playback */
+  playbackPosition: number | null
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const range = endDate.getTime() - startDate.getTime() || 1
+  const cursorTs = playbackPosition !== null
+    ? startDate.getTime() + playbackPosition * range
+    : null
 
   return (
     <div ref={containerRef} className="relative h-14 bg-slate-800/30 rounded-lg border border-slate-700/30 overflow-hidden">
@@ -235,21 +244,55 @@ function TimelineTrack({
         )
       })}
 
+      {/* Playback cursor line */}
+      {playbackPosition !== null && (
+        <div
+          className="absolute top-0 bottom-0 w-px z-20 pointer-events-none"
+          style={{
+            left: `${playbackPosition * 100}%`,
+            background: 'linear-gradient(to bottom, #22d3ee, #06b6d4)',
+            boxShadow: '0 0 6px #22d3ee60, 0 0 12px #22d3ee30',
+          }}
+        >
+          {/* Cursor head */}
+          <div
+            className="absolute -top-1 -translate-x-1/2 w-2 h-2 rounded-full bg-cyan-400"
+            style={{ boxShadow: '0 0 6px #22d3ee80' }}
+          />
+        </div>
+      )}
+
+      {/* "Revealed" region tint during playback */}
+      {playbackPosition !== null && (
+        <div
+          className="absolute top-0 bottom-0 left-0 pointer-events-none z-[1]"
+          style={{
+            width: `${playbackPosition * 100}%`,
+            background: 'linear-gradient(to right, rgba(34,211,238,0.04), rgba(34,211,238,0.08))',
+          }}
+        />
+      )}
+
       {/* Event markers */}
       {events.map((ev) => {
         const x = ((ev.date.getTime() - startDate.getTime()) / range) * 100
         if (x < 0 || x > 100) return null
         const color = EVENT_COLORS[ev.type]
         const isHovered = ev.id === hoveredId
+        // During playback, dim events past the cursor
+        const isPastCursor = cursorTs !== null && ev.date.getTime() > cursorTs
+        const opacity = isPastCursor ? 0.15 : 1
 
         return (
           <div
             key={ev.id}
-            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 cursor-pointer transition-transform"
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 cursor-pointer"
             style={{
               left: `${x}%`,
               transform: `translate(-50%, -50%) scale(${isHovered ? 1.8 : 1})`,
               zIndex: isHovered ? 10 : 1,
+              opacity,
+              transition: 'opacity 0.3s ease, transform 0.15s ease',
             }}
             onMouseEnter={() => onEventHover(ev)}
             onMouseLeave={() => onEventHover(null)}
@@ -391,6 +434,13 @@ export default function LearningTimeline() {
   // Date range
   const [dateRange, setDateRange] = useState<{ start: number; end: number }>({ start: 0, end: 0 })
 
+  // Playback
+  const [playing, setPlaying] = useState(false)
+  const [playbackPos, setPlaybackPos] = useState<number | null>(null) // 0–1
+  const [playbackSpeed, setPlaybackSpeed] = useState(1) // 1x, 2x, 4x
+  const playbackRef = useRef<number | null>(null)
+  const lastFrameRef = useRef<number>(0)
+
   // ── Build events from API data ──────────────────────────────────────
   const buildEvents = useCallback(
     (notes: Note[], decisionEntries: DecisionTimelineEntry[], skills: Skill[]): TimelineEvent[] => {
@@ -502,6 +552,79 @@ export default function LearningTimeline() {
       (e) => e.date.getTime() >= dateRange.start && e.date.getTime() <= dateRange.end,
     )
   }, [events, dateRange])
+
+  // ── Playback animation loop ─────────────────────────────────────────
+  useEffect(() => {
+    if (!playing) {
+      if (playbackRef.current) cancelAnimationFrame(playbackRef.current)
+      playbackRef.current = null
+      return
+    }
+
+    // Duration: 10s at 1x → full sweep
+    const durationMs = 10000 / playbackSpeed
+
+    const animate = (now: number) => {
+      if (lastFrameRef.current === 0) lastFrameRef.current = now
+      const elapsed = now - lastFrameRef.current
+      const delta = elapsed / durationMs
+
+      setPlaybackPos((prev) => {
+        const next = (prev ?? 0) + delta
+        if (next >= 1) {
+          setPlaying(false)
+          return 1
+        }
+        return next
+      })
+
+      lastFrameRef.current = now
+      playbackRef.current = requestAnimationFrame(animate)
+    }
+
+    lastFrameRef.current = 0
+    playbackRef.current = requestAnimationFrame(animate)
+
+    return () => {
+      if (playbackRef.current) cancelAnimationFrame(playbackRef.current)
+    }
+  }, [playing, playbackSpeed])
+
+  const handlePlay = useCallback(() => {
+    if (playbackPos === null || playbackPos >= 1) {
+      setPlaybackPos(0)
+    }
+    setPlaying(true)
+  }, [playbackPos])
+
+  const handlePause = useCallback(() => {
+    setPlaying(false)
+  }, [])
+
+  const handleReset = useCallback(() => {
+    setPlaying(false)
+    setPlaybackPos(null)
+  }, [])
+
+  // Current playback timestamp
+  const playbackTimestamp = useMemo(() => {
+    if (playbackPos === null) return null
+    const range = dateRange.end - dateRange.start
+    return dateRange.start + playbackPos * range
+  }, [playbackPos, dateRange])
+
+  // Events visible at current playback position
+  const playbackVisibleCount = useMemo(() => {
+    if (playbackTimestamp === null) return filteredEvents.length
+    return filteredEvents.filter((e) => e.date.getTime() <= playbackTimestamp).length
+  }, [filteredEvents, playbackTimestamp])
+
+  // Most recent event at playback cursor
+  const currentPlaybackEvent = useMemo(() => {
+    if (playbackTimestamp === null) return null
+    const visible = filteredEvents.filter((e) => e.date.getTime() <= playbackTimestamp)
+    return visible.length > 0 ? visible[visible.length - 1] : null
+  }, [filteredEvents, playbackTimestamp])
 
   // ── Sparkline data (cumulative time series) ─────────────────────────
   const sparklines = useMemo(() => {
@@ -685,7 +808,9 @@ export default function LearningTimeline() {
             <Activity size={16} className="text-cyan-400" />
             Event Timeline
             <span className="text-[10px] text-slate-600 font-normal ml-auto">
-              {filteredEvents.length} events
+              {playbackPos !== null
+                ? `${playbackVisibleCount} / ${filteredEvents.length} events`
+                : `${filteredEvents.length} events`}
             </span>
           </CardTitle>
         </CardHeader>
@@ -696,6 +821,81 @@ export default function LearningTimeline() {
             </div>
           ) : (
             <div className="space-y-4">
+              {/* Playback controls */}
+              <div className="flex items-center gap-2">
+                {playing ? (
+                  <button
+                    onClick={handlePause}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/30 transition-colors text-xs font-medium"
+                  >
+                    <Pause size={12} />
+                    Pause
+                  </button>
+                ) : (
+                  <button
+                    onClick={handlePlay}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/30 transition-colors text-xs font-medium"
+                  >
+                    <Play size={12} />
+                    {playbackPos !== null && playbackPos < 1 ? 'Resume' : 'Play'}
+                  </button>
+                )}
+                {playbackPos !== null && (
+                  <button
+                    onClick={handleReset}
+                    className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-slate-500 hover:text-slate-400 hover:bg-slate-800 transition-colors"
+                  >
+                    <RotateCcw size={11} />
+                    Reset
+                  </button>
+                )}
+                {/* Speed control */}
+                <div className="flex items-center gap-1 ml-2">
+                  {[1, 2, 4].map((speed) => (
+                    <button
+                      key={speed}
+                      onClick={() => setPlaybackSpeed(speed)}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors ${
+                        playbackSpeed === speed
+                          ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40'
+                          : 'text-slate-600 hover:text-slate-400 border border-transparent'
+                      }`}
+                    >
+                      {speed}×
+                    </button>
+                  ))}
+                </div>
+
+                {/* Playback date display */}
+                {playbackTimestamp !== null && (
+                  <span className="text-[10px] font-mono text-slate-500 ml-auto tabular-nums">
+                    {new Date(playbackTimestamp).toLocaleDateString('en', {
+                      month: 'short', day: 'numeric', year: 'numeric',
+                    })}
+                  </span>
+                )}
+              </div>
+
+              {/* "Now playing" event card */}
+              {currentPlaybackEvent && playing && (
+                <div
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg border animate-pulse"
+                  style={{
+                    backgroundColor: `${EVENT_COLORS[currentPlaybackEvent.type]}08`,
+                    borderColor: `${EVENT_COLORS[currentPlaybackEvent.type]}30`,
+                  }}
+                >
+                  <span className="text-sm">{EVENT_ICONS[currentPlaybackEvent.type]}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] text-slate-300 truncate">{currentPlaybackEvent.label}</p>
+                    <p className="text-[9px] text-slate-600">{currentPlaybackEvent.detail}</p>
+                  </div>
+                  <span className="text-[9px] font-mono text-slate-600 shrink-0">
+                    {currentPlaybackEvent.date.toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+                  </span>
+                </div>
+              )}
+
               {/* Timeline */}
               <div className="relative">
                 <TimelineTrack
@@ -704,6 +904,7 @@ export default function LearningTimeline() {
                   endDate={endDate}
                   onEventHover={setHoveredEvent}
                   hoveredId={hoveredEvent?.id ?? null}
+                  playbackPosition={playbackPos}
                 />
                 {/* Date labels under the track */}
                 <div className="flex justify-between mt-1 px-0.5">
