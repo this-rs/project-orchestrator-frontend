@@ -16,6 +16,7 @@ function AffectsEdgeComponent({
   targetY,
   sourcePosition,
   targetPosition,
+  data,
 }: EdgeProps<Edge<IntelligenceEdgeData>>) {
   const [edgePath] = getBezierPath({
     sourceX,
@@ -27,6 +28,15 @@ function AffectsEdgeComponent({
   })
 
   const style = EDGE_STYLES.AFFECTS
+
+  // Hover highlighting from propagation paths
+  const hasHover = (data as Record<string, unknown>)?._hasHover === true
+  const isHighlighted = (data as Record<string, unknown>)?._highlighted === true
+  const dimmed = hasHover && !isHighlighted
+
+  const baseOpacity = 0.8
+  const opacity = dimmed ? 0.08 : baseOpacity
+  const sw = isHighlighted ? style.strokeWidth * 1.4 : style.strokeWidth
 
   return (
     <>
@@ -44,31 +54,34 @@ function AffectsEdgeComponent({
           <polygon
             points="0 0, 10 3.5, 0 7"
             fill={style.color}
-            opacity={0.8}
+            opacity={opacity}
           />
         </marker>
       </defs>
       {/* Glow layer */}
-      <BaseEdge
-        id={`${id}-glow`}
-        path={edgePath}
-        style={{
-          stroke: style.color,
-          strokeWidth: style.strokeWidth + 3,
-          opacity: 0.12,
-          filter: 'blur(4px)',
-        }}
-      />
+      {!dimmed && (
+        <BaseEdge
+          id={`${id}-glow`}
+          path={edgePath}
+          style={{
+            stroke: style.color,
+            strokeWidth: sw + 3,
+            opacity: 0.12,
+            filter: 'blur(4px)',
+          }}
+        />
+      )}
       {/* Main edge */}
       <path
         id={id}
         d={edgePath}
         fill="none"
         stroke={style.color}
-        strokeWidth={style.strokeWidth}
-        opacity={0.8}
+        strokeWidth={sw}
+        opacity={opacity}
         markerEnd={`url(#affects-arrow-${id})`}
         className="react-flow__edge-path"
+        style={{ transition: 'opacity 200ms, stroke-width 200ms' }}
       />
     </>
   )

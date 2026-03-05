@@ -44,6 +44,11 @@ function SynapseEdgeComponent({
   const bothActivated = sourceActivated && targetActivated
   const eitherActivated = sourceActivated || targetActivated
 
+  // Hover highlighting from propagation paths
+  const hasHover = (data as Record<string, unknown>)?._hasHover === true
+  const isHighlighted = (data as Record<string, unknown>)?._highlighted === true
+  const hoverDimmed = hasHover && !isHighlighted && !hasActiveSearch
+
   // Determine visual mode
   let edgeColor = style.color     // cyan default
   let opacity = 0.3 + weight * 0.7
@@ -70,6 +75,14 @@ function SynapseEdgeComponent({
       opacity = 0.05
       glowOpacity = 0.01
     }
+  } else if (hoverDimmed) {
+    // Hover propagation: dim non-connected synapses
+    opacity = 0.06
+    glowOpacity = 0.01
+  } else if (hasHover && isHighlighted) {
+    // Highlighted on hover — boost
+    strokeWidth = strokeWidth * 1.5
+    glowWidth = glowWidth * 1.3
   }
 
   return (

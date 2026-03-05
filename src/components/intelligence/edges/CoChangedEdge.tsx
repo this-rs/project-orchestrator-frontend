@@ -33,15 +33,21 @@ function CoChangedEdgeComponent({
   // Normalize count: 1→0, 10+→1
   const normalized = Math.min(1, Math.max(0, (count - 1) / 9))
 
+  // Hover highlighting from propagation paths
+  const hasHover = (data as Record<string, unknown>)?._hasHover === true
+  const isHighlighted = (data as Record<string, unknown>)?._highlighted === true
+  const dimmed = hasHover && !isHighlighted
+
   const strokeWidth = 1 + normalized * 4
-  const opacity = 0.3 + normalized * 0.7
+  const baseOpacity = 0.3 + normalized * 0.7
+  const opacity = dimmed ? 0.08 : baseOpacity
   const glowWidth = strokeWidth + 2 + normalized * 3
-  const glowOpacity = normalized * 0.25
+  const glowOpacity = dimmed ? 0 : normalized * 0.25
 
   return (
     <>
       {/* Glow layer for high-count pairs */}
-      {normalized > 0.3 && (
+      {normalized > 0.3 && !dimmed && (
         <BaseEdge
           id={`${id}-glow`}
           path={edgePath}
@@ -59,8 +65,9 @@ function CoChangedEdgeComponent({
         path={edgePath}
         style={{
           stroke: style.color,
-          strokeWidth,
+          strokeWidth: isHighlighted ? strokeWidth * 1.5 : strokeWidth,
           opacity,
+          transition: 'opacity 200ms, stroke-width 200ms',
         }}
       />
     </>

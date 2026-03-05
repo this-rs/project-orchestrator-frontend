@@ -3,7 +3,7 @@ import { Handle, Position } from '@xyflow/react'
 import type { NodeProps, Node } from '@xyflow/react'
 import type { FileNodeData } from '@/types/intelligence'
 import { ENTITY_COLORS, NODE_SIZES } from '@/constants/intelligence'
-import { FileCode2 } from 'lucide-react'
+import { FileCode2, MessageCircle } from 'lucide-react'
 import { useAtomValue } from 'jotai'
 import { touchesHeatmapAtom } from '@/atoms/intelligence'
 
@@ -43,6 +43,9 @@ function FileNodeComponent({ data, selected }: NodeProps<Node<FileNodeData>>) {
   const riskBorder = data.riskLevel ? riskColors[data.riskLevel] : color
   const touchesHeatmap = useAtomValue(touchesHeatmapAtom)
 
+  // DISCUSSED marker: backend sends `discussed: true` in attributes
+  const isDiscussed = (data as Record<string, unknown>).discussed === true
+
   // TOUCHES heatmap: churn_score from backend attributes
   const churnScore = (data as Record<string, unknown>).churnScore as number | undefined
   const churn = churnScore ?? 0
@@ -72,11 +75,28 @@ function FileNodeComponent({ data, selected }: NodeProps<Node<FileNodeData>>) {
         border: `2px solid ${borderColor}`,
         boxShadow: shadow,
       }}
-      title={`${data.path ?? data.label}${showChurnGlow ? ` (churn: ${(churn * 100).toFixed(0)}%)` : ''}`}
+      title={`${data.path ?? data.label}${isDiscussed ? ' (discussed)' : ''}${showChurnGlow ? ` (churn: ${(churn * 100).toFixed(0)}%)` : ''}`}
     >
       <Handle type="target" position={Position.Top} className="!w-1.5 !h-1.5 !bg-blue-400 !border-0" />
       <FileCode2 size={16} color={iconColor} />
       <Handle type="source" position={Position.Bottom} className="!w-1.5 !h-1.5 !bg-blue-400 !border-0" />
+
+      {/* DISCUSSED badge — small chat bubble indicator */}
+      {isDiscussed && (
+        <div
+          className="absolute -top-1.5 -right-1.5 flex items-center justify-center rounded-full"
+          style={{
+            width: 14,
+            height: 14,
+            background: '#1e293b',
+            border: '1.5px solid #D1D5DB',
+            boxShadow: '0 0 4px rgba(209, 213, 219, 0.3)',
+          }}
+          title="Discussed in chat session"
+        >
+          <MessageCircle size={8} color="#D1D5DB" />
+        </div>
+      )}
     </div>
   )
 }

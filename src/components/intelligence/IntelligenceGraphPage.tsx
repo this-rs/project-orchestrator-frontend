@@ -16,17 +16,19 @@ import { NodeInspector } from './NodeInspector'
 import { LayerControls } from './LayerControls'
 import { SpreadingActivation, activationSearchOpenAtom } from './SpreadingActivation'
 import { ENTITY_COLORS } from '@/constants/intelligence'
-import { intelligenceLoadingAtom, intelligenceErrorAtom } from '@/atoms/intelligence'
+import { intelligenceLoadingAtom, intelligenceErrorAtom, hoveredNodeIdAtom } from '@/atoms/intelligence'
 import { LoadingPage } from '@/components/ui/Spinner'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { EmptyState } from '@/components/ui/EmptyState'
-import type { IntelligenceNode } from '@/types/intelligence'
+import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
 
 export default function IntelligenceGraphPage() {
   const { projectSlug } = useParams<{ slug: string; projectSlug: string }>()
   const loading = useAtomValue(intelligenceLoadingAtom)
   const error = useAtomValue(intelligenceErrorAtom)
   const setSearchOpen = useSetAtom(activationSearchOpenAtom)
+  const hoveredNodeId = useAtomValue(hoveredNodeIdAtom)
+  const setHoveredNodeId = useSetAtom(hoveredNodeIdAtom)
 
   const {
     nodes,
@@ -49,6 +51,47 @@ export default function IntelligenceGraphPage() {
   const onPaneClick = useCallback(() => {
     setSelectedNodeId(null)
   }, [setSelectedNodeId])
+
+  // Hover handlers for propagation path highlighting
+  const onNodeMouseEnter = useCallback(
+    (_event: ReactMouseEvent, node: IntelligenceNode) => {
+      setHoveredNodeId(node.id)
+    },
+    [setHoveredNodeId],
+  )
+
+  const onNodeMouseLeave = useCallback(() => {
+    setHoveredNodeId(null)
+  }, [setHoveredNodeId])
+
+  // Propagation path highlighting — dim non-connected edges on hover
+  const highlightedEdges = useMemo((): IntelligenceEdge[] => {
+    if (!hoveredNodeId) return edges
+    return edges.map((edge): IntelligenceEdge => {
+      const isConnected = edge.source === hoveredNodeId || edge.target === hoveredNodeId
+      if (edge.type && edge.type !== 'default') {
+        // Custom edges — pass highlight hints via data (extra fields ignored by TS)
+        return {
+          ...edge,
+          data: {
+            ...edge.data!,
+            _highlighted: isConnected,
+            _hasHover: true,
+          } as IntelligenceEdge['data'],
+        }
+      }
+      // Default edges — apply opacity directly via style
+      return {
+        ...edge,
+        style: {
+          ...edge.style,
+          opacity: isConnected ? 1 : 0.1,
+          strokeWidth: isConnected ? ((edge.style?.strokeWidth as number) ?? 1) * 1.5 : edge.style?.strokeWidth,
+          transition: 'opacity 200ms, stroke-width 200ms',
+        },
+      }
+    })
+  }, [edges, hoveredNodeId])
 
   // Keyboard shortcut: Ctrl/Cmd+K to open spreading activation search
   useEffect(() => {
@@ -154,11 +197,13 @@ export default function IntelligenceGraphPage() {
       {/* ReactFlow Canvas */}
       <ReactFlow
         nodes={nodes}
-        edges={edges}
+        edges={highlightedEdges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
+        onNodeMouseEnter={onNodeMouseEnter}
+        onNodeMouseLeave={onNodeMouseLeave}
         fitView
         fitViewOptions={{ padding: 0.15 }}
         minZoom={0.1}
