@@ -29,6 +29,7 @@ import {
   Waves,
   Search,
   Orbit,
+  Calendar,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { LoadingPage } from '@/components/ui/Spinner'
@@ -510,6 +511,17 @@ export function IntelligencePage() {
           >
             <Orbit size={14} />
             Vector Space
+          </button>
+          <button
+            onClick={() =>
+              navigate(
+                workspacePath(wsSlug, `/projects/${projectSlug}/intelligence/timeline`),
+              )
+            }
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30 transition-colors text-sm font-medium"
+          >
+            <Calendar size={14} />
+            Timeline
           </button>
           <button
             onClick={() =>
