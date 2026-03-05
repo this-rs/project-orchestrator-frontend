@@ -160,6 +160,36 @@ function findPointAtScreen(
   return null
 }
 
+function findSkillAtScreen(
+  sx: number,
+  sy: number,
+  skills: ProjectionSkill[],
+  points: ProjectionPoint[],
+  cam: Camera,
+): ProjectionSkill | null {
+  const pointMap = new Map(points.map((p) => [p.id, p]))
+  for (const skill of skills) {
+    const worldCoords = skill.member_ids
+      .map((id) => pointMap.get(id))
+      .filter((p): p is ProjectionPoint => p != null)
+      .map((p): [number, number] => [p.x, p.y])
+    if (worldCoords.length < 3) continue
+    const hull = convexHull(worldCoords)
+    if (hull.length < 3) continue
+    const cx = hull.reduce((s, h) => s + h[0], 0) / hull.length
+    const cy = hull.reduce((s, h) => s + h[1], 0) / hull.length
+    const padded = hull.map(([hx, hy]): [number, number] => {
+      const dx = hx - cx
+      const dy = hy - cy
+      const d = Math.sqrt(dx * dx + dy * dy) || 1
+      return [hx + (dx / d) * 15, hy + (dy / d) * 15]
+    })
+    const screenHull = padded.map(([hx, hy]): [number, number] => worldToScreen(hx, hy, cam))
+    if (pointInPolygon(sx, sy, screenHull)) return skill
+  }
+  return null
+}
+
 // ============================================================================
 // TOOLTIP COMPONENT
 // ============================================================================
@@ -718,41 +748,72 @@ export default function VectorSpaceExplorer() {
   const wsSlug = useWorkspaceSlug()
   const navigate = useNavigate()
 
-  // State
+  // State (React — for overlay UI only)
   const [data, setData] = useState<EmbeddingsProjectionResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
-
-  // Camera
-  const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 })
-
-  // Interaction state
   const [hoveredPoint, setHoveredPoint] = useState<ProjectionPoint | null>(null)
   const [selectedPoint, setSelectedPoint] = useState<ProjectionPoint | null>(null)
   const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
-  const [isPanning, setIsPanning] = useState(false)
-  const panStart = useRef<{ x: number; y: number; camX: number; camY: number } | null>(null)
-  const didDrag = useRef(false)
-
-  // Lasso selection
-  const [lassoMode, setLassoMode] = useState(false)
-  const [isLassoing, setIsLassoing] = useState(false)
-  const [lassoPoints, setLassoPoints] = useState<[number, number][]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-
-  // Reinforce action
+  const [lassoMode, setLassoMode] = useState(false)
   const [reinforceStatus, setReinforceStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
   const [reinforceMessage, setReinforceMessage] = useState('')
-
-  // Layer toggles
   const [showSynapses, setShowSynapses] = useState(true)
   const [showSkills, setShowSkills] = useState(true)
 
-  // Canvas ref
+  // ── Imperative render state (refs — bypasses React for smooth canvas) ─
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const [canvasSize, setCanvasSize] = useState(0) // resize trigger
+  const rafRef = useRef(0)
+  const panStart = useRef<{ x: number; y: number; camX: number; camY: number } | null>(null)
+  const didDrag = useRef(false)
+  const isPanningRef = useRef(false)
+  const isLassoingRef = useRef(false)
+  const wheelSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastHoverTime = useRef(0)
+
+  // Mutable render state — read by scheduleFrame, updated imperatively
+  const rs = useRef({
+    camera: { x: 0, y: 0, zoom: 1 } as Camera,
+    hoveredId: null as string | null,
+    selectedId: null as string | null,
+    selectedIds: new Set<string>(),
+    lassoPoints: [] as [number, number][],
+    showSynapses: true,
+    showSkills: true,
+  })
+
+  // Keep render state in sync with React state (cold path)
+  rs.current.selectedId = selectedPoint?.id ?? null
+  rs.current.selectedIds = selectedIds
+  rs.current.showSynapses = showSynapses
+  rs.current.showSkills = showSkills
+
+  // ── scheduleFrame: coalesced imperative draw ───────────────────────────
+  const scheduleFrame = useCallback(() => {
+    cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(() => {
+      const canvas = canvasRef.current
+      if (!canvas || !data) return
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      const dpr = window.devicePixelRatio || 1
+      const w = canvas.width / dpr
+      const h = canvas.height / dpr
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      renderCanvas(
+        ctx, w, h,
+        data.points, data.synapses, data.skills,
+        rs.current.camera, rs.current.hoveredId, rs.current.selectedId,
+        rs.current.selectedIds, rs.current.lassoPoints,
+        rs.current.showSynapses, rs.current.showSkills,
+      )
+    })
+  }, [data])
 
   // ── Fetch data ────────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -783,11 +844,12 @@ export default function VectorSpaceExplorer() {
           (h - padding * 2) / dy,
           MAX_ZOOM,
         )
-        setCamera({
+        const newCam = {
           x: minX - padding / zoom,
           y: minY - padding / zoom,
           zoom: Math.max(MIN_ZOOM, zoom),
-        })
+        }
+        rs.current.camera = newCam
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load projection data')
@@ -818,45 +880,15 @@ export default function VectorSpaceExplorer() {
         const dpr = window.devicePixelRatio || 1
         canvas.width = Math.round(width * dpr)
         canvas.height = Math.round(height * dpr)
-        setCanvasSize(canvas.width + canvas.height) // trigger redraw
+        scheduleFrame()
       }
     })
     observer.observe(container)
     return () => observer.disconnect()
   }, [])
 
-  // ── Render (single frame per state change — no continuous loop) ──────
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas || !data) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const frameId = requestAnimationFrame(() => {
-      const dpr = window.devicePixelRatio || 1
-      const w = canvas.width / dpr
-      const h = canvas.height / dpr
-
-      ctx.setTransform(1, 0, 0, 1, 0, 0)
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-
-      renderCanvas(
-        ctx, w, h,
-        data.points,
-        data.synapses,
-        data.skills,
-        camera,
-        hoveredPoint?.id ?? null,
-        selectedPoint?.id ?? null,
-        selectedIds,
-        lassoPoints,
-        showSynapses,
-        showSkills,
-      )
-    })
-    return () => cancelAnimationFrame(frameId)
-  }, [data, camera, hoveredPoint, selectedPoint, selectedIds, lassoPoints, showSynapses, showSkills, canvasSize])
+  // ── Redraw on React state changes (cold path) ────────────────────────
+  useEffect(() => { scheduleFrame() }, [data, selectedPoint, selectedIds, showSynapses, showSkills, scheduleFrame])
 
   // ── Reinforce neurons action ──────────────────────────────────────────
   const handleReinforce = useCallback(async () => {
@@ -891,57 +923,70 @@ export default function VectorSpaceExplorer() {
   const finalizeLasso = useCallback(
     (screenPolygon: [number, number][]) => {
       if (!data || screenPolygon.length < 3) {
-        setLassoPoints([])
-        setIsLassoing(false)
+        rs.current.lassoPoints = []
+        isLassoingRef.current = false
+        scheduleFrame()
         return
       }
       const ids = new Set<string>()
       for (const p of data.points) {
-        const [sx, sy] = worldToScreen(p.x, p.y, camera)
-        if (pointInPolygon(sx, sy, screenPolygon)) {
-          ids.add(p.id)
-        }
+        const [sx, sy] = worldToScreen(p.x, p.y, rs.current.camera)
+        if (pointInPolygon(sx, sy, screenPolygon)) ids.add(p.id)
       }
       setSelectedIds(ids)
-      setLassoPoints([])
-      setIsLassoing(false)
-      // Exit lasso mode after selection
+      rs.current.lassoPoints = []
+      isLassoingRef.current = false
       if (ids.size > 0) setLassoMode(false)
+      scheduleFrame()
     },
-    [data, camera],
+    [data, scheduleFrame],
   )
 
-  // ── Mouse handlers ────────────────────────────────────────────────────
+  // ── Mouse handlers (imperative — bypass React for hot paths) ────────
   const handleMouseMove = useCallback(
     (e: ReactMouseEvent<HTMLCanvasElement>) => {
       const rect = canvasRef.current?.getBoundingClientRect()
       if (!rect || !data) return
       const mx = e.clientX - rect.left
       const my = e.clientY - rect.top
+
+      // Lasso drawing — imperative, no setState
+      if (isLassoingRef.current) {
+        rs.current.lassoPoints = [...rs.current.lassoPoints, [mx, my]]
+        scheduleFrame()
+        return
+      }
+
+      // Panning — imperative camera update, zero React overhead
+      if (isPanningRef.current && panStart.current) {
+        didDrag.current = true
+        const cam = rs.current.camera
+        const dx = (mx - panStart.current.x) / cam.zoom
+        const dy = (my - panStart.current.y) / cam.zoom
+        rs.current.camera = {
+          ...cam,
+          x: panStart.current.camX - dx,
+          y: panStart.current.camY - dy,
+        }
+        scheduleFrame()
+        return
+      }
+
+      // Hover detection — throttled to 30fps
+      const now = performance.now()
+      if (now - lastHoverTime.current < 33) return
+      lastHoverTime.current = now
       setMousePos({ x: mx, y: my })
 
-      // Lasso drawing
-      if (isLassoing && lassoMode) {
-        setLassoPoints((prev) => [...prev, [mx, my]])
-        return
+      const hit = findPointAtScreen(mx, my, data.points, rs.current.camera)
+      const newId = hit?.id ?? null
+      if (newId !== rs.current.hoveredId) {
+        rs.current.hoveredId = newId
+        setHoveredPoint(hit)
+        scheduleFrame()
       }
-
-      if (isPanning && panStart.current) {
-        didDrag.current = true
-        const dx = (mx - panStart.current.x) / camera.zoom
-        const dy = (my - panStart.current.y) / camera.zoom
-        setCamera((c) => ({
-          ...c,
-          x: panStart.current!.camX - dx,
-          y: panStart.current!.camY - dy,
-        }))
-        return
-      }
-
-      const hit = findPointAtScreen(mx, my, data.points, camera)
-      setHoveredPoint(hit)
     },
-    [data, camera, isPanning, isLassoing, lassoMode],
+    [data, scheduleFrame],
   )
 
   const handleMouseDown = useCallback(
@@ -954,114 +999,125 @@ export default function VectorSpaceExplorer() {
 
       // Start lasso
       if (lassoMode) {
-        setIsLassoing(true)
-        setLassoPoints([[mx, my]])
+        isLassoingRef.current = true
+        rs.current.lassoPoints = [[mx, my]]
         setSelectedIds(new Set())
         return
       }
 
-      // Normal pan
+      // Normal pan — purely imperative
       didDrag.current = false
-      setIsPanning(true)
+      isPanningRef.current = true
       panStart.current = {
         x: mx,
         y: my,
-        camX: camera.x,
-        camY: camera.y,
+        camX: rs.current.camera.x,
+        camY: rs.current.camera.y,
       }
     },
-    [camera, lassoMode],
+    [lassoMode],
   )
 
   const handleMouseUp = useCallback(
     (e: ReactMouseEvent<HTMLCanvasElement>) => {
       // Finalize lasso
-      if (isLassoing && lassoPoints.length > 2) {
-        finalizeLasso(lassoPoints)
+      if (isLassoingRef.current && rs.current.lassoPoints.length > 2) {
+        finalizeLasso(rs.current.lassoPoints)
         return
       }
 
-      // Click (not drag) → select/deselect point
+      // Click (not drag) → select/deselect point or skill
       if (!didDrag.current && !lassoMode && data) {
         const rect = canvasRef.current?.getBoundingClientRect()
         if (rect) {
           const mx = e.clientX - rect.left
           const my = e.clientY - rect.top
-          const hit = findPointAtScreen(mx, my, data.points, camera)
+          const cam = rs.current.camera
+          const hit = findPointAtScreen(mx, my, data.points, cam)
           if (hit) {
             setSelectedPoint((prev) => prev?.id === hit.id ? null : hit)
-            setSelectedIds(new Set()) // clear lasso selection on click
+            setSelectedIds(new Set())
           } else {
-            setSelectedPoint(null)
+            // Check skill hulls
+            const skillHit = findSkillAtScreen(mx, my, data.skills, data.points, cam)
+            if (skillHit) {
+              const memberIds = new Set(skillHit.member_ids)
+              setSelectedIds(memberIds)
+              setSelectedPoint(null)
+            } else {
+              setSelectedPoint(null)
+            }
           }
         }
       }
 
-      setIsPanning(false)
+      isPanningRef.current = false
       panStart.current = null
     },
-    [data, camera, isLassoing, lassoPoints, lassoMode, finalizeLasso],
+    [data, lassoMode, finalizeLasso],
   )
 
-  const handleWheel = useCallback(
-    (e: WheelEvent) => {
-      e.preventDefault()
-      const rect = canvasRef.current?.getBoundingClientRect()
-      if (!rect) return
-      const mx = e.clientX - rect.left
-      const my = e.clientY - rect.top
-
-      // World position under cursor before zoom
-      const [wx, wy] = screenToWorld(mx, my, camera)
-
-      // Continuous zoom: proportional to scroll delta for smooth trackpad support
-      const factor = Math.pow(1.001, -e.deltaY)
-      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, camera.zoom * factor))
-
-      // Adjust camera so the same world point stays under cursor
-      setCamera({
-        x: wx - mx / newZoom,
-        y: wy - my / newZoom,
-        zoom: newZoom,
-      })
-    },
-    [camera],
-  )
-
-  // Attach wheel listener (passive: false for preventDefault)
+  // ── Wheel zoom (imperative + debounced React sync) ─────────────────
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    canvas.addEventListener('wheel', handleWheel, { passive: false })
-    return () => canvas.removeEventListener('wheel', handleWheel)
-  }, [handleWheel])
 
-  // ── Zoom controls ─────────────────────────────────────────────────────
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const rect = canvas.getBoundingClientRect()
+      const mx = e.clientX - rect.left
+      const my = e.clientY - rect.top
+
+      const cam = rs.current.camera
+      const [wx, wy] = screenToWorld(mx, my, cam)
+      const factor = Math.pow(1.001, -e.deltaY)
+      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, cam.zoom * factor))
+
+      rs.current.camera = {
+        x: wx - mx / newZoom,
+        y: wy - my / newZoom,
+        zoom: newZoom,
+      }
+      scheduleFrame()
+
+      // Debounced sync to React state (for overlays that need camera)
+      if (wheelSyncRef.current) clearTimeout(wheelSyncRef.current)
+      wheelSyncRef.current = setTimeout(() => {
+        // Force a single React re-render after scroll settles
+        setHoveredPoint((h) => h) // no-op state nudge to trigger overlay refresh
+      }, 150)
+    }
+
+    canvas.addEventListener('wheel', onWheel, { passive: false })
+    return () => canvas.removeEventListener('wheel', onWheel)
+  }, [scheduleFrame])
+
+  // ── Zoom button controls ───────────────────────────────────────────
   const zoomIn = useCallback(() => {
-    setCamera((c) => {
-      const canvas = canvasRef.current
-      if (!canvas) return c
-      const dpr = window.devicePixelRatio || 1
-      const cx = canvas.width / dpr / 2
-      const cy = canvas.height / dpr / 2
-      const [wx, wy] = screenToWorld(cx, cy, c)
-      const newZoom = Math.min(MAX_ZOOM, c.zoom * ZOOM_STEP)
-      return { x: wx - cx / newZoom, y: wy - cy / newZoom, zoom: newZoom }
-    })
-  }, [])
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const dpr = window.devicePixelRatio || 1
+    const cx = canvas.width / dpr / 2
+    const cy = canvas.height / dpr / 2
+    const cam = rs.current.camera
+    const [wx, wy] = screenToWorld(cx, cy, cam)
+    const newZoom = Math.min(MAX_ZOOM, cam.zoom * ZOOM_STEP)
+    rs.current.camera = { x: wx - cx / newZoom, y: wy - cy / newZoom, zoom: newZoom }
+    scheduleFrame()
+  }, [scheduleFrame])
 
   const zoomOut = useCallback(() => {
-    setCamera((c) => {
-      const canvas = canvasRef.current
-      if (!canvas) return c
-      const dpr = window.devicePixelRatio || 1
-      const cx = canvas.width / dpr / 2
-      const cy = canvas.height / dpr / 2
-      const [wx, wy] = screenToWorld(cx, cy, c)
-      const newZoom = Math.max(MIN_ZOOM, c.zoom / ZOOM_STEP)
-      return { x: wx - cx / newZoom, y: wy - cy / newZoom, zoom: newZoom }
-    })
-  }, [])
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const dpr = window.devicePixelRatio || 1
+    const cx = canvas.width / dpr / 2
+    const cy = canvas.height / dpr / 2
+    const cam = rs.current.camera
+    const [wx, wy] = screenToWorld(cx, cy, cam)
+    const newZoom = Math.max(MIN_ZOOM, cam.zoom / ZOOM_STEP)
+    rs.current.camera = { x: wx - cx / newZoom, y: wy - cy / newZoom, zoom: newZoom }
+    scheduleFrame()
+  }, [scheduleFrame])
 
   const fitAll = useCallback(() => {
     if (!data || data.points.length === 0) return
@@ -1082,12 +1138,13 @@ export default function VectorSpaceExplorer() {
     const dy = maxY - minY || 1
     const padding = 60
     const zoom = Math.min((w - padding * 2) / dx, (h - padding * 2) / dy, MAX_ZOOM)
-    setCamera({
+    rs.current.camera = {
       x: minX - padding / zoom,
       y: minY - padding / zoom,
       zoom: Math.max(MIN_ZOOM, zoom),
-    })
-  }, [data])
+    }
+    scheduleFrame()
+  }, [data, scheduleFrame])
 
   // ── Stats ─────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -1205,7 +1262,7 @@ export default function VectorSpaceExplorer() {
         style={{
           cursor: lassoMode
             ? 'crosshair'
-            : isPanning
+            : isPanningRef.current
               ? 'grabbing'
               : hoveredPoint
                 ? 'pointer'
@@ -1219,15 +1276,17 @@ export default function VectorSpaceExplorer() {
           onMouseDown={handleMouseDown}
           onMouseUp={handleMouseUp}
           onMouseLeave={() => {
-            if (isLassoing) finalizeLasso(lassoPoints)
-            setIsPanning(false)
+            if (isLassoingRef.current) finalizeLasso(rs.current.lassoPoints)
+            isPanningRef.current = false
             panStart.current = null
+            rs.current.hoveredId = null
             setHoveredPoint(null)
+            scheduleFrame()
           }}
         />
 
         {/* Tooltip (only when not in lasso mode and no selection panel) */}
-        {hoveredPoint && !isPanning && !isLassoing && !selectedPoint && (
+        {hoveredPoint && !selectedPoint && (
           <Tooltip point={hoveredPoint} x={mousePos.x} y={mousePos.y} />
         )}
 
@@ -1267,7 +1326,7 @@ export default function VectorSpaceExplorer() {
           <button
             onClick={() => {
               setLassoMode((v) => !v)
-              if (lassoMode) { setLassoPoints([]); setIsLassoing(false) }
+              if (lassoMode) { rs.current.lassoPoints = []; isLassoingRef.current = false; scheduleFrame() }
             }}
             className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-colors ${
               lassoMode
@@ -1304,8 +1363,8 @@ export default function VectorSpaceExplorer() {
 
         {/* Zoom level + semantic zoom indicator */}
         <div className="absolute top-3 right-3 z-30 flex items-center gap-2 text-[9px] font-mono bg-slate-900/60 px-2 py-1 rounded">
-          <span className="text-slate-600">{(camera.zoom * 100).toFixed(0)}%</span>
-          {camera.zoom > 2.5 && (
+          <span className="text-slate-600">{(rs.current.camera.zoom * 100).toFixed(0)}%</span>
+          {rs.current.camera.zoom > 2.5 && (
             <span className="text-cyan-600">semantic</span>
           )}
         </div>
