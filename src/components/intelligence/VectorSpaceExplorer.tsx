@@ -63,10 +63,10 @@ const POINT_COLORS: Record<string, string> = {
 }
 
 const IMPORTANCE_RADIUS: Record<string, number> = {
-  critical: 6,
-  high: 4.5,
-  medium: 3.5,
-  low: 2.5,
+  critical: 5,
+  high: 4,
+  medium: 3,
+  low: 2,
 }
 
 const SYNAPSE_COLOR = '#22D3EE'   // cyan — matches neural layer
@@ -86,9 +86,25 @@ function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3)
 }
 
-/** Screen-space point radius with subtle logarithmic zoom scaling */
-function screenPtRadius(base: number, zoom: number): number {
-  return base * Math.min(2, 0.8 + Math.log2(Math.max(1, zoom)) * 0.25)
+/** Fixed screen-space point radius — zoom changes spacing, not dot size */
+function screenPtRadius(base: number, _zoom: number): number {
+  return base
+}
+
+/** Smooth a closed polygon via Chaikin's corner-cutting (2 iterations) */
+function smoothPolygon(pts: [number, number][], iterations = 2): [number, number][] {
+  let points = pts
+  for (let iter = 0; iter < iterations; iter++) {
+    const smoothed: [number, number][] = []
+    for (let i = 0; i < points.length; i++) {
+      const p0 = points[i]
+      const p1 = points[(i + 1) % points.length]
+      smoothed.push([p0[0] * 0.75 + p1[0] * 0.25, p0[1] * 0.75 + p1[1] * 0.25])
+      smoothed.push([p0[0] * 0.25 + p1[0] * 0.75, p0[1] * 0.25 + p1[1] * 0.75])
+    }
+    points = smoothed
+  }
+  return points
 }
 
 // ============================================================================
@@ -604,12 +620,13 @@ function renderCanvas(
         return [hx + (dx / d) * 15, hy + (dy / d) * 15]
       })
 
-      // Draw filled hull
+      // Draw filled hull (smoothed with Chaikin's corner-cutting)
+      const smoothed = smoothPolygon(padded)
       ctx.beginPath()
-      const [f0x, f0y] = worldToScreen(padded[0][0], padded[0][1], cam)
+      const [f0x, f0y] = worldToScreen(smoothed[0][0], smoothed[0][1], cam)
       ctx.moveTo(f0x, f0y)
-      for (let i = 1; i < padded.length; i++) {
-        const [fx, fy] = worldToScreen(padded[i][0], padded[i][1], cam)
+      for (let i = 1; i < smoothed.length; i++) {
+        const [fx, fy] = worldToScreen(smoothed[i][0], smoothed[i][1], cam)
         ctx.lineTo(fx, fy)
       }
       ctx.closePath()
@@ -625,7 +642,7 @@ function renderCanvas(
 
       // Skill label at centroid
       const [lcx, lcy] = worldToScreen(cx, cy, cam)
-      ctx.font = `bold ${Math.max(8, Math.min(13, 10 * Math.sqrt(cam.zoom)))}px ui-sans-serif, system-ui, sans-serif`
+      ctx.font = `600 ${Math.max(9, Math.min(13, 10 * Math.sqrt(cam.zoom)))}px -apple-system, system-ui, sans-serif`
       ctx.fillStyle = `${skillColor}99`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
@@ -676,9 +693,7 @@ function renderCanvas(
   }
 
   // ── Points ──────────────────────────────────────────────────────────
-  // LOD: skip borders and labels for large datasets at low zoom
-  const showBorders = points.length < 800 || cam.zoom > 2
-  const showLabels = cam.zoom > 4
+  const showLabels = cam.zoom > 2
 
   for (const point of points) {
     const [sx, sy] = worldToScreen(point.x, point.y, cam)
@@ -709,23 +724,22 @@ function renderCanvas(
     ctx.fillStyle = `${color}${hexAlpha}`
     ctx.fill()
 
-    // Border ring (skip for performance with many points at low zoom)
-    if (showBorders || isHovered || isSelected || isInSelection) {
-      ctx.strokeStyle = isSelected ? '#f0f0f0' : isInSelection ? '#22d3ee' : isHovered ? '#ffffff' : `${color}66`
-      ctx.lineWidth = isSelected ? 1.5 : isInSelection ? 1 : isHovered ? 1.5 : 0.5
-      ctx.stroke()
-    }
+    // Border ring (always drawn for crispness)
+    ctx.strokeStyle = isSelected ? '#f0f0f0' : isInSelection ? '#22d3ee' : isHovered ? '#ffffff' : `${color}55`
+    ctx.lineWidth = isSelected ? 1.5 : isInSelection ? 1 : isHovered ? 1.5 : 0.5
+    ctx.stroke()
 
-    // Semantic zoom: show labels at high zoom levels
+    // Semantic zoom: show labels when zoomed in
     if (showLabels && point.content_preview) {
-      const label = point.content_preview.length > 50
-        ? point.content_preview.slice(0, 47) + '…'
+      const maxLen = cam.zoom > 6 ? 60 : cam.zoom > 3 ? 35 : 20
+      const label = point.content_preview.length > maxLen
+        ? point.content_preview.slice(0, maxLen - 1) + '…'
         : point.content_preview
-      ctx.font = '10px ui-sans-serif, system-ui, sans-serif'
-      ctx.fillStyle = '#94a3b8aa'
+      ctx.font = '10px -apple-system, system-ui, sans-serif'
+      ctx.fillStyle = isHovered || isSelected ? '#cbd5e1cc' : '#94a3b899'
       ctx.textAlign = 'left'
       ctx.textBaseline = 'middle'
-      ctx.fillText(label, sx + r + 4, sy)
+      ctx.fillText(label, sx + r + 5, sy)
     }
   }
 
@@ -905,7 +919,7 @@ export default function VectorSpaceExplorer() {
         const h = canvas ? canvas.height / dpr : 600
         const dx = maxX - minX || 1
         const dy = maxY - minY || 1
-        const padding = 60
+        const padding = 80
         const zoom = Math.min(
           (w - padding * 2) / dx,
           (h - padding * 2) / dy,
@@ -1258,7 +1272,7 @@ export default function VectorSpaceExplorer() {
     }
     const dx = maxX - minX || 1
     const dy = maxY - minY || 1
-    const padding = 60
+    const padding = 80
     const zoom = Math.min((w - padding * 2) / dx, (h - padding * 2) / dy, MAX_ZOOM)
     animateCamera({
       x: minX - padding / zoom,
