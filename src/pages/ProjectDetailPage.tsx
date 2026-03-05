@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
-import { FolderOpen, Clipboard, RefreshCw, ChevronsUpDown, Trash2 } from 'lucide-react'
+import { FolderOpen, Clipboard, RefreshCw, ChevronsUpDown, Trash2, Brain } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LoadingPage, ErrorState, Badge, ProgressBar, PageHeader, SectionNav } from '@/components/ui'
 import { ExpandablePlanRow } from '@/components/expandable'
 import { projectsApi, plansApi, featureGraphsApi } from '@/services'
@@ -176,6 +176,14 @@ export function ProjectDetailPage() {
                 </button>
               </div>
             )}
+            <button
+              onClick={() => navigate(workspacePath(wsSlug, `/projects/${slug}/intelligence`))}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-cyan-400 hover:bg-cyan-500/10 border border-cyan-500/20 hover:border-cyan-500/40 transition-all text-xs font-medium"
+              title="Intelligence — Knowledge graph overview"
+            >
+              <Brain className="w-3.5 h-3.5" />
+              Intelligence
+            </button>
             <button
               onClick={handleSync}
               disabled={syncing}
