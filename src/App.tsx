@@ -41,6 +41,7 @@ import {
   SetupWizard,
 } from '@/pages'
 import IntelligenceGraphPage from '@/components/intelligence/IntelligenceGraphPage'
+import VectorSpaceExplorer from '@/components/intelligence/VectorSpaceExplorer'
 
 /**
  * Captures the `?from=tray` query parameter on first render and stores
@@ -166,6 +167,7 @@ function App() {
                         <Route path="feature-graphs/:id" element={<FeatureGraphDetailPage />} />
                         <Route path="projects/:projectSlug/intelligence" element={<IntelligencePage />} />
                         <Route path="projects/:projectSlug/intelligence/graph" element={<IntelligenceGraphPage />} />
+                        <Route path="projects/:projectSlug/intelligence/vector-space" element={<VectorSpaceExplorer />} />
                         <Route path="admin" element={<AdminPage />} />
                         <Route path="*" element={<NotFoundPage embedded />} />
                       </Route>

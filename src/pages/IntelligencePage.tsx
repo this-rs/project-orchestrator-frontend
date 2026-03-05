@@ -28,6 +28,7 @@ import {
   BrainCircuit,
   Waves,
   Search,
+  Orbit,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { LoadingPage } from '@/components/ui/Spinner'
@@ -498,6 +499,17 @@ export function IntelligencePage() {
           >
             <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
             Refresh
+          </button>
+          <button
+            onClick={() =>
+              navigate(
+                workspacePath(wsSlug, `/projects/${projectSlug}/intelligence/vector-space`),
+              )
+            }
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 border border-violet-500/30 transition-colors text-sm font-medium"
+          >
+            <Orbit size={14} />
+            Vector Space
           </button>
           <button
             onClick={() =>

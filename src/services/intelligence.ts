@@ -2,6 +2,7 @@ import { api, buildQuery } from './api'
 import type {
   IntelligenceSummary,
   ProjectGraphResponse,
+  EmbeddingsProjectionResponse,
 } from '@/types/intelligence'
 
 // ============================================================================
@@ -14,6 +15,13 @@ export const intelligenceApi = {
   getSummary: (projectSlug: string) =>
     api.get<IntelligenceSummary>(
       `/projects/${projectSlug}/intelligence/summary`,
+    ),
+
+  // Embeddings UMAP 2D projection for VectorSpaceExplorer
+  // GET /api/projects/:slug/embeddings/projection
+  getEmbeddingsProjection: (projectSlug: string) =>
+    api.get<EmbeddingsProjectionResponse>(
+      `/projects/${projectSlug}/embeddings/projection`,
     ),
 
   // Full graph data for visualization

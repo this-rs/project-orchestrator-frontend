@@ -233,6 +233,44 @@ export interface IntelligenceSummary {
 }
 
 // ============================================================================
+// EMBEDDINGS PROJECTION (from backend GET /api/projects/:slug/embeddings/projection)
+// Used by VectorSpaceExplorer for UMAP 2D scatter visualization
+// ============================================================================
+
+export interface ProjectionPoint {
+  id: string
+  type: string        // 'note' | 'decision'
+  x: number
+  y: number
+  energy: number       // 0–1 note energy
+  importance: string   // 'critical' | 'high' | 'medium' | 'low'
+  tags: string[]
+  content_preview: string
+}
+
+export interface ProjectionSynapse {
+  source: string
+  target: string
+  weight: number       // 0–1 synapse weight
+}
+
+export interface ProjectionSkill {
+  id: string
+  name: string
+  member_ids: string[]
+  centroid_x: number
+  centroid_y: number
+}
+
+export interface EmbeddingsProjectionResponse {
+  points: ProjectionPoint[]
+  synapses: ProjectionSynapse[]
+  skills: ProjectionSkill[]
+  dimensions: number
+  method: string        // 'umap' | 'circular_fallback'
+}
+
+// ============================================================================
 // PROJECT GRAPH (from backend GET /api/projects/:slug/graph)
 // ============================================================================
 
