@@ -1191,6 +1191,7 @@ export default function VectorSpaceExplorer() {
       >
         <canvas
           ref={canvasRef}
+          className="absolute inset-0 w-full h-full"
           onMouseMove={handleMouseMove}
           onMouseDown={handleMouseDown}
           onMouseUp={handleMouseUp}
