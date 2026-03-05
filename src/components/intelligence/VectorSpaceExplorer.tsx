@@ -17,7 +17,6 @@ import {
   useState,
   useCallback,
   useMemo,
-  type MouseEvent as ReactMouseEvent,
 } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
@@ -77,6 +76,15 @@ const SKILL_BORDER_ALPHA = 0.4
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 20
 const ZOOM_STEP = 1.25 // for button clicks only
+const DRAG_THRESHOLD_SQ = 25 // 5px euclidean distance squared
+const PAN_FRICTION = 0.92
+const PAN_REST_THRESHOLD = 0.5
+const VEL_SAMPLES = 4
+const ZOOM_ANIM_MS = 250
+
+function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3)
+}
 
 /** Screen-space point radius with subtle logarithmic zoom scaling */
 function screenPtRadius(base: number, zoom: number): number {
@@ -773,6 +781,11 @@ export default function VectorSpaceExplorer() {
   const isLassoingRef = useRef(false)
   const wheelSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastHoverTime = useRef(0)
+  const velHistory = useRef<{ x: number; y: number }[]>([])
+  const inertiaRafRef = useRef(0)
+  const animRafRef = useRef(0)
+  const zoomDisplayRef = useRef<HTMLSpanElement>(null)
+  const semanticDisplayRef = useRef<HTMLSpanElement>(null)
 
   // Mutable render state — read by scheduleFrame, updated imperatively
   const rs = useRef({
@@ -812,8 +825,62 @@ export default function VectorSpaceExplorer() {
         rs.current.selectedIds, rs.current.lassoPoints,
         rs.current.showSynapses, rs.current.showSkills,
       )
+      // Imperatively update zoom HUD (bypasses React render cycle)
+      if (zoomDisplayRef.current) {
+        zoomDisplayRef.current.textContent = `${(rs.current.camera.zoom * 100).toFixed(0)}%`
+      }
+      if (semanticDisplayRef.current) {
+        semanticDisplayRef.current.style.display = rs.current.camera.zoom > 2.5 ? '' : 'none'
+      }
     })
   }, [data])
+
+  // ── Animated camera transitions (easeOutCubic) ─────────────────────
+  const animateCamera = useCallback((target: Camera, durationMs = ZOOM_ANIM_MS) => {
+    cancelAnimationFrame(animRafRef.current)
+    cancelAnimationFrame(inertiaRafRef.current)
+    const start = { ...rs.current.camera }
+    const startTime = performance.now()
+
+    function tick(now: number) {
+      const elapsed = now - startTime
+      const rawT = Math.min(elapsed / durationMs, 1)
+      const t = easeOutCubic(rawT)
+      rs.current.camera = {
+        x: start.x + (target.x - start.x) * t,
+        y: start.y + (target.y - start.y) * t,
+        zoom: start.zoom + (target.zoom - start.zoom) * t,
+      }
+      scheduleFrame()
+      if (rawT < 1) {
+        animRafRef.current = requestAnimationFrame(tick)
+      }
+    }
+
+    animRafRef.current = requestAnimationFrame(tick)
+  }, [scheduleFrame])
+
+  // ── Pan inertia (friction decay after drag release) ────────────────
+  const startInertia = useCallback((initialVel: { x: number; y: number }) => {
+    cancelAnimationFrame(inertiaRafRef.current)
+    const vel = { ...initialVel }
+
+    function tick() {
+      vel.x *= PAN_FRICTION
+      vel.y *= PAN_FRICTION
+      if (Math.abs(vel.x) + Math.abs(vel.y) < PAN_REST_THRESHOLD) return
+      const cam = rs.current.camera
+      rs.current.camera = {
+        ...cam,
+        x: cam.x - vel.x / cam.zoom,
+        y: cam.y - vel.y / cam.zoom,
+      }
+      scheduleFrame()
+      inertiaRafRef.current = requestAnimationFrame(tick)
+    }
+
+    inertiaRafRef.current = requestAnimationFrame(tick)
+  }, [scheduleFrame])
 
   // ── Fetch data ────────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -942,149 +1009,206 @@ export default function VectorSpaceExplorer() {
     [data, scheduleFrame],
   )
 
-  // ── Mouse handlers (imperative — bypass React for hot paths) ────────
-  const handleMouseMove = useCallback(
-    (e: ReactMouseEvent<HTMLCanvasElement>) => {
-      const rect = canvasRef.current?.getBoundingClientRect()
-      if (!rect || !data) return
+  // ── Pointer events (native — PointerCapture, bypasses React) ────────
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    // Set default cursor
+    canvas.style.cursor = lassoMode ? 'crosshair' : 'grab'
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 0 && e.button !== 1) return // left or middle
+      cancelAnimationFrame(inertiaRafRef.current)
+      cancelAnimationFrame(animRafRef.current)
+
+      const rect = canvas.getBoundingClientRect()
       const mx = e.clientX - rect.left
       const my = e.clientY - rect.top
 
-      // Lasso drawing — imperative, no setState
+      // Lasso start
+      if (lassoMode && e.button === 0) {
+        isLassoingRef.current = true
+        rs.current.lassoPoints = [[mx, my]]
+        setSelectedIds(new Set())
+        canvas.setPointerCapture(e.pointerId)
+        return
+      }
+
+      // Pan start
+      didDrag.current = false
+      isPanningRef.current = true
+      panStart.current = { x: mx, y: my, camX: rs.current.camera.x, camY: rs.current.camera.y }
+      velHistory.current = []
+      canvas.setPointerCapture(e.pointerId)
+      canvas.style.cursor = 'grabbing'
+    }
+
+    const onPointerMove = (e: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect()
+      const mx = e.clientX - rect.left
+      const my = e.clientY - rect.top
+
+      // Lasso drawing
       if (isLassoingRef.current) {
         rs.current.lassoPoints = [...rs.current.lassoPoints, [mx, my]]
         scheduleFrame()
         return
       }
 
-      // Panning — imperative camera update, zero React overhead
+      // Panning with drag threshold
       if (isPanningRef.current && panStart.current) {
+        const tdx = mx - panStart.current.x
+        const tdy = my - panStart.current.y
+        if (!didDrag.current && (tdx * tdx + tdy * tdy) < DRAG_THRESHOLD_SQ) return
         didDrag.current = true
+
         const cam = rs.current.camera
-        const dx = (mx - panStart.current.x) / cam.zoom
-        const dy = (my - panStart.current.y) / cam.zoom
         rs.current.camera = {
           ...cam,
-          x: panStart.current.camX - dx,
-          y: panStart.current.camY - dy,
+          x: panStart.current.camX - (mx - panStart.current.x) / cam.zoom,
+          y: panStart.current.camY - (my - panStart.current.y) / cam.zoom,
         }
+        // Track velocity for inertia (screen-space movement)
+        velHistory.current.push({ x: e.movementX, y: e.movementY })
+        if (velHistory.current.length > VEL_SAMPLES) velHistory.current.shift()
         scheduleFrame()
         return
       }
 
-      // Hover detection — throttled to 30fps
+      // Hover — throttled 30fps
       const now = performance.now()
       if (now - lastHoverTime.current < 33) return
       lastHoverTime.current = now
       setMousePos({ x: mx, y: my })
 
-      const hit = findPointAtScreen(mx, my, data.points, rs.current.camera)
+      const hit = findPointAtScreen(mx, my, data?.points ?? [], rs.current.camera)
       const newId = hit?.id ?? null
       if (newId !== rs.current.hoveredId) {
         rs.current.hoveredId = newId
         setHoveredPoint(hit)
+        canvas.style.cursor = lassoMode ? 'crosshair' : hit ? 'pointer' : 'grab'
         scheduleFrame()
       }
-    },
-    [data, scheduleFrame],
-  )
+    }
 
-  const handleMouseDown = useCallback(
-    (e: ReactMouseEvent<HTMLCanvasElement>) => {
-      if (e.button !== 0) return
-      const rect = canvasRef.current?.getBoundingClientRect()
-      if (!rect) return
-      const mx = e.clientX - rect.left
-      const my = e.clientY - rect.top
+    const onPointerUp = (e: PointerEvent) => {
+      canvas.releasePointerCapture(e.pointerId)
 
-      // Start lasso
-      if (lassoMode) {
-        isLassoingRef.current = true
-        rs.current.lassoPoints = [[mx, my]]
-        setSelectedIds(new Set())
-        return
-      }
-
-      // Normal pan — purely imperative
-      didDrag.current = false
-      isPanningRef.current = true
-      panStart.current = {
-        x: mx,
-        y: my,
-        camX: rs.current.camera.x,
-        camY: rs.current.camera.y,
-      }
-    },
-    [lassoMode],
-  )
-
-  const handleMouseUp = useCallback(
-    (e: ReactMouseEvent<HTMLCanvasElement>) => {
       // Finalize lasso
       if (isLassoingRef.current && rs.current.lassoPoints.length > 2) {
         finalizeLasso(rs.current.lassoPoints)
+        canvas.style.cursor = lassoMode ? 'crosshair' : 'grab'
         return
       }
 
-      // Click (not drag) → select/deselect point or skill
+      // Click (not drag) → select/deselect
       if (!didDrag.current && !lassoMode && data) {
-        const rect = canvasRef.current?.getBoundingClientRect()
-        if (rect) {
-          const mx = e.clientX - rect.left
-          const my = e.clientY - rect.top
-          const cam = rs.current.camera
-          const hit = findPointAtScreen(mx, my, data.points, cam)
-          if (hit) {
-            setSelectedPoint((prev) => prev?.id === hit.id ? null : hit)
-            setSelectedIds(new Set())
+        const rect = canvas.getBoundingClientRect()
+        const mx = e.clientX - rect.left
+        const my = e.clientY - rect.top
+        const cam = rs.current.camera
+        const hit = findPointAtScreen(mx, my, data.points, cam)
+        if (hit) {
+          setSelectedPoint((prev) => prev?.id === hit.id ? null : hit)
+          setSelectedIds(new Set())
+        } else {
+          const skillHit = findSkillAtScreen(mx, my, data.skills, data.points, cam)
+          if (skillHit) {
+            setSelectedIds(new Set(skillHit.member_ids))
+            setSelectedPoint(null)
           } else {
-            // Check skill hulls
-            const skillHit = findSkillAtScreen(mx, my, data.skills, data.points, cam)
-            if (skillHit) {
-              const memberIds = new Set(skillHit.member_ids)
-              setSelectedIds(memberIds)
-              setSelectedPoint(null)
-            } else {
-              setSelectedPoint(null)
-            }
+            setSelectedPoint(null)
           }
         }
       }
 
+      // Start inertia if was dragging
+      if (didDrag.current && isPanningRef.current && velHistory.current.length > 0) {
+        const sum = velHistory.current.reduce(
+          (acc, v) => ({ x: acc.x + v.x, y: acc.y + v.y }),
+          { x: 0, y: 0 },
+        )
+        startInertia({
+          x: sum.x / velHistory.current.length,
+          y: sum.y / velHistory.current.length,
+        })
+      }
+
       isPanningRef.current = false
       panStart.current = null
-    },
-    [data, lassoMode, finalizeLasso],
-  )
+      canvas.style.cursor = lassoMode ? 'crosshair' : 'grab'
+    }
 
-  // ── Wheel zoom (imperative + debounced React sync) ─────────────────
+    const onPointerLeave = () => {
+      if (isLassoingRef.current) finalizeLasso(rs.current.lassoPoints)
+      isPanningRef.current = false
+      panStart.current = null
+      rs.current.hoveredId = null
+      setHoveredPoint(null)
+      canvas.style.cursor = lassoMode ? 'crosshair' : 'grab'
+      scheduleFrame()
+    }
+
+    canvas.addEventListener('pointerdown', onPointerDown)
+    canvas.addEventListener('pointermove', onPointerMove)
+    canvas.addEventListener('pointerup', onPointerUp)
+    canvas.addEventListener('pointerleave', onPointerLeave)
+    return () => {
+      canvas.removeEventListener('pointerdown', onPointerDown)
+      canvas.removeEventListener('pointermove', onPointerMove)
+      canvas.removeEventListener('pointerup', onPointerUp)
+      canvas.removeEventListener('pointerleave', onPointerLeave)
+    }
+  }, [data, lassoMode, scheduleFrame, finalizeLasso, startInertia])
+
+  // ── Wheel: trackpad scroll = pan, pinch/Ctrl+wheel = zoom ─────────
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
+      cancelAnimationFrame(inertiaRafRef.current)
+
       const rect = canvas.getBoundingClientRect()
       const mx = e.clientX - rect.left
       const my = e.clientY - rect.top
 
-      const cam = rs.current.camera
-      const [wx, wy] = screenToWorld(mx, my, cam)
-      const factor = Math.pow(1.001, -e.deltaY)
-      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, cam.zoom * factor))
-
-      rs.current.camera = {
-        x: wx - mx / newZoom,
-        y: wy - my / newZoom,
-        zoom: newZoom,
+      if (e.ctrlKey || e.metaKey) {
+        // ── Pinch gesture or Ctrl+wheel → ZOOM ──
+        const cam = rs.current.camera
+        const [wx, wy] = screenToWorld(mx, my, cam)
+        const dy = Math.max(-50, Math.min(50, e.deltaY))
+        // Asymmetric formula for natural feel
+        const factor = dy <= 0
+          ? 1 - (2 * dy) / 100
+          : 1 / (1 + (2 * dy) / 100)
+        const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, cam.zoom * factor))
+        rs.current.camera = {
+          x: wx - mx / newZoom,
+          y: wy - my / newZoom,
+          zoom: newZoom,
+        }
+      } else {
+        // ── Two-finger scroll or mouse wheel → PAN ──
+        const cam = rs.current.camera
+        const lineMultiplier = e.deltaMode === 1 ? 8 : 1
+        const dx = (e.shiftKey ? e.deltaY : e.deltaX) * lineMultiplier
+        const dy = (e.shiftKey ? 0 : e.deltaY) * lineMultiplier
+        rs.current.camera = {
+          ...cam,
+          x: cam.x + dx / cam.zoom,
+          y: cam.y + dy / cam.zoom,
+        }
       }
+
       scheduleFrame()
 
-      // Debounced sync to React state (for overlays that need camera)
+      // Debounced React sync (for overlay updates)
       if (wheelSyncRef.current) clearTimeout(wheelSyncRef.current)
       wheelSyncRef.current = setTimeout(() => {
-        // Force a single React re-render after scroll settles
-        setHoveredPoint((h) => h) // no-op state nudge to trigger overlay refresh
+        setHoveredPoint((h) => h)
       }, 150)
     }
 
@@ -1092,7 +1216,7 @@ export default function VectorSpaceExplorer() {
     return () => canvas.removeEventListener('wheel', onWheel)
   }, [scheduleFrame])
 
-  // ── Zoom button controls ───────────────────────────────────────────
+  // ── Zoom button controls (animated) ────────────────────────────────
   const zoomIn = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -1102,9 +1226,8 @@ export default function VectorSpaceExplorer() {
     const cam = rs.current.camera
     const [wx, wy] = screenToWorld(cx, cy, cam)
     const newZoom = Math.min(MAX_ZOOM, cam.zoom * ZOOM_STEP)
-    rs.current.camera = { x: wx - cx / newZoom, y: wy - cy / newZoom, zoom: newZoom }
-    scheduleFrame()
-  }, [scheduleFrame])
+    animateCamera({ x: wx - cx / newZoom, y: wy - cy / newZoom, zoom: newZoom })
+  }, [animateCamera])
 
   const zoomOut = useCallback(() => {
     const canvas = canvasRef.current
@@ -1115,9 +1238,8 @@ export default function VectorSpaceExplorer() {
     const cam = rs.current.camera
     const [wx, wy] = screenToWorld(cx, cy, cam)
     const newZoom = Math.max(MIN_ZOOM, cam.zoom / ZOOM_STEP)
-    rs.current.camera = { x: wx - cx / newZoom, y: wy - cy / newZoom, zoom: newZoom }
-    scheduleFrame()
-  }, [scheduleFrame])
+    animateCamera({ x: wx - cx / newZoom, y: wy - cy / newZoom, zoom: newZoom })
+  }, [animateCamera])
 
   const fitAll = useCallback(() => {
     if (!data || data.points.length === 0) return
@@ -1138,13 +1260,40 @@ export default function VectorSpaceExplorer() {
     const dy = maxY - minY || 1
     const padding = 60
     const zoom = Math.min((w - padding * 2) / dx, (h - padding * 2) / dy, MAX_ZOOM)
-    rs.current.camera = {
+    animateCamera({
       x: minX - padding / zoom,
       y: minY - padding / zoom,
       zoom: Math.max(MIN_ZOOM, zoom),
+    })
+  }, [data, animateCamera])
+
+  // ── Keyboard shortcuts ──────────────────────────────────────────────
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+
+      if (e.key === 'Escape') {
+        setSelectedPoint(null)
+        setSelectedIds(new Set())
+        if (lassoMode) setLassoMode(false)
+        rs.current.lassoPoints = []
+        isLassoingRef.current = false
+        scheduleFrame()
+      } else if (e.key === '+' || e.key === '=') {
+        e.preventDefault()
+        zoomIn()
+      } else if (e.key === '-') {
+        e.preventDefault()
+        zoomOut()
+      } else if (e.key === '0') {
+        e.preventDefault()
+        fitAll()
+      }
     }
-    scheduleFrame()
-  }, [data, scheduleFrame])
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [lassoMode, scheduleFrame, zoomIn, zoomOut, fitAll])
 
   // ── Stats ─────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -1259,30 +1408,10 @@ export default function VectorSpaceExplorer() {
       <div
         ref={containerRef}
         className="flex-1 relative bg-[#0c1322] overflow-hidden touch-none select-none"
-        style={{
-          cursor: lassoMode
-            ? 'crosshair'
-            : isPanningRef.current
-              ? 'grabbing'
-              : hoveredPoint
-                ? 'pointer'
-                : 'grab',
-        }}
       >
         <canvas
           ref={canvasRef}
           className="absolute inset-0 w-full h-full"
-          onMouseMove={handleMouseMove}
-          onMouseDown={handleMouseDown}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={() => {
-            if (isLassoingRef.current) finalizeLasso(rs.current.lassoPoints)
-            isPanningRef.current = false
-            panStart.current = null
-            rs.current.hoveredId = null
-            setHoveredPoint(null)
-            scheduleFrame()
-          }}
         />
 
         {/* Tooltip (only when not in lasso mode and no selection panel) */}
@@ -1363,10 +1492,8 @@ export default function VectorSpaceExplorer() {
 
         {/* Zoom level + semantic zoom indicator */}
         <div className="absolute top-3 right-3 z-30 flex items-center gap-2 text-[9px] font-mono bg-slate-900/60 px-2 py-1 rounded">
-          <span className="text-slate-600">{(rs.current.camera.zoom * 100).toFixed(0)}%</span>
-          {rs.current.camera.zoom > 2.5 && (
-            <span className="text-cyan-600">semantic</span>
-          )}
+          <span ref={zoomDisplayRef} className="text-slate-600">100%</span>
+          <span ref={semanticDisplayRef} className="text-cyan-600" style={{ display: 'none' }}>semantic</span>
         </div>
       </div>
     </div>
