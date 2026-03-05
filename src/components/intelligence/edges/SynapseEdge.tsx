@@ -49,6 +49,12 @@ function SynapseEdgeComponent({
   const isHighlighted = (data as Record<string, unknown>)?._highlighted === true
   const hoverDimmed = hasHover && !isHighlighted && !hasActiveSearch
 
+  // WebSocket animation hints
+  const wsAnim = (data as Record<string, unknown>)?._wsAnimation as string | undefined
+  const isDrawIn = wsAnim === 'draw-in'
+  const isPulse = wsAnim === 'pulse'
+  const isFadeOut = wsAnim === 'fade-out'
+
   // Determine visual mode
   let edgeColor = style.color     // cyan default
   let opacity = 0.3 + weight * 0.7
@@ -104,10 +110,18 @@ function SynapseEdgeComponent({
         path={edgePath}
         style={{
           stroke: edgeColor,
-          strokeWidth,
-          opacity,
-          strokeDasharray: '6 4',
-          animation: `synapse-flow ${animSpeed}s linear infinite`,
+          strokeWidth: isPulse ? strokeWidth * 1.8 : strokeWidth,
+          opacity: isFadeOut ? 0 : opacity,
+          strokeDasharray: isDrawIn ? '200' : '6 4',
+          strokeDashoffset: isDrawIn ? '200' : undefined,
+          animation: isDrawIn
+            ? 'ws-edge-draw-in 0.6s ease-out forwards'
+            : isPulse
+              ? `ws-edge-pulse 0.6s ease-out, synapse-flow ${animSpeed}s linear infinite`
+              : isFadeOut
+                ? 'ws-edge-fade-out 0.4s ease-out forwards'
+                : `synapse-flow ${animSpeed}s linear infinite`,
+          transition: isFadeOut ? 'none' : undefined,
         }}
       />
     </>

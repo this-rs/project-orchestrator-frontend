@@ -38,9 +38,14 @@ function CoChangedEdgeComponent({
   const isHighlighted = (data as Record<string, unknown>)?._highlighted === true
   const dimmed = hasHover && !isHighlighted
 
+  // WebSocket animation hints
+  const wsAnim = (data as Record<string, unknown>)?._wsAnimation as string | undefined
+  const isDrawIn = wsAnim === 'draw-in'
+  const isFadeOut = wsAnim === 'fade-out'
+
   const strokeWidth = 1 + normalized * 4
   const baseOpacity = 0.3 + normalized * 0.7
-  const opacity = dimmed ? 0.08 : baseOpacity
+  const opacity = isFadeOut ? 0 : dimmed ? 0.08 : baseOpacity
   const glowWidth = strokeWidth + 2 + normalized * 3
   const glowOpacity = dimmed ? 0 : normalized * 0.25
 
@@ -67,7 +72,14 @@ function CoChangedEdgeComponent({
           stroke: style.color,
           strokeWidth: isHighlighted ? strokeWidth * 1.5 : strokeWidth,
           opacity,
-          transition: 'opacity 200ms, stroke-width 200ms',
+          strokeDasharray: isDrawIn ? '200' : undefined,
+          strokeDashoffset: isDrawIn ? '200' : undefined,
+          animation: isDrawIn
+            ? 'ws-edge-draw-in 0.6s ease-out forwards'
+            : isFadeOut
+              ? 'ws-edge-fade-out 0.4s ease-out forwards'
+              : undefined,
+          transition: isDrawIn || isFadeOut ? 'none' : 'opacity 200ms, stroke-width 200ms',
         }}
       />
     </>

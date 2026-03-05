@@ -34,8 +34,13 @@ function AffectsEdgeComponent({
   const isHighlighted = (data as Record<string, unknown>)?._highlighted === true
   const dimmed = hasHover && !isHighlighted
 
+  // WebSocket animation hints
+  const wsAnim = (data as Record<string, unknown>)?._wsAnimation as string | undefined
+  const isDrawIn = wsAnim === 'draw-in'
+  const isFadeOut = wsAnim === 'fade-out'
+
   const baseOpacity = 0.8
-  const opacity = dimmed ? 0.08 : baseOpacity
+  const opacity = isFadeOut ? 0 : dimmed ? 0.08 : baseOpacity
   const sw = isHighlighted ? style.strokeWidth * 1.4 : style.strokeWidth
 
   return (
@@ -79,9 +84,18 @@ function AffectsEdgeComponent({
         stroke={style.color}
         strokeWidth={sw}
         opacity={opacity}
+        strokeDasharray={isDrawIn ? '200' : undefined}
+        strokeDashoffset={isDrawIn ? '200' : undefined}
         markerEnd={`url(#affects-arrow-${id})`}
         className="react-flow__edge-path"
-        style={{ transition: 'opacity 200ms, stroke-width 200ms' }}
+        style={{
+          animation: isDrawIn
+            ? 'ws-edge-draw-in 0.6s ease-out forwards'
+            : isFadeOut
+              ? 'ws-edge-fade-out 0.4s ease-out forwards'
+              : undefined,
+          transition: isDrawIn || isFadeOut ? 'none' : 'opacity 200ms, stroke-width 200ms',
+        }}
       />
     </>
   )

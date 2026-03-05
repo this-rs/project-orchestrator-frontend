@@ -147,6 +147,60 @@ export default function IntelligenceGraphPage() {
         @keyframes synapse-flow {
           to { stroke-dashoffset: -20; }
         }
+
+        /* ============================================================
+           WebSocket real-time animations
+           ============================================================ */
+
+        /* Node: fly-in — scale up + fade in on creation */
+        .ws-anim-fly-in {
+          animation: ws-node-fly-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+        }
+        @keyframes ws-node-fly-in {
+          from { opacity: 0; transform: scale(0.2); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+
+        /* Node: flash — brightness pulse on attribute update */
+        .ws-anim-flash {
+          animation: ws-node-flash 0.6s ease-out !important;
+        }
+        @keyframes ws-node-flash {
+          0%   { filter: brightness(1); }
+          30%  { filter: brightness(1.8) drop-shadow(0 0 8px rgba(255, 255, 255, 0.4)); }
+          100% { filter: brightness(1); }
+        }
+
+        /* Node: community — outline flash on community reassignment */
+        .ws-anim-community {
+          animation: ws-node-community 0.8s ease-out !important;
+        }
+        @keyframes ws-node-community {
+          0%   { outline: 2px solid transparent; outline-offset: 2px; }
+          25%  { outline: 2px solid #818CF8; outline-offset: 2px; }
+          50%  { outline: 2px solid #818CF8; outline-offset: 4px; }
+          100% { outline: 2px solid transparent; outline-offset: 2px; }
+        }
+
+        /* Edge: draw-in — stroke draws progressively on creation */
+        @keyframes ws-edge-draw-in {
+          from { stroke-dashoffset: 200; opacity: 0.3; }
+          to   { stroke-dashoffset: 0; opacity: 1; }
+        }
+
+        /* Edge: fade-out — opacity fade before removal */
+        @keyframes ws-edge-fade-out {
+          from { opacity: 1; }
+          to   { opacity: 0; }
+        }
+
+        /* Edge: pulse — brightness flash on reinforcement */
+        @keyframes ws-edge-pulse {
+          0%   { filter: brightness(1); }
+          30%  { filter: brightness(2.5) drop-shadow(0 0 6px currentColor); }
+          100% { filter: brightness(1); }
+        }
+
         /* Range slider thumb for dark theme */
         input[type="range"]::-webkit-slider-thumb {
           -webkit-appearance: none;

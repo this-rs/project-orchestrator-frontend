@@ -4,6 +4,7 @@ import type { NodeProps, Node } from '@xyflow/react'
 import type { DecisionNodeData } from '@/types/intelligence'
 import { ENTITY_COLORS, NODE_SIZES } from '@/constants/intelligence'
 import { Scale } from 'lucide-react'
+import { useWsAnimation } from '../useWsAnimation'
 
 const decisionStatusColors: Record<string, string> = {
   accepted: '#22C55E',
@@ -16,9 +17,11 @@ function DecisionNodeComponent({ data, selected }: NodeProps<Node<DecisionNodeDa
   const size = NODE_SIZES.decision
   const color = ENTITY_COLORS.decision
   const statusColor = decisionStatusColors[data.status] ?? color
+  const animRef = useWsAnimation(data as Record<string, unknown>)
 
   return (
     <div
+      ref={animRef}
       className="flex items-center justify-center transition-all duration-150"
       style={{
         width: size.width,

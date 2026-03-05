@@ -6,6 +6,7 @@ import { ENTITY_COLORS, NODE_SIZES } from '@/constants/intelligence'
 import { FileCode2, MessageCircle } from 'lucide-react'
 import { useAtomValue } from 'jotai'
 import { touchesHeatmapAtom } from '@/atoms/intelligence'
+import { useWsAnimation } from '../useWsAnimation'
 
 const riskColors: Record<string, string> = {
   critical: '#EF4444',
@@ -42,6 +43,7 @@ function FileNodeComponent({ data, selected }: NodeProps<Node<FileNodeData>>) {
   const color = ENTITY_COLORS.file
   const riskBorder = data.riskLevel ? riskColors[data.riskLevel] : color
   const touchesHeatmap = useAtomValue(touchesHeatmapAtom)
+  const animRef = useWsAnimation(data as Record<string, unknown>)
 
   // DISCUSSED marker: backend sends `discussed: true` in attributes
   const isDiscussed = (data as Record<string, unknown>).discussed === true
@@ -66,6 +68,7 @@ function FileNodeComponent({ data, selected }: NodeProps<Node<FileNodeData>>) {
 
   return (
     <div
+      ref={animRef}
       className="relative flex flex-col items-center justify-center transition-all duration-200"
       style={{
         width: size.width,

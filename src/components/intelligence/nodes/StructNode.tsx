@@ -4,13 +4,16 @@ import type { NodeProps, Node } from '@xyflow/react'
 import type { StructNodeData } from '@/types/intelligence'
 import { ENTITY_COLORS, NODE_SIZES } from '@/constants/intelligence'
 import { Box } from 'lucide-react'
+import { useWsAnimation } from '../useWsAnimation'
 
 function StructNodeComponent({ data, selected }: NodeProps<Node<StructNodeData>>) {
   const size = NODE_SIZES.struct
   const color = ENTITY_COLORS.struct
+  const animRef = useWsAnimation(data as Record<string, unknown>)
 
   return (
     <div
+      ref={animRef}
       className="flex items-center justify-center transition-all duration-150"
       style={{
         width: size.width,

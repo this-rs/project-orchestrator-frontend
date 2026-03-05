@@ -4,6 +4,7 @@ import type { NodeProps, Node } from '@xyflow/react'
 import type { PlanNodeData } from '@/types/intelligence'
 import { ENTITY_COLORS, NODE_SIZES } from '@/constants/intelligence'
 import { LayoutList } from 'lucide-react'
+import { useWsAnimation } from '../useWsAnimation'
 
 const planStatusColors: Record<string, { bg: string; border: string }> = {
   draft: { bg: '#1f2937', border: '#4B5563' },
@@ -17,9 +18,11 @@ function PlanNodeComponent({ data, selected }: NodeProps<Node<PlanNodeData>>) {
   const size = NODE_SIZES.plan
   const color = ENTITY_COLORS.plan
   const status = planStatusColors[data.status] ?? planStatusColors.draft
+  const animRef = useWsAnimation(data as Record<string, unknown>)
 
   return (
     <div
+      ref={animRef}
       className="flex items-center gap-2 transition-all duration-150"
       style={{
         width: size.width,

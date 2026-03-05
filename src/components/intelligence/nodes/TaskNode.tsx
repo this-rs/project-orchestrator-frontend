@@ -4,6 +4,7 @@ import type { NodeProps, Node } from '@xyflow/react'
 import type { TaskNodeData } from '@/types/intelligence'
 import { ENTITY_COLORS, NODE_SIZES } from '@/constants/intelligence'
 import { CheckSquare } from 'lucide-react'
+import { useWsAnimation } from '../useWsAnimation'
 
 const taskStatusColors: Record<string, string> = {
   pending: '#4B5563',
@@ -17,9 +18,11 @@ function TaskNodeComponent({ data, selected }: NodeProps<Node<TaskNodeData>>) {
   const size = NODE_SIZES.task
   const color = ENTITY_COLORS.task
   const statusColor = taskStatusColors[data.status] ?? color
+  const animRef = useWsAnimation(data as Record<string, unknown>)
 
   return (
     <div
+      ref={animRef}
       className="flex flex-col items-center justify-center gap-1 transition-all duration-150"
       style={{
         width: size.width,

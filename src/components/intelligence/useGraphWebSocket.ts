@@ -196,6 +196,9 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
               layer: n.layer as IntelligenceNode['data']['layer'],
               entityId: n.id,
               ...(n.attributes ?? {}),
+              // Animation hint: fly-in for new nodes
+              _wsAnimation: 'fly-in',
+              _wsAnimKey: Date.now(),
             } as IntelligenceNode['data'],
           }
           pendingRef.current.addNodes.push(newNode)
@@ -204,7 +207,12 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
         }
 
         case 'graph.node_updated': {
-          pendingRef.current.updateNodes.set(event.node_id, event.attributes)
+          // Animation hint: flash for updated nodes
+          pendingRef.current.updateNodes.set(event.node_id, {
+            ...event.attributes,
+            _wsAnimation: 'flash',
+            _wsAnimKey: Date.now(),
+          })
           scheduleFlush()
           break
         }
@@ -238,6 +246,9 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
               weight: (attrs.weight as number) ?? undefined,
               confidence: (attrs.confidence as number) ?? undefined,
               count: (attrs.co_change_count as number) ?? (attrs.count as number) ?? undefined,
+              // Animation hint: draw-in for new edges
+              _wsAnimation: 'draw-in',
+              _wsAnimKey: Date.now(),
             } as IntelligenceEdge['data'],
           }
           pendingRef.current.addEdges.push(newEdge)
@@ -246,14 +257,39 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
         }
 
         case 'graph.edge_removed': {
-          pendingRef.current.removeEdgeKeys.add(makeEdgeKey(event.source, event.target, event.edge_type))
-          scheduleFlush()
+          // Animation: mark edges with fade-out, then remove after delay
+          const removeKey = makeEdgeKey(event.source, event.target, event.edge_type)
+          setEdges((prev) =>
+            prev.map((e) => {
+              const relType = (e.data as { relationType?: string })?.relationType ?? ''
+              if (makeEdgeKey(e.source, e.target, relType) === removeKey) {
+                return {
+                  ...e,
+                  data: {
+                    ...e.data!,
+                    _wsAnimation: 'fade-out',
+                    _wsAnimKey: Date.now(),
+                  } as IntelligenceEdge['data'],
+                }
+              }
+              return e
+            }),
+          )
+          // Actually remove after fade-out animation completes
+          setTimeout(() => {
+            if (!mountedRef.current) return
+            setEdges((prev) =>
+              prev.filter((e) => {
+                const relType = (e.data as { relationType?: string })?.relationType ?? ''
+                return makeEdgeKey(e.source, e.target, relType) !== removeKey
+              }),
+            )
+          }, 400)
           break
         }
 
         case 'graph.reinforcement': {
-          // Update synapse weight on matching edges
-          pendingRef.current.updateNodes // We update edges via a setEdges call
+          // Animation: pulse synapse edge + update weight
           setEdges((prev) =>
             prev.map((e) => {
               if (e.source === event.source && e.target === event.target) {
@@ -261,7 +297,12 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
                 if (relType === 'SYNAPSE') {
                   return {
                     ...e,
-                    data: { ...e.data!, weight: event.new_weight } as IntelligenceEdge['data'],
+                    data: {
+                      ...e.data!,
+                      weight: event.new_weight,
+                      _wsAnimation: 'pulse',
+                      _wsAnimKey: Date.now(),
+                    } as IntelligenceEdge['data'],
                   }
                 }
               }
@@ -279,9 +320,14 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
         }
 
         case 'graph.community_changed': {
-          // Batch update community attributes on affected nodes
+          // Batch update community attributes on affected nodes + re-color animation
+          const animKey = Date.now()
           for (const nodeId of event.node_ids) {
-            const attrs: Record<string, unknown> = { communityId: event.community_id }
+            const attrs: Record<string, unknown> = {
+              communityId: event.community_id,
+              _wsAnimation: 'community',
+              _wsAnimKey: animKey,
+            }
             if (event.community_label) {
               attrs.communityLabel = event.community_label
             }

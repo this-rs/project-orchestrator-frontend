@@ -4,6 +4,7 @@ import type { NodeProps, Node } from '@xyflow/react'
 import type { SkillNodeData } from '@/types/intelligence'
 import { ENTITY_COLORS, NODE_SIZES } from '@/constants/intelligence'
 import { Brain } from 'lucide-react'
+import { useWsAnimation } from '../useWsAnimation'
 
 const skillStatusColors: Record<string, string> = {
   emerging: '#FBBF24',
@@ -17,9 +18,11 @@ function SkillNodeComponent({ data, selected }: NodeProps<Node<SkillNodeData>>) 
   const color = ENTITY_COLORS.skill
   const statusColor = skillStatusColors[data.status] ?? color
   const energyScale = 0.8 + data.energy * 0.4 // 0.8 → 1.2
+  const animRef = useWsAnimation(data as Record<string, unknown>)
 
   return (
     <div
+      ref={animRef}
       className="flex flex-col items-center justify-center gap-1 transition-all duration-150"
       style={{
         width: size.width,

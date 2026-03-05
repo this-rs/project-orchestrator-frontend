@@ -4,16 +4,19 @@ import type { NodeProps, Node } from '@xyflow/react'
 import type { FunctionNodeData } from '@/types/intelligence'
 import { ENTITY_COLORS, NODE_SIZES } from '@/constants/intelligence'
 import { MessageCircle } from 'lucide-react'
+import { useWsAnimation } from '../useWsAnimation'
 
 function FunctionNodeComponent({ data, selected }: NodeProps<Node<FunctionNodeData>>) {
   const size = NODE_SIZES.function
   const color = ENTITY_COLORS.function
+  const animRef = useWsAnimation(data as Record<string, unknown>)
 
   // DISCUSSED marker: backend sends `discussed: true` in attributes
   const isDiscussed = (data as Record<string, unknown>).discussed === true
 
   return (
     <div
+      ref={animRef}
       className="relative flex items-center justify-center rounded-full transition-all duration-150"
       style={{
         width: size.width,

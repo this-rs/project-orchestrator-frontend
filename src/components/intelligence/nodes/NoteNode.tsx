@@ -7,6 +7,7 @@ import { StickyNote, AlertTriangle, Lightbulb, BookOpen } from 'lucide-react'
 import { useAtomValue } from 'jotai'
 import { energyHeatmapAtom } from '@/atoms/intelligence'
 import { activationStateAtom } from '../SpreadingActivation'
+import { useWsAnimation } from '../useWsAnimation'
 
 const noteIcons: Record<string, typeof StickyNote> = {
   gotcha: AlertTriangle,
@@ -47,6 +48,7 @@ function NoteNodeComponent({ data, selected, id }: NodeProps<Node<NoteNodeData>>
   const Icon = noteIcons[data.noteType] ?? StickyNote
   const baseOpacity = importanceOpacity[data.importance] ?? 0.7
   const energyGlow = data.energy > 0.7
+  const animRef = useWsAnimation(data as Record<string, unknown>)
 
   // Energy heatmap mode
   const heatmapEnabled = useAtomValue(energyHeatmapAtom)
@@ -91,6 +93,7 @@ function NoteNodeComponent({ data, selected, id }: NodeProps<Node<NoteNodeData>>
 
   return (
     <div
+      ref={animRef}
       className={`flex items-center justify-center transition-all ${isActivated ? 'duration-500' : 'duration-300'}`}
       style={{
         width: size.width,
