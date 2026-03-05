@@ -1,6 +1,6 @@
-import { useCallback, useMemo, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useMemo, useEffect, type MouseEvent as ReactMouseEvent } from 'react'
 import { useParams } from 'react-router-dom'
-import { useAtomValue } from 'jotai'
+import { useAtomValue, useSetAtom } from 'jotai'
 import {
   ReactFlow,
   Background,
@@ -14,6 +14,7 @@ import { intelligenceEdgeTypes } from './edges'
 import { useIntelligenceGraph } from './useIntelligenceGraph'
 import { NodeInspector } from './NodeInspector'
 import { LayerControls } from './LayerControls'
+import { SpreadingActivation, activationSearchOpenAtom } from './SpreadingActivation'
 import { ENTITY_COLORS } from '@/constants/intelligence'
 import { intelligenceLoadingAtom, intelligenceErrorAtom } from '@/atoms/intelligence'
 import { LoadingPage } from '@/components/ui/Spinner'
@@ -25,6 +26,7 @@ export default function IntelligenceGraphPage() {
   const { projectSlug } = useParams<{ slug: string; projectSlug: string }>()
   const loading = useAtomValue(intelligenceLoadingAtom)
   const error = useAtomValue(intelligenceErrorAtom)
+  const setSearchOpen = useSetAtom(activationSearchOpenAtom)
 
   const {
     nodes,
@@ -47,6 +49,18 @@ export default function IntelligenceGraphPage() {
   const onPaneClick = useCallback(() => {
     setSelectedNodeId(null)
   }, [setSelectedNodeId])
+
+  // Keyboard shortcut: Ctrl/Cmd+K to open spreading activation search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchOpen(true)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [setSearchOpen])
 
   // MiniMap node color based on entity type
   const miniMapNodeColor = useCallback((node: IntelligenceNode) => {
@@ -115,6 +129,9 @@ export default function IntelligenceGraphPage() {
         onApplyPreset={applyPreset}
       />
 
+      {/* Spreading Activation search overlay (top-center) */}
+      <SpreadingActivation projectSlug={projectSlug} />
+
       {/* ReactFlow Canvas */}
       <ReactFlow
         nodes={nodes}
@@ -148,6 +165,12 @@ export default function IntelligenceGraphPage() {
 
       {/* Node Inspector (right sidebar overlay) */}
       {selectedNodeId && <NodeInspector />}
+
+      {/* Keyboard shortcut hint (bottom-center) */}
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 text-[10px] text-slate-600">
+        <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono">⌘K</kbd>
+        {' '}Spreading Activation
+      </div>
     </div>
   )
 }

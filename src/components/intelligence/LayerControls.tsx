@@ -1,8 +1,9 @@
 import { memo } from 'react'
-import { useAtom } from 'jotai'
+import { useAtom, useSetAtom } from 'jotai'
 import type { IntelligenceLayer, VisibilityMode } from '@/types/intelligence'
 import { LAYERS, LAYER_ORDER, VISIBILITY_PRESETS } from '@/constants/intelligence'
 import { energyHeatmapAtom } from '@/atoms/intelligence'
+import { activationSearchOpenAtom } from './SpreadingActivation'
 import {
   Eye,
   EyeOff,
@@ -13,6 +14,7 @@ import {
   Zap,
   Layers,
   Flame,
+  Search,
 } from 'lucide-react'
 
 const presetIcons: Record<string, typeof Layers> = {
@@ -36,6 +38,7 @@ function LayerControlsComponent({
   onApplyPreset,
 }: LayerControlsProps) {
   const [heatmapEnabled, setHeatmapEnabled] = useAtom(energyHeatmapAtom)
+  const setSearchOpen = useSetAtom(activationSearchOpenAtom)
 
   return (
     <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
@@ -100,6 +103,15 @@ function LayerControlsComponent({
         >
           <Flame size={12} className={heatmapEnabled ? 'text-amber-400' : ''} />
           <span className="font-medium">Energy Heatmap</span>
+        </button>
+        <button
+          onClick={() => setSearchOpen(true)}
+          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-slate-500 hover:text-cyan-400 hover:bg-cyan-950/30 transition-colors"
+          title="Search to visualize spreading activation (⌘K)"
+        >
+          <Search size={12} />
+          <span className="font-medium">Activation</span>
+          <kbd className="ml-auto text-[9px] px-1 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-slate-600">⌘K</kbd>
         </button>
       </div>
     </div>
