@@ -8,11 +8,8 @@ import {
   Scale,
   Network,
   Zap,
-  LayoutList,
-  CheckSquare,
-  Flag,
-  Milestone,
   ArrowRight,
+  AlertTriangle,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { LoadingPage } from '@/components/ui/Spinner'
@@ -138,48 +135,45 @@ export function IntelligencePage() {
 
       {/* Code Layer */}
       <LayerSection title="Code" color="#3B82F6">
-        <StatCard label="Files" value={s.code.total_files} icon={FileCode2} color="#3B82F6" />
-        <StatCard label="Functions" value={s.code.total_functions} icon={Network} color="#60A5FA" />
-        <StatCard label="Structs" value={s.code.total_structs} icon={FileCode2} color="#2563EB" />
-        <StatCard label="Languages" value={s.code.languages} icon={FileCode2} color="#64748B" />
+        <StatCard label="Files" value={s.code.files} icon={FileCode2} color="#3B82F6" />
+        <StatCard label="Functions" value={s.code.functions} icon={Network} color="#60A5FA" />
         <StatCard label="Communities" value={s.code.communities} icon={Network} color="#6366F1" />
-      </LayerSection>
-
-      {/* PM Layer */}
-      <LayerSection title="Project Management" color="#10B981">
-        <StatCard label="Active Plans" value={s.pm.active_plans} icon={LayoutList} color="#10B981" />
-        <StatCard
-          label="Tasks"
-          value={s.pm.total_tasks}
-          icon={CheckSquare}
-          color="#22C55E"
-          sub={`${s.pm.completed_tasks} completed`}
-        />
-        <StatCard label="Milestones" value={s.pm.milestones} icon={Flag} color="#F59E0B" />
-        <StatCard label="Releases" value={s.pm.releases} icon={Milestone} color="#14B8A6" />
+        <StatCard label="Orphan Files" value={s.code.orphans} icon={AlertTriangle} color="#F59E0B" />
+        {s.code.hotspots.length > 0 && (
+          <StatCard
+            label="Top Hotspot"
+            value={s.code.hotspots[0].path.split('/').pop() ?? s.code.hotspots[0].path}
+            icon={Zap}
+            color="#EF4444"
+            sub={`churn: ${s.code.hotspots[0].churn_score.toFixed(1)}`}
+          />
+        )}
       </LayerSection>
 
       {/* Knowledge Layer */}
       <LayerSection title="Knowledge" color="#F59E0B">
         <StatCard
           label="Notes"
-          value={s.knowledge.total_notes}
+          value={s.knowledge.notes}
           icon={StickyNote}
           color="#F59E0B"
-          sub={`${s.knowledge.active_notes} active, ${s.knowledge.stale_notes} stale`}
+          sub={`${s.knowledge.stale_count} stale`}
         />
-        <StatCard label="Decisions" value={s.knowledge.total_decisions} icon={Scale} color="#8B5CF6" />
-        <StatCard label="Guidelines" value={s.knowledge.guidelines} icon={StickyNote} color="#F59E0B" />
-        <StatCard label="Gotchas" value={s.knowledge.gotchas} icon={StickyNote} color="#EF4444" />
+        <StatCard label="Decisions" value={s.knowledge.decisions} icon={Scale} color="#8B5CF6" />
+        {Object.entries(s.knowledge.types_distribution).map(([type, count]) => (
+          <StatCard
+            key={type}
+            label={type.charAt(0).toUpperCase() + type.slice(1)}
+            value={count}
+            icon={StickyNote}
+            color="#D97706"
+          />
+        ))}
       </LayerSection>
 
       {/* Fabric Layer */}
       <LayerSection title="Fabric (Relations)" color="#94A3B8">
-        <StatCard label="Imports" value={s.fabric.imports_count} icon={Network} color="#94A3B8" />
-        <StatCard label="Calls" value={s.fabric.calls_count} icon={Network} color="#9CA3AF" />
-        <StatCard label="Co-changed" value={s.fabric.co_changed_count} icon={Network} color="#FED7AA" />
-        <StatCard label="Touches" value={s.fabric.touches_count} icon={Network} color="#86EFAC" />
-        <StatCard label="Affects" value={s.fabric.affects_count} icon={Zap} color="#A855F7" />
+        <StatCard label="Co-changed Pairs" value={s.fabric.co_changed_pairs} icon={Network} color="#FED7AA" />
       </LayerSection>
 
       {/* Neural Layer */}
@@ -204,12 +198,17 @@ export function IntelligencePage() {
       <LayerSection title="Skills" color="#EC4899">
         <StatCard
           label="Skills"
-          value={s.skills.total_skills}
+          value={s.skills.total}
           icon={Brain}
           color="#EC4899"
-          sub={`${s.skills.active_skills} active, ${s.skills.emerging_skills} emerging`}
+          sub={`${s.skills.active} active, ${s.skills.emerging} emerging`}
         />
-        <StatCard label="Dormant" value={s.skills.dormant_skills} icon={Brain} color="#6B7280" />
+        <StatCard
+          label="Avg Cohesion"
+          value={`${(s.skills.avg_cohesion * 100).toFixed(0)}%`}
+          icon={Brain}
+          color="#F9A8D4"
+        />
         <StatCard label="Activations" value={s.skills.total_activations} icon={Zap} color="#F472B6" />
       </LayerSection>
     </div>

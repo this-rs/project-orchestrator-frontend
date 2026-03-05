@@ -1,7 +1,14 @@
 import { useCallback, useEffect } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import dagre from 'dagre'
-import type { IntelligenceNode, IntelligenceEdge, IntelligenceLayer } from '@/types/intelligence'
+import type {
+  IntelligenceNode,
+  IntelligenceEdge,
+  IntelligenceLayer,
+  BackendGraphNode,
+  BackendGraphEdge,
+  IntelligenceRelationType,
+} from '@/types/intelligence'
 import { NODE_SIZES, EDGE_STYLES } from '@/constants/intelligence'
 import {
   intelligenceNodesAtom,
@@ -17,7 +24,6 @@ import {
   visibilityModeAtom,
 } from '@/atoms/intelligence'
 import { intelligenceApi } from '@/services/intelligence'
-import type { GraphNode, GraphEdge } from '@/services/intelligence'
 import { VISIBILITY_PRESETS } from '@/constants/intelligence'
 import type { VisibilityMode } from '@/types/intelligence'
 
@@ -66,27 +72,49 @@ function layoutGraph(
 
 // ── Transform backend data → ReactFlow ───────────────────────────────────────
 
-function toReactFlowNode(node: GraphNode): IntelligenceNode {
+/** Map backend layer string to our IntelligenceLayer type */
+function mapLayer(layer: string): IntelligenceLayer {
+  const valid: IntelligenceLayer[] = ['code', 'pm', 'knowledge', 'fabric', 'neural', 'skills']
+  return valid.includes(layer as IntelligenceLayer)
+    ? (layer as IntelligenceLayer)
+    : 'code'
+}
+
+/**
+ * Transform a backend GraphNode into a ReactFlow IntelligenceNode.
+ * Backend shape: { id, type, label, layer, attributes? }
+ */
+function toReactFlowNode(node: BackendGraphNode): IntelligenceNode {
+  const entityType = node.type // "file", "function", "note", etc.
+  const layer = mapLayer(node.layer)
+  const attrs = node.attributes ?? {}
+
   return {
     id: node.id,
-    type: node.entityType, // matches intelligenceNodeTypes keys
+    type: entityType, // matches intelligenceNodeTypes keys
     position: { x: 0, y: 0 }, // will be set by dagre
     data: {
       label: node.label,
-      entityType: node.entityType,
-      layer: node.layer as IntelligenceLayer,
+      entityType,
+      layer,
       entityId: node.id,
-      ...node.properties,
+      ...attrs,
     } as IntelligenceNode['data'],
   }
 }
 
-function toReactFlowEdge(edge: GraphEdge): IntelligenceEdge {
-  const style = EDGE_STYLES[edge.relationType] ?? { color: '#6B7280', strokeWidth: 1 }
-  const isAnimated = edge.relationType === 'SYNAPSE'
+/**
+ * Transform a backend GraphEdge into a ReactFlow IntelligenceEdge.
+ * Backend shape: { source, target, type, layer, attributes? }
+ */
+function toReactFlowEdge(edge: BackendGraphEdge, index: number): IntelligenceEdge {
+  const relationType = edge.type as IntelligenceRelationType
+  const style = EDGE_STYLES[relationType] ?? { color: '#6B7280', strokeWidth: 1 }
+  const isAnimated = relationType === 'SYNAPSE'
+  const attrs = edge.attributes ?? {}
 
   return {
-    id: edge.id,
+    id: `e-${edge.source}-${edge.target}-${index}`,
     source: edge.source,
     target: edge.target,
     type: isAnimated ? 'synapse' : 'default',
@@ -97,10 +125,10 @@ function toReactFlowEdge(edge: GraphEdge): IntelligenceEdge {
       strokeDasharray: style.strokeDasharray,
     },
     data: {
-      relationType: edge.relationType,
-      layer: edge.layer as IntelligenceLayer,
-      weight: edge.weight,
-      confidence: edge.confidence,
+      relationType,
+      layer: mapLayer(edge.layer),
+      weight: (attrs.weight as number) ?? undefined,
+      confidence: (attrs.confidence as number) ?? undefined,
     },
   }
 }
@@ -121,14 +149,14 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
   const visibleNodes = useAtomValue(visibleNodesAtom)
   const visibleEdges = useAtomValue(visibleEdgesAtom)
 
-  // Fetch graph data
+  // Fetch graph data — request all layers
   const fetchGraph = useCallback(async () => {
     if (!projectSlug) return
     setLoading(true)
     setError(null)
     try {
       const data = await intelligenceApi.getGraph(projectSlug, {
-        include_edges: true,
+        layers: ['code', 'knowledge', 'fabric', 'neural', 'skills'],
       })
       const rfNodes = data.nodes.map(toReactFlowNode)
       const rfEdges = data.edges.map(toReactFlowEdge)

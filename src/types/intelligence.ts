@@ -182,39 +182,31 @@ export interface VisibilityPreset {
 
 // ============================================================================
 // INTELLIGENCE SUMMARY (from backend GET /api/projects/:slug/intelligence/summary)
+// Matches Rust structs in project_handlers.rs
 // ============================================================================
 
-export interface CodeLayerSummary {
-  total_files: number
-  total_functions: number
-  total_structs: number
-  languages: number
-  communities: number
+export interface HotspotEntry {
+  path: string
+  churn_score: number
 }
 
-export interface PMLayerSummary {
-  active_plans: number
-  total_tasks: number
-  completed_tasks: number
-  milestones: number
-  releases: number
+export interface CodeLayerSummary {
+  files: number
+  functions: number
+  communities: number
+  hotspots: HotspotEntry[]
+  orphans: number
 }
 
 export interface KnowledgeLayerSummary {
-  total_notes: number
-  total_decisions: number
-  guidelines: number
-  gotchas: number
-  active_notes: number
-  stale_notes: number
+  notes: number
+  decisions: number
+  stale_count: number
+  types_distribution: Record<string, number>
 }
 
 export interface FabricLayerSummary {
-  imports_count: number
-  calls_count: number
-  co_changed_count: number
-  touches_count: number
-  affects_count: number
+  co_changed_pairs: number
 }
 
 export interface NeuralLayerSummary {
@@ -225,18 +217,55 @@ export interface NeuralLayerSummary {
 }
 
 export interface SkillsLayerSummary {
-  total_skills: number
-  active_skills: number
-  emerging_skills: number
-  dormant_skills: number
+  total: number
+  active: number
+  emerging: number
+  avg_cohesion: number
   total_activations: number
 }
 
 export interface IntelligenceSummary {
   code: CodeLayerSummary
-  pm: PMLayerSummary
   knowledge: KnowledgeLayerSummary
   fabric: FabricLayerSummary
   neural: NeuralLayerSummary
   skills: SkillsLayerSummary
+}
+
+// ============================================================================
+// PROJECT GRAPH (from backend GET /api/projects/:slug/graph)
+// ============================================================================
+
+export interface BackendGraphNode {
+  id: string
+  type: string
+  label: string
+  layer: string
+  attributes?: Record<string, unknown>
+}
+
+export interface BackendGraphEdge {
+  source: string
+  target: string
+  type: string
+  layer: string
+  attributes?: Record<string, unknown>
+}
+
+export interface BackendGraphCommunity {
+  id: number
+  label: string
+  file_count: number
+}
+
+export interface BackendLayerStats {
+  nodes: number
+  edges: number
+}
+
+export interface ProjectGraphResponse {
+  nodes: BackendGraphNode[]
+  edges: BackendGraphEdge[]
+  communities: BackendGraphCommunity[]
+  stats: Record<string, BackendLayerStats>
 }
