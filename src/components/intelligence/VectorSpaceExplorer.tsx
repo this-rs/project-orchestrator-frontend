@@ -34,10 +34,15 @@ import {
   Sparkles,
   Eye,
   EyeOff,
+  X,
+  Zap,
+  Lasso,
+  Check,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { intelligenceApi } from '@/services/intelligence'
+import { adminApi } from '@/services/admin'
 import { ENTITY_COLORS } from '@/constants/intelligence'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
@@ -310,6 +315,183 @@ function Legend({
 }
 
 // ============================================================================
+// POINT-IN-POLYGON (ray casting) — for lasso selection
+// ============================================================================
+
+function pointInPolygon(x: number, y: number, polygon: [number, number][]): boolean {
+  let inside = false
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0], yi = polygon[i][1]
+    const xj = polygon[j][0], yj = polygon[j][1]
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) {
+      inside = !inside
+    }
+  }
+  return inside
+}
+
+// ============================================================================
+// DETAIL PANEL — shows selected point info
+// ============================================================================
+
+function DetailPanel({
+  point,
+  onClose,
+}: {
+  point: ProjectionPoint
+  onClose: () => void
+}) {
+  const typeIcon = point.type === 'note' ? '📝' : point.type === 'decision' ? '⚖️' : '✨'
+  const importanceColor =
+    point.importance === 'critical' ? '#f87171'
+    : point.importance === 'high' ? '#fb923c'
+    : point.importance === 'medium' ? '#fbbf24'
+    : '#94a3b8'
+  const color = POINT_COLORS[point.type] ?? '#94a3b8'
+
+  return (
+    <div className="absolute top-0 right-0 z-40 w-72 h-full bg-slate-900/95 backdrop-blur-sm border-l border-slate-700/80 overflow-y-auto">
+      <div className="p-4 space-y-3">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <span>{typeIcon}</span>
+            <span className="text-xs font-bold uppercase tracking-wider" style={{ color }}>
+              {point.type}
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-6 h-6 rounded flex items-center justify-center text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors"
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* Content preview */}
+        <div className="bg-slate-800/60 rounded-lg p-3 border border-slate-700/40">
+          <p className="text-[11px] text-slate-300 leading-relaxed">
+            {point.content_preview || '(no content)'}
+          </p>
+        </div>
+
+        {/* Metrics */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-slate-800/40 rounded-lg px-2.5 py-2 border border-slate-700/30">
+            <p className="text-[9px] text-slate-600 uppercase tracking-wider">Energy</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <Zap size={10} className="text-cyan-400" />
+              <span className="text-sm font-bold text-slate-200 tabular-nums">
+                {(point.energy * 100).toFixed(0)}%
+              </span>
+            </div>
+            <div className="mt-1 h-1 bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full bg-cyan-400"
+                style={{ width: `${point.energy * 100}%` }}
+              />
+            </div>
+          </div>
+          <div className="bg-slate-800/40 rounded-lg px-2.5 py-2 border border-slate-700/30">
+            <p className="text-[9px] text-slate-600 uppercase tracking-wider">Importance</p>
+            <span
+              className="inline-block mt-1 text-xs font-bold px-2 py-0.5 rounded"
+              style={{ backgroundColor: `${importanceColor}20`, color: importanceColor }}
+            >
+              {point.importance}
+            </span>
+          </div>
+        </div>
+
+        {/* Tags */}
+        {point.tags.length > 0 && (
+          <div>
+            <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-1.5">Tags</p>
+            <div className="flex flex-wrap gap-1">
+              {point.tags.map((t) => (
+                <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700/40 text-slate-400">
+                  {t}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Coordinates */}
+        <div className="pt-2 border-t border-slate-800">
+          <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-1">Position</p>
+          <p className="text-[10px] text-slate-500 font-mono">
+            x: {point.x.toFixed(3)} · y: {point.y.toFixed(3)}
+          </p>
+          <p className="text-[10px] text-slate-600 font-mono mt-0.5">
+            {point.id}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================================
+// SELECTION BAR — multi-select actions (Reinforce Neurons)
+// ============================================================================
+
+function SelectionBar({
+  count,
+  status,
+  message,
+  onReinforce,
+  onClear,
+}: {
+  count: number
+  status: 'idle' | 'running' | 'success' | 'error'
+  message: string
+  onReinforce: () => void
+  onClear: () => void
+}) {
+  return (
+    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40">
+      <div className="flex items-center gap-2 bg-slate-900/95 backdrop-blur-sm border border-cyan-500/30 rounded-lg px-3 py-2 shadow-xl">
+        <span className="text-[11px] text-cyan-400 font-medium">
+          {count} selected
+        </span>
+
+        {count >= 2 && (
+          <button
+            onClick={onReinforce}
+            disabled={status === 'running'}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-cyan-500/15 text-cyan-400 hover:bg-cyan-500/25 text-[10px] font-medium transition-colors disabled:opacity-50"
+          >
+            {status === 'running' ? (
+              <Loader2 size={10} className="animate-spin" />
+            ) : status === 'success' ? (
+              <Check size={10} className="text-emerald-400" />
+            ) : (
+              <Zap size={10} />
+            )}
+            Reinforce Neurons
+          </button>
+        )}
+
+        {status === 'success' && message && (
+          <span className="text-[10px] text-emerald-400">{message}</span>
+        )}
+        {status === 'error' && message && (
+          <span className="text-[10px] text-red-400">{message}</span>
+        )}
+
+        <button
+          onClick={onClear}
+          className="w-5 h-5 rounded flex items-center justify-center text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors ml-1"
+        >
+          <X size={12} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================================
 // CANVAS RENDERER
 // ============================================================================
 
@@ -322,6 +504,9 @@ function renderCanvas(
   skills: ProjectionSkill[],
   cam: Camera,
   hoveredId: string | null,
+  selectedId: string | null,
+  selectedIds: Set<string>,
+  lassoPoints: [number, number][],
   showSynapses: boolean,
   showSkills: boolean,
 ) {
@@ -431,6 +616,8 @@ function renderCanvas(
   }
 
   // ── Points ──────────────────────────────────────────────────────────
+  const isSemanticZoom = cam.zoom > 2.5 // show labels at close zoom
+
   for (const point of points) {
     const [sx, sy] = worldToScreen(point.x, point.y, cam)
 
@@ -442,27 +629,58 @@ function renderCanvas(
     const radius = IMPORTANCE_RADIUS[point.importance] ?? 5
     const energyAlpha = Math.max(0.2, Math.min(1, point.energy))
     const isHovered = point.id === hoveredId
+    const isSelected = point.id === selectedId
+    const isInSelection = selectedIds.has(point.id)
 
-    // Glow for hovered point
-    if (isHovered) {
+    // Glow for hovered / selected / multi-selected point
+    if (isHovered || isSelected || isInSelection) {
       ctx.beginPath()
-      ctx.arc(sx, sy, radius * cam.zoom + 8, 0, Math.PI * 2)
-      ctx.fillStyle = `${color}30`
+      ctx.arc(sx, sy, radius * cam.zoom + (isSelected ? 10 : 8), 0, Math.PI * 2)
+      ctx.fillStyle = isInSelection ? '#22d3ee25' : `${color}30`
       ctx.fill()
     }
 
     // Main circle
     ctx.beginPath()
     ctx.arc(sx, sy, radius * cam.zoom, 0, Math.PI * 2)
-    // Energy modulates alpha
     const hexAlpha = Math.round(energyAlpha * 255).toString(16).padStart(2, '0')
     ctx.fillStyle = `${color}${hexAlpha}`
     ctx.fill()
 
     // Border ring
-    ctx.strokeStyle = isHovered ? '#ffffff' : `${color}88`
-    ctx.lineWidth = isHovered ? 2 : 1
+    ctx.strokeStyle = isSelected ? '#f0f0f0' : isInSelection ? '#22d3ee' : isHovered ? '#ffffff' : `${color}88`
+    ctx.lineWidth = isSelected ? 2.5 : isInSelection ? 2 : isHovered ? 2 : 1
     ctx.stroke()
+
+    // Semantic zoom: show truncated content_preview at close zoom
+    if (isSemanticZoom && point.content_preview) {
+      const label = point.content_preview.length > 40
+        ? point.content_preview.slice(0, 37) + '…'
+        : point.content_preview
+      const fontSize = Math.min(11, Math.max(8, 9 * (cam.zoom / 3)))
+      ctx.font = `${fontSize}px ui-sans-serif, system-ui, sans-serif`
+      ctx.fillStyle = '#94a3b8cc'
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(label, sx + radius * cam.zoom + 4, sy)
+    }
+  }
+
+  // ── Lasso overlay ────────────────────────────────────────────────────
+  if (lassoPoints.length > 1) {
+    ctx.beginPath()
+    ctx.moveTo(lassoPoints[0][0], lassoPoints[0][1])
+    for (let i = 1; i < lassoPoints.length; i++) {
+      ctx.lineTo(lassoPoints[i][0], lassoPoints[i][1])
+    }
+    ctx.closePath()
+    ctx.fillStyle = '#22d3ee10'
+    ctx.fill()
+    ctx.strokeStyle = '#22d3ee66'
+    ctx.lineWidth = 1.5
+    ctx.setLineDash([6, 3])
+    ctx.stroke()
+    ctx.setLineDash([])
   }
 }
 
@@ -486,9 +704,21 @@ export default function VectorSpaceExplorer() {
 
   // Interaction state
   const [hoveredPoint, setHoveredPoint] = useState<ProjectionPoint | null>(null)
+  const [selectedPoint, setSelectedPoint] = useState<ProjectionPoint | null>(null)
   const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
   const panStart = useRef<{ x: number; y: number; camX: number; camY: number } | null>(null)
+  const didDrag = useRef(false)
+
+  // Lasso selection
+  const [lassoMode, setLassoMode] = useState(false)
+  const [isLassoing, setIsLassoing] = useState(false)
+  const [lassoPoints, setLassoPoints] = useState<[number, number][]>([])
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  // Reinforce action
+  const [reinforceStatus, setReinforceStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
+  const [reinforceMessage, setReinforceMessage] = useState('')
 
   // Layer toggles
   const [showSynapses, setShowSynapses] = useState(true)
@@ -589,6 +819,9 @@ export default function VectorSpaceExplorer() {
         data.skills,
         camera,
         hoveredPoint?.id ?? null,
+        selectedPoint?.id ?? null,
+        selectedIds,
+        lassoPoints,
         showSynapses,
         showSkills,
       )
@@ -596,7 +829,60 @@ export default function VectorSpaceExplorer() {
     }
     animFrameRef.current = requestAnimationFrame(draw)
     return () => cancelAnimationFrame(animFrameRef.current)
-  }, [data, camera, hoveredPoint, showSynapses, showSkills])
+  }, [data, camera, hoveredPoint, selectedPoint, selectedIds, lassoPoints, showSynapses, showSkills])
+
+  // ── Reinforce neurons action ──────────────────────────────────────────
+  const handleReinforce = useCallback(async () => {
+    if (selectedIds.size < 2) return
+    setReinforceStatus('running')
+    setReinforceMessage('')
+    try {
+      // Only send note IDs (reinforce API requires notes)
+      const noteIds = [...selectedIds].filter((id) => {
+        const p = data?.points.find((pt) => pt.id === id)
+        return p?.type === 'note'
+      })
+      if (noteIds.length < 2) {
+        setReinforceStatus('error')
+        setReinforceMessage('Need at least 2 notes (not decisions) to reinforce')
+        return
+      }
+      const r = await adminApi.reinforceNeurons({ note_ids: noteIds })
+      setReinforceStatus('success')
+      setReinforceMessage(`${r.neurons_boosted} boosted, ${r.synapses_reinforced} synapses`)
+      setTimeout(() => {
+        setReinforceStatus('idle')
+        setReinforceMessage('')
+      }, 4000)
+    } catch (err) {
+      setReinforceStatus('error')
+      setReinforceMessage(err instanceof Error ? err.message : 'Reinforce failed')
+    }
+  }, [selectedIds, data])
+
+  // ── Lasso: compute selected points from lasso polygon ──────────────
+  const finalizeLasso = useCallback(
+    (screenPolygon: [number, number][]) => {
+      if (!data || screenPolygon.length < 3) {
+        setLassoPoints([])
+        setIsLassoing(false)
+        return
+      }
+      const ids = new Set<string>()
+      for (const p of data.points) {
+        const [sx, sy] = worldToScreen(p.x, p.y, camera)
+        if (pointInPolygon(sx, sy, screenPolygon)) {
+          ids.add(p.id)
+        }
+      }
+      setSelectedIds(ids)
+      setLassoPoints([])
+      setIsLassoing(false)
+      // Exit lasso mode after selection
+      if (ids.size > 0) setLassoMode(false)
+    },
+    [data, camera],
+  )
 
   // ── Mouse handlers ────────────────────────────────────────────────────
   const handleMouseMove = useCallback(
@@ -607,7 +893,14 @@ export default function VectorSpaceExplorer() {
       const my = e.clientY - rect.top
       setMousePos({ x: mx, y: my })
 
+      // Lasso drawing
+      if (isLassoing && lassoMode) {
+        setLassoPoints((prev) => [...prev, [mx, my]])
+        return
+      }
+
       if (isPanning && panStart.current) {
+        didDrag.current = true
         const dx = (mx - panStart.current.x) / camera.zoom
         const dy = (my - panStart.current.y) / camera.zoom
         setCamera((c) => ({
@@ -621,7 +914,7 @@ export default function VectorSpaceExplorer() {
       const hit = findPointAtScreen(mx, my, data.points, camera)
       setHoveredPoint(hit)
     },
-    [data, camera, isPanning],
+    [data, camera, isPanning, isLassoing, lassoMode],
   )
 
   const handleMouseDown = useCallback(
@@ -629,21 +922,59 @@ export default function VectorSpaceExplorer() {
       if (e.button !== 0) return
       const rect = canvasRef.current?.getBoundingClientRect()
       if (!rect) return
+      const mx = e.clientX - rect.left
+      const my = e.clientY - rect.top
+
+      // Start lasso
+      if (lassoMode) {
+        setIsLassoing(true)
+        setLassoPoints([[mx, my]])
+        setSelectedIds(new Set())
+        return
+      }
+
+      // Normal pan
+      didDrag.current = false
       setIsPanning(true)
       panStart.current = {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
+        x: mx,
+        y: my,
         camX: camera.x,
         camY: camera.y,
       }
     },
-    [camera],
+    [camera, lassoMode],
   )
 
-  const handleMouseUp = useCallback(() => {
-    setIsPanning(false)
-    panStart.current = null
-  }, [])
+  const handleMouseUp = useCallback(
+    (e: ReactMouseEvent<HTMLCanvasElement>) => {
+      // Finalize lasso
+      if (isLassoing && lassoPoints.length > 2) {
+        finalizeLasso(lassoPoints)
+        return
+      }
+
+      // Click (not drag) → select/deselect point
+      if (!didDrag.current && !lassoMode && data) {
+        const rect = canvasRef.current?.getBoundingClientRect()
+        if (rect) {
+          const mx = e.clientX - rect.left
+          const my = e.clientY - rect.top
+          const hit = findPointAtScreen(mx, my, data.points, camera)
+          if (hit) {
+            setSelectedPoint((prev) => prev?.id === hit.id ? null : hit)
+            setSelectedIds(new Set()) // clear lasso selection on click
+          } else {
+            setSelectedPoint(null)
+          }
+        }
+      }
+
+      setIsPanning(false)
+      panStart.current = null
+    },
+    [data, camera, isLassoing, lassoPoints, lassoMode, finalizeLasso],
+  )
 
   const handleWheel = useCallback(
     (e: WheelEvent) => {
@@ -843,7 +1174,15 @@ export default function VectorSpaceExplorer() {
       <div
         ref={containerRef}
         className="flex-1 relative bg-[#0c1322] overflow-hidden"
-        style={{ cursor: isPanning ? 'grabbing' : hoveredPoint ? 'pointer' : 'grab' }}
+        style={{
+          cursor: lassoMode
+            ? 'crosshair'
+            : isPanning
+              ? 'grabbing'
+              : hoveredPoint
+                ? 'pointer'
+                : 'grab',
+        }}
       >
         <canvas
           ref={canvasRef}
@@ -851,14 +1190,35 @@ export default function VectorSpaceExplorer() {
           onMouseDown={handleMouseDown}
           onMouseUp={handleMouseUp}
           onMouseLeave={() => {
-            handleMouseUp()
+            if (isLassoing) finalizeLasso(lassoPoints)
+            setIsPanning(false)
+            panStart.current = null
             setHoveredPoint(null)
           }}
         />
 
-        {/* Tooltip */}
-        {hoveredPoint && !isPanning && (
+        {/* Tooltip (only when not in lasso mode and no selection panel) */}
+        {hoveredPoint && !isPanning && !isLassoing && !selectedPoint && (
           <Tooltip point={hoveredPoint} x={mousePos.x} y={mousePos.y} />
+        )}
+
+        {/* Selection bar (multi-select via lasso) */}
+        {selectedIds.size > 0 && (
+          <SelectionBar
+            count={selectedIds.size}
+            status={reinforceStatus}
+            message={reinforceMessage}
+            onReinforce={handleReinforce}
+            onClear={() => { setSelectedIds(new Set()); setReinforceStatus('idle') }}
+          />
+        )}
+
+        {/* Detail panel (single click selection) */}
+        {selectedPoint && (
+          <DetailPanel
+            point={selectedPoint}
+            onClose={() => setSelectedPoint(null)}
+          />
         )}
 
         {/* Legend */}
@@ -873,8 +1233,23 @@ export default function VectorSpaceExplorer() {
           onToggleSkills={() => setShowSkills((v) => !v)}
         />
 
-        {/* Zoom controls */}
+        {/* Zoom + Lasso controls */}
         <div className="absolute bottom-4 right-4 z-30 flex flex-col gap-1">
+          <button
+            onClick={() => {
+              setLassoMode((v) => !v)
+              if (lassoMode) { setLassoPoints([]); setIsLassoing(false) }
+            }}
+            className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-colors ${
+              lassoMode
+                ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
+                : 'bg-slate-800/90 border-slate-700/60 text-slate-400 hover:text-slate-300 hover:bg-slate-700'
+            }`}
+            title={lassoMode ? 'Exit lasso mode' : 'Lasso select (multi-select)'}
+          >
+            <Lasso size={14} />
+          </button>
+          <div className="h-px bg-slate-800 my-0.5" />
           <button
             onClick={zoomIn}
             className="w-8 h-8 rounded-lg bg-slate-800/90 border border-slate-700/60 flex items-center justify-center text-slate-400 hover:text-slate-300 hover:bg-slate-700 transition-colors"
@@ -898,9 +1273,12 @@ export default function VectorSpaceExplorer() {
           </button>
         </div>
 
-        {/* Zoom level indicator */}
-        <div className="absolute top-3 right-3 z-30 text-[9px] text-slate-600 font-mono bg-slate-900/60 px-2 py-1 rounded">
-          {(camera.zoom * 100).toFixed(0)}%
+        {/* Zoom level + semantic zoom indicator */}
+        <div className="absolute top-3 right-3 z-30 flex items-center gap-2 text-[9px] font-mono bg-slate-900/60 px-2 py-1 rounded">
+          <span className="text-slate-600">{(camera.zoom * 100).toFixed(0)}%</span>
+          {camera.zoom > 2.5 && (
+            <span className="text-cyan-600">semantic</span>
+          )}
         </div>
       </div>
     </div>
