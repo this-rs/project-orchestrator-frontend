@@ -73,16 +73,27 @@ export const visibleNodesAtom = atom<IntelligenceNode[]>((get) => {
   })
 })
 
-/** Edges filtered by currently visible layers */
+/** Edges filtered by currently visible layers + CO_CHANGED threshold */
 export const visibleEdgesAtom = atom<IntelligenceEdge[]>((get) => {
   const edges = get(intelligenceEdgesAtom)
   const layers = get(visibleLayersAtom)
   const visibleNodeIds = new Set(get(visibleNodesAtom).map((n) => n.id))
+  const coChangeThreshold = get(coChangeThresholdAtom)
+
   return edges.filter((e) => {
-    const layer = (e.data as { layer?: IntelligenceLayer } | undefined)?.layer
+    const edgeData = e.data as { layer?: IntelligenceLayer; relationType?: string; count?: number } | undefined
+    const layer = edgeData?.layer
     const layerVisible = layer ? layers.has(layer) : true
     // Both source and target must be visible
-    return layerVisible && visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target)
+    if (!layerVisible || !visibleNodeIds.has(e.source) || !visibleNodeIds.has(e.target)) {
+      return false
+    }
+    // Apply CO_CHANGED threshold filter
+    if (edgeData?.relationType === 'CO_CHANGED') {
+      const count = edgeData.count ?? 1
+      return count >= coChangeThreshold
+    }
+    return true
   })
 })
 
@@ -90,6 +101,12 @@ export const visibleEdgesAtom = atom<IntelligenceEdge[]>((get) => {
 
 /** Energy heatmap overlay — recolors note nodes by energy (red→green) */
 export const energyHeatmapAtom = atom<boolean>(false)
+
+/** TOUCHES heatmap — highlights file nodes by churn_score (green glow) */
+export const touchesHeatmapAtom = atom<boolean>(false)
+
+/** CO_CHANGED threshold — hide CO_CHANGED edges with count below this value */
+export const coChangeThresholdAtom = atom<number>(1)
 
 // ── Search / filter ──────────────────────────────────────────────────────────
 

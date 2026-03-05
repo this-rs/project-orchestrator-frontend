@@ -107,28 +107,42 @@ function toReactFlowNode(node: BackendGraphNode): IntelligenceNode {
  * Transform a backend GraphEdge into a ReactFlow IntelligenceEdge.
  * Backend shape: { source, target, type, layer, attributes? }
  */
+/** Map relation types to custom edge component keys */
+function mapEdgeType(relationType: IntelligenceRelationType): string {
+  switch (relationType) {
+    case 'SYNAPSE': return 'synapse'
+    case 'CO_CHANGED': return 'co_changed'
+    case 'AFFECTS': return 'affects'
+    default: return 'default'
+  }
+}
+
 function toReactFlowEdge(edge: BackendGraphEdge, index: number): IntelligenceEdge {
   const relationType = edge.type as IntelligenceRelationType
   const style = EDGE_STYLES[relationType] ?? { color: '#6B7280', strokeWidth: 1 }
-  const isAnimated = relationType === 'SYNAPSE'
+  const edgeType = mapEdgeType(relationType)
   const attrs = edge.attributes ?? {}
 
   return {
     id: `e-${edge.source}-${edge.target}-${index}`,
     source: edge.source,
     target: edge.target,
-    type: isAnimated ? 'synapse' : 'default',
+    type: edgeType,
     animated: style.animated ?? false,
-    style: {
-      stroke: style.color,
-      strokeWidth: style.strokeWidth,
-      strokeDasharray: style.strokeDasharray,
-    },
+    // Only apply default styles for non-custom edges (custom edges handle their own)
+    ...(edgeType === 'default' ? {
+      style: {
+        stroke: style.color,
+        strokeWidth: style.strokeWidth,
+        strokeDasharray: style.strokeDasharray,
+      },
+    } : {}),
     data: {
       relationType,
       layer: mapLayer(edge.layer),
       weight: (attrs.weight as number) ?? undefined,
       confidence: (attrs.confidence as number) ?? undefined,
+      count: (attrs.co_change_count as number) ?? (attrs.count as number) ?? undefined,
     },
   }
 }

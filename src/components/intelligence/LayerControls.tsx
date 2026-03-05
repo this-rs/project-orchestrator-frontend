@@ -2,7 +2,7 @@ import { memo } from 'react'
 import { useAtom, useSetAtom } from 'jotai'
 import type { IntelligenceLayer, VisibilityMode } from '@/types/intelligence'
 import { LAYERS, LAYER_ORDER, VISIBILITY_PRESETS } from '@/constants/intelligence'
-import { energyHeatmapAtom } from '@/atoms/intelligence'
+import { energyHeatmapAtom, touchesHeatmapAtom, coChangeThresholdAtom } from '@/atoms/intelligence'
 import { activationSearchOpenAtom } from './SpreadingActivation'
 import {
   Eye,
@@ -15,6 +15,8 @@ import {
   Layers,
   Flame,
   Search,
+  GitCommitHorizontal,
+  GitFork,
 } from 'lucide-react'
 
 const presetIcons: Record<string, typeof Layers> = {
@@ -38,6 +40,8 @@ function LayerControlsComponent({
   onApplyPreset,
 }: LayerControlsProps) {
   const [heatmapEnabled, setHeatmapEnabled] = useAtom(energyHeatmapAtom)
+  const [touchesEnabled, setTouchesEnabled] = useAtom(touchesHeatmapAtom)
+  const [coChangeThreshold, setCoChangeThreshold] = useAtom(coChangeThresholdAtom)
   const setSearchOpen = useSetAtom(activationSearchOpenAtom)
 
   return (
@@ -105,6 +109,18 @@ function LayerControlsComponent({
           <span className="font-medium">Energy Heatmap</span>
         </button>
         <button
+          onClick={() => setTouchesEnabled(!touchesEnabled)}
+          className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors ${
+            touchesEnabled
+              ? 'text-green-300 bg-green-950/40'
+              : 'text-slate-500 hover:text-slate-400'
+          }`}
+          title="Highlight file nodes by churn score (commit frequency)"
+        >
+          <GitCommitHorizontal size={12} className={touchesEnabled ? 'text-green-400' : ''} />
+          <span className="font-medium">Churn Heatmap</span>
+        </button>
+        <button
           onClick={() => setSearchOpen(true)}
           className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-slate-500 hover:text-cyan-400 hover:bg-cyan-950/30 transition-colors"
           title="Search to visualize spreading activation (⌘K)"
@@ -114,6 +130,37 @@ function LayerControlsComponent({
           <kbd className="ml-auto text-[9px] px-1 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-slate-600">⌘K</kbd>
         </button>
       </div>
+
+      {/* Fabric controls — CO_CHANGED threshold slider */}
+      {visibleLayers.has('fabric') && (
+        <div className="flex flex-col gap-1 rounded-lg bg-slate-900/90 backdrop-blur-sm border border-slate-700 p-2">
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <GitFork size={12} className="text-orange-300" />
+            <span className="font-medium">Co-Change</span>
+            <span className="ml-auto text-[10px] text-slate-500">
+              min {coChangeThreshold}
+            </span>
+          </div>
+          <input
+            type="range"
+            min={1}
+            max={20}
+            step={1}
+            value={coChangeThreshold}
+            onChange={(e) => setCoChangeThreshold(Number(e.target.value))}
+            className="w-full h-1 rounded-lg appearance-none cursor-pointer accent-orange-400"
+            style={{
+              background: `linear-gradient(to right, #FB923C ${((coChangeThreshold - 1) / 19) * 100}%, #334155 ${((coChangeThreshold - 1) / 19) * 100}%)`,
+            }}
+            title={`Hide CO_CHANGED edges with fewer than ${coChangeThreshold} co-changes`}
+          />
+          <div className="flex justify-between text-[9px] text-slate-600">
+            <span>1</span>
+            <span>10</span>
+            <span>20</span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

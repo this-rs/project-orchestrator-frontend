@@ -94,10 +94,29 @@ export default function IntelligenceGraphPage() {
 
   return (
     <div className="relative h-full w-full">
-      {/* Synapse animation keyframes + dark theme overrides for Controls & MiniMap */}
+      {/* Synapse + co-change animation keyframes + dark theme overrides for Controls & MiniMap */}
       <style>{`
         @keyframes synapse-flow {
           to { stroke-dashoffset: -20; }
+        }
+        /* Range slider thumb for dark theme */
+        input[type="range"]::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          background: #FB923C;
+          cursor: pointer;
+          border: 2px solid #1e293b;
+          box-shadow: 0 0 4px rgba(251, 146, 60, 0.4);
+        }
+        input[type="range"]::-moz-range-thumb {
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          background: #FB923C;
+          cursor: pointer;
+          border: 2px solid #1e293b;
         }
         /* ReactFlow Controls — dark theme */
         .react-flow__controls {
