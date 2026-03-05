@@ -1116,7 +1116,7 @@ export default function VectorSpaceExplorer() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col -mx-4 md:-mx-6 -mb-2" style={{ height: 'calc(100dvh - 5rem)' }}>
       {/* ── Header ────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 shrink-0">
         <div className="flex items-center gap-3">
