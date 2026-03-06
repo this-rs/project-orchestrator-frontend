@@ -1,15 +1,15 @@
 import { useEffect, useState, useCallback, lazy, Suspense } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
-import { FolderOpen, Clipboard, RefreshCw, ChevronsUpDown, Trash2, Loader2, ChevronRight, Orbit, Calendar, Network } from 'lucide-react'
-import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LoadingPage, ErrorState, Badge, PageHeader, SectionNav } from '@/components/ui'
-import { ExpandablePlanRow } from '@/components/expandable'
-import { projectsApi, plansApi, featureGraphsApi } from '@/services'
-import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
+import { FolderOpen, Clipboard, RefreshCw, Trash2, Loader2, ChevronRight, Orbit, Calendar, Network } from 'lucide-react'
+import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LoadingPage, ErrorState, Badge, PageHeader, SectionNav } from '@/components/ui'
+import { ExpandableMilestoneRow } from '@/components/expandable'
+import { projectsApi, featureGraphsApi } from '@/services'
+import { useConfirmDialog, useFormDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { chatSuggestedProjectIdAtom, projectRefreshAtom, planRefreshAtom, milestoneRefreshAtom, taskRefreshAtom } from '@/atoms'
 import { CreateMilestoneForm, CreateReleaseForm } from '@/components/forms'
-import type { Project, Plan, ProjectRoadmap, PlanStatus, FeatureGraph } from '@/types'
+import type { Project, ProjectRoadmap, FeatureGraph } from '@/types'
 
 const IntelligenceDashboard = lazy(() => import('@/components/intelligence/IntelligenceDashboard'))
 
@@ -20,7 +20,6 @@ export function ProjectDetailPage() {
   const confirmDialog = useConfirmDialog()
   const milestoneFormDialog = useFormDialog()
   const releaseFormDialog = useFormDialog()
-  const linkDialog = useLinkDialog()
   const toast = useToast()
   const setSuggestedProjectId = useSetAtom(chatSuggestedProjectIdAtom)
   const projectRefresh = useAtomValue(projectRefreshAtom)
@@ -28,18 +27,13 @@ export function ProjectDetailPage() {
   const milestoneRefresh = useAtomValue(milestoneRefreshAtom)
   const taskRefresh = useAtomValue(taskRefreshAtom)
   const [project, setProject] = useState<Project | null>(null)
-  const [plans, setPlans] = useState<Plan[]>([])
   const [roadmap, setRoadmap] = useState<ProjectRoadmap | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [featureGraphs, setFeatureGraphs] = useState<FeatureGraph[]>([])
-  const [plansExpandAll, setPlansExpandAll] = useState(0)
-  const [plansCollapseAll, setPlansCollapseAll] = useState(0)
-  const [plansAllExpanded, setPlansAllExpanded] = useState(false)
 
   // Expandable sections
-  const [milestonesExpanded, setMilestonesExpanded] = useState(false)
   const [releasesExpanded, setReleasesExpanded] = useState(false)
   const [fgExpanded, setFgExpanded] = useState(false)
 
@@ -52,12 +46,6 @@ export function ProjectDetailPage() {
       const projectData = await projectsApi.get(slug)
       setProject(projectData)
       setSuggestedProjectId(projectData.id)
-
-      const allPlansData = await plansApi.list({ limit: 100 })
-      const projectPlans = (allPlansData.items || []).filter(
-        (plan) => plan.project_id === projectData.id
-      )
-      setPlans(projectPlans)
 
       try {
         const roadmapData = await projectsApi.getRoadmap(projectData.id)
@@ -127,9 +115,13 @@ export function ProjectDetailPage() {
 
   const milestoneCount = (roadmap?.milestones || []).length
   const releaseCount = roadmap?.releases.length ?? 0
-  const hasRoadmap = milestoneCount > 0 || releaseCount > 0
 
-  const sectionIds = ['intelligence', 'plans', ...(hasRoadmap ? ['roadmap'] : []), ...(featureGraphs.length > 0 ? ['feature-graphs'] : [])]
+  const sectionIds = [
+    'intelligence',
+    ...(milestoneCount > 0 ? ['milestones'] : []),
+    ...(releaseCount > 0 ? ['releases'] : []),
+    ...(featureGraphs.length > 0 ? ['feature-graphs'] : []),
+  ]
   const activeSection = useSectionObserver(sectionIds)
 
   if (error) return <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
@@ -137,8 +129,8 @@ export function ProjectDetailPage() {
 
   const sections = [
     { id: 'intelligence', label: 'Intelligence' },
-    { id: 'plans', label: 'Plans', count: plans.length },
-    ...(hasRoadmap ? [{ id: 'roadmap', label: 'Roadmap', count: milestoneCount + releaseCount }] : []),
+    ...(milestoneCount > 0 ? [{ id: 'milestones', label: 'Milestones', count: milestoneCount }] : []),
+    ...(releaseCount > 0 ? [{ id: 'releases', label: 'Releases', count: releaseCount }] : []),
     ...(featureGraphs.length > 0 ? [{ id: 'feature-graphs', label: 'Feature Graphs', count: featureGraphs.length }] : []),
   ]
 
@@ -233,150 +225,67 @@ export function ProjectDetailPage() {
         </Suspense>
       </section>
 
-      {/* ── Plans ──────────────────────────────────────────────────────── */}
-      <section id="plans" className="scroll-mt-20">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CardTitle>Plans ({plans.length})</CardTitle>
-              {plans.length > 0 && (
-                <button
-                  onClick={() => {
-                    if (plansAllExpanded) {
-                      setPlansCollapseAll((s) => s + 1)
-                    } else {
-                      setPlansExpandAll((s) => s + 1)
-                    }
-                    setPlansAllExpanded(!plansAllExpanded)
-                  }}
-                  className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
-                  title={plansAllExpanded ? 'Collapse all' : 'Expand all'}
-                >
-                  <ChevronsUpDown className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button size="sm" onClick={() => linkDialog.open({
-                title: 'Link Existing Plan',
-                submitLabel: 'Link',
-                fetchOptions: async () => {
-                  const data = await plansApi.list({ limit: 100 })
-                  return (data.items || [])
-                    .filter(p => !p.project_id)
-                    .map(p => ({ value: p.id, label: p.title, description: p.status }))
-                },
-                onLink: async (planId) => {
-                  await plansApi.linkToProject(planId, project.id)
-                  const allPlansData = await plansApi.list({ limit: 100 })
-                  const projectPlans = (allPlansData.items || []).filter(p => p.project_id === project.id)
-                  setPlans(projectPlans)
-                  toast.success('Plan linked')
-                },
-              })}>Link Plan</Button>
-              <Link to={workspacePath(wsSlug, '/plans')}>
-                <Button variant="ghost" size="sm">View All</Button>
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {plans.length === 0 ? (
-              <p className="text-gray-500 text-sm">No plans for this project</p>
-            ) : (
+      {/* ── Milestones ─────────────────────────────────────────────────── */}
+      {milestoneCount > 0 && (
+        <section id="milestones" className="scroll-mt-20">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Milestones ({milestoneCount})</CardTitle>
+              <Button size="sm" onClick={() => milestoneFormDialog.open({ title: 'Add Milestone' })}>
+                Add
+              </Button>
+            </CardHeader>
+            <CardContent>
               <div className="space-y-2">
-                {plans.map((plan) => (
-                  <ExpandablePlanRow
-                    key={plan.id}
-                    plan={plan}
-                    onStatusChange={async (newStatus: PlanStatus) => {
-                      await plansApi.updateStatus(plan.id, newStatus)
-                      setPlans((prev) => prev.map((p) => (p.id === plan.id ? { ...p, status: newStatus } : p)))
-                      toast.success('Status updated')
-                    }}
+                {(roadmap!.milestones || []).map(({ milestone, progress }) => (
+                  <ExpandableMilestoneRow
+                    key={milestone.id}
+                    milestone={milestone}
+                    progress={progress}
                     refreshTrigger={taskRefresh}
-                    expandAllSignal={plansExpandAll}
-                    collapseAllSignal={plansCollapseAll}
                     linkState={{ projectId: project.id, projectSlug: project.slug, projectName: project.name }}
                   />
                 ))}
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
-      {/* ── Roadmap (expandable milestones + releases) ─────────────────── */}
-      {hasRoadmap && (
-        <section id="roadmap" className="scroll-mt-20 space-y-3">
-          {/* Milestones */}
-          {milestoneCount > 0 && (
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between py-3">
-                <button
-                  onClick={() => setMilestonesExpanded(!milestonesExpanded)}
-                  className="flex items-center gap-2 flex-1 text-left"
-                >
-                  <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform duration-150 ${milestonesExpanded ? 'rotate-90' : ''}`} />
-                  <CardTitle className="text-sm">Milestones ({milestoneCount})</CardTitle>
-                </button>
-                <Button size="sm" onClick={() => milestoneFormDialog.open({ title: 'Add Milestone' })}>Add</Button>
-              </CardHeader>
-              {milestonesExpanded && (
-                <CardContent className="pt-0">
-                  <div className="space-y-2">
-                    {(roadmap!.milestones || []).map(({ milestone }) => (
-                      <Link
-                        key={milestone.id}
-                        to={workspacePath(wsSlug, `/project-milestones/${milestone.id}`)}
-                        state={{ projectId: project.id, projectSlug: project.slug, projectName: project.name }}
-                        className="flex items-center justify-between gap-2 p-2.5 bg-white/[0.04] rounded-lg hover:bg-white/[0.06] transition-colors"
-                      >
-                        <span className="text-sm text-gray-300 truncate min-w-0">{milestone.title}</span>
-                        <Badge variant={milestone.status?.toLowerCase() === 'open' ? 'info' : 'success'}>
-                          {milestone.status}
-                        </Badge>
-                      </Link>
-                    ))}
-                  </div>
-                </CardContent>
-              )}
-            </Card>
-          )}
-
-          {/* Releases */}
-          {releaseCount > 0 && (
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between py-3">
-                <button
-                  onClick={() => setReleasesExpanded(!releasesExpanded)}
-                  className="flex items-center gap-2 flex-1 text-left"
-                >
-                  <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform duration-150 ${releasesExpanded ? 'rotate-90' : ''}`} />
-                  <CardTitle className="text-sm">Releases ({releaseCount})</CardTitle>
-                </button>
-                <Button size="sm" onClick={() => releaseFormDialog.open({ title: 'Add Release' })}>Add</Button>
-              </CardHeader>
-              {releasesExpanded && (
-                <CardContent className="pt-0">
-                  <div className="space-y-2">
-                    {roadmap!.releases.map(({ release }) => (
-                      <div key={release.id} className="flex items-center justify-between gap-2 p-2.5 bg-white/[0.04] rounded-lg">
-                        <div className="min-w-0 truncate">
-                          <span className="text-sm text-gray-300">v{release.version}</span>
-                          {release.title && (
-                            <span className="ml-2 text-gray-500 text-sm">{release.title}</span>
-                          )}
-                        </div>
-                        <Badge variant={release.status === 'released' ? 'success' : 'default'}>
-                          {release.status}
-                        </Badge>
+      {/* ── Releases ───────────────────────────────────────────────────── */}
+      {releaseCount > 0 && (
+        <section id="releases" className="scroll-mt-20">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between py-3">
+              <button
+                onClick={() => setReleasesExpanded(!releasesExpanded)}
+                className="flex items-center gap-2 flex-1 text-left"
+              >
+                <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform duration-150 ${releasesExpanded ? 'rotate-90' : ''}`} />
+                <CardTitle className="text-sm">Releases ({releaseCount})</CardTitle>
+              </button>
+              <Button size="sm" onClick={() => releaseFormDialog.open({ title: 'Add Release' })}>Add</Button>
+            </CardHeader>
+            {releasesExpanded && (
+              <CardContent className="pt-0">
+                <div className="space-y-2">
+                  {roadmap!.releases.map(({ release }) => (
+                    <div key={release.id} className="flex items-center justify-between gap-2 p-2.5 bg-white/[0.04] rounded-lg">
+                      <div className="min-w-0 truncate">
+                        <span className="text-sm text-gray-300">v{release.version}</span>
+                        {release.title && (
+                          <span className="ml-2 text-gray-500 text-sm">{release.title}</span>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              )}
-            </Card>
-          )}
+                      <Badge variant={release.status === 'released' ? 'success' : 'default'}>
+                        {release.status}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            )}
+          </Card>
         </section>
       )}
 
@@ -453,7 +362,6 @@ export function ProjectDetailPage() {
       <FormDialog {...releaseFormDialog.dialogProps} onSubmit={releaseForm.submit}>
         {releaseForm.fields}
       </FormDialog>
-      <LinkEntityDialog {...linkDialog.dialogProps} />
       <ConfirmDialog {...confirmDialog.dialogProps} />
     </div>
   )
