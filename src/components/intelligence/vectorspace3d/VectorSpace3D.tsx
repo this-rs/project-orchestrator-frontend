@@ -669,12 +669,13 @@ export default function VectorSpace3D({
     }
   }, [])
 
-  // ── Highlight selected points ──────────────────────────────────────────
+  // ── Highlight selected points + active skill hulls ──────────────────────
   useEffect(() => {
     const meshes = pointMeshesRef.current
     const pts = pointDataRef.current
     if (meshes.length === 0 || !selectedIds) return
 
+    // 1. Update point highlights
     for (let i = 0; i < meshes.length; i++) {
       const mesh = meshes[i]
       const point = pts[i]
@@ -700,6 +701,31 @@ export default function VectorSpace3D({
         mesh.scale.setScalar(
           (IMPORTANCE_SCALE[point.importance] ?? 1.0) * BASE_POINT_RADIUS,
         )
+      }
+    }
+
+    // 2. Update skill hull visibility — boost active skills
+    const skillsGroup = skillsGroupRef.current
+    for (const child of skillsGroup.children) {
+      if (!(child instanceof THREE.Mesh)) continue
+      const mat = child.material as THREE.MeshBasicMaterial
+      const skillId = child.userData?.skillId
+      if (!skillId) continue
+
+      // Find the matching skill entry to check member overlap
+      const entry = skillMeshesRef.current.find(s => s.skill.id === skillId)
+      if (!entry) continue
+
+      const isActive = selectedIds.size > 0 &&
+        entry.skill.member_ids.some(id => selectedIds.has(id))
+
+      if (mat.wireframe) {
+        // Wireframe border
+        mat.opacity = isActive ? 0.8 : 0.3
+        mat.color = isActive ? new THREE.Color('#f472b6') : new THREE.Color(SKILL_COLOR)
+      } else {
+        // Fill mesh
+        mat.opacity = isActive ? 0.2 : 0.06
       }
     }
   }, [selectedIds, points])

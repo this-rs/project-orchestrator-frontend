@@ -642,19 +642,26 @@ function renderCanvas(
       }
       ctx.closePath()
 
+      // Check if this skill is "active" (any member selected)
+      const isSkillActive = selectedIds.size > 0 &&
+        skill.member_ids.some(id => selectedIds.has(id))
+
       const skillColor = ENTITY_COLORS.skill
-      ctx.fillStyle = `${skillColor}${Math.round(SKILL_HULL_ALPHA * 255).toString(16).padStart(2, '0')}`
+      const fillAlpha = isSkillActive ? 0.25 : SKILL_HULL_ALPHA
+      const borderAlpha = isSkillActive ? 0.9 : SKILL_BORDER_ALPHA
+      ctx.fillStyle = `${skillColor}${Math.round(fillAlpha * 255).toString(16).padStart(2, '0')}`
       ctx.fill()
-      ctx.strokeStyle = `${skillColor}${Math.round(SKILL_BORDER_ALPHA * 255).toString(16).padStart(2, '0')}`
-      ctx.lineWidth = 1.5
-      ctx.setLineDash([6, 4])
+      ctx.strokeStyle = `${skillColor}${Math.round(borderAlpha * 255).toString(16).padStart(2, '0')}`
+      ctx.lineWidth = isSkillActive ? 2.5 : 1.5
+      ctx.setLineDash(isSkillActive ? [] : [6, 4])
       ctx.stroke()
       ctx.setLineDash([])
 
       // Skill label at centroid
       const [lcx, lcy] = worldToScreen(cx, cy, cam)
-      ctx.font = `600 ${Math.max(9, Math.min(13, 10 * Math.sqrt(cam.zoom)))}px -apple-system, system-ui, sans-serif`
-      ctx.fillStyle = `${skillColor}99`
+      const fontSize = Math.max(9, Math.min(13, 10 * Math.sqrt(cam.zoom)))
+      ctx.font = `${isSkillActive ? 700 : 600} ${fontSize}px -apple-system, system-ui, sans-serif`
+      ctx.fillStyle = isSkillActive ? `${skillColor}ff` : `${skillColor}99`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.fillText(skill.name, lcx, lcy)
