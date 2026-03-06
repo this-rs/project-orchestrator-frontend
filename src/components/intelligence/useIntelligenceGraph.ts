@@ -172,12 +172,18 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
       const data = await intelligenceApi.getGraph(projectSlug, {
         layers: ['code', 'knowledge', 'fabric', 'neural', 'skills'],
       })
+      // DEBUG — remove after diagnosis
+      console.log('[useIntelligenceGraph] slug:', projectSlug, '→', data.nodes.length, 'nodes,', data.edges.length, 'edges, stats:', data.stats)
+      if (data.nodes.length === 0) {
+        console.warn('[useIntelligenceGraph] API returned 0 nodes — raw response:', data)
+      }
       const rfNodes = data.nodes.map(toReactFlowNode)
       const rfEdges = data.edges.map(toReactFlowEdge)
       const layouted = layoutGraph(rfNodes, rfEdges)
       setNodes(layouted.nodes)
       setEdges(layouted.edges)
     } catch (err) {
+      console.error('[useIntelligenceGraph] fetch error:', err)
       setError(err instanceof Error ? err.message : 'Failed to load graph')
     } finally {
       setLoading(false)
