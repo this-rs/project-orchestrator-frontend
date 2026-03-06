@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useEffect, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useMemo, useState, useEffect, type MouseEvent as ReactMouseEvent } from 'react'
 import { useParams } from 'react-router-dom'
 import { useAtomValue, useSetAtom } from 'jotai'
 import {
@@ -6,6 +6,8 @@ import {
   Background,
   Controls,
   MiniMap,
+  applyNodeChanges,
+  type NodeChange,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
@@ -33,7 +35,7 @@ export default function IntelligenceGraphPage() {
   const setHoveredNodeId = useSetAtom(hoveredNodeIdAtom)
 
   const {
-    nodes,
+    nodes: layoutedNodes,
     edges,
     selectedNodeId,
     setSelectedNodeId,
@@ -45,6 +47,23 @@ export default function IntelligenceGraphPage() {
 
   // Real-time WebSocket updates
   const { connected: wsConnected, lastEventAt } = useGraphWebSocket(projectSlug)
+
+  // ── Local node state for drag persistence ─────────────────────────────
+  // ReactFlow needs onNodesChange to persist drag positions. We keep a
+  // local copy of nodes and sync it when the layouted nodes change
+  // (data fetch or layer toggle).
+  const [nodes, setLocalNodes] = useState<IntelligenceNode[]>([])
+
+  useEffect(() => {
+    setLocalNodes(layoutedNodes)
+  }, [layoutedNodes])
+
+  const onNodesChange = useCallback(
+    (changes: NodeChange<IntelligenceNode>[]) => {
+      setLocalNodes((prev) => applyNodeChanges(changes, prev))
+    },
+    [],
+  )
 
   const onNodeClick = useCallback(
     (_event: ReactMouseEvent, node: IntelligenceNode) => {
@@ -141,7 +160,7 @@ export default function IntelligenceGraphPage() {
   }
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative w-full -mx-4 md:-mx-6 -mb-2" style={{ height: 'calc(100dvh - 5rem)' }}>
       {/* Synapse + co-change animation keyframes + dark theme overrides for Controls & MiniMap */}
       <style>{`
         @keyframes synapse-flow {
@@ -259,6 +278,7 @@ export default function IntelligenceGraphPage() {
         edges={highlightedEdges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
+        onNodesChange={onNodesChange}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         onNodeMouseEnter={onNodeMouseEnter}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import dagre from 'dagre'
 import type {
@@ -227,8 +227,13 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     setVisibilityMode('custom')
   }, [setVisibleLayers, setVisibilityMode])
 
-  // Layout the currently visible nodes
-  const layouted = layoutGraph(visibleNodes, visibleEdges)
+  // Layout the currently visible nodes — memoized to avoid expensive dagre
+  // recalculation on every render (hover, selection, etc.). Only re-layouts
+  // when the filtered node/edge lists actually change (fetch or layer toggle).
+  const layouted = useMemo(
+    () => layoutGraph(visibleNodes, visibleEdges),
+    [visibleNodes, visibleEdges],
+  )
 
   return {
     nodes: layouted.nodes,
