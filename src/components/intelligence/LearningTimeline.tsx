@@ -755,15 +755,45 @@ export default function LearningTimeline(props: LearningTimelineProps) {
       const projectData = await projectsApi.get(projectSlug)
       const projectId = projectData.id
 
+      // Paginate through all notes (backend max 100 per request)
+      const fetchAllNotes = async (): Promise<Note[]> => {
+        const all: Note[] = []
+        let offset = 0
+        const limit = 100
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const page = await notesApi.list({ project_id: projectId, limit, offset })
+          all.push(...page.items)
+          if (all.length >= page.total || page.items.length < limit) break
+          offset += limit
+        }
+        return all
+      }
+
+      // Paginate through all skills (backend max 100 per request)
+      const fetchAllSkills = async (): Promise<Skill[]> => {
+        const all: Skill[] = []
+        let offset = 0
+        const limit = 100
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const page = await skillsApi.list({ project_id: projectId, limit, offset })
+          all.push(...page.items)
+          if (all.length >= page.total || page.items.length < limit) break
+          offset += limit
+        }
+        return all
+      }
+
       const [notesRes, decisionsRes, skillsRes] = await Promise.allSettled([
-        notesApi.getProjectNotes(projectId),
+        fetchAllNotes(),
         decisionsApi.getTimeline({}),
-        skillsApi.list({ project_id: projectId, limit: 200 }),
+        fetchAllSkills(),
       ])
 
-      const notes = notesRes.status === 'fulfilled' ? notesRes.value.items : []
+      const notes = notesRes.status === 'fulfilled' ? notesRes.value : []
       const decisions = decisionsRes.status === 'fulfilled' ? decisionsRes.value : []
-      const skills = skillsRes.status === 'fulfilled' ? skillsRes.value.items : []
+      const skills = skillsRes.status === 'fulfilled' ? skillsRes.value : []
 
       const allEvents = buildEvents(notes, decisions, skills)
       setEvents(allEvents)
@@ -1005,7 +1035,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
   const endDate = new Date(dateRange.end)
 
   return (
-    <div className="py-6 space-y-5 max-w-6xl">
+    <div className="py-6 space-y-5 w-full">
       {/* ── Header (hidden in embedded mode) ─────────────────────────── */}
       {!props.embedded && (
         <div className="flex items-center justify-between">
