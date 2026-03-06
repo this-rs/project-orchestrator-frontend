@@ -24,7 +24,7 @@ import type {
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const BG_COLOR = 0x0f172a
-const WORLD_SIZE = 1000 // normalize UMAP coords to this range
+const WORLD_SIZE = 600 // normalize UMAP coords to this range (tighter = bigger relative points)
 
 const POINT_COLORS: Record<string, string> = {
   note: ENTITY_COLORS.note,       // #F59E0B amber
@@ -33,14 +33,16 @@ const POINT_COLORS: Record<string, string> = {
 }
 
 const IMPORTANCE_SCALE: Record<string, number> = {
-  critical: 1.4,
-  high: 1.1,
-  medium: 0.8,
-  low: 0.6,
+  critical: 2.0,
+  high: 1.6,
+  medium: 1.2,
+  low: 0.9,
 }
 
+const BASE_POINT_RADIUS = 5 // base sphere radius before importance scaling
 const SYNAPSE_COLOR = 0x22d3ee // cyan
 const SKILL_COLOR = 0xec4899   // pink
+const OUTLIER_PERCENTILE = 0.02 // trim 2% outliers on each side for normalization
 
 // ── Props ──────────────────────────────────────────────────────────────────────
 
@@ -63,22 +65,21 @@ interface NormalizedBounds {
   offsetZ: number
 }
 
+/** Percentile-based normalization to ignore outliers that compress the point cloud */
 function normalizeCoords(points: ProjectionPoint[]): NormalizedBounds {
   if (points.length === 0) return { scale: 1, offsetX: 0, offsetY: 0, offsetZ: 0 }
 
-  let minX = Infinity, maxX = -Infinity
-  let minY = Infinity, maxY = -Infinity
-  let minZ = Infinity, maxZ = -Infinity
+  const xs = points.map(p => p.x).sort((a, b) => a - b)
+  const ys = points.map(p => p.y).sort((a, b) => a - b)
+  const zs = points.map(p => p.z ?? 0).sort((a, b) => a - b)
 
-  for (const p of points) {
-    if (p.x < minX) minX = p.x
-    if (p.x > maxX) maxX = p.x
-    if (p.y < minY) minY = p.y
-    if (p.y > maxY) maxY = p.y
-    const z = p.z ?? 0
-    if (z < minZ) minZ = z
-    if (z > maxZ) maxZ = z
-  }
+  // Trim outliers using percentile bounds
+  const lo = Math.floor(points.length * OUTLIER_PERCENTILE)
+  const hi = Math.max(lo, points.length - 1 - lo)
+
+  const minX = xs[lo], maxX = xs[hi]
+  const minY = ys[lo], maxY = ys[hi]
+  const minZ = zs[lo], maxZ = zs[hi]
 
   const rangeX = maxX - minX || 1
   const rangeY = maxY - minY || 1
@@ -86,19 +87,21 @@ function normalizeCoords(points: ProjectionPoint[]): NormalizedBounds {
   const maxRange = Math.max(rangeX, rangeY, rangeZ)
   const scale = WORLD_SIZE / maxRange
 
+  // Use midpoints as offset so that points are centered at origin
   return {
     scale,
-    offsetX: minX,
-    offsetY: minY,
-    offsetZ: minZ,
+    offsetX: (minX + maxX) / 2,
+    offsetY: (minY + maxY) / 2,
+    offsetZ: (minZ + maxZ) / 2,
   }
 }
 
 function toWorld(p: ProjectionPoint, bounds: NormalizedBounds): THREE.Vector3 {
+  // offset is already the midpoint → subtracting it centers data at origin
   return new THREE.Vector3(
-    (p.x - bounds.offsetX) * bounds.scale - WORLD_SIZE / 2,
-    (p.y - bounds.offsetY) * bounds.scale - WORLD_SIZE / 2,
-    ((p.z ?? 0) - bounds.offsetZ) * bounds.scale - WORLD_SIZE / 2,
+    (p.x - bounds.offsetX) * bounds.scale,
+    (p.y - bounds.offsetY) * bounds.scale,
+    ((p.z ?? 0) - bounds.offsetZ) * bounds.scale,
   )
 }
 
@@ -217,31 +220,34 @@ export default function VectorSpace3D({
     container.appendChild(renderer.domElement)
     rendererRef.current = renderer
 
-    // Scene
+    // Scene — NO fog so distant points remain visible
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(BG_COLOR)
-    scene.fog = new THREE.FogExp2(BG_COLOR, 0.0008) // depth cueing
     sceneRef.current = scene
 
-    // Camera
-    const camera = new THREE.PerspectiveCamera(60, rect.width / rect.height, 1, 5000)
-    camera.position.set(0, 0, WORLD_SIZE * 0.8)
+    // Camera — will be positioned by auto-fit after points are built
+    const camera = new THREE.PerspectiveCamera(55, rect.width / rect.height, 0.5, 20000)
+    camera.position.set(0, 0, WORLD_SIZE * 1.2)
     cameraRef.current = camera
 
-    // Lights
-    scene.add(new THREE.AmbientLight(0xffffff, 0.6))
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.4)
-    dirLight.position.set(100, 200, 300)
+    // Lights — brighter for better visibility
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7))
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.5)
+    dirLight.position.set(200, 400, 300)
     scene.add(dirLight)
+    const backLight = new THREE.DirectionalLight(0x4488ff, 0.2)
+    backLight.position.set(-200, -100, -300)
+    scene.add(backLight)
 
-    // Controls
+    // Controls — wide zoom range for exploration
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = true
-    controls.dampingFactor = 0.08
-    controls.minDistance = 50
-    controls.maxDistance = 3000
-    controls.rotateSpeed = 0.5
-    controls.zoomSpeed = 1.2
+    controls.dampingFactor = 0.1
+    controls.minDistance = 10
+    controls.maxDistance = 10000
+    controls.rotateSpeed = 0.6
+    controls.zoomSpeed = 1.5
+    controls.panSpeed = 0.8
     controlsRef.current = controls
 
     // Groups
@@ -250,19 +256,20 @@ export default function VectorSpace3D({
     scene.add(skillsGroupRef.current)
     scene.add(labelsGroupRef.current)
 
-    // Axes helper (subtle)
-    const axes = new THREE.AxesHelper(WORLD_SIZE * 0.6)
+    // Axes helper (subtle, centered at origin)
+    const axes = new THREE.AxesHelper(WORLD_SIZE * 0.4)
     const axesMat = axes.material as THREE.Material
     axesMat.transparent = true
-    axesMat.opacity = 0.15
+    axesMat.opacity = 0.12
+    axesMat.depthWrite = false
     scene.add(axes)
 
-    // Grid helper
-    const grid = new THREE.GridHelper(WORLD_SIZE, 20, 0x1e293b, 0x1e293b)
-    grid.position.y = -WORLD_SIZE / 2
+    // Grid helper (on XZ plane, at y=0)
+    const grid = new THREE.GridHelper(WORLD_SIZE, 30, 0x1e293b, 0x1e293b)
     const gridMat = grid.material as THREE.Material
     gridMat.transparent = true
-    gridMat.opacity = 0.3
+    gridMat.opacity = 0.15
+    gridMat.depthWrite = false
     scene.add(grid)
 
     // Animation loop
@@ -297,7 +304,7 @@ export default function VectorSpace3D({
     }
   }, []) // mount once
 
-  // ── Build points ────────────────────────────────────────────────────────
+  // ── Build points + auto-fit camera ──────────────────────────────────────
   useEffect(() => {
     const group = pointsGroupRef.current
 
@@ -312,19 +319,22 @@ export default function VectorSpace3D({
     }
     pointMeshesRef.current = []
 
-    const sphereGeo = new THREE.SphereGeometry(1, 12, 8)
+    if (points.length === 0) return
+
+    const sphereGeo = new THREE.SphereGeometry(1, 16, 12)
     const meshes: THREE.Mesh[] = []
+    const allPositions: THREE.Vector3[] = []
 
     for (const point of points) {
       const color = POINT_COLORS[point.type] ?? '#6B7280'
-      const scale = (IMPORTANCE_SCALE[point.importance] ?? 0.8) * 6
-      const energyAlpha = Math.max(0.35, Math.min(1, point.energy))
+      const scale = (IMPORTANCE_SCALE[point.importance] ?? 1.0) * BASE_POINT_RADIUS
+      const energyAlpha = Math.max(0.5, Math.min(1, point.energy))
 
       const material = new THREE.MeshPhongMaterial({
         color: new THREE.Color(color),
         emissive: new THREE.Color(color),
-        emissiveIntensity: 0.15 + point.energy * 0.4,
-        shininess: 60,
+        emissiveIntensity: 0.2 + point.energy * 0.5,
+        shininess: 80,
         transparent: true,
         opacity: energyAlpha,
       })
@@ -337,14 +347,15 @@ export default function VectorSpace3D({
 
       group.add(mesh)
       meshes.push(mesh)
+      allPositions.push(pos)
 
       // Glow halo for high-energy points
-      if (point.energy > 0.6) {
+      if (point.energy > 0.5) {
         const glowGeo = new THREE.SphereGeometry(1, 8, 6)
         const glowMat = new THREE.MeshBasicMaterial({
           color: new THREE.Color(color),
           transparent: true,
-          opacity: point.energy * 0.15,
+          opacity: point.energy * 0.2,
           side: THREE.BackSide,
         })
         const glow = new THREE.Mesh(glowGeo, glowMat)
@@ -355,6 +366,41 @@ export default function VectorSpace3D({
     }
 
     pointMeshesRef.current = meshes
+
+    // ── Auto-fit camera to point cloud bounding sphere ──
+    const camera = cameraRef.current
+    const controls = controlsRef.current
+    if (camera && controls && allPositions.length > 0) {
+      // Compute center of mass
+      const center = new THREE.Vector3()
+      for (const pos of allPositions) center.add(pos)
+      center.divideScalar(allPositions.length)
+
+      // Compute bounding sphere radius from center
+      let maxDist = 0
+      for (const pos of allPositions) {
+        const d = pos.distanceTo(center)
+        if (d > maxDist) maxDist = d
+      }
+      const radius = Math.max(maxDist, 50) // minimum radius
+
+      // Position camera to see entire cloud with margin
+      const fov = camera.fov * (Math.PI / 180)
+      const cameraDistance = (radius / Math.sin(fov / 2)) * 1.3 // 30% margin
+
+      // Place camera at a nice angle (slightly above and to the side)
+      camera.position.set(
+        center.x + cameraDistance * 0.5,
+        center.y + cameraDistance * 0.35,
+        center.z + cameraDistance * 0.8,
+      )
+      camera.lookAt(center)
+      camera.updateProjectionMatrix()
+
+      // Set orbit controls target to center of mass
+      controls.target.copy(center)
+      controls.update()
+    }
   }, [points, bounds])
 
   // ── Build synapses ──────────────────────────────────────────────────────
@@ -547,19 +593,25 @@ export default function VectorSpace3D({
 
     const pos = toWorld(point, boundsRef.current)
     const text = point.content_preview
-      ? point.content_preview.slice(0, 40) + (point.content_preview.length > 40 ? '…' : '')
+      ? point.content_preview.slice(0, 50) + (point.content_preview.length > 50 ? '…' : '')
       : point.type
+
+    // Scale label size relative to camera distance for readability
+    const camera = cameraRef.current
+    const dist = camera ? camera.position.distanceTo(pos) : 200
+    const textH = Math.max(3, Math.min(12, dist * 0.025))
+    const offset = textH * 3
 
     const color = POINT_COLORS[point.type] ?? '#6B7280'
     const sprite = new SpriteText(text)
     sprite.color = '#e2e8f0'
-    sprite.textHeight = 6
-    sprite.backgroundColor = 'rgba(15, 23, 42, 0.9)'
-    sprite.padding = [2, 1]
-    sprite.borderRadius = 2
-    sprite.borderWidth = 0.4
+    sprite.textHeight = textH
+    sprite.backgroundColor = 'rgba(15, 23, 42, 0.92)'
+    sprite.padding = [3, 2]
+    sprite.borderRadius = 3
+    sprite.borderWidth = 0.5
     sprite.borderColor = color
-    sprite.position.set(pos.x, pos.y + 15, pos.z)
+    sprite.position.set(pos.x, pos.y + offset, pos.z)
 
     labelsGroupRef.current.add(sprite as unknown as THREE.Object3D)
     labelSpriteRef.current = sprite
