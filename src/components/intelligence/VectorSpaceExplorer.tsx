@@ -815,6 +815,7 @@ export default function VectorSpaceExplorer() {
   const animRafRef = useRef(0)
   const zoomDisplayRef = useRef<HTMLSpanElement>(null)
   const semanticDisplayRef = useRef<HTMLSpanElement>(null)
+  const needsAutoFit = useRef(true)
 
   // Mutable render state — read by scheduleFrame, updated imperatively
   const rs = useRef({
@@ -943,10 +944,12 @@ export default function VectorSpaceExplorer() {
         }
 
         // ── Auto-fit camera to normalized bounds ──────────────────────
+        // Canvas may not be in DOM yet (loading spinner is shown).
+        // Use window dimensions as fallback; ResizeObserver refines later.
         const canvas = canvasRef.current
         const dpr = window.devicePixelRatio || 1
-        const w = canvas ? canvas.width / dpr : 800
-        const h = canvas ? canvas.height / dpr : 600
+        const w = canvas && canvas.width > 0 ? canvas.width / dpr : window.innerWidth || 1200
+        const h = canvas && canvas.height > 0 ? canvas.height / dpr : (window.innerHeight || 800) - 120
         const nw = rangeX * scale // normalized data width
         const nh = rangeY * scale // normalized data height
         const padding = 60
@@ -960,6 +963,7 @@ export default function VectorSpaceExplorer() {
           y: offsetY - padding / zoom,
           zoom: Math.max(MIN_ZOOM, zoom),
         }
+        needsAutoFit.current = true
       }
 
       setData(result)
@@ -980,6 +984,9 @@ export default function VectorSpaceExplorer() {
   }, [fetchData])
 
   // ── Canvas resize ─────────────────────────────────────────────────────
+  // Deps include [data, scheduleFrame] so the observer is re-created when
+  // data loads (at that point loading=false → canvas is in the DOM).
+  // On first proper resize with data, recalculate camera with real dimensions.
   useEffect(() => {
     const container = containerRef.current
     const canvas = canvasRef.current
@@ -992,12 +999,40 @@ export default function VectorSpaceExplorer() {
         const dpr = window.devicePixelRatio || 1
         canvas.width = Math.round(width * dpr)
         canvas.height = Math.round(height * dpr)
+
+        // Auto-fit camera with real canvas dimensions (first resize after data load)
+        if (needsAutoFit.current && data && data.points.length > 0) {
+          const w = canvas.width / dpr
+          const h = canvas.height / dpr
+          let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+          for (const p of data.points) {
+            if (p.x < minX) minX = p.x
+            if (p.x > maxX) maxX = p.x
+            if (p.y < minY) minY = p.y
+            if (p.y > maxY) maxY = p.y
+          }
+          const dx = maxX - minX || 1
+          const dy = maxY - minY || 1
+          const padding = 60
+          const zoom = Math.min(
+            (w - padding * 2) / dx,
+            (h - padding * 2) / dy,
+            MAX_ZOOM,
+          )
+          rs.current.camera = {
+            x: minX - padding / zoom,
+            y: minY - padding / zoom,
+            zoom: Math.max(MIN_ZOOM, zoom),
+          }
+          needsAutoFit.current = false
+        }
+
         scheduleFrame()
       }
     })
     observer.observe(container)
     return () => observer.disconnect()
-  }, [])
+  }, [data, scheduleFrame])
 
   // ── Redraw on React state changes (cold path) ────────────────────────
   useEffect(() => { scheduleFrame() }, [data, selectedPoint, selectedIds, showSynapses, showSkills, scheduleFrame])
@@ -1231,7 +1266,7 @@ export default function VectorSpaceExplorer() {
 
       // Pinch gestures (ctrlKey on macOS) send much smaller deltas
       // → use higher sensitivity. Regular wheel/scroll → gentler.
-      const sensitivity = (e.ctrlKey || e.metaKey) ? 80 : 300
+      const sensitivity = (e.ctrlKey || e.metaKey) ? 80 : 200
       dy = Math.max(-300, Math.min(300, dy))
       const factor = Math.pow(2, -dy / sensitivity)
       const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, cam.zoom * factor))
