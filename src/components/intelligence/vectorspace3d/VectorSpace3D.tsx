@@ -52,8 +52,11 @@ interface VectorSpace3DProps {
   skills: ProjectionSkill[]
   onPointHover?: (point: ProjectionPoint | null) => void
   onPointClick?: (point: ProjectionPoint | null) => void
+  onSkillClick?: (skill: ProjectionSkill) => void
   showSynapses: boolean
   showSkills: boolean
+  /** Set of selected point IDs (highlights them) */
+  selectedIds?: Set<string>
 }
 
 // ── Coordinate normalization ───────────────────────────────────────────────────
@@ -83,8 +86,11 @@ function normalizeCoords(points: ProjectionPoint[]): NormalizedBounds {
 
   const rangeX = maxX - minX || 1
   const rangeY = maxY - minY || 1
-  const rangeZ = maxZ - minZ || 1
-  const maxRange = Math.max(rangeX, rangeY, rangeZ)
+  const rangeZ = maxZ - minZ // can be 0 if all z are the same (2D data in 3D mode)
+  // Only consider Z range if data actually has z-spread — otherwise use X/Y only
+  const maxRange = rangeZ > 1e-10
+    ? Math.max(rangeX, rangeY, rangeZ)
+    : Math.max(rangeX, rangeY)
   const scale = WORLD_SIZE / maxRange
 
   // Use midpoints as offset so that points are centered at origin
@@ -98,10 +104,14 @@ function normalizeCoords(points: ProjectionPoint[]): NormalizedBounds {
 
 function toWorld(p: ProjectionPoint, bounds: NormalizedBounds): THREE.Vector3 {
   // offset is already the midpoint → subtracting it centers data at origin
+  // If z has no spread (all same), don't scale it (would produce 0 anyway)
+  const zVal = p.z ?? 0
   return new THREE.Vector3(
     (p.x - bounds.offsetX) * bounds.scale,
     (p.y - bounds.offsetY) * bounds.scale,
-    ((p.z ?? 0) - bounds.offsetZ) * bounds.scale,
+    bounds.offsetZ !== 0 || zVal !== 0
+      ? (zVal - bounds.offsetZ) * bounds.scale
+      : 0,
   )
 }
 
@@ -176,8 +186,10 @@ export default function VectorSpace3D({
   skills,
   onPointHover,
   onPointClick,
+  onSkillClick,
   showSynapses,
   showSkills,
+  selectedIds,
 }: VectorSpace3DProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
@@ -200,6 +212,11 @@ export default function VectorSpace3D({
   const pointMeshesRef = useRef<THREE.Mesh[]>([])
   const pointDataRef = useRef<ProjectionPoint[]>([])
   const boundsRef = useRef<NormalizedBounds>({ scale: 1, offsetX: 0, offsetY: 0, offsetZ: 0 })
+
+  // Skill mesh tracking for click detection
+  const skillMeshesRef = useRef<{ mesh: THREE.Mesh; skill: ProjectionSkill }[]>([])
+  const onSkillClickRef = useRef(onSkillClick)
+  onSkillClickRef.current = onSkillClick
 
   // ── Normalize bounds ───────────────────────────────────────────────────
   const bounds = useMemo(() => normalizeCoords(points), [points])
@@ -466,6 +483,8 @@ export default function VectorSpace3D({
       }
     }
 
+    skillMeshesRef.current = []
+
     if (!showSkills || skills.length === 0) return
 
     const pointMap = new Map(points.map(p => [p.id, p]))
@@ -491,7 +510,7 @@ export default function VectorSpace3D({
       const hullGeo = buildConvexHullGeometry(expanded)
       if (!hullGeo) continue
 
-      // Transparent fill
+      // Transparent fill — clickable for skill selection
       const fillMat = new THREE.MeshBasicMaterial({
         color: SKILL_COLOR,
         transparent: true,
@@ -500,7 +519,11 @@ export default function VectorSpace3D({
         depthWrite: false,
       })
       const fillMesh = new THREE.Mesh(hullGeo, fillMat)
+      fillMesh.userData = { skillId: skill.id }
       group.add(fillMesh)
+
+      // Track skill mesh for click detection
+      skillMeshesRef.current.push({ mesh: fillMesh, skill })
 
       // Wireframe border
       const wireMat = new THREE.MeshBasicMaterial({
@@ -512,7 +535,7 @@ export default function VectorSpace3D({
       const wireMesh = new THREE.Mesh(hullGeo.clone(), wireMat)
       group.add(wireMesh)
 
-      // Skill label at centroid
+      // Skill label at centroid — also clickable
       const label = new SpriteText(skill.name)
       label.color = '#EC4899'
       label.textHeight = 12
@@ -522,7 +545,11 @@ export default function VectorSpace3D({
       label.borderWidth = 0.5
       label.borderColor = '#EC4899'
       label.position.copy(center)
+      ;(label as unknown as THREE.Object3D).userData = { skillId: skill.id }
       group.add(label as unknown as THREE.Object3D)
+
+      // Track label as clickable skill target too
+      skillMeshesRef.current.push({ mesh: label as unknown as THREE.Mesh, skill })
     }
   }, [points, skills, bounds, showSkills])
 
@@ -574,15 +601,33 @@ export default function VectorSpace3D({
     if (!camera) return
 
     raycasterRef.current.setFromCamera(mouse, camera)
-    const intersects = raycasterRef.current.intersectObjects(pointMeshesRef.current, false)
 
-    if (intersects.length > 0) {
-      const mesh = intersects[0].object as THREE.Mesh
+    // 1. Check point intersections first (higher priority)
+    const pointIntersects = raycasterRef.current.intersectObjects(pointMeshesRef.current, false)
+    if (pointIntersects.length > 0) {
+      const mesh = pointIntersects[0].object as THREE.Mesh
       const idx = mesh.userData.pointIndex as number
       onPointClick?.(pointDataRef.current[idx])
-    } else {
-      onPointClick?.(null)
+      return
     }
+
+    // 2. Check skill hull/label intersections
+    const skillObjects = skillMeshesRef.current.map(s => s.mesh)
+    if (skillObjects.length > 0) {
+      const skillIntersects = raycasterRef.current.intersectObjects(skillObjects, false)
+      if (skillIntersects.length > 0) {
+        const hitObj = skillIntersects[0].object
+        const skillId = hitObj.userData?.skillId
+        const entry = skillMeshesRef.current.find(s => s.skill.id === skillId)
+        if (entry) {
+          onSkillClickRef.current?.(entry.skill)
+          return
+        }
+      }
+    }
+
+    // 3. Nothing hit — deselect
+    onPointClick?.(null)
   }, [onPointClick])
 
   // ── Hover label management ──────────────────────────────────────────────
@@ -623,6 +668,41 @@ export default function VectorSpace3D({
       labelSpriteRef.current = null
     }
   }, [])
+
+  // ── Highlight selected points ──────────────────────────────────────────
+  useEffect(() => {
+    const meshes = pointMeshesRef.current
+    const pts = pointDataRef.current
+    if (meshes.length === 0 || !selectedIds) return
+
+    for (let i = 0; i < meshes.length; i++) {
+      const mesh = meshes[i]
+      const point = pts[i]
+      if (!point) continue
+
+      const mat = mesh.material as THREE.MeshPhongMaterial
+      const isSelected = selectedIds.has(point.id)
+
+      if (isSelected) {
+        // Bright highlight with cyan emissive ring
+        mat.emissive = new THREE.Color('#22d3ee')
+        mat.emissiveIntensity = 0.9
+        mat.opacity = 1.0
+        mesh.scale.setScalar(
+          (IMPORTANCE_SCALE[point.importance] ?? 1.0) * BASE_POINT_RADIUS * 1.4,
+        )
+      } else {
+        // Restore original
+        const color = POINT_COLORS[point.type] ?? '#6B7280'
+        mat.emissive = new THREE.Color(color)
+        mat.emissiveIntensity = 0.2 + point.energy * 0.5
+        mat.opacity = Math.max(0.5, Math.min(1, point.energy))
+        mesh.scale.setScalar(
+          (IMPORTANCE_SCALE[point.importance] ?? 1.0) * BASE_POINT_RADIUS,
+        )
+      }
+    }
+  }, [selectedIds, points])
 
   // ── Attach event listeners ──────────────────────────────────────────────
   useEffect(() => {

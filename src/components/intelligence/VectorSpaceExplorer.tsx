@@ -1593,13 +1593,20 @@ export default function VectorSpaceExplorer() {
               skills={data.skills}
               showSynapses={showSynapses}
               showSkills={showSkills}
+              selectedIds={selectedIds}
               onPointHover={(p) => setHoveredPoint(p)}
               onPointClick={(p) => {
                 if (p) {
                   setSelectedPoint((prev) => prev?.id === p.id ? null : p)
                 } else {
                   setSelectedPoint(null)
+                  setSelectedIds(new Set())
                 }
+              }}
+              onSkillClick={(skill) => {
+                // Select all member neurons of the clicked skill
+                setSelectedIds(new Set(skill.member_ids))
+                setSelectedPoint(null)
               }}
             />
           </Suspense>
@@ -1610,7 +1617,7 @@ export default function VectorSpaceExplorer() {
           <Tooltip point={hoveredPoint} x={mousePos.x} y={mousePos.y} />
         )}
 
-        {/* Selection bar (multi-select via lasso — 2D only) */}
+        {/* Selection bar (multi-select via lasso in 2D, or skill click in 3D) */}
         {selectedIds.size > 0 && (
           <SelectionBar
             count={selectedIds.size}
