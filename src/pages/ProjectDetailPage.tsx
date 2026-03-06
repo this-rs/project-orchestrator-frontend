@@ -1,17 +1,23 @@
-import { useEffect, useState, useCallback, lazy, Suspense } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
-import { FolderOpen, Clipboard, RefreshCw, Trash2, Loader2, ChevronRight, Orbit, Calendar, Network } from 'lucide-react'
+import { FolderOpen, Clipboard, RefreshCw, Trash2, ChevronRight, Orbit, Calendar, Network, Loader2, Brain, AlertTriangle } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LoadingPage, ErrorState, Badge, PageHeader, SectionNav } from '@/components/ui'
 import { ExpandableMilestoneRow } from '@/components/expandable'
+import {
+  useIntelligenceData,
+  IntelHealthBreakdown,
+  IntelQuickActions,
+  IntelLayerCards,
+  IntelSkillsCard,
+  IntelAttention,
+} from '@/components/intelligence/IntelligenceDashboard'
 import { projectsApi, featureGraphsApi } from '@/services'
 import { useConfirmDialog, useFormDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { chatSuggestedProjectIdAtom, projectRefreshAtom, planRefreshAtom, milestoneRefreshAtom, taskRefreshAtom } from '@/atoms'
 import { CreateMilestoneForm, CreateReleaseForm } from '@/components/forms'
 import type { Project, ProjectRoadmap, FeatureGraph } from '@/types'
-
-const IntelligenceDashboard = lazy(() => import('@/components/intelligence/IntelligenceDashboard'))
 
 export function ProjectDetailPage() {
   const { projectSlug: slug } = useParams<{ projectSlug: string }>()
@@ -36,6 +42,9 @@ export function ProjectDetailPage() {
   // Expandable sections
   const [releasesExpanded, setReleasesExpanded] = useState(false)
   const [fgExpanded, setFgExpanded] = useState(false)
+
+  // Intelligence data (composable sections)
+  const intelligence = useIntelligenceData(slug ?? '')
 
   const fetchData = useCallback(async () => {
     if (!slug) return
@@ -117,10 +126,14 @@ export function ProjectDetailPage() {
   const releaseCount = roadmap?.releases.length ?? 0
 
   const sectionIds = [
-    'intelligence',
+    'health',
+    'quick-actions',
     ...(milestoneCount > 0 ? ['milestones'] : []),
     ...(releaseCount > 0 ? ['releases'] : []),
+    'layers',
+    'skills',
     ...(featureGraphs.length > 0 ? ['feature-graphs'] : []),
+    'attention',
   ]
   const activeSection = useSectionObserver(sectionIds)
 
@@ -128,11 +141,18 @@ export function ProjectDetailPage() {
   if (loading || !project) return <LoadingPage />
 
   const sections = [
-    { id: 'intelligence', label: 'Intelligence' },
+    { id: 'health', label: 'Health' },
+    { id: 'quick-actions', label: 'Actions' },
     ...(milestoneCount > 0 ? [{ id: 'milestones', label: 'Milestones', count: milestoneCount }] : []),
     ...(releaseCount > 0 ? [{ id: 'releases', label: 'Releases', count: releaseCount }] : []),
+    { id: 'layers', label: 'Layers' },
+    { id: 'skills', label: 'Skills' },
     ...(featureGraphs.length > 0 ? [{ id: 'feature-graphs', label: 'Feature Graphs', count: featureGraphs.length }] : []),
+    { id: 'attention', label: 'Attention' },
   ]
+
+  // Intelligence loading/error/empty states
+  const intelReady = !intelligence.loading && !intelligence.error && !!intelligence.summary
 
   return (
     <div className="pt-6 space-y-6">
@@ -209,23 +229,49 @@ export function ProjectDetailPage() {
         }
       />
 
-      {/* ── Intelligence Dashboard ─────────────────────────────────────── */}
-      <section id="intelligence" className="scroll-mt-20">
-        <Suspense
-          fallback={
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
-            </div>
-          }
-        >
-          <IntelligenceDashboard
-            projectSlug={slug!}
+      {/* ── Intelligence: Loading / Error / Empty ──────────────────────── */}
+      {intelligence.loading && (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+        </div>
+      )}
+      {intelligence.error && (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <AlertTriangle className="w-8 h-8 text-amber-500 mb-3" />
+          <p className="text-sm text-slate-400 mb-3">{intelligence.error}</p>
+          <button
+            onClick={intelligence.handleRefresh}
+            className="text-xs text-cyan-400 hover:text-cyan-300 underline underline-offset-2"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+      {!intelligence.loading && !intelligence.error && !intelligence.summary && (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Brain className="w-8 h-8 text-slate-600 mb-3" />
+          <p className="text-sm text-slate-500">No intelligence data available</p>
+        </div>
+      )}
+
+      {/* ── 1. Health Breakdown ─────────────────────────────────────────── */}
+      {intelReady && (
+        <section id="health" className="scroll-mt-20">
+          <IntelHealthBreakdown
+            data={intelligence}
             progress={roadmap ? { percentage: roadmap.progress.percentage } : undefined}
           />
-        </Suspense>
-      </section>
+        </section>
+      )}
 
-      {/* ── Milestones ─────────────────────────────────────────────────── */}
+      {/* ── 2. Quick Actions ───────────────────────────────────────────── */}
+      {intelReady && (
+        <section id="quick-actions" className="scroll-mt-20">
+          <IntelQuickActions data={intelligence} />
+        </section>
+      )}
+
+      {/* ── 3. Milestones ──────────────────────────────────────────────── */}
       {milestoneCount > 0 && (
         <section id="milestones" className="scroll-mt-20">
           <Card>
@@ -252,7 +298,7 @@ export function ProjectDetailPage() {
         </section>
       )}
 
-      {/* ── Releases ───────────────────────────────────────────────────── */}
+      {/* ── 4. Releases ────────────────────────────────────────────────── */}
       {releaseCount > 0 && (
         <section id="releases" className="scroll-mt-20">
           <Card>
@@ -289,7 +335,21 @@ export function ProjectDetailPage() {
         </section>
       )}
 
-      {/* ── Feature Graphs (expandable) ────────────────────────────────── */}
+      {/* ── 5. Layer Cards (Code, PM, Knowledge Fabric, Neural) ─────── */}
+      {intelReady && (
+        <section id="layers" className="scroll-mt-20">
+          <IntelLayerCards data={intelligence} />
+        </section>
+      )}
+
+      {/* ── 6. Skills ──────────────────────────────────────────────────── */}
+      {intelReady && (
+        <section id="skills" className="scroll-mt-20">
+          <IntelSkillsCard data={intelligence} />
+        </section>
+      )}
+
+      {/* ── 7. Feature Graphs ──────────────────────────────────────────── */}
       {featureGraphs.length > 0 && (
         <section id="feature-graphs" className="scroll-mt-20">
           <Card>
@@ -353,6 +413,13 @@ export function ProjectDetailPage() {
               </CardContent>
             )}
           </Card>
+        </section>
+      )}
+
+      {/* ── 8. Attention Needed ─────────────────────────────────────────── */}
+      {intelReady && (
+        <section id="attention" className="scroll-mt-20">
+          <IntelAttention data={intelligence} />
         </section>
       )}
 
