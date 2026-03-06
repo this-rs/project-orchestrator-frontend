@@ -1141,8 +1141,28 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                     Reset
                   </button>
                 )}
-                {/* Speed control */}
-                <div className="flex items-center gap-1 ml-2">
+                {/* Speed control — slow | fast with separator */}
+                <div className="flex items-center gap-0.5 ml-2">
+                  {/* Slow speeds (< 1×) */}
+                  {[0.1, 0.25, 0.5].map((speed) => (
+                    <button
+                      key={speed}
+                      onClick={() => setPlaybackSpeed(speed)}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors ${
+                        playbackSpeed === speed
+                          ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                          : 'text-slate-600 hover:text-slate-400 border border-transparent'
+                      }`}
+                      title={`${Math.round(1 / speed)}× slower`}
+                    >
+                      {speed}×
+                    </button>
+                  ))}
+
+                  {/* Separator */}
+                  <div className="w-px h-4 bg-slate-700 mx-1" />
+
+                  {/* Normal & fast speeds (≥ 1×) */}
                   {[1, 2, 4].map((speed) => (
                     <button
                       key={speed}
