@@ -494,7 +494,7 @@ export function IntelHealthBreakdown({
         <div className="flex items-center gap-6">
           <CircularGauge score={data.healthScore} />
 
-          <div className="flex-1 space-y-2">
+          <div className="flex-1 min-w-0 space-y-2">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-sm font-semibold text-slate-300">Health Breakdown</h2>
               <button
@@ -603,7 +603,7 @@ export function IntelQuickActions({ data }: { data: IntelligenceData }) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-2">
           <QuickActionButton
             label="Update Staleness"
             icon={Timer}
@@ -706,7 +706,7 @@ export function IntelLayerCards({ data }: { data: IntelligenceData }) {
   if (!s) return null
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
       {/* CODE LAYER */}
       <LayerCard title="Code" icon={FileCode2} color="#3B82F6">
         <div className="grid grid-cols-2 gap-2 mb-3">
@@ -897,7 +897,7 @@ export function IntelAttention({ data }: { data: IntelligenceData }) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
           {s.knowledge.stale_count > 0 && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-950/20 border border-amber-900/30 text-[11px] text-amber-400">
               <StickyNote size={12} />
