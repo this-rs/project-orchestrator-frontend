@@ -142,7 +142,18 @@ function Sparkline({
 // ACTIVITY HEATMAP — day × hour grid (GitHub-style)
 // ============================================================================
 
+interface HeatmapTooltipData {
+  day: string
+  hour: number
+  count: number
+  events: TimelineEvent[]
+  rect: DOMRect
+}
+
 function ActivityHeatmap({ events, color }: { events: TimelineEvent[]; color: string }) {
+  const [tooltip, setTooltip] = useState<HeatmapTooltipData | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
   // Group by day-of-week (0=Sun) × hour (0-23)
   const grid = useMemo(() => {
     const counts: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0))
@@ -154,6 +165,18 @@ function ActivityHeatmap({ events, color }: { events: TimelineEvent[]; color: st
     return counts
   }, [events])
 
+  // Events grouped by day×hour for tooltip detail
+  const eventsByCell = useMemo(() => {
+    const map = new Map<string, TimelineEvent[]>()
+    for (const ev of events) {
+      const key = `${ev.date.getDay()}-${ev.date.getHours()}`
+      const arr = map.get(key) || []
+      arr.push(ev)
+      map.set(key, arr)
+    }
+    return map
+  }, [events])
+
   const maxCount = useMemo(() => {
     let m = 0
     for (const row of grid) for (const v of row) if (v > m) m = v
@@ -162,8 +185,31 @@ function ActivityHeatmap({ events, color }: { events: TimelineEvent[]; color: st
 
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
+  const handleCellEnter = useCallback(
+    (e: React.MouseEvent, day: number, hour: number, count: number) => {
+      if (count === 0) { setTooltip(null); return }
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+      const cellEvents = eventsByCell.get(`${day}-${hour}`) || []
+      setTooltip({ day: days[day], hour, count, events: cellEvents, rect })
+    },
+    [eventsByCell, days],
+  )
+
+  // Compute tooltip position relative to container
+  const tooltipStyle = useMemo(() => {
+    if (!tooltip || !containerRef.current) return {}
+    const containerRect = containerRef.current.getBoundingClientRect()
+    const x = tooltip.rect.left - containerRect.left + tooltip.rect.width / 2
+    const y = tooltip.rect.top - containerRect.top
+    return {
+      left: `${x}px`,
+      top: `${y}px`,
+      transform: 'translate(-50%, -100%)',
+    }
+  }, [tooltip])
+
   return (
-    <div className="space-y-1">
+    <div ref={containerRef} className="relative space-y-1">
       {/* Hour labels */}
       <div className="flex items-center gap-px ml-8">
         {Array.from({ length: 24 }, (_, h) => (
@@ -183,18 +229,57 @@ function ActivityHeatmap({ events, color }: { events: TimelineEvent[]; color: st
             return (
               <div
                 key={hour}
-                className="flex-1 aspect-square rounded-[2px] min-w-[6px]"
+                className={`flex-1 aspect-square rounded-[2px] min-w-[6px] transition-all duration-100 ${
+                  count > 0 ? 'cursor-pointer hover:ring-1 hover:ring-cyan-400/40 hover:scale-125 hover:z-10' : ''
+                }`}
                 style={{
                   backgroundColor: count === 0
                     ? '#1e293b'
                     : `${color}${Math.round(Math.max(0.15, intensity) * 255).toString(16).padStart(2, '0')}`,
                 }}
-                title={`${days[day]} ${hour}:00 — ${count} event${count !== 1 ? 's' : ''}`}
+                onMouseEnter={(e) => handleCellEnter(e, day, hour, count)}
+                onMouseLeave={() => setTooltip(null)}
               />
             )
           })}
         </div>
       ))}
+
+      {/* Tooltip */}
+      {tooltip && (
+        <div
+          className="absolute z-50 pointer-events-none mb-2"
+          style={tooltipStyle}
+        >
+          <div className="bg-slate-900/95 backdrop-blur-sm border border-slate-700/80 rounded-lg px-3 py-2 shadow-xl min-w-[180px] max-w-[260px]">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] font-medium text-cyan-400">
+                {tooltip.day} {tooltip.hour}:00–{tooltip.hour + 1}:00
+              </span>
+              <span className="text-[10px] text-slate-500 font-mono">
+                {tooltip.count} event{tooltip.count !== 1 ? 's' : ''}
+              </span>
+            </div>
+            {/* List up to 4 events */}
+            <div className="space-y-1">
+              {tooltip.events.slice(0, 4).map((ev) => (
+                <div key={ev.id} className="flex items-center gap-1.5">
+                  <div
+                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{ backgroundColor: EVENT_COLORS[ev.type] }}
+                  />
+                  <span className="text-[9px] text-slate-400 truncate">{ev.label}</span>
+                </div>
+              ))}
+              {tooltip.events.length > 4 && (
+                <span className="text-[8px] text-slate-600">
+                  +{tooltip.events.length - 4} more
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -208,14 +293,18 @@ function TimelineTrack({
   startDate,
   endDate,
   onEventHover,
+  onEventClick,
   hoveredId,
+  selectedId,
   playbackPosition,
 }: {
   events: TimelineEvent[]
   startDate: Date
   endDate: Date
   onEventHover: (ev: TimelineEvent | null) => void
+  onEventClick: (ev: TimelineEvent) => void
   hoveredId: string | null
+  selectedId: string | null
   /** 0–1 normalized playback cursor position, null = no playback */
   playbackPosition: number | null
 }) {
@@ -279,6 +368,8 @@ function TimelineTrack({
         if (x < 0 || x > 100) return null
         const color = EVENT_COLORS[ev.type]
         const isHovered = ev.id === hoveredId
+        const isSelected = ev.id === selectedId
+        const isHighlighted = isHovered || isSelected
         // During playback, dim events past the cursor
         const isPastCursor = cursorTs !== null && ev.date.getTime() > cursorTs
         const opacity = isPastCursor ? 0.15 : 1
@@ -289,20 +380,25 @@ function TimelineTrack({
             className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 cursor-pointer"
             style={{
               left: `${x}%`,
-              transform: `translate(-50%, -50%) scale(${isHovered ? 1.8 : 1})`,
-              zIndex: isHovered ? 10 : 1,
+              transform: `translate(-50%, -50%) scale(${isHighlighted ? 1.8 : 1})`,
+              zIndex: isSelected ? 11 : isHovered ? 10 : 1,
               opacity,
               transition: 'opacity 0.3s ease, transform 0.15s ease',
             }}
             onMouseEnter={() => onEventHover(ev)}
             onMouseLeave={() => onEventHover(null)}
+            onClick={(e) => { e.stopPropagation(); onEventClick(ev) }}
           >
             <div
               className="w-2.5 h-2.5 rounded-full border"
               style={{
-                backgroundColor: `${color}${isHovered ? 'ff' : 'aa'}`,
-                borderColor: isHovered ? '#fff' : `${color}60`,
-                boxShadow: isHovered ? `0 0 8px ${color}60` : 'none',
+                backgroundColor: `${color}${isHighlighted ? 'ff' : 'aa'}`,
+                borderColor: isSelected ? '#22d3ee' : isHovered ? '#fff' : `${color}60`,
+                boxShadow: isSelected
+                  ? `0 0 8px ${color}60, 0 0 0 2px #22d3ee40`
+                  : isHovered
+                    ? `0 0 8px ${color}60`
+                    : 'none',
               }}
             />
           </div>
@@ -329,58 +425,90 @@ function RangeSlider({
   end: number
   onChange: (start: number, end: number) => void
 }) {
+  const trackRef = useRef<HTMLDivElement>(null)
+  const dragging = useRef<'start' | 'end' | null>(null)
   const range = max - min || 1
   const leftPct = ((start - min) / range) * 100
   const rightPct = ((end - min) / range) * 100
 
+  const getValueFromX = useCallback(
+    (clientX: number) => {
+      const rect = trackRef.current?.getBoundingClientRect()
+      if (!rect) return start
+      const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+      return min + pct * range
+    },
+    [min, range, start],
+  )
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      const val = getValueFromX(e.clientX)
+      // Determine which thumb is closer
+      const distToStart = Math.abs(val - start)
+      const distToEnd = Math.abs(val - end)
+      dragging.current = distToStart <= distToEnd ? 'start' : 'end'
+      ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+      // Immediately update
+      if (dragging.current === 'start') {
+        const clamped = Math.min(val, end)
+        onChange(clamped, end)
+      } else {
+        const clamped = Math.max(val, start)
+        onChange(start, clamped)
+      }
+    },
+    [getValueFromX, start, end, onChange],
+  )
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!dragging.current) return
+      const val = getValueFromX(e.clientX)
+      if (dragging.current === 'start') {
+        const clamped = Math.min(val, end)
+        onChange(clamped, end)
+      } else {
+        const clamped = Math.max(val, start)
+        onChange(start, clamped)
+      }
+    },
+    [getValueFromX, start, end, onChange],
+  )
+
+  const handlePointerUp = useCallback(() => {
+    dragging.current = null
+  }, [])
+
   return (
-    <div className="relative h-6 select-none">
-      {/* Background track */}
-      <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-1 bg-slate-800 rounded-full" />
-
-      {/* Active range */}
+    <div className="px-1.5">
       <div
-        className="absolute top-1/2 -translate-y-1/2 h-1 bg-cyan-500/50 rounded-full"
-        style={{ left: `${leftPct}%`, width: `${rightPct - leftPct}%` }}
-      />
+        ref={trackRef}
+        className="relative h-6 select-none cursor-pointer touch-none"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+      >
+        {/* Background track */}
+        <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-1 bg-slate-800 rounded-full" />
 
-      {/* Left thumb */}
-      <input
-        type="range"
-        min={min}
-        max={max}
-        value={start}
-        onChange={(e) => {
-          const v = Number(e.target.value)
-          if (v < end) onChange(v, end)
-        }}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-        style={{ pointerEvents: 'auto' }}
-      />
+        {/* Active range */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 h-1 bg-cyan-500/50 rounded-full"
+          style={{ left: `${leftPct}%`, width: `${rightPct - leftPct}%` }}
+        />
 
-      {/* Right thumb */}
-      <input
-        type="range"
-        min={min}
-        max={max}
-        value={end}
-        onChange={(e) => {
-          const v = Number(e.target.value)
-          if (v > start) onChange(start, v)
-        }}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-        style={{ pointerEvents: 'auto' }}
-      />
-
-      {/* Visual thumbs */}
-      <div
-        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-cyan-400 border-2 border-slate-900 shadow-sm z-30 pointer-events-none"
-        style={{ left: `${leftPct}%` }}
-      />
-      <div
-        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-cyan-400 border-2 border-slate-900 shadow-sm z-30 pointer-events-none"
-        style={{ left: `${rightPct}%` }}
-      />
+        {/* Left thumb */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-cyan-400 border-2 border-slate-900 shadow-sm z-30 pointer-events-none"
+          style={{ left: `${leftPct}%` }}
+        />
+        {/* Right thumb */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-cyan-400 border-2 border-slate-900 shadow-sm z-30 pointer-events-none"
+          style={{ left: `${rightPct}%` }}
+        />
+      </div>
     </div>
   )
 }
@@ -438,6 +566,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
 
   // Interaction
   const [hoveredEvent, setHoveredEvent] = useState<TimelineEvent | null>(null)
+  const [selectedEvent, setSelectedEvent] = useState<TimelineEvent | null>(null)
 
   // Date range
   const [dateRange, setDateRange] = useState<{ start: number; end: number }>({ start: 0, end: 0 })
@@ -913,7 +1042,11 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                   startDate={startDate}
                   endDate={endDate}
                   onEventHover={setHoveredEvent}
+                  onEventClick={(ev) =>
+                    setSelectedEvent((prev) => (prev?.id === ev.id ? null : ev))
+                  }
                   hoveredId={hoveredEvent?.id ?? null}
+                  selectedId={selectedEvent?.id ?? null}
                   playbackPosition={playbackPos}
                 />
                 {/* Date labels under the track */}
@@ -935,14 +1068,29 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                   max={events[events.length - 1].date.getTime()}
                   start={dateRange.start}
                   end={dateRange.end}
-                  onChange={(start, end) => setDateRange({ start, end })}
+                  onChange={(s, e) => setDateRange({ start: s, end: e })}
                 />
               </div>
 
-              {/* Hovered event detail */}
-              {hoveredEvent && (
-                <div className="flex justify-center">
-                  <EventTooltip event={hoveredEvent} />
+              {/* Pinned (selected) + hovered event detail — side by side */}
+              {(selectedEvent || hoveredEvent) && (
+                <div className="flex items-start justify-center gap-3 flex-wrap">
+                  {selectedEvent && (
+                    <div className="relative">
+                      <EventTooltip event={selectedEvent} />
+                      {/* Unpin button */}
+                      <button
+                        onClick={() => setSelectedEvent(null)}
+                        className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-slate-200 flex items-center justify-center text-[9px] leading-none transition-colors"
+                        title="Unpin"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
+                  {hoveredEvent && hoveredEvent.id !== selectedEvent?.id && (
+                    <EventTooltip event={hoveredEvent} />
+                  )}
                 </div>
               )}
 

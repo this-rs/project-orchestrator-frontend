@@ -10,7 +10,7 @@ import {
   type NodeChange,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Box, Grid3x3, Maximize, Minimize } from 'lucide-react'
+import { Box, Grid3x3, Maximize, Minimize, PanelRightClose, PanelRightOpen } from 'lucide-react'
 
 import { intelligenceNodeTypes } from './nodes'
 import { intelligenceEdgeTypes } from './edges'
@@ -28,7 +28,6 @@ import {
   graphViewModeAtom,
   selectedNodeIdAtom,
 } from '@/atoms/intelligence'
-import { LoadingPage } from '@/components/ui/Spinner'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { EmptyState } from '@/components/ui/EmptyState'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
@@ -70,6 +69,10 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   // Fullscreen
   const containerRef = useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  // Custom mode — shows LayerControls panel
+  const [showCustomPanel, setShowCustomPanel] = useState(false)
+  // Inspector collapsed
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(false)
 
   const toggleFullscreen = useCallback(() => {
     if (!containerRef.current) return
@@ -174,23 +177,10 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   const nodeTypes = useMemo(() => intelligenceNodeTypes, [])
   const edgeTypes = useMemo(() => intelligenceEdgeTypes, [])
 
-  if (loading && nodes.length === 0) {
-    return <LoadingPage />
-  }
-
-  if (error && nodes.length === 0) {
-    return <ErrorState description={error} onRetry={fetchGraph} />
-  }
-
-  if (!loading && nodes.length === 0) {
-    return (
-      <EmptyState
-        variant="search"
-        title="No intelligence data"
-        description="Sync your project to populate the intelligence graph."
-      />
-    )
-  }
+  // Determine overlay states (no more early returns — canvas always rendered)
+  const showLoading = loading && nodes.length === 0
+  const showError = !!error && nodes.length === 0
+  const showEmpty = !loading && !error && nodes.length === 0
 
   return (
     <div
@@ -275,11 +265,13 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
         `}</style>
       )}
 
-      {/* Layer controls (top-left overlay) */}
+      {/* Layer controls (top-left overlay) — presets always visible, details in Custom mode */}
       <LayerControls
         visibleLayers={visibleLayers}
         onToggleLayer={toggleLayer}
         onApplyPreset={applyPreset}
+        customMode={showCustomPanel}
+        onToggleCustom={() => setShowCustomPanel((v) => !v)}
       />
 
       {/* Spreading Activation search overlay (top-center) */}
@@ -332,16 +324,52 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
         </Suspense>
       )}
 
-      {/* Node Inspector (right sidebar overlay) */}
-      {selectedNodeId && <NodeInspector />}
+      {/* ── Overlay states (rendered ON TOP of the canvas, not replacing it) ── */}
+      {showLoading && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm text-slate-400">Loading graph data…</p>
+          </div>
+        </div>
+      )}
+      {showError && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+          <ErrorState description={error!} onRetry={fetchGraph} />
+        </div>
+      )}
+      {showEmpty && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+          <EmptyState
+            variant="search"
+            title="No intelligence data"
+            description="Sync your project to populate the intelligence graph."
+          />
+        </div>
+      )}
+
+      {/* Node Inspector (right sidebar overlay) — collapsible */}
+      {selectedNodeId && !inspectorCollapsed && <NodeInspector />}
+
+      {/* Inspector collapse/expand toggle (top-right area, below live indicator) */}
+      {selectedNodeId && (
+        <button
+          onClick={() => setInspectorCollapsed((v) => !v)}
+          className="absolute top-12 right-3 z-40 flex items-center gap-1 px-2 py-1.5 rounded-md text-[10px] font-medium bg-slate-800/90 backdrop-blur-sm border border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-700/80 transition-colors"
+          title={inspectorCollapsed ? 'Show inspector' : 'Hide inspector'}
+        >
+          {inspectorCollapsed ? <PanelRightOpen size={12} /> : <PanelRightClose size={12} />}
+          {inspectorCollapsed ? 'Details' : 'Hide'}
+        </button>
+      )}
 
       {/* Live indicator (top-right) */}
-      <div className="absolute top-3 right-3 z-10">
+      <div className="absolute top-3 right-3 z-40">
         <LiveIndicator connected={wsConnected} lastEventAt={lastEventAt} />
       </div>
 
       {/* 2D/3D toggle + Fullscreen (bottom-right) */}
-      <div className="absolute bottom-3 right-3 z-20 flex items-center gap-1 bg-slate-800/90 backdrop-blur-sm rounded-lg border border-slate-700 p-0.5">
+      <div className="absolute bottom-3 right-3 z-40 flex items-center gap-1 bg-slate-800/90 backdrop-blur-sm rounded-lg border border-slate-700 p-0.5">
         <button
           onClick={() => setViewMode('2d')}
           className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
@@ -375,7 +403,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
       </div>
 
       {/* Keyboard shortcut hint (bottom-center) */}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 text-[10px] text-slate-600">
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-40 text-[10px] text-slate-600">
         <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono">⌘K</kbd>
         {' '}Spreading Activation
       </div>
