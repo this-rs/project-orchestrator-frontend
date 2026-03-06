@@ -29,6 +29,8 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  Maximize,
+  Minimize,
   Info,
   StickyNote,
   Scale,
@@ -827,6 +829,23 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
   const [showSynapses, setShowSynapses] = useState(true)
   const [showSkills, setShowSkills] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>('2d')
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const fullscreenRef = useRef<HTMLDivElement>(null)
+
+  const toggleFullscreen = useCallback(() => {
+    if (!fullscreenRef.current) return
+    if (!document.fullscreenElement) {
+      fullscreenRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {})
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {})
+    }
+  }, [])
+
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => document.removeEventListener('fullscreenchange', onFsChange)
+  }, [])
 
   // ── Imperative render state (refs — bypasses React for smooth canvas) ─
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -1461,8 +1480,9 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
 
   return (
     <div
-      className={`flex flex-col ${props.embedded ? 'rounded-lg overflow-hidden border border-slate-800' : '-mx-4 md:-mx-6 -mb-2'}`}
-      style={{ height: props.embedded ? '600px' : 'calc(100dvh - 5rem)' }}
+      ref={fullscreenRef}
+      className={`flex flex-col ${props.embedded && !isFullscreen ? 'rounded-lg overflow-hidden border border-slate-800' : !isFullscreen ? '-mx-4 md:-mx-6 -mb-2' : ''} ${isFullscreen ? 'bg-slate-950' : ''}`}
+      style={{ height: props.embedded && !isFullscreen ? '600px' : isFullscreen ? '100vh' : 'calc(100dvh - 5rem)' }}
     >
       {/* ── Header (hidden in embedded mode) ──────────────────────────── */}
       {!props.embedded && (
@@ -1484,31 +1504,6 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
               </p>
             </div>
 
-            {/* 2D/3D toggle */}
-            <div className="flex items-center gap-0.5 bg-slate-800/90 rounded-lg border border-slate-700 p-0.5">
-              <button
-                onClick={() => setViewMode('2d')}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors ${
-                  viewMode === '2d'
-                    ? 'bg-cyan-600 text-white'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
-                }`}
-              >
-                <Grid3x3 size={12} />
-                2D
-              </button>
-              <button
-                onClick={() => setViewMode('3d')}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors ${
-                  viewMode === '3d'
-                    ? 'bg-cyan-600 text-white'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
-                }`}
-              >
-                <Box size={12} />
-                3D
-              </button>
-            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -1637,6 +1632,40 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
             />
           </Suspense>
         )}
+
+        {/* 2D/3D toggle + Fullscreen (bottom-right, above zoom controls) */}
+        <div className={`absolute ${viewMode === '2d' ? 'bottom-4 right-14' : 'bottom-4 right-4'} z-30 flex items-center gap-1 bg-slate-800/90 backdrop-blur-sm rounded-lg border border-slate-700 p-0.5`}>
+          <button
+            onClick={() => setViewMode('2d')}
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-colors ${
+              viewMode === '2d'
+                ? 'bg-cyan-600 text-white'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
+            }`}
+          >
+            <Grid3x3 size={12} />
+            2D
+          </button>
+          <button
+            onClick={() => setViewMode('3d')}
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-colors ${
+              viewMode === '3d'
+                ? 'bg-cyan-600 text-white'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
+            }`}
+          >
+            <Box size={12} />
+            3D
+          </button>
+          <div className="w-px h-5 bg-slate-700 mx-0.5" />
+          <button
+            onClick={toggleFullscreen}
+            className="flex items-center gap-1 px-2 py-1.5 rounded-md text-[10px] font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 transition-colors"
+            title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+          >
+            {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
+          </button>
+        </div>
 
         {/* Tooltip (only in 2D mode, not in lasso mode, no selection panel) */}
         {viewMode === '2d' && hoveredPoint && !selectedPoint && (

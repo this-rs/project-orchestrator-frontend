@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useMemo, useState, useEffect, type MouseEvent as ReactMouseEvent } from 'react'
+import { lazy, Suspense, useCallback, useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import { useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
@@ -10,7 +10,7 @@ import {
   type NodeChange,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Box, Grid3x3 } from 'lucide-react'
+import { Box, Grid3x3, Maximize, Minimize } from 'lucide-react'
 
 import { intelligenceNodeTypes } from './nodes'
 import { intelligenceEdgeTypes } from './edges'
@@ -66,6 +66,25 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
 
   // Real-time WebSocket updates
   const { connected: wsConnected, lastEventAt } = useGraphWebSocket(projectSlug)
+
+  // Fullscreen
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  const toggleFullscreen = useCallback(() => {
+    if (!containerRef.current) return
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {})
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {})
+    }
+  }, [])
+
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => document.removeEventListener('fullscreenchange', onFsChange)
+  }, [])
 
   // ── Local node state for drag persistence (2D mode) ─────────────────────
   const [nodes, setLocalNodes] = useState<IntelligenceNode[]>([])
@@ -175,8 +194,9 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
 
   return (
     <div
-      className={`relative w-full ${props.embedded ? '' : '-mx-4 md:-mx-6 -mb-2'}`}
-      style={{ height: props.embedded ? '600px' : 'calc(100dvh - 5rem)' }}
+      ref={containerRef}
+      className={`relative w-full ${props.embedded ? '' : '-mx-4 md:-mx-6 -mb-2'} ${isFullscreen ? 'bg-slate-950' : ''}`}
+      style={{ height: props.embedded && !isFullscreen ? '600px' : isFullscreen ? '100vh' : 'calc(100dvh - 5rem)' }}
     >
       {/* 2D-only CSS (synapse animations, dark theme overrides) */}
       {viewMode === '2d' && (
@@ -262,32 +282,6 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
         onApplyPreset={applyPreset}
       />
 
-      {/* 2D/3D toggle (top-left, below LayerControls) */}
-      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-slate-800/90 backdrop-blur-sm rounded-lg border border-slate-700 p-0.5">
-        <button
-          onClick={() => setViewMode('2d')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-            viewMode === '2d'
-              ? 'bg-blue-600 text-white'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
-          }`}
-        >
-          <Grid3x3 size={14} />
-          2D
-        </button>
-        <button
-          onClick={() => setViewMode('3d')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-            viewMode === '3d'
-              ? 'bg-blue-600 text-white'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
-          }`}
-        >
-          <Box size={14} />
-          3D
-        </button>
-      </div>
-
       {/* Spreading Activation search overlay (top-center) */}
       <SpreadingActivation projectSlug={projectSlug} />
 
@@ -344,6 +338,40 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
       {/* Live indicator (top-right) */}
       <div className="absolute top-3 right-3 z-10">
         <LiveIndicator connected={wsConnected} lastEventAt={lastEventAt} />
+      </div>
+
+      {/* 2D/3D toggle + Fullscreen (bottom-right) */}
+      <div className="absolute bottom-3 right-3 z-20 flex items-center gap-1 bg-slate-800/90 backdrop-blur-sm rounded-lg border border-slate-700 p-0.5">
+        <button
+          onClick={() => setViewMode('2d')}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            viewMode === '2d'
+              ? 'bg-blue-600 text-white'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
+          }`}
+        >
+          <Grid3x3 size={13} />
+          2D
+        </button>
+        <button
+          onClick={() => setViewMode('3d')}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            viewMode === '3d'
+              ? 'bg-blue-600 text-white'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
+          }`}
+        >
+          <Box size={13} />
+          3D
+        </button>
+        <div className="w-px h-5 bg-slate-700 mx-0.5" />
+        <button
+          onClick={toggleFullscreen}
+          className="flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 transition-colors"
+          title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+        >
+          {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
+        </button>
       </div>
 
       {/* Keyboard shortcut hint (bottom-center) */}
