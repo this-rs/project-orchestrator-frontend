@@ -27,8 +27,8 @@ const IntelligenceGraphPage = lazy(() => import('@/components/intelligence/Intel
 type SubView = 'vector-space' | 'timeline' | 'graph'
 
 const SUB_VIEW_CONFIG: { key: SubView; label: string; icon: typeof Orbit; color: string; activeColor: string }[] = [
-  { key: 'vector-space', label: 'Vector Space', icon: Orbit, color: 'text-violet-400 hover:bg-violet-500/10', activeColor: 'bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/40' },
   { key: 'timeline', label: 'Timeline', icon: Calendar, color: 'text-emerald-400 hover:bg-emerald-500/10', activeColor: 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40' },
+  { key: 'vector-space', label: 'Vector Space', icon: Orbit, color: 'text-violet-400 hover:bg-violet-500/10', activeColor: 'bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/40' },
   { key: 'graph', label: 'Graph', icon: Network, color: 'text-cyan-400 hover:bg-cyan-500/10', activeColor: 'bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-500/40' },
 ]
 
@@ -67,8 +67,8 @@ export function ProjectDetailPage() {
   const [releasesExpanded, setReleasesExpanded] = useState(false)
   const [fgExpanded, setFgExpanded] = useState(false)
 
-  // Sub-view state (null = no sub-view open, show normal content)
-  const [activeSubView, setActiveSubView] = useState<SubView | null>(null)
+  // Sub-view state (timeline open by default so the page isn't empty)
+  const [activeSubView, setActiveSubView] = useState<SubView | null>('timeline')
 
   // Intelligence data (composable sections)
   const intelligence = useIntelligenceData(slug ?? '')
