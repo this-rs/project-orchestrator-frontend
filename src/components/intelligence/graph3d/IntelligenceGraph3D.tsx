@@ -75,18 +75,19 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
   )
 
   // ── Control simulation based on relayout need ───────────────────────────
+  // The ref methods (cooldownTicks, etc.) are only available after the
+  // ForceGraph3D component has fully mounted. Guard with method existence check.
   useEffect(() => {
     const fg = graphRef.current
-    if (!fg) return
+    if (!fg || typeof fg.cooldownTicks !== 'function') return
 
     if (!needsRelayout && graphData.nodes.length > 0) {
       // Freeze the simulation — positions are already cached
       fg.cooldownTicks(0)
-      // But if it's a first load (needsRelayout=true from changeRatio=1), let it run
     } else {
       // Let simulation run briefly to settle new nodes
       fg.cooldownTicks(80)
-      fg.cooldownTime(3000)
+      fg.cooldownTime?.(3000)
     }
   }, [needsRelayout, graphData])
 
@@ -218,7 +219,7 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
   // ── Scene config ────────────────────────────────────────────────────────
   useEffect(() => {
     const fg = graphRef.current
-    if (!fg) return
+    if (!fg || typeof fg.scene !== 'function') return
 
     // Dark background
     const scene = fg.scene()
@@ -237,7 +238,7 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
   // ── Force configuration ─────────────────────────────────────────────────
   useEffect(() => {
     const fg = graphRef.current
-    if (!fg) return
+    if (!fg || typeof fg.d3Force !== 'function') return
 
     // Weaken default charge to prevent too much repulsion
     fg.d3Force('charge')?.strength(-30)
