@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useEffect, useState, useCallback, lazy, Suspense } from 'react'
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
-import { FolderOpen, Clipboard, RefreshCw, ChevronsUpDown, Trash2, Brain } from 'lucide-react'
-import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LoadingPage, ErrorState, Badge, ProgressBar, PageHeader, SectionNav } from '@/components/ui'
+import { FolderOpen, Clipboard, RefreshCw, ChevronsUpDown, Trash2, Brain, Loader2 } from 'lucide-react'
+import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LoadingPage, ErrorState, Badge, ProgressBar, PageHeader } from '@/components/ui'
 import { ExpandablePlanRow } from '@/components/expandable'
 import { projectsApi, plansApi, featureGraphsApi } from '@/services'
 import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
@@ -11,9 +11,14 @@ import { chatSuggestedProjectIdAtom, projectRefreshAtom, planRefreshAtom, milest
 import { CreateMilestoneForm, CreateReleaseForm } from '@/components/forms'
 import type { Project, Plan, ProjectRoadmap, PlanStatus, FeatureGraph } from '@/types'
 
+const IntelligenceDashboard = lazy(() => import('@/components/intelligence/IntelligenceDashboard'))
+
+type ActiveTab = 'overview' | 'intelligence'
+
 export function ProjectDetailPage() {
   const { projectSlug: slug } = useParams<{ projectSlug: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const wsSlug = useWorkspaceSlug()
   const confirmDialog = useConfirmDialog()
   const milestoneFormDialog = useFormDialog()
@@ -35,6 +40,24 @@ export function ProjectDetailPage() {
   const [plansExpandAll, setPlansExpandAll] = useState(0)
   const [plansCollapseAll, setPlansCollapseAll] = useState(0)
   const [plansAllExpanded, setPlansAllExpanded] = useState(false)
+
+  // ── Tab management based on URL ──
+  const isIntelligenceUrl = location.pathname.endsWith('/intelligence')
+  const [activeTab, setActiveTab] = useState<ActiveTab>(isIntelligenceUrl ? 'intelligence' : 'overview')
+
+  // Sync tab with URL changes (e.g. browser back/forward)
+  useEffect(() => {
+    setActiveTab(isIntelligenceUrl ? 'intelligence' : 'overview')
+  }, [isIntelligenceUrl])
+
+  const switchTab = (tab: ActiveTab) => {
+    setActiveTab(tab)
+    if (tab === 'intelligence') {
+      navigate(workspacePath(wsSlug, `/projects/${slug}/intelligence`), { replace: true })
+    } else {
+      navigate(workspacePath(wsSlug, `/projects/${slug}`), { replace: true })
+    }
+  }
 
   const fetchData = useCallback(async () => {
     if (!slug) return
@@ -127,13 +150,13 @@ export function ProjectDetailPage() {
   })
 
   const hasRoadmap = roadmap && ((roadmap.milestones || []).length > 0 || roadmap.releases.length > 0)
-  const sectionIds = [...(hasRoadmap ? ['roadmap'] : []), 'plans', 'feature-graphs']
-  const activeSection = useSectionObserver(sectionIds)
+  const overviewSectionIds = [...(hasRoadmap ? ['roadmap'] : []), 'plans', 'feature-graphs']
+  const activeSection = useSectionObserver(overviewSectionIds)
 
   if (error) return <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
   if (loading || !project) return <LoadingPage />
 
-  const sections = [
+  const overviewSections = [
     ...(hasRoadmap ? [{ id: 'roadmap', label: 'Roadmap', count: (roadmap!.milestones || []).length + roadmap!.releases.length }] : []),
     { id: 'plans', label: 'Plans', count: plans.length },
     { id: 'feature-graphs', label: 'Feature Graphs', count: featureGraphs.length },
@@ -153,11 +176,59 @@ export function ProjectDetailPage() {
         ]}
       />
 
-      <SectionNav
-        sections={sections}
-        activeSection={activeSection}
-        rightContent={
-          <div className="flex items-center gap-2">
+      {/* ── Primary tab bar ────────────────────────────────────────────── */}
+      <div className="sticky top-0 z-10 bg-surface-raised/90 backdrop-blur-sm border-b border-border-subtle -mx-4 px-4 md:-mx-6 md:px-6 mb-6">
+        <div className="flex items-center justify-between gap-4">
+          {/* Left: primary tabs + overview sub-sections */}
+          <nav className="flex gap-1 overflow-x-auto items-center">
+            <button
+              onClick={() => switchTab('overview')}
+              className={`px-2 py-2 text-xs md:px-3 md:py-2.5 md:text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
+                activeTab === 'overview'
+                  ? 'border-indigo-500 text-white'
+                  : 'border-transparent text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              Overview
+            </button>
+            <button
+              onClick={() => switchTab('intelligence')}
+              className={`px-2 py-2 text-xs md:px-3 md:py-2.5 md:text-sm font-medium whitespace-nowrap transition-colors border-b-2 flex items-center gap-1.5 ${
+                activeTab === 'intelligence'
+                  ? 'border-cyan-500 text-cyan-400'
+                  : 'border-transparent text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              <Brain className="w-3.5 h-3.5" />
+              Intelligence
+            </button>
+
+            {/* Overview sub-section nav (only visible when overview tab is active) */}
+            {activeTab === 'overview' && overviewSections.length > 0 && (
+              <>
+                <div className="w-px h-5 bg-white/[0.08] mx-1.5" />
+                {overviewSections.map((section) => (
+                  <button
+                    key={section.id}
+                    onClick={() => document.getElementById(section.id)?.scrollIntoView({ behavior: 'smooth' })}
+                    className={`px-2 py-2 text-[11px] md:px-2.5 md:py-2.5 md:text-xs font-medium whitespace-nowrap transition-colors border-b-2 ${
+                      activeSection === section.id
+                        ? 'border-indigo-500/50 text-gray-300'
+                        : 'border-transparent text-gray-500 hover:text-gray-400'
+                    }`}
+                  >
+                    {section.label}
+                    {section.count !== undefined && (
+                      <span className="ml-1 text-gray-600">({section.count})</span>
+                    )}
+                  </button>
+                ))}
+              </>
+            )}
+          </nav>
+
+          {/* Right: path + sync */}
+          <div className="flex items-center gap-2 shrink-0">
             {project.root_path && (
               <div className="flex items-center gap-1.5 bg-white/[0.04] border border-white/[0.08] rounded-md px-2.5 py-1 group">
                 <FolderOpen className="w-3.5 h-3.5 text-gray-500 shrink-0" />
@@ -177,14 +248,6 @@ export function ProjectDetailPage() {
               </div>
             )}
             <button
-              onClick={() => navigate(workspacePath(wsSlug, `/projects/${slug}/intelligence`))}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-cyan-400 hover:bg-cyan-500/10 border border-cyan-500/20 hover:border-cyan-500/40 transition-all text-xs font-medium"
-              title="Intelligence — Knowledge graph overview"
-            >
-              <Brain className="w-3.5 h-3.5" />
-              Intelligence
-            </button>
-            <button
               onClick={handleSync}
               disabled={syncing}
               className="p-1.5 rounded-md text-gray-500 hover:text-indigo-400 hover:bg-white/[0.08] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
@@ -193,241 +256,254 @@ export function ProjectDetailPage() {
               <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
             </button>
           </div>
-        }
-      />
+        </div>
+      </div>
 
-      {/* Roadmap Progress */}
-      {roadmap && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Progress</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ProgressBar value={roadmap.progress.percentage} showLabel size="lg" gradient shimmer={roadmap.progress.percentage < 100} />
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 text-center">
-              <div>
-                <div className="text-2xl font-bold text-gray-200">{roadmap.progress.total_tasks}</div>
-                <div className="text-xs text-gray-500">Total</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-green-400">{roadmap.progress.completed_tasks}</div>
-                <div className="text-xs text-gray-500">Completed</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-blue-400">{roadmap.progress.in_progress_tasks}</div>
-                <div className="text-xs text-gray-500">In Progress</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-gray-400">{roadmap.progress.pending_tasks}</div>
-                <div className="text-xs text-gray-500">Pending</div>
-              </div>
+      {/* ── Tab content ────────────────────────────────────────────────── */}
+      {activeTab === 'overview' ? (
+        <>
+          {/* Roadmap Progress */}
+          {roadmap && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Progress</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ProgressBar value={roadmap.progress.percentage} showLabel size="lg" gradient shimmer={roadmap.progress.percentage < 100} />
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 text-center">
+                  <div>
+                    <div className="text-2xl font-bold text-gray-200">{roadmap.progress.total_tasks}</div>
+                    <div className="text-xs text-gray-500">Total</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-green-400">{roadmap.progress.completed_tasks}</div>
+                    <div className="text-xs text-gray-500">Completed</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-blue-400">{roadmap.progress.in_progress_tasks}</div>
+                    <div className="text-xs text-gray-500">In Progress</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-gray-400">{roadmap.progress.pending_tasks}</div>
+                    <div className="text-xs text-gray-500">Pending</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Milestones & Releases */}
+          {roadmap && (
+            <section id="roadmap" className="scroll-mt-20">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Milestones</CardTitle>
+                    <Button size="sm" onClick={() => milestoneFormDialog.open({ title: 'Add Milestone' })}>Add</Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {(roadmap.milestones || []).length === 0 ? (
+                    <p className="text-gray-500 text-sm">No milestones defined</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {(roadmap.milestones || []).map(({ milestone }) => (
+                        <Link
+                          key={milestone.id}
+                          to={workspacePath(wsSlug, `/project-milestones/${milestone.id}`)}
+                          state={{ projectId: project.id, projectSlug: project.slug, projectName: project.name }}
+                          className="flex items-center justify-between gap-2 p-3 bg-white/[0.06] rounded-lg hover:bg-white/[0.08] transition-colors"
+                        >
+                          <span className="font-medium text-gray-200 truncate min-w-0">{milestone.title}</span>
+                          <Badge variant={milestone.status?.toLowerCase() === 'open' ? 'info' : 'success'}>
+                            {milestone.status}
+                          </Badge>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Releases</CardTitle>
+                    <Button size="sm" onClick={() => releaseFormDialog.open({ title: 'Add Release' })}>Add</Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {roadmap.releases.length === 0 ? (
+                    <p className="text-gray-500 text-sm">No releases planned</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {roadmap.releases.map(({ release }) => (
+                        <div key={release.id} className="flex items-center justify-between gap-2 p-3 bg-white/[0.06] rounded-lg">
+                          <div className="min-w-0 truncate">
+                            <span className="font-medium text-gray-200">v{release.version}</span>
+                            {release.title && (
+                              <span className="ml-2 text-gray-400">{release.title}</span>
+                            )}
+                          </div>
+                          <Badge variant={release.status === 'released' ? 'success' : 'default'}>
+                            {release.status}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
-      )}
+            </section>
+          )}
 
-      {/* Milestones & Releases */}
-      {roadmap && (
-        <section id="roadmap" className="scroll-mt-20">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+          {/* Plans */}
+          <section id="plans" className="scroll-mt-20">
           <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Milestones</CardTitle>
-                <Button size="sm" onClick={() => milestoneFormDialog.open({ title: 'Add Milestone' })}>Add</Button>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CardTitle>Plans ({plans.length})</CardTitle>
+                {plans.length > 0 && (
+                  <button
+                    onClick={() => {
+                      if (plansAllExpanded) {
+                        setPlansCollapseAll((s) => s + 1)
+                      } else {
+                        setPlansExpandAll((s) => s + 1)
+                      }
+                      setPlansAllExpanded(!plansAllExpanded)
+                    }}
+                    className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                    title={plansAllExpanded ? 'Collapse all' : 'Expand all'}
+                  >
+                    <ChevronsUpDown className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" onClick={() => linkDialog.open({
+                  title: 'Link Existing Plan',
+                  submitLabel: 'Link',
+                  fetchOptions: async () => {
+                    const data = await plansApi.list({ limit: 100 })
+                    return (data.items || [])
+                      .filter(p => !p.project_id)
+                      .map(p => ({ value: p.id, label: p.title, description: p.status }))
+                  },
+                  onLink: async (planId) => {
+                    await plansApi.linkToProject(planId, project.id)
+                    const allPlansData = await plansApi.list({ limit: 100 })
+                    const projectPlans = (allPlansData.items || []).filter(p => p.project_id === project.id)
+                    setPlans(projectPlans)
+                    toast.success('Plan linked')
+                  },
+                })}>Link Plan</Button>
+                <Link to={workspacePath(wsSlug, '/plans')}>
+                  <Button variant="ghost" size="sm">View All</Button>
+                </Link>
               </div>
             </CardHeader>
             <CardContent>
-              {(roadmap.milestones || []).length === 0 ? (
-                <p className="text-gray-500 text-sm">No milestones defined</p>
+              {plans.length === 0 ? (
+                <p className="text-gray-500 text-sm">No plans for this project</p>
               ) : (
-                <div className="space-y-3">
-                  {(roadmap.milestones || []).map(({ milestone, progress }) => (
+                <div className="space-y-2">
+                  {plans.map((plan) => (
+                    <ExpandablePlanRow
+                      key={plan.id}
+                      plan={plan}
+                      onStatusChange={async (newStatus: PlanStatus) => {
+                        await plansApi.updateStatus(plan.id, newStatus)
+                        setPlans((prev) => prev.map((p) => (p.id === plan.id ? { ...p, status: newStatus } : p)))
+                        toast.success('Status updated')
+                      }}
+                      refreshTrigger={taskRefresh}
+                      expandAllSignal={plansExpandAll}
+                      collapseAllSignal={plansCollapseAll}
+                      linkState={{ projectId: project.id, projectSlug: project.slug, projectName: project.name }}
+                    />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          </section>
+
+          {/* Feature Graphs */}
+          <section id="feature-graphs" className="scroll-mt-20">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Feature Graphs ({featureGraphs.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {featureGraphs.length === 0 ? (
+                <p className="text-gray-500 text-sm">No feature graphs for this project</p>
+              ) : (
+                <div className="space-y-2">
+                  {featureGraphs.map((fg) => (
                     <Link
-                      key={milestone.id}
-                      to={workspacePath(wsSlug, `/project-milestones/${milestone.id}`)}
+                      key={fg.id}
+                      to={workspacePath(wsSlug, `/feature-graphs/${fg.id}`)}
                       state={{ projectId: project.id, projectSlug: project.slug, projectName: project.name }}
-                      className="block p-3 bg-white/[0.06] rounded-lg hover:bg-white/[0.08] transition-colors"
+                      className="flex items-center justify-between gap-3 p-3 bg-white/[0.06] rounded-lg hover:bg-white/[0.08] transition-colors group"
                     >
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className="font-medium text-gray-200 truncate min-w-0">{milestone.title}</span>
-                        <Badge variant={milestone.status?.toLowerCase() === 'open' ? 'info' : 'success'}>
-                          {milestone.status}
-                        </Badge>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-200 truncate">{fg.name}</span>
+                          {fg.entity_count != null && (
+                            <Badge variant="default">{fg.entity_count} entities</Badge>
+                          )}
+                          {fg.entry_function && (
+                            <Badge variant="info">{fg.entry_function}</Badge>
+                          )}
+                        </div>
+                        {fg.description && (
+                          <p className="text-xs text-gray-500 mt-1 truncate">
+                            {fg.description.length > 80 ? `${fg.description.slice(0, 80)}...` : fg.description}
+                          </p>
+                        )}
                       </div>
-                      <ProgressBar value={progress?.percentage || 0} size="sm" />
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          confirmDialog.open({
+                            title: 'Delete Feature Graph',
+                            description: `Delete "${fg.name}"? This cannot be undone.`,
+                            onConfirm: async () => {
+                              await featureGraphsApi.delete(fg.id)
+                              setFeatureGraphs((prev) => prev.filter((g) => g.id !== fg.id))
+                              toast.success('Feature graph deleted')
+                            },
+                          })
+                        }}
+                        className="p-1.5 rounded text-gray-600 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-white/[0.08] transition-all shrink-0"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </Link>
                   ))}
                 </div>
               )}
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Releases</CardTitle>
-                <Button size="sm" onClick={() => releaseFormDialog.open({ title: 'Add Release' })}>Add</Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {roadmap.releases.length === 0 ? (
-                <p className="text-gray-500 text-sm">No releases planned</p>
-              ) : (
-                <div className="space-y-3">
-                  {roadmap.releases.map(({ release }) => (
-                    <div key={release.id} className="flex items-center justify-between gap-2 p-3 bg-white/[0.06] rounded-lg">
-                      <div className="min-w-0 truncate">
-                        <span className="font-medium text-gray-200">v{release.version}</span>
-                        {release.title && (
-                          <span className="ml-2 text-gray-400">{release.title}</span>
-                        )}
-                      </div>
-                      <Badge variant={release.status === 'released' ? 'success' : 'default'}>
-                        {release.status}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-        </section>
+          </section>
+        </>
+      ) : (
+        /* ── Intelligence tab content ─────────────────────────────────── */
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center py-24">
+              <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+            </div>
+          }
+        >
+          <IntelligenceDashboard projectSlug={slug!} />
+        </Suspense>
       )}
-
-      {/* Plans */}
-      <section id="plans" className="scroll-mt-20">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CardTitle>Plans ({plans.length})</CardTitle>
-            {plans.length > 0 && (
-              <button
-                onClick={() => {
-                  if (plansAllExpanded) {
-                    setPlansCollapseAll((s) => s + 1)
-                  } else {
-                    setPlansExpandAll((s) => s + 1)
-                  }
-                  setPlansAllExpanded(!plansAllExpanded)
-                }}
-                className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
-                title={plansAllExpanded ? 'Collapse all' : 'Expand all'}
-              >
-                <ChevronsUpDown className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button size="sm" onClick={() => linkDialog.open({
-              title: 'Link Existing Plan',
-              submitLabel: 'Link',
-              fetchOptions: async () => {
-                const data = await plansApi.list({ limit: 100 })
-                return (data.items || [])
-                  .filter(p => !p.project_id)
-                  .map(p => ({ value: p.id, label: p.title, description: p.status }))
-              },
-              onLink: async (planId) => {
-                await plansApi.linkToProject(planId, project.id)
-                const allPlansData = await plansApi.list({ limit: 100 })
-                const projectPlans = (allPlansData.items || []).filter(p => p.project_id === project.id)
-                setPlans(projectPlans)
-                toast.success('Plan linked')
-              },
-            })}>Link Plan</Button>
-            <Link to={workspacePath(wsSlug, '/plans')}>
-              <Button variant="ghost" size="sm">View All</Button>
-            </Link>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {plans.length === 0 ? (
-            <p className="text-gray-500 text-sm">No plans for this project</p>
-          ) : (
-            <div className="space-y-2">
-              {plans.map((plan) => (
-                <ExpandablePlanRow
-                  key={plan.id}
-                  plan={plan}
-                  onStatusChange={async (newStatus: PlanStatus) => {
-                    await plansApi.updateStatus(plan.id, newStatus)
-                    setPlans((prev) => prev.map((p) => (p.id === plan.id ? { ...p, status: newStatus } : p)))
-                    toast.success('Status updated')
-                  }}
-                  refreshTrigger={taskRefresh}
-                  expandAllSignal={plansExpandAll}
-                  collapseAllSignal={plansCollapseAll}
-                  linkState={{ projectId: project.id, projectSlug: project.slug, projectName: project.name }}
-                />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-      </section>
-
-      {/* Feature Graphs */}
-      <section id="feature-graphs" className="scroll-mt-20">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Feature Graphs ({featureGraphs.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {featureGraphs.length === 0 ? (
-            <p className="text-gray-500 text-sm">No feature graphs for this project</p>
-          ) : (
-            <div className="space-y-2">
-              {featureGraphs.map((fg) => (
-                <Link
-                  key={fg.id}
-                  to={workspacePath(wsSlug, `/feature-graphs/${fg.id}`)}
-                  state={{ projectId: project.id, projectSlug: project.slug, projectName: project.name }}
-                  className="flex items-center justify-between gap-3 p-3 bg-white/[0.06] rounded-lg hover:bg-white/[0.08] transition-colors group"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-200 truncate">{fg.name}</span>
-                      {fg.entity_count != null && (
-                        <Badge variant="default">{fg.entity_count} entities</Badge>
-                      )}
-                      {fg.entry_function && (
-                        <Badge variant="info">{fg.entry_function}</Badge>
-                      )}
-                    </div>
-                    {fg.description && (
-                      <p className="text-xs text-gray-500 mt-1 truncate">
-                        {fg.description.length > 80 ? `${fg.description.slice(0, 80)}...` : fg.description}
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      confirmDialog.open({
-                        title: 'Delete Feature Graph',
-                        description: `Delete "${fg.name}"? This cannot be undone.`,
-                        onConfirm: async () => {
-                          await featureGraphsApi.delete(fg.id)
-                          setFeatureGraphs((prev) => prev.filter((g) => g.id !== fg.id))
-                          toast.success('Feature graph deleted')
-                        },
-                      })
-                    }}
-                    className="p-1.5 rounded text-gray-600 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-white/[0.08] transition-all shrink-0"
-                    title="Delete"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </Link>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-      </section>
 
       <FormDialog {...milestoneFormDialog.dialogProps} onSubmit={milestoneForm.submit}>
         {milestoneForm.fields}

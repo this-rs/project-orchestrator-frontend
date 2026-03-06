@@ -33,7 +33,6 @@ import {
   SkillDetailPage,
   FeatureGraphsPage,
   FeatureGraphDetailPage,
-  IntelligencePage,
   AdminPage,
 
   NotFoundPage,
@@ -166,7 +165,7 @@ function App() {
                         <Route path="skills/:id" element={<SkillDetailPage />} />
                         <Route path="feature-graphs" element={<FeatureGraphsPage />} />
                         <Route path="feature-graphs/:id" element={<FeatureGraphDetailPage />} />
-                        <Route path="projects/:projectSlug/intelligence" element={<IntelligencePage />} />
+                        <Route path="projects/:projectSlug/intelligence" element={<ProjectDetailPage />} />
                         <Route path="projects/:projectSlug/intelligence/graph" element={<IntelligenceGraphPage />} />
                         <Route path="projects/:projectSlug/intelligence/vector-space" element={<VectorSpaceExplorer />} />
                         <Route path="projects/:projectSlug/intelligence/timeline" element={<LearningTimeline />} />
