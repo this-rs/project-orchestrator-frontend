@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from 'react'
+import { lazy, Suspense, useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
-import { FolderOpen, Clipboard, RefreshCw, Trash2, ChevronRight, Orbit, Calendar, Network, Loader2, Brain, AlertTriangle } from 'lucide-react'
+import { FolderOpen, Clipboard, RefreshCw, Trash2, ChevronRight, Orbit, Calendar, Network, Loader2, Brain, AlertTriangle, X } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LoadingPage, ErrorState, Badge, PageHeader, SectionNav } from '@/components/ui'
 import { ExpandableMilestoneRow } from '@/components/expandable'
 import {
@@ -18,6 +18,30 @@ import { workspacePath } from '@/utils/paths'
 import { chatSuggestedProjectIdAtom, projectRefreshAtom, planRefreshAtom, milestoneRefreshAtom, taskRefreshAtom } from '@/atoms'
 import { CreateMilestoneForm, CreateReleaseForm } from '@/components/forms'
 import type { Project, ProjectRoadmap, FeatureGraph } from '@/types'
+
+// Lazy-load heavy sub-views — only loaded when the user activates a tab
+const VectorSpaceExplorer = lazy(() => import('@/components/intelligence/VectorSpaceExplorer'))
+const LearningTimeline = lazy(() => import('@/components/intelligence/LearningTimeline'))
+const IntelligenceGraphPage = lazy(() => import('@/components/intelligence/IntelligenceGraphPage'))
+
+type SubView = 'vector-space' | 'timeline' | 'graph'
+
+const SUB_VIEW_CONFIG: { key: SubView; label: string; icon: typeof Orbit; color: string; activeColor: string }[] = [
+  { key: 'vector-space', label: 'Vector Space', icon: Orbit, color: 'text-violet-400 hover:bg-violet-500/10', activeColor: 'bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/40' },
+  { key: 'timeline', label: 'Timeline', icon: Calendar, color: 'text-emerald-400 hover:bg-emerald-500/10', activeColor: 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40' },
+  { key: 'graph', label: 'Graph', icon: Network, color: 'text-cyan-400 hover:bg-cyan-500/10', activeColor: 'bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-500/40' },
+]
+
+function SubViewFallback() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <div className="flex items-center gap-2 text-slate-500 text-sm">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        Loading…
+      </div>
+    </div>
+  )
+}
 
 export function ProjectDetailPage() {
   const { projectSlug: slug } = useParams<{ projectSlug: string }>()
@@ -42,6 +66,9 @@ export function ProjectDetailPage() {
   // Expandable sections
   const [releasesExpanded, setReleasesExpanded] = useState(false)
   const [fgExpanded, setFgExpanded] = useState(false)
+
+  // Sub-view state (null = no sub-view open, show normal content)
+  const [activeSubView, setActiveSubView] = useState<SubView | null>(null)
 
   // Intelligence data (composable sections)
   const intelligence = useIntelligenceData(slug ?? '')
@@ -168,37 +195,54 @@ export function ProjectDetailPage() {
         ]}
       />
 
+      {/* ── Sub-view switcher (below description) ──────────────────────── */}
+      <div className="flex items-center gap-1.5">
+        {SUB_VIEW_CONFIG.map(({ key, label, icon: Icon, color, activeColor }) => (
+          <button
+            key={key}
+            onClick={() => setActiveSubView(activeSubView === key ? null : key)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+              activeSubView === key ? activeColor : color
+            }`}
+            title={label}
+          >
+            <Icon size={13} />
+            <span>{label}</span>
+          </button>
+        ))}
+        {activeSubView && (
+          <button
+            onClick={() => setActiveSubView(null)}
+            className="ml-1 p-1 rounded-md text-slate-500 hover:text-slate-300 hover:bg-white/[0.06] transition-colors"
+            title="Close view"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
+      {/* ── Inline sub-view content ────────────────────────────────────── */}
+      {activeSubView && (
+        <section className="scroll-mt-20">
+          <Suspense fallback={<SubViewFallback />}>
+            {activeSubView === 'vector-space' && (
+              <VectorSpaceExplorer embedded projectSlug={slug} />
+            )}
+            {activeSubView === 'timeline' && (
+              <LearningTimeline embedded projectSlug={slug} />
+            )}
+            {activeSubView === 'graph' && (
+              <IntelligenceGraphPage embedded projectSlug={slug} />
+            )}
+          </Suspense>
+        </section>
+      )}
+
       <SectionNav
         sections={sections}
         activeSection={activeSection}
         rightContent={
           <div className="flex items-center gap-1.5">
-            {/* Sub-view buttons */}
-            <button
-              onClick={() => navigate(workspacePath(wsSlug, `/projects/${slug}/intelligence/vector-space`))}
-              className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-violet-400 hover:bg-violet-500/10 transition-colors"
-              title="Vector Space"
-            >
-              <Orbit size={12} />
-              <span className="hidden md:inline">Vector Space</span>
-            </button>
-            <button
-              onClick={() => navigate(workspacePath(wsSlug, `/projects/${slug}/intelligence/timeline`))}
-              className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/10 transition-colors"
-              title="Timeline"
-            >
-              <Calendar size={12} />
-              <span className="hidden md:inline">Timeline</span>
-            </button>
-            <button
-              onClick={() => navigate(workspacePath(wsSlug, `/projects/${slug}/intelligence/graph`))}
-              className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-cyan-400 hover:bg-cyan-500/10 transition-colors"
-              title="Graph"
-            >
-              <Network size={12} />
-              <span className="hidden md:inline">Graph</span>
-            </button>
-            <div className="w-px h-4 bg-white/[0.08] mx-0.5" />
             {project.root_path && (
               <div className="flex items-center gap-1.5 bg-white/[0.04] border border-white/[0.08] rounded-md px-2.5 py-1 group">
                 <FolderOpen className="w-3.5 h-3.5 text-gray-500 shrink-0" />

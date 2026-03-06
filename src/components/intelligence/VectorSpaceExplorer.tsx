@@ -799,8 +799,16 @@ function renderCanvas(
 // MAIN COMPONENT
 // ============================================================================
 
-export default function VectorSpaceExplorer() {
-  const { projectSlug } = useParams<{ projectSlug: string }>()
+interface VectorSpaceExplorerProps {
+  /** When true, hides back navigation header and adapts height for inline embedding */
+  embedded?: boolean
+  /** Explicit slug — avoids useParams when embedded */
+  projectSlug?: string
+}
+
+export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
+  const params = useParams<{ projectSlug: string }>()
+  const projectSlug = props.projectSlug ?? params.projectSlug
   const wsSlug = useWorkspaceSlug()
   const navigate = useNavigate()
 
@@ -1425,15 +1433,17 @@ export default function VectorSpaceExplorer() {
   if (!data || data.points.length === 0) {
     return (
       <div className="py-6 max-w-4xl mx-auto">
-        <div className="flex items-center gap-2 mb-6">
-          <button
-            onClick={() => navigate(workspacePath(wsSlug, `/projects/${projectSlug}/intelligence`))}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-300 hover:bg-slate-800 transition-colors"
-          >
-            <ArrowLeft size={14} />
-            Dashboard
-          </button>
-        </div>
+        {!props.embedded && (
+          <div className="flex items-center gap-2 mb-6">
+            <button
+              onClick={() => navigate(workspacePath(wsSlug, `/projects/${projectSlug}/intelligence`))}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-300 hover:bg-slate-800 transition-colors"
+            >
+              <ArrowLeft size={14} />
+              Dashboard
+            </button>
+          </div>
+        )}
         <Card>
           <CardContent className="py-12">
             <div className="flex flex-col items-center gap-3 text-slate-500">
@@ -1450,85 +1460,90 @@ export default function VectorSpaceExplorer() {
   }
 
   return (
-    <div className="flex flex-col -mx-4 md:-mx-6 -mb-2" style={{ height: 'calc(100dvh - 5rem)' }}>
-      {/* ── Header ────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 shrink-0">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate(workspacePath(wsSlug, `/projects/${projectSlug}/intelligence`))}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-slate-400 hover:text-slate-300 hover:bg-slate-800 transition-colors"
-          >
-            <ArrowLeft size={14} />
-          </button>
-          <div>
-            <h1 className="text-sm font-bold text-slate-200 flex items-center gap-1.5">
-              <Brain size={16} className="text-cyan-400" />
-              Vector Space Explorer
-            </h1>
-            <p className="text-[10px] text-slate-600">
-              UMAP {viewMode === '3d' ? '3D' : '2D'} projection of knowledge embeddings
-            </p>
-          </div>
-
-          {/* 2D/3D toggle */}
-          <div className="flex items-center gap-0.5 bg-slate-800/90 rounded-lg border border-slate-700 p-0.5">
+    <div
+      className={`flex flex-col ${props.embedded ? 'rounded-lg overflow-hidden border border-slate-800' : '-mx-4 md:-mx-6 -mb-2'}`}
+      style={{ height: props.embedded ? '600px' : 'calc(100dvh - 5rem)' }}
+    >
+      {/* ── Header (hidden in embedded mode) ──────────────────────────── */}
+      {!props.embedded && (
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 shrink-0">
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => setViewMode('2d')}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors ${
-                viewMode === '2d'
-                  ? 'bg-cyan-600 text-white'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
-              }`}
+              onClick={() => navigate(workspacePath(wsSlug, `/projects/${projectSlug}/intelligence`))}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-slate-400 hover:text-slate-300 hover:bg-slate-800 transition-colors"
             >
-              <Grid3x3 size={12} />
-              2D
+              <ArrowLeft size={14} />
             </button>
-            <button
-              onClick={() => setViewMode('3d')}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors ${
-                viewMode === '3d'
-                  ? 'bg-cyan-600 text-white'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
-              }`}
-            >
-              <Box size={12} />
-              3D
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Quick stats */}
-          {stats && (
-            <div className="flex items-center gap-3 mr-3">
-              <div className="flex items-center gap-1 text-[10px] text-slate-500">
-                <StickyNote size={10} className="text-amber-500" />
-                {stats.notes}
-              </div>
-              <div className="flex items-center gap-1 text-[10px] text-slate-500">
-                <Scale size={10} className="text-violet-500" />
-                {stats.decisions}
-              </div>
-              <div className="flex items-center gap-1 text-[10px] text-slate-500">
-                <Sparkles size={10} className="text-pink-500" />
-                {data.skills.length}
-              </div>
-              <div className="flex items-center gap-1 text-[10px] text-slate-500">
-                ⚡ {(stats.avgEnergy * 100).toFixed(0)}%
-              </div>
+            <div>
+              <h1 className="text-sm font-bold text-slate-200 flex items-center gap-1.5">
+                <Brain size={16} className="text-cyan-400" />
+                Vector Space Explorer
+              </h1>
+              <p className="text-[10px] text-slate-600">
+                UMAP {viewMode === '3d' ? '3D' : '2D'} projection of knowledge embeddings
+              </p>
             </div>
-          )}
 
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
-            Refresh
-          </button>
+            {/* 2D/3D toggle */}
+            <div className="flex items-center gap-0.5 bg-slate-800/90 rounded-lg border border-slate-700 p-0.5">
+              <button
+                onClick={() => setViewMode('2d')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors ${
+                  viewMode === '2d'
+                    ? 'bg-cyan-600 text-white'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
+                }`}
+              >
+                <Grid3x3 size={12} />
+                2D
+              </button>
+              <button
+                onClick={() => setViewMode('3d')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors ${
+                  viewMode === '3d'
+                    ? 'bg-cyan-600 text-white'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
+                }`}
+              >
+                <Box size={12} />
+                3D
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Quick stats */}
+            {stats && (
+              <div className="flex items-center gap-3 mr-3">
+                <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                  <StickyNote size={10} className="text-amber-500" />
+                  {stats.notes}
+                </div>
+                <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                  <Scale size={10} className="text-violet-500" />
+                  {stats.decisions}
+                </div>
+                <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                  <Sparkles size={10} className="text-pink-500" />
+                  {data.skills.length}
+                </div>
+                <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                  ⚡ {(stats.avgEnergy * 100).toFixed(0)}%
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── Canvas / 3D Area ─────────────────────────────────────────── */}
       <div

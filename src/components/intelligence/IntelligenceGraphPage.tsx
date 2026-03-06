@@ -36,8 +36,16 @@ import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
 // Lazy-load the 3D component — Three.js (~300KB gz) only loaded when needed
 const IntelligenceGraph3D = lazy(() => import('./graph3d/IntelligenceGraph3D'))
 
-export default function IntelligenceGraphPage() {
-  const { projectSlug } = useParams<{ slug: string; projectSlug: string }>()
+interface IntelligenceGraphPageProps {
+  /** When true, hides back navigation and adapts height for inline embedding */
+  embedded?: boolean
+  /** Explicit slug — avoids useParams when embedded */
+  projectSlug?: string
+}
+
+export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps) {
+  const params = useParams<{ slug: string; projectSlug: string }>()
+  const projectSlug = props.projectSlug ?? params.projectSlug
   const loading = useAtomValue(intelligenceLoadingAtom)
   const error = useAtomValue(intelligenceErrorAtom)
   const setSearchOpen = useSetAtom(activationSearchOpenAtom)
@@ -166,7 +174,10 @@ export default function IntelligenceGraphPage() {
   }
 
   return (
-    <div className="relative w-full -mx-4 md:-mx-6 -mb-2" style={{ height: 'calc(100dvh - 5rem)' }}>
+    <div
+      className={`relative w-full ${props.embedded ? '' : '-mx-4 md:-mx-6 -mb-2'}`}
+      style={{ height: props.embedded ? '600px' : 'calc(100dvh - 5rem)' }}
+    >
       {/* 2D-only CSS (synapse animations, dark theme overrides) */}
       {viewMode === '2d' && (
         <style>{`

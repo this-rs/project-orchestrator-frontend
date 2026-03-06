@@ -417,8 +417,16 @@ function EventTooltip({ event }: { event: TimelineEvent }) {
 // MAIN COMPONENT
 // ============================================================================
 
-export default function LearningTimeline() {
-  const { projectSlug } = useParams<{ projectSlug: string }>()
+interface LearningTimelineProps {
+  /** When true, hides back navigation header for inline embedding */
+  embedded?: boolean
+  /** Explicit slug — avoids useParams when embedded */
+  projectSlug?: string
+}
+
+export default function LearningTimeline(props: LearningTimelineProps) {
+  const params = useParams<{ projectSlug: string }>()
+  const projectSlug = props.projectSlug ?? params.projectSlug
   const wsSlug = useWorkspaceSlug()
   const navigate = useNavigate()
 
@@ -700,60 +708,62 @@ export default function LearningTimeline() {
 
   return (
     <div className="py-6 space-y-5 max-w-6xl">
-      {/* ── Header ────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate(workspacePath(wsSlug, `/projects/${projectSlug}/intelligence`))}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-slate-400 hover:text-slate-300 hover:bg-slate-800 transition-colors"
-          >
-            <ArrowLeft size={14} />
-          </button>
-          <div>
-            <h1 className="text-lg font-bold text-slate-200 flex items-center gap-2">
-              <Calendar size={18} className="text-cyan-400" />
-              Learning Timeline
-            </h1>
-            <p className="text-[11px] text-slate-500">
-              Knowledge evolution over time for{' '}
-              <span className="text-slate-400 font-medium">{projectSlug}</span>
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Event count badges */}
-          <div className="flex items-center gap-2">
-            {typeCounts.note_created > 0 && (
-              <div className="flex items-center gap-1 text-[10px] text-slate-500">
-                <StickyNote size={10} className="text-blue-400" />
-                {typeCounts.note_created}
-              </div>
-            )}
-            {typeCounts.decision > 0 && (
-              <div className="flex items-center gap-1 text-[10px] text-slate-500">
-                <Scale size={10} className="text-violet-400" />
-                {typeCounts.decision}
-              </div>
-            )}
-            {typeCounts.skill_created > 0 && (
-              <div className="flex items-center gap-1 text-[10px] text-slate-500">
-                <Sparkles size={10} className="text-pink-400" />
-                {typeCounts.skill_created}
-              </div>
-            )}
+      {/* ── Header (hidden in embedded mode) ─────────────────────────── */}
+      {!props.embedded && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate(workspacePath(wsSlug, `/projects/${projectSlug}/intelligence`))}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-slate-400 hover:text-slate-300 hover:bg-slate-800 transition-colors"
+            >
+              <ArrowLeft size={14} />
+            </button>
+            <div>
+              <h1 className="text-lg font-bold text-slate-200 flex items-center gap-2">
+                <Calendar size={18} className="text-cyan-400" />
+                Learning Timeline
+              </h1>
+              <p className="text-[11px] text-slate-500">
+                Knowledge evolution over time for{' '}
+                <span className="text-slate-400 font-medium">{projectSlug}</span>
+              </p>
+            </div>
           </div>
 
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-3">
+            {/* Event count badges */}
+            <div className="flex items-center gap-2">
+              {typeCounts.note_created > 0 && (
+                <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                  <StickyNote size={10} className="text-blue-400" />
+                  {typeCounts.note_created}
+                </div>
+              )}
+              {typeCounts.decision > 0 && (
+                <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                  <Scale size={10} className="text-violet-400" />
+                  {typeCounts.decision}
+                </div>
+              )}
+              {typeCounts.skill_created > 0 && (
+                <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                  <Sparkles size={10} className="text-pink-400" />
+                  {typeCounts.skill_created}
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── Sparklines Grid ───────────────────────────────────────────── */}
       {sparklines && (

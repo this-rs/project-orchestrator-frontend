@@ -39,9 +39,7 @@ import {
   SettingsPage,
   SetupWizard,
 } from '@/pages'
-import IntelligenceGraphPage from '@/components/intelligence/IntelligenceGraphPage'
-import VectorSpaceExplorer from '@/components/intelligence/VectorSpaceExplorer'
-import LearningTimeline from '@/components/intelligence/LearningTimeline'
+// Intelligence sub-views are now embedded inline in ProjectDetailPage (lazy-loaded there)
 
 /**
  * Captures the `?from=tray` query parameter on first render and stores
@@ -165,10 +163,8 @@ function App() {
                         <Route path="skills/:id" element={<SkillDetailPage />} />
                         <Route path="feature-graphs" element={<FeatureGraphsPage />} />
                         <Route path="feature-graphs/:id" element={<FeatureGraphDetailPage />} />
+                        {/* Intelligence sub-views are now embedded inline in ProjectDetailPage */}
                         <Route path="projects/:projectSlug/intelligence" element={<ProjectDetailPage />} />
-                        <Route path="projects/:projectSlug/intelligence/graph" element={<IntelligenceGraphPage />} />
-                        <Route path="projects/:projectSlug/intelligence/vector-space" element={<VectorSpaceExplorer />} />
-                        <Route path="projects/:projectSlug/intelligence/timeline" element={<LearningTimeline />} />
                         <Route path="admin" element={<AdminPage />} />
                         <Route path="*" element={<NotFoundPage embedded />} />
                       </Route>
