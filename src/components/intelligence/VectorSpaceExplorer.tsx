@@ -74,10 +74,10 @@ const POINT_COLORS: Record<string, string> = {
 const WORLD_SIZE = 1000 // Normalize UMAP coords to this range for natural zoom levels
 
 const IMPORTANCE_RADIUS: Record<string, number> = {
-  critical: 7,
-  high: 5.5,
-  medium: 4,
-  low: 3,
+  critical: 10,
+  high: 8,
+  medium: 6,
+  low: 4.5,
 }
 
 const SYNAPSE_COLOR = '#22D3EE'   // cyan — matches neural layer
@@ -930,18 +930,20 @@ export default function VectorSpaceExplorer() {
       const result = await intelligenceApi.getEmbeddingsProjection(projectSlug, dims)
 
       // ── Normalize UMAP coordinates to [0, WORLD_SIZE] ──────────────
-      // UMAP outputs tiny ranges (e.g. -15..15) causing extreme auto-fit
-      // zoom levels (100x+). Normalization keeps zoom ≈ 0.5-1.5 so points
-      // are naturally spaced and interactions feel like a real map.
+      // Uses percentile-based bounds (2% trim each side) to ignore outliers
+      // that compress the main point cloud into a tiny region.
       // NOTE: In 3D mode, VectorSpace3D handles its own normalization.
       if (result.points.length > 0 && dims === 2) {
-        let rMinX = Infinity, rMaxX = -Infinity, rMinY = Infinity, rMaxY = -Infinity
-        for (const p of result.points) {
-          if (p.x < rMinX) rMinX = p.x
-          if (p.x > rMaxX) rMaxX = p.x
-          if (p.y < rMinY) rMinY = p.y
-          if (p.y > rMaxY) rMaxY = p.y
-        }
+        const TRIM = 0.02 // trim 2% outliers on each side
+        const lo = Math.floor(result.points.length * TRIM)
+        const hi = Math.max(lo, result.points.length - 1 - lo)
+
+        const xs = result.points.map(p => p.x).sort((a, b) => a - b)
+        const ys = result.points.map(p => p.y).sort((a, b) => a - b)
+
+        const rMinX = xs[lo], rMaxX = xs[hi]
+        const rMinY = ys[lo], rMaxY = ys[hi]
+
         const rangeX = rMaxX - rMinX || 1
         const rangeY = rMaxY - rMinY || 1
         const maxRange = Math.max(rangeX, rangeY)
@@ -950,8 +952,11 @@ export default function VectorSpaceExplorer() {
         const offsetX = (WORLD_SIZE - rangeX * scale) / 2
         const offsetY = (WORLD_SIZE - rangeY * scale) / 2
         for (const p of result.points) {
-          p.x = (p.x - rMinX) * scale + offsetX
-          p.y = (p.y - rMinY) * scale + offsetY
+          // Clamp outliers to percentile bounds before scaling
+          const cx = Math.max(rMinX, Math.min(rMaxX, p.x))
+          const cy = Math.max(rMinY, Math.min(rMaxY, p.y))
+          p.x = (cx - rMinX) * scale + offsetX
+          p.y = (cy - rMinY) * scale + offsetY
         }
 
         // ── Auto-fit camera to normalized bounds ──────────────────────
