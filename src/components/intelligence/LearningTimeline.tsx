@@ -50,6 +50,8 @@ interface TimelineEvent {
   date: Date
   label: string
   detail?: string
+  /** Full content for expanded preview (decisions, notes) */
+  fullContent?: string
 }
 
 const EVENT_COLORS: Record<TimelineEventType, string> = {
@@ -297,6 +299,8 @@ function TimelineTrack({
   hoveredId,
   selectedId,
   playbackPosition,
+  onSeek,
+  confirmationWaves,
 }: {
   events: TimelineEvent[]
   startDate: Date
@@ -307,15 +311,67 @@ function TimelineTrack({
   selectedId: string | null
   /** 0–1 normalized playback cursor position, null = no playback */
   playbackPosition: number | null
+  /** Called when user drags (seeks) on the track — value is 0–1 normalized */
+  onSeek?: (pos: number) => void
+  /** Confirmation wave zones to render as background bands */
+  confirmationWaves?: { start: number; end: number; count: number }[]
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const seekingRef = useRef(false)
   const range = endDate.getTime() - startDate.getTime() || 1
   const cursorTs = playbackPosition !== null
     ? startDate.getTime() + playbackPosition * range
     : null
 
+  /** Convert a clientX coordinate to a 0–1 position on the track */
+  const clientXToPos = useCallback(
+    (clientX: number) => {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return 0
+      return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+    },
+    [],
+  )
+
+  const handleTrackPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (!onSeek) return
+      // Only seek on left click, and not if clicking on an event marker
+      if (e.button !== 0) return
+      const target = e.target as HTMLElement
+      // Don't start seek if clicking on an event marker (has cursor-pointer)
+      if (target.closest('[data-event-marker]')) return
+
+      seekingRef.current = true
+      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+      const pos = clientXToPos(e.clientX)
+      onSeek(pos)
+    },
+    [onSeek, clientXToPos],
+  )
+
+  const handleTrackPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!seekingRef.current || !onSeek) return
+      const pos = clientXToPos(e.clientX)
+      onSeek(pos)
+    },
+    [onSeek, clientXToPos],
+  )
+
+  const handleTrackPointerUp = useCallback(() => {
+    seekingRef.current = false
+  }, [])
+
   return (
-    <div ref={containerRef} className="relative h-14 bg-slate-800/30 rounded-lg border border-slate-700/30 overflow-hidden">
+    <div
+      ref={containerRef}
+      className="relative h-14 bg-slate-800/30 rounded-lg border border-slate-700/30 overflow-hidden select-none touch-none"
+      style={{ cursor: onSeek ? 'crosshair' : undefined }}
+      onPointerDown={handleTrackPointerDown}
+      onPointerMove={handleTrackPointerMove}
+      onPointerUp={handleTrackPointerUp}
+    >
       {/* Time grid lines */}
       {Array.from({ length: 5 }, (_, i) => {
         const pct = (i + 1) * 20
@@ -343,10 +399,15 @@ function TimelineTrack({
             boxShadow: '0 0 6px #22d3ee60, 0 0 12px #22d3ee30',
           }}
         >
-          {/* Cursor head */}
+          {/* Cursor head — visible drag handle */}
           <div
-            className="absolute -top-1 -translate-x-1/2 w-2 h-2 rounded-full bg-cyan-400"
-            style={{ boxShadow: '0 0 6px #22d3ee80' }}
+            className="absolute -top-1.5 -translate-x-1/2 w-3 h-3 rounded-full bg-cyan-400 pointer-events-auto cursor-grab active:cursor-grabbing"
+            style={{ boxShadow: '0 0 8px #22d3ee80, 0 0 0 2px rgba(34,211,238,0.3)' }}
+          />
+          {/* Bottom handle */}
+          <div
+            className="absolute -bottom-1.5 -translate-x-1/2 w-3 h-3 rounded-full bg-cyan-400 pointer-events-auto cursor-grab active:cursor-grabbing"
+            style={{ boxShadow: '0 0 8px #22d3ee80, 0 0 0 2px rgba(34,211,238,0.3)' }}
           />
         </div>
       )}
@@ -361,6 +422,38 @@ function TimelineTrack({
           }}
         />
       )}
+
+      {/* Confirmation wave bands */}
+      {confirmationWaves?.map((wave, i) => {
+        const startTs = startDate.getTime()
+        const r = endDate.getTime() - startTs || 1
+        // Add padding around single-point waves so they're visible
+        const pad = Math.max(r * 0.008, 3_600_000) // at least ~1h visual width
+        const leftPct = Math.max(0, ((wave.start - pad - startTs) / r) * 100)
+        const rightPct = Math.min(100, ((wave.end + pad - startTs) / r) * 100)
+        const widthPct = rightPct - leftPct
+
+        return (
+          <div
+            key={`wave-${i}`}
+            className="absolute top-0 bottom-0 z-[2] pointer-events-none"
+            style={{
+              left: `${leftPct}%`,
+              width: `${widthPct}%`,
+              background: 'linear-gradient(to bottom, rgba(74,222,128,0.12), rgba(74,222,128,0.04))',
+              borderLeft: '1px solid rgba(74,222,128,0.25)',
+              borderRight: '1px solid rgba(74,222,128,0.25)',
+            }}
+          >
+            {/* Wave label */}
+            <div className="absolute top-0.5 left-1/2 -translate-x-1/2 flex items-center gap-0.5 whitespace-nowrap">
+              <span className="text-[7px] font-medium text-emerald-400/70 uppercase tracking-wider">
+                ✅ {wave.count}
+              </span>
+            </div>
+          </div>
+        )
+      })}
 
       {/* Event markers */}
       {events.map((ev) => {
@@ -377,6 +470,7 @@ function TimelineTrack({
         return (
           <div
             key={ev.id}
+            data-event-marker
             className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 cursor-pointer"
             style={{
               left: `${x}%`,
@@ -593,11 +687,18 @@ export default function LearningTimeline(props: LearningTimelineProps) {
           detail: `${n.note_type} (${n.importance})`,
         })
         if (n.last_confirmed_at) {
+          const confirmedAt = new Date(n.last_confirmed_at)
+          const cycleMs = confirmedAt.getTime() - new Date(n.created_at).getTime()
+          const cycleLabel = cycleMs < 60_000 ? '< 1 min (auto)'
+            : cycleMs < 3_600_000 ? `${Math.round(cycleMs / 60_000)} min`
+            : cycleMs < 86_400_000 ? `${Math.round(cycleMs / 3_600_000)}h`
+            : `${Math.round(cycleMs / 86_400_000)}d`
           evts.push({
             id: `note-confirm-${n.id}`,
             type: 'note_confirmed',
-            date: new Date(n.last_confirmed_at),
+            date: confirmedAt,
             label: `Confirmed: ${n.content.slice(0, 60)}`,
+            detail: `Cycle: ${cycleLabel}`,
           })
         }
       }
@@ -611,6 +712,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
           date: new Date(d.decided_at),
           label: d.description.slice(0, 80),
           detail: d.chosen_option ? `Chose: ${d.chosen_option}` : undefined,
+          fullContent: d.description,
         })
       }
 
@@ -743,6 +845,41 @@ export default function LearningTimeline(props: LearningTimelineProps) {
     setPlaybackPos(null)
   }, [])
 
+  /** Seek to a specific 0–1 position (from track drag) */
+  const handleSeek = useCallback((pos: number) => {
+    setPlaying(false)
+    setPlaybackPos(pos)
+  }, [])
+
+  // ── Confirmation waves (clusters of note_confirmed events) ─────────
+  const confirmationWaves = useMemo(() => {
+    const confirms = filteredEvents
+      .filter((e) => e.type === 'note_confirmed')
+      .sort((a, b) => a.date.getTime() - b.date.getTime())
+
+    if (confirms.length === 0) return []
+
+    // Merge confirmations within 12 hours of each other into waves
+    const MERGE_GAP = 12 * 60 * 60 * 1000
+    const waves: { start: number; end: number; count: number; events: TimelineEvent[] }[] = []
+    let wave = { start: confirms[0].date.getTime(), end: confirms[0].date.getTime(), count: 1, events: [confirms[0]] }
+
+    for (let i = 1; i < confirms.length; i++) {
+      const ts = confirms[i].date.getTime()
+      if (ts - wave.end <= MERGE_GAP) {
+        wave.end = ts
+        wave.count++
+        wave.events.push(confirms[i])
+      } else {
+        waves.push(wave)
+        wave = { start: ts, end: ts, count: 1, events: [confirms[i]] }
+      }
+    }
+    waves.push(wave)
+
+    return waves
+  }, [filteredEvents])
+
   // Current playback timestamp
   const playbackTimestamp = useMemo(() => {
     if (playbackPos === null) return null
@@ -761,6 +898,22 @@ export default function LearningTimeline(props: LearningTimelineProps) {
     if (playbackTimestamp === null) return null
     const visible = filteredEvents.filter((e) => e.date.getTime() <= playbackTimestamp)
     return visible.length > 0 ? visible[visible.length - 1] : null
+  }, [filteredEvents, playbackTimestamp])
+
+  // Is the playback cursor inside a confirmation wave?
+  const currentPlaybackWave = useMemo(() => {
+    if (playbackTimestamp === null) return null
+    return confirmationWaves.find(
+      (w) => playbackTimestamp >= w.start && playbackTimestamp <= w.end,
+    ) ?? null
+  }, [playbackTimestamp, confirmationWaves])
+
+  // Decisions revealed up to current playback cursor (for scrub reading)
+  const revealedDecisions = useMemo(() => {
+    if (playbackTimestamp === null) return []
+    return filteredEvents
+      .filter((e) => e.type === 'decision' && e.date.getTime() <= playbackTimestamp)
+      .reverse() // most recent first
   }, [filteredEvents, playbackTimestamp])
 
   // ── Sparkline data (cumulative time series) ─────────────────────────
@@ -1015,23 +1168,40 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                 )}
               </div>
 
-              {/* "Now playing" event card */}
-              {currentPlaybackEvent && playing && (
-                <div
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg border animate-pulse"
-                  style={{
-                    backgroundColor: `${EVENT_COLORS[currentPlaybackEvent.type]}08`,
-                    borderColor: `${EVENT_COLORS[currentPlaybackEvent.type]}30`,
-                  }}
-                >
-                  <span className="text-sm">{EVENT_ICONS[currentPlaybackEvent.type]}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[11px] text-slate-300 truncate">{currentPlaybackEvent.label}</p>
-                    <p className="text-[9px] text-slate-600">{currentPlaybackEvent.detail}</p>
+              {/* "Now playing" event card — visible during play AND seek */}
+              {currentPlaybackEvent && playbackPos !== null && (
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border flex-1 min-w-0 ${playing ? 'animate-pulse' : ''}`}
+                    style={{
+                      backgroundColor: `${EVENT_COLORS[currentPlaybackEvent.type]}08`,
+                      borderColor: `${EVENT_COLORS[currentPlaybackEvent.type]}30`,
+                    }}
+                  >
+                    <span className="text-sm">{EVENT_ICONS[currentPlaybackEvent.type]}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] text-slate-300 truncate">{currentPlaybackEvent.label}</p>
+                      <p className="text-[9px] text-slate-600">{currentPlaybackEvent.detail}</p>
+                    </div>
+                    <span className="text-[9px] font-mono text-slate-600 shrink-0">
+                      {currentPlaybackEvent.date.toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+                    </span>
                   </div>
-                  <span className="text-[9px] font-mono text-slate-600 shrink-0">
-                    {currentPlaybackEvent.date.toLocaleDateString('en', { month: 'short', day: 'numeric' })}
-                  </span>
+
+                  {/* Confirmation wave indicator */}
+                  {currentPlaybackWave && (
+                    <div className="shrink-0 flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
+                      <span className="text-sm">✅</span>
+                      <div>
+                        <p className="text-[10px] font-medium text-emerald-400">
+                          Confirmation phase
+                        </p>
+                        <p className="text-[9px] text-slate-500">
+                          {currentPlaybackWave.count} note{currentPlaybackWave.count > 1 ? 's' : ''} confirmed
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1048,6 +1218,8 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                   hoveredId={hoveredEvent?.id ?? null}
                   selectedId={selectedEvent?.id ?? null}
                   playbackPosition={playbackPos}
+                  onSeek={handleSeek}
+                  confirmationWaves={confirmationWaves}
                 />
                 {/* Date labels under the track */}
                 <div className="flex justify-between mt-1 px-0.5">
@@ -1071,6 +1243,57 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                   onChange={(s, e) => setDateRange({ start: s, end: e })}
                 />
               </div>
+
+              {/* ── Revealed Decisions (scrub-to-read feed) ─────────── */}
+              {revealedDecisions.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Scale size={13} className="text-violet-400" />
+                    <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                      Decisions
+                    </span>
+                    <span className="text-[9px] text-slate-600 tabular-nums">
+                      {revealedDecisions.length} revealed
+                    </span>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+                    {revealedDecisions.map((dec, idx) => {
+                      const isLatest = idx === 0
+                      return (
+                        <div
+                          key={dec.id}
+                          className={`px-3 py-2 rounded-lg border transition-all duration-300 ${
+                            isLatest
+                              ? 'border-violet-500/40 bg-violet-500/8'
+                              : 'border-slate-700/40 bg-slate-800/30 opacity-60'
+                          }`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <span className="text-xs mt-0.5 shrink-0">⚖️</span>
+                            <div className="min-w-0 flex-1">
+                              <p className={`text-[11px] leading-relaxed ${
+                                isLatest ? 'text-slate-200' : 'text-slate-400'
+                              }`}>
+                                {dec.fullContent || dec.label}
+                              </p>
+                              {dec.detail && (
+                                <p className={`text-[10px] mt-0.5 font-medium ${
+                                  isLatest ? 'text-violet-400' : 'text-violet-400/60'
+                                }`}>
+                                  {dec.detail}
+                                </p>
+                              )}
+                            </div>
+                            <span className="text-[8px] font-mono text-slate-600 shrink-0 mt-0.5">
+                              {dec.date.toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Pinned (selected) + hovered event detail — side by side */}
               {(selectedEvent || hoveredEvent) && (
