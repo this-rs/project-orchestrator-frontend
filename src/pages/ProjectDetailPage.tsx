@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, lazy, Suspense } from 'react'
-import { useParams, Link, useNavigate, useLocation } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
-import { FolderOpen, Clipboard, RefreshCw, ChevronsUpDown, Trash2, Brain, Loader2 } from 'lucide-react'
-import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LoadingPage, ErrorState, Badge, ProgressBar, PageHeader } from '@/components/ui'
+import { FolderOpen, Clipboard, RefreshCw, ChevronsUpDown, Trash2, Loader2, ChevronRight, Orbit, Calendar, Network } from 'lucide-react'
+import { Card, CardHeader, CardTitle, CardContent, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LoadingPage, ErrorState, Badge, PageHeader, SectionNav } from '@/components/ui'
 import { ExpandablePlanRow } from '@/components/expandable'
 import { projectsApi, plansApi, featureGraphsApi } from '@/services'
 import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
@@ -13,12 +13,9 @@ import type { Project, Plan, ProjectRoadmap, PlanStatus, FeatureGraph } from '@/
 
 const IntelligenceDashboard = lazy(() => import('@/components/intelligence/IntelligenceDashboard'))
 
-type ActiveTab = 'overview' | 'intelligence'
-
 export function ProjectDetailPage() {
   const { projectSlug: slug } = useParams<{ projectSlug: string }>()
   const navigate = useNavigate()
-  const location = useLocation()
   const wsSlug = useWorkspaceSlug()
   const confirmDialog = useConfirmDialog()
   const milestoneFormDialog = useFormDialog()
@@ -41,44 +38,27 @@ export function ProjectDetailPage() {
   const [plansCollapseAll, setPlansCollapseAll] = useState(0)
   const [plansAllExpanded, setPlansAllExpanded] = useState(false)
 
-  // ── Tab management based on URL ──
-  const isIntelligenceUrl = location.pathname.endsWith('/intelligence')
-  const [activeTab, setActiveTab] = useState<ActiveTab>(isIntelligenceUrl ? 'intelligence' : 'overview')
-
-  // Sync tab with URL changes (e.g. browser back/forward)
-  useEffect(() => {
-    setActiveTab(isIntelligenceUrl ? 'intelligence' : 'overview')
-  }, [isIntelligenceUrl])
-
-  const switchTab = (tab: ActiveTab) => {
-    setActiveTab(tab)
-    if (tab === 'intelligence') {
-      navigate(workspacePath(wsSlug, `/projects/${slug}/intelligence`), { replace: true })
-    } else {
-      navigate(workspacePath(wsSlug, `/projects/${slug}`), { replace: true })
-    }
-  }
+  // Expandable sections
+  const [milestonesExpanded, setMilestonesExpanded] = useState(false)
+  const [releasesExpanded, setReleasesExpanded] = useState(false)
+  const [fgExpanded, setFgExpanded] = useState(false)
 
   const fetchData = useCallback(async () => {
     if (!slug) return
     setError(null)
-    // Only show loading spinner on initial load, not on WS-triggered refreshes
     const isInitialLoad = !project
     if (isInitialLoad) setLoading(true)
     try {
-      // First get the project
       const projectData = await projectsApi.get(slug)
       setProject(projectData)
       setSuggestedProjectId(projectData.id)
 
-      // Fetch plans filtered by project_id (client-side filter as backend filter doesn't work)
       const allPlansData = await plansApi.list({ limit: 100 })
       const projectPlans = (allPlansData.items || []).filter(
         (plan) => plan.project_id === projectData.id
       )
       setPlans(projectPlans)
 
-      // Try to get roadmap
       try {
         const roadmapData = await projectsApi.getRoadmap(projectData.id)
         setRoadmap(roadmapData)
@@ -86,7 +66,6 @@ export function ProjectDetailPage() {
         // Roadmap might not be available
       }
 
-      // Fetch feature graphs for this project
       try {
         const fgData = await featureGraphsApi.list({ project_id: projectData.id })
         setFeatureGraphs(fgData.feature_graphs || [])
@@ -111,7 +90,6 @@ export function ProjectDetailPage() {
     setSyncing(true)
     try {
       await projectsApi.sync(slug)
-      // Refresh project data
       const projectData = await projectsApi.get(slug)
       setProject(projectData)
       toast.success('Codebase synced')
@@ -128,7 +106,6 @@ export function ProjectDetailPage() {
       if (!project) return
       await projectsApi.createMilestone(project.id, data)
       toast.success('Milestone added')
-      // Refresh roadmap
       try {
         const roadmapData = await projectsApi.getRoadmap(project.id)
         setRoadmap(roadmapData)
@@ -141,7 +118,6 @@ export function ProjectDetailPage() {
       if (!project) return
       await projectsApi.createRelease(project.id, data)
       toast.success('Release added')
-      // Refresh roadmap
       try {
         const roadmapData = await projectsApi.getRoadmap(project.id)
         setRoadmap(roadmapData)
@@ -149,17 +125,21 @@ export function ProjectDetailPage() {
     },
   })
 
-  const hasRoadmap = roadmap && ((roadmap.milestones || []).length > 0 || roadmap.releases.length > 0)
-  const overviewSectionIds = [...(hasRoadmap ? ['roadmap'] : []), 'plans', 'feature-graphs']
-  const activeSection = useSectionObserver(overviewSectionIds)
+  const milestoneCount = (roadmap?.milestones || []).length
+  const releaseCount = roadmap?.releases.length ?? 0
+  const hasRoadmap = milestoneCount > 0 || releaseCount > 0
+
+  const sectionIds = ['intelligence', 'plans', ...(hasRoadmap ? ['roadmap'] : []), ...(featureGraphs.length > 0 ? ['feature-graphs'] : [])]
+  const activeSection = useSectionObserver(sectionIds)
 
   if (error) return <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
   if (loading || !project) return <LoadingPage />
 
-  const overviewSections = [
-    ...(hasRoadmap ? [{ id: 'roadmap', label: 'Roadmap', count: (roadmap!.milestones || []).length + roadmap!.releases.length }] : []),
+  const sections = [
+    { id: 'intelligence', label: 'Intelligence' },
     { id: 'plans', label: 'Plans', count: plans.length },
-    { id: 'feature-graphs', label: 'Feature Graphs', count: featureGraphs.length },
+    ...(hasRoadmap ? [{ id: 'roadmap', label: 'Roadmap', count: milestoneCount + releaseCount }] : []),
+    ...(featureGraphs.length > 0 ? [{ id: 'feature-graphs', label: 'Feature Graphs', count: featureGraphs.length }] : []),
   ]
 
   return (
@@ -176,63 +156,41 @@ export function ProjectDetailPage() {
         ]}
       />
 
-      {/* ── Primary tab bar ────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-10 bg-surface-raised/90 backdrop-blur-sm border-b border-border-subtle -mx-4 px-4 md:-mx-6 md:px-6 mb-6">
-        <div className="flex items-center justify-between gap-4">
-          {/* Left: primary tabs + overview sub-sections */}
-          <nav className="flex gap-1 overflow-x-auto items-center">
+      <SectionNav
+        sections={sections}
+        activeSection={activeSection}
+        rightContent={
+          <div className="flex items-center gap-1.5">
+            {/* Sub-view buttons */}
             <button
-              onClick={() => switchTab('overview')}
-              className={`px-2 py-2 text-xs md:px-3 md:py-2.5 md:text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
-                activeTab === 'overview'
-                  ? 'border-indigo-500 text-white'
-                  : 'border-transparent text-gray-400 hover:text-gray-200'
-              }`}
+              onClick={() => navigate(workspacePath(wsSlug, `/projects/${slug}/intelligence/vector-space`))}
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-violet-400 hover:bg-violet-500/10 transition-colors"
+              title="Vector Space"
             >
-              Overview
+              <Orbit size={12} />
+              <span className="hidden md:inline">Vector Space</span>
             </button>
             <button
-              onClick={() => switchTab('intelligence')}
-              className={`px-2 py-2 text-xs md:px-3 md:py-2.5 md:text-sm font-medium whitespace-nowrap transition-colors border-b-2 flex items-center gap-1.5 ${
-                activeTab === 'intelligence'
-                  ? 'border-cyan-500 text-cyan-400'
-                  : 'border-transparent text-gray-400 hover:text-gray-200'
-              }`}
+              onClick={() => navigate(workspacePath(wsSlug, `/projects/${slug}/intelligence/timeline`))}
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+              title="Timeline"
             >
-              <Brain className="w-3.5 h-3.5" />
-              Intelligence
+              <Calendar size={12} />
+              <span className="hidden md:inline">Timeline</span>
             </button>
-
-            {/* Overview sub-section nav (only visible when overview tab is active) */}
-            {activeTab === 'overview' && overviewSections.length > 0 && (
-              <>
-                <div className="w-px h-5 bg-white/[0.08] mx-1.5" />
-                {overviewSections.map((section) => (
-                  <button
-                    key={section.id}
-                    onClick={() => document.getElementById(section.id)?.scrollIntoView({ behavior: 'smooth' })}
-                    className={`px-2 py-2 text-[11px] md:px-2.5 md:py-2.5 md:text-xs font-medium whitespace-nowrap transition-colors border-b-2 ${
-                      activeSection === section.id
-                        ? 'border-indigo-500/50 text-gray-300'
-                        : 'border-transparent text-gray-500 hover:text-gray-400'
-                    }`}
-                  >
-                    {section.label}
-                    {section.count !== undefined && (
-                      <span className="ml-1 text-gray-600">({section.count})</span>
-                    )}
-                  </button>
-                ))}
-              </>
-            )}
-          </nav>
-
-          {/* Right: path + sync */}
-          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => navigate(workspacePath(wsSlug, `/projects/${slug}/intelligence/graph`))}
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-cyan-400 hover:bg-cyan-500/10 transition-colors"
+              title="Graph"
+            >
+              <Network size={12} />
+              <span className="hidden md:inline">Graph</span>
+            </button>
+            <div className="w-px h-4 bg-white/[0.08] mx-0.5" />
             {project.root_path && (
               <div className="flex items-center gap-1.5 bg-white/[0.04] border border-white/[0.08] rounded-md px-2.5 py-1 group">
                 <FolderOpen className="w-3.5 h-3.5 text-gray-500 shrink-0" />
-                <span className="text-xs text-gray-400 font-mono truncate max-w-[200px] md:max-w-xs" title={project.root_path}>
+                <span className="text-xs text-gray-400 font-mono truncate max-w-[120px] md:max-w-[200px]" title={project.root_path}>
                   {project.root_path}
                 </span>
                 <button
@@ -256,202 +214,198 @@ export function ProjectDetailPage() {
               <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
             </button>
           </div>
-        </div>
-      </div>
+        }
+      />
 
-      {/* ── Tab content ────────────────────────────────────────────────── */}
-      {activeTab === 'overview' ? (
-        <>
-          {/* Roadmap Progress */}
-          {roadmap && (
+      {/* ── Intelligence Dashboard ─────────────────────────────────────── */}
+      <section id="intelligence" className="scroll-mt-20">
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+            </div>
+          }
+        >
+          <IntelligenceDashboard
+            projectSlug={slug!}
+            progress={roadmap ? { percentage: roadmap.progress.percentage } : undefined}
+          />
+        </Suspense>
+      </section>
+
+      {/* ── Plans ──────────────────────────────────────────────────────── */}
+      <section id="plans" className="scroll-mt-20">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CardTitle>Plans ({plans.length})</CardTitle>
+              {plans.length > 0 && (
+                <button
+                  onClick={() => {
+                    if (plansAllExpanded) {
+                      setPlansCollapseAll((s) => s + 1)
+                    } else {
+                      setPlansExpandAll((s) => s + 1)
+                    }
+                    setPlansAllExpanded(!plansAllExpanded)
+                  }}
+                  className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                  title={plansAllExpanded ? 'Collapse all' : 'Expand all'}
+                >
+                  <ChevronsUpDown className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={() => linkDialog.open({
+                title: 'Link Existing Plan',
+                submitLabel: 'Link',
+                fetchOptions: async () => {
+                  const data = await plansApi.list({ limit: 100 })
+                  return (data.items || [])
+                    .filter(p => !p.project_id)
+                    .map(p => ({ value: p.id, label: p.title, description: p.status }))
+                },
+                onLink: async (planId) => {
+                  await plansApi.linkToProject(planId, project.id)
+                  const allPlansData = await plansApi.list({ limit: 100 })
+                  const projectPlans = (allPlansData.items || []).filter(p => p.project_id === project.id)
+                  setPlans(projectPlans)
+                  toast.success('Plan linked')
+                },
+              })}>Link Plan</Button>
+              <Link to={workspacePath(wsSlug, '/plans')}>
+                <Button variant="ghost" size="sm">View All</Button>
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {plans.length === 0 ? (
+              <p className="text-gray-500 text-sm">No plans for this project</p>
+            ) : (
+              <div className="space-y-2">
+                {plans.map((plan) => (
+                  <ExpandablePlanRow
+                    key={plan.id}
+                    plan={plan}
+                    onStatusChange={async (newStatus: PlanStatus) => {
+                      await plansApi.updateStatus(plan.id, newStatus)
+                      setPlans((prev) => prev.map((p) => (p.id === plan.id ? { ...p, status: newStatus } : p)))
+                      toast.success('Status updated')
+                    }}
+                    refreshTrigger={taskRefresh}
+                    expandAllSignal={plansExpandAll}
+                    collapseAllSignal={plansCollapseAll}
+                    linkState={{ projectId: project.id, projectSlug: project.slug, projectName: project.name }}
+                  />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* ── Roadmap (expandable milestones + releases) ─────────────────── */}
+      {hasRoadmap && (
+        <section id="roadmap" className="scroll-mt-20 space-y-3">
+          {/* Milestones */}
+          {milestoneCount > 0 && (
             <Card>
-              <CardHeader>
-                <CardTitle>Progress</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between py-3">
+                <button
+                  onClick={() => setMilestonesExpanded(!milestonesExpanded)}
+                  className="flex items-center gap-2 flex-1 text-left"
+                >
+                  <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform duration-150 ${milestonesExpanded ? 'rotate-90' : ''}`} />
+                  <CardTitle className="text-sm">Milestones ({milestoneCount})</CardTitle>
+                </button>
+                <Button size="sm" onClick={() => milestoneFormDialog.open({ title: 'Add Milestone' })}>Add</Button>
               </CardHeader>
-              <CardContent>
-                <ProgressBar value={roadmap.progress.percentage} showLabel size="lg" gradient shimmer={roadmap.progress.percentage < 100} />
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 text-center">
-                  <div>
-                    <div className="text-2xl font-bold text-gray-200">{roadmap.progress.total_tasks}</div>
-                    <div className="text-xs text-gray-500">Total</div>
+              {milestonesExpanded && (
+                <CardContent className="pt-0">
+                  <div className="space-y-2">
+                    {(roadmap!.milestones || []).map(({ milestone }) => (
+                      <Link
+                        key={milestone.id}
+                        to={workspacePath(wsSlug, `/project-milestones/${milestone.id}`)}
+                        state={{ projectId: project.id, projectSlug: project.slug, projectName: project.name }}
+                        className="flex items-center justify-between gap-2 p-2.5 bg-white/[0.04] rounded-lg hover:bg-white/[0.06] transition-colors"
+                      >
+                        <span className="text-sm text-gray-300 truncate min-w-0">{milestone.title}</span>
+                        <Badge variant={milestone.status?.toLowerCase() === 'open' ? 'info' : 'success'}>
+                          {milestone.status}
+                        </Badge>
+                      </Link>
+                    ))}
                   </div>
-                  <div>
-                    <div className="text-2xl font-bold text-green-400">{roadmap.progress.completed_tasks}</div>
-                    <div className="text-xs text-gray-500">Completed</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-blue-400">{roadmap.progress.in_progress_tasks}</div>
-                    <div className="text-xs text-gray-500">In Progress</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-gray-400">{roadmap.progress.pending_tasks}</div>
-                    <div className="text-xs text-gray-500">Pending</div>
-                  </div>
-                </div>
-              </CardContent>
+                </CardContent>
+              )}
             </Card>
           )}
 
-          {/* Milestones & Releases */}
-          {roadmap && (
-            <section id="roadmap" className="scroll-mt-20">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Milestones</CardTitle>
-                    <Button size="sm" onClick={() => milestoneFormDialog.open({ title: 'Add Milestone' })}>Add</Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {(roadmap.milestones || []).length === 0 ? (
-                    <p className="text-gray-500 text-sm">No milestones defined</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {(roadmap.milestones || []).map(({ milestone }) => (
-                        <Link
-                          key={milestone.id}
-                          to={workspacePath(wsSlug, `/project-milestones/${milestone.id}`)}
-                          state={{ projectId: project.id, projectSlug: project.slug, projectName: project.name }}
-                          className="flex items-center justify-between gap-2 p-3 bg-white/[0.06] rounded-lg hover:bg-white/[0.08] transition-colors"
-                        >
-                          <span className="font-medium text-gray-200 truncate min-w-0">{milestone.title}</span>
-                          <Badge variant={milestone.status?.toLowerCase() === 'open' ? 'info' : 'success'}>
-                            {milestone.status}
-                          </Badge>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Releases</CardTitle>
-                    <Button size="sm" onClick={() => releaseFormDialog.open({ title: 'Add Release' })}>Add</Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {roadmap.releases.length === 0 ? (
-                    <p className="text-gray-500 text-sm">No releases planned</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {roadmap.releases.map(({ release }) => (
-                        <div key={release.id} className="flex items-center justify-between gap-2 p-3 bg-white/[0.06] rounded-lg">
-                          <div className="min-w-0 truncate">
-                            <span className="font-medium text-gray-200">v{release.version}</span>
-                            {release.title && (
-                              <span className="ml-2 text-gray-400">{release.title}</span>
-                            )}
-                          </div>
-                          <Badge variant={release.status === 'released' ? 'success' : 'default'}>
-                            {release.status}
-                          </Badge>
+          {/* Releases */}
+          {releaseCount > 0 && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between py-3">
+                <button
+                  onClick={() => setReleasesExpanded(!releasesExpanded)}
+                  className="flex items-center gap-2 flex-1 text-left"
+                >
+                  <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform duration-150 ${releasesExpanded ? 'rotate-90' : ''}`} />
+                  <CardTitle className="text-sm">Releases ({releaseCount})</CardTitle>
+                </button>
+                <Button size="sm" onClick={() => releaseFormDialog.open({ title: 'Add Release' })}>Add</Button>
+              </CardHeader>
+              {releasesExpanded && (
+                <CardContent className="pt-0">
+                  <div className="space-y-2">
+                    {roadmap!.releases.map(({ release }) => (
+                      <div key={release.id} className="flex items-center justify-between gap-2 p-2.5 bg-white/[0.04] rounded-lg">
+                        <div className="min-w-0 truncate">
+                          <span className="text-sm text-gray-300">v{release.version}</span>
+                          {release.title && (
+                            <span className="ml-2 text-gray-500 text-sm">{release.title}</span>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  )}
+                        <Badge variant={release.status === 'released' ? 'success' : 'default'}>
+                          {release.status}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
                 </CardContent>
-              </Card>
-            </div>
-            </section>
-          )}
-
-          {/* Plans */}
-          <section id="plans" className="scroll-mt-20">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CardTitle>Plans ({plans.length})</CardTitle>
-                {plans.length > 0 && (
-                  <button
-                    onClick={() => {
-                      if (plansAllExpanded) {
-                        setPlansCollapseAll((s) => s + 1)
-                      } else {
-                        setPlansExpandAll((s) => s + 1)
-                      }
-                      setPlansAllExpanded(!plansAllExpanded)
-                    }}
-                    className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
-                    title={plansAllExpanded ? 'Collapse all' : 'Expand all'}
-                  >
-                    <ChevronsUpDown className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button size="sm" onClick={() => linkDialog.open({
-                  title: 'Link Existing Plan',
-                  submitLabel: 'Link',
-                  fetchOptions: async () => {
-                    const data = await plansApi.list({ limit: 100 })
-                    return (data.items || [])
-                      .filter(p => !p.project_id)
-                      .map(p => ({ value: p.id, label: p.title, description: p.status }))
-                  },
-                  onLink: async (planId) => {
-                    await plansApi.linkToProject(planId, project.id)
-                    const allPlansData = await plansApi.list({ limit: 100 })
-                    const projectPlans = (allPlansData.items || []).filter(p => p.project_id === project.id)
-                    setPlans(projectPlans)
-                    toast.success('Plan linked')
-                  },
-                })}>Link Plan</Button>
-                <Link to={workspacePath(wsSlug, '/plans')}>
-                  <Button variant="ghost" size="sm">View All</Button>
-                </Link>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {plans.length === 0 ? (
-                <p className="text-gray-500 text-sm">No plans for this project</p>
-              ) : (
-                <div className="space-y-2">
-                  {plans.map((plan) => (
-                    <ExpandablePlanRow
-                      key={plan.id}
-                      plan={plan}
-                      onStatusChange={async (newStatus: PlanStatus) => {
-                        await plansApi.updateStatus(plan.id, newStatus)
-                        setPlans((prev) => prev.map((p) => (p.id === plan.id ? { ...p, status: newStatus } : p)))
-                        toast.success('Status updated')
-                      }}
-                      refreshTrigger={taskRefresh}
-                      expandAllSignal={plansExpandAll}
-                      collapseAllSignal={plansCollapseAll}
-                      linkState={{ projectId: project.id, projectSlug: project.slug, projectName: project.name }}
-                    />
-                  ))}
-                </div>
               )}
-            </CardContent>
-          </Card>
-          </section>
+            </Card>
+          )}
+        </section>
+      )}
 
-          {/* Feature Graphs */}
-          <section id="feature-graphs" className="scroll-mt-20">
+      {/* ── Feature Graphs (expandable) ────────────────────────────────── */}
+      {featureGraphs.length > 0 && (
+        <section id="feature-graphs" className="scroll-mt-20">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Feature Graphs ({featureGraphs.length})</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between py-3">
+              <button
+                onClick={() => setFgExpanded(!fgExpanded)}
+                className="flex items-center gap-2 flex-1 text-left"
+              >
+                <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform duration-150 ${fgExpanded ? 'rotate-90' : ''}`} />
+                <CardTitle className="text-sm">Feature Graphs ({featureGraphs.length})</CardTitle>
+              </button>
             </CardHeader>
-            <CardContent>
-              {featureGraphs.length === 0 ? (
-                <p className="text-gray-500 text-sm">No feature graphs for this project</p>
-              ) : (
+            {fgExpanded && (
+              <CardContent className="pt-0">
                 <div className="space-y-2">
                   {featureGraphs.map((fg) => (
                     <Link
                       key={fg.id}
                       to={workspacePath(wsSlug, `/feature-graphs/${fg.id}`)}
                       state={{ projectId: project.id, projectSlug: project.slug, projectName: project.name }}
-                      className="flex items-center justify-between gap-3 p-3 bg-white/[0.06] rounded-lg hover:bg-white/[0.08] transition-colors group"
+                      className="flex items-center justify-between gap-3 p-2.5 bg-white/[0.04] rounded-lg hover:bg-white/[0.06] transition-colors group"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-200 truncate">{fg.name}</span>
+                          <span className="text-sm text-gray-300 truncate">{fg.name}</span>
                           {fg.entity_count != null && (
                             <Badge variant="default">{fg.entity_count} entities</Badge>
                           )}
@@ -460,7 +414,7 @@ export function ProjectDetailPage() {
                           )}
                         </div>
                         {fg.description && (
-                          <p className="text-xs text-gray-500 mt-1 truncate">
+                          <p className="text-xs text-gray-500 mt-0.5 truncate">
                             {fg.description.length > 80 ? `${fg.description.slice(0, 80)}...` : fg.description}
                           </p>
                         )}
@@ -479,30 +433,18 @@ export function ProjectDetailPage() {
                             },
                           })
                         }}
-                        className="p-1.5 rounded text-gray-600 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-white/[0.08] transition-all shrink-0"
+                        className="p-1 rounded text-gray-600 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-white/[0.08] transition-all shrink-0"
                         title="Delete"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </Link>
                   ))}
                 </div>
-              )}
-            </CardContent>
+              </CardContent>
+            )}
           </Card>
-          </section>
-        </>
-      ) : (
-        /* ── Intelligence tab content ─────────────────────────────────── */
-        <Suspense
-          fallback={
-            <div className="flex items-center justify-center py-24">
-              <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
-            </div>
-          }
-        >
-          <IntelligenceDashboard projectSlug={slug!} />
-        </Suspense>
+        </section>
       )}
 
       <FormDialog {...milestoneFormDialog.dialogProps} onSubmit={milestoneForm.submit}>

@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useAtom } from 'jotai'
 import {
   Brain,
@@ -27,8 +26,6 @@ import {
   BrainCircuit,
   Waves,
   Search,
-  Orbit,
-  Calendar,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { intelligenceApi } from '@/services/intelligence'
@@ -38,8 +35,6 @@ import { projectsApi } from '@/services/projects'
 import { intelligenceSummaryAtom } from '@/atoms/intelligence'
 import type { IntelligenceSummary } from '@/types/intelligence'
 import type { CodeHealth, Project } from '@/types'
-import { useWorkspaceSlug } from '@/hooks'
-import { workspacePath } from '@/utils/paths'
 
 // ============================================================================
 // HEALTH SCORE — Circular Gauge
@@ -382,48 +377,16 @@ function QuickActionButton({
 }
 
 // ============================================================================
-// SUB-VIEW BUTTON
-// ============================================================================
-
-function SubViewButton({
-  label,
-  icon: Icon,
-  color,
-  onClick,
-}: {
-  label: string
-  icon: typeof Brain
-  color: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all hover:scale-[1.02]"
-      style={{
-        color,
-        backgroundColor: `${color}10`,
-        borderWidth: 1,
-        borderColor: `${color}30`,
-      }}
-    >
-      <Icon size={13} />
-      {label}
-    </button>
-  )
-}
-
-// ============================================================================
 // MAIN DASHBOARD COMPONENT
 // ============================================================================
 
 interface IntelligenceDashboardProps {
   projectSlug: string
+  /** Roadmap progress (0–100), integrated into the health breakdown */
+  progress?: { percentage: number }
 }
 
-export default function IntelligenceDashboard({ projectSlug }: IntelligenceDashboardProps) {
-  const wsSlug = useWorkspaceSlug()
-  const navigate = useNavigate()
+export default function IntelligenceDashboard({ projectSlug, progress }: IntelligenceDashboardProps) {
   const [summary, setSummary] = useAtom(intelligenceSummaryAtom)
   const [health, setHealth] = useState<CodeHealth | null>(null)
   const [project, setProject] = useState<Project | null>(null)
@@ -526,37 +489,6 @@ export default function IntelligenceDashboard({ projectSlug }: IntelligenceDashb
 
   return (
     <div className="space-y-4">
-      {/* ── Sub-view navigation toolbar ────────────────────────────────── */}
-      <div className="flex items-center gap-2">
-        <SubViewButton
-          label="Vector Space"
-          icon={Orbit}
-          color="#a78bfa"
-          onClick={() => navigate(workspacePath(wsSlug, `/projects/${projectSlug}/intelligence/vector-space`))}
-        />
-        <SubViewButton
-          label="Timeline"
-          icon={Calendar}
-          color="#34d399"
-          onClick={() => navigate(workspacePath(wsSlug, `/projects/${projectSlug}/intelligence/timeline`))}
-        />
-        <SubViewButton
-          label="Graph"
-          icon={Network}
-          color="#22d3ee"
-          onClick={() => navigate(workspacePath(wsSlug, `/projects/${projectSlug}/intelligence/graph`))}
-        />
-        <div className="flex-1" />
-        <button
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-300 border border-slate-700 transition-colors text-xs font-medium disabled:opacity-50"
-        >
-          <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
-          Refresh
-        </button>
-      </div>
-
       {/* ── Health Score Hero ───────────────────────────────────────────── */}
       <Card>
         <CardContent className="py-5">
@@ -564,7 +496,23 @@ export default function IntelligenceDashboard({ projectSlug }: IntelligenceDashb
             <CircularGauge score={healthScore} />
 
             <div className="flex-1 space-y-2">
-              <h2 className="text-sm font-semibold text-slate-300 mb-2">Health Breakdown</h2>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold text-slate-300">Health Breakdown</h2>
+                <button
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-md text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors text-[10px] font-medium disabled:opacity-50"
+                >
+                  <RefreshCw size={10} className={refreshing ? 'animate-spin' : ''} />
+                </button>
+              </div>
+              {progress != null && (
+                <MiniGauge
+                  label="Project Progress"
+                  value={progress.percentage / 100}
+                  color="#6366f1"
+                />
+              )}
               <MiniGauge
                 label="Knowledge Coverage"
                 value={s.code.files > 0 ? Math.min(1, (s.knowledge.notes + s.knowledge.decisions) / s.code.files / 2) : 0}
