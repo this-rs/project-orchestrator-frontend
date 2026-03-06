@@ -12,6 +12,8 @@
 // ============================================================================
 
 import {
+  lazy,
+  Suspense,
   useRef,
   useEffect,
   useState,
@@ -37,6 +39,8 @@ import {
   Zap,
   Lasso,
   Check,
+  Grid3x3,
+  Box,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { ErrorState } from '@/components/ui/ErrorState'
@@ -51,6 +55,11 @@ import type {
   ProjectionSkill,
   EmbeddingsProjectionResponse,
 } from '@/types/intelligence'
+
+// Lazy-load the 3D component — Three.js only loaded when needed
+const VectorSpace3D = lazy(() => import('./vectorspace3d/VectorSpace3D'))
+
+type ViewMode = '2d' | '3d'
 
 // ============================================================================
 // CONSTANTS
@@ -309,7 +318,7 @@ function Legend({
         <div className="flex items-center gap-1.5">
           <Info size={10} className="text-slate-600" />
           <span className="text-[9px] text-slate-500 uppercase tracking-wider font-medium">
-            {method === 'umap' ? 'UMAP 2D' : method}
+            {method === 'umap' ? 'UMAP 2D' : method === 'umap_3d' ? 'UMAP 3D' : method}
           </span>
           <span className="text-[9px] text-slate-600 ml-1">
             {pointCount} points
@@ -482,7 +491,7 @@ function DetailPanel({
         <div className="pt-2 border-t border-slate-800">
           <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-1">Position</p>
           <p className="text-[10px] text-slate-500 font-mono">
-            x: {point.x.toFixed(3)} · y: {point.y.toFixed(3)}
+            x: {point.x.toFixed(3)} · y: {point.y.toFixed(3)}{point.z != null ? ` · z: ${point.z.toFixed(3)}` : ''}
           </p>
           <p className="text-[10px] text-slate-600 font-mono mt-0.5">
             {point.id}
@@ -799,6 +808,7 @@ export default function VectorSpaceExplorer() {
   const [reinforceMessage, setReinforceMessage] = useState('')
   const [showSynapses, setShowSynapses] = useState(true)
   const [showSkills, setShowSkills] = useState(true)
+  const [viewMode, setViewMode] = useState<ViewMode>('2d')
 
   // ── Imperative render state (refs — bypasses React for smooth canvas) ─
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -913,17 +923,18 @@ export default function VectorSpaceExplorer() {
   }, [scheduleFrame])
 
   // ── Fetch data ────────────────────────────────────────────────────────
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (dims: 2 | 3 = 2) => {
     if (!projectSlug) return
     setError(null)
     try {
-      const result = await intelligenceApi.getEmbeddingsProjection(projectSlug)
+      const result = await intelligenceApi.getEmbeddingsProjection(projectSlug, dims)
 
       // ── Normalize UMAP coordinates to [0, WORLD_SIZE] ──────────────
       // UMAP outputs tiny ranges (e.g. -15..15) causing extreme auto-fit
       // zoom levels (100x+). Normalization keeps zoom ≈ 0.5-1.5 so points
       // are naturally spaced and interactions feel like a real map.
-      if (result.points.length > 0) {
+      // NOTE: In 3D mode, VectorSpace3D handles its own normalization.
+      if (result.points.length > 0 && dims === 2) {
         let rMinX = Infinity, rMaxX = -Infinity, rMinY = Infinity, rMaxY = -Infinity
         for (const p of result.points) {
           if (p.x < rMinX) rMinX = p.x
@@ -974,14 +985,14 @@ export default function VectorSpaceExplorer() {
 
   useEffect(() => {
     setLoading(true)
-    fetchData().finally(() => setLoading(false))
-  }, [fetchData])
+    fetchData(viewMode === '3d' ? 3 : 2).finally(() => setLoading(false))
+  }, [fetchData, viewMode])
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)
-    await fetchData()
+    await fetchData(viewMode === '3d' ? 3 : 2)
     setRefreshing(false)
-  }, [fetchData])
+  }, [fetchData, viewMode])
 
   // ── Canvas resize ─────────────────────────────────────────────────────
   // Deps include [data, scheduleFrame] so the observer is re-created when
@@ -1440,8 +1451,34 @@ export default function VectorSpaceExplorer() {
               Vector Space Explorer
             </h1>
             <p className="text-[10px] text-slate-600">
-              UMAP 2D projection of knowledge embeddings
+              UMAP {viewMode === '3d' ? '3D' : '2D'} projection of knowledge embeddings
             </p>
+          </div>
+
+          {/* 2D/3D toggle */}
+          <div className="flex items-center gap-0.5 bg-slate-800/90 rounded-lg border border-slate-700 p-0.5">
+            <button
+              onClick={() => setViewMode('2d')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors ${
+                viewMode === '2d'
+                  ? 'bg-cyan-600 text-white'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
+              }`}
+            >
+              <Grid3x3 size={12} />
+              2D
+            </button>
+            <button
+              onClick={() => setViewMode('3d')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors ${
+                viewMode === '3d'
+                  ? 'bg-cyan-600 text-white'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
+              }`}
+            >
+              <Box size={12} />
+              3D
+            </button>
           </div>
         </div>
 
@@ -1478,22 +1515,97 @@ export default function VectorSpaceExplorer() {
         </div>
       </div>
 
-      {/* ── Canvas Area ───────────────────────────────────────────────── */}
+      {/* ── Canvas / 3D Area ─────────────────────────────────────────── */}
       <div
         ref={containerRef}
         className="flex-1 relative bg-[#0c1322] overflow-hidden touch-none select-none"
       >
-        <canvas
-          ref={canvasRef}
-          className="absolute inset-0 w-full h-full"
-        />
+        {viewMode === '2d' ? (
+          <>
+            <canvas
+              ref={canvasRef}
+              className="absolute inset-0 w-full h-full"
+            />
 
-        {/* Tooltip (only when not in lasso mode and no selection panel) */}
-        {hoveredPoint && !selectedPoint && (
+            {/* Zoom + Lasso controls (2D only) */}
+            <div className="absolute bottom-4 right-4 z-30 flex flex-col gap-1">
+              <button
+                onClick={() => {
+                  setLassoMode((v) => !v)
+                  if (lassoMode) { rs.current.lassoPoints = []; isLassoingRef.current = false; scheduleFrame() }
+                }}
+                className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-colors ${
+                  lassoMode
+                    ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
+                    : 'bg-slate-800/90 border-slate-700/60 text-slate-400 hover:text-slate-300 hover:bg-slate-700'
+                }`}
+                title={lassoMode ? 'Exit lasso mode' : 'Lasso select (multi-select)'}
+              >
+                <Lasso size={14} />
+              </button>
+              <div className="h-px bg-slate-800 my-0.5" />
+              <button
+                onClick={zoomIn}
+                className="w-8 h-8 rounded-lg bg-slate-800/90 border border-slate-700/60 flex items-center justify-center text-slate-400 hover:text-slate-300 hover:bg-slate-700 transition-colors"
+                title="Zoom in"
+              >
+                <ZoomIn size={14} />
+              </button>
+              <button
+                onClick={zoomOut}
+                className="w-8 h-8 rounded-lg bg-slate-800/90 border border-slate-700/60 flex items-center justify-center text-slate-400 hover:text-slate-300 hover:bg-slate-700 transition-colors"
+                title="Zoom out"
+              >
+                <ZoomOut size={14} />
+              </button>
+              <button
+                onClick={fitAll}
+                className="w-8 h-8 rounded-lg bg-slate-800/90 border border-slate-700/60 flex items-center justify-center text-slate-400 hover:text-slate-300 hover:bg-slate-700 transition-colors"
+                title="Fit all"
+              >
+                <Maximize2 size={14} />
+              </button>
+            </div>
+
+            {/* Zoom level + semantic zoom indicator (2D only) */}
+            <div className="absolute top-3 right-3 z-30 flex items-center gap-2 text-[9px] font-mono bg-slate-900/60 px-2 py-1 rounded">
+              <span ref={zoomDisplayRef} className="text-slate-600">100%</span>
+              <span ref={semanticDisplayRef} className="text-cyan-600" style={{ display: 'none' }}>semantic</span>
+            </div>
+          </>
+        ) : (
+          <Suspense fallback={
+            <div className="w-full h-full flex items-center justify-center bg-slate-950">
+              <div className="text-slate-500 text-sm flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+                Loading 3D engine…
+              </div>
+            </div>
+          }>
+            <VectorSpace3D
+              points={data.points}
+              synapses={data.synapses}
+              skills={data.skills}
+              showSynapses={showSynapses}
+              showSkills={showSkills}
+              onPointHover={(p) => setHoveredPoint(p)}
+              onPointClick={(p) => {
+                if (p) {
+                  setSelectedPoint((prev) => prev?.id === p.id ? null : p)
+                } else {
+                  setSelectedPoint(null)
+                }
+              }}
+            />
+          </Suspense>
+        )}
+
+        {/* Tooltip (only in 2D mode, not in lasso mode, no selection panel) */}
+        {viewMode === '2d' && hoveredPoint && !selectedPoint && (
           <Tooltip point={hoveredPoint} x={mousePos.x} y={mousePos.y} />
         )}
 
-        {/* Selection bar (multi-select via lasso) */}
+        {/* Selection bar (multi-select via lasso — 2D only) */}
         {selectedIds.size > 0 && (
           <SelectionBar
             count={selectedIds.size}
@@ -1504,7 +1616,7 @@ export default function VectorSpaceExplorer() {
           />
         )}
 
-        {/* Detail panel (single click selection) */}
+        {/* Detail panel (single click selection — both modes) */}
         {selectedPoint && (
           <DetailPanel
             point={selectedPoint}
@@ -1517,58 +1629,12 @@ export default function VectorSpaceExplorer() {
           pointCount={data.points.length}
           synapseCount={data.synapses.length}
           skillCount={data.skills.length}
-          method={data.method}
+          method={viewMode === '3d' ? 'umap_3d' : data.method}
           showSynapses={showSynapses}
           showSkills={showSkills}
           onToggleSynapses={() => setShowSynapses((v) => !v)}
           onToggleSkills={() => setShowSkills((v) => !v)}
         />
-
-        {/* Zoom + Lasso controls */}
-        <div className="absolute bottom-4 right-4 z-30 flex flex-col gap-1">
-          <button
-            onClick={() => {
-              setLassoMode((v) => !v)
-              if (lassoMode) { rs.current.lassoPoints = []; isLassoingRef.current = false; scheduleFrame() }
-            }}
-            className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-colors ${
-              lassoMode
-                ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
-                : 'bg-slate-800/90 border-slate-700/60 text-slate-400 hover:text-slate-300 hover:bg-slate-700'
-            }`}
-            title={lassoMode ? 'Exit lasso mode' : 'Lasso select (multi-select)'}
-          >
-            <Lasso size={14} />
-          </button>
-          <div className="h-px bg-slate-800 my-0.5" />
-          <button
-            onClick={zoomIn}
-            className="w-8 h-8 rounded-lg bg-slate-800/90 border border-slate-700/60 flex items-center justify-center text-slate-400 hover:text-slate-300 hover:bg-slate-700 transition-colors"
-            title="Zoom in"
-          >
-            <ZoomIn size={14} />
-          </button>
-          <button
-            onClick={zoomOut}
-            className="w-8 h-8 rounded-lg bg-slate-800/90 border border-slate-700/60 flex items-center justify-center text-slate-400 hover:text-slate-300 hover:bg-slate-700 transition-colors"
-            title="Zoom out"
-          >
-            <ZoomOut size={14} />
-          </button>
-          <button
-            onClick={fitAll}
-            className="w-8 h-8 rounded-lg bg-slate-800/90 border border-slate-700/60 flex items-center justify-center text-slate-400 hover:text-slate-300 hover:bg-slate-700 transition-colors"
-            title="Fit all"
-          >
-            <Maximize2 size={14} />
-          </button>
-        </div>
-
-        {/* Zoom level + semantic zoom indicator */}
-        <div className="absolute top-3 right-3 z-30 flex items-center gap-2 text-[9px] font-mono bg-slate-900/60 px-2 py-1 rounded">
-          <span ref={zoomDisplayRef} className="text-slate-600">100%</span>
-          <span ref={semanticDisplayRef} className="text-cyan-600" style={{ display: 'none' }}>semantic</span>
-        </div>
       </div>
     </div>
   )

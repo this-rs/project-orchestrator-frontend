@@ -242,6 +242,7 @@ export interface ProjectionPoint {
   type: string        // 'note' | 'decision'
   x: number
   y: number
+  z?: number          // present when projection_dimensions=3
   energy: number       // 0–1 note energy
   importance: string   // 'critical' | 'high' | 'medium' | 'low'
   tags: string[]
@@ -260,6 +261,7 @@ export interface ProjectionSkill {
   member_ids: string[]
   centroid_x: number
   centroid_y: number
+  centroid_z?: number  // present when projection_dimensions=3
 }
 
 export interface EmbeddingsProjectionResponse {
@@ -267,6 +269,7 @@ export interface EmbeddingsProjectionResponse {
   synapses: ProjectionSynapse[]
   skills: ProjectionSkill[]
   dimensions: number
+  projection_dimensions: number  // 2 or 3
   method: string        // 'umap' | 'circular_fallback'
 }
 

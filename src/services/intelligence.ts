@@ -17,12 +17,14 @@ export const intelligenceApi = {
       `/projects/${projectSlug}/intelligence/summary`,
     ),
 
-  // Embeddings UMAP 2D projection for VectorSpaceExplorer
-  // GET /api/projects/:slug/embeddings/projection
-  getEmbeddingsProjection: (projectSlug: string) =>
-    api.get<EmbeddingsProjectionResponse>(
-      `/projects/${projectSlug}/embeddings/projection`,
-    ),
+  // Embeddings UMAP 2D/3D projection for VectorSpaceExplorer
+  // GET /api/projects/:slug/embeddings/projection?dimensions=2|3
+  getEmbeddingsProjection: (projectSlug: string, dimensions: 2 | 3 = 2) => {
+    const query = dimensions === 3 ? '?dimensions=3' : ''
+    return api.get<EmbeddingsProjectionResponse>(
+      `/projects/${projectSlug}/embeddings/projection${query}`,
+    )
+  },
 
   // Full graph data for visualization
   // GET /api/projects/:slug/graph?layers=code,knowledge,fabric,neural,skills&limit=5000
