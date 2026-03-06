@@ -686,7 +686,10 @@ function renderCanvas(
       if (Math.max(sx, tx) < -50 || Math.min(sx, tx) > width + 50 ||
           Math.max(sy, ty) < -50 || Math.min(sy, ty) > height + 50) continue
 
-      if (hoveredId != null && (syn.source === hoveredId || syn.target === hoveredId)) {
+      const isConnected =
+        (hoveredId != null && (syn.source === hoveredId || syn.target === hoveredId)) ||
+        (selectedId != null && (syn.source === selectedId || syn.target === selectedId))
+      if (isConnected) {
         highlighted.push({ sx, sy, tx, ty })
         continue
       }
@@ -1601,13 +1604,14 @@ export default function VectorSpaceExplorer() {
               showSynapses={showSynapses}
               showSkills={showSkills}
               selectedIds={selectedIds}
+              selectedPointId={selectedPoint?.id}
               onPointHover={(p) => setHoveredPoint(p)}
               onPointClick={(p) => {
                 if (p) {
                   setSelectedPoint((prev) => prev?.id === p.id ? null : p)
                 } else {
+                  // Empty click — only clear point, keep skill area selection
                   setSelectedPoint(null)
-                  setSelectedIds(new Set())
                 }
               }}
               onSkillClick={(skill) => {

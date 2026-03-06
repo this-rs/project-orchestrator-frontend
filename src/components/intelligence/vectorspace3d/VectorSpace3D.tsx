@@ -57,7 +57,12 @@ interface VectorSpace3DProps {
   showSkills: boolean
   /** Set of selected point IDs (highlights them) */
   selectedIds?: Set<string>
+  /** ID of the individually-selected point (for synapse highlighting) */
+  selectedPointId?: string
 }
+
+const DRAG_THRESHOLD_SQ = 25 // 5px² — distinguish click from orbit/pan drag
+const HIGHLIGHT_SYNAPSE_COLOR = 0x22d3ee // bright cyan
 
 // ── Coordinate normalization ───────────────────────────────────────────────────
 
@@ -190,6 +195,7 @@ export default function VectorSpace3D({
   showSynapses,
   showSkills,
   selectedIds,
+  selectedPointId,
 }: VectorSpace3DProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
@@ -202,11 +208,15 @@ export default function VectorSpace3D({
   const hoveredIdxRef = useRef<number>(-1)
   const labelSpriteRef = useRef<SpriteText | null>(null)
 
+  // Drag detection — distinguish click from orbit/pan
+  const pointerDownPosRef = useRef<{ x: number; y: number } | null>(null)
+
   // Groups for easy cleanup
   const pointsGroupRef = useRef<THREE.Group>(new THREE.Group())
   const synapsesGroupRef = useRef<THREE.Group>(new THREE.Group())
   const skillsGroupRef = useRef<THREE.Group>(new THREE.Group())
   const labelsGroupRef = useRef<THREE.Group>(new THREE.Group())
+  const highlightSynapsesGroupRef = useRef<THREE.Group>(new THREE.Group())
 
   // Keep stable refs for point lookup
   const pointMeshesRef = useRef<THREE.Mesh[]>([])
@@ -217,6 +227,10 @@ export default function VectorSpace3D({
   const skillMeshesRef = useRef<{ mesh: THREE.Mesh; skill: ProjectionSkill }[]>([])
   const onSkillClickRef = useRef(onSkillClick)
   onSkillClickRef.current = onSkillClick
+
+  // Synapse data ref for highlight effect
+  const synapsesDataRef = useRef<ProjectionSynapse[]>([])
+  synapsesDataRef.current = synapses
 
   // ── Normalize bounds ───────────────────────────────────────────────────
   const bounds = useMemo(() => normalizeCoords(points), [points])
@@ -270,6 +284,7 @@ export default function VectorSpace3D({
     // Groups
     scene.add(pointsGroupRef.current)
     scene.add(synapsesGroupRef.current)
+    scene.add(highlightSynapsesGroupRef.current)
     scene.add(skillsGroupRef.current)
     scene.add(labelsGroupRef.current)
 
@@ -587,9 +602,21 @@ export default function VectorSpace3D({
     }
   }, [onPointHover])
 
+  const handlePointerDown = useCallback((event: PointerEvent) => {
+    pointerDownPosRef.current = { x: event.clientX, y: event.clientY }
+  }, [])
+
   const handleClick = useCallback((event: MouseEvent) => {
     const container = containerRef.current
     if (!container) return
+
+    // ── Drag detection: if mouse moved beyond threshold, this was an
+    //    orbit/pan gesture — NOT a click. Don't deselect anything.
+    if (pointerDownPosRef.current) {
+      const dx = event.clientX - pointerDownPosRef.current.x
+      const dy = event.clientY - pointerDownPosRef.current.y
+      if (dx * dx + dy * dy > DRAG_THRESHOLD_SQ) return
+    }
 
     const rect = container.getBoundingClientRect()
     const mouse = new THREE.Vector2(
@@ -669,11 +696,15 @@ export default function VectorSpace3D({
     }
   }, [])
 
-  // ── Highlight selected points + active skill hulls ──────────────────────
+  // ── Highlight selected points + active skill hulls + connected synapses ─
   useEffect(() => {
     const meshes = pointMeshesRef.current
     const pts = pointDataRef.current
     if (meshes.length === 0 || !selectedIds) return
+
+    // Compute effective selection: selectedIds ∪ {selectedPointId}
+    const effectiveIds = new Set(selectedIds)
+    if (selectedPointId) effectiveIds.add(selectedPointId)
 
     // 1. Update point highlights
     for (let i = 0; i < meshes.length; i++) {
@@ -682,7 +713,7 @@ export default function VectorSpace3D({
       if (!point) continue
 
       const mat = mesh.material as THREE.MeshPhongMaterial
-      const isSelected = selectedIds.has(point.id)
+      const isSelected = effectiveIds.has(point.id)
 
       if (isSelected) {
         // Bright highlight with cyan emissive ring
@@ -716,8 +747,8 @@ export default function VectorSpace3D({
       const entry = skillMeshesRef.current.find(s => s.skill.id === skillId)
       if (!entry) continue
 
-      const isActive = selectedIds.size > 0 &&
-        entry.skill.member_ids.some(id => selectedIds.has(id))
+      const isActive = effectiveIds.size > 0 &&
+        entry.skill.member_ids.some(id => effectiveIds.has(id))
 
       if (mat.wireframe) {
         // Wireframe border
@@ -728,22 +759,63 @@ export default function VectorSpace3D({
         mat.opacity = isActive ? 0.2 : 0.06
       }
     }
-  }, [selectedIds, points])
+
+    // 3. Highlight synapses connected to the selected point
+    const hlGroup = highlightSynapsesGroupRef.current
+    while (hlGroup.children.length > 0) {
+      const child = hlGroup.children[0]
+      hlGroup.remove(child)
+      if (child instanceof THREE.LineSegments || child instanceof THREE.Line) {
+        child.geometry.dispose()
+        if (child.material instanceof THREE.Material) child.material.dispose()
+      }
+    }
+
+    if (selectedPointId && pts.length > 0) {
+      const pointMap = new Map(pts.map((p, i) => [p.id, i]))
+      const positions: number[] = []
+
+      for (const syn of synapsesDataRef.current) {
+        if (syn.source !== selectedPointId && syn.target !== selectedPointId) continue
+        const srcIdx = pointMap.get(syn.source)
+        const tgtIdx = pointMap.get(syn.target)
+        if (srcIdx === undefined || tgtIdx === undefined) continue
+        const srcPos = toWorld(pts[srcIdx], boundsRef.current)
+        const tgtPos = toWorld(pts[tgtIdx], boundsRef.current)
+        positions.push(srcPos.x, srcPos.y, srcPos.z)
+        positions.push(tgtPos.x, tgtPos.y, tgtPos.z)
+      }
+
+      if (positions.length > 0) {
+        const geo = new THREE.BufferGeometry()
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+        const mat = new THREE.LineBasicMaterial({
+          color: HIGHLIGHT_SYNAPSE_COLOR,
+          transparent: true,
+          opacity: 0.85,
+          linewidth: 2,
+        })
+        hlGroup.add(new THREE.LineSegments(geo, mat))
+      }
+    }
+  }, [selectedIds, selectedPointId, points])
 
   // ── Attach event listeners ──────────────────────────────────────────────
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
 
+    container.addEventListener('pointerdown', handlePointerDown)
     container.addEventListener('pointermove', handlePointerMove)
     container.addEventListener('click', handleClick)
     container.style.cursor = 'grab'
 
     return () => {
+      container.removeEventListener('pointerdown', handlePointerDown)
       container.removeEventListener('pointermove', handlePointerMove)
       container.removeEventListener('click', handleClick)
     }
-  }, [handlePointerMove, handleClick])
+  }, [handlePointerDown, handlePointerMove, handleClick])
 
   // ── Cleanup labels on unmount ───────────────────────────────────────────
   useEffect(() => {
