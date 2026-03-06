@@ -123,3 +123,9 @@ export const searchFilteredNodesAtom = atom<IntelligenceNode[]>((get) => {
     return label.toLowerCase().includes(query)
   })
 })
+
+// ── Graph view mode ─────────────────────────────────────────────────────
+
+/** Toggle between 2D (ReactFlow) and 3D (ForceGraph3D) views */
+export type GraphViewMode = '2d' | '3d'
+export const graphViewModeAtom = atom<GraphViewMode>('2d')
