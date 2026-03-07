@@ -149,6 +149,7 @@ export type ChatEvent =
   | { type: 'auto_continue'; session_id: string; delay_ms: number }
   | { type: 'auto_continue_state_changed'; session_id: string; enabled: boolean }
   | { type: 'retrying'; attempt: number; max_attempts: number; delay_ms: number; error_message: string }
+  | { type: 'viz_block'; viz_type: string; data: Record<string, unknown>; interactive?: boolean; fallback_text: string; title?: string; max_height?: number }
 
 // ============================================================================
 // CLIENT MESSAGES
@@ -213,7 +214,7 @@ export interface MessageSearchResult {
 
 export interface ContentBlock {
   id: string
-  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'permission_request' | 'input_request' | 'ask_user_question' | 'error' | 'compact_boundary' | 'model_changed' | 'result_max_turns' | 'result_error' | 'system_init' | 'continue_indicator' | 'retry_indicator'
+  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'permission_request' | 'input_request' | 'ask_user_question' | 'error' | 'compact_boundary' | 'model_changed' | 'result_max_turns' | 'result_error' | 'system_init' | 'continue_indicator' | 'retry_indicator' | 'viz'
   content: string
   metadata?: Record<string, unknown>
 }

@@ -17,6 +17,7 @@ import { ResultErrorBlock } from './ResultErrorBlock'
 import { SystemInitBlock } from './SystemInitBlock'
 import { ContinueIndicatorBlock } from './ContinueIndicatorBlock'
 import { RetryIndicatorBlock } from './RetryIndicatorBlock'
+import { VizBlockRenderer } from './viz'
 
 /**
  * Markdown link component: uses ExternalLink which renders differently
@@ -318,6 +319,14 @@ export function ChatMessageBubble({ message, isStreaming, onRespondPermission, o
             case 'result_error':
               return (
                 <ResultErrorBlock
+                  key={block.id}
+                  block={block}
+                />
+              )
+
+            case 'viz':
+              return (
+                <VizBlockRenderer
                   key={block.id}
                   block={block}
                 />

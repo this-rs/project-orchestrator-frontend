@@ -248,6 +248,24 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
         break
       }
 
+      case 'viz_block': {
+        const msg = lastAssistant(createdAt)
+        const parent = getParentToolUseId(evt)
+        msg.blocks.push({
+          id: nextBlockId(),
+          type: 'viz',
+          content: (evt.fallback_text as string) ?? '',
+          metadata: withParent({
+            viz_type: evt.viz_type,
+            viz_data: evt.data,
+            viz_title: evt.title,
+            viz_interactive: evt.interactive ?? false,
+            viz_max_height: evt.max_height ?? 300,
+          }, parent),
+        })
+        break
+      }
+
       case 'permission_request': {
         const msg = lastAssistant(createdAt)
         const parent = getParentToolUseId(evt)
@@ -937,6 +955,26 @@ export function useChat() {
               tool_name: (data as { tool?: string }).tool,
               tool_input: (data as { input?: Record<string, unknown> }).input,
             }, prParent),
+          })
+          break
+        }
+
+        case 'viz_block': {
+          const data = event.replaying
+            ? (event as { data?: Record<string, unknown> }).data ?? event
+            : event
+          const vizParent = getParentToolUseId(event)
+          lastMsg.blocks.push({
+            id: nextBlockId(),
+            type: 'viz',
+            content: (data as { fallback_text?: string }).fallback_text ?? '',
+            metadata: withParent({
+              viz_type: (data as { viz_type?: string }).viz_type,
+              viz_data: (data as { data?: Record<string, unknown> }).data,
+              viz_title: (data as { title?: string }).title,
+              viz_interactive: (data as { interactive?: boolean }).interactive ?? false,
+              viz_max_height: (data as { max_height?: number }).max_height ?? 300,
+            }, vizParent),
           })
           break
         }
