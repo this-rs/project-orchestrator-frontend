@@ -19,13 +19,16 @@ import {
   Check,
   Zap,
   AlertCircle,
+  Download,
 } from 'lucide-react'
 import { NotePool } from './NotePool'
 import { FSMCanvas } from './FSMCanvas'
+import { TriggerBuilder, DEFAULT_VECTOR } from './TriggerBuilder'
+import { ContextRadar } from '../intelligence/ContextRadar'
 import { createEmptyModel } from './types'
 import type { ComposerModel, ComposerState, ComposerTransition, ComposerNoteBinding } from './types'
 import type { Note } from '@/types'
-import type { ComposeProtocolRequest, SimulateResponse } from '@/types/intelligence'
+import type { ComposeProtocolRequest, SimulateResponse, RelevanceVector } from '@/types/intelligence'
 import { intelligenceApi } from '@/services/intelligence'
 import { notesApi } from '@/services/notes'
 
@@ -39,9 +42,15 @@ interface PropertiesPanelProps {
   simulateResult: SimulateResponse | null
   simulating: boolean
   onSimulate: () => void
+  onExportJson: () => void
+  /** Set after a successful compose — enables simulate with real protocol_id */
+  composedProtocolId: string | null
+  composedSkillId: string | null
 }
 
-function PropertiesPanel({ model, onModelChange, simulateResult, simulating, onSimulate }: PropertiesPanelProps) {
+function PropertiesPanel({ model, onModelChange, simulateResult, simulating, onSimulate, onExportJson, composedProtocolId, composedSkillId }: PropertiesPanelProps) {
+  const relevanceVector = model.relevance_vector ?? DEFAULT_VECTOR
+
   return (
     <div className="flex flex-col h-full">
       <div className="px-3 py-2 border-b border-slate-700/50">
@@ -125,42 +134,101 @@ function PropertiesPanel({ model, onModelChange, simulateResult, simulating, onS
           </div>
         </div>
 
+        {/* Created IDs */}
+        {composedProtocolId && (
+          <div className="bg-emerald-950/20 rounded-md p-2 border border-emerald-700/30 space-y-1">
+            <div className="flex items-center justify-between text-[10px]">
+              <span className="text-emerald-500/70">Protocol</span>
+              <span className="text-emerald-400 font-mono text-[9px] truncate ml-2">{composedProtocolId.slice(0, 8)}</span>
+            </div>
+            {composedSkillId && (
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="text-emerald-500/70">Skill</span>
+                <span className="text-emerald-400 font-mono text-[9px] truncate ml-2">{composedSkillId.slice(0, 8)}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Divider */}
+        <div className="border-t border-slate-700/50" />
+
+        {/* TriggerBuilder — Relevance Vector */}
+        <TriggerBuilder
+          vector={relevanceVector}
+          onChange={(v: RelevanceVector) => onModelChange({ relevance_vector: v })}
+        />
+
+        {/* Divider */}
+        <div className="border-t border-slate-700/50" />
+
         {/* Simulate */}
         <div>
           <button
             onClick={onSimulate}
-            disabled={simulating || model.states.length === 0}
+            disabled={simulating || !composedProtocolId}
             className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[10px] font-medium rounded border border-cyan-700/50 text-cyan-400 hover:bg-cyan-950/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            title={!composedProtocolId ? 'Save protocol first to simulate' : undefined}
           >
             {simulating ? (
               <Loader2 size={12} className="animate-spin" />
             ) : (
               <Zap size={12} />
             )}
-            Simulate Activation
+            Test Activation
           </button>
 
+          {!composedProtocolId && model.states.length > 0 && (
+            <p className="text-[9px] text-slate-600 mt-1 text-center">
+              Save protocol first to test activation
+            </p>
+          )}
+
           {simulateResult && (
-            <div className={`mt-2 rounded-md p-2 border text-[10px] ${
-              simulateResult.would_activate
-                ? 'bg-emerald-950/20 border-emerald-700/30 text-emerald-400'
-                : 'bg-red-950/20 border-red-700/30 text-red-400'
-            }`}>
-              <div className="flex items-center gap-1.5 mb-1">
-                {simulateResult.would_activate ? <Check size={10} /> : <AlertCircle size={10} />}
-                <span className="font-medium">
-                  {simulateResult.would_activate ? 'Would activate' : 'Would NOT activate'}
-                </span>
-                <span className="ml-auto font-mono">
-                  {(simulateResult.score * 100).toFixed(0)}%
-                </span>
+            <div className="mt-2 space-y-2">
+              {/* Radar chart */}
+              {simulateResult.dimensions.length > 0 && (
+                <div className="flex justify-center">
+                  <ContextRadar
+                    affinity={{ score: simulateResult.score, dimensions: simulateResult.dimensions, explanation: simulateResult.explanation }}
+                    relevanceVector={relevanceVector}
+                    size="sm"
+                  />
+                </div>
+              )}
+
+              {/* Result badge */}
+              <div className={`rounded-md p-2 border text-[10px] ${
+                simulateResult.would_activate
+                  ? 'bg-emerald-950/20 border-emerald-700/30 text-emerald-400'
+                  : 'bg-red-950/20 border-red-700/30 text-red-400'
+              }`}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  {simulateResult.would_activate ? <Check size={10} /> : <AlertCircle size={10} />}
+                  <span className="font-medium">
+                    {simulateResult.would_activate ? 'Would activate' : 'Would NOT activate'}
+                  </span>
+                  <span className="ml-auto font-mono">
+                    {(simulateResult.score * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <p className="text-[9px] text-slate-400 leading-relaxed">
+                  {simulateResult.explanation}
+                </p>
               </div>
-              <p className="text-[9px] text-slate-400 leading-relaxed">
-                {simulateResult.explanation}
-              </p>
             </div>
           )}
         </div>
+
+        {/* Export JSON */}
+        <button
+          onClick={onExportJson}
+          disabled={model.states.length === 0}
+          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[10px] font-medium rounded border border-slate-600/50 text-slate-400 hover:bg-slate-800/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          <Download size={12} />
+          Export JSON
+        </button>
       </div>
     </div>
   )
@@ -183,6 +251,8 @@ function PatternComposerComponent({ projectId, onComposed }: PatternComposerProp
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [simulateResult, setSimulateResult] = useState<SimulateResponse | null>(null)
   const [simulating, setSimulating] = useState(false)
+  const [composedProtocolId, setComposedProtocolId] = useState<string | null>(null)
+  const [composedSkillId, setComposedSkillId] = useState<string | null>(null)
 
   // DnD sensors
   const sensors = useSensors(
@@ -308,6 +378,8 @@ function PatternComposerComponent({ projectId, onComposed }: PatternComposerProp
 
       const result = await intelligenceApi.composeProtocol(request)
       setSaveSuccess(true)
+      setComposedProtocolId(result.protocol_id)
+      setComposedSkillId(result.skill_id)
       onComposed?.(result.protocol_id, result.skill_id)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to compose protocol'
@@ -317,24 +389,59 @@ function PatternComposerComponent({ projectId, onComposed }: PatternComposerProp
     }
   }, [model, projectId, onComposed])
 
-  // Simulate
+  // Simulate (requires a saved protocol)
   const handleSimulate = useCallback(async () => {
+    if (!composedProtocolId) return
     setSimulating(true)
     try {
-      // We can't simulate without a saved protocol, so just simulate with default context
-      // In a real scenario this would use the saved protocol_id
-      // For now, show a preview with the current model info
+      const result = await intelligenceApi.simulateProtocol({
+        protocol_id: composedProtocolId,
+        context: model.relevance_vector ?? DEFAULT_VECTOR,
+      })
+      setSimulateResult(result)
+    } catch (err) {
+      console.error('[PatternComposer] simulate error:', err)
       setSimulateResult({
-        score: 0.0,
+        score: 0,
         dimensions: [],
         would_activate: false,
-        explanation: 'Save the protocol first to simulate activation with a real context.',
-        context_used: { phase: 0.5, structure: 0.5, domain: 0.5, resource: 0.5, lifecycle: 0.5 },
+        explanation: err instanceof Error ? err.message : 'Simulation failed',
+        context_used: model.relevance_vector ?? DEFAULT_VECTOR,
       })
     } finally {
       setSimulating(false)
     }
-  }, [])
+  }, [composedProtocolId, model.relevance_vector])
+
+  // Export model as JSON (for compose endpoint or SkillPackage)
+  const handleExportJson = useCallback(() => {
+    const exportData: ComposeProtocolRequest = {
+      project_id: projectId,
+      name: model.name.trim(),
+      description: model.description.trim() || undefined,
+      category: model.category,
+      notes: model.notes,
+      states: model.states.map((s) => ({
+        name: s.name,
+        description: s.description,
+        state_type: s.state_type,
+        action: s.action,
+      })),
+      transitions: model.transitions,
+      relevance_vector: model.relevance_vector,
+      triggers: model.triggers.length > 0 ? model.triggers : undefined,
+    }
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${model.name.trim().replace(/\s+/g, '_') || 'protocol'}.compose.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }, [model, projectId])
 
   // Validation
   const isValid = model.name.trim().length > 0 && model.states.length > 0
@@ -399,6 +506,9 @@ function PatternComposerComponent({ projectId, onComposed }: PatternComposerProp
             simulateResult={simulateResult}
             simulating={simulating}
             onSimulate={handleSimulate}
+            onExportJson={handleExportJson}
+            composedProtocolId={composedProtocolId}
+            composedSkillId={composedSkillId}
           />
         </div>
       </div>
