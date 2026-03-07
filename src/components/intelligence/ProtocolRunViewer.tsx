@@ -106,14 +106,18 @@ function layoutFSM(
   }
 
   // BFS from entry state to assign layers (columns)
+  // Standard BFS: each node is visited at most once to prevent infinite loops on cyclic FSMs
   const layer = new Map<string, number>()
+  const visited = new Set<string>()
   const queue: string[] = [entryStateId]
   layer.set(entryStateId, 0)
+  visited.add(entryStateId)
   while (queue.length > 0) {
     const cur = queue.shift()!
     const curLayer = layer.get(cur)!
     for (const next of adj.get(cur) ?? []) {
-      if (!layer.has(next) || layer.get(next)! < curLayer + 1) {
+      if (!visited.has(next)) {
+        visited.add(next)
         layer.set(next, curLayer + 1)
         queue.push(next)
       }

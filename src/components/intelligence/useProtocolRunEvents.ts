@@ -37,8 +37,46 @@ export function useProtocolRunEvents(onProgress?: ProgressCallback) {
   // We track active runs to know when to clear runStatus
   const activeRunsRef = useRef<Map<string, { runId: string; status: RunStatus }>>(new Map())
 
+  // Track pending clear timers so we can cancel them on unmount or new events
+  const clearTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+
+  /** Schedule a delayed clear of the runStatus overlay, cancelling any existing timer for the same protocolId */
+  const scheduleClear = useCallback(
+    (protocolId: string) => {
+      // Cancel any existing timer for this protocol
+      const existing = clearTimersRef.current.get(protocolId)
+      if (existing) clearTimeout(existing)
+
+      const timerId = setTimeout(() => {
+        clearTimersRef.current.delete(protocolId)
+        setNodes((prev: IntelligenceNode[]) =>
+          prev.map((node) => {
+            if (node.data.entityType === 'protocol' && node.data.entityId === protocolId) {
+              return {
+                ...node,
+                data: { ...node.data, runStatus: undefined } as IntelligenceNode['data'],
+              }
+            }
+            return node
+          }),
+        )
+      }, 5000)
+      clearTimersRef.current.set(protocolId, timerId)
+    },
+    [setNodes],
+  )
+
   const updateProtocolNode = useCallback(
     (protocolId: string, runStatus: RunStatus | undefined) => {
+      // If we're setting a new active status, cancel any pending clear timer
+      if (runStatus) {
+        const existing = clearTimersRef.current.get(protocolId)
+        if (existing) {
+          clearTimeout(existing)
+          clearTimersRef.current.delete(protocolId)
+        }
+      }
+
       setNodes((prev: IntelligenceNode[]) =>
         prev.map((node) => {
           // Match protocol nodes by entityId === protocolId
@@ -91,9 +129,7 @@ export function useProtocolRunEvents(onProgress?: ProgressCallback) {
               activeRunsRef.current.delete(protocolId)
               updateProtocolNode(protocolId, status)
               // Clear the overlay after 5 seconds for completed/failed/cancelled
-              setTimeout(() => {
-                updateProtocolNode(protocolId, undefined)
-              }, 5000)
+              scheduleClear(protocolId)
             }
           } else if (!protocolId) {
             // If no protocol_id in payload, find it from activeRuns
@@ -105,9 +141,7 @@ export function useProtocolRunEvents(onProgress?: ProgressCallback) {
                 } else {
                   activeRunsRef.current.delete(pid)
                   updateProtocolNode(pid, status)
-                  setTimeout(() => {
-                    updateProtocolNode(pid, undefined)
-                  }, 5000)
+                  scheduleClear(pid)
                 }
                 break
               }
@@ -150,15 +184,21 @@ export function useProtocolRunEvents(onProgress?: ProgressCallback) {
         }
       }
     },
-    [updateProtocolNode],
+    [updateProtocolNode, scheduleClear],
   )
 
   useEventBus(handleEvent)
 
-  // Cleanup on unmount
+  // Cleanup on unmount: clear all pending timers and active runs
   useEffect(() => {
     const runsMap = activeRunsRef.current
+    const timersMap = clearTimersRef.current
     return () => {
+      // Clear all pending setTimeout timers
+      for (const timerId of timersMap.values()) {
+        clearTimeout(timerId)
+      }
+      timersMap.clear()
       runsMap.clear()
     }
   }, [])
