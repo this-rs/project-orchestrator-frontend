@@ -29,7 +29,9 @@ export type ProgressCallback = (progress: ProtocolRunProgress) => void
 export function useProtocolRunEvents(onProgress?: ProgressCallback) {
   const setNodes = useSetAtom(intelligenceNodesAtom)
   const onProgressRef = useRef(onProgress)
-  onProgressRef.current = onProgress
+  useEffect(() => {
+    onProgressRef.current = onProgress
+  }, [onProgress])
 
   // Build a Map<protocol_id → runStatus> for quick lookup
   // We track active runs to know when to clear runStatus
@@ -155,8 +157,9 @@ export function useProtocolRunEvents(onProgress?: ProgressCallback) {
 
   // Cleanup on unmount
   useEffect(() => {
+    const runsMap = activeRunsRef.current
     return () => {
-      activeRunsRef.current.clear()
+      runsMap.clear()
     }
   }, [])
 }

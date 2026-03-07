@@ -12,7 +12,7 @@
 // Layout: horizontal dagre-like arrangement using a simple topological sort
 // ============================================================================
 
-import { memo, useMemo } from 'react'
+import { memo, useEffect, useMemo, useState } from 'react'
 import {
   Play,
   Circle,
@@ -416,9 +416,16 @@ function StateBox({
 function RunStatusBadge({ run }: { run: ProtocolRunApi }) {
   const colors = runStatusColors[run.status] ?? runStatusColors.running
   const StatusIcon = runStatusIcons[run.status] ?? Loader2
+  // Use state + interval for live elapsed time (avoids impure Date.now() in render)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (run.status !== 'running') return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [run.status])
   const elapsed = run.completed_at
     ? Math.round((new Date(run.completed_at).getTime() - new Date(run.started_at).getTime()) / 1000)
-    : Math.round((Date.now() - new Date(run.started_at).getTime()) / 1000)
+    : Math.round((now - new Date(run.started_at).getTime()) / 1000)
 
   return (
     <div
