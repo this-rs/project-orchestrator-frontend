@@ -140,6 +140,63 @@ export interface ProtocolNodeData extends BaseNodeData {
   runStatus?: RunStatus
 }
 
+// ============================================================================
+// CONTEXT ROUTING — Types for protocol affinity routing
+// ============================================================================
+
+export interface ContextVector {
+  phase: number
+  structure: number
+  domain: number
+  resource: number
+  lifecycle: number
+}
+
+export interface RelevanceVector {
+  phase: number
+  structure: number
+  domain: number
+  resource: number
+  lifecycle: number
+}
+
+export interface DimensionWeights {
+  phase: number
+  structure: number
+  domain: number
+  resource: number
+  lifecycle: number
+}
+
+export interface DimensionScore {
+  name: string
+  context_value: number
+  relevance_value: number
+  weight: number
+  contribution: number
+}
+
+export interface AffinityScore {
+  score: number
+  dimensions: DimensionScore[]
+  explanation: string
+}
+
+export interface RouteResult {
+  protocol_id: string
+  protocol_name: string
+  protocol_category: string
+  affinity: AffinityScore
+  relevance_vector: RelevanceVector
+}
+
+export interface RouteResponse {
+  context: ContextVector
+  weights: DimensionWeights
+  results: RouteResult[]
+  total_evaluated: number
+}
+
 export interface ProtocolStateNodeData extends BaseNodeData {
   entityType: 'protocol_state'
   layer: 'behavioral'

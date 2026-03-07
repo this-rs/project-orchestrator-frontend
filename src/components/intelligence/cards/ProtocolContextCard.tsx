@@ -1,6 +1,6 @@
-import { memo, useEffect, useState } from 'react'
+import { Fragment, memo, useEffect, useState } from 'react'
 import type { ProtocolNodeData } from '@/types/intelligence'
-import type { ProtocolDetailApi, ProtocolRunApi } from '@/types/intelligence'
+import type { ProtocolDetailApi, ProtocolRunApi, RouteResult } from '@/types/intelligence'
 import { intelligenceApi } from '@/services/intelligence'
 import {
   Workflow,
@@ -11,8 +11,12 @@ import {
   Brain,
   Loader2,
   Activity,
+  Target,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react'
 import { ProtocolRunViewer } from '../ProtocolRunViewer'
+import { ContextRadar } from '../ContextRadar'
 
 // ============================================================================
 // SUB-COMPONENTS
@@ -65,10 +69,30 @@ interface ProtocolContextCardProps {
   entityId: string
 }
 
+// ============================================================================
+// DIMENSION BAR (for "Why Activated" panel)
+// ============================================================================
+
+const DIMENSION_BAR_CONFIG: Record<string, { label: string; color: string }> = {
+  phase: { label: 'Phase', color: '#818cf8' },
+  structure: { label: 'Structure', color: '#34d399' },
+  domain: { label: 'Domain', color: '#fb923c' },
+  resource: { label: 'Resource', color: '#38bdf8' },
+  lifecycle: { label: 'Lifecycle', color: '#f472b6' },
+}
+
+function dimensionBarColor(similarity: number): string {
+  if (similarity >= 0.7) return '#22c55e'  // green
+  if (similarity >= 0.4) return '#f59e0b'  // amber
+  return '#ef4444'                         // red
+}
+
 function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardProps) {
   const [detail, setDetail] = useState<ProtocolDetailApi | null>(null)
   const [activeRun, setActiveRun] = useState<ProtocolRunApi | null>(null)
+  const [routeResult, setRouteResult] = useState<RouteResult | null>(null)
   const [loading, setLoading] = useState(true)
+  const [whyExpanded, setWhyExpanded] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -84,6 +108,22 @@ function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardPro
           // Pick the first running run (there should be at most 1 due to concurrency guard)
           const running = runsResult?.items?.[0] ?? null
           setActiveRun(running)
+
+          // Fetch routing data for this protocol's project
+          if (result?.project_id) {
+            try {
+              const routeData = await intelligenceApi.routeProtocols({
+                project_id: result.project_id,
+              })
+              if (!cancelled) {
+                // Find this protocol in the ranked results
+                const match = routeData.results.find(r => r.protocol_id === entityId)
+                if (match) setRouteResult(match)
+              }
+            } catch {
+              // Routing is optional — silently ignore
+            }
+          }
         }
       } catch (err) {
         console.error('[ProtocolContextCard] fetch error:', err)
@@ -135,6 +175,93 @@ function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardPro
           <span className="text-[9px] font-mono text-pink-600 ml-auto truncate max-w-[120px]">
             {data.skillId}
           </span>
+        </div>
+      )}
+
+      {/* Context Routing — Why Activated */}
+      {routeResult && (
+        <div>
+          <button
+            className="flex items-center gap-1.5 w-full text-left mb-1.5"
+            onClick={() => setWhyExpanded(v => !v)}
+          >
+            {whyExpanded
+              ? <ChevronDown size={10} className="text-indigo-400" />
+              : <ChevronRight size={10} className="text-indigo-400" />
+            }
+            <Target size={10} className="text-indigo-400" />
+            <span className="text-[10px] text-indigo-400 font-medium uppercase tracking-wider">
+              Why Activated
+            </span>
+            <span
+              className="text-[10px] font-mono font-semibold ml-auto"
+              style={{ color: dimensionBarColor(routeResult.affinity.score) }}
+            >
+              {(routeResult.affinity.score * 100).toFixed(0)}%
+            </span>
+          </button>
+
+          {/* Compact radar (always visible) */}
+          <div className="flex justify-center">
+            <ContextRadar
+              affinity={routeResult.affinity}
+              relevanceVector={routeResult.relevance_vector}
+              size="sm"
+            />
+          </div>
+
+          {/* Expanded details */}
+          {whyExpanded && (
+            <div className="mt-2 space-y-2">
+              {/* Dimension breakdown bars */}
+              <div className="space-y-1.5">
+                {routeResult.affinity.dimensions.map((dim) => {
+                  const similarity = 1 - Math.abs(dim.context_value - dim.relevance_value)
+                  const cfg = DIMENSION_BAR_CONFIG[dim.name]
+                  return (
+                    <div key={dim.name} className="flex items-center gap-2">
+                      <span className="text-[9px] text-slate-500 w-14 shrink-0">
+                        {cfg?.label ?? dim.name}
+                      </span>
+                      <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-300"
+                          style={{
+                            width: `${Math.round(similarity * 100)}%`,
+                            backgroundColor: dimensionBarColor(similarity),
+                          }}
+                        />
+                      </div>
+                      <span className="text-[9px] font-mono text-slate-500 w-8 text-right shrink-0">
+                        {(similarity * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Explanation text */}
+              <div className="bg-slate-900/60 rounded px-2 py-1.5 border border-slate-700/30">
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  {routeResult.affinity.explanation}
+                </p>
+              </div>
+
+              {/* Context vs Relevance values */}
+              <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-[9px]">
+                <span className="text-slate-600 font-medium">Dim</span>
+                <span className="text-slate-600 font-medium text-center">Context</span>
+                <span className="text-slate-600 font-medium text-center">Ideal</span>
+                {routeResult.affinity.dimensions.map((dim) => (
+                  <Fragment key={dim.name}>
+                    <span className="text-slate-500">{DIMENSION_BAR_CONFIG[dim.name]?.label ?? dim.name}</span>
+                    <span className="font-mono text-slate-400 text-center">{dim.context_value.toFixed(2)}</span>
+                    <span className="font-mono text-indigo-400 text-center">{dim.relevance_value.toFixed(2)}</span>
+                  </Fragment>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

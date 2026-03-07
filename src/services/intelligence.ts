@@ -5,6 +5,7 @@ import type {
   EmbeddingsProjectionResponse,
   ProtocolDetailApi,
   ProtocolRunApi,
+  RouteResponse,
 } from '@/types/intelligence'
 import type { PaginatedResponse } from '@/types'
 
@@ -55,6 +56,19 @@ export const intelligenceApi = {
   // GET /api/protocols/runs/:runId
   getRun: (runId: string) =>
     api.get<ProtocolRunApi>(`/protocols/runs/${runId}`),
+
+  // Route protocols by context affinity
+  // GET /api/protocols/route?project_id=...&plan_id=...&phase=...&domain=...&resource=...
+  routeProtocols: (params: {
+    project_id?: string
+    plan_id?: string
+    phase?: number
+    domain?: number
+    resource?: number
+  } = {}) => {
+    const query = buildQuery(params)
+    return api.get<RouteResponse>(`/protocols/route${query}`)
+  },
 
   // Full graph data for visualization
   // GET /api/projects/:slug/graph?layers=code,knowledge,fabric,neural,skills,behavioral&limit=5000
