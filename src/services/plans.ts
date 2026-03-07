@@ -5,6 +5,7 @@ import type {
   Task,
   Constraint,
   DependencyGraph,
+  WaveComputationResult,
   PaginatedResponse,
   CreatePlanRequest,
   CreateTaskRequest,
@@ -51,6 +52,10 @@ export const plansApi = {
 
   getCriticalPath: (planId: string) =>
     api.get<{ tasks: Task[]; total_priority: number }>(`/plans/${planId}/critical-path`),
+
+  // Wave computation
+  getWaves: (planId: string) =>
+    api.get<WaveComputationResult>(`/plans/${planId}/waves`),
 
   // Tasks in plan
   createTask: (planId: string, data: CreateTaskRequest) =>

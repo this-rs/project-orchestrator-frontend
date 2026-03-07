@@ -987,6 +987,48 @@ export interface DependencyGraph {
   edges: DependencyGraphEdge[]
 }
 
+// ============================================================================
+// WAVE COMPUTATION
+// ============================================================================
+
+export interface WaveTask {
+  id: string
+  title?: string
+  status: TaskStatus
+  priority?: number
+  affected_files: string[]
+  depends_on: string[]
+}
+
+export interface Wave {
+  wave_number: number
+  tasks: WaveTask[]
+  task_count: number
+  split_from_conflicts: boolean
+}
+
+export interface FileConflict {
+  task_a: string
+  task_b: string
+  shared_files: string[]
+}
+
+export interface WaveSummary {
+  total_tasks: number
+  total_waves: number
+  max_parallel: number
+  critical_path_length: number
+  dependency_edges: number
+  conflicts_detected: number
+}
+
+export interface WaveComputationResult {
+  waves: Wave[]
+  summary: WaveSummary
+  conflicts: FileConflict[]
+  edges: [string, string][]
+}
+
 export interface MilestoneProgress {
   total: number
   completed: number
