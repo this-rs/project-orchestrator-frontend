@@ -15,6 +15,7 @@ export type IntelligenceLayer =
   | 'fabric'
   | 'neural'
   | 'skills'
+  | 'behavioral'
 
 export interface LayerConfig {
   id: IntelligenceLayer
@@ -33,7 +34,8 @@ export type CodeEntityType = 'file' | 'function' | 'struct' | 'trait' | 'enum'
 export type PMEntityType = 'plan' | 'task' | 'step' | 'milestone' | 'release' | 'commit'
 export type KnowledgeEntityType = 'note' | 'decision' | 'constraint'
 export type SkillEntityType = 'skill'
-export type IntelligenceEntityType = CodeEntityType | PMEntityType | KnowledgeEntityType | SkillEntityType
+export type BehavioralEntityType = 'protocol' | 'protocol_state'
+export type IntelligenceEntityType = CodeEntityType | PMEntityType | KnowledgeEntityType | SkillEntityType | BehavioralEntityType
 
 export type FabricRelationType =
   | 'IMPORTS' | 'CALLS' | 'EXTENDS' | 'IMPLEMENTS'
@@ -41,8 +43,9 @@ export type FabricRelationType =
 export type NeuralRelationType = 'SYNAPSE'
 export type SkillRelationType = 'HAS_MEMBER'
 export type PMRelationType = 'CONTAINS' | 'DEPENDS_ON' | 'INFORMED_BY'
+export type BehavioralRelationType = 'HAS_STATE' | 'TRANSITION' | 'BELONGS_TO_SKILL'
 export type IntelligenceRelationType =
-  | FabricRelationType | NeuralRelationType | SkillRelationType | PMRelationType
+  | FabricRelationType | NeuralRelationType | SkillRelationType | PMRelationType | BehavioralRelationType
 
 // ============================================================================
 // NODE DATA
@@ -127,6 +130,21 @@ export interface SkillNodeData extends BaseNodeData {
   noteCount: number
 }
 
+export interface ProtocolNodeData extends BaseNodeData {
+  entityType: 'protocol'
+  layer: 'behavioral'
+  category: string
+  description?: string
+  skillId?: string
+}
+
+export interface ProtocolStateNodeData extends BaseNodeData {
+  entityType: 'protocol_state'
+  layer: 'behavioral'
+  stateType: string
+  action?: string
+}
+
 export type IntelligenceNodeData =
   | FileNodeData
   | FunctionNodeData
@@ -136,6 +154,8 @@ export type IntelligenceNodeData =
   | PlanNodeData
   | TaskNodeData
   | SkillNodeData
+  | ProtocolNodeData
+  | ProtocolStateNodeData
   | BaseNodeData
 
 // ============================================================================
@@ -167,6 +187,7 @@ export type VisibilityMode =
   | 'knowledge_overlay'
   | 'neural_view'
   | 'fabric_view'
+  | 'behavioral_view'
   | 'full_stack'
   | 'impact_mode'
   | 'skill_focus'
@@ -224,12 +245,22 @@ export interface SkillsLayerSummary {
   total_activations: number
 }
 
+export interface BehavioralLayerSummary {
+  protocols: number
+  states: number
+  transitions: number
+  system_protocols: number
+  business_protocols: number
+  skill_linked: number
+}
+
 export interface IntelligenceSummary {
   code: CodeLayerSummary
   knowledge: KnowledgeLayerSummary
   fabric: FabricLayerSummary
   neural: NeuralLayerSummary
   skills: SkillsLayerSummary
+  behavioral: BehavioralLayerSummary
 }
 
 // ============================================================================
