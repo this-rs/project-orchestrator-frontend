@@ -1,6 +1,6 @@
 import { memo, useEffect, useState } from 'react'
 import type { ProtocolNodeData } from '@/types/intelligence'
-import type { ProtocolDetailApi } from '@/types/intelligence'
+import type { ProtocolDetailApi, ProtocolRunApi } from '@/types/intelligence'
 import { intelligenceApi } from '@/services/intelligence'
 import {
   Workflow,
@@ -10,7 +10,9 @@ import {
   ArrowRight,
   Brain,
   Loader2,
+  Activity,
 } from 'lucide-react'
+import { ProtocolRunViewer } from '../ProtocolRunViewer'
 
 // ============================================================================
 // SUB-COMPONENTS
@@ -65,6 +67,7 @@ interface ProtocolContextCardProps {
 
 function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardProps) {
   const [detail, setDetail] = useState<ProtocolDetailApi | null>(null)
+  const [activeRun, setActiveRun] = useState<ProtocolRunApi | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -72,8 +75,16 @@ function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardPro
     async function fetchDetail() {
       setLoading(true)
       try {
-        const result = await intelligenceApi.getProtocol(entityId)
-        if (!cancelled) setDetail(result)
+        const [result, runsResult] = await Promise.all([
+          intelligenceApi.getProtocol(entityId),
+          intelligenceApi.listRuns(entityId, 'running').catch(() => null),
+        ])
+        if (!cancelled) {
+          setDetail(result)
+          // Pick the first running run (there should be at most 1 due to concurrency guard)
+          const running = runsResult?.items?.[0] ?? null
+          setActiveRun(running)
+        }
       } catch (err) {
         console.error('[ProtocolContextCard] fetch error:', err)
       } finally {
@@ -124,6 +135,26 @@ function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardPro
           <span className="text-[9px] font-mono text-pink-600 ml-auto truncate max-w-[120px]">
             {data.skillId}
           </span>
+        </div>
+      )}
+
+      {/* Active Run — FSM Viewer (compact) */}
+      {activeRun && detail && (
+        <div>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Activity size={10} className="text-cyan-400" />
+            <span className="text-[10px] text-cyan-400 font-medium uppercase tracking-wider">
+              Active Run
+            </span>
+            <span className="text-[9px] text-slate-600 ml-auto">
+              {activeRun.states_visited.length}/{states.length} states
+            </span>
+          </div>
+          <ProtocolRunViewer
+            protocol={detail}
+            activeRun={activeRun}
+            compact
+          />
         </div>
       )}
 

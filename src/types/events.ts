@@ -18,8 +18,9 @@ export type EntityType =
   | 'component'
   | 'note'
   | 'chat_session'
+  | 'protocol_run'
 
-export type CrudAction = 'created' | 'updated' | 'deleted' | 'linked' | 'unlinked'
+export type CrudAction = 'created' | 'updated' | 'deleted' | 'linked' | 'unlinked' | 'progress'
 
 export interface CrudEvent {
   entity_type: EntityType

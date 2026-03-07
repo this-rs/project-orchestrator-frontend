@@ -29,6 +29,7 @@ import {
   RotateCcw,
   Box,
   Grid2x2,
+  Workflow,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { ErrorState } from '@/components/ui/ErrorState'
@@ -39,6 +40,8 @@ import { projectsApi } from '@/services/projects'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import type { Note, Skill, DecisionTimelineEntry } from '@/types'
+import type { ProtocolRunApi } from '@/types/intelligence'
+import { intelligenceApi } from '@/services/intelligence'
 
 const ActivityHeatmap3D = lazy(() =>
   import('./ActivityHeatmap3D').then((m) => ({ default: m.ActivityHeatmap3D })),
@@ -48,7 +51,7 @@ const ActivityHeatmap3D = lazy(() =>
 // TYPES
 // ============================================================================
 
-type TimelineEventType = 'note_created' | 'note_confirmed' | 'decision' | 'commit' | 'skill_created' | 'skill_activated'
+type TimelineEventType = 'note_created' | 'note_confirmed' | 'decision' | 'commit' | 'skill_created' | 'skill_activated' | 'protocol_transition'
 
 interface TimelineEvent {
   id: string
@@ -67,6 +70,7 @@ const EVENT_COLORS: Record<TimelineEventType, string> = {
   commit: '#64748B',            // slate
   skill_created: '#EC4899',     // pink
   skill_activated: '#fbbf24',   // amber
+  protocol_transition: '#F97316', // orange
 }
 
 const EVENT_ICONS: Record<TimelineEventType, string> = {
@@ -76,6 +80,7 @@ const EVENT_ICONS: Record<TimelineEventType, string> = {
   commit: '📦',
   skill_created: '✨',
   skill_activated: '⚡',
+  protocol_transition: '🔄',
 }
 
 // ============================================================================
@@ -681,7 +686,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
 
   // ── Build events from API data ──────────────────────────────────────
   const buildEvents = useCallback(
-    (notes: Note[], decisionEntries: DecisionTimelineEntry[], skills: Skill[]): TimelineEvent[] => {
+    (notes: Note[], decisionEntries: DecisionTimelineEntry[], skills: Skill[], protocolRuns: ProtocolRunApi[] = []): TimelineEvent[] => {
       const evts: TimelineEvent[] = []
 
       // Notes
@@ -742,6 +747,21 @@ export default function LearningTimeline(props: LearningTimelineProps) {
         }
       }
 
+      // Protocol runs — each state visit becomes a transition event
+      for (const run of protocolRuns) {
+        for (const visit of run.states_visited) {
+          evts.push({
+            id: `proto-${run.id}-${visit.state_id}`,
+            type: 'protocol_transition',
+            date: new Date(visit.entered_at),
+            label: visit.state_name,
+            detail: visit.trigger
+              ? `${visit.trigger} → ${visit.state_name}`
+              : `Started: ${visit.state_name}`,
+          })
+        }
+      }
+
       return evts.sort((a, b) => a.date.getTime() - b.date.getTime())
     },
     [],
@@ -785,17 +805,35 @@ export default function LearningTimeline(props: LearningTimelineProps) {
         return all
       }
 
-      const [notesRes, decisionsRes, skillsRes] = await Promise.allSettled([
+      // Fetch protocol runs (all runs for all protocols in this project)
+      const fetchProtocolRuns = async (): Promise<ProtocolRunApi[]> => {
+        try {
+          const protocols = await intelligenceApi.listProtocols(projectId)
+          if (!protocols.items.length) return []
+          const runResults = await Promise.allSettled(
+            protocols.items.map((p) => intelligenceApi.listRuns(p.id)),
+          )
+          return runResults.flatMap((r) =>
+            r.status === 'fulfilled' ? r.value.items : [],
+          )
+        } catch {
+          return []
+        }
+      }
+
+      const [notesRes, decisionsRes, skillsRes, runsRes] = await Promise.allSettled([
         fetchAllNotes(),
         decisionsApi.getTimeline({}),
         fetchAllSkills(),
+        fetchProtocolRuns(),
       ])
 
       const notes = notesRes.status === 'fulfilled' ? notesRes.value : []
       const decisions = decisionsRes.status === 'fulfilled' ? decisionsRes.value : []
       const skills = skillsRes.status === 'fulfilled' ? skillsRes.value : []
+      const protocolRuns = runsRes.status === 'fulfilled' ? runsRes.value : []
 
-      const allEvents = buildEvents(notes, decisions, skills)
+      const allEvents = buildEvents(notes, decisions, skills, protocolRuns)
       setEvents(allEvents)
 
       // Initialize date range to full span
@@ -1003,6 +1041,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
       commit: 0,
       skill_created: 0,
       skill_activated: 0,
+      protocol_transition: 0,
     }
     for (const e of filteredEvents) counts[e.type]++
     return counts
@@ -1077,6 +1116,12 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                 <div className="flex items-center gap-1 text-[10px] text-slate-500">
                   <Sparkles size={10} className="text-pink-400" />
                   {typeCounts.skill_created}
+                </div>
+              )}
+              {typeCounts.protocol_transition > 0 && (
+                <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                  <Workflow size={10} className="text-orange-400" />
+                  {typeCounts.protocol_transition}
                 </div>
               )}
             </div>

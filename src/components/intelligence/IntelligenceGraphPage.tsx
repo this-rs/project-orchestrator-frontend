@@ -16,6 +16,7 @@ import { intelligenceNodeTypes } from './nodes'
 import { intelligenceEdgeTypes } from './edges'
 import { useIntelligenceGraph } from './useIntelligenceGraph'
 import { useGraphWebSocket } from './useGraphWebSocket'
+import { useProtocolRunEvents } from './useProtocolRunEvents'
 import { NodeInspector } from './NodeInspector'
 import { LayerControls } from './LayerControls'
 import { LiveIndicator } from './LiveIndicator'
@@ -65,6 +66,8 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
 
   // Real-time WebSocket updates
   const { connected: wsConnected, lastEventAt } = useGraphWebSocket(projectSlug)
+  // Protocol run events — update runStatus overlay on ProtocolNodes
+  useProtocolRunEvents()
 
   // Fullscreen
   const containerRef = useRef<HTMLDivElement>(null)
@@ -230,6 +233,28 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
             0%   { filter: brightness(1); }
             30%  { filter: brightness(2.5) drop-shadow(0 0 6px currentColor); }
             100% { filter: brightness(1); }
+          }
+          @keyframes fsm-pulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.7; }
+          }
+          .fsm-state-pulse {
+            animation: fsm-pulse 2s ease-in-out infinite;
+          }
+          @keyframes fsm-edge-flow {
+            to { stroke-dashoffset: -16; }
+          }
+          .fsm-edge-active {
+            stroke-dasharray: 8 4;
+            animation: fsm-edge-flow 1s linear infinite;
+          }
+          @keyframes fsm-progress {
+            0% { opacity: 0.8; }
+            50% { opacity: 1; }
+            100% { opacity: 0.8; }
+          }
+          .fsm-progress-bar {
+            animation: fsm-progress 1.5s ease-in-out infinite;
           }
           input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;

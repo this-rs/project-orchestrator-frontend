@@ -136,6 +136,8 @@ export interface ProtocolNodeData extends BaseNodeData {
   category: string
   description?: string
   skillId?: string
+  /** Set by WS events when a run is active for this protocol */
+  runStatus?: RunStatus
 }
 
 export interface ProtocolStateNodeData extends BaseNodeData {
@@ -377,4 +379,41 @@ export interface ProtocolDetailApi {
   updated_at: string
   states: ProtocolStateApi[]
   transitions: ProtocolTransitionApi[]
+}
+
+// ============================================================================
+// PROTOCOL RUNS (FSM execution instances)
+// ============================================================================
+
+export type RunStatus = 'running' | 'completed' | 'failed' | 'cancelled'
+
+export interface StateVisit {
+  state_id: string
+  state_name: string
+  entered_at: string
+  trigger?: string
+}
+
+export interface ProtocolRunApi {
+  id: string
+  protocol_id: string
+  plan_id?: string
+  task_id?: string
+  current_state: string
+  states_visited: StateVisit[]
+  status: RunStatus
+  started_at: string
+  completed_at?: string
+  error?: string
+  triggered_by: string
+}
+
+export interface ProtocolRunProgress {
+  run_id: string
+  state_name: string
+  sub_action: string
+  processed: number
+  total: number
+  display: string
+  elapsed_ms: number
 }

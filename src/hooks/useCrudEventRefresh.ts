@@ -81,6 +81,12 @@ export function useCrudEventRefresh() {
             case 'chat_session':
               bumpChatSession((c) => c + 1)
               break
+            case 'protocol_run':
+              // Protocol run events are handled by useProtocolRunEvents
+              // for the intelligence graph. Bump project refresh for any
+              // views that display run lists (e.g. protocol detail pages).
+              bumpProject((c) => c + 1)
+              break
           }
         }, DEBOUNCE_MS),
       )

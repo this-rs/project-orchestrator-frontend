@@ -28,6 +28,7 @@ type TimelineEventType =
   | 'commit'
   | 'skill_created'
   | 'skill_activated'
+  | 'protocol_transition'
 
 interface TimelineEvent {
   id: string
@@ -45,6 +46,7 @@ const EVENT_COLORS: Record<TimelineEventType, string> = {
   commit: '#64748B',
   skill_created: '#EC4899',
   skill_activated: '#fbbf24',
+  protocol_transition: '#F97316',
 }
 
 interface TooltipData {

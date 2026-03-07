@@ -13,6 +13,7 @@ import { ImpactGraphViz } from './ImpactGraphViz'
 import { ProgressBarViz } from './ProgressBarViz'
 import { ContextRadarViz } from './ContextRadarViz'
 import { KnowledgeCardViz } from './KnowledgeCardViz'
+import { ProtocolRunViz } from './ProtocolRunViz'
 
 // ============================================================================
 // Register built-in viz components
@@ -23,6 +24,7 @@ vizRegistry.register(VIZ_TYPES.IMPACT_GRAPH, ImpactGraphViz, 'Impact Graph')
 vizRegistry.register(VIZ_TYPES.PROGRESS_BAR, ProgressBarViz, 'Progress Bar')
 vizRegistry.register(VIZ_TYPES.CONTEXT_RADAR, ContextRadarViz, 'Context Radar')
 vizRegistry.register(VIZ_TYPES.KNOWLEDGE_CARD, KnowledgeCardViz, 'Knowledge Card')
+vizRegistry.register(VIZ_TYPES.PROTOCOL_RUN, ProtocolRunViz, 'Protocol Run')
 
 // ============================================================================
 // Re-exports
