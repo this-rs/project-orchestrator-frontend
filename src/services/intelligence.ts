@@ -3,6 +3,7 @@ import type {
   IntelligenceSummary,
   ProjectGraphResponse,
   EmbeddingsProjectionResponse,
+  ProtocolDetailApi,
 } from '@/types/intelligence'
 
 // ============================================================================
@@ -26,8 +27,13 @@ export const intelligenceApi = {
     )
   },
 
+  // Protocol detail (with states + transitions)
+  // GET /api/protocols/:protocolId
+  getProtocol: (protocolId: string) =>
+    api.get<ProtocolDetailApi>(`/protocols/${protocolId}`),
+
   // Full graph data for visualization
-  // GET /api/projects/:slug/graph?layers=code,knowledge,fabric,neural,skills&limit=5000
+  // GET /api/projects/:slug/graph?layers=code,knowledge,fabric,neural,skills,behavioral&limit=5000
   getGraph: (
     projectSlug: string,
     params: {

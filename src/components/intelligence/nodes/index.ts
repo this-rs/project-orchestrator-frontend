@@ -7,8 +7,10 @@ import { DecisionNode } from './DecisionNode'
 import { PlanNode } from './PlanNode'
 import { TaskNode } from './TaskNode'
 import { SkillNode } from './SkillNode'
+import { ProtocolNode } from './ProtocolNode'
+import { ProtocolStateNode } from './ProtocolStateNode'
 
-export { FileNode, FunctionNode, StructNode, NoteNode, DecisionNode, PlanNode, TaskNode, SkillNode }
+export { FileNode, FunctionNode, StructNode, NoteNode, DecisionNode, PlanNode, TaskNode, SkillNode, ProtocolNode, ProtocolStateNode }
 
 /**
  * Registry of all custom intelligence node types for ReactFlow.
@@ -23,4 +25,6 @@ export const intelligenceNodeTypes: NodeTypes = {
   plan: PlanNode,
   task: TaskNode,
   skill: SkillNode,
+  protocol: ProtocolNode,
+  protocol_state: ProtocolStateNode,
 }

@@ -74,7 +74,7 @@ function layoutGraph(
 
 /** Map backend layer string to our IntelligenceLayer type */
 function mapLayer(layer: string): IntelligenceLayer {
-  const valid: IntelligenceLayer[] = ['code', 'pm', 'knowledge', 'fabric', 'neural', 'skills']
+  const valid: IntelligenceLayer[] = ['code', 'pm', 'knowledge', 'fabric', 'neural', 'skills', 'behavioral']
   return valid.includes(layer as IntelligenceLayer)
     ? (layer as IntelligenceLayer)
     : 'code'
@@ -170,7 +170,7 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     setError(null)
     try {
       const data = await intelligenceApi.getGraph(projectSlug, {
-        layers: ['code', 'knowledge', 'fabric', 'neural', 'skills'],
+        layers: ['code', 'knowledge', 'fabric', 'neural', 'skills', 'behavioral'],
       })
       // DEBUG — remove after diagnosis
       console.log('[useIntelligenceGraph] slug:', projectSlug, '→', data.nodes.length, 'nodes,', data.edges.length, 'edges, stats:', data.stats)

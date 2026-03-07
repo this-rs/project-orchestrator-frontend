@@ -341,3 +341,40 @@ export interface ProjectGraphResponse {
   communities: BackendGraphCommunity[]
   stats: Record<string, BackendLayerStats>
 }
+
+// ============================================================================
+// PROTOCOL (Pattern Federation) — API response types
+// ============================================================================
+
+export interface ProtocolStateApi {
+  id: string
+  protocol_id: string
+  name: string
+  description: string
+  state_type: string  // 'start' | 'intermediate' | 'terminal'
+  action?: string
+}
+
+export interface ProtocolTransitionApi {
+  id: string
+  protocol_id: string
+  from_state: string
+  to_state: string
+  trigger: string
+  guard?: string
+}
+
+export interface ProtocolDetailApi {
+  id: string
+  name: string
+  description: string
+  project_id: string
+  skill_id?: string
+  entry_state: string
+  terminal_states: string[]
+  protocol_category: string  // 'system' | 'business'
+  created_at: string
+  updated_at: string
+  states: ProtocolStateApi[]
+  transitions: ProtocolTransitionApi[]
+}

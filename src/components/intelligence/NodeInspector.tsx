@@ -2,10 +2,11 @@ import { memo } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { selectedNodeAtom, selectedNodeIdAtom } from '@/atoms/intelligence'
 import { ENTITY_COLORS } from '@/constants/intelligence'
-import type { IntelligenceNodeData, FileNodeData, NoteNodeData, DecisionNodeData, SkillNodeData } from '@/types/intelligence'
+import type { IntelligenceNodeData, FileNodeData, NoteNodeData, DecisionNodeData, SkillNodeData, ProtocolNodeData } from '@/types/intelligence'
 import { FileContextCard } from './cards/FileContextCard'
 import { NoteContextCard } from './cards/NoteContextCard'
 import { SkillContextCard } from './cards/SkillContextCard'
+import { ProtocolContextCard } from './cards/ProtocolContextCard'
 import {
   FileCode2,
   Box,
@@ -14,6 +15,8 @@ import {
   LayoutList,
   CheckSquare,
   Brain,
+  Workflow,
+  Circle,
   X,
 } from 'lucide-react'
 
@@ -30,6 +33,8 @@ const entityIcons: Record<string, typeof Box> = {
   plan: LayoutList,
   task: CheckSquare,
   skill: Brain,
+  protocol: Workflow,
+  protocol_state: Circle,
 }
 
 // ============================================================================
@@ -189,6 +194,8 @@ function NodeInspectorComponent() {
           <DecisionDetailPanel data={data as DecisionNodeData} />
         ) : entityType === 'skill' ? (
           <SkillContextCard data={data as SkillNodeData} entityId={data.entityId} />
+        ) : entityType === 'protocol' ? (
+          <ProtocolContextCard data={data as ProtocolNodeData} entityId={data.entityId} />
         ) : (
           <GenericPropertiesPanel data={data} />
         )}
