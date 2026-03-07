@@ -6,6 +6,10 @@ import type {
   ProtocolDetailApi,
   ProtocolRunApi,
   RouteResponse,
+  ComposeProtocolRequest,
+  ComposeResponse,
+  SimulateRequest,
+  SimulateResponse,
 } from '@/types/intelligence'
 import type { PaginatedResponse } from '@/types'
 
@@ -69,6 +73,16 @@ export const intelligenceApi = {
     const query = buildQuery(params)
     return api.get<RouteResponse>(`/protocols/route${query}`)
   },
+
+  // Compose a protocol (one-shot: Skill + Protocol + States + Transitions + Note links)
+  // POST /api/protocols/compose
+  composeProtocol: (data: ComposeProtocolRequest) =>
+    api.post<ComposeResponse>('/protocols/compose', data),
+
+  // Simulate protocol activation (dry-run routing)
+  // POST /api/protocols/simulate
+  simulateProtocol: (data: SimulateRequest) =>
+    api.post<SimulateResponse>('/protocols/simulate', data),
 
   // Full graph data for visualization
   // GET /api/projects/:slug/graph?layers=code,knowledge,fabric,neural,skills,behavioral&limit=5000

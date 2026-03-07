@@ -474,3 +474,60 @@ export interface ProtocolRunProgress {
   display: string
   elapsed_ms: number
 }
+
+// ============================================================================
+// PATTERN COMPOSER — Compose & Simulate types
+// ============================================================================
+
+export interface ComposeStateInline {
+  name: string
+  description?: string
+  state_type?: 'start' | 'intermediate' | 'terminal'
+  action?: string
+}
+
+export interface ComposeTransitionInline {
+  from_state: string
+  to_state: string
+  trigger: string
+  guard?: string
+}
+
+export interface NoteStateBinding {
+  note_id: string
+  state_name: string
+}
+
+export interface ComposeProtocolRequest {
+  project_id: string
+  name: string
+  description?: string
+  category?: 'system' | 'business'
+  notes: NoteStateBinding[]
+  states: ComposeStateInline[]
+  transitions: ComposeTransitionInline[]
+  relevance_vector?: RelevanceVector
+  triggers?: { pattern_type: string; pattern_value: string; confidence_threshold?: number }[]
+}
+
+export interface ComposeResponse {
+  protocol_id: string
+  skill_id: string
+  states_created: number
+  transitions_created: number
+  notes_linked: number
+}
+
+export interface SimulateRequest {
+  protocol_id: string
+  context?: ContextVector
+  plan_id?: string
+}
+
+export interface SimulateResponse {
+  score: number
+  dimensions: DimensionScore[]
+  would_activate: boolean
+  explanation: string
+  context_used: ContextVector
+}
