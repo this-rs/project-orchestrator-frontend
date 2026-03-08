@@ -16,6 +16,7 @@ export type IntelligenceLayer =
   | 'neural'
   | 'skills'
   | 'behavioral'
+  | 'chat'
 
 export interface LayerConfig {
   id: IntelligenceLayer
@@ -35,18 +36,20 @@ export type PMEntityType = 'plan' | 'task' | 'step' | 'milestone' | 'release' | 
 export type KnowledgeEntityType = 'note' | 'decision' | 'constraint'
 export type SkillEntityType = 'skill'
 export type BehavioralEntityType = 'protocol' | 'protocol_state'
-export type IntelligenceEntityType = CodeEntityType | PMEntityType | KnowledgeEntityType | SkillEntityType | BehavioralEntityType
+export type ChatEntityType = 'chat_session'
+export type IntelligenceEntityType = CodeEntityType | PMEntityType | KnowledgeEntityType | SkillEntityType | BehavioralEntityType | ChatEntityType
 
 export type FabricRelationType =
   | 'IMPORTS' | 'CALLS' | 'EXTENDS' | 'IMPLEMENTS'
-  | 'TOUCHES' | 'CO_CHANGED' | 'AFFECTS' | 'DISCUSSED' | 'LINKED_TO'
+  | 'TOUCHES' | 'CO_CHANGED' | 'AFFECTS' | 'LINKED_TO'
   | 'INCLUDES_ENTITY'
 export type NeuralRelationType = 'SYNAPSE'
 export type SkillRelationType = 'HAS_MEMBER'
-export type PMRelationType = 'CONTAINS' | 'DEPENDS_ON' | 'INFORMED_BY'
+export type PMRelationType = 'CONTAINS' | 'DEPENDS_ON' | 'INFORMED_BY' | 'HAS_TASK' | 'HAS_STEP' | 'TARGETS_MILESTONE' | 'LINKED_TO_TASK' | 'LINKED_TO_PLAN'
+export type ChatRelationType = 'DISCUSSED'
 export type BehavioralRelationType = 'HAS_STATE' | 'TRANSITION' | 'BELONGS_TO_SKILL'
 export type IntelligenceRelationType =
-  | FabricRelationType | NeuralRelationType | SkillRelationType | PMRelationType | BehavioralRelationType
+  | FabricRelationType | NeuralRelationType | SkillRelationType | PMRelationType | BehavioralRelationType | ChatRelationType
 
 // ============================================================================
 // NODE DATA
@@ -205,6 +208,14 @@ export interface ProtocolStateNodeData extends BaseNodeData {
   action?: string
 }
 
+export interface ChatSessionNodeData extends BaseNodeData {
+  entityType: 'chat_session'
+  layer: 'chat'
+  model?: string
+  messageCount: number
+  totalCostUsd: number
+}
+
 export type IntelligenceNodeData =
   | FileNodeData
   | FunctionNodeData
@@ -216,6 +227,7 @@ export type IntelligenceNodeData =
   | SkillNodeData
   | ProtocolNodeData
   | ProtocolStateNodeData
+  | ChatSessionNodeData
   | BaseNodeData
 
 // ============================================================================
@@ -314,6 +326,24 @@ export interface BehavioralLayerSummary {
   skill_linked: number
 }
 
+export interface PmLayerSummary {
+  plans: number
+  tasks: number
+  tasks_completed: number
+  tasks_in_progress: number
+  steps: number
+  milestones: number
+  releases: number
+  completion_rate: number
+}
+
+export interface ChatLayerSummary {
+  sessions: number
+  total_messages: number
+  total_cost_usd: number
+  discussed_entity_count: number
+}
+
 export interface IntelligenceSummary {
   code: CodeLayerSummary
   knowledge: KnowledgeLayerSummary
@@ -321,6 +351,8 @@ export interface IntelligenceSummary {
   neural: NeuralLayerSummary
   skills: SkillsLayerSummary
   behavioral: BehavioralLayerSummary
+  pm?: PmLayerSummary
+  chat?: ChatLayerSummary
 }
 
 // ============================================================================

@@ -54,7 +54,7 @@ function serializeForWorker(nodes: IntelligenceNode[]) {
 // ── Transform backend data → ReactFlow ───────────────────────────────────────
 
 function mapLayer(layer: string): IntelligenceLayer {
-  const valid: IntelligenceLayer[] = ['code', 'pm', 'knowledge', 'fabric', 'neural', 'skills', 'behavioral']
+  const valid: IntelligenceLayer[] = ['code', 'pm', 'knowledge', 'fabric', 'neural', 'skills', 'behavioral', 'chat']
   return valid.includes(layer as IntelligenceLayer)
     ? (layer as IntelligenceLayer)
     : 'code'

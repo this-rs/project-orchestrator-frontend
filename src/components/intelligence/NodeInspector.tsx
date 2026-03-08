@@ -2,7 +2,7 @@ import { memo } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { selectedNodeAtom, selectedNodeIdAtom } from '@/atoms/intelligence'
 import { ENTITY_COLORS } from '@/constants/intelligence'
-import type { IntelligenceNodeData, FileNodeData, NoteNodeData, DecisionNodeData, SkillNodeData, ProtocolNodeData } from '@/types/intelligence'
+import type { IntelligenceNodeData, FileNodeData, NoteNodeData, DecisionNodeData, SkillNodeData, ProtocolNodeData, PlanNodeData, TaskNodeData, ChatSessionNodeData } from '@/types/intelligence'
 import { FileContextCard } from './cards/FileContextCard'
 import { NoteContextCard } from './cards/NoteContextCard'
 import { SkillContextCard } from './cards/SkillContextCard'
@@ -18,6 +18,12 @@ import {
   Workflow,
   Circle,
   X,
+  ListChecks,
+  Milestone,
+  Package,
+  GitCommitHorizontal,
+  MessageSquare,
+  Target,
 } from 'lucide-react'
 
 // ============================================================================
@@ -32,9 +38,14 @@ const entityIcons: Record<string, typeof Box> = {
   decision: Scale,
   plan: LayoutList,
   task: CheckSquare,
+  step: ListChecks,
+  milestone: Milestone,
+  release: Package,
+  commit: GitCommitHorizontal,
   skill: Brain,
   protocol: Workflow,
   protocol_state: Circle,
+  chat_session: MessageSquare,
 }
 
 // ============================================================================
@@ -52,6 +63,18 @@ const statusColors: Record<string, { bg: string; text: string; border: string }>
   archived: { bg: '#1e293b', text: '#64748b', border: '#334155' },
   needs_review: { bg: '#431407', text: '#fb923c', border: '#9a3412' },
   stale: { bg: '#431407', text: '#fb923c', border: '#9a3412' },
+  // PM statuses
+  draft: { bg: '#1e293b', text: '#94a3b8', border: '#334155' },
+  approved: { bg: '#1e3a5f', text: '#60a5fa', border: '#1e40af' },
+  in_progress: { bg: '#422006', text: '#fbbf24', border: '#854d0e' },
+  completed: { bg: '#052e16', text: '#4ade80', border: '#166534' },
+  cancelled: { bg: '#450a0a', text: '#f87171', border: '#991b1b' },
+  pending: { bg: '#1e293b', text: '#94a3b8', border: '#334155' },
+  blocked: { bg: '#450a0a', text: '#f87171', border: '#991b1b' },
+  failed: { bg: '#450a0a', text: '#f87171', border: '#991b1b' },
+  skipped: { bg: '#1e293b', text: '#64748b', border: '#334155' },
+  planned: { bg: '#1e293b', text: '#94a3b8', border: '#334155' },
+  released: { bg: '#052e16', text: '#4ade80', border: '#166534' },
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -104,6 +127,79 @@ function DecisionDetailPanel({ data }: { data: DecisionNodeData }) {
         <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap line-clamp-6">
           {data.label}
         </p>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================================
+// PM DETAIL PANELS
+// ============================================================================
+
+function PlanDetailPanel({ data }: { data: PlanNodeData }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <StatusBadge status={data.status} />
+        <span className="text-[10px] text-slate-500">Priority: {data.priority}</span>
+      </div>
+      {data.taskCount !== undefined && (
+        <div className="flex items-center gap-2 text-xs text-slate-400">
+          <Target size={12} />
+          <span>{data.taskCount} tasks</span>
+        </div>
+      )}
+      <div className="bg-slate-800/50 rounded-md p-2 border border-slate-700/50">
+        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">Title</p>
+        <p className="text-xs text-slate-300 leading-relaxed">{data.label}</p>
+      </div>
+    </div>
+  )
+}
+
+function TaskDetailPanel({ data }: { data: TaskNodeData }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <StatusBadge status={data.status} />
+        {data.priority !== undefined && (
+          <span className="text-[10px] text-slate-500">Priority: {data.priority}</span>
+        )}
+      </div>
+      <div className="bg-slate-800/50 rounded-md p-2 border border-slate-700/50">
+        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">Title</p>
+        <p className="text-xs text-slate-300 leading-relaxed">{data.label}</p>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================================
+// CHAT DETAIL PANEL
+// ============================================================================
+
+function ChatSessionDetailPanel({ data }: { data: ChatSessionNodeData }) {
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="bg-indigo-950/30 rounded-md p-2 border border-indigo-800/40">
+          <p className="text-[10px] text-indigo-400 font-medium">Messages</p>
+          <p className="text-sm text-slate-200 font-semibold">{data.messageCount}</p>
+        </div>
+        <div className="bg-indigo-950/30 rounded-md p-2 border border-indigo-800/40">
+          <p className="text-[10px] text-indigo-400 font-medium">Cost</p>
+          <p className="text-sm text-slate-200 font-semibold">${data.totalCostUsd.toFixed(4)}</p>
+        </div>
+      </div>
+      {data.model && (
+        <div className="flex items-center gap-2 text-xs text-slate-400">
+          <span className="text-[10px] text-slate-500">Model:</span>
+          <span className="font-mono text-slate-300">{data.model}</span>
+        </div>
+      )}
+      <div className="bg-slate-800/50 rounded-md p-2 border border-slate-700/50">
+        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">Title</p>
+        <p className="text-xs text-slate-300 leading-relaxed">{data.label}</p>
       </div>
     </div>
   )
@@ -202,6 +298,12 @@ function NodeInspectorComponent({ isFullscreen }: NodeInspectorProps) {
           <SkillContextCard data={data as SkillNodeData} entityId={data.entityId} />
         ) : entityType === 'protocol' ? (
           <ProtocolContextCard data={data as ProtocolNodeData} entityId={data.entityId} />
+        ) : entityType === 'plan' ? (
+          <PlanDetailPanel data={data as PlanNodeData} />
+        ) : entityType === 'task' ? (
+          <TaskDetailPanel data={data as TaskNodeData} />
+        ) : entityType === 'chat_session' ? (
+          <ChatSessionDetailPanel data={data as ChatSessionNodeData} />
         ) : (
           <GenericPropertiesPanel data={data} />
         )}

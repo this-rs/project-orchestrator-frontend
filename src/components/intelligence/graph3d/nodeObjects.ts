@@ -45,6 +45,8 @@ const SHAPE_FACTORIES: Record<string, () => THREE.BufferGeometry> = {
   // Behavioral layer
   protocol: () => new THREE.CylinderGeometry(4, 4, 8, 6),        // hexagonal prism — FSM
   protocol_state: () => new THREE.SphereGeometry(3.5, 12, 8),     // smooth sphere — state
+  // Chat layer
+  chat_session: () => new THREE.CapsuleGeometry(3, 4, 8, 12),     // capsule — chat bubble
   // Feature graph (code overlay)
   feature_graph: () => new THREE.DodecahedronGeometry(5, 0),      // dodecahedron — cluster
 }

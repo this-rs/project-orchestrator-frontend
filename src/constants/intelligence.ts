@@ -71,10 +71,18 @@ export const LAYERS: Record<IntelligenceLayer, LayerConfig> = {
     enabled: false,
     zIndex: 6,
   },
+  chat: {
+    id: 'chat',
+    label: 'Chat',
+    description: 'Chat sessions & discussed entities',
+    color: '#6366F1', // indigo-500
+    enabled: false,
+    zIndex: 8,
+  },
 }
 
 export const LAYER_ORDER: IntelligenceLayer[] = [
-  'code', 'pm', 'knowledge', 'fabric', 'neural', 'skills', 'behavioral',
+  'code', 'pm', 'knowledge', 'fabric', 'neural', 'skills', 'behavioral', 'chat',
 ]
 
 // ============================================================================
@@ -104,6 +112,8 @@ export const ENTITY_COLORS: Record<IntelligenceEntityType, string> = {
   // Behavioral (Oranges)
   protocol: '#F97316',        // orange-500
   protocol_state: '#FB923C',  // orange-400
+  // Chat (Indigo)
+  chat_session: '#6366F1',    // indigo-500
   // Feature Graphs (Fuchsia — visually distinct from blue code nodes)
   feature_graph: '#E879F9',   // fuchsia-400
 }
@@ -125,7 +135,6 @@ export const EDGE_STYLES: Record<IntelligenceRelationType, {
   TOUCHES:    { color: '#86EFAC', strokeWidth: 0.5, strokeDasharray: '4 4' },
   CO_CHANGED: { color: '#FED7AA', strokeWidth: 1 },
   AFFECTS:    { color: '#A855F7', strokeWidth: 2.5 },
-  DISCUSSED:  { color: '#D1D5DB', strokeWidth: 0.5, strokeDasharray: '2 2' },
   LINKED_TO:  { color: '#9CA3AF', strokeWidth: 1 },
   SYNAPSE:    { color: '#22D3EE', strokeWidth: 1.5, animated: true },
   HAS_MEMBER: { color: '#F9A8D4', strokeWidth: 1 },
@@ -136,6 +145,14 @@ export const EDGE_STYLES: Record<IntelligenceRelationType, {
   TRANSITION: { color: '#EA580C', strokeWidth: 2, animated: true },
   BELONGS_TO_SKILL: { color: '#FB923C', strokeWidth: 1, strokeDasharray: '6 3' },
   INCLUDES_ENTITY:  { color: '#E879F9', strokeWidth: 1, strokeDasharray: '4 3' },
+  // PM layer
+  HAS_TASK:          { color: '#10B981', strokeWidth: 1.5 },
+  HAS_STEP:          { color: '#BBF7D0', strokeWidth: 1 },
+  TARGETS_MILESTONE: { color: '#F59E0B', strokeWidth: 1.5, strokeDasharray: '6 3' },
+  LINKED_TO_TASK:    { color: '#84CC16', strokeWidth: 1, strokeDasharray: '4 4' },
+  LINKED_TO_PLAN:    { color: '#84CC16', strokeWidth: 1, strokeDasharray: '4 4' },
+  // Chat layer
+  DISCUSSED:         { color: '#6366F1', strokeWidth: 1, strokeDasharray: '3 3' },
 }
 
 // ============================================================================
@@ -160,6 +177,7 @@ export const NODE_SIZES: Record<IntelligenceEntityType, { width: number; height:
   skill:      { width: 56, height: 56 },
   protocol:       { width: 64, height: 40 },
   protocol_state: { width: 32, height: 32 },
+  chat_session:   { width: 48, height: 48 },
   feature_graph:  { width: 56, height: 40 },
 }
 
@@ -214,7 +232,7 @@ export const VISIBILITY_PRESETS: VisibilityPreset[] = [
     id: 'full_stack',
     label: 'Full',
     description: 'Toutes les couches',
-    layers: ['code', 'pm', 'knowledge', 'fabric', 'neural', 'skills', 'behavioral'],
+    layers: ['code', 'pm', 'knowledge', 'fabric', 'neural', 'skills', 'behavioral', 'chat'],
     icon: 'Layers',
   },
 ]
@@ -265,6 +283,11 @@ export const EDGE_RENDER_PRIORITY: IntelligenceRelationType[] = [
   'TRANSITION',
   'HAS_STATE',
   'BELONGS_TO_SKILL',
+  'HAS_TASK',
+  'HAS_STEP',
+  'TARGETS_MILESTONE',
+  'LINKED_TO_TASK',
+  'LINKED_TO_PLAN',
   'TOUCHES',
   'DISCUSSED',
 ]

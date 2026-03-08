@@ -41,7 +41,12 @@ const ENTITY_LEGEND: { layer: IntelligenceLayer; types: { key: string; label: st
   { layer: 'pm', types: [
     { key: 'plan', label: 'Plan' },
     { key: 'task', label: 'Task' },
+    { key: 'step', label: 'Step' },
     { key: 'milestone', label: 'Milestone' },
+    { key: 'release', label: 'Release' },
+  ]},
+  { layer: 'chat', types: [
+    { key: 'chat_session', label: 'Chat Session' },
   ]},
 ]
 

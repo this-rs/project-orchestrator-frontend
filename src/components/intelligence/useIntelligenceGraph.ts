@@ -59,7 +59,7 @@ function serializeForWorker(nodes: IntelligenceNode[]) {
 
 /** Map backend layer string to our IntelligenceLayer type */
 function mapLayer(layer: string): IntelligenceLayer {
-  const valid: IntelligenceLayer[] = ['code', 'pm', 'knowledge', 'fabric', 'neural', 'skills', 'behavioral']
+  const valid: IntelligenceLayer[] = ['code', 'pm', 'knowledge', 'fabric', 'neural', 'skills', 'behavioral', 'chat']
   return valid.includes(layer as IntelligenceLayer)
     ? (layer as IntelligenceLayer)
     : 'code'
