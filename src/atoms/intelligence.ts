@@ -166,4 +166,4 @@ export const searchFilteredNodesAtom = atom<IntelligenceNode[]>((get) => {
 
 /** Toggle between 2D (ReactFlow) and 3D (ForceGraph3D) views */
 export type GraphViewMode = '2d' | '3d'
-export const graphViewModeAtom = atom<GraphViewMode>('2d')
+export const graphViewModeAtom = atom<GraphViewMode>('3d')

@@ -828,7 +828,7 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
   const [reinforceMessage, setReinforceMessage] = useState('')
   const [showSynapses, setShowSynapses] = useState(true)
   const [showSkills, setShowSkills] = useState(true)
-  const [viewMode, setViewMode] = useState<ViewMode>('2d')
+  const [viewMode, setViewMode] = useState<ViewMode>('3d')
   const [isFullscreen, setIsFullscreen] = useState(false)
   const fullscreenRef = useRef<HTMLDivElement>(null)
 

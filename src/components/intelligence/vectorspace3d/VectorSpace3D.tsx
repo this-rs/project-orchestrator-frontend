@@ -218,8 +218,9 @@ export default function VectorSpace3D({
   const labelsGroupRef = useRef<THREE.Group>(new THREE.Group())
   const highlightSynapsesGroupRef = useRef<THREE.Group>(new THREE.Group())
 
-  // Keep stable refs for point lookup
-  const pointMeshesRef = useRef<THREE.Mesh[]>([])
+  // Keep stable refs for point lookup — InstancedMesh for all points (single draw call)
+  const instancedMeshRef = useRef<THREE.InstancedMesh | null>(null)
+  const glowMeshRef = useRef<THREE.InstancedMesh | null>(null)
   const pointDataRef = useRef<ProjectionPoint[]>([])
   const boundsRef = useRef<NormalizedBounds>({ scale: 1, offsetX: 0, offsetY: 0, offsetZ: 0 })
 
@@ -336,68 +337,98 @@ export default function VectorSpace3D({
     }
   }, []) // mount once
 
-  // ── Build points + auto-fit camera ──────────────────────────────────────
+  // ── Build points (InstancedMesh) + auto-fit camera ─────────────────────
   useEffect(() => {
     const group = pointsGroupRef.current
 
-    // Clear previous
+    // Clear previous instanced meshes
     while (group.children.length > 0) {
       const child = group.children[0]
       group.remove(child)
-      if (child instanceof THREE.Mesh) {
+      if (child instanceof THREE.InstancedMesh || child instanceof THREE.Mesh) {
         child.geometry.dispose()
         if (child.material instanceof THREE.Material) child.material.dispose()
       }
     }
-    pointMeshesRef.current = []
+    instancedMeshRef.current = null
+    glowMeshRef.current = null
 
     if (points.length === 0) return
 
+    const count = points.length
     const sphereGeo = new THREE.SphereGeometry(1, 16, 12)
-    const meshes: THREE.Mesh[] = []
+    const material = new THREE.MeshPhongMaterial({
+      shininess: 80,
+      transparent: true,
+      opacity: 0.85,
+      emissive: new THREE.Color(0x000000),
+      emissiveIntensity: 0.35,
+    })
+
+    const iMesh = new THREE.InstancedMesh(sphereGeo, material, count)
+    const matrix = new THREE.Matrix4()
+    const tempScale = new THREE.Vector3()
+    const color = new THREE.Color()
     const allPositions: THREE.Vector3[] = []
+    const glowIndices: number[] = []
 
-    for (const point of points) {
-      const color = POINT_COLORS[point.type] ?? '#6B7280'
+    for (let i = 0; i < count; i++) {
+      const point = points[i]
+      const c = POINT_COLORS[point.type] ?? '#6B7280'
       const scale = (IMPORTANCE_SCALE[point.importance] ?? 1.0) * BASE_POINT_RADIUS
-      const energyAlpha = Math.max(0.5, Math.min(1, point.energy))
-
-      const material = new THREE.MeshPhongMaterial({
-        color: new THREE.Color(color),
-        emissive: new THREE.Color(color),
-        emissiveIntensity: 0.2 + point.energy * 0.5,
-        shininess: 80,
-        transparent: true,
-        opacity: energyAlpha,
-      })
-
-      const mesh = new THREE.Mesh(sphereGeo, material)
       const pos = toWorld(point, bounds)
-      mesh.position.copy(pos)
-      mesh.scale.setScalar(scale)
-      mesh.userData = { pointIndex: meshes.length }
-
-      group.add(mesh)
-      meshes.push(mesh)
       allPositions.push(pos)
 
-      // Glow halo for high-energy points
-      if (point.energy > 0.5) {
-        const glowGeo = new THREE.SphereGeometry(1, 8, 6)
-        const glowMat = new THREE.MeshBasicMaterial({
-          color: new THREE.Color(color),
-          transparent: true,
-          opacity: point.energy * 0.2,
-          side: THREE.BackSide,
-        })
-        const glow = new THREE.Mesh(glowGeo, glowMat)
-        glow.position.copy(pos)
-        glow.scale.setScalar(scale * 2.5)
-        group.add(glow)
-      }
+      // Matrix = translation × uniform scale
+      tempScale.setScalar(scale)
+      matrix.makeTranslation(pos.x, pos.y, pos.z)
+      matrix.scale(tempScale)
+      iMesh.setMatrixAt(i, matrix)
+
+      // Per-instance color
+      color.set(c)
+      iMesh.setColorAt(i, color)
+
+      if (point.energy > 0.5) glowIndices.push(i)
     }
 
-    pointMeshesRef.current = meshes
+    iMesh.instanceMatrix.needsUpdate = true
+    if (iMesh.instanceColor) iMesh.instanceColor.needsUpdate = true
+    group.add(iMesh)
+    instancedMeshRef.current = iMesh
+
+    // ── Glow halos as a second InstancedMesh (BackSide, only high-energy) ──
+    if (glowIndices.length > 0) {
+      const glowGeo = new THREE.SphereGeometry(1, 8, 6)
+      const glowMat = new THREE.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0.15,
+        side: THREE.BackSide,
+        depthWrite: false,
+      })
+      const glowMesh = new THREE.InstancedMesh(glowGeo, glowMat, glowIndices.length)
+
+      for (let j = 0; j < glowIndices.length; j++) {
+        const i = glowIndices[j]
+        const point = points[i]
+        const c = POINT_COLORS[point.type] ?? '#6B7280'
+        const scale = (IMPORTANCE_SCALE[point.importance] ?? 1.0) * BASE_POINT_RADIUS * 2.5
+        const pos = allPositions[i]
+
+        tempScale.setScalar(scale)
+        matrix.makeTranslation(pos.x, pos.y, pos.z)
+        matrix.scale(tempScale)
+        glowMesh.setMatrixAt(j, matrix)
+
+        color.set(c)
+        glowMesh.setColorAt(j, color)
+      }
+
+      glowMesh.instanceMatrix.needsUpdate = true
+      if (glowMesh.instanceColor) glowMesh.instanceColor.needsUpdate = true
+      group.add(glowMesh)
+      glowMeshRef.current = glowMesh
+    }
 
     // ── Auto-fit camera to point cloud bounding sphere ──
     const camera = cameraRef.current
@@ -581,11 +612,11 @@ export default function VectorSpace3D({
     if (!camera) return
 
     raycasterRef.current.setFromCamera(mouseRef.current, camera)
-    const intersects = raycasterRef.current.intersectObjects(pointMeshesRef.current, false)
+    if (!instancedMeshRef.current) return
+    const intersects = raycasterRef.current.intersectObject(instancedMeshRef.current, false)
 
-    if (intersects.length > 0) {
-      const mesh = intersects[0].object as THREE.Mesh
-      const idx = mesh.userData.pointIndex as number
+    if (intersects.length > 0 && intersects[0].instanceId !== undefined) {
+      const idx = intersects[0].instanceId
       if (idx !== hoveredIdxRef.current) {
         hoveredIdxRef.current = idx
         container.style.cursor = 'pointer'
@@ -630,11 +661,11 @@ export default function VectorSpace3D({
     raycasterRef.current.setFromCamera(mouse, camera)
 
     // 1. Check point intersections first (higher priority)
-    const pointIntersects = raycasterRef.current.intersectObjects(pointMeshesRef.current, false)
-    if (pointIntersects.length > 0) {
-      const mesh = pointIntersects[0].object as THREE.Mesh
-      const idx = mesh.userData.pointIndex as number
-      onPointClick?.(pointDataRef.current[idx])
+    const pointIntersects = instancedMeshRef.current
+      ? raycasterRef.current.intersectObject(instancedMeshRef.current, false)
+      : []
+    if (pointIntersects.length > 0 && pointIntersects[0].instanceId !== undefined) {
+      onPointClick?.(pointDataRef.current[pointIntersects[0].instanceId])
       return
     }
 
@@ -698,42 +729,39 @@ export default function VectorSpace3D({
 
   // ── Highlight selected points + active skill hulls + connected synapses ─
   useEffect(() => {
-    const meshes = pointMeshesRef.current
+    const iMesh = instancedMeshRef.current
     const pts = pointDataRef.current
-    if (meshes.length === 0 || !selectedIds) return
+    if (!iMesh || pts.length === 0 || !selectedIds) return
 
     // Compute effective selection: selectedIds ∪ {selectedPointId}
     const effectiveIds = new Set(selectedIds)
     if (selectedPointId) effectiveIds.add(selectedPointId)
 
-    // 1. Update point highlights
-    for (let i = 0; i < meshes.length; i++) {
-      const mesh = meshes[i]
+    // 1. Update point highlights via instanceColor + instanceMatrix
+    const matrix = new THREE.Matrix4()
+    const tempScale = new THREE.Vector3()
+    const color = new THREE.Color()
+
+    for (let i = 0; i < pts.length; i++) {
       const point = pts[i]
       if (!point) continue
 
-      const mat = mesh.material as THREE.MeshPhongMaterial
       const isSelected = effectiveIds.has(point.id)
+      const scaleFactor = isSelected ? 1.4 : 1.0
+      const scale = (IMPORTANCE_SCALE[point.importance] ?? 1.0) * BASE_POINT_RADIUS * scaleFactor
+      const pos = toWorld(point, boundsRef.current)
 
-      if (isSelected) {
-        // Bright highlight with cyan emissive ring
-        mat.emissive = new THREE.Color('#22d3ee')
-        mat.emissiveIntensity = 0.9
-        mat.opacity = 1.0
-        mesh.scale.setScalar(
-          (IMPORTANCE_SCALE[point.importance] ?? 1.0) * BASE_POINT_RADIUS * 1.4,
-        )
-      } else {
-        // Restore original
-        const color = POINT_COLORS[point.type] ?? '#6B7280'
-        mat.emissive = new THREE.Color(color)
-        mat.emissiveIntensity = 0.2 + point.energy * 0.5
-        mat.opacity = Math.max(0.5, Math.min(1, point.energy))
-        mesh.scale.setScalar(
-          (IMPORTANCE_SCALE[point.importance] ?? 1.0) * BASE_POINT_RADIUS,
-        )
-      }
+      tempScale.setScalar(scale)
+      matrix.makeTranslation(pos.x, pos.y, pos.z)
+      matrix.scale(tempScale)
+      iMesh.setMatrixAt(i, matrix)
+
+      color.set(isSelected ? '#22d3ee' : (POINT_COLORS[point.type] ?? '#6B7280'))
+      iMesh.setColorAt(i, color)
     }
+
+    iMesh.instanceMatrix.needsUpdate = true
+    if (iMesh.instanceColor) iMesh.instanceColor.needsUpdate = true
 
     // 2. Update skill hull visibility — boost active skills
     const skillsGroup = skillsGroupRef.current

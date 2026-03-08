@@ -3,9 +3,11 @@ import { useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   ReactFlow,
+  ReactFlowProvider,
   Background,
   Controls,
   MiniMap,
+  useReactFlow,
   applyNodeChanges,
   type NodeChange,
 } from '@xyflow/react'
@@ -61,6 +63,35 @@ const ENTITY_LEGEND: { layer: IntelligenceLayer; types: { key: string; label: st
     { key: 'milestone', label: 'Milestone' },
   ]},
 ]
+
+// ── Auto fit-view on container resize / navigation ──────────────────────────
+// Placed as a child of <ReactFlow> so useReactFlow() hooks into the provider.
+// Debounced ResizeObserver triggers fitView when container dimensions change
+// (sidebar toggle, window resize, navigation between projects).
+function AutoFitView({ containerRef }: { containerRef: React.RefObject<HTMLDivElement | null> }) {
+  const { fitView } = useReactFlow()
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+
+    let timeout: ReturnType<typeof setTimeout> | null = null
+    const observer = new ResizeObserver(() => {
+      if (timeout) clearTimeout(timeout)
+      timeout = setTimeout(() => {
+        fitView({ padding: 0.15, duration: 200 })
+      }, 200)
+    })
+
+    observer.observe(el)
+    return () => {
+      observer.disconnect()
+      if (timeout) clearTimeout(timeout)
+    }
+  }, [containerRef, fitView])
+
+  return null
+}
 
 // Lazy-load the 3D component — Three.js (~300KB gz) only loaded when needed
 const IntelligenceGraph3D = lazy(() => import('./graph3d/IntelligenceGraph3D'))
@@ -370,38 +401,41 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
 
       {/* ── Canvas: 2D or 3D ───────────────────────────────────────────── */}
       {viewMode === '2d' ? (
-        <ReactFlow
-          nodes={nodes}
-          edges={displayEdges}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          onNodesChange={onNodesChange}
-          onNodeClick={onNodeClick}
-          onPaneClick={onPaneClick}
-          onNodeMouseEnter={onNodeMouseEnter}
-          onNodeMouseLeave={onNodeMouseLeave}
-          fitView
-          fitViewOptions={{ padding: 0.15 }}
-          minZoom={0.1}
-          maxZoom={2.5}
-          colorMode="dark"
-          proOptions={{ hideAttribution: true }}
-          nodesDraggable
-          nodesConnectable={false}
-          panOnDrag
-          zoomOnScroll
-          zoomOnPinch
-        >
-          <Background color="#1e293b" gap={24} size={1} />
-          <Controls showInteractive={false} className="!bg-slate-800 !border-slate-700" />
-          <MiniMap
-            nodeColor={miniMapNodeColor}
-            maskColor="rgba(15, 23, 42, 0.8)"
-            className="!bg-slate-900 !border-slate-700"
-            pannable
-            zoomable
-          />
-        </ReactFlow>
+        <ReactFlowProvider>
+          <ReactFlow
+            nodes={nodes}
+            edges={displayEdges}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            onNodesChange={onNodesChange}
+            onNodeClick={onNodeClick}
+            onPaneClick={onPaneClick}
+            onNodeMouseEnter={onNodeMouseEnter}
+            onNodeMouseLeave={onNodeMouseLeave}
+            fitView
+            fitViewOptions={{ padding: 0.15 }}
+            minZoom={0.1}
+            maxZoom={2.5}
+            colorMode="dark"
+            proOptions={{ hideAttribution: true }}
+            nodesDraggable
+            nodesConnectable={false}
+            panOnDrag
+            zoomOnScroll
+            zoomOnPinch
+          >
+            <Background color="#1e293b" gap={24} size={1} />
+            <Controls showInteractive={false} className="!bg-slate-800 !border-slate-700" />
+            <MiniMap
+              nodeColor={miniMapNodeColor}
+              maskColor="rgba(15, 23, 42, 0.8)"
+              className="!bg-slate-900 !border-slate-700"
+              pannable
+              zoomable
+            />
+            <AutoFitView containerRef={containerRef} />
+          </ReactFlow>
+        </ReactFlowProvider>
       ) : (
         <Suspense fallback={
           <div className="w-full h-full flex items-center justify-center bg-slate-950">
