@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import dagre from 'dagre'
 import type {
   IntelligenceNode,
   IntelligenceEdge,
@@ -29,47 +28,30 @@ import { intelligenceApi } from '@/services/intelligence'
 import { VISIBILITY_PRESETS } from '@/constants/intelligence'
 import type { VisibilityMode } from '@/types/intelligence'
 
-// ── Dagre layout ─────────────────────────────────────────────────────────────
+// ── Dagre Web Worker ─────────────────────────────────────────────────────────
 
-function layoutGraph(
-  nodes: IntelligenceNode[],
-  edges: IntelligenceEdge[],
-): { nodes: IntelligenceNode[]; edges: IntelligenceEdge[] } {
-  if (nodes.length === 0) return { nodes, edges }
+/** Lazily create a single shared worker instance */
+let sharedWorker: Worker | null = null
+function getDagreWorker(): Worker {
+  if (!sharedWorker) {
+    sharedWorker = new Worker(
+      new URL('@/workers/dagreWorker.ts', import.meta.url),
+      { type: 'module' },
+    )
+  }
+  return sharedWorker
+}
 
-  const g = new dagre.graphlib.Graph()
-  g.setDefaultEdgeLabel(() => ({}))
-  g.setGraph({ rankdir: 'TB', nodesep: 40, ranksep: 60, marginx: 30, marginy: 30 })
-
-  nodes.forEach((node) => {
+/**
+ * Serialize ReactFlow nodes into the minimal {id, width, height} the worker expects.
+ * Also pre-computes the size lookup so the worker doesn't need NODE_SIZES.
+ */
+function serializeForWorker(nodes: IntelligenceNode[]) {
+  return nodes.map((node) => {
     const entityType = (node.data as { entityType?: string }).entityType ?? 'file'
     const size = NODE_SIZES[entityType as keyof typeof NODE_SIZES] ?? { width: 32, height: 32 }
-    g.setNode(node.id, { width: size.width + 20, height: size.height + 20 })
+    return { id: node.id, width: size.width + 20, height: size.height + 20 }
   })
-
-  edges.forEach((edge) => {
-    if (g.hasNode(edge.source) && g.hasNode(edge.target)) {
-      g.setEdge(edge.source, edge.target)
-    }
-  })
-
-  dagre.layout(g)
-
-  const layoutedNodes = nodes.map((node) => {
-    const pos = g.node(node.id)
-    if (!pos) return node
-    const entityType = (node.data as { entityType?: string }).entityType ?? 'file'
-    const size = NODE_SIZES[entityType as keyof typeof NODE_SIZES] ?? { width: 32, height: 32 }
-    return {
-      ...node,
-      position: {
-        x: pos.x - size.width / 2,
-        y: pos.y - size.height / 2,
-      },
-    }
-  })
-
-  return { nodes: layoutedNodes, edges }
 }
 
 // ── Transform backend data → ReactFlow ───────────────────────────────────────
@@ -287,17 +269,58 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     setVisibilityMode('custom')
   }, [setVisibleLayers, setVisibilityMode])
 
-  // Layout the currently visible nodes — memoized to avoid expensive dagre
-  // recalculation on every render (hover, selection, etc.). Only re-layouts
-  // when the filtered node/edge lists actually change (fetch or layer toggle).
-  const layouted = useMemo(
-    () => layoutGraph(visibleNodes, visibleEdges),
-    [visibleNodes, visibleEdges],
-  )
+  // ── Async dagre layout via Web Worker ─────────────────────────────────────
+  // Posts nodes/edges to the worker, receives computed positions, applies them.
+  // Cancels stale layout requests when inputs change before completion.
+  const [layoutedNodes, setLayoutedNodes] = useState<IntelligenceNode[]>([])
+  const [layoutedEdges, setLayoutedEdges] = useState<IntelligenceEdge[]>([])
+  const [layouting, setLayouting] = useState(false)
+  const layoutVersionRef = useRef(0)
+
+  useEffect(() => {
+    if (visibleNodes.length === 0) {
+      setLayoutedNodes([])
+      setLayoutedEdges([])
+      setLayouting(false)
+      return
+    }
+
+    const version = ++layoutVersionRef.current
+    setLayouting(true)
+
+    const worker = getDagreWorker()
+    const serializedNodes = serializeForWorker(visibleNodes)
+    const serializedEdges = visibleEdges.map((e) => ({ source: e.source, target: e.target }))
+
+    const handler = (event: MessageEvent<{ nodes: { id: string; x: number; y: number }[] }>) => {
+      // Ignore stale results from a previous layout request
+      if (version !== layoutVersionRef.current) return
+
+      const positionMap = new Map(event.data.nodes.map((n) => [n.id, { x: n.x, y: n.y }]))
+
+      setLayoutedNodes(
+        visibleNodes.map((node) => {
+          const pos = positionMap.get(node.id)
+          return pos ? { ...node, position: pos } : node
+        }),
+      )
+      setLayoutedEdges(visibleEdges)
+      setLayouting(false)
+      worker.removeEventListener('message', handler)
+    }
+
+    worker.addEventListener('message', handler)
+    worker.postMessage({ nodes: serializedNodes, edges: serializedEdges })
+
+    return () => {
+      worker.removeEventListener('message', handler)
+    }
+  }, [visibleNodes, visibleEdges])
 
   return {
-    nodes: layouted.nodes,
-    edges: layouted.edges,
+    nodes: layoutedNodes,
+    edges: layoutedEdges,
+    layouting,
     allNodes: nodes,
     allEdges: edges,
     hiddenEdgeCount,
