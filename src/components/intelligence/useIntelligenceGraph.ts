@@ -23,6 +23,7 @@ import {
   visibleLayersAtom,
   visibilityModeAtom,
   graphNodeLimitAtom,
+  loadingLayersAtom,
 } from '@/atoms/intelligence'
 import { intelligenceApi } from '@/services/intelligence'
 import { VISIBILITY_PRESETS } from '@/constants/intelligence'
@@ -144,6 +145,7 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
   const [visibleLayers, setVisibleLayers] = useAtom(visibleLayersAtom)
   const setVisibilityMode = useSetAtom(visibilityModeAtom)
   const nodeLimit = useAtomValue(graphNodeLimitAtom)
+  const setLoadingLayers = useSetAtom(loadingLayersAtom)
 
   const visibleNodes = useAtomValue(visibleNodesAtom)
   const visibleEdges = useAtomValue(budgetedEdgesAtom)
@@ -158,6 +160,12 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     if (!projectSlug || layers.length === 0) return
     setLoading(true)
     setError(null)
+    // Track per-layer loading state for UI indicators
+    setLoadingLayers((prev: Set<string>) => {
+      const next = new Set(prev)
+      layers.forEach((l) => next.add(l))
+      return next
+    })
     try {
       const data = await intelligenceApi.getGraph(projectSlug, { layers, limit })
 
@@ -193,8 +201,13 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
       setError(err instanceof Error ? err.message : 'Failed to load graph')
     } finally {
       setLoading(false)
+      setLoadingLayers((prev: Set<string>) => {
+        const next = new Set(prev)
+        layers.forEach((l) => next.delete(l))
+        return next
+      })
     }
-  }, [projectSlug, setNodes, setEdges, setLoading, setError])
+  }, [projectSlug, setNodes, setEdges, setLoading, setError, setLoadingLayers])
 
   // Public fetchGraph — fetches all currently visible layers
   const fetchGraph = useCallback(async () => {
@@ -217,13 +230,25 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     }
   }, [projectSlug, setSummary, setSummaryLoading])
 
-  // Load on mount / slug change — reset everything and fetch visible layers
+  // Load on mount / slug change — progressive: code layer first for fast first paint
   useEffect(() => {
     fetchedLayersRef.current.clear()
     setNodes([])
     setEdges([])
     const layers = Array.from(visibleLayers) as string[]
-    fetchGraphForLayers(layers, nodeLimit)
+
+    // Progressive loading: fetch primary layer first (code), then remaining layers.
+    // This gives a fast first paint (~200 file nodes) while other layers load in background.
+    const primary = layers.filter((l) => l === 'code' || l === 'fabric')
+    const rest = layers.filter((l) => l !== 'code' && l !== 'fabric')
+
+    if (primary.length > 0 && rest.length > 0) {
+      fetchGraphForLayers(primary, nodeLimit).then(() => {
+        fetchGraphForLayers(rest, nodeLimit)
+      })
+    } else {
+      fetchGraphForLayers(layers, nodeLimit)
+    }
     fetchSummary()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on slug change
   }, [projectSlug])

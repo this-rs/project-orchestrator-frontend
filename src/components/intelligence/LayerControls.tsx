@@ -1,8 +1,8 @@
 import { memo } from 'react'
-import { useAtom, useSetAtom } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import type { IntelligenceLayer, VisibilityMode } from '@/types/intelligence'
 import { LAYERS, LAYER_ORDER, VISIBILITY_PRESETS } from '@/constants/intelligence'
-import { energyHeatmapAtom, touchesHeatmapAtom, coChangeThresholdAtom } from '@/atoms/intelligence'
+import { energyHeatmapAtom, touchesHeatmapAtom, coChangeThresholdAtom, loadingLayersAtom } from '@/atoms/intelligence'
 import { activationSearchOpenAtom } from './SpreadingActivation'
 import {
   Eye,
@@ -52,6 +52,7 @@ function LayerControlsComponent({
   const [touchesEnabled, setTouchesEnabled] = useAtom(touchesHeatmapAtom)
   const [coChangeThreshold, setCoChangeThreshold] = useAtom(coChangeThresholdAtom)
   const setSearchOpen = useSetAtom(activationSearchOpenAtom)
+  const loadingLayers = useAtomValue(loadingLayersAtom)
 
   return (
     <div className="absolute top-3 left-3 z-40 flex flex-col gap-2">
@@ -94,6 +95,7 @@ function LayerControlsComponent({
             {LAYER_ORDER.map((layerId) => {
               const layer = LAYERS[layerId]
               const visible = visibleLayers.has(layerId)
+              const isLoading = loadingLayers.has(layerId)
               return (
                 <button
                   key={layerId}
@@ -113,7 +115,14 @@ function LayerControlsComponent({
                   />
                   {visible ? <Eye size={12} /> : <EyeOff size={12} />}
                   <span className="font-medium">{layer.label}</span>
-                  <span className="text-[10px] text-slate-500 ml-auto">z{layer.zIndex}</span>
+                  {isLoading ? (
+                    <div
+                      className="w-3 h-3 border-[1.5px] border-t-transparent rounded-full animate-spin ml-auto shrink-0"
+                      style={{ borderColor: layer.color, borderTopColor: 'transparent' }}
+                    />
+                  ) : (
+                    <span className="text-[10px] text-slate-500 ml-auto">z{layer.zIndex}</span>
+                  )}
                 </button>
               )
             })}

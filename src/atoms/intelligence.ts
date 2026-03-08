@@ -36,6 +36,9 @@ export const intelligenceEdgesAtom = atom<IntelligenceEdge[]>([])
 /** Loading state for graph data */
 export const intelligenceLoadingAtom = atom<boolean>(false)
 
+/** Per-layer loading state — tracks which layers have pending API requests */
+export const loadingLayersAtom = atom<Set<string>>(new Set<string>())
+
 /** Error state */
 export const intelligenceErrorAtom = atom<string | null>(null)
 
