@@ -24,6 +24,10 @@ export interface LoadingStage {
   detail?: string          // e.g. "245 nodes" after done
   startedAt?: number       // Date.now()
   completedAt?: number
+  /** Sub-progress: current value (e.g. clusters done, nodes fetched) */
+  progress?: number
+  /** Sub-progress: total value */
+  progressTotal?: number
 }
 
 /** Ordered loading stages — updated by the graph hooks for step-by-step UX */

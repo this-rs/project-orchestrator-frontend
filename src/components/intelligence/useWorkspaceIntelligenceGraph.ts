@@ -371,8 +371,10 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
         updateStage('layout', {
           status: 'loading',
           detail: total > 1
-            ? `cluster ${done}/${total} · ${nodesDone}/${nodesTotal} nodes`
+            ? `${done}/${total} clusters · ${nodesDone}/${nodesTotal} nodes`
             : `${nodesDone}/${nodesTotal} nodes`,
+          progress: nodesDone,
+          progressTotal: nodesTotal,
         })
         return
       }
@@ -397,6 +399,8 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
           detail: components > 1
             ? `${filteredNodes.length} nodes · ${components} clusters`
             : `${filteredNodes.length} nodes`,
+          progress: filteredNodes.length,
+          progressTotal: filteredNodes.length,
         })
         worker.removeEventListener('message', handler)
       }

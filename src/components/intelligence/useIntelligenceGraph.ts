@@ -366,8 +366,10 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
         updateStage('layout', {
           status: 'loading',
           detail: total > 1
-            ? `cluster ${done}/${total} · ${nodesDone}/${nodesTotal} nodes`
+            ? `${done}/${total} clusters · ${nodesDone}/${nodesTotal} nodes`
             : `${nodesDone}/${nodesTotal} nodes`,
+          progress: nodesDone,
+          progressTotal: nodesTotal,
         })
         return
       }
@@ -392,6 +394,8 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
           detail: components > 1
             ? `${visibleNodes.length} nodes · ${components} clusters`
             : `${visibleNodes.length} nodes`,
+          progress: visibleNodes.length,
+          progressTotal: visibleNodes.length,
         })
         worker.removeEventListener('message', handler)
       }
