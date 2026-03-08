@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import dagre from 'dagre'
 import type {
@@ -18,10 +18,12 @@ import {
   intelligenceSummaryAtom,
   intelligenceSummaryLoadingAtom,
   visibleNodesAtom,
-  visibleEdgesAtom,
+  budgetedEdgesAtom,
+  hiddenEdgeCountAtom,
   selectedNodeIdAtom,
   visibleLayersAtom,
   visibilityModeAtom,
+  graphNodeLimitAtom,
 } from '@/atoms/intelligence'
 import { intelligenceApi } from '@/services/intelligence'
 import { VISIBILITY_PRESETS } from '@/constants/intelligence'
@@ -159,29 +161,51 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
   const [selectedNodeId, setSelectedNodeId] = useAtom(selectedNodeIdAtom)
   const [visibleLayers, setVisibleLayers] = useAtom(visibleLayersAtom)
   const setVisibilityMode = useSetAtom(visibilityModeAtom)
+  const nodeLimit = useAtomValue(graphNodeLimitAtom)
 
   const visibleNodes = useAtomValue(visibleNodesAtom)
-  const visibleEdges = useAtomValue(visibleEdgesAtom)
+  const visibleEdges = useAtomValue(budgetedEdgesAtom)
+  const hiddenEdgeCount = useAtomValue(hiddenEdgeCountAtom)
 
-  // Fetch graph data — request all layers
-  const fetchGraph = useCallback(async () => {
-    if (!projectSlug) return
+  // Track which layers have already been fetched to avoid redundant calls
+  const fetchedLayersRef = useRef<Set<string>>(new Set())
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Fetch graph data — only request the specified layers
+  const fetchGraphForLayers = useCallback(async (layers: string[], limit: number) => {
+    if (!projectSlug || layers.length === 0) return
     setLoading(true)
     setError(null)
     try {
-      const data = await intelligenceApi.getGraph(projectSlug, {
-        layers: ['code', 'knowledge', 'fabric', 'neural', 'skills', 'behavioral'],
-      })
-      // DEBUG — remove after diagnosis
-      console.log('[useIntelligenceGraph] slug:', projectSlug, '→', data.nodes.length, 'nodes,', data.edges.length, 'edges, stats:', data.stats)
-      if (data.nodes.length === 0) {
-        console.warn('[useIntelligenceGraph] API returned 0 nodes — raw response:', data)
-      }
+      const data = await intelligenceApi.getGraph(projectSlug, { layers, limit })
+
       const rfNodes = data.nodes.map(toReactFlowNode)
       const rfEdges = data.edges.map(toReactFlowEdge)
-      const layouted = layoutGraph(rfNodes, rfEdges)
-      setNodes(layouted.nodes)
-      setEdges(layouted.edges)
+
+      // Merge with existing data (for incremental layer loading)
+      // or replace entirely (for initial load / slug change)
+      setNodes((prev) => {
+        if (prev.length === 0) return rfNodes
+        // Remove old nodes from the fetched layers, then add new ones
+        const fetchedLayerSet = new Set(layers)
+        const kept = prev.filter((n) => {
+          const layer = (n.data as { layer?: string }).layer
+          return layer ? !fetchedLayerSet.has(layer) : true
+        })
+        return [...kept, ...rfNodes]
+      })
+      setEdges((prev) => {
+        if (prev.length === 0) return rfEdges
+        const fetchedLayerSet = new Set(layers)
+        const kept = prev.filter((e) => {
+          const layer = (e.data as { layer?: string })?.layer
+          return layer ? !fetchedLayerSet.has(layer) : true
+        })
+        return [...kept, ...rfEdges]
+      })
+
+      // Mark these layers as fetched
+      layers.forEach((l) => fetchedLayersRef.current.add(l))
     } catch (err) {
       console.error('[useIntelligenceGraph] fetch error:', err)
       setError(err instanceof Error ? err.message : 'Failed to load graph')
@@ -189,6 +213,13 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
       setLoading(false)
     }
   }, [projectSlug, setNodes, setEdges, setLoading, setError])
+
+  // Public fetchGraph — fetches all currently visible layers
+  const fetchGraph = useCallback(async () => {
+    const layers = Array.from(visibleLayers) as string[]
+    fetchedLayersRef.current.clear()
+    await fetchGraphForLayers(layers, nodeLimit)
+  }, [visibleLayers, nodeLimit, fetchGraphForLayers])
 
   // Fetch summary
   const fetchSummary = useCallback(async () => {
@@ -204,11 +235,34 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     }
   }, [projectSlug, setSummary, setSummaryLoading])
 
-  // Load on mount
+  // Load on mount / slug change — reset everything and fetch visible layers
   useEffect(() => {
-    fetchGraph()
+    fetchedLayersRef.current.clear()
+    setNodes([])
+    setEdges([])
+    const layers = Array.from(visibleLayers) as string[]
+    fetchGraphForLayers(layers, nodeLimit)
     fetchSummary()
-  }, [fetchGraph, fetchSummary])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on slug change
+  }, [projectSlug])
+
+  // Re-fetch when visible layers change — debounced 300ms to handle rapid preset switching
+  // Only fetches layers that haven't been loaded yet (incremental)
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      const needed = Array.from(visibleLayers).filter(
+        (l) => !fetchedLayersRef.current.has(l),
+      ) as string[]
+      if (needed.length > 0) {
+        fetchGraphForLayers(needed, nodeLimit)
+      }
+    }, 300)
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- debounced layer fetch
+  }, [visibleLayers, nodeLimit])
 
   // Apply visibility preset
   const applyPreset = useCallback((presetId: VisibilityMode) => {
@@ -246,6 +300,7 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     edges: layouted.edges,
     allNodes: nodes,
     allEdges: edges,
+    hiddenEdgeCount,
     selectedNodeId,
     setSelectedNodeId,
     visibleLayers,

@@ -87,6 +87,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   const {
     nodes: layoutedNodes,
     edges,
+    hiddenEdgeCount,
     setSelectedNodeId,
     visibleLayers,
     toggleLayer,
@@ -522,6 +523,11 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
               </span>
             )
           })}
+        {hiddenEdgeCount > 0 && (
+          <span className="flex items-center gap-1 text-[10px] text-amber-400/80 ml-2 pl-2 border-l border-slate-700/60">
+            {hiddenEdgeCount} edges hidden
+          </span>
+        )}
       </div>
 
       {/* Keyboard shortcut hint (bottom-center) — prominent CTA, hidden when search is open */}

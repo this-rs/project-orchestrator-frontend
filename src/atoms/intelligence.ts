@@ -3,10 +3,11 @@ import type {
   IntelligenceLayer,
   IntelligenceNode,
   IntelligenceEdge,
+  IntelligenceRelationType,
   IntelligenceSummary,
   VisibilityMode,
 } from '@/types/intelligence'
-import { LAYERS, LAYER_ORDER } from '@/constants/intelligence'
+import { LAYERS, LAYER_ORDER, ANIMATION, EDGE_RENDER_PRIORITY } from '@/constants/intelligence'
 
 // ============================================================================
 // INTELLIGENCE VISUALIZATION — Jotai Atoms
@@ -97,6 +98,35 @@ export const visibleEdgesAtom = atom<IntelligenceEdge[]>((get) => {
   })
 })
 
+// ── Edge budget ─────────────────────────────────────────────────────────
+
+/** Priority index for edge sorting — lower index = higher priority (kept first) */
+const edgePriorityIndex = new Map(
+  EDGE_RENDER_PRIORITY.map((type, i) => [type, i]),
+)
+
+function getEdgePriority(edge: IntelligenceEdge): number {
+  const relationType = (edge.data as { relationType?: string })?.relationType as IntelligenceRelationType | undefined
+  return relationType ? (edgePriorityIndex.get(relationType) ?? 999) : 999
+}
+
+/** Edges after budget culling — sorted by EDGE_RENDER_PRIORITY, capped at MAX_VISIBLE_EDGES */
+export const budgetedEdgesAtom = atom<IntelligenceEdge[]>((get) => {
+  const edges = get(visibleEdgesAtom)
+  const max = ANIMATION.MAX_VISIBLE_EDGES
+  if (edges.length <= max) return edges
+  // Sort by priority (stable: Array.sort is stable in V8)
+  const sorted = [...edges].sort((a, b) => getEdgePriority(a) - getEdgePriority(b))
+  return sorted.slice(0, max)
+})
+
+/** Number of edges hidden by the budget (0 if under budget) */
+export const hiddenEdgeCountAtom = atom<number>((get) => {
+  const total = get(visibleEdgesAtom).length
+  const budgeted = get(budgetedEdgesAtom).length
+  return Math.max(0, total - budgeted)
+})
+
 // ── Visual overlays ─────────────────────────────────────────────────────
 
 /** Energy heatmap overlay — recolors note nodes by energy (red→green) */
@@ -107,6 +137,11 @@ export const touchesHeatmapAtom = atom<boolean>(false)
 
 /** CO_CHANGED threshold — hide CO_CHANGED edges with count below this value */
 export const coChangeThresholdAtom = atom<number>(1)
+
+// ── Graph node limit ────────────────────────────────────────────────────────
+
+/** Max nodes requested from the API (configurable, default 1000) */
+export const graphNodeLimitAtom = atom<number>(1000)
 
 // ── Search / filter ──────────────────────────────────────────────────────────
 
