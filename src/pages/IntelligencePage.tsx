@@ -702,7 +702,7 @@ export function IntelligencePage() {
               icon={Network}
               color="#FED7AA"
             />
-            {health && (
+            {health?.coupling_metrics && (
               <MiniStat
                 label="Avg Coupling"
                 value={health.coupling_metrics.avg_clustering_coefficient.toFixed(2)}
@@ -718,7 +718,7 @@ export function IntelligencePage() {
               {health.circular_dependency_count} circular dependencies detected
             </div>
           )}
-          {health && health.coupling_metrics.most_coupled_file && (
+          {health?.coupling_metrics?.most_coupled_file && (
             <div className="mt-2">
               <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mb-1">
                 Most Coupled

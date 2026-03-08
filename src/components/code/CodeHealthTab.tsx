@@ -208,14 +208,16 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
           color="text-gray-300"
           iconColor="text-gray-500"
         />
+        {health.coupling_metrics && (
         <KpiCard
           icon={<Link2 className="w-5 h-5" />}
           label="Avg Coupling"
           value={health.coupling_metrics.avg_clustering_coefficient.toFixed(3)}
           color="text-gray-300"
           iconColor="text-indigo-400"
-          subtitle={`most coupled: ${stripBase(health.coupling_metrics.most_coupled_file, basePath)}`}
+          subtitle={health.coupling_metrics.most_coupled_file ? `most coupled: ${stripBase(health.coupling_metrics.most_coupled_file, basePath)}` : undefined}
         />
+        )}
         <KpiCard
           icon={<RefreshCw className="w-5 h-5" />}
           label="Circular Deps"

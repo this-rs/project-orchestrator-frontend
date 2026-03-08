@@ -787,7 +787,7 @@ export function IntelLayerCards({ data }: { data: IntelligenceData }) {
             icon={Network}
             color="#FED7AA"
           />
-          {data.health && (
+          {data.health?.coupling_metrics && (
             <MiniStat
               label="Avg Coupling"
               value={data.health.coupling_metrics.avg_clustering_coefficient.toFixed(2)}
@@ -803,7 +803,7 @@ export function IntelLayerCards({ data }: { data: IntelligenceData }) {
             {data.health.circular_dependency_count} circular dependencies detected
           </div>
         )}
-        {data.health && data.health.coupling_metrics.most_coupled_file && (
+        {data.health?.coupling_metrics?.most_coupled_file && (
           <div className="mt-2">
             <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mb-1">
               Most Coupled
