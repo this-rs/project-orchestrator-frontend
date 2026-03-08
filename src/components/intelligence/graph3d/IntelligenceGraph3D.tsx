@@ -436,7 +436,7 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
   }
 
   return (
-    <div ref={containerRef} className="w-full h-full">
+    <div ref={containerRef} className="absolute inset-0">
       <ForceGraph3D<Graph3DNode, Graph3DLink>
         ref={graphRef}
         width={dimensions.width}
