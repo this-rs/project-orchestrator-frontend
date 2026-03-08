@@ -431,56 +431,54 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
     })
   }, [graphData])
 
-  if (graphData.nodes.length === 0) {
-    return null
-  }
-
   return (
     <div ref={containerRef} className="absolute inset-0">
-      <ForceGraph3D<Graph3DNode, Graph3DLink>
-        ref={graphRef}
-        width={dimensions.width}
-        height={dimensions.height}
-        graphData={graphData}
-        // Node styling
-        nodeColor={nodeColor}
-        nodeVal={nodeVal}
-        nodeLabel={nodeLabel}
-        nodeThreeObject={nodeThreeObject}
-        nodeThreeObjectExtend={false}
-        nodeOpacity={nodeOpacity}
-        nodeResolution={12}
-        // Link styling
-        linkColor={linkColor}
-        linkWidth={linkWidth}
-        linkOpacity={0.6}
-        linkDirectionalParticles={linkParticles}
-        linkDirectionalParticleSpeed={linkParticleSpeed}
-        linkDirectionalParticleColor={linkParticleColor}
-        linkDirectionalParticleWidth={1.5}
-        // Interactions
-        onNodeClick={onNodeClick}
-        onNodeHover={onNodeHover}
-        onNodeDragEnd={(node: Graph3DNode) => {
-          // Pin position after drag
-          node.fx = node.x
-          node.fy = node.y
-          node.fz = node.z
-          savePositions([node])
-        }}
-        onBackgroundClick={onBackgroundClick}
-        // Force engine
-        cooldownTicks={100}
-        cooldownTime={5000}
-        warmupTicks={30}
-        onEngineStop={onEngineStop}
-        // Controls
-        controlType="orbit"
-        enableNavigationControls
-        showNavInfo={false}
-        // Background
-        backgroundColor="#0f172a"
-      />
+      {graphData.nodes.length > 0 && (
+        <ForceGraph3D<Graph3DNode, Graph3DLink>
+          ref={graphRef}
+          width={dimensions.width}
+          height={dimensions.height}
+          graphData={graphData}
+          // Node styling
+          nodeColor={nodeColor}
+          nodeVal={nodeVal}
+          nodeLabel={nodeLabel}
+          nodeThreeObject={nodeThreeObject}
+          nodeThreeObjectExtend={false}
+          nodeOpacity={nodeOpacity}
+          nodeResolution={12}
+          // Link styling
+          linkColor={linkColor}
+          linkWidth={linkWidth}
+          linkOpacity={0.6}
+          linkDirectionalParticles={linkParticles}
+          linkDirectionalParticleSpeed={linkParticleSpeed}
+          linkDirectionalParticleColor={linkParticleColor}
+          linkDirectionalParticleWidth={1.5}
+          // Interactions
+          onNodeClick={onNodeClick}
+          onNodeHover={onNodeHover}
+          onNodeDragEnd={(node: Graph3DNode) => {
+            // Pin position after drag
+            node.fx = node.x
+            node.fy = node.y
+            node.fz = node.z
+            savePositions([node])
+          }}
+          onBackgroundClick={onBackgroundClick}
+          // Force engine
+          cooldownTicks={100}
+          cooldownTime={5000}
+          warmupTicks={30}
+          onEngineStop={onEngineStop}
+          // Controls
+          controlType="orbit"
+          enableNavigationControls
+          showNavInfo={false}
+          // Background
+          backgroundColor="#0f172a"
+        />
+      )}
     </div>
   )
 }
