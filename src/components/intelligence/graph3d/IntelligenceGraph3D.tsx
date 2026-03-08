@@ -12,7 +12,7 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import * as THREE from 'three'
 
 import { useGraph3DLayout, type Graph3DNode, type Graph3DLink } from './useGraph3DLayout'
-import { createNodeObject } from './nodeObjects'
+import { createNodeObject, disposeNodeCaches } from './nodeObjects'
 import { ENTITY_COLORS } from '@/constants/intelligence'
 import {
   selectedNodeIdAtom,
@@ -91,6 +91,11 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
   const touchesHeatmap = useAtomValue(touchesHeatmapAtom)
 
   const { transformToGraph3D, savePositions } = useGraph3DLayout()
+
+  // ── Cleanup cached Three.js resources on unmount ────────────────────────
+  useEffect(() => {
+    return () => disposeNodeCaches()
+  }, [])
 
   // ── Container sizing ────────────────────────────────────────────────────
   useEffect(() => {
