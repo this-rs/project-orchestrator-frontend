@@ -116,6 +116,25 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
     return () => observer.disconnect()
   }, [])
 
+  // ── Workaround: three.js OrbitControls + DragControls pointercancel crash ──
+  // When DragControls dispatches pointercancel, OrbitControls.onPointerUp tries
+  // to read .x from a pointer already removed from its internal Map → TypeError.
+  // We patch the renderer's domElement to catch this race condition.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+
+    const handlePointerCancel = (e: PointerEvent) => {
+      // Prevent the pointercancel from reaching OrbitControls.onPointerUp
+      // which crashes when the pointer is already gone from its tracking Map
+      e.stopPropagation()
+    }
+
+    // Use capture phase to intercept before three.js handlers
+    el.addEventListener('pointercancel', handlePointerCancel, true)
+    return () => el.removeEventListener('pointercancel', handlePointerCancel, true)
+  }, [])
+
   // ── Transform data ──────────────────────────────────────────────────────
   const { data: graphData, needsRelayout } = useMemo(
     () => transformToGraph3D(nodes, edges),
