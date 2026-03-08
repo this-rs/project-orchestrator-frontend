@@ -119,6 +119,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
     nodes: layoutedNodes,
     edges,
     layouting,
+    allNodes,
     hiddenEdgeCount,
     setSelectedNodeId,
     visibleLayers,
@@ -274,16 +275,21 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   const nodeTypes = useMemo(() => intelligenceNodeTypes, [])
   const edgeTypes = useMemo(() => intelligenceEdgeTypes, [])
 
-  // Determine overlay states (no more early returns — canvas always rendered)
-  const showLoading = loading && nodes.length === 0
-  const showError = !!error && nodes.length === 0
-  const showEmpty = !loading && !error && nodes.length === 0
+  // Determine overlay states — use allNodes (raw API data) instead of layouted nodes
+  // because in 3D mode the dagre worker doesn't run, so local `nodes` stays empty.
+  const hasData = allNodes.length > 0
+  const showLoading = loading && !hasData
+  const showError = !!error && !hasData
+  const showEmpty = !loading && !error && !hasData
 
   return (
     <div
       ref={containerRef}
-      className={`relative w-full ${props.embedded ? '' : '-mx-4 md:-mx-6 -mb-2'} ${isFullscreen ? 'bg-slate-950' : ''}`}
-      style={{ height: props.embedded && !isFullscreen ? '600px' : isFullscreen ? '100vh' : 'calc(100dvh - 5rem)' }}
+      className={`relative w-full ${props.embedded || isFullscreen ? '' : '-mx-4 md:-mx-6 -mb-2'} ${isFullscreen ? 'bg-slate-950' : ''}`}
+      style={{
+        height: props.embedded && !isFullscreen ? '600px' : isFullscreen ? '100vh' : 'calc(100dvh - 5rem)',
+        width: isFullscreen ? '100vw' : undefined,
+      }}
     >
       {/* 2D-only CSS (synapse animations, dark theme overrides) */}
       {viewMode === '2d' && (
@@ -458,7 +464,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
           </div>
         </div>
       )}
-      {layouting && !showLoading && nodes.length > 0 && (
+      {layouting && !showLoading && hasData && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/90 backdrop-blur-sm border border-slate-700 text-xs text-slate-400">
           <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
           Computing layout…
