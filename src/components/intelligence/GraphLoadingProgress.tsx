@@ -164,6 +164,7 @@ function StageRow({ stage }: { stage: LoadingStage }) {
   const Icon = stageIcons[stage.id] ?? Database
   const isActive = stage.status === 'loading'
   const isDone = stage.status === 'done'
+  const hasDetail = stage.detail && (isActive || isDone)
   const hasSubProgress = isActive && stage.progress != null && stage.progressTotal != null && stage.progressTotal > 0
 
   return (
@@ -176,6 +177,7 @@ function StageRow({ stage }: { stage: LoadingStage }) {
             : 'opacity-30'
       }`}
     >
+      {/* Main row: icon + label + elapsed */}
       <div className="flex items-center gap-2 px-2.5 py-1.5">
         <StageStatusIcon status={stage.status} />
         <Icon
@@ -199,18 +201,20 @@ function StageRow({ stage }: { stage: LoadingStage }) {
         >
           {stage.label}
         </span>
-        {stage.detail && (isActive || isDone) && (
-          <span className={`text-[10px] font-mono tabular-nums shrink-0 ${
-            isDone ? 'text-emerald-500/60' : 'text-blue-400/60'
+        <ElapsedTimer startedAt={stage.startedAt} completedAt={stage.completedAt} />
+      </div>
+
+      {/* Sub-detail line: detail text + optional progress bar */}
+      {hasDetail && (
+        <div className="px-2.5 pb-1.5 pl-[2.75rem]">
+          <span className={`text-[10px] font-mono tabular-nums block ${
+            isDone ? 'text-emerald-500/60' : 'text-blue-400/70'
           }`}>
             {stage.detail}
           </span>
-        )}
-        <ElapsedTimer startedAt={stage.startedAt} completedAt={stage.completedAt} />
-      </div>
-      {hasSubProgress && (
-        <div className="px-2.5 pb-1.5">
-          <StageProgressBar progress={stage.progress!} progressTotal={stage.progressTotal!} />
+          {hasSubProgress && (
+            <StageProgressBar progress={stage.progress!} progressTotal={stage.progressTotal!} />
+          )}
         </div>
       )}
     </div>
