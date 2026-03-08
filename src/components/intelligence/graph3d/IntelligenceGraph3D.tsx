@@ -17,9 +17,53 @@ import { ENTITY_COLORS } from '@/constants/intelligence'
 import {
   selectedNodeIdAtom,
   hoveredNodeIdAtom,
+  energyHeatmapAtom,
+  touchesHeatmapAtom,
 } from '@/atoms/intelligence'
 import { activationStateAtom } from '../SpreadingActivation'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
+
+// ── Heatmap color interpolators (THREE.Color versions) ───────────────────────
+
+/** Energy (0→1) → Red (#EF4444) → Yellow (#F59E0B) → Green (#22C55E) */
+function energyToColor3(energy: number): THREE.Color {
+  const e = Math.min(1, Math.max(0, energy))
+  if (e < 0.5) {
+    const t = e / 0.5
+    return new THREE.Color(
+      (239 + (245 - 239) * t) / 255,
+      (68 + (158 - 68) * t) / 255,
+      (68 + (11 - 68) * t) / 255,
+    )
+  } else {
+    const t = (e - 0.5) / 0.5
+    return new THREE.Color(
+      (245 + (34 - 245) * t) / 255,
+      (158 + (197 - 158) * t) / 255,
+      (11 + (94 - 11) * t) / 255,
+    )
+  }
+}
+
+/** Churn (0→1) → Dark Green (#228B5E) → Bright Green (#86EF7F) → Yellow-Green (#FACC15) */
+function churnToColor3(churn: number): THREE.Color {
+  const c = Math.min(1, Math.max(0, churn))
+  if (c < 0.5) {
+    const t = c / 0.5
+    return new THREE.Color(
+      (34 + (134 - 34) * t) / 255,
+      (139 + (239 - 139) * t) / 255,
+      (94 + (127 - 94) * t) / 255,
+    )
+  } else {
+    const t = (c - 0.5) / 0.5
+    return new THREE.Color(
+      (134 + (250 - 134) * t) / 255,
+      (239 + (204 - 239) * t) / 255,
+      (127 + (21 - 127) * t) / 255,
+    )
+  }
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -43,6 +87,8 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
   const hoveredNodeId = useAtomValue(hoveredNodeIdAtom)
   const setHoveredNodeId = useSetAtom(hoveredNodeIdAtom)
   const activation = useAtomValue(activationStateAtom)
+  const energyHeatmap = useAtomValue(energyHeatmapAtom)
+  const touchesHeatmap = useAtomValue(touchesHeatmapAtom)
 
   const { transformToGraph3D, savePositions } = useGraph3DLayout()
 
@@ -157,6 +203,7 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
   // ── Highlight colors ─────────────────────────────────────────────────────
   const HIGHLIGHT_COLOR_HOVER = '#F59E0B'   // amber-500
   const HIGHLIGHT_COLOR_SELECT = '#22D3EE'  // cyan-400
+  const ACTIVATION_COLOR_EDGE = '#34D399'    // emerald-400 (active synapse edges)
 
   // ── Link styling (hover + selection coexist, AND spreading activation) ──
   const linkColor = useCallback((link: Graph3DLink) => {
@@ -164,11 +211,11 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
     const targetId = typeof link.target === 'object' ? (link.target as Graph3DNode).id : link.target
 
     // Spreading activation — highlight active edges
-    if (activation.phase !== 'idle') {
+    if (activation.phase !== 'idle' && activation.phase !== 'searching') {
       const edgeKey = `${sourceId}-${targetId}`
       const edgeKeyRev = `${targetId}-${sourceId}`
       if (activation.activeEdges.has(edgeKey) || activation.activeEdges.has(edgeKeyRev)) {
-        return '#22D3EE' // cyan — active synapse
+        return ACTIVATION_COLOR_EDGE // emerald — active synapse
       }
       const allActivated = new Set([...activation.directIds, ...activation.propagatedIds])
       if (allActivated.has(sourceId) && allActivated.has(targetId)) {
@@ -197,7 +244,7 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
     const targetId = typeof link.target === 'object' ? (link.target as Graph3DNode).id : link.target
 
     // Spreading activation — boost active edges
-    if (activation.phase !== 'idle') {
+    if (activation.phase !== 'idle' && activation.phase !== 'searching') {
       const edgeKey = `${sourceId}-${targetId}`
       const edgeKeyRev = `${targetId}-${sourceId}`
       if (activation.activeEdges.has(edgeKey) || activation.activeEdges.has(edgeKeyRev)) {
@@ -220,7 +267,7 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
 
   const linkParticles = useCallback((link: Graph3DLink) => {
     // Boost particles on activated synapse edges
-    if (activation.phase !== 'idle') {
+    if (activation.phase !== 'idle' && activation.phase !== 'searching') {
       const sourceId = typeof link.source === 'object' ? (link.source as Graph3DNode).id : link.source
       const targetId = typeof link.target === 'object' ? (link.target as Graph3DNode).id : link.target
       const edgeKey = `${sourceId}-${targetId}`
@@ -237,14 +284,14 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
   }, [])
 
   const linkParticleColor = useCallback((link: Graph3DLink) => {
-    // Cyan for activated edges (spreading activation)
-    if (activation.phase !== 'idle') {
+    // Emerald for activated edges (spreading activation)
+    if (activation.phase !== 'idle' && activation.phase !== 'searching') {
       const sourceId = typeof link.source === 'object' ? (link.source as Graph3DNode).id : link.source
       const targetId = typeof link.target === 'object' ? (link.target as Graph3DNode).id : link.target
       const edgeKey = `${sourceId}-${targetId}`
       const edgeKeyRev = `${targetId}-${sourceId}`
       if (activation.activeEdges.has(edgeKey) || activation.activeEdges.has(edgeKeyRev)) {
-        return '#22D3EE'
+        return ACTIVATION_COLOR_EDGE
       }
     }
     // Tint particles: hover = amber, select = cyan (hover wins on shared edges)
@@ -269,66 +316,302 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
   }, [hasAnyHighlight])
 
   // ── Spreading Activation — live 3D material updates ───────────────────
-  // Mutate Three.js materials directly when activation state changes.
+  // Ref-tracked approach: we keep direct references to every Three.js object
+  // we've modified, so cleanup is deterministic and independent of graphData.
   const activationPhase = activation.phase
+
+  // Dirty tracking: materials we've modified + lights we've added
+  // This survives across renders and doesn't depend on graphData.nodes
+  const dirtyRef = useRef<{
+    materials: Map<THREE.MeshPhongMaterial, { emissive: string; emissiveIntensity: number; opacity: number }>
+    lights: Set<THREE.PointLight>
+    // Track what state each node was last set to, for diff-based updates
+    nodeStates: Map<string, 'direct' | 'propagated' | 'dimmed'>
+  }>({ materials: new Map(), lights: new Set(), nodeStates: new Map() })
+
   useEffect(() => {
     const fg = graphRef.current
     if (!fg || typeof fg.scene !== 'function') return
-    const scene = fg.scene()
-    if (!scene) return
 
-    const CYAN = new THREE.Color('#22D3EE')
-    const VIOLET = new THREE.Color('#A78BFA')
-    const isActive = activationPhase !== 'idle'
+    const EMERALD = new THREE.Color('#34D399')  // direct activation
+    const VIOLET = new THREE.Color('#A78BFA')   // propagated activation
+    const isActive = activationPhase !== 'idle' && activationPhase !== 'searching'
+    const dirty = dirtyRef.current
 
-    // Traverse all nodes in the graph data to update their materials
+    // During 'searching' phase, don't touch materials — keep previous state visible
+    if (activationPhase === 'searching') return
+
+    // ── DEACTIVATION: restore all tracked dirty objects ──────────────────
+    if (!isActive) {
+      // Restore all modified materials from saved originals
+      for (const [mat, orig] of dirty.materials) {
+        mat.emissive = new THREE.Color(orig.emissive)
+        mat.emissiveIntensity = orig.emissiveIntensity
+        mat.opacity = orig.opacity
+        mat.needsUpdate = true
+      }
+      dirty.materials.clear()
+
+      // Remove all tracked PointLights (two-pass: collect then remove)
+      for (const light of dirty.lights) {
+        light.parent?.remove(light)
+      }
+      dirty.lights.clear()
+
+      // Clear node state tracking
+      dirty.nodeStates.clear()
+      return
+    }
+
+    // ── ACTIVE PHASE: diff-based material updates per-node ──────────────
+    // Determine desired state for each node, only mutate if it changed
+    const newNodeStates = new Map<string, 'direct' | 'propagated' | 'dimmed'>()
+
     for (const node of graphData.nodes) {
-      // ForceGraph stores the Three.js object on node.__threeObj
       const obj = (node as Graph3DNode & { __threeObj?: THREE.Object3D }).__threeObj
       if (!obj) continue
 
       const isDirect = activation.directIds.has(node.id)
       const isPropagated = activation.propagatedIds.has(node.id)
+      const desiredState: 'direct' | 'propagated' | 'dimmed' = isDirect ? 'direct' : isPropagated ? 'propagated' : 'dimmed'
       const score = activation.scores.get(node.id) ?? 0
+      newNodeStates.set(node.id, desiredState)
 
+      // Diff check: skip if this node's state hasn't changed
+      const prevState = dirty.nodeStates.get(node.id)
+      if (prevState === desiredState && desiredState === 'dimmed') continue
+      // For lit nodes, score may change between propagation waves, so always update
+
+      const isLit = isDirect || isPropagated
+
+      // ── PointLight management ──
+      // Remove existing activation light if present
+      const existingLight = obj.children.find((c): c is THREE.PointLight => c instanceof THREE.PointLight && c.userData.__act__)
+      if (existingLight) {
+        obj.remove(existingLight)
+        dirty.lights.delete(existingLight)
+      }
+
+      // Add PointLight on activated nodes
+      if (isLit) {
+        const lightColor = isDirect ? 0x34D399 : 0xA78BFA
+        const intensity = isDirect ? 80 + score * 120 : 40 + score * 80
+        const distance = isDirect ? 120 : 80
+        const pointLight = new THREE.PointLight(lightColor, intensity, distance, 1.5)
+        pointLight.userData.__act__ = true
+        obj.add(pointLight)
+        dirty.lights.add(pointLight)
+      }
+
+      // ── Material updates ──
       obj.traverse((child) => {
         if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshPhongMaterial) {
           const mat = child.material
+
+          // Save original on first touch (track in ref, not on userData)
+          if (!dirty.materials.has(mat)) {
+            dirty.materials.set(mat, {
+              emissive: '#' + mat.emissive.getHexString(),
+              emissiveIntensity: mat.emissiveIntensity,
+              opacity: mat.opacity,
+            })
+          }
+
           if (isDirect) {
-            mat.emissive = CYAN
-            mat.emissiveIntensity = 0.6 + score * 0.4
+            mat.emissive = EMERALD
+            mat.emissiveIntensity = 0.8 + score * 0.6
             mat.opacity = 1.0
           } else if (isPropagated) {
             mat.emissive = VIOLET
-            mat.emissiveIntensity = 0.3 + score * 0.5
+            mat.emissiveIntensity = 0.5 + score * 0.5
             mat.opacity = 0.95
-          } else if (isActive) {
-            // Dim non-activated nodes during spreading activation
-            const baseColor = ENTITY_COLORS[node.entityType as keyof typeof ENTITY_COLORS] ?? '#6B7280'
-            mat.emissive = new THREE.Color(baseColor)
-            mat.emissiveIntensity = 0.05
-            mat.opacity = 0.2
           } else {
-            // Reset to default
-            const baseColor = ENTITY_COLORS[node.entityType as keyof typeof ENTITY_COLORS] ?? '#6B7280'
-            const energy = (node.data.energy as number) ?? 0
-            mat.emissive = new THREE.Color(baseColor)
-            mat.emissiveIntensity = 0.15 + energy * 0.3
-            mat.opacity = 0.9
+            // Dim non-activated nodes
+            const orig = dirty.materials.get(mat)!
+            mat.emissive = new THREE.Color(orig.emissive)
+            mat.emissiveIntensity = 0.05
+            mat.opacity = 0.15
           }
           mat.needsUpdate = true
         }
       })
     }
+
+    dirty.nodeStates = newNodeStates
   }, [activationPhase, activation.directIds, activation.propagatedIds, activation.scores, graphData.nodes])
+
+  // ── Heatmap overlays — energy (notes) & churn (files) ────────────────────
+  // Same ref-tracked pattern: save originals, mutate, restore on toggle off.
+  const heatmapDirtyRef = useRef<Map<THREE.MeshPhongMaterial, { emissive: string; emissiveIntensity: number; opacity: number }>>(new Map())
+
+  useEffect(() => {
+    const fg = graphRef.current
+    if (!fg || typeof fg.scene !== 'function') return
+
+    const isAnyHeatmap = energyHeatmap || touchesHeatmap
+    const hDirty = heatmapDirtyRef.current
+
+    // Skip if spreading activation is running — it takes priority
+    if (activationPhase !== 'idle' && activationPhase !== 'searching') {
+      // Still clean up heatmap state if it was active before activation started
+      if (hDirty.size > 0) {
+        for (const [mat, orig] of hDirty) {
+          mat.emissive = new THREE.Color(orig.emissive)
+          mat.emissiveIntensity = orig.emissiveIntensity
+          mat.opacity = orig.opacity
+          mat.needsUpdate = true
+        }
+        hDirty.clear()
+      }
+      return
+    }
+
+    // ── DEACTIVATION: restore all heatmap-modified materials ──
+    if (!isAnyHeatmap) {
+      for (const [mat, orig] of hDirty) {
+        mat.emissive = new THREE.Color(orig.emissive)
+        mat.emissiveIntensity = orig.emissiveIntensity
+        mat.opacity = orig.opacity
+        mat.needsUpdate = true
+      }
+      hDirty.clear()
+      return
+    }
+
+    // ── ACTIVE: color nodes by energy/churn ──
+    for (const node of graphData.nodes) {
+      const obj = (node as Graph3DNode & { __threeObj?: THREE.Object3D }).__threeObj
+      if (!obj) continue
+
+      // Energy heatmap: note nodes colored red→yellow→green by energy
+      const isNote = node.entityType === 'note'
+      const isFile = node.entityType === 'file'
+
+      if (energyHeatmap && isNote) {
+        const energy = Math.min(1, Math.max(0, (node.data.energy as number) ?? 0))
+        const heatColor = energyToColor3(energy)
+
+        obj.traverse((child) => {
+          if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshPhongMaterial) {
+            const mat = child.material
+            if (!hDirty.has(mat)) {
+              hDirty.set(mat, {
+                emissive: '#' + mat.emissive.getHexString(),
+                emissiveIntensity: mat.emissiveIntensity,
+                opacity: mat.opacity,
+              })
+            }
+            mat.emissive = heatColor
+            mat.emissiveIntensity = 0.4 + energy * 0.6
+            mat.opacity = 0.6 + energy * 0.4
+            mat.needsUpdate = true
+          }
+        })
+      } else if (touchesHeatmap && isFile) {
+        // Churn heatmap: file nodes colored by churn score (green intensity)
+        const attrs = node.data.attributes as Record<string, unknown> | undefined
+        const churn = Math.min(1, Math.max(0, (attrs?.churnScore as number) ?? (node.data.churnScore as number) ?? 0))
+        if (churn <= 0) continue
+
+        const heatColor = churnToColor3(churn)
+
+        obj.traverse((child) => {
+          if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshPhongMaterial) {
+            const mat = child.material
+            if (!hDirty.has(mat)) {
+              hDirty.set(mat, {
+                emissive: '#' + mat.emissive.getHexString(),
+                emissiveIntensity: mat.emissiveIntensity,
+                opacity: mat.opacity,
+              })
+            }
+            mat.emissive = heatColor
+            mat.emissiveIntensity = 0.3 + churn * 0.7
+            mat.opacity = 0.6 + churn * 0.4
+            mat.needsUpdate = true
+          }
+        })
+      } else if (isAnyHeatmap && !isNote && !isFile) {
+        // Dim unrelated nodes when a heatmap is active
+        obj.traverse((child) => {
+          if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshPhongMaterial) {
+            const mat = child.material
+            if (!hDirty.has(mat)) {
+              hDirty.set(mat, {
+                emissive: '#' + mat.emissive.getHexString(),
+                emissiveIntensity: mat.emissiveIntensity,
+                opacity: mat.opacity,
+              })
+            }
+            mat.emissiveIntensity = 0.05
+            mat.opacity = 0.2
+            mat.needsUpdate = true
+          }
+        })
+      }
+    }
+  }, [energyHeatmap, touchesHeatmap, graphData.nodes, activationPhase])
+
+  // ── Spreading Activation — zoom camera to activated cluster ──────────────
+  const prevActivationPhaseRef = useRef<string>('idle')
+  useEffect(() => {
+    const fg = graphRef.current
+    if (!fg || typeof fg.cameraPosition !== 'function') return
+
+    // Zoom when transitioning into 'direct' phase (results just arrived)
+    const wasIdle = prevActivationPhaseRef.current === 'idle' || prevActivationPhaseRef.current === 'searching'
+    prevActivationPhaseRef.current = activationPhase
+
+    if (!wasIdle || (activationPhase !== 'direct' && activationPhase !== 'done')) return
+
+    const allActivated = new Set([...activation.directIds, ...activation.propagatedIds])
+    if (allActivated.size === 0) return
+
+    // Compute centroid of activated nodes
+    let cx = 0, cy = 0, cz = 0, count = 0
+    let maxDist = 0
+    const positions: { x: number; y: number; z: number }[] = []
+
+    for (const node of graphData.nodes) {
+      if (!allActivated.has(node.id)) continue
+      const x = node.x ?? 0
+      const y = node.y ?? 0
+      const z = node.z ?? 0
+      cx += x; cy += y; cz += z; count++
+      positions.push({ x, y, z })
+    }
+
+    if (count === 0) return
+    cx /= count; cy /= count; cz /= count
+
+    // Compute radius of the activated cluster
+    for (const p of positions) {
+      const d = Math.sqrt((p.x - cx) ** 2 + (p.y - cy) ** 2 + (p.z - cz) ** 2)
+      if (d > maxDist) maxDist = d
+    }
+
+    // Position camera at a distance proportional to cluster radius
+    const dist = Math.max(maxDist * 2.5, 120)
+    // Offset camera along a diagonal for better perspective
+    const angle = Math.atan2(cy, cx)
+    const camX = cx + dist * Math.cos(angle + 0.3)
+    const camY = cy + dist * 0.4
+    const camZ = cz + dist * Math.sin(angle + 0.3)
+
+    fg.cameraPosition(
+      { x: camX, y: camY, z: camZ }, // new position
+      { x: cx, y: cy, z: cz },       // lookAt
+      1200,                            // transition duration ms
+    )
+  }, [activationPhase, activation.directIds, activation.propagatedIds, graphData.nodes])
 
   // ── Selected node highlight — persistent emissive ring on click ─────────
   const prevSelectedRef = useRef<string | null>(null)
   useEffect(() => {
     const fg = graphRef.current
     if (!fg || typeof fg.scene !== 'function') return
-    // Skip if activation is running — it overrides materials
-    if (activation.phase !== 'idle') { prevSelectedRef.current = selectedNodeId; return }
+    // Skip if activation is running (but not searching) — it overrides materials
+    if (activation.phase !== 'idle' && activation.phase !== 'searching') { prevSelectedRef.current = selectedNodeId; return }
 
     // Reset previous selected node
     if (prevSelectedRef.current && prevSelectedRef.current !== selectedNodeId) {

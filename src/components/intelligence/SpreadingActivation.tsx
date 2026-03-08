@@ -41,7 +41,8 @@ export const activationSearchOpenAtom = atom<boolean>(false)
 // ============================================================================
 
 interface SpreadingActivationProps {
-  projectSlug: string | undefined
+  /** Project slug for project-scoped search. Omit for workspace-wide search. */
+  projectSlug?: string | undefined
 }
 
 function SpreadingActivationComponent({ projectSlug }: SpreadingActivationProps) {
@@ -87,12 +88,11 @@ function SpreadingActivationComponent({ projectSlug }: SpreadingActivationProps)
   }, [clearActivation, setIsOpen])
 
   const handleSearch = useCallback(async () => {
-    if (!query.trim() || !projectSlug) return
+    if (!query.trim()) return
 
-    // Clear previous animation (but don't restore layers yet)
+    // Clear previous animation timeouts (but keep current activation visible until new results arrive)
     animationRef.current.forEach(clearTimeout)
     animationRef.current = []
-    setActivation(emptyActivation)
 
     // Auto-enable knowledge + neural layers for activation visibility
     if (!savedLayersRef.current) {

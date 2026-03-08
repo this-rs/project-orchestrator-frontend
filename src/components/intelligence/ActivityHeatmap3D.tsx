@@ -37,6 +37,9 @@ interface TimelineEvent {
   label: string
   detail?: string
   fullContent?: string
+  /** Project slug (workspace mode) */
+  projectSlug?: string
+  projectName?: string
 }
 
 const EVENT_COLORS: Record<TimelineEventType, string> = {
@@ -67,9 +70,12 @@ const CYAN = new THREE.Color(0x22d3ee)
 
 export function ActivityHeatmap3D({
   events,
+  projectColorMap,
 }: {
   events: TimelineEvent[]
   color?: string
+  /** When provided, bars are stacked by project with per-project colors */
+  projectColorMap?: Map<string, string>
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const animFrameRef = useRef<number>(0)
@@ -80,8 +86,13 @@ export function ActivityHeatmap3D({
   const [tooltip, setTooltip] = useState<TooltipData | null>(null)
 
   // ── Build the 7×24 grid ────────────────────────────────────────────────
-  const { grid, maxCount, eventsByCell, dayTotals } = useMemo(() => {
+  // When projectColorMap is provided, we track per-project counts for stacking.
+  const { grid, perProjectGrid, maxCount, eventsByCell, dayTotals, sortedSlugs } = useMemo(() => {
     const counts: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0))
+    // Per-project grid: [day][hour] → Map<slug, count>
+    const ppGrid: Map<string, number>[][] = Array.from({ length: 7 }, () =>
+      Array.from({ length: 24 }, () => new Map()),
+    )
     const map = new Map<string, TimelineEvent[]>()
 
     for (const ev of events) {
@@ -92,6 +103,13 @@ export function ActivityHeatmap3D({
       const arr = map.get(key) || []
       arr.push(ev)
       map.set(key, arr)
+
+      // Track per-project
+      if (projectColorMap) {
+        const slug = ev.projectSlug || '_global'
+        const cell = ppGrid[day][hour]
+        cell.set(slug, (cell.get(slug) || 0) + 1)
+      }
     }
 
     let m = 0
@@ -100,8 +118,13 @@ export function ActivityHeatmap3D({
     // Aggregate totals per day for spotlight placement
     const totals = counts.map((row) => row.reduce((s, v) => s + v, 0))
 
-    return { grid: counts, maxCount: m || 1, eventsByCell: map, dayTotals: totals }
-  }, [events])
+    // Sorted project slugs for consistent stacking order
+    const slugs = projectColorMap
+      ? Array.from(new Set(events.map((e) => e.projectSlug || '_global'))).sort()
+      : []
+
+    return { grid: counts, perProjectGrid: ppGrid, maxCount: m || 1, eventsByCell: map, dayTotals: totals, sortedSlugs: slugs }
+  }, [events, projectColorMap])
 
   // ── Mouse tracking for raycasting ──────────────────────────────────────
   const handleMouseMove = useCallback((e: MouseEvent) => {
@@ -216,61 +239,123 @@ export function ActivityHeatmap3D({
     const barGeo = new THREE.BoxGeometry(0.85, 1, 0.85)
     barGeo.translate(0, 0.5, 0) // bottom at y=0
 
+    const isMultiProject = !!projectColorMap && sortedSlugs.length > 1
+
     for (let day = 0; day < 7; day++) {
       for (let hour = 0; hour < 24; hour++) {
         const count = grid[day][hour]
         const t = count / maxCount // 0→1
-
-        const barHeight = count === 0 ? 0.12 : 0.25 + t * 7
+        const totalBarHeight = count === 0 ? 0.12 : 0.25 + t * 7
         const isEmpty = count === 0
 
-        // ── Glass material — all bars are tinted cyan, ALL visible ──
-        // Empty cells: still visible as dim glass stubs
-        // Active cells: intensity drives opacity & glow
-        const opacity = isEmpty ? 0.25 : 0.4 + t * 0.5
-        const transmission = isEmpty ? 0.8 : Math.max(0.05, 0.55 - t * 0.5)
-        const emissiveIntensity = isEmpty ? 0.05 : 0.1 + t * 0.45
+        if (isMultiProject && !isEmpty) {
+          // ── STACKED BARS: one segment per project, stacked vertically ──
+          const cell = perProjectGrid[day][hour]
+          let yOffset = 0
 
-        // Color: all cyan-tinted — empty=dark teal, active=bright cyan
-        const barColor = new THREE.Color().lerpColors(
-          new THREE.Color(0x155e75), // darker teal (but still visible)
-          CYAN,
-          isEmpty ? 0.15 : Math.max(0.3, t),
-        )
+          for (const slug of sortedSlugs) {
+            const segCount = cell.get(slug) || 0
+            if (segCount === 0) continue
 
-        const mat = new THREE.MeshPhysicalMaterial({
-          color: barColor,
-          emissive: CYAN.clone(),
-          emissiveIntensity,
-          transparent: true,
-          opacity,
-          transmission,
-          roughness: 0.15,
-          metalness: 0.0,
-          thickness: 0.8,
-          ior: 1.4,
-          envMapIntensity: 0.5,
-          side: THREE.DoubleSide,
-        })
+            const segRatio = segCount / count
+            const segHeight = totalBarHeight * segRatio
+            const segT = segCount / maxCount
 
-        const bar = new THREE.Mesh(barGeo, mat)
-        bar.position.set(hour, 0, day)
-        bar.scale.y = barHeight
-        bar.castShadow = !isEmpty
-        bar.receiveShadow = true
+            // Use project color from the map
+            const projectHex = projectColorMap!.get(slug) || '#64748B'
+            const projectColor = new THREE.Color(projectHex)
+            const darkColor = projectColor.clone().multiplyScalar(0.4)
 
-        bar.userData = {
-          day,
-          hour,
-          count,
-          intensity: t,
-          baseEmissive: emissiveIntensity,
-          baseScaleY: barHeight,
-          baseOpacity: opacity,
+            const opacity = 0.5 + segT * 0.45
+            const transmission = Math.max(0.05, 0.45 - segT * 0.4)
+            const emissiveIntensity = 0.15 + segT * 0.4
+
+            const barColor = new THREE.Color().lerpColors(darkColor, projectColor, Math.max(0.4, segT))
+
+            const mat = new THREE.MeshPhysicalMaterial({
+              color: barColor,
+              emissive: projectColor.clone(),
+              emissiveIntensity,
+              transparent: true,
+              opacity,
+              transmission,
+              roughness: 0.15,
+              metalness: 0.0,
+              thickness: 0.8,
+              ior: 1.4,
+              envMapIntensity: 0.5,
+              side: THREE.DoubleSide,
+            })
+
+            const seg = new THREE.Mesh(barGeo, mat)
+            seg.position.set(hour, yOffset, day)
+            seg.scale.y = segHeight
+            seg.castShadow = true
+            seg.receiveShadow = true
+
+            seg.userData = {
+              day,
+              hour,
+              count,
+              segCount,
+              projectSlug: slug,
+              intensity: t,
+              baseEmissive: emissiveIntensity,
+              baseScaleY: segHeight,
+              baseOpacity: opacity,
+              baseY: yOffset,
+            }
+
+            scene.add(seg)
+            bars.push(seg)
+            yOffset += segHeight
+          }
+        } else {
+          // ── SINGLE BAR (mono-project or empty cell) ──
+          const opacity = isEmpty ? 0.25 : 0.4 + t * 0.5
+          const transmission = isEmpty ? 0.8 : Math.max(0.05, 0.55 - t * 0.5)
+          const emissiveIntensity = isEmpty ? 0.05 : 0.1 + t * 0.45
+
+          const barColor = new THREE.Color().lerpColors(
+            new THREE.Color(0x155e75),
+            CYAN,
+            isEmpty ? 0.15 : Math.max(0.3, t),
+          )
+
+          const mat = new THREE.MeshPhysicalMaterial({
+            color: barColor,
+            emissive: CYAN.clone(),
+            emissiveIntensity,
+            transparent: true,
+            opacity,
+            transmission,
+            roughness: 0.15,
+            metalness: 0.0,
+            thickness: 0.8,
+            ior: 1.4,
+            envMapIntensity: 0.5,
+            side: THREE.DoubleSide,
+          })
+
+          const bar = new THREE.Mesh(barGeo, mat)
+          bar.position.set(hour, 0, day)
+          bar.scale.y = totalBarHeight
+          bar.castShadow = !isEmpty
+          bar.receiveShadow = true
+
+          bar.userData = {
+            day,
+            hour,
+            count,
+            intensity: t,
+            baseEmissive: emissiveIntensity,
+            baseScaleY: totalBarHeight,
+            baseOpacity: opacity,
+          }
+
+          scene.add(bar)
+          bars.push(bar)
         }
-
-        scene.add(bar)
-        bars.push(bar)
       }
     }
 
@@ -387,7 +472,7 @@ export function ActivityHeatmap3D({
           // Project 3D → screen for tooltip
           const pos = new THREE.Vector3()
           pos.copy(hit.position)
-          pos.y = hit.scale.y + 0.5
+          pos.y = (hit.userData.baseY ?? 0) + hit.scale.y + 0.5
           pos.project(camera)
 
           const rect = container.getBoundingClientRect()
@@ -434,7 +519,7 @@ export function ActivityHeatmap3D({
         container.removeChild(renderer.domElement)
       }
     }
-  }, [grid, maxCount, eventsByCell, dayTotals, handleMouseMove, handleMouseLeave])
+  }, [grid, perProjectGrid, maxCount, eventsByCell, dayTotals, sortedSlugs, projectColorMap, handleMouseMove, handleMouseLeave])
 
   return (
     <div className="relative">
@@ -464,19 +549,63 @@ export function ActivityHeatmap3D({
               </span>
             </div>
             <div className="space-y-1">
-              {tooltip.events.slice(0, 4).map((ev) => (
-                <div key={ev.id} className="flex items-center gap-1.5">
-                  <div
-                    className="w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{ backgroundColor: EVENT_COLORS[ev.type] }}
-                  />
-                  <span className="text-[9px] text-slate-400 truncate">{ev.label}</span>
-                </div>
-              ))}
-              {tooltip.events.length > 4 && (
-                <span className="text-[8px] text-slate-600">
-                  +{tooltip.events.length - 4} more
-                </span>
+              {projectColorMap ? (
+                // Group by project for workspace mode
+                (() => {
+                  const byProject = new Map<string, TimelineEvent[]>()
+                  for (const ev of tooltip.events) {
+                    const key = ev.projectName || ev.projectSlug || 'Global'
+                    const arr = byProject.get(key) || []
+                    arr.push(ev)
+                    byProject.set(key, arr)
+                  }
+                  return Array.from(byProject.entries()).map(([projName, evts]) => (
+                    <div key={projName} className="mb-1 last:mb-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <div
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{
+                            backgroundColor: evts[0]?.projectSlug
+                              ? projectColorMap.get(evts[0].projectSlug) || '#6B7280'
+                              : '#64748B',
+                          }}
+                        />
+                        <span className="text-[9px] font-medium text-slate-300">{projName}</span>
+                        <span className="text-[8px] text-slate-600">({evts.length})</span>
+                      </div>
+                      {evts.slice(0, 2).map((ev) => (
+                        <div key={ev.id} className="flex items-center gap-1.5 ml-3.5">
+                          <div
+                            className="w-1 h-1 rounded-full shrink-0"
+                            style={{ backgroundColor: EVENT_COLORS[ev.type] }}
+                          />
+                          <span className="text-[8px] text-slate-500 truncate">{ev.label}</span>
+                        </div>
+                      ))}
+                      {evts.length > 2 && (
+                        <span className="text-[7px] text-slate-600 ml-3.5">+{evts.length - 2} more</span>
+                      )}
+                    </div>
+                  ))
+                })()
+              ) : (
+                // Single project mode
+                <>
+                  {tooltip.events.slice(0, 4).map((ev) => (
+                    <div key={ev.id} className="flex items-center gap-1.5">
+                      <div
+                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: EVENT_COLORS[ev.type] }}
+                      />
+                      <span className="text-[9px] text-slate-400 truncate">{ev.label}</span>
+                    </div>
+                  ))}
+                  {tooltip.events.length > 4 && (
+                    <span className="text-[8px] text-slate-600">
+                      +{tooltip.events.length - 4} more
+                    </span>
+                  )}
+                </>
               )}
             </div>
           </div>

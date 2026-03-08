@@ -1,14 +1,25 @@
-import { useEffect, useState, useCallback } from 'react'
+import { lazy, Suspense, useEffect, useState, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, FormDialog, LinkEntityDialog, ProgressBar, PageHeader, SectionNav, ConfirmDialog, StatCard, MilestoneStatusBadge } from '@/components/ui'
-import { Box, Flag, FileText, Cpu } from 'lucide-react'
+import { Box, Flag, FileText, Cpu, Brain, Network, AlertTriangle, Loader2, X, Calendar } from 'lucide-react'
 import { workspacesApi, projectsApi } from '@/services'
 import { useFormDialog, useLinkDialog, useToast, useConfirmDialog, useSectionObserver, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { workspaceRefreshAtom, projectRefreshAtom, milestoneRefreshAtom, taskRefreshAtom } from '@/atoms'
 import { CreateMilestoneForm, CreateResourceForm, CreateComponentForm } from '@/components/forms'
+import {
+  IntelHealthBreakdown,
+  IntelLayerCards,
+  IntelSkillsCard,
+  IntelAttention,
+} from '@/components/intelligence/IntelligenceDashboard'
+import { useWorkspaceIntelligenceData } from '@/components/intelligence/useWorkspaceIntelligenceData'
 import type { Workspace, Project, WorkspaceMilestone, Resource, Component, MilestoneProgress } from '@/types'
+
+// Lazy-load heavy intelligence components
+const WorkspaceGraphPage = lazy(() => import('@/components/intelligence/WorkspaceGraphPage'))
+const WorkspaceLearningTimeline = lazy(() => import('@/components/intelligence/WorkspaceLearningTimeline'))
 
 // API response structure
 interface WorkspaceOverviewResponse {
@@ -41,6 +52,10 @@ export function WorkspaceDetailPage() {
   const [overallProgress, setOverallProgress] = useState<{ completed_tasks: number; total_tasks: number; percentage: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Intelligence sub-view state
+  type IntelSubView = 'graph' | 'timeline' | null
+  const [intelSubView, setIntelSubView] = useState<IntelSubView>('graph')
 
   const fetchData = useCallback(async () => {
     if (!slug) return
@@ -110,7 +125,11 @@ export function WorkspaceDetailPage() {
     },
   })
 
-  const sectionIds = ['overview', 'projects', 'milestones', 'resources', 'components']
+  // Workspace intelligence data (aggregated across all projects)
+  const intelligence = useWorkspaceIntelligenceData(slug ?? '')
+  const intelReady = !intelligence.loading && !intelligence.error && !!intelligence.summary
+
+  const sectionIds = ['overview', 'intelligence', 'projects', 'milestones', 'resources', 'components']
   const activeSection = useSectionObserver(sectionIds)
 
   if (error) return <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
@@ -118,6 +137,7 @@ export function WorkspaceDetailPage() {
 
   const sections = [
     { id: 'overview', label: 'Overview' },
+    { id: 'intelligence', label: 'Intelligence' },
     { id: 'projects', label: 'Projects', count: projects.length },
     { id: 'milestones', label: 'Milestones', count: milestones.length },
     { id: 'resources', label: 'Resources', count: resources.length },
@@ -166,14 +186,110 @@ export function WorkspaceDetailPage() {
             </CardContent>
           </Card>
         )}
+      </section>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-6">
-          <StatCard icon={<Box className="w-5 h-5" />} label="Projects" value={projects.length} accent="border-indigo-500" />
-          <StatCard icon={<Flag className="w-5 h-5" />} label="Milestones" value={milestones.length} accent="border-purple-500" delay={100} />
-          <StatCard icon={<FileText className="w-5 h-5" />} label="Resources" value={resources.length} accent="border-cyan-500" delay={200} />
-          <StatCard icon={<Cpu className="w-5 h-5" />} label="Components" value={components.length} accent="border-amber-500" delay={300} />
+      {/* Intelligence */}
+      <section id="intelligence" className="scroll-mt-20 space-y-4">
+        {/* Sub-view switcher */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIntelSubView(intelSubView === 'graph' ? null : 'graph')}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+              intelSubView === 'graph'
+                ? 'bg-blue-500/20 text-blue-300 ring-1 ring-blue-500/40'
+                : 'text-blue-400 hover:bg-blue-500/10'
+            }`}
+          >
+            <Network size={13} />
+            Graph
+          </button>
+          <button
+            onClick={() => setIntelSubView(intelSubView === 'timeline' ? null : 'timeline')}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+              intelSubView === 'timeline'
+                ? 'bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/40'
+                : 'text-violet-400 hover:bg-violet-500/10'
+            }`}
+          >
+            <Calendar size={13} />
+            Timeline
+          </button>
+          {intelSubView && (
+            <button
+              onClick={() => setIntelSubView(null)}
+              className="ml-1 p-1 rounded-md text-slate-500 hover:text-slate-300 hover:bg-white/[0.06] transition-colors"
+              title="Close view"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
+
+        {/* Inline graph sub-view */}
+        {intelSubView === 'graph' && (
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+            </div>
+          }>
+            <WorkspaceGraphPage workspaceSlug={slug!} embedded />
+          </Suspense>
+        )}
+
+        {/* Inline timeline sub-view */}
+        {intelSubView === 'timeline' && (
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+            </div>
+          }>
+            <WorkspaceLearningTimeline workspaceSlug={slug!} embedded />
+          </Suspense>
+        )}
+
+        {/* Intelligence loading/error/empty states */}
+        {intelligence.loading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+          </div>
+        )}
+        {intelligence.error && (
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <AlertTriangle className="w-8 h-8 text-amber-500 mb-3" />
+            <p className="text-sm text-slate-400 mb-3">{intelligence.error}</p>
+            <button
+              onClick={intelligence.handleRefresh}
+              className="text-xs text-cyan-400 hover:text-cyan-300 underline underline-offset-2"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+        {!intelligence.loading && !intelligence.error && !intelligence.summary && (
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <Brain className="w-8 h-8 text-slate-600 mb-3" />
+            <p className="text-sm text-slate-500">No intelligence data available. Sync your projects first.</p>
+          </div>
+        )}
+
+        {/* Dashboard sections (composable) */}
+        {intelReady && (
+          <>
+            <IntelHealthBreakdown data={intelligence} />
+
+            {/* Stats (workspace counts) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+              <StatCard icon={<Box className="w-5 h-5" />} label="Projects" value={projects.length} accent="border-indigo-500" />
+              <StatCard icon={<Flag className="w-5 h-5" />} label="Milestones" value={milestones.length} accent="border-purple-500" delay={100} />
+              <StatCard icon={<FileText className="w-5 h-5" />} label="Resources" value={resources.length} accent="border-cyan-500" delay={200} />
+              <StatCard icon={<Cpu className="w-5 h-5" />} label="Components" value={components.length} accent="border-amber-500" delay={300} />
+            </div>
+
+            <IntelLayerCards data={intelligence} />
+            <IntelSkillsCard data={intelligence} />
+            <IntelAttention data={intelligence} />
+          </>
+        )}
       </section>
 
       {/* Projects */}

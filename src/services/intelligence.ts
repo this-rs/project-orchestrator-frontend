@@ -2,6 +2,8 @@ import { api, buildQuery } from './api'
 import type {
   IntelligenceSummary,
   ProjectGraphResponse,
+  WorkspaceGraphResponse,
+  WorkspaceIntelligenceSummary,
   EmbeddingsProjectionResponse,
   ProtocolDetailApi,
   ProtocolRunApi,
@@ -103,4 +105,33 @@ export const intelligenceApi = {
       `/projects/${projectSlug}/graph${query}`,
     )
   },
+
+  // ---- Workspace-level endpoints (aggregated multi-project) ----
+
+  // Workspace graph (aggregated across all workspace projects)
+  // GET /api/workspaces/:slug/graph?layers=code,knowledge&limit=5000
+  getWorkspaceGraph: (
+    workspaceSlug: string,
+    params: {
+      layers?: string[]
+      limit?: number
+      community?: number
+    } = {},
+  ) => {
+    const query = buildQuery({
+      layers: params.layers?.join(','),
+      limit: params.limit,
+      community: params.community,
+    })
+    return api.get<WorkspaceGraphResponse>(
+      `/workspaces/${workspaceSlug}/graph${query}`,
+    )
+  },
+
+  // Workspace intelligence summary (aggregated across all workspace projects)
+  // GET /api/workspaces/:slug/intelligence/summary
+  getWorkspaceSummary: (workspaceSlug: string) =>
+    api.get<WorkspaceIntelligenceSummary>(
+      `/workspaces/${workspaceSlug}/intelligence/summary`,
+    ),
 }

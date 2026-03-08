@@ -403,6 +403,43 @@ export interface ProjectGraphResponse {
 }
 
 // ============================================================================
+// WORKSPACE GRAPH (from backend GET /api/workspaces/:slug/graph)
+// ============================================================================
+
+export interface ProjectGraphMeta {
+  id: string
+  name: string
+  slug: string
+  node_count: number
+  edge_count: number
+}
+
+export interface WorkspaceGraphResponse {
+  projects: ProjectGraphMeta[]
+  nodes: BackendGraphNode[]
+  edges: BackendGraphEdge[]
+  communities: BackendGraphCommunity[]
+  stats: Record<string, BackendLayerStats>
+  cross_project_edges: BackendGraphEdge[]
+}
+
+// ============================================================================
+// WORKSPACE INTELLIGENCE SUMMARY (aggregated across projects)
+// ============================================================================
+
+export interface ProjectIntelligenceSummary {
+  project_id: string
+  project_name: string
+  project_slug: string
+  summary: IntelligenceSummary
+}
+
+export interface WorkspaceIntelligenceSummary {
+  aggregated: IntelligenceSummary
+  per_project: ProjectIntelligenceSummary[]
+}
+
+// ============================================================================
 // PROTOCOL (Pattern Federation) — API response types
 // ============================================================================
 
