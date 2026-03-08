@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
@@ -35,8 +36,6 @@ import {
 } from '@/atoms/intelligence'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { useWindowFullscreen } from '@/hooks/useWindowFullscreen'
-import { isTauri } from '@/services/env'
 import type { IntelligenceNode, IntelligenceEdge, IntelligenceLayer } from '@/types/intelligence'
 
 // ── Entity legend data ──────────────────────────────────────────────────────
@@ -141,40 +140,27 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   // Protocol run events — update runStatus overlay on ProtocolNodes
   useProtocolRunEvents()
 
-  // Fullscreen
+  // Graph-level fullscreen (fills the app window, NOT OS fullscreen)
   const containerRef = useRef<HTMLDivElement>(null)
-  const [browserFs, setBrowserFs] = useState(false)
-  const tauriFs = useWindowFullscreen()
-  const isFullscreen = isTauri ? tauriFs : browserFs
+  const [isFullscreen, setIsFullscreen] = useState(false)
   // Custom mode — shows LayerControls panel
   const [showCustomPanel, setShowCustomPanel] = useState(false)
   // Inspector collapsed
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false)
 
-  const toggleFullscreen = useCallback(async () => {
-    if (isTauri) {
-      try {
-        const { getCurrentWindow } = await import('@tauri-apps/api/window')
-        const win = getCurrentWindow()
-        const current = await win.isFullscreen()
-        await win.setFullscreen(!current)
-      } catch { /* fallback: no-op */ }
-    } else {
-      if (!containerRef.current) return
-      if (!document.fullscreenElement) {
-        containerRef.current.requestFullscreen().then(() => setBrowserFs(true)).catch(() => {})
-      } else {
-        document.exitFullscreen().then(() => setBrowserFs(false)).catch(() => {})
-      }
-    }
+  const toggleFullscreen = useCallback(() => {
+    setIsFullscreen((v) => !v)
   }, [])
 
+  // Escape key exits graph fullscreen
   useEffect(() => {
-    if (isTauri) return
-    const onFsChange = () => setBrowserFs(!!document.fullscreenElement)
-    document.addEventListener('fullscreenchange', onFsChange)
-    return () => document.removeEventListener('fullscreenchange', onFsChange)
-  }, [])
+    if (!isFullscreen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFullscreen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isFullscreen])
 
   // ── Local node state for drag persistence (2D mode) ─────────────────────
   const [nodes, setLocalNodes] = useState<IntelligenceNode[]>([])
@@ -301,18 +287,19 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   const showError = !!error && !hasData
   const showEmpty = !loading && !error && !hasData
 
-  return (
+  // ── Graph content (shared between inline and fullscreen portal) ──────────
+  const graphContent = (
     <div
       ref={containerRef}
-      className={`relative bg-[#0f172a] ${
+      className={`overflow-hidden bg-[#0f172a] ${
         isFullscreen
-          ? 'w-screen bg-slate-950'
-          : props.embedded
-            ? 'w-full'
-            : '-mx-4 md:-mx-6 -mb-2' /* no w-full: auto width + negative margins = full bleed */
+          ? 'fixed inset-0 z-[9999] bg-slate-950'
+          : `relative ${props.embedded ? 'w-full' : '-mx-4 md:-mx-6 -mb-2'}`
       }`}
       style={{
-        height: props.embedded && !isFullscreen ? '600px' : isFullscreen ? '100vh' : 'calc(100dvh - 5rem)',
+        ...(!isFullscreen && {
+          height: props.embedded ? '600px' : 'calc(100dvh - 5rem)',
+        }),
       }}
     >
       {/* 2D-only CSS (synapse animations, dark theme overrides) */}
@@ -582,6 +569,10 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
               )
             })}
         </div>
+        {/* Branding */}
+        <span className="text-[9px] text-slate-600 tracking-wide pointer-events-none pl-1">
+          Made by Freedom From Scratch
+        </span>
       </div>
 
       {/* Keyboard shortcut hint (bottom-center) — prominent CTA, hidden when search is open */}
@@ -597,4 +588,12 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
       </button>}
     </div>
   )
+
+  // In fullscreen, render via portal to escape MainLayout stacking context
+  // (sidebar, header, chat panel all create stacking contexts that trap z-index)
+  if (isFullscreen) {
+    return createPortal(graphContent, document.body)
+  }
+
+  return graphContent
 }

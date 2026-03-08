@@ -57,6 +57,9 @@ export const visibilityModeAtom = atom<VisibilityMode>('code_only')
 /** Hovered entity type from the legend — highlights matching nodes on the canvas */
 export const legendHoveredTypeAtom = atom<string | null>(null)
 
+/** Hovered project slug from the project filter bar — illuminates matching nodes */
+export const hoveredProjectSlugAtom = atom<string | null>(null)
+
 // ── Graph data ───────────────────────────────────────────────────────────────
 
 /** All nodes in the current graph */

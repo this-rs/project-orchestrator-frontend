@@ -144,7 +144,7 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
 
   // Workspace-specific: project metadata + per-project filter
   const [projectMetas, setProjectMetas] = useState<ProjectGraphMeta[]>([])
-  const [activeProjectFilter, setActiveProjectFilter] = useState<string | null>(null)
+  const [activeProjectFilters, setActiveProjectFilters] = useState<Set<string>>(new Set())
 
   const fetchedLayersRef = useRef<Set<string>>(new Set())
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -254,7 +254,7 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
     setNodes([])
     setEdges([])
     setProjectMetas([])
-    setActiveProjectFilter(null)
+    setActiveProjectFilters(new Set())
     const layers = Array.from(visibleLayers) as string[]
 
     const primary = layers.filter((l) => l === 'code' || l === 'fabric')
@@ -343,24 +343,24 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
   const prevNodeFingerprintRef = useRef('')
   const hasLayoutedOnceRef = useRef(false)
 
-  // Filter nodes by project if a filter is active
+  // Filter nodes by project(s) if any filters are active
   // IMPORTANT: useMemo prevents new array refs every render which would cause
   // the layout useEffect to re-fire infinitely → Context Lost loop
   const filteredNodes = useMemo(
-    () => activeProjectFilter
+    () => activeProjectFilters.size > 0
       ? visibleNodes.filter((n) => {
           const slug = (n.data as { projectSlug?: string }).projectSlug
-          return slug === activeProjectFilter
+          return slug ? activeProjectFilters.has(slug) : false
         })
       : visibleNodes,
-    [activeProjectFilter, visibleNodes],
+    [activeProjectFilters, visibleNodes],
   )
 
   const filteredEdges = useMemo(() => {
-    if (!activeProjectFilter) return visibleEdges
+    if (activeProjectFilters.size === 0) return visibleEdges
     const nodeIds = new Set(filteredNodes.map((n) => n.id))
     return visibleEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target))
-  }, [activeProjectFilter, filteredNodes, visibleEdges])
+  }, [activeProjectFilters, filteredNodes, visibleEdges])
 
   useEffect(() => {
     if (filteredNodes.length === 0) {
@@ -473,7 +473,7 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
     fetchSummary,
     // Workspace-specific
     projectMetas,
-    activeProjectFilter,
-    setActiveProjectFilter,
+    activeProjectFilters,
+    setActiveProjectFilters,
   }
 }

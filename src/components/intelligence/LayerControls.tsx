@@ -20,7 +20,10 @@ import {
   SlidersHorizontal,
   Workflow,
   Hexagon,
+  X,
+  LayoutGrid,
 } from 'lucide-react'
+import { PROJECT_COLORS } from '@/constants/intelligence'
 
 const presetIcons: Record<string, typeof Layers> = {
   Code2,
@@ -32,6 +35,12 @@ const presetIcons: Record<string, typeof Layers> = {
   Workflow,
 }
 
+export interface ProjectMeta {
+  slug: string
+  name: string
+  node_count: number
+}
+
 interface LayerControlsProps {
   visibleLayers: Set<IntelligenceLayer>
   onToggleLayer: (layer: IntelligenceLayer) => void
@@ -40,6 +49,11 @@ interface LayerControlsProps {
   customMode: boolean
   /** Toggle custom mode on/off */
   onToggleCustom: () => void
+  /** Workspace project list for view buttons */
+  projectMetas?: ProjectMeta[]
+  activeProjectFilters?: Set<string>
+  onToggleProjectFilter?: (slug: string) => void
+  onClearProjectFilters?: () => void
 }
 
 function LayerControlsComponent({
@@ -48,6 +62,10 @@ function LayerControlsComponent({
   onApplyPreset,
   customMode,
   onToggleCustom,
+  projectMetas,
+  activeProjectFilters,
+  onToggleProjectFilter,
+  onClearProjectFilters,
 }: LayerControlsProps) {
   const [heatmapEnabled, setHeatmapEnabled] = useAtom(energyHeatmapAtom)
   const [touchesEnabled, setTouchesEnabled] = useAtom(touchesHeatmapAtom)
@@ -58,6 +76,8 @@ function LayerControlsComponent({
   const activeMode = useAtomValue(visibilityModeAtom)
   const [showAllEdges, setShowAllEdges] = useAtom(showAllEdgesAtom)
   const hiddenEdgeCount = useAtomValue(hiddenEdgeCountAtom)
+
+  const hasFilters = activeProjectFilters ? activeProjectFilters.size > 0 : false
 
   return (
     <div className="absolute top-3 left-3 z-40 flex flex-col gap-2">
@@ -110,6 +130,59 @@ function LayerControlsComponent({
           {showAllEdges ? 'All Edges' : `Edges${hiddenEdgeCount > 0 ? ` (${hiddenEdgeCount})` : ''}`}
         </button>
       </div>
+
+      {/* ── View buttons — workspace project views ───── */}
+      {projectMetas && projectMetas.length > 1 && onToggleProjectFilter && onClearProjectFilters && (
+        <div className="flex items-center gap-1 rounded-lg bg-slate-900/90 backdrop-blur-sm border border-slate-700 p-1 self-start">
+          <LayoutGrid size={11} className="text-slate-500 shrink-0 ml-0.5" />
+          <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider px-0.5 shrink-0">Views</span>
+          <div className="w-px h-4 bg-slate-700/60 shrink-0" />
+          {/* "All" button */}
+          <button
+            onClick={onClearProjectFilters}
+            className={`flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-all whitespace-nowrap ${
+              !hasFilters
+                ? 'bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/40'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+            }`}
+            title="Show all projects"
+          >
+            All
+          </button>
+          {/* Per-project buttons */}
+          {projectMetas.map((p, i) => {
+            const color = PROJECT_COLORS[i % PROJECT_COLORS.length]
+            const isActive = activeProjectFilters?.has(p.slug) ?? false
+            return (
+              <button
+                key={p.slug}
+                onClick={() => onToggleProjectFilter(p.slug)}
+                className={`flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-all whitespace-nowrap ${
+                  isActive
+                    ? 'bg-slate-700/70 text-white ring-1 ring-slate-500/50'
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                }`}
+                title={`${p.name} (${p.node_count} nodes)${isActive ? ' — click to deselect' : ''}`}
+              >
+                <span
+                  className="w-2 h-2 rounded-full shrink-0 transition-opacity"
+                  style={{ backgroundColor: color, opacity: isActive || !hasFilters ? 1 : 0.35 }}
+                />
+                {p.name}
+              </button>
+            )
+          })}
+          {hasFilters && (
+            <button
+              onClick={onClearProjectFilters}
+              className="flex items-center shrink-0 rounded-md p-0.5 text-amber-400 hover:text-amber-300 transition-colors"
+              title="Clear all filters"
+            >
+              <X size={10} />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ── Detail panels — only visible in Custom mode ─────────────── */}
       {customMode && (

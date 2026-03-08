@@ -22,6 +22,7 @@ import {
   touchesHeatmapAtom,
   showCommunityHullsAtom,
   legendHoveredTypeAtom,
+  hoveredProjectSlugAtom,
 } from '@/atoms/intelligence'
 import { activationStateAtom } from '../SpreadingActivation'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
@@ -83,7 +84,7 @@ type GraphRef = any // ForceGraph3D ref methods are dynamically extended
 export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3DProps) {
   const graphRef = useRef<GraphRef>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
-  const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
 
   const selectedNodeId = useAtomValue(selectedNodeIdAtom)
   const setSelectedNodeId = useSetAtom(selectedNodeIdAtom)
@@ -94,6 +95,7 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
   const touchesHeatmap = useAtomValue(touchesHeatmapAtom)
   const showCommunityHulls = useAtomValue(showCommunityHullsAtom)
   const legendHoveredType = useAtomValue(legendHoveredTypeAtom)
+  const hoveredProjectSlug = useAtomValue(hoveredProjectSlugAtom)
 
   const { transformToGraph3D, savePositions } = useGraph3DLayout()
 
@@ -735,26 +737,13 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
   // ── Legend hover — illuminate nodes matching the hovered entity type ─────
   // Same ref-tracked pattern: save originals, mutate, restore on hover off.
   const legendDirtyRef = useRef<Map<THREE.MeshLambertMaterial, { emissive: string; emissiveIntensity: number; opacity: number }>>(new Map())
+  const legendScaledRef = useRef<Map<THREE.Object3D, THREE.Vector3>>(new Map())
 
   useEffect(() => {
     const lDirty = legendDirtyRef.current
+    const lScaled = legendScaledRef.current
 
-    // Skip if other overlays are active (activation or heatmaps take priority)
-    if (activationPhase !== 'idle' && activationPhase !== 'searching') {
-      if (lDirty.size > 0) {
-        for (const [mat, orig] of lDirty) {
-          mat.emissive = new THREE.Color(orig.emissive)
-          mat.emissiveIntensity = orig.emissiveIntensity
-          mat.opacity = orig.opacity
-          mat.needsUpdate = true
-        }
-        lDirty.clear()
-      }
-      return
-    }
-
-    // ── DEACTIVATION: restore all legend-modified materials ──
-    if (!legendHoveredType) {
+    const restoreLegend = () => {
       for (const [mat, orig] of lDirty) {
         mat.emissive = new THREE.Color(orig.emissive)
         mat.emissiveIntensity = orig.emissiveIntensity
@@ -762,6 +751,21 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
         mat.needsUpdate = true
       }
       lDirty.clear()
+      for (const [obj, origScale] of lScaled) {
+        obj.scale.copy(origScale)
+      }
+      lScaled.clear()
+    }
+
+    // Skip if other overlays are active (activation or heatmaps take priority)
+    if (activationPhase !== 'idle' && activationPhase !== 'searching') {
+      restoreLegend()
+      return
+    }
+
+    // ── DEACTIVATION: restore all legend-modified materials ──
+    if (!legendHoveredType) {
+      restoreLegend()
       return
     }
 
@@ -783,21 +787,98 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
             })
           }
           if (isMatch) {
-            // Bright glow for matching type
             const color = ENTITY_COLORS[node.entityType as keyof typeof ENTITY_COLORS] ?? '#6B7280'
             mat.emissive = new THREE.Color(color)
-            mat.emissiveIntensity = 0.8
+            mat.emissiveIntensity = 1.5
             mat.opacity = 1.0
           } else {
-            // Dim non-matching nodes
-            mat.emissiveIntensity = 0.05
-            mat.opacity = 0.15
+            mat.emissive = new THREE.Color('#000000')
+            mat.emissiveIntensity = 0
+            mat.opacity = 0.08
           }
           mat.needsUpdate = true
         }
       })
+
+      // Scale boost for matched nodes, shrink for others
+      if (!lScaled.has(obj)) {
+        lScaled.set(obj, obj.scale.clone())
+      }
+      if (isMatch) {
+        obj.scale.setScalar(1.6)
+      } else {
+        obj.scale.setScalar(0.5)
+      }
     }
   }, [legendHoveredType, graphData.nodes, activationPhase])
+
+  // ── Project hover highlight — illuminate nodes belonging to hovered project ──
+  const projectDirtyRef = useRef<Map<THREE.MeshLambertMaterial, { emissive: string; emissiveIntensity: number; opacity: number }>>(new Map())
+
+  useEffect(() => {
+    if (!graphRef.current) return
+    const pDirty = projectDirtyRef.current
+
+    const restoreAll = () => {
+      for (const [mat, orig] of pDirty) {
+        mat.emissive = new THREE.Color(orig.emissive)
+        mat.emissiveIntensity = orig.emissiveIntensity
+        mat.opacity = orig.opacity
+        mat.needsUpdate = true
+      }
+      pDirty.clear()
+    }
+
+    // Skip if legend hover or activation is active (they take priority)
+    if (legendHoveredType || (activationPhase !== 'idle' && activationPhase !== 'searching')) {
+      restoreAll()
+      return
+    }
+
+    // ── DEACTIVATION: restore all project-modified materials ──
+    if (!hoveredProjectSlug) {
+      restoreAll()
+      return
+    }
+
+    // ── ACTIVE: subtle glow for hovered project, gentle dim for others ──
+    for (const node of graphData.nodes) {
+      const obj = (node as Graph3DNode & { __threeObj?: THREE.Object3D }).__threeObj
+      if (!obj) continue
+
+      // projectSlug (camelCase from hook mapping) or project_slug (snake_case from backend spread)
+      const nodeProjectSlug = (node.data.projectSlug ?? node.data.project_slug) as string | undefined
+      // Nodes without a project (global notes, workspace-level entities) stay neutral
+      if (!nodeProjectSlug) continue
+      const isMatch = nodeProjectSlug === hoveredProjectSlug
+
+      obj.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshLambertMaterial) {
+          const mat = child.material
+          if (!pDirty.has(mat)) {
+            pDirty.set(mat, {
+              emissive: '#' + mat.emissive.getHexString(),
+              emissiveIntensity: mat.emissiveIntensity,
+              opacity: mat.opacity,
+            })
+          }
+          if (isMatch) {
+            // Subtle glow: gentle emissive boost, full opacity
+            const color = ENTITY_COLORS[node.entityType as keyof typeof ENTITY_COLORS] ?? '#6B7280'
+            mat.emissive = new THREE.Color(color)
+            mat.emissiveIntensity = 0.6
+            mat.opacity = 1.0
+          } else {
+            // Gentle dim: still visible but faded
+            mat.emissiveIntensity = 0.02
+            mat.opacity = 0.18
+          }
+          mat.needsUpdate = true
+        }
+      })
+      // No scale change — keeps the graph layout stable
+    }
+  }, [hoveredProjectSlug, legendHoveredType, graphData.nodes, activationPhase])
 
   // ── Spreading Activation — zoom camera to activated cluster ──────────────
   const prevActivationPhaseRef = useRef<string>('idle')
@@ -1013,9 +1094,14 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
   const emptyGraphData = useMemo(() => ({ nodes: [] as Graph3DNode[], links: [] as Graph3DLink[] }), [])
   const activeGraphData = graphData.nodes.length > 0 ? graphData : emptyGraphData
 
+  // Don't render ForceGraph3D until we have real container dimensions —
+  // passing width=0/height=0 causes Three.js to create a degenerate renderer
+  // that can produce layout artifacts when resized later.
+  const hasDimensions = dimensions.width > 0 && dimensions.height > 0
+
   return (
-    <div ref={containerRef} className="absolute inset-0 bg-[#0f172a]">
-      <ForceGraph3D<Graph3DNode, Graph3DLink>
+    <div ref={containerRef} className="absolute inset-0 overflow-hidden bg-[#0f172a]">
+      {hasDimensions && <ForceGraph3D<Graph3DNode, Graph3DLink>
         ref={graphRef}
         width={dimensions.width}
         height={dimensions.height}
@@ -1058,7 +1144,7 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
         showNavInfo={false}
         // Background
         backgroundColor="#0f172a"
-      />
+      />}
     </div>
   )
 }
