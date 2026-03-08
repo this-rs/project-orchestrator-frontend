@@ -224,8 +224,9 @@ self.onmessage = (event: MessageEvent<LayoutRequest>) => {
   // 1. Split into connected components
   const components = findConnectedComponents(nodes, edges)
 
-  // Sort: largest first (heaviest work first = better pipeline utilization)
-  components.sort((a, b) => b.nodes.length - a.nodes.length)
+  // Sort: smallest first — small clusters finish instantly and give visible
+  // progress while the large clusters (which block the thread) run last.
+  components.sort((a, b) => a.nodes.length - b.nodes.length)
 
   const total = components.length
   let nodesDone = 0

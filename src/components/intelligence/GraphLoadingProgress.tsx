@@ -69,9 +69,19 @@ function StageStatusIcon({ status }: { status: LoadingStageStatus }) {
 
 // ── Elapsed timer (RAF-based, no stale closure issues) ──────────────────────
 
+function formatMs(ms: number): string {
+  const clamped = Math.max(0, ms)
+  if (clamped < 1000) return `${Math.round(clamped)}ms`
+  return `${(clamped / 1000).toFixed(1)}s`
+}
+
 function ElapsedTimer({ startedAt, completedAt }: { startedAt?: number; completedAt?: number }) {
   const ref = useRef<HTMLSpanElement>(null)
   const rafRef = useRef<number>(0)
+
+  // Stable ref to startedAt so the RAF closure always reads the latest value
+  const startedAtRef = useRef(startedAt)
+  startedAtRef.current = startedAt
 
   useEffect(() => {
     if (!startedAt || completedAt) {
@@ -79,10 +89,14 @@ function ElapsedTimer({ startedAt, completedAt }: { startedAt?: number; complete
       return
     }
 
+    // Set initial value immediately (before first RAF tick)
+    if (ref.current) {
+      ref.current.textContent = formatMs(Date.now() - startedAt)
+    }
+
     const tick = () => {
-      if (ref.current) {
-        const ms = Date.now() - startedAt
-        ref.current.textContent = ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`
+      if (ref.current && startedAtRef.current) {
+        ref.current.textContent = formatMs(Date.now() - startedAtRef.current)
       }
       rafRef.current = requestAnimationFrame(tick)
     }
@@ -94,18 +108,17 @@ function ElapsedTimer({ startedAt, completedAt }: { startedAt?: number; complete
   if (!startedAt) return null
 
   if (completedAt) {
-    const ms = completedAt - startedAt
     return (
       <span className="text-[10px] text-slate-500 tabular-nums font-mono">
-        {ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`}
+        {formatMs(completedAt - startedAt)}
       </span>
     )
   }
 
+  // Self-closing span with NO children — React won't touch textContent,
+  // so the RAF can update it freely without React overwriting on re-render.
   return (
-    <span ref={ref} className="text-[10px] text-blue-400/80 tabular-nums font-mono">
-      0ms
-    </span>
+    <span ref={ref} className="text-[10px] text-blue-400/80 tabular-nums font-mono" />
   )
 }
 
