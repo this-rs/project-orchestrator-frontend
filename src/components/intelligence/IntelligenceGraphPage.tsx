@@ -23,6 +23,7 @@ import { NodeInspector } from './NodeInspector'
 import { LayerControls } from './LayerControls'
 import { LiveIndicator } from './LiveIndicator'
 import { SpreadingActivation, activationSearchOpenAtom, activationStateAtom } from './SpreadingActivation'
+import { GraphLoadingProgress } from './GraphLoadingProgress'
 import { ENTITY_COLORS } from '@/constants/intelligence'
 import {
   intelligenceLoadingAtom,
@@ -129,7 +130,6 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   const {
     nodes: layoutedNodes,
     edges,
-    layouting,
     allNodes,
     setSelectedNodeId,
     visibleLayers,
@@ -300,7 +300,6 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   // Determine overlay states — use allNodes (raw API data) instead of layouted nodes
   // because in 3D mode the dagre worker doesn't run, so local `nodes` stays empty.
   const hasData = allNodes.length > 0
-  const showLoading = loading && !hasData
   const showError = !!error && !hasData
   const showEmpty = !loading && !error && !hasData
 
@@ -482,21 +481,8 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
         </Suspense>
       )}
 
-      {/* ── Overlay states (rendered ON TOP of the canvas, not replacing it) ── */}
-      {showLoading && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm text-slate-400">Loading graph data…</p>
-          </div>
-        </div>
-      )}
-      {layouting && !showLoading && hasData && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/90 backdrop-blur-sm border border-slate-700 text-xs text-slate-400">
-          <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-          Computing layout…
-        </div>
-      )}
+      {/* ── Overlay states ── */}
+      <GraphLoadingProgress />
       {showError && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
           <ErrorState description={error!} onRetry={fetchGraph} />

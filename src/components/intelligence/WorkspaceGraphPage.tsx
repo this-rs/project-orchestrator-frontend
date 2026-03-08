@@ -6,6 +6,7 @@ import { useWorkspaceIntelligenceGraph } from './useWorkspaceIntelligenceGraph'
 import { NodeInspector } from './NodeInspector'
 import { LayerControls } from './LayerControls'
 import { SpreadingActivation, activationSearchOpenAtom } from './SpreadingActivation'
+import { GraphLoadingProgress } from './GraphLoadingProgress'
 import { ENTITY_COLORS, PROJECT_COLORS } from '@/constants/intelligence'
 import {
   intelligenceLoadingAtom,
@@ -74,7 +75,6 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
   const {
     nodes: layoutedNodes,
     edges,
-    layouting,
     allNodes,
     visibleLayers,
     toggleLayer,
@@ -133,7 +133,6 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
   }, [setSearchOpen])
 
   const hasData = allNodes.length > 0
-  const showLoading = loading && !hasData
   const showError = !!error && !hasData
   const showEmpty = !loading && !error && !hasData
 
@@ -220,20 +219,7 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
       </Suspense>
 
       {/* ── Overlay states ── */}
-      {showLoading && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm text-slate-400">Loading workspace graph…</p>
-          </div>
-        </div>
-      )}
-      {layouting && !showLoading && hasData && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/90 backdrop-blur-sm border border-slate-700 text-xs text-slate-400">
-          <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-          Computing layout…
-        </div>
-      )}
+      <GraphLoadingProgress />
       {showError && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
           <ErrorState description={error!} onRetry={fetchGraph} />

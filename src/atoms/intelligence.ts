@@ -13,6 +13,30 @@ import { LAYERS, LAYER_ORDER, ANIMATION, EDGE_RENDER_PRIORITY } from '@/constant
 // INTELLIGENCE VISUALIZATION — Jotai Atoms
 // ============================================================================
 
+// ── Loading stages (step-by-step progress) ──────────────────────────────────
+
+export type LoadingStageStatus = 'pending' | 'loading' | 'done' | 'error'
+
+export interface LoadingStage {
+  id: string
+  label: string
+  status: LoadingStageStatus
+  detail?: string          // e.g. "245 nodes" after done
+  startedAt?: number       // Date.now()
+  completedAt?: number
+}
+
+/** Ordered loading stages — updated by the graph hooks for step-by-step UX */
+export const graphLoadingStagesAtom = atom<LoadingStage[]>([])
+
+/** Whether the loading progress overlay should be visible */
+export const graphLoadingActiveAtom = atom<boolean>((get) => {
+  const stages = get(graphLoadingStagesAtom)
+  if (stages.length === 0) return false
+  // Active if any stage is loading or pending (not all done/error)
+  return stages.some((s) => s.status === 'loading' || s.status === 'pending')
+})
+
 // ── Layer visibility ─────────────────────────────────────────────────────────
 
 /** Which layers are currently enabled */

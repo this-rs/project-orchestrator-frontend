@@ -24,6 +24,8 @@ import {
   visibilityModeAtom,
   graphNodeLimitAtom,
   loadingLayersAtom,
+  graphLoadingStagesAtom,
+  type LoadingStage,
 } from '@/atoms/intelligence'
 import { intelligenceApi } from '@/services/intelligence'
 import { VISIBILITY_PRESETS } from '@/constants/intelligence'
@@ -133,6 +135,7 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
   const setVisibilityMode = useSetAtom(visibilityModeAtom)
   const nodeLimit = useAtomValue(graphNodeLimitAtom)
   const setLoadingLayers = useSetAtom(loadingLayersAtom)
+  const setStages = useSetAtom(graphLoadingStagesAtom)
 
   const visibleNodes = useAtomValue(visibleNodesAtom)
   const visibleEdges = useAtomValue(budgetedEdgesAtom)
@@ -144,8 +147,17 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
   const fetchedLayersRef = useRef<Set<string>>(new Set())
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // ── Stage helpers ─────────────────────────────────────────────────────────
+  const updateStage = useCallback((id: string, patch: Partial<LoadingStage>) => {
+    setStages((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)))
+  }, [setStages])
+
   // Fetch workspace graph data — only request the specified layers
-  const fetchGraphForLayers = useCallback(async (layers: string[], limit: number) => {
+  const fetchGraphForLayers = useCallback(async (
+    layers: string[],
+    limit: number,
+    stageId?: string,
+  ) => {
     if (!workspaceSlug || layers.length === 0) return
     setLoading(true)
     setError(null)
@@ -154,6 +166,7 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
       layers.forEach((l) => next.add(l))
       return next
     })
+    if (stageId) updateStage(stageId, { status: 'loading', startedAt: Date.now() })
     try {
       const data = await intelligenceApi.getWorkspaceGraph(workspaceSlug, { layers, limit })
 
@@ -162,6 +175,14 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
 
       const rfNodes = data.nodes.map(toReactFlowNode)
       const rfEdges = [...data.edges, ...data.cross_project_edges].map(toReactFlowEdge)
+
+      if (stageId) {
+        updateStage(stageId, {
+          status: 'done',
+          completedAt: Date.now(),
+          detail: `${rfNodes.length} nodes`,
+        })
+      }
 
       // Merge with existing data (incremental layer loading)
       setNodes((prev) => {
@@ -187,6 +208,7 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
     } catch (err) {
       console.error('[useWorkspaceIntelligenceGraph] fetch error:', err)
       setError(err instanceof Error ? err.message : 'Failed to load workspace graph')
+      if (stageId) updateStage(stageId, { status: 'error', completedAt: Date.now() })
     } finally {
       setLoading(false)
       setLoadingLayers((prev: Set<string>) => {
@@ -195,7 +217,7 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
         return next
       })
     }
-  }, [workspaceSlug, setNodes, setEdges, setLoading, setError, setLoadingLayers])
+  }, [workspaceSlug, setNodes, setEdges, setLoading, setError, setLoadingLayers, updateStage])
 
   const fetchGraph = useCallback(async () => {
     const layers = Array.from(visibleLayers) as string[]
@@ -207,16 +229,17 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
   const fetchSummary = useCallback(async () => {
     if (!workspaceSlug) return
     setSummaryLoading(true)
+    updateStage('fetch_summary', { status: 'loading', startedAt: Date.now() })
     try {
       const wsData = await intelligenceApi.getWorkspaceSummary(workspaceSlug)
-      // Set the aggregated summary into the shared atom (compatible with dashboard sections)
       setSummary(wsData.aggregated)
+      updateStage('fetch_summary', { status: 'done', completedAt: Date.now() })
     } catch {
-      // Summary is optional
+      updateStage('fetch_summary', { status: 'done', completedAt: Date.now(), detail: 'skipped' })
     } finally {
       setSummaryLoading(false)
     }
-  }, [workspaceSlug, setSummary, setSummaryLoading])
+  }, [workspaceSlug, setSummary, setSummaryLoading, updateStage])
 
   // Load on mount / slug change — progressive loading
   useEffect(() => {
@@ -230,12 +253,27 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
     const primary = layers.filter((l) => l === 'code' || l === 'fabric')
     const rest = layers.filter((l) => l !== 'code' && l !== 'fabric')
 
+    // Initialize loading stages
+    const stages: LoadingStage[] = []
+    if (primary.length > 0) {
+      stages.push({ id: 'fetch_primary', label: 'Fetching code & fabric layers', status: 'pending' })
+    }
+    if (rest.length > 0) {
+      stages.push({ id: 'fetch_secondary', label: `Fetching ${rest.join(', ')} layers`, status: 'pending' })
+    }
+    if (primary.length === 0 && rest.length === 0) {
+      stages.push({ id: 'fetch_data', label: 'Fetching graph data', status: 'pending' })
+    }
+    stages.push({ id: 'fetch_summary', label: 'Loading summary', status: 'pending' })
+    stages.push({ id: 'layout', label: 'Computing layout', status: 'pending' })
+    setStages(stages)
+
     if (primary.length > 0 && rest.length > 0) {
-      fetchGraphForLayers(primary, nodeLimit).then(() => {
-        fetchGraphForLayers(rest, nodeLimit)
+      fetchGraphForLayers(primary, nodeLimit, 'fetch_primary').then(() => {
+        fetchGraphForLayers(rest, nodeLimit, 'fetch_secondary')
       })
     } else {
-      fetchGraphForLayers(layers, nodeLimit)
+      fetchGraphForLayers(layers, nodeLimit, 'fetch_data')
     }
     fetchSummary()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on slug change
@@ -316,6 +354,7 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
 
     const version = ++layoutVersionRef.current
     setLayouting(true)
+    updateStage('layout', { status: 'loading', startedAt: Date.now() })
 
     const worker = getDagreWorker()
     const serializedNodes = serializeForWorker(filteredNodes)
@@ -334,6 +373,11 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
       )
       setLayoutedEdges(filteredEdges)
       setLayouting(false)
+      updateStage('layout', {
+        status: 'done',
+        completedAt: Date.now(),
+        detail: `${filteredNodes.length} nodes`,
+      })
       worker.removeEventListener('message', handler)
     }
 
@@ -343,7 +387,7 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
     return () => {
       worker.removeEventListener('message', handler)
     }
-  }, [filteredNodes, filteredEdges])
+  }, [filteredNodes, filteredEdges, updateStage])
 
   return {
     nodes: layoutedNodes,
