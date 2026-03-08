@@ -285,10 +285,15 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   return (
     <div
       ref={containerRef}
-      className={`relative w-full ${props.embedded || isFullscreen ? '' : '-mx-4 md:-mx-6 -mb-2'} ${isFullscreen ? 'bg-slate-950' : ''}`}
+      className={`relative ${
+        isFullscreen
+          ? 'w-screen bg-slate-950'
+          : props.embedded
+            ? 'w-full'
+            : '-mx-4 md:-mx-6 -mb-2' /* no w-full: auto width + negative margins = full bleed */
+      }`}
       style={{
         height: props.embedded && !isFullscreen ? '600px' : isFullscreen ? '100vh' : 'calc(100dvh - 5rem)',
-        width: isFullscreen ? '100vw' : undefined,
       }}
     >
       {/* 2D-only CSS (synapse animations, dark theme overrides) */}
