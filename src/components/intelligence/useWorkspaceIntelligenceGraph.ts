@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import type {
   IntelligenceNode,
@@ -290,17 +290,23 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
   const layoutVersionRef = useRef(0)
 
   // Filter nodes by project if a filter is active
-  const filteredNodes = activeProjectFilter
-    ? visibleNodes.filter((n) => {
-        const slug = (n.data as { projectSlug?: string }).projectSlug
-        return slug === activeProjectFilter
-      })
-    : visibleNodes
+  // IMPORTANT: useMemo prevents new array refs every render which would cause
+  // the layout useEffect to re-fire infinitely → Context Lost loop
+  const filteredNodes = useMemo(
+    () => activeProjectFilter
+      ? visibleNodes.filter((n) => {
+          const slug = (n.data as { projectSlug?: string }).projectSlug
+          return slug === activeProjectFilter
+        })
+      : visibleNodes,
+    [activeProjectFilter, visibleNodes],
+  )
 
-  const filteredNodeIds = new Set(filteredNodes.map((n) => n.id))
-  const filteredEdges = activeProjectFilter
-    ? visibleEdges.filter((e) => filteredNodeIds.has(e.source) && filteredNodeIds.has(e.target))
-    : visibleEdges
+  const filteredEdges = useMemo(() => {
+    if (!activeProjectFilter) return visibleEdges
+    const nodeIds = new Set(filteredNodes.map((n) => n.id))
+    return visibleEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target))
+  }, [activeProjectFilter, filteredNodes, visibleEdges])
 
   useEffect(() => {
     if (filteredNodes.length === 0) {
