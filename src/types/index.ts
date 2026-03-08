@@ -827,12 +827,21 @@ export interface SkillPackageMetadata {
   }
 }
 
+export interface PortableProtocol {
+  name: string
+  description: string
+  trigger_event: string
+  steps: string[]
+  tags: string[]
+}
+
 export interface SkillPackage {
   schema_version: number
   metadata: SkillPackageMetadata
   skill: PortableSkill
   notes: PortableNote[]
   decisions: PortableDecision[]
+  protocols: PortableProtocol[]
 }
 
 // --- Skill Import ---
@@ -868,6 +877,60 @@ export interface ImportSkillRequest {
   project_id: string
   package: SkillPackage
   conflict_strategy?: 'skip' | 'merge' | 'replace'
+}
+
+// --- Skill Registry ---
+
+export type TrustLevel = 'high' | 'medium' | 'low' | 'untrusted'
+
+export interface TrustComponents {
+  energy_score: number
+  cohesion_score: number
+  activation_score: number
+  success_rate_score: number
+  source_diversity_score: number
+}
+
+export interface PublishedSkillSummary {
+  id: string
+  name: string
+  description: string
+  tags: string[]
+  trust_score: number
+  trust_level: TrustLevel
+  source_project_name: string
+  published_at: string
+  note_count: number
+  protocol_count: number
+  import_count: number
+  is_remote: boolean
+  remote_url?: string | null
+}
+
+export interface PublishedSkill extends PublishedSkillSummary {
+  package: SkillPackage
+  trust_components: TrustComponents
+  source_project_id: string
+  published_by: string
+}
+
+export interface PublishSkillRequest {
+  skill_id: string
+  project_id: string
+  source_project_name?: string
+}
+
+export interface ImportFromRegistryRequest {
+  project_id: string
+  conflict_strategy?: 'skip' | 'merge' | 'replace'
+}
+
+export interface RegistrySearchParams {
+  query?: string
+  min_trust?: number
+  tags?: string
+  limit?: number
+  offset?: number
 }
 
 // --- Skill Detection ---

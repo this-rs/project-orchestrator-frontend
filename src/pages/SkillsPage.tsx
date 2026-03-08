@@ -2,9 +2,10 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { motion, AnimatePresence } from 'motion/react'
-import { Brain, Trash2, Zap, Upload, Sparkles, FileText } from 'lucide-react'
+import { Brain, Trash2, Zap, Upload, Sparkles, FileText, Globe } from 'lucide-react'
 import { skillRefreshAtom } from '@/atoms/events'
 import { skillsApi, adminApi, notesApi } from '@/services'
+import { SkillBrowser, ImportWizard } from '@/components/registry'
 import {
   Card,
   CardContent,
@@ -22,7 +23,7 @@ import {
 import { useConfirmDialog, useFormDialog, useToast, useInfiniteList, useWorkspaceSlug } from '@/hooks'
 import { CreateSkillForm, ImportSkillForm } from '@/components/forms'
 import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
-import type { Skill, SkillStatus, PaginatedResponse } from '@/types'
+import type { Skill, SkillStatus, PaginatedResponse, PublishedSkillSummary } from '@/types'
 import { workspacePath } from '@/utils/paths'
 
 // ── Filter options ──────────────────────────────────────────────────────
@@ -78,8 +79,10 @@ export function SkillsPage() {
   const wsSlug = useWorkspaceSlug()
   const reducedMotion = useReducedMotion()
 
+  const [activeTab, setActiveTab] = useState<'skills' | 'registry'>('skills')
   const [detecting, setDetecting] = useState(false)
   const [noteCount, setNoteCount] = useState<number | null>(null)
+  const [importTarget, setImportTarget] = useState<PublishedSkillSummary | null>(null)
 
   // Load projects for filter dropdown
   const [projects, setProjects] = useState<{ id: string; name: string; slug: string }[]>([])
@@ -216,30 +219,62 @@ export function SkillsPage() {
       description="Emergent knowledge clusters with activation, health and export capabilities"
       actions={
         <>
-          <Select
-            options={statusOptions}
-            value={statusFilter}
-            onChange={(v) => setStatusFilter(v as SkillStatus | 'all')}
-            className="w-full sm:w-36"
-          />
-          <Select
-            options={projectOptions}
-            value={projectFilter}
-            onChange={setProjectFilter}
-            className="w-full sm:w-44"
-          />
-          <Button variant="secondary" onClick={openImport}>
-            <Upload className="w-4 h-4 mr-1.5" />
-            Import
-          </Button>
-          <Button onClick={openCreate}>
-            <Brain className="w-4 h-4 mr-1.5" />
-            Create Skill
-          </Button>
+          {activeTab === 'skills' && (
+            <>
+              <Select
+                options={statusOptions}
+                value={statusFilter}
+                onChange={(v) => setStatusFilter(v as SkillStatus | 'all')}
+                className="w-full sm:w-36"
+              />
+              <Select
+                options={projectOptions}
+                value={projectFilter}
+                onChange={setProjectFilter}
+                className="w-full sm:w-44"
+              />
+              <Button variant="secondary" onClick={openImport}>
+                <Upload className="w-4 h-4 mr-1.5" />
+                Import
+              </Button>
+              <Button onClick={openCreate}>
+                <Brain className="w-4 h-4 mr-1.5" />
+                Create Skill
+              </Button>
+            </>
+          )}
         </>
       }
     >
-      {loading ? (
+      {/* Tab switcher */}
+      <div className="flex items-center gap-1 mb-6 border-b border-white/[0.06]">
+        <button
+          onClick={() => setActiveTab('skills')}
+          className={`px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
+            activeTab === 'skills'
+              ? 'border-indigo-500 text-white'
+              : 'border-transparent text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          <Brain className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
+          My Skills
+        </button>
+        <button
+          onClick={() => setActiveTab('registry')}
+          className={`px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
+            activeTab === 'registry'
+              ? 'border-indigo-500 text-white'
+              : 'border-transparent text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          <Globe className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
+          Browse Registry
+        </button>
+      </div>
+
+      {activeTab === 'registry' ? (
+        <SkillBrowser onImport={setImportTarget} />
+      ) : loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <SkeletonCard key={i} lines={4} />
@@ -291,6 +326,16 @@ export function SkillsPage() {
         {importForm.fields}
       </FormDialog>
       <ConfirmDialog {...confirmDialog.dialogProps} />
+      <ImportWizard
+        skill={importTarget}
+        projectId={activeProjectId ?? ''}
+        onImported={(result) => {
+          toast.success(`Skill imported (${result.notes_created} notes, ${result.decisions_imported} decisions)`)
+          setImportTarget(null)
+          if (activeTab === 'skills') reset()
+        }}
+        onClose={() => setImportTarget(null)}
+      />
     </PageShell>
   )
 }
