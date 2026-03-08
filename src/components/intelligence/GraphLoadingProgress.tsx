@@ -185,8 +185,10 @@ function GraphLoadingProgressComponent() {
                 >
                   {stage.label}
                 </span>
-                {stage.detail && stage.status === 'done' && (
-                  <span className="text-[10px] text-emerald-500/70 font-mono">
+                {stage.detail && (stage.status === 'done' || stage.status === 'loading') && (
+                  <span className={`text-[10px] font-mono ${
+                    stage.status === 'done' ? 'text-emerald-500/70' : 'text-blue-400/70'
+                  }`}>
                     {stage.detail}
                   </span>
                 )}

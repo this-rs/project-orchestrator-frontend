@@ -332,8 +332,8 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
   }, [setVisibleLayers, setVisibilityMode])
 
   // ── Async dagre layout via Web Worker ─────────────────────────────────────
-  // Posts nodes/edges to the worker, receives computed positions, applies them.
-  // Cancels stale layout requests when inputs change before completion.
+  // Posts nodes/edges to the worker, receives progress + result messages.
+  // The worker splits into connected components and reports per-component progress.
   const [layoutedNodes, setLayoutedNodes] = useState<IntelligenceNode[]>([])
   const [layoutedEdges, setLayoutedEdges] = useState<IntelligenceEdge[]>([])
   const [layouting, setLayouting] = useState(false)
@@ -355,26 +355,46 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     const serializedNodes = serializeForWorker(visibleNodes)
     const serializedEdges = visibleEdges.map((e) => ({ source: e.source, target: e.target }))
 
-    const handler = (event: MessageEvent<{ nodes: { id: string; x: number; y: number }[] }>) => {
-      // Ignore stale results from a previous layout request
+    const handler = (event: MessageEvent<{ type: string; [key: string]: unknown }>) => {
       if (version !== layoutVersionRef.current) return
+      const msg = event.data
 
-      const positionMap = new Map(event.data.nodes.map((n) => [n.id, { x: n.x, y: n.y }]))
+      if (msg.type === 'progress') {
+        const { done, total, nodesDone, nodesTotal } = msg as {
+          type: string; done: number; total: number; nodesDone: number; nodesTotal: number
+        }
+        updateStage('layout', {
+          status: 'loading',
+          detail: total > 1
+            ? `cluster ${done}/${total} · ${nodesDone}/${nodesTotal} nodes`
+            : `${nodesDone}/${nodesTotal} nodes`,
+        })
+        return
+      }
 
-      setLayoutedNodes(
-        visibleNodes.map((node) => {
-          const pos = positionMap.get(node.id)
-          return pos ? { ...node, position: pos } : node
-        }),
-      )
-      setLayoutedEdges(visibleEdges)
-      setLayouting(false)
-      updateStage('layout', {
-        status: 'done',
-        completedAt: Date.now(),
-        detail: `${visibleNodes.length} nodes`,
-      })
-      worker.removeEventListener('message', handler)
+      if (msg.type === 'result') {
+        const { nodes: resultNodes, components } = msg as {
+          type: string; nodes: { id: string; x: number; y: number }[]; components: number
+        }
+        const positionMap = new Map(resultNodes.map((n) => [n.id, { x: n.x, y: n.y }]))
+
+        setLayoutedNodes(
+          visibleNodes.map((node) => {
+            const pos = positionMap.get(node.id)
+            return pos ? { ...node, position: pos } : node
+          }),
+        )
+        setLayoutedEdges(visibleEdges)
+        setLayouting(false)
+        updateStage('layout', {
+          status: 'done',
+          completedAt: Date.now(),
+          detail: components > 1
+            ? `${visibleNodes.length} nodes · ${components} clusters`
+            : `${visibleNodes.length} nodes`,
+        })
+        worker.removeEventListener('message', handler)
+      }
     }
 
     worker.addEventListener('message', handler)

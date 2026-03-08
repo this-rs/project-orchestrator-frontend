@@ -360,25 +360,46 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
     const serializedNodes = serializeForWorker(filteredNodes)
     const serializedEdges = filteredEdges.map((e) => ({ source: e.source, target: e.target }))
 
-    const handler = (event: MessageEvent<{ nodes: { id: string; x: number; y: number }[] }>) => {
+    const handler = (event: MessageEvent<{ type: string; [key: string]: unknown }>) => {
       if (version !== layoutVersionRef.current) return
+      const msg = event.data
 
-      const positionMap = new Map(event.data.nodes.map((n) => [n.id, { x: n.x, y: n.y }]))
+      if (msg.type === 'progress') {
+        const { done, total, nodesDone, nodesTotal } = msg as {
+          type: string; done: number; total: number; nodesDone: number; nodesTotal: number
+        }
+        updateStage('layout', {
+          status: 'loading',
+          detail: total > 1
+            ? `cluster ${done}/${total} · ${nodesDone}/${nodesTotal} nodes`
+            : `${nodesDone}/${nodesTotal} nodes`,
+        })
+        return
+      }
 
-      setLayoutedNodes(
-        filteredNodes.map((node) => {
-          const pos = positionMap.get(node.id)
-          return pos ? { ...node, position: pos } : node
-        }),
-      )
-      setLayoutedEdges(filteredEdges)
-      setLayouting(false)
-      updateStage('layout', {
-        status: 'done',
-        completedAt: Date.now(),
-        detail: `${filteredNodes.length} nodes`,
-      })
-      worker.removeEventListener('message', handler)
+      if (msg.type === 'result') {
+        const { nodes: resultNodes, components } = msg as {
+          type: string; nodes: { id: string; x: number; y: number }[]; components: number
+        }
+        const positionMap = new Map(resultNodes.map((n) => [n.id, { x: n.x, y: n.y }]))
+
+        setLayoutedNodes(
+          filteredNodes.map((node) => {
+            const pos = positionMap.get(node.id)
+            return pos ? { ...node, position: pos } : node
+          }),
+        )
+        setLayoutedEdges(filteredEdges)
+        setLayouting(false)
+        updateStage('layout', {
+          status: 'done',
+          completedAt: Date.now(),
+          detail: components > 1
+            ? `${filteredNodes.length} nodes · ${components} clusters`
+            : `${filteredNodes.length} nodes`,
+        })
+        worker.removeEventListener('message', handler)
+      }
     }
 
     worker.addEventListener('message', handler)
