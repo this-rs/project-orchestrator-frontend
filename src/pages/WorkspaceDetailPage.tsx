@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, FormDialog, LinkEntityDialog, ProgressBar, PageHeader, SectionNav, ConfirmDialog, StatCard } from '@/components/ui'
+import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, FormDialog, LinkEntityDialog, ProgressBar, PageHeader, SectionNav, ConfirmDialog, StatCard, MilestoneStatusBadge } from '@/components/ui'
 import { Box, Flag, FileText, Cpu } from 'lucide-react'
 import { workspacesApi, projectsApi } from '@/services'
 import { useFormDialog, useLinkDialog, useToast, useConfirmDialog, useSectionObserver, useWorkspaceSlug } from '@/hooks'
@@ -264,9 +264,7 @@ export function WorkspaceDetailPage() {
                 >
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <span className="font-medium text-gray-200 truncate min-w-0">{milestone.title}</span>
-                    <Badge variant={milestone.status?.toLowerCase() === 'open' ? 'info' : 'success'}>
-                      {milestone.status}
-                    </Badge>
+                    <MilestoneStatusBadge status={milestone.status} />
                   </div>
                   {milestone.progress && (
                     <div className="space-y-1">

@@ -2,7 +2,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
-import { InteractivePlanStatusBadge, TaskStatusBadge } from '@/components/ui'
+import { InteractivePlanStatusBadge, TaskStatusBadge, MilestoneStatusBadge, PlanStatusBadge } from '@/components/ui'
 import { tasksApi, projectsApi } from '@/services'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
@@ -347,16 +347,6 @@ export function ExpandableTaskRow({
   )
 }
 
-// ── Milestone Status Colors ───────────────────────────────────────────────────
-
-const milestoneStatusColors: Record<string, string> = {
-  planned: 'bg-white/[0.08] text-gray-400',
-  open: 'bg-blue-500/20 text-blue-400',
-  in_progress: 'bg-yellow-500/20 text-yellow-400',
-  completed: 'bg-green-500/20 text-green-400',
-  closed: 'bg-purple-500/20 text-purple-400',
-}
-
 // ── Milestone Step Row (from enriched data) ───────────────────────────────────
 
 function MilestoneStepRow({ step, index }: { step: MilestoneStepSummary; index: number }) {
@@ -467,9 +457,7 @@ function MilestonePlanRow({ plan, wsSlug }: { plan: MilestonePlanSummary; wsSlug
           </span>
         )}
         {plan.status && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.08] text-gray-400 flex-shrink-0">
-            {plan.status}
-          </span>
+          <PlanStatusBadge status={plan.status as Plan['status']} />
         )}
       </div>
       {expanded && (
@@ -534,7 +522,6 @@ export function ExpandableMilestoneRow({
     if (newExpanded && !loaded) fetchEnrichedData()
   }
 
-  const status = (milestone.status || 'planned').toLowerCase()
   const completedTasks = progress?.completed ?? 0
   const totalTasks = progress?.total ?? 0
 
@@ -565,11 +552,7 @@ export function ExpandableMilestoneRow({
             {new Date(milestone.target_date).toLocaleDateString()}
           </span>
         )}
-        <span
-          className={`text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 ${milestoneStatusColors[status] || milestoneStatusColors.planned}`}
-        >
-          {milestone.status || 'planned'}
-        </span>
+        <MilestoneStatusBadge status={milestone.status} />
       </div>
       {/* Progress bar */}
       {totalTasks > 0 && (

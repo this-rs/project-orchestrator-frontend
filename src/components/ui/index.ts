@@ -8,6 +8,7 @@ export {
   ImportanceBadge,
   ReleaseStatusBadge,
   StepStatusBadge,
+  MilestoneStatusBadge,
   InteractiveMilestoneStatusBadge,
   InteractivePlanStatusBadge,
   InteractiveTaskStatusBadge,

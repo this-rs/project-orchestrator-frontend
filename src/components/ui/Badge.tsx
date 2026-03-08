@@ -96,6 +96,19 @@ export const ReleaseStatusBadge = ({ status }: { status: ReleaseStatus | undefin
   return <Badge variant={variant}>{label}</Badge>
 }
 
+export const MilestoneStatusBadge = ({ status }: { status: MilestoneStatus | undefined | null }) => {
+  const config: StatusBadgeConfig<MilestoneStatus> = {
+    planned: { label: 'Planned', variant: 'default' },
+    open: { label: 'Open', variant: 'info' },
+    in_progress: { label: 'In Progress', variant: 'warning' },
+    completed: { label: 'Completed', variant: 'success' },
+    closed: { label: 'Closed', variant: 'purple' },
+  }
+  const resolved = status?.toLowerCase() as MilestoneStatus | undefined
+  const { label, variant } = (resolved && config[resolved]) || defaultConfig
+  return <Badge variant={variant}>{label}</Badge>
+}
+
 export const StepStatusBadge = ({ status }: { status: StepStatus | undefined | null }) => {
   const config: StatusBadgeConfig<StepStatus> = {
     pending: { label: 'Pending', variant: 'default' },
