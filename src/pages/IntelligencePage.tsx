@@ -30,6 +30,9 @@ import {
   Search,
   Orbit,
   Calendar,
+  Workflow,
+  GitBranch,
+  Link2,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { LoadingPage } from '@/components/ui/Spinner'
@@ -774,6 +777,39 @@ export function IntelligencePage() {
             <MiniGauge label="Skill Maturity" value={s.skills.total > 0 ? s.skills.active / s.skills.total : 0} color="#ec4899" />
           </LayerCard>
         </div>
+
+        {/* BEHAVIORAL LAYER — full width */}
+        {s.behavioral.protocols > 0 && (
+          <div className="md:col-span-2">
+            <LayerCard
+              title="Behavioral"
+              icon={Workflow}
+              color="#F97316"
+              badge={
+                <span className="text-[10px] font-mono text-slate-600">
+                  {s.behavioral.states} states · {s.behavioral.transitions} transitions
+                </span>
+              }
+            >
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                <MiniStat label="Protocols" value={s.behavioral.protocols} icon={Workflow} color="#F97316" />
+                <MiniStat label="System" value={s.behavioral.system_protocols} icon={BrainCircuit} color="#3B82F6" />
+                <MiniStat label="Business" value={s.behavioral.business_protocols} icon={GitBranch} color="#F97316" />
+                <MiniStat
+                  label="Skill-Linked"
+                  value={s.behavioral.skill_linked}
+                  icon={Link2}
+                  color={s.behavioral.skill_linked > 0 ? '#EC4899' : '#64748b'}
+                />
+              </div>
+              <MiniGauge
+                label="Skill Coverage"
+                value={s.behavioral.protocols > 0 ? s.behavioral.skill_linked / s.behavioral.protocols : 0}
+                color="#F97316"
+              />
+            </LayerCard>
+          </div>
+        )}
       </div>
 
       {/* ── Attention Section (health warnings) ─────────────────────────── */}

@@ -82,11 +82,11 @@ export const LAYER_ORDER: IntelligenceLayer[] = [
 // ============================================================================
 
 export const ENTITY_COLORS: Record<IntelligenceEntityType, string> = {
-  // Code (Blues)
+  // Code — maximally distinct hues across the color wheel
   file: '#3B82F6',       // blue-500
-  function: '#60A5FA',   // blue-400
-  struct: '#2563EB',     // blue-600
-  trait: '#6366F1',      // indigo-500
+  function: '#22C55E',   // green-500
+  struct: '#A855F7',     // purple-500
+  trait: '#EF4444',      // red-500
   enum: '#64748B',       // slate-500
   // PM (Greens)
   plan: '#10B981',       // emerald-500
@@ -104,6 +104,8 @@ export const ENTITY_COLORS: Record<IntelligenceEntityType, string> = {
   // Behavioral (Oranges)
   protocol: '#F97316',        // orange-500
   protocol_state: '#FB923C',  // orange-400
+  // Feature Graphs (Fuchsia — visually distinct from blue code nodes)
+  feature_graph: '#E879F9',   // fuchsia-400
 }
 
 // ============================================================================
@@ -133,6 +135,7 @@ export const EDGE_STYLES: Record<IntelligenceRelationType, {
   HAS_STATE:  { color: '#F97316', strokeWidth: 1.5 },
   TRANSITION: { color: '#EA580C', strokeWidth: 2, animated: true },
   BELONGS_TO_SKILL: { color: '#FB923C', strokeWidth: 1, strokeDasharray: '6 3' },
+  INCLUDES_ENTITY:  { color: '#E879F9', strokeWidth: 1, strokeDasharray: '4 3' },
 }
 
 // ============================================================================
@@ -157,6 +160,7 @@ export const NODE_SIZES: Record<IntelligenceEntityType, { width: number; height:
   skill:      { width: 56, height: 56 },
   protocol:       { width: 64, height: 40 },
   protocol_state: { width: 32, height: 32 },
+  feature_graph:  { width: 56, height: 40 },
 }
 
 // ============================================================================

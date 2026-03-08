@@ -30,7 +30,7 @@ export interface LayerConfig {
 // GRAPH ENTITY TYPES
 // ============================================================================
 
-export type CodeEntityType = 'file' | 'function' | 'struct' | 'trait' | 'enum'
+export type CodeEntityType = 'file' | 'function' | 'struct' | 'trait' | 'enum' | 'feature_graph'
 export type PMEntityType = 'plan' | 'task' | 'step' | 'milestone' | 'release' | 'commit'
 export type KnowledgeEntityType = 'note' | 'decision' | 'constraint'
 export type SkillEntityType = 'skill'
@@ -40,6 +40,7 @@ export type IntelligenceEntityType = CodeEntityType | PMEntityType | KnowledgeEn
 export type FabricRelationType =
   | 'IMPORTS' | 'CALLS' | 'EXTENDS' | 'IMPLEMENTS'
   | 'TOUCHES' | 'CO_CHANGED' | 'AFFECTS' | 'DISCUSSED' | 'LINKED_TO'
+  | 'INCLUDES_ENTITY'
 export type NeuralRelationType = 'SYNAPSE'
 export type SkillRelationType = 'HAS_MEMBER'
 export type PMRelationType = 'CONTAINS' | 'DEPENDS_ON' | 'INFORMED_BY'

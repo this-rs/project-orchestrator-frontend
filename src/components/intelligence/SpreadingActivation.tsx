@@ -3,6 +3,8 @@ import { useAtom, useSetAtom } from 'jotai'
 import { atom } from 'jotai'
 import { Search, X, Zap } from 'lucide-react'
 import { notesApi } from '@/services/notes'
+import { visibleLayersAtom } from '@/atoms/intelligence'
+import type { IntelligenceLayer } from '@/types/intelligence'
 
 // ============================================================================
 // ACTIVATION STATE — shared atoms for graph-wide activation overlay
@@ -45,10 +47,13 @@ interface SpreadingActivationProps {
 function SpreadingActivationComponent({ projectSlug }: SpreadingActivationProps) {
   const [isOpen, setIsOpen] = useAtom(activationSearchOpenAtom)
   const setActivation = useSetAtom(activationStateAtom)
+  const [visibleLayers, setVisibleLayers] = useAtom(visibleLayersAtom)
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const animationRef = useRef<ReturnType<typeof setTimeout>[]>([])
+  // Save layers before activation so we can restore them on close
+  const savedLayersRef = useRef<Set<IntelligenceLayer> | null>(null)
 
   // Focus input when opened
   useEffect(() => {
@@ -68,7 +73,12 @@ function SpreadingActivationComponent({ projectSlug }: SpreadingActivationProps)
     animationRef.current.forEach(clearTimeout)
     animationRef.current = []
     setActivation(emptyActivation)
-  }, [setActivation])
+    // Restore saved layers
+    if (savedLayersRef.current) {
+      setVisibleLayers(savedLayersRef.current)
+      savedLayersRef.current = null
+    }
+  }, [setActivation, setVisibleLayers])
 
   const handleClose = useCallback(() => {
     clearActivation()
@@ -79,8 +89,22 @@ function SpreadingActivationComponent({ projectSlug }: SpreadingActivationProps)
   const handleSearch = useCallback(async () => {
     if (!query.trim() || !projectSlug) return
 
-    // Clear previous animation
-    clearActivation()
+    // Clear previous animation (but don't restore layers yet)
+    animationRef.current.forEach(clearTimeout)
+    animationRef.current = []
+    setActivation(emptyActivation)
+
+    // Auto-enable knowledge + neural layers for activation visibility
+    if (!savedLayersRef.current) {
+      savedLayersRef.current = new Set(visibleLayers)
+    }
+    setVisibleLayers((prev) => {
+      const next = new Set(prev)
+      next.add('knowledge')
+      next.add('neural')
+      return next
+    })
+
     setSearching(true)
     setActivation((prev) => ({ ...prev, phase: 'searching' }))
 
@@ -182,9 +206,9 @@ function SpreadingActivationComponent({ projectSlug }: SpreadingActivationProps)
   if (!isOpen) return null
 
   return (
-    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 w-96">
-      <div className="flex items-center gap-2 rounded-lg bg-slate-900/95 backdrop-blur-sm border border-slate-700 shadow-xl px-3 py-2">
-        <Search size={14} className="text-slate-500 shrink-0" />
+    <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 w-[28rem]">
+      <div className="flex items-center gap-2 rounded-xl bg-slate-900/95 backdrop-blur-md border border-slate-600 shadow-2xl shadow-cyan-500/10 px-4 py-3 ring-1 ring-cyan-500/20">
+        <Search size={16} className="text-cyan-400/70 shrink-0" />
         <input
           ref={inputRef}
           type="text"
@@ -192,7 +216,7 @@ function SpreadingActivationComponent({ projectSlug }: SpreadingActivationProps)
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Search to visualize spreading activation..."
-          className="flex-1 bg-transparent text-sm text-slate-200 placeholder:text-slate-500 outline-none"
+          className="flex-1 bg-transparent text-sm text-slate-200 placeholder:text-slate-400 outline-none"
         />
         {searching && (
           <Zap size={14} className="text-cyan-400 animate-pulse shrink-0" />
@@ -206,13 +230,13 @@ function SpreadingActivationComponent({ projectSlug }: SpreadingActivationProps)
       </div>
 
       {/* Activation legend */}
-      <div className="flex items-center gap-3 mt-1.5 px-3 text-[10px] text-slate-500">
-        <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-cyan-400" />
+      <div className="flex items-center gap-3 mt-2 px-4 text-[10px] text-slate-500">
+        <span className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/50" />
           Direct match
         </span>
-        <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-violet-400" />
+        <span className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-violet-400 shadow-sm shadow-violet-400/50" />
           Propagated
         </span>
         <span className="ml-auto opacity-60">Enter to search · Esc to close</span>

@@ -18,6 +18,7 @@ import {
   selectedNodeIdAtom,
   hoveredNodeIdAtom,
 } from '@/atoms/intelligence'
+import { activationStateAtom } from '../SpreadingActivation'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -41,6 +42,7 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
   const setSelectedNodeId = useSetAtom(selectedNodeIdAtom)
   const hoveredNodeId = useAtomValue(hoveredNodeIdAtom)
   const setHoveredNodeId = useSetAtom(hoveredNodeIdAtom)
+  const activation = useAtomValue(activationStateAtom)
 
   const { transformToGraph3D, savePositions } = useGraph3DLayout()
 
@@ -98,6 +100,9 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
     }
   }, [graphData.nodes, savePositions])
 
+  // ── Highlight: hover AND selection coexist simultaneously ──────────────
+  const hasAnyHighlight = !!hoveredNodeId || !!selectedNodeId
+
   // ── Node color ──────────────────────────────────────────────────────────
   const nodeColor = useCallback((node: Graph3DNode) => {
     return ENTITY_COLORS[node.entityType as keyof typeof ENTITY_COLORS] ?? '#6B7280'
@@ -121,6 +126,9 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
       decision: 4,
       constraint: 2,
       skill: 5,
+      protocol: 5,
+      protocol_state: 3,
+      feature_graph: 5,
     }
     return sizes[node.entityType] ?? 2
   }, [])
@@ -146,46 +154,218 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
     return createNodeObject(node)
   }, [])
 
-  // ── Link styling ────────────────────────────────────────────────────────
+  // ── Highlight colors ─────────────────────────────────────────────────────
+  const HIGHLIGHT_COLOR_HOVER = '#F59E0B'   // amber-500
+  const HIGHLIGHT_COLOR_SELECT = '#22D3EE'  // cyan-400
+
+  // ── Link styling (hover + selection coexist, AND spreading activation) ──
   const linkColor = useCallback((link: Graph3DLink) => {
-    // Dim non-connected links on hover
-    if (hoveredNodeId) {
-      const sourceId = typeof link.source === 'object' ? (link.source as Graph3DNode).id : link.source
-      const targetId = typeof link.target === 'object' ? (link.target as Graph3DNode).id : link.target
-      const isConnected = sourceId === hoveredNodeId || targetId === hoveredNodeId
-      if (!isConnected) {
-        return 'rgba(107, 114, 128, 0.08)' // almost invisible
+    const sourceId = typeof link.source === 'object' ? (link.source as Graph3DNode).id : link.source
+    const targetId = typeof link.target === 'object' ? (link.target as Graph3DNode).id : link.target
+
+    // Spreading activation — highlight active edges
+    if (activation.phase !== 'idle') {
+      const edgeKey = `${sourceId}-${targetId}`
+      const edgeKeyRev = `${targetId}-${sourceId}`
+      if (activation.activeEdges.has(edgeKey) || activation.activeEdges.has(edgeKeyRev)) {
+        return '#22D3EE' // cyan — active synapse
       }
+      const allActivated = new Set([...activation.directIds, ...activation.propagatedIds])
+      if (allActivated.has(sourceId) && allActivated.has(targetId)) {
+        return link.color
+      }
+      return 'rgba(107, 114, 128, 0.05)'
+    }
+
+    // Hover (amber) AND selection (cyan) coexist — hover takes visual priority on shared edges
+    if (hasAnyHighlight) {
+      const isHoverConnected = hoveredNodeId
+        ? (sourceId === hoveredNodeId || targetId === hoveredNodeId)
+        : false
+      const isSelectConnected = selectedNodeId
+        ? (sourceId === selectedNodeId || targetId === selectedNodeId)
+        : false
+      if (isHoverConnected) return HIGHLIGHT_COLOR_HOVER
+      if (isSelectConnected) return HIGHLIGHT_COLOR_SELECT
+      return 'rgba(107, 114, 128, 0.08)'
     }
     return link.color
-  }, [hoveredNodeId])
+  }, [hoveredNodeId, selectedNodeId, hasAnyHighlight, activation])
 
   const linkWidth = useCallback((link: Graph3DLink) => {
-    if (hoveredNodeId) {
-      const sourceId = typeof link.source === 'object' ? (link.source as Graph3DNode).id : link.source
-      const targetId = typeof link.target === 'object' ? (link.target as Graph3DNode).id : link.target
-      const isConnected = sourceId === hoveredNodeId || targetId === hoveredNodeId
-      return isConnected ? link.width * 2 : link.width * 0.3
+    const sourceId = typeof link.source === 'object' ? (link.source as Graph3DNode).id : link.source
+    const targetId = typeof link.target === 'object' ? (link.target as Graph3DNode).id : link.target
+
+    // Spreading activation — boost active edges
+    if (activation.phase !== 'idle') {
+      const edgeKey = `${sourceId}-${targetId}`
+      const edgeKeyRev = `${targetId}-${sourceId}`
+      if (activation.activeEdges.has(edgeKey) || activation.activeEdges.has(edgeKeyRev)) {
+        return link.width * 3
+      }
+      return link.width * 0.2
+    }
+
+    if (hasAnyHighlight) {
+      const isHoverConnected = hoveredNodeId
+        ? (sourceId === hoveredNodeId || targetId === hoveredNodeId)
+        : false
+      const isSelectConnected = selectedNodeId
+        ? (sourceId === selectedNodeId || targetId === selectedNodeId)
+        : false
+      return (isHoverConnected || isSelectConnected) ? link.width * 2 : link.width * 0.3
     }
     return link.width
-  }, [hoveredNodeId])
+  }, [hoveredNodeId, selectedNodeId, hasAnyHighlight, activation])
 
   const linkParticles = useCallback((link: Graph3DLink) => {
+    // Boost particles on activated synapse edges
+    if (activation.phase !== 'idle') {
+      const sourceId = typeof link.source === 'object' ? (link.source as Graph3DNode).id : link.source
+      const targetId = typeof link.target === 'object' ? (link.target as Graph3DNode).id : link.target
+      const edgeKey = `${sourceId}-${targetId}`
+      const edgeKeyRev = `${targetId}-${sourceId}`
+      if (activation.activeEdges.has(edgeKey) || activation.activeEdges.has(edgeKeyRev)) {
+        return 6 // extra particles for visual emphasis
+      }
+    }
     return link.particles
-  }, [])
+  }, [activation])
 
   const linkParticleSpeed = useCallback((link: Graph3DLink) => {
     return link.particleSpeed
   }, [])
 
   const linkParticleColor = useCallback((link: Graph3DLink) => {
+    // Cyan for activated edges (spreading activation)
+    if (activation.phase !== 'idle') {
+      const sourceId = typeof link.source === 'object' ? (link.source as Graph3DNode).id : link.source
+      const targetId = typeof link.target === 'object' ? (link.target as Graph3DNode).id : link.target
+      const edgeKey = `${sourceId}-${targetId}`
+      const edgeKeyRev = `${targetId}-${sourceId}`
+      if (activation.activeEdges.has(edgeKey) || activation.activeEdges.has(edgeKeyRev)) {
+        return '#22D3EE'
+      }
+    }
+    // Tint particles: hover = amber, select = cyan (hover wins on shared edges)
+    if (hasAnyHighlight) {
+      const sourceId = typeof link.source === 'object' ? (link.source as Graph3DNode).id : link.source
+      const targetId = typeof link.target === 'object' ? (link.target as Graph3DNode).id : link.target
+      const isHoverConnected = hoveredNodeId
+        ? (sourceId === hoveredNodeId || targetId === hoveredNodeId)
+        : false
+      const isSelectConnected = selectedNodeId
+        ? (sourceId === selectedNodeId || targetId === selectedNodeId)
+        : false
+      if (isHoverConnected) return HIGHLIGHT_COLOR_HOVER
+      if (isSelectConnected) return HIGHLIGHT_COLOR_SELECT
+    }
     return link.color
-  }, [])
+  }, [activation, hoveredNodeId, selectedNodeId, hasAnyHighlight])
 
-  // ── Node opacity based on hover ─────────────────────────────────────────
+  // ── Node opacity based on hover or selection ───────────────────────────
   const nodeOpacity = useMemo(() => {
-    return hoveredNodeId ? 0.3 : 1.0
-  }, [hoveredNodeId])
+    return hasAnyHighlight ? 0.3 : 1.0
+  }, [hasAnyHighlight])
+
+  // ── Spreading Activation — live 3D material updates ───────────────────
+  // Mutate Three.js materials directly when activation state changes.
+  const activationPhase = activation.phase
+  useEffect(() => {
+    const fg = graphRef.current
+    if (!fg || typeof fg.scene !== 'function') return
+    const scene = fg.scene()
+    if (!scene) return
+
+    const CYAN = new THREE.Color('#22D3EE')
+    const VIOLET = new THREE.Color('#A78BFA')
+    const isActive = activationPhase !== 'idle'
+
+    // Traverse all nodes in the graph data to update their materials
+    for (const node of graphData.nodes) {
+      // ForceGraph stores the Three.js object on node.__threeObj
+      const obj = (node as Graph3DNode & { __threeObj?: THREE.Object3D }).__threeObj
+      if (!obj) continue
+
+      const isDirect = activation.directIds.has(node.id)
+      const isPropagated = activation.propagatedIds.has(node.id)
+      const score = activation.scores.get(node.id) ?? 0
+
+      obj.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshPhongMaterial) {
+          const mat = child.material
+          if (isDirect) {
+            mat.emissive = CYAN
+            mat.emissiveIntensity = 0.6 + score * 0.4
+            mat.opacity = 1.0
+          } else if (isPropagated) {
+            mat.emissive = VIOLET
+            mat.emissiveIntensity = 0.3 + score * 0.5
+            mat.opacity = 0.95
+          } else if (isActive) {
+            // Dim non-activated nodes during spreading activation
+            const baseColor = ENTITY_COLORS[node.entityType as keyof typeof ENTITY_COLORS] ?? '#6B7280'
+            mat.emissive = new THREE.Color(baseColor)
+            mat.emissiveIntensity = 0.05
+            mat.opacity = 0.2
+          } else {
+            // Reset to default
+            const baseColor = ENTITY_COLORS[node.entityType as keyof typeof ENTITY_COLORS] ?? '#6B7280'
+            const energy = (node.data.energy as number) ?? 0
+            mat.emissive = new THREE.Color(baseColor)
+            mat.emissiveIntensity = 0.15 + energy * 0.3
+            mat.opacity = 0.9
+          }
+          mat.needsUpdate = true
+        }
+      })
+    }
+  }, [activationPhase, activation.directIds, activation.propagatedIds, activation.scores, graphData.nodes])
+
+  // ── Selected node highlight — persistent emissive ring on click ─────────
+  const prevSelectedRef = useRef<string | null>(null)
+  useEffect(() => {
+    const fg = graphRef.current
+    if (!fg || typeof fg.scene !== 'function') return
+    // Skip if activation is running — it overrides materials
+    if (activation.phase !== 'idle') { prevSelectedRef.current = selectedNodeId; return }
+
+    // Reset previous selected node
+    if (prevSelectedRef.current && prevSelectedRef.current !== selectedNodeId) {
+      const prevNode = graphData.nodes.find((n) => n.id === prevSelectedRef.current)
+      const prevObj = (prevNode as Graph3DNode & { __threeObj?: THREE.Object3D } | undefined)?.__threeObj
+      if (prevObj) {
+        prevObj.traverse((child) => {
+          if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshPhongMaterial) {
+            const baseColor = ENTITY_COLORS[prevNode!.entityType as keyof typeof ENTITY_COLORS] ?? '#6B7280'
+            const energy = (prevNode!.data.energy as number) ?? 0
+            child.material.emissive = new THREE.Color(baseColor)
+            child.material.emissiveIntensity = 0.15 + energy * 0.3
+            child.material.opacity = 0.9
+            child.material.needsUpdate = true
+          }
+        })
+      }
+    }
+
+    // Highlight newly selected node — cyan tint
+    if (selectedNodeId) {
+      const selNode = graphData.nodes.find((n) => n.id === selectedNodeId)
+      const selObj = (selNode as Graph3DNode & { __threeObj?: THREE.Object3D } | undefined)?.__threeObj
+      if (selObj) {
+        selObj.traverse((child) => {
+          if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshPhongMaterial) {
+            child.material.emissive = new THREE.Color(HIGHLIGHT_COLOR_SELECT)
+            child.material.emissiveIntensity = 0.7
+            child.material.opacity = 1.0
+            child.material.needsUpdate = true
+          }
+        })
+      }
+    }
+
+    prevSelectedRef.current = selectedNodeId
+  }, [selectedNodeId, graphData.nodes, activation.phase])
 
   // ── Interactions ────────────────────────────────────────────────────────
   const onNodeClick = useCallback((node: Graph3DNode) => {

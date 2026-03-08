@@ -36,6 +36,11 @@ const SHAPE_GEOMETRIES: Record<string, () => THREE.BufferGeometry> = {
   constraint: () => new THREE.CylinderGeometry(2, 4, 6, 6),
   // Skills layer
   skill: () => new THREE.TorusGeometry(5, 2, 12, 16),
+  // Behavioral layer
+  protocol: () => new THREE.CylinderGeometry(4, 4, 8, 6),        // hexagonal prism — FSM
+  protocol_state: () => new THREE.SphereGeometry(3.5, 12, 8),     // smooth sphere — state
+  // Feature graph (code overlay)
+  feature_graph: () => new THREE.DodecahedronGeometry(5, 0),      // dodecahedron — cluster
 }
 
 // ── Glow halo for high-energy nodes ───────────────────────────────────────────

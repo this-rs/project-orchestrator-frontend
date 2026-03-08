@@ -80,6 +80,9 @@ const LINK_PARTICLES: Record<string, { particles: number; speed: number }> = {
   CALLS: { particles: 2, speed: 0.004 },
   IMPORTS: { particles: 1, speed: 0.003 },
   AFFECTS: { particles: 3, speed: 0.005 },
+  TRANSITION: { particles: 3, speed: 0.008 },
+  HAS_STATE: { particles: 1, speed: 0.003 },
+  INCLUDES_ENTITY: { particles: 1, speed: 0.003 },
 }
 
 const LINK_COLORS: Record<string, string> = {
@@ -97,6 +100,10 @@ const LINK_COLORS: Record<string, string> = {
   CONTAINS: '#10B981',
   DEPENDS_ON: '#F59E0B',
   INFORMED_BY: '#8B5CF6',
+  HAS_STATE: '#F97316',
+  TRANSITION: '#EA580C',
+  BELONGS_TO_SKILL: '#FB923C',
+  INCLUDES_ENTITY: '#E879F9',
 }
 
 const LINK_WIDTHS: Record<string, number> = {
@@ -109,6 +116,10 @@ const LINK_WIDTHS: Record<string, number> = {
   CO_CHANGED: 1,
   LINKED_TO: 1,
   HAS_MEMBER: 1,
+  HAS_STATE: 1.5,
+  TRANSITION: 2,
+  BELONGS_TO_SKILL: 1,
+  INCLUDES_ENTITY: 1,
 }
 
 // ── Spread radius by layer ────────────────────────────────────────────────────
@@ -120,6 +131,7 @@ const LAYER_Z_OFFSET: Record<string, number> = {
   knowledge: 80,
   neural: 120,
   skills: 160,
+  behavioral: 200, // protocols & FSM states above skills
   pm: -80,
 }
 

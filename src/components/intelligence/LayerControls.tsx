@@ -18,6 +18,7 @@ import {
   GitCommitHorizontal,
   GitFork,
   SlidersHorizontal,
+  Workflow,
 } from 'lucide-react'
 
 const presetIcons: Record<string, typeof Layers> = {
@@ -27,6 +28,7 @@ const presetIcons: Record<string, typeof Layers> = {
   KanbanSquare,
   Zap,
   Layers,
+  Workflow,
 }
 
 interface LayerControlsProps {

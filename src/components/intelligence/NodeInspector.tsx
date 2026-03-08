@@ -147,7 +147,11 @@ function GenericPropertiesPanel({ data }: { data: Record<string, unknown> }) {
 // MAIN NODE INSPECTOR
 // ============================================================================
 
-function NodeInspectorComponent() {
+interface NodeInspectorProps {
+  isFullscreen?: boolean
+}
+
+function NodeInspectorComponent({ isFullscreen }: NodeInspectorProps) {
   const node = useAtomValue(selectedNodeAtom)
   const setSelectedNodeId = useSetAtom(selectedNodeIdAtom)
 
@@ -159,7 +163,9 @@ function NodeInspectorComponent() {
   const Icon = entityIcons[entityType] ?? Box
 
   return (
-    <div className="absolute top-3 right-3 z-10 w-80 max-h-[calc(100%-24px)] overflow-y-auto rounded-lg bg-slate-900/95 backdrop-blur-sm border border-slate-700 shadow-xl">
+    <div className={`absolute top-14 right-3 z-30 overflow-y-auto rounded-lg bg-slate-900/95 backdrop-blur-sm border border-slate-700 shadow-xl transition-all duration-200 ${
+      isFullscreen ? 'w-96 max-h-[calc(100%-120px)]' : 'w-80 max-h-[calc(100%-124px)]'
+    }`}>
       {/* Header */}
       <div className="flex items-center gap-2 p-3 border-b border-slate-700">
         <div

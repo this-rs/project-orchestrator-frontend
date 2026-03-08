@@ -10,7 +10,7 @@ import {
   type NodeChange,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Box, Grid3x3, Maximize, Minimize, PanelRightClose, PanelRightOpen } from 'lucide-react'
+import { Box, Grid3x3, Maximize, Minimize, PanelRightClose, PanelRightOpen, Search } from 'lucide-react'
 
 import { intelligenceNodeTypes } from './nodes'
 import { intelligenceEdgeTypes } from './edges'
@@ -20,7 +20,7 @@ import { useProtocolRunEvents } from './useProtocolRunEvents'
 import { NodeInspector } from './NodeInspector'
 import { LayerControls } from './LayerControls'
 import { LiveIndicator } from './LiveIndicator'
-import { SpreadingActivation, activationSearchOpenAtom } from './SpreadingActivation'
+import { SpreadingActivation, activationSearchOpenAtom, activationStateAtom } from './SpreadingActivation'
 import { ENTITY_COLORS } from '@/constants/intelligence'
 import {
   intelligenceLoadingAtom,
@@ -31,7 +31,36 @@ import {
 } from '@/atoms/intelligence'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { EmptyState } from '@/components/ui/EmptyState'
-import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
+import type { IntelligenceNode, IntelligenceEdge, IntelligenceLayer } from '@/types/intelligence'
+
+// ── Entity legend data ──────────────────────────────────────────────────────
+const ENTITY_LEGEND: { layer: IntelligenceLayer; types: { key: string; label: string }[] }[] = [
+  { layer: 'code', types: [
+    { key: 'file', label: 'File' },
+    { key: 'function', label: 'Function' },
+    { key: 'struct', label: 'Struct' },
+    { key: 'trait', label: 'Trait' },
+    { key: 'enum', label: 'Enum' },
+    { key: 'feature_graph', label: 'Feature Graph' },
+  ]},
+  { layer: 'knowledge', types: [
+    { key: 'note', label: 'Note' },
+    { key: 'decision', label: 'Decision' },
+    { key: 'constraint', label: 'Constraint' },
+  ]},
+  { layer: 'skills', types: [
+    { key: 'skill', label: 'Skill' },
+  ]},
+  { layer: 'behavioral', types: [
+    { key: 'protocol', label: 'Protocol' },
+    { key: 'protocol_state', label: 'State' },
+  ]},
+  { layer: 'pm', types: [
+    { key: 'plan', label: 'Plan' },
+    { key: 'task', label: 'Task' },
+    { key: 'milestone', label: 'Milestone' },
+  ]},
+]
 
 // Lazy-load the 3D component — Three.js (~300KB gz) only loaded when needed
 const IntelligenceGraph3D = lazy(() => import('./graph3d/IntelligenceGraph3D'))
@@ -48,11 +77,12 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   const projectSlug = props.projectSlug ?? params.projectSlug
   const loading = useAtomValue(intelligenceLoadingAtom)
   const error = useAtomValue(intelligenceErrorAtom)
-  const setSearchOpen = useSetAtom(activationSearchOpenAtom)
+  const [searchOpen, setSearchOpen] = useAtom(activationSearchOpenAtom)
   const hoveredNodeId = useAtomValue(hoveredNodeIdAtom)
   const setHoveredNodeId = useSetAtom(hoveredNodeIdAtom)
   const [viewMode, setViewMode] = useAtom(graphViewModeAtom)
   const selectedNodeId = useAtomValue(selectedNodeIdAtom)
+  const activation = useAtomValue(activationStateAtom)
 
   const {
     nodes: layoutedNodes,
@@ -129,32 +159,74 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
     setHoveredNodeId(null)
   }, [setHoveredNodeId])
 
-  // Propagation path highlighting — dim non-connected edges on hover
+  // Propagation path highlighting — hover (amber) AND selection (cyan) coexist simultaneously
+  // Also dims non-activated edges during spreading activation
+  const TINT_HOVER = '#F59E0B'    // amber-500
+  const TINT_SELECT = '#22D3EE'   // cyan-400
+  const hasAnyHighlight = !!hoveredNodeId || !!selectedNodeId
+  const activationActive = activation.phase !== 'idle'
   const highlightedEdges = useMemo((): IntelligenceEdge[] => {
-    if (!hoveredNodeId) return edges
+    if (!hasAnyHighlight && !activationActive) return edges
+
+    // During activation, pre-compute the set of activated node IDs
+    const activatedNodeIds = activationActive
+      ? new Set([...activation.directIds, ...activation.propagatedIds])
+      : null
+
     return edges.map((edge): IntelligenceEdge => {
-      const isConnected = edge.source === hoveredNodeId || edge.target === hoveredNodeId
+      const isHoverConnected = hoveredNodeId
+        ? (edge.source === hoveredNodeId || edge.target === hoveredNodeId)
+        : false
+      const isSelectConnected = selectedNodeId
+        ? (edge.source === selectedNodeId || edge.target === selectedNodeId)
+        : false
+      const isHighlightConnected = isHoverConnected || isSelectConnected
+      // Hover takes visual priority over selection when both match the same edge
+      const tintColor = isHoverConnected ? TINT_HOVER : isSelectConnected ? TINT_SELECT : undefined
+
+      // During activation: dim edges that aren't between two activated nodes
+      // (SynapseEdge handles its own activation styling — pass through activation data)
+      const isActivationRelevant = activatedNodeIds
+        ? (activatedNodeIds.has(edge.source) && activatedNodeIds.has(edge.target))
+        : false
+
       if (edge.type && edge.type !== 'default') {
+        // Custom edges (synapse, co_changed, affects) — pass data flags
         return {
           ...edge,
           data: {
             ...edge.data!,
-            _highlighted: isConnected,
-            _hasHover: true,
+            _highlighted: isHighlightConnected,
+            _hasHover: hasAnyHighlight,
+            _tintColor: tintColor,
           } as IntelligenceEdge['data'],
         }
       }
+
+      // Default edges (IMPORTS, CALLS, EXTENDS, etc.)
+      let opacity = 1
+      if (activationActive && !isActivationRelevant && !isHighlightConnected) {
+        opacity = 0.04  // very dim during activation
+      } else if (hasAnyHighlight && !isHighlightConnected && !activationActive) {
+        opacity = 0.1   // dim on hover/selection
+      } else if (hasAnyHighlight && !isHighlightConnected && activationActive) {
+        opacity = isActivationRelevant ? 0.6 : 0.04
+      }
+
       return {
         ...edge,
         style: {
           ...edge.style,
-          opacity: isConnected ? 1 : 0.1,
-          strokeWidth: isConnected ? ((edge.style?.strokeWidth as number) ?? 1) * 1.5 : edge.style?.strokeWidth,
-          transition: 'opacity 200ms, stroke-width 200ms',
+          opacity,
+          stroke: tintColor ?? (activationActive && isActivationRelevant ? '#22D3EE' : undefined),
+          strokeWidth: isHighlightConnected
+            ? ((edge.style?.strokeWidth as number) ?? 1) * 1.5
+            : edge.style?.strokeWidth,
+          transition: 'opacity 300ms, stroke-width 200ms, stroke 300ms',
         },
       }
     })
-  }, [edges, hoveredNodeId])
+  }, [edges, hoveredNodeId, selectedNodeId, hasAnyHighlight, activationActive, activation.directIds, activation.propagatedIds])
 
   // Keyboard shortcut: Ctrl/Cmd+K to open spreading activation search
   useEffect(() => {
@@ -373,18 +445,24 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
         </div>
       )}
 
-      {/* Node Inspector (right sidebar overlay) — collapsible */}
-      {selectedNodeId && !inspectorCollapsed && <NodeInspector />}
+      {/* Node Inspector (right sidebar overlay) — collapsible, wider in fullscreen */}
+      {selectedNodeId && !inspectorCollapsed && <NodeInspector isFullscreen={isFullscreen} />}
 
-      {/* Inspector collapse/expand toggle (top-right area, below live indicator) */}
+      {/* Inspector collapse/expand toggle — tab stuck to left edge of panel */}
       {selectedNodeId && (
         <button
           onClick={() => setInspectorCollapsed((v) => !v)}
-          className="absolute top-12 right-3 z-40 flex items-center gap-1 px-2 py-1.5 rounded-md text-[10px] font-medium bg-slate-800/90 backdrop-blur-sm border border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-700/80 transition-colors"
+          className={`absolute top-[4.5rem] z-40 flex items-center gap-1 py-2 rounded-l-md text-[10px] font-medium bg-slate-800/90 backdrop-blur-sm border border-r-0 border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-700/80 transition-all duration-200 ${
+            inspectorCollapsed
+              ? 'right-0 px-2 rounded-r-md border-r border-slate-700'
+              : isFullscreen
+                ? 'right-[24.75rem] px-1.5'
+                : 'right-[20.75rem] px-1.5'
+          }`}
           title={inspectorCollapsed ? 'Show inspector' : 'Hide inspector'}
         >
           {inspectorCollapsed ? <PanelRightOpen size={12} /> : <PanelRightClose size={12} />}
-          {inspectorCollapsed ? 'Details' : 'Hide'}
+          {inspectorCollapsed ? 'Details' : ''}
         </button>
       )}
 
@@ -427,11 +505,36 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
         </button>
       </div>
 
-      {/* Keyboard shortcut hint (bottom-center) */}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-40 text-[10px] text-slate-600">
-        <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono">⌘K</kbd>
-        {' '}Spreading Activation
+      {/* Entity legend (bottom-left info section) — always visible, shows types for active layers */}
+      <div className="absolute bottom-3 left-3 z-40 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 px-3 py-2 max-w-md">
+        {ENTITY_LEGEND
+          .filter((group) => visibleLayers.has(group.layer))
+          .flatMap((group) => group.types)
+          .map((t) => {
+            const color = ENTITY_COLORS[t.key as keyof typeof ENTITY_COLORS] ?? '#6B7280'
+            return (
+              <span key={t.key} className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                <span
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: color }}
+                />
+                {t.label}
+              </span>
+            )
+          })}
       </div>
+
+      {/* Keyboard shortcut hint (bottom-center) — prominent CTA, hidden when search is open */}
+      {!searchOpen && <button
+        onClick={() => setSearchOpen(true)}
+        className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 px-4 py-2 rounded-full bg-slate-800/90 backdrop-blur-sm border border-slate-600/80 text-slate-300 hover:text-cyan-300 hover:border-cyan-500/50 hover:bg-slate-800 hover:shadow-lg hover:shadow-cyan-500/10 transition-all duration-200 group cursor-pointer"
+      >
+        <Search size={14} className="text-slate-400 group-hover:text-cyan-400 transition-colors" />
+        <span className="text-xs font-medium">Spreading Activation</span>
+        <kbd className="text-[11px] px-1.5 py-0.5 rounded-md bg-slate-700/80 border border-slate-600 font-mono text-slate-400 group-hover:text-cyan-300 group-hover:border-cyan-500/40 transition-colors">
+          ⌘K
+        </kbd>
+      </button>}
     </div>
   )
 }
