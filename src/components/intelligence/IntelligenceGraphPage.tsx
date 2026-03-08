@@ -12,7 +12,7 @@ import {
   type NodeChange,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Box, Grid3x3, Maximize, Minimize, PanelRightClose, PanelRightOpen, Search, EyeOff, Eye } from 'lucide-react'
+import { Box, Grid3x3, Maximize, Minimize, PanelRightClose, PanelRightOpen, Search } from 'lucide-react'
 
 import { intelligenceNodeTypes } from './nodes'
 import { intelligenceEdgeTypes } from './edges'
@@ -31,8 +31,7 @@ import {
   hoveredNodeIdAtom,
   graphViewModeAtom,
   selectedNodeIdAtom,
-  showAllEdgesAtom,
-  hiddenEdgeCountAtom,
+  legendHoveredTypeAtom,
 } from '@/atoms/intelligence'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -124,8 +123,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   const [viewMode, setViewMode] = useAtom(graphViewModeAtom)
   const selectedNodeId = useAtomValue(selectedNodeIdAtom)
   const activation = useAtomValue(activationStateAtom)
-  const [showAllEdges, setShowAllEdges] = useAtom(showAllEdgesAtom)
-  const hiddenEdgeCount = useAtomValue(hiddenEdgeCountAtom)
+  const setLegendHoveredType = useSetAtom(legendHoveredTypeAtom)
 
   const {
     nodes: layoutedNodes,
@@ -306,7 +304,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   return (
     <div
       ref={containerRef}
-      className={`relative ${
+      className={`relative bg-[#0f172a] ${
         isFullscreen
           ? 'w-screen bg-slate-950'
           : props.embedded
@@ -482,7 +480,6 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
       )}
 
       {/* ── Overlay states ── */}
-      <GraphLoadingProgress />
       {showError && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
           <ErrorState description={error!} onRetry={fetchGraph} />
@@ -556,36 +553,26 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
         >
           {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
         </button>
-        {hiddenEdgeCount > 0 && (
-          <>
-            <div className="w-px h-5 bg-slate-700 mx-0.5" />
-            <button
-              onClick={() => setShowAllEdges(!showAllEdges)}
-              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[10px] font-medium transition-colors ${
-                showAllEdges
-                  ? 'bg-amber-500/20 text-amber-300'
-                  : 'text-slate-400 hover:text-amber-300 hover:bg-slate-700/50'
-              }`}
-              title={showAllEdges ? 'Hide low-priority edges' : `Show all ${hiddenEdgeCount} hidden edges`}
-            >
-              {showAllEdges ? <Eye size={13} /> : <EyeOff size={13} />}
-              {showAllEdges ? 'All edges' : `${hiddenEdgeCount} hidden`}
-            </button>
-          </>
-        )}
       </div>
 
-      {/* Entity legend (bottom-left info section) — always visible, shows types for active layers */}
-      <div className="absolute bottom-3 left-3 z-40 flex items-end gap-2">
+      {/* Bottom-left section: loading progress + entity legend */}
+      <div className="absolute bottom-3 left-3 z-40 flex flex-col items-start gap-2 pointer-events-none">
+        {/* Loading progress — inline, non-blocking */}
+        <GraphLoadingProgress />
         {/* Entity legend */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 px-3 py-2 max-w-md">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 px-3 py-2 max-w-md pointer-events-auto">
           {ENTITY_LEGEND
             .filter((group) => visibleLayers.has(group.layer))
             .flatMap((group) => group.types)
             .map((t) => {
               const color = ENTITY_COLORS[t.key as keyof typeof ENTITY_COLORS] ?? '#6B7280'
               return (
-                <span key={t.key} className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                <span
+                  key={t.key}
+                  className="flex items-center gap-1.5 text-[10px] text-slate-400 cursor-pointer hover:text-slate-200 transition-colors"
+                  onMouseEnter={() => setLegendHoveredType(t.key)}
+                  onMouseLeave={() => setLegendHoveredType(null)}
+                >
                   <span
                     className="w-2 h-2 rounded-full shrink-0"
                     style={{ backgroundColor: color }}

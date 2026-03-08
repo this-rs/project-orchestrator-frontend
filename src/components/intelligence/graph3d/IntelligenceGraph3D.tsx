@@ -13,12 +13,15 @@ import * as THREE from 'three'
 
 import { useGraph3DLayout, type Graph3DNode, type Graph3DLink } from './useGraph3DLayout'
 import { createNodeObject, disposeNodeCaches } from './nodeObjects'
+import { buildCommunityHulls, disposeCommunityHulls, type CommunityHullGroup } from './CommunityHulls3D'
 import { ENTITY_COLORS } from '@/constants/intelligence'
 import {
   selectedNodeIdAtom,
   hoveredNodeIdAtom,
   energyHeatmapAtom,
   touchesHeatmapAtom,
+  showCommunityHullsAtom,
+  legendHoveredTypeAtom,
 } from '@/atoms/intelligence'
 import { activationStateAtom } from '../SpreadingActivation'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
@@ -89,8 +92,13 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
   const activation = useAtomValue(activationStateAtom)
   const energyHeatmap = useAtomValue(energyHeatmapAtom)
   const touchesHeatmap = useAtomValue(touchesHeatmapAtom)
+  const showCommunityHulls = useAtomValue(showCommunityHullsAtom)
+  const legendHoveredType = useAtomValue(legendHoveredTypeAtom)
 
   const { transformToGraph3D, savePositions } = useGraph3DLayout()
+
+  // ── Community hulls ref ───────────────────────────────────────────────
+  const communityHullsRef = useRef<CommunityHullGroup | null>(null)
 
   // ── Cleanup cached Three.js resources on unmount ────────────────────────
   useEffect(() => {
@@ -98,28 +106,97 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
   }, [])
 
   // ── Container sizing ────────────────────────────────────────────────────
+  // Measure via ResizeObserver + fullscreenchange + window resize.
+  // The parent container may enter fullscreen (requestFullscreen on
+  // IntelligenceGraphPage's div), which changes our absolute-inset-0 size.
+  // ResizeObserver sometimes misses fullscreen transitions, so we also
+  // listen for fullscreenchange and window resize as fallbacks.
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
 
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect
-        if (width > 0 && height > 0) {
-          setDimensions({ width, height })
-        }
+    const measure = () => {
+      const rect = el.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        setDimensions((prev) => {
+          // Only update if dimensions actually changed (avoid unnecessary re-renders)
+          if (Math.abs(prev.width - rect.width) < 1 && Math.abs(prev.height - rect.height) < 1) {
+            return prev
+          }
+          return { width: rect.width, height: rect.height }
+        })
       }
-    })
-
-    observer.observe(el)
-    // initial measurement
-    const rect = el.getBoundingClientRect()
-    if (rect.width > 0 && rect.height > 0) {
-      setDimensions({ width: rect.width, height: rect.height })
     }
 
-    return () => observer.disconnect()
+    const observer = new ResizeObserver(() => measure())
+    observer.observe(el)
+
+    // Initial measurement
+    measure()
+
+    // Fullscreen transitions: the browser may not fire ResizeObserver
+    // synchronously when entering/exiting fullscreen. Listen to the event
+    // and re-measure after a short delay to let layout settle.
+    const onFullscreenChange = () => {
+      // Immediate measurement + delayed re-measurement (layout may settle async)
+      measure()
+      setTimeout(measure, 50)
+      setTimeout(measure, 200)
+    }
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+
+    // Window resize fallback (covers edge cases like Tauri window resize)
+    window.addEventListener('resize', measure)
+
+    return () => {
+      observer.disconnect()
+      document.removeEventListener('fullscreenchange', onFullscreenChange)
+      window.removeEventListener('resize', measure)
+    }
   }, [])
+
+  // ── Force renderer resize on fullscreen transitions ─────────────────────
+  // react-force-graph-3d updates width/height via three-render-objects props,
+  // but after fullscreen transitions the internal renderer may lag behind.
+  // We only force-resize when dimensions change significantly (>50px delta),
+  // which avoids interfering with the library's own init cycle on first mount.
+  const prevDimensionsRef = useRef(dimensions)
+  useEffect(() => {
+    const prev = prevDimensionsRef.current
+    prevDimensionsRef.current = dimensions
+
+    // Skip small changes (initial mount jitter, sub-pixel rounding)
+    const dw = Math.abs(dimensions.width - prev.width)
+    const dh = Math.abs(dimensions.height - prev.height)
+    if (dw < 50 && dh < 50) return
+
+    const fg = graphRef.current
+    if (!fg) return
+
+    // Delay to let react-force-graph-3d process its own width/height prop update first
+    const timer = setTimeout(() => {
+      try {
+        if (typeof fg.renderer === 'function') {
+          const renderer = fg.renderer()
+          if (renderer) {
+            // updateStyle: false — don't override the canvas CSS that the library manages
+            renderer.setSize(dimensions.width, dimensions.height, false)
+          }
+        }
+        if (typeof fg.camera === 'function') {
+          const camera = fg.camera()
+          if (camera && 'aspect' in camera) {
+            camera.aspect = dimensions.width / dimensions.height
+            camera.updateProjectionMatrix()
+          }
+        }
+      } catch {
+        // ForceGraph3D may not be fully mounted — silently ignore
+      }
+    }, 100)
+
+    return () => clearTimeout(timer)
+  }, [dimensions])
 
   // ── Workaround: three.js OrbitControls + DragControls pointercancel crash ──
   // When DragControls dispatches pointercancel, OrbitControls.onPointerUp tries
@@ -163,12 +240,74 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
     }
   }, [needsRelayout, graphData])
 
+  // ── Community hulls — rebuild when data changes or toggle flips ────────
+  // graphData.nodes positions are mutable (d3-force updates x/y/z in-place),
+  // so we rebuild hulls on engine stop (positions final) and on toggle change.
+  const hullNeedsRebuildRef = useRef(false)
+
+  // Mark for rebuild when toggle changes or data changes
+  useEffect(() => {
+    hullNeedsRebuildRef.current = true
+  }, [showCommunityHulls, graphData.nodes])
+
+  // Actually build hulls — called from onEngineStop and on toggle
+  const rebuildCommunityHulls = useCallback(() => {
+    try {
+      const fg = graphRef.current
+      if (!fg || typeof fg.scene !== 'function') return
+
+      const scene = fg.scene()
+      if (!scene) return
+
+      // Remove previous hulls
+      if (communityHullsRef.current) {
+        scene.remove(communityHullsRef.current.group)
+        disposeCommunityHulls(communityHullsRef.current)
+        communityHullsRef.current = null
+      }
+
+      if (!showCommunityHulls || graphData.nodes.length === 0) return
+
+      // Only build if any node has a communityId
+      const hasCommunities = graphData.nodes.some((n) => n.communityId != null)
+      if (!hasCommunities) return
+
+      const hullGroup = buildCommunityHulls(graphData.nodes)
+      if (hullGroup.hulls.length > 0) {
+        scene.add(hullGroup.group)
+        communityHullsRef.current = hullGroup
+      }
+    } catch (err) {
+      console.warn('[IntelligenceGraph3D] community hulls error:', err)
+    }
+  }, [showCommunityHulls, graphData.nodes])
+
+  // Rebuild when toggle changes (immediate — user clicked the button)
+  useEffect(() => {
+    // Small delay to let ForceGraph3D mount its scene
+    const timer = setTimeout(() => rebuildCommunityHulls(), 100)
+    return () => clearTimeout(timer)
+  }, [showCommunityHulls, rebuildCommunityHulls])
+
   // ── Save positions when simulation stops ────────────────────────────────
   const onEngineStop = useCallback(() => {
     if (graphData.nodes.length > 0) {
       savePositions(graphData.nodes)
+      // Rebuild community hulls now that positions are final
+      if (hullNeedsRebuildRef.current) {
+        hullNeedsRebuildRef.current = false
+        rebuildCommunityHulls()
+      }
     }
-  }, [graphData.nodes, savePositions])
+  }, [graphData.nodes, savePositions, rebuildCommunityHulls])
+
+  // Cleanup hulls on unmount
+  useEffect(() => {
+    return () => {
+      disposeCommunityHulls(communityHullsRef.current)
+      communityHullsRef.current = null
+    }
+  }, [])
 
   // ── Highlight: hover AND selection coexist simultaneously ──────────────
   const hasAnyHighlight = !!hoveredNodeId || !!selectedNodeId
@@ -228,6 +367,7 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
   const HIGHLIGHT_COLOR_HOVER = '#F59E0B'   // amber-500
   const HIGHLIGHT_COLOR_SELECT = '#22D3EE'  // cyan-400
   const ACTIVATION_COLOR_EDGE = '#34D399'    // emerald-400 (active synapse edges)
+  const INTER_COMMUNITY_COLOR = '#F8FAFC'   // slate-50 (bright white — stands out against dark bg)
 
   // ── Link styling (hover + selection coexist, AND spreading activation) ──
   const linkColor = useCallback((link: Graph3DLink) => {
@@ -260,8 +400,14 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
       if (isSelectConnected) return HIGHLIGHT_COLOR_SELECT
       return 'rgba(107, 114, 128, 0.08)'
     }
+
+    // Inter-community edges get a bright distinct color when hulls are visible
+    if (showCommunityHulls && link.isInterCommunity) {
+      return INTER_COMMUNITY_COLOR
+    }
+
     return link.color
-  }, [hoveredNodeId, selectedNodeId, hasAnyHighlight, activation])
+  }, [hoveredNodeId, selectedNodeId, hasAnyHighlight, activation, showCommunityHulls])
 
   const linkWidth = useCallback((link: Graph3DLink) => {
     const sourceId = typeof link.source === 'object' ? (link.source as Graph3DNode).id : link.source
@@ -286,8 +432,14 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
         : false
       return (isHoverConnected || isSelectConnected) ? link.width * 2 : link.width * 0.3
     }
+
+    // Inter-community edges are thicker to emphasize cross-boundary communication
+    if (showCommunityHulls && link.isInterCommunity) {
+      return link.width * 2.5
+    }
+
     return link.width
-  }, [hoveredNodeId, selectedNodeId, hasAnyHighlight, activation])
+  }, [hoveredNodeId, selectedNodeId, hasAnyHighlight, activation, showCommunityHulls])
 
   const linkParticles = useCallback((link: Graph3DLink) => {
     // Boost particles on activated synapse edges
@@ -300,8 +452,12 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
         return 6 // extra particles for visual emphasis
       }
     }
+    // Inter-community edges get flowing particles to show cross-boundary communication
+    if (showCommunityHulls && link.isInterCommunity) {
+      return 3
+    }
     return link.particles
-  }, [activation])
+  }, [activation, showCommunityHulls])
 
   const linkParticleSpeed = useCallback((link: Graph3DLink) => {
     return link.particleSpeed
@@ -576,6 +732,73 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
     }
   }, [energyHeatmap, touchesHeatmap, graphData.nodes, activationPhase])
 
+  // ── Legend hover — illuminate nodes matching the hovered entity type ─────
+  // Same ref-tracked pattern: save originals, mutate, restore on hover off.
+  const legendDirtyRef = useRef<Map<THREE.MeshLambertMaterial, { emissive: string; emissiveIntensity: number; opacity: number }>>(new Map())
+
+  useEffect(() => {
+    const lDirty = legendDirtyRef.current
+
+    // Skip if other overlays are active (activation or heatmaps take priority)
+    if (activationPhase !== 'idle' && activationPhase !== 'searching') {
+      if (lDirty.size > 0) {
+        for (const [mat, orig] of lDirty) {
+          mat.emissive = new THREE.Color(orig.emissive)
+          mat.emissiveIntensity = orig.emissiveIntensity
+          mat.opacity = orig.opacity
+          mat.needsUpdate = true
+        }
+        lDirty.clear()
+      }
+      return
+    }
+
+    // ── DEACTIVATION: restore all legend-modified materials ──
+    if (!legendHoveredType) {
+      for (const [mat, orig] of lDirty) {
+        mat.emissive = new THREE.Color(orig.emissive)
+        mat.emissiveIntensity = orig.emissiveIntensity
+        mat.opacity = orig.opacity
+        mat.needsUpdate = true
+      }
+      lDirty.clear()
+      return
+    }
+
+    // ── ACTIVE: boost matching nodes, dim others ──
+    for (const node of graphData.nodes) {
+      const obj = (node as Graph3DNode & { __threeObj?: THREE.Object3D }).__threeObj
+      if (!obj) continue
+
+      const isMatch = node.entityType === legendHoveredType
+
+      obj.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshLambertMaterial) {
+          const mat = child.material
+          if (!lDirty.has(mat)) {
+            lDirty.set(mat, {
+              emissive: '#' + mat.emissive.getHexString(),
+              emissiveIntensity: mat.emissiveIntensity,
+              opacity: mat.opacity,
+            })
+          }
+          if (isMatch) {
+            // Bright glow for matching type
+            const color = ENTITY_COLORS[node.entityType as keyof typeof ENTITY_COLORS] ?? '#6B7280'
+            mat.emissive = new THREE.Color(color)
+            mat.emissiveIntensity = 0.8
+            mat.opacity = 1.0
+          } else {
+            // Dim non-matching nodes
+            mat.emissiveIntensity = 0.05
+            mat.opacity = 0.15
+          }
+          mat.needsUpdate = true
+        }
+      })
+    }
+  }, [legendHoveredType, graphData.nodes, activationPhase])
+
   // ── Spreading Activation — zoom camera to activated cluster ──────────────
   const prevActivationPhaseRef = useRef<string>('idle')
   useEffect(() => {
@@ -703,24 +926,69 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [setSelectedNodeId, setHoveredNodeId])
 
-  // ── Scene config ────────────────────────────────────────────────────────
-  useEffect(() => {
+  // ── Scene config (background + lights) ─────────────────────────────────
+  // ── Scene configuration (background + lights) ──────────────────────────────
+  // MeshLambertMaterial REQUIRES lights to be visible. Without AmbientLight,
+  // all meshes render black. The scene background also defaults to white.
+  //
+  // GOTCHA — WHITE SCREEN BUG (recurring):
+  //   ForceGraph3D creates a NEW Three.js scene when it (re)mounts.
+  //   This happens when graphData.nodes goes 0→N (conditional render unmount/remount).
+  //   The new scene has a white background and no lights.
+  //   configureScene() MUST run on EVERY mount — it is idempotent (checks for
+  //   existing lights before adding). Never gate it behind a "configured once" ref,
+  //   because the scene instance changes on remount but the ref would persist.
+  //   Also, graphRef isn't available until ForceGraph3D mounts asynchronously,
+  //   so we poll with setInterval(50ms) until the ref is ready.
+
+  const configureScene = useCallback(() => {
     const fg = graphRef.current
-    if (!fg || typeof fg.scene !== 'function') return
+    if (!fg || typeof fg.scene !== 'function') return false
 
-    // Dark background
     const scene = fg.scene()
-    if (scene) {
-      scene.background = new THREE.Color('#0f172a')
+    if (!scene) return false
 
-      // Add ambient light for better visibility
-      const existingAmbient = scene.children.find((c: THREE.Object3D) => c instanceof THREE.AmbientLight)
-      if (!existingAmbient) {
-        scene.add(new THREE.AmbientLight(0xffffff, 0.6))
-        scene.add(new THREE.DirectionalLight(0xffffff, 0.4))
+    // Dark background — prevents white flash
+    scene.background = new THREE.Color('#0f172a')
+
+    // Also set clear color on renderer as belt-and-suspenders
+    try {
+      if (typeof fg.renderer === 'function') {
+        const renderer = fg.renderer()
+        if (renderer) {
+          renderer.setClearColor(new THREE.Color('#0f172a'), 1)
+        }
       }
+    } catch { /* renderer may not be ready */ }
+
+    // Add lights — required for MeshLambertMaterial visibility (idempotent)
+    const existingAmbient = scene.children.find((c: THREE.Object3D) => c instanceof THREE.AmbientLight)
+    if (!existingAmbient) {
+      scene.add(new THREE.AmbientLight(0xffffff, 0.6))
+      scene.add(new THREE.DirectionalLight(0xffffff, 0.4))
     }
-  }, [graphData]) // re-run when data changes (graph mounts)
+
+    return true
+  }, [])
+
+  // Configure scene once on mount — ForceGraph3D is ALWAYS mounted (never conditional),
+  // so this runs exactly once. Uses polling because graphRef isn't available synchronously.
+  useEffect(() => {
+    if (configureScene()) return
+
+    const interval = setInterval(() => {
+      if (configureScene()) {
+        clearInterval(interval)
+      }
+    }, 50)
+
+    const timeout = setTimeout(() => clearInterval(interval), 3000)
+
+    return () => {
+      clearInterval(interval)
+      clearTimeout(timeout)
+    }
+  }, [configureScene])
 
   // ── Force configuration ─────────────────────────────────────────────────
   useEffect(() => {
@@ -738,54 +1006,59 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
     })
   }, [graphData])
 
+  // Keep ForceGraph3D ALWAYS mounted to prevent white screen on preset switches.
+  // When nodes are empty, pass an empty graphData — the scene stays alive with its
+  // configured background + lights, avoiding the unmount/remount cycle that
+  // creates a new white scene each time. See note: "ForceGraph3D white screen on (re)mount"
+  const emptyGraphData = useMemo(() => ({ nodes: [] as Graph3DNode[], links: [] as Graph3DLink[] }), [])
+  const activeGraphData = graphData.nodes.length > 0 ? graphData : emptyGraphData
+
   return (
-    <div ref={containerRef} className="absolute inset-0">
-      {graphData.nodes.length > 0 && (
-        <ForceGraph3D<Graph3DNode, Graph3DLink>
-          ref={graphRef}
-          width={dimensions.width}
-          height={dimensions.height}
-          graphData={graphData}
-          // Node styling
-          nodeColor={nodeColor}
-          nodeVal={nodeVal}
-          nodeLabel={nodeLabel}
-          nodeThreeObject={nodeThreeObject}
-          nodeThreeObjectExtend={false}
-          nodeOpacity={nodeOpacity}
-          nodeResolution={12}
-          // Link styling
-          linkColor={linkColor}
-          linkWidth={linkWidth}
-          linkOpacity={0.6}
-          linkDirectionalParticles={linkParticles}
-          linkDirectionalParticleSpeed={linkParticleSpeed}
-          linkDirectionalParticleColor={linkParticleColor}
-          linkDirectionalParticleWidth={1.5}
-          // Interactions
-          onNodeClick={onNodeClick}
-          onNodeHover={onNodeHover}
-          onNodeDragEnd={(node: Graph3DNode) => {
-            // Pin position after drag
-            node.fx = node.x
-            node.fy = node.y
-            node.fz = node.z
-            savePositions([node])
-          }}
-          onBackgroundClick={onBackgroundClick}
-          // Force engine
-          cooldownTicks={100}
-          cooldownTime={5000}
-          warmupTicks={30}
-          onEngineStop={onEngineStop}
-          // Controls
-          controlType="orbit"
-          enableNavigationControls
-          showNavInfo={false}
-          // Background
-          backgroundColor="#0f172a"
-        />
-      )}
+    <div ref={containerRef} className="absolute inset-0 bg-[#0f172a]">
+      <ForceGraph3D<Graph3DNode, Graph3DLink>
+        ref={graphRef}
+        width={dimensions.width}
+        height={dimensions.height}
+        graphData={activeGraphData}
+        // Node styling
+        nodeColor={nodeColor}
+        nodeVal={nodeVal}
+        nodeLabel={nodeLabel}
+        nodeThreeObject={nodeThreeObject}
+        nodeThreeObjectExtend={false}
+        nodeOpacity={nodeOpacity}
+        nodeResolution={12}
+        // Link styling
+        linkColor={linkColor}
+        linkWidth={linkWidth}
+        linkOpacity={0.6}
+        linkDirectionalParticles={linkParticles}
+        linkDirectionalParticleSpeed={linkParticleSpeed}
+        linkDirectionalParticleColor={linkParticleColor}
+        linkDirectionalParticleWidth={1.5}
+        // Interactions
+        onNodeClick={onNodeClick}
+        onNodeHover={onNodeHover}
+        onNodeDragEnd={(node: Graph3DNode) => {
+          // Pin position after drag
+          node.fx = node.x
+          node.fy = node.y
+          node.fz = node.z
+          savePositions([node])
+        }}
+        onBackgroundClick={onBackgroundClick}
+        // Force engine
+        cooldownTicks={100}
+        cooldownTime={5000}
+        warmupTicks={30}
+        onEngineStop={onEngineStop}
+        // Controls
+        controlType="orbit"
+        enableNavigationControls
+        showNavInfo={false}
+        // Background
+        backgroundColor="#0f172a"
+      />
     </div>
   )
 }

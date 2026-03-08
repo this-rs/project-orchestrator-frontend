@@ -6,6 +6,7 @@ import type {
   IntelligenceRelationType,
   IntelligenceSummary,
   VisibilityMode,
+  BackendGraphCommunity,
 } from '@/types/intelligence'
 import { LAYERS, LAYER_ORDER, ANIMATION, EDGE_RENDER_PRIORITY } from '@/constants/intelligence'
 
@@ -52,6 +53,9 @@ export const visibleLayersAtom = atom<Set<IntelligenceLayer>>(
 
 /** Current visibility preset mode */
 export const visibilityModeAtom = atom<VisibilityMode>('code_only')
+
+/** Hovered entity type from the legend — highlights matching nodes on the canvas */
+export const legendHoveredTypeAtom = atom<string | null>(null)
 
 // ── Graph data ───────────────────────────────────────────────────────────────
 
@@ -172,6 +176,12 @@ export const touchesHeatmapAtom = atom<boolean>(false)
 
 /** CO_CHANGED threshold — hide CO_CHANGED edges with count below this value */
 export const coChangeThresholdAtom = atom<number>(1)
+
+/** Community hulls toggle — show/hide convex hull overlays in 3D view */
+export const showCommunityHullsAtom = atom<boolean>(false)
+
+/** Communities from the backend graph response */
+export const intelligenceCommunitiesAtom = atom<BackendGraphCommunity[]>([])
 
 // ── Graph node limit ────────────────────────────────────────────────────────
 

@@ -2,7 +2,7 @@ import { memo } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import type { IntelligenceLayer, VisibilityMode } from '@/types/intelligence'
 import { LAYERS, LAYER_ORDER, VISIBILITY_PRESETS } from '@/constants/intelligence'
-import { energyHeatmapAtom, touchesHeatmapAtom, coChangeThresholdAtom, loadingLayersAtom } from '@/atoms/intelligence'
+import { energyHeatmapAtom, touchesHeatmapAtom, coChangeThresholdAtom, loadingLayersAtom, showCommunityHullsAtom, visibilityModeAtom, showAllEdgesAtom, hiddenEdgeCountAtom } from '@/atoms/intelligence'
 import { activationSearchOpenAtom } from './SpreadingActivation'
 import {
   Eye,
@@ -19,6 +19,7 @@ import {
   GitFork,
   SlidersHorizontal,
   Workflow,
+  Hexagon,
 } from 'lucide-react'
 
 const presetIcons: Record<string, typeof Layers> = {
@@ -51,8 +52,12 @@ function LayerControlsComponent({
   const [heatmapEnabled, setHeatmapEnabled] = useAtom(energyHeatmapAtom)
   const [touchesEnabled, setTouchesEnabled] = useAtom(touchesHeatmapAtom)
   const [coChangeThreshold, setCoChangeThreshold] = useAtom(coChangeThresholdAtom)
+  const [communityHulls, setCommunityHulls] = useAtom(showCommunityHullsAtom)
   const setSearchOpen = useSetAtom(activationSearchOpenAtom)
   const loadingLayers = useAtomValue(loadingLayersAtom)
+  const activeMode = useAtomValue(visibilityModeAtom)
+  const [showAllEdges, setShowAllEdges] = useAtom(showAllEdgesAtom)
+  const hiddenEdgeCount = useAtomValue(hiddenEdgeCountAtom)
 
   return (
     <div className="absolute top-3 left-3 z-40 flex flex-col gap-2">
@@ -60,11 +65,16 @@ function LayerControlsComponent({
       <div className="flex gap-1 rounded-lg bg-slate-900/90 backdrop-blur-sm border border-slate-700 p-1">
         {VISIBILITY_PRESETS.map((preset) => {
           const Icon = presetIcons[preset.icon] ?? Layers
+          const isActive = activeMode === preset.id && !customMode
           return (
             <button
               key={preset.id}
               onClick={() => { onApplyPreset(preset.id); if (customMode) onToggleCustom() }}
-              className="flex items-center gap-1 rounded-md px-2 py-1.5 text-[10px] font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+              className={`flex items-center gap-1 rounded-md px-2 py-1.5 text-[10px] font-medium transition-colors ${
+                isActive
+                  ? 'bg-blue-500/20 text-blue-300 ring-1 ring-blue-500/40'
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+              }`}
               title={preset.description}
             >
               <Icon size={12} />
@@ -84,6 +94,20 @@ function LayerControlsComponent({
         >
           <SlidersHorizontal size={12} />
           Custom
+        </button>
+        {/* All Edges toggle — always visible */}
+        <div className="w-px h-5 bg-slate-700/60 mx-0.5 self-center" />
+        <button
+          onClick={() => setShowAllEdges(!showAllEdges)}
+          className={`flex items-center gap-1 rounded-md px-2 py-1.5 text-[10px] font-medium transition-colors ${
+            showAllEdges
+              ? 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40'
+              : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+          }`}
+          title={showAllEdges ? 'Show only priority edges (budget mode)' : `Show all edges (${hiddenEdgeCount} hidden)`}
+        >
+          {showAllEdges ? <Eye size={12} /> : <EyeOff size={12} />}
+          {showAllEdges ? 'All Edges' : `Edges${hiddenEdgeCount > 0 ? ` (${hiddenEdgeCount})` : ''}`}
         </button>
       </div>
 
@@ -162,6 +186,18 @@ function LayerControlsComponent({
               <Search size={12} />
               <span className="font-medium">Activation</span>
               <kbd className="ml-auto text-[9px] px-1 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-slate-600">⌘K</kbd>
+            </button>
+            <button
+              onClick={() => setCommunityHulls(!communityHulls)}
+              className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors ${
+                communityHulls
+                  ? 'text-blue-300 bg-blue-950/40'
+                  : 'text-slate-500 hover:text-slate-400'
+              }`}
+              title="Show community cluster hulls in 3D view (Louvain communities)"
+            >
+              <Hexagon size={12} className={communityHulls ? 'text-blue-400' : ''} />
+              <span className="font-medium">Communities</span>
             </button>
           </div>
 

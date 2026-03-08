@@ -318,6 +318,22 @@ html.tauri * {
   }
 }
 
+/* ─── ForceGraph3D tooltip override ──────────────────────────────────
+ * The float-tooltip-kap element injected by three-render-objects has
+ * padding + background, so even when empty it renders a visible dot
+ * under the cursor. We hide it and use our custom nodeLabel HTML
+ * which is rendered INSIDE the tooltip div — the :empty selector
+ * hides the dot when no node is hovered.
+ * ─────────────────────────────────────────────────────────────────── */
+.float-tooltip-kap:empty {
+  display: none !important;
+}
+.float-tooltip-kap {
+  padding: 0 !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+}
+
 /* Backdrop — subtle darkening behind popovers */
 .popover-dropdown::backdrop {
   background: transparent;

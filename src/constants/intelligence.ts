@@ -203,8 +203,8 @@ export const VISIBILITY_PRESETS: VisibilityPreset[] = [
   {
     id: 'neural_view',
     label: 'Neural',
-    description: 'Réseau neural de connaissances',
-    layers: ['knowledge', 'neural', 'skills'],
+    description: 'Réseau neural, skills & protocoles',
+    layers: ['knowledge', 'neural', 'skills', 'behavioral'],
     icon: 'Brain',
   },
   {
@@ -224,8 +224,8 @@ export const VISIBILITY_PRESETS: VisibilityPreset[] = [
   {
     id: 'behavioral_view',
     label: 'Behavioral',
-    description: 'Protocoles & machines à états',
-    layers: ['behavioral', 'skills'],
+    description: 'Protocoles, skills, notes & interconnexions',
+    layers: ['behavioral', 'skills', 'knowledge', 'neural'],
     icon: 'Workflow',
   },
   {

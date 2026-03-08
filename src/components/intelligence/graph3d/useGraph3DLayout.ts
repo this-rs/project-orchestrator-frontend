@@ -50,6 +50,9 @@ export interface Graph3DNode {
   fx?: number
   fy?: number
   fz?: number
+  // Community membership (Louvain cluster)
+  communityId?: number
+  communityLabel?: string
   // Original data for rendering
   data: Record<string, unknown>
 }
@@ -66,6 +69,11 @@ export interface Graph3DLink {
   width: number
   particles: number
   particleSpeed: number
+  /** true when source and target belong to different communities */
+  isInterCommunity: boolean
+  /** community IDs of source/target (for coloring inter-community edges) */
+  sourceCommunityId?: number
+  targetCommunityId?: number
 }
 
 export interface Graph3DData {
@@ -212,9 +220,17 @@ export function useGraph3DLayout() {
         x: pos.x,
         y: pos.y,
         z: pos.z,
+        communityId: data.communityId as number | undefined,
+        communityLabel: data.communityLabel as string | undefined,
         data,
       }
     })
+
+    // Build community lookup for inter-community edge detection
+    const communityMap = new Map<string, number>()
+    for (const n of graph3dNodes) {
+      if (n.communityId != null) communityMap.set(n.id, n.communityId)
+    }
 
     // Build 3D links
     const nodeIdSet = currentIds
@@ -223,6 +239,9 @@ export function useGraph3DLayout() {
       .map((edge) => {
         const relationType = (edge.data?.relationType as string) ?? 'IMPORTS'
         const particleConfig = LINK_PARTICLES[relationType] ?? { particles: 0, speed: 0 }
+        const srcCommunity = communityMap.get(edge.source)
+        const tgtCommunity = communityMap.get(edge.target)
+        const isInterCommunity = srcCommunity != null && tgtCommunity != null && srcCommunity !== tgtCommunity
         return {
           source: edge.source,
           target: edge.target,
@@ -235,6 +254,9 @@ export function useGraph3DLayout() {
           width: LINK_WIDTHS[relationType] ?? 1,
           particles: particleConfig.particles,
           particleSpeed: particleConfig.speed,
+          isInterCommunity,
+          sourceCommunityId: srcCommunity,
+          targetCommunityId: tgtCommunity,
         }
       })
 

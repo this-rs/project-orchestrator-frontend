@@ -14,6 +14,8 @@ import {
   Cpu,
   Sparkles,
   FileText,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 
 // ── Stage icons ──────────────────────────────────────────────────────────────
@@ -33,6 +35,7 @@ const stageIcons: Record<string, typeof Database> = {
   fetch_summary: FileText,
   transform: Cpu,
   layout: LayoutGrid,
+  update_edges: Network,
   render: Sparkles,
 }
 
@@ -42,26 +45,26 @@ function StageStatusIcon({ status }: { status: LoadingStageStatus }) {
   switch (status) {
     case 'done':
       return (
-        <div className="w-4 h-4 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
-          <Check size={10} className="text-emerald-400" strokeWidth={3} />
+        <div className="w-3.5 h-3.5 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+          <Check size={8} className="text-emerald-400" strokeWidth={3} />
         </div>
       )
     case 'loading':
       return (
-        <div className="w-4 h-4 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
-          <Loader2 size={10} className="text-blue-400 animate-spin" />
+        <div className="w-3.5 h-3.5 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+          <Loader2 size={8} className="text-blue-400 animate-spin" />
         </div>
       )
     case 'error':
       return (
-        <div className="w-4 h-4 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
-          <AlertCircle size={10} className="text-red-400" />
+        <div className="w-3.5 h-3.5 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
+          <AlertCircle size={8} className="text-red-400" />
         </div>
       )
     default:
       return (
-        <div className="w-4 h-4 rounded-full bg-slate-700/30 flex items-center justify-center shrink-0">
-          <Circle size={6} className="text-slate-600" />
+        <div className="w-3.5 h-3.5 rounded-full bg-slate-700/30 flex items-center justify-center shrink-0">
+          <Circle size={5} className="text-slate-600" />
         </div>
       )
   }
@@ -79,7 +82,6 @@ function ElapsedTimer({ startedAt, completedAt }: { startedAt?: number; complete
   const ref = useRef<HTMLSpanElement>(null)
   const rafRef = useRef<number>(0)
 
-  // Stable ref to startedAt so the RAF closure always reads the latest value
   const startedAtRef = useRef(startedAt)
   startedAtRef.current = startedAt
 
@@ -89,7 +91,6 @@ function ElapsedTimer({ startedAt, completedAt }: { startedAt?: number; complete
       return
     }
 
-    // Set initial value immediately (before first RAF tick)
     if (ref.current) {
       ref.current.textContent = formatMs(Date.now() - startedAt)
     }
@@ -109,16 +110,14 @@ function ElapsedTimer({ startedAt, completedAt }: { startedAt?: number; complete
 
   if (completedAt) {
     return (
-      <span className="text-[10px] text-slate-500 tabular-nums font-mono">
+      <span className="text-[9px] text-slate-500 tabular-nums font-mono">
         {formatMs(completedAt - startedAt)}
       </span>
     )
   }
 
-  // Self-closing span with NO children — React won't touch textContent,
-  // so the RAF can update it freely without React overwriting on re-render.
   return (
-    <span ref={ref} className="text-[10px] text-blue-400/80 tabular-nums font-mono" />
+    <span ref={ref} className="text-[9px] text-blue-400/80 tabular-nums font-mono" />
   )
 }
 
@@ -128,7 +127,7 @@ function StageProgressBar({ progress, progressTotal }: { progress: number; progr
   const pct = progressTotal > 0 ? Math.min((progress / progressTotal) * 100, 100) : 0
 
   return (
-    <div className="w-full h-1 bg-slate-800/80 rounded-full overflow-hidden mt-1.5">
+    <div className="w-full h-0.5 bg-slate-800/80 rounded-full overflow-hidden mt-1">
       <div
         className="h-full bg-blue-500/60 rounded-full transition-all duration-300 ease-out"
         style={{ width: `${pct}%` }}
@@ -140,8 +139,6 @@ function StageProgressBar({ progress, progressTotal }: { progress: number; progr
 // ── Global progress bar ─────────────────────────────────────────────────────
 
 function GlobalProgressBar({ stages }: { stages: LoadingStage[] }) {
-  // Weighted progress: each stage contributes equally, but loading stages
-  // contribute their sub-progress fraction
   let totalWeight = 0
   let doneWeight = 0
 
@@ -171,76 +168,67 @@ function GlobalProgressBar({ stages }: { stages: LoadingStage[] }) {
   )
 }
 
-// ── Stage row ───────────────────────────────────────────────────────────────
+// ── Compact stage row ────────────────────────────────────────────────────────
 
-function StageRow({ stage }: { stage: LoadingStage }) {
+function CompactStageRow({ stage }: { stage: LoadingStage }) {
   const Icon = stageIcons[stage.id] ?? Database
   const isActive = stage.status === 'loading'
   const isDone = stage.status === 'done'
-  const hasDetail = stage.detail && (isActive || isDone)
   const hasSubProgress = isActive && stage.progress != null && stage.progressTotal != null && stage.progressTotal > 0
 
   return (
     <div
-      className={`rounded-lg transition-all duration-200 ${
+      className={`flex items-center gap-1.5 px-2 py-1 rounded transition-all duration-200 ${
         isActive
-          ? 'bg-blue-950/40 ring-1 ring-blue-500/20'
+          ? 'bg-blue-950/40'
           : isDone
-            ? 'opacity-60'
-            : 'opacity-30'
+            ? 'opacity-50'
+            : 'opacity-25'
       }`}
     >
-      {/* Main row: icon + label + elapsed */}
-      <div className="flex items-center gap-2 px-2.5 py-1.5">
-        <StageStatusIcon status={stage.status} />
-        <Icon
-          size={12}
-          className={
-            isActive
-              ? 'text-blue-400 shrink-0'
-              : isDone
-                ? 'text-slate-500 shrink-0'
-                : 'text-slate-600 shrink-0'
-          }
-        />
-        <span
-          className={`text-[11px] flex-1 leading-tight ${
-            isActive
-              ? 'text-slate-200 font-medium'
-              : isDone
-                ? 'text-slate-400'
-                : 'text-slate-600'
-          }`}
-        >
-          {stage.label}
+      <StageStatusIcon status={stage.status} />
+      <Icon
+        size={10}
+        className={
+          isActive ? 'text-blue-400 shrink-0' : isDone ? 'text-slate-500 shrink-0' : 'text-slate-600 shrink-0'
+        }
+      />
+      <span
+        className={`text-[10px] flex-1 leading-tight truncate ${
+          isActive ? 'text-slate-200 font-medium' : isDone ? 'text-slate-400' : 'text-slate-600'
+        }`}
+      >
+        {stage.label}
+      </span>
+      {(isActive || isDone) && stage.detail && (
+        <span className={`text-[9px] font-mono tabular-nums truncate max-w-[80px] ${
+          isDone ? 'text-emerald-500/50' : 'text-blue-400/60'
+        }`}>
+          {stage.detail}
         </span>
-        <ElapsedTimer startedAt={stage.startedAt} completedAt={stage.completedAt} />
-      </div>
-
-      {/* Sub-detail line: detail text + optional progress bar */}
-      {hasDetail && (
-        <div className="px-2.5 pb-1.5 pl-[2.75rem]">
-          <span className={`text-[10px] font-mono tabular-nums block ${
-            isDone ? 'text-emerald-500/60' : 'text-blue-400/70'
-          }`}>
-            {stage.detail}
-          </span>
-          {hasSubProgress && (
-            <StageProgressBar progress={stage.progress!} progressTotal={stage.progressTotal!} />
-          )}
+      )}
+      <ElapsedTimer startedAt={stage.startedAt} completedAt={stage.completedAt} />
+      {hasSubProgress && (
+        <div className="w-12">
+          <StageProgressBar progress={stage.progress!} progressTotal={stage.progressTotal!} />
         </div>
       )}
     </div>
   )
 }
 
-// ── Main component ───────────────────────────────────────────────────────────
+// ── Main component — inline badge (non-blocking) ────────────────────────────
+// Renders as a compact card above the legend (bottom-left), with
+// pointer-events: none so the canvas remains fully interactive.
 
 function GraphLoadingProgressComponent() {
   const stages = useAtomValue(graphLoadingStagesAtom)
   const active = useAtomValue(graphLoadingActiveAtom)
 
-  // Fade-out animation: keep visible for 600ms after completion
+  // Expand/collapse detail stages
+  const [expanded, setExpanded] = useState(false)
+
+  // Fade-out animation: keep visible for 800ms after completion
   const [visible, setVisible] = useState(false)
   const [fading, setFading] = useState(false)
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -251,12 +239,12 @@ function GraphLoadingProgressComponent() {
       setFading(false)
       if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current)
     } else if (visible && !active) {
-      // Start fade-out
       setFading(true)
       fadeTimerRef.current = setTimeout(() => {
         setVisible(false)
         setFading(false)
-      }, 600)
+        setExpanded(false)
+      }, 800)
     }
     return () => {
       if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current)
@@ -267,41 +255,62 @@ function GraphLoadingProgressComponent() {
 
   const done = stages.filter((s) => s.status === 'done').length
   const total = stages.length
+  const currentStage = stages.find((s) => s.status === 'loading')
 
   return (
-    <div className={`absolute inset-0 z-30 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm transition-opacity duration-500 ${
-      fading ? 'opacity-0' : 'opacity-100'
-    }`}>
-      <div className={`w-[340px] rounded-xl bg-slate-900/95 border border-slate-700/60 shadow-2xl shadow-black/40 overflow-hidden transition-transform duration-500 ${
-        fading ? 'scale-95' : 'scale-100'
-      }`}>
-        {/* Header */}
-        <div className="px-4 pt-3.5 pb-2.5">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-[13px] font-semibold text-slate-200 tracking-tight">
-              Loading Graph
-            </h3>
-            <span className="text-[10px] text-slate-500 tabular-nums font-mono">
-              {done}/{total}
+    <div
+      className={`w-[280px] rounded-lg bg-slate-900/90 backdrop-blur-sm border border-slate-700/60 shadow-lg shadow-black/30 overflow-hidden transition-all duration-500 ${
+        fading ? 'opacity-0 translate-y-2' : 'opacity-100 translate-y-0'
+      }`}
+    >
+      {/* Header — always visible: progress bar + current stage summary */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full px-3 pt-2.5 pb-2 hover:bg-slate-800/30 transition-colors pointer-events-auto"
+      >
+        <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center gap-2">
+            <Loader2
+              size={12}
+              className={`text-blue-400 ${active ? 'animate-spin' : 'text-emerald-400'}`}
+            />
+            <span className="text-[11px] font-medium text-slate-200 truncate max-w-[160px]">
+              {active
+                ? currentStage?.label ?? 'Loading...'
+                : 'Graph loaded'
+              }
             </span>
           </div>
-          <GlobalProgressBar stages={stages} />
+          <div className="flex items-center gap-1.5">
+            <span className="text-[9px] text-slate-500 tabular-nums font-mono">
+              {done}/{total}
+            </span>
+            {expanded
+              ? <ChevronDown size={10} className="text-slate-500" />
+              : <ChevronUp size={10} className="text-slate-500" />
+            }
+          </div>
         </div>
+        <GlobalProgressBar stages={stages} />
+      </button>
 
-        {/* Stages */}
-        <div className="px-3 pb-2 space-y-0.5">
+      {/* Expanded: detailed stage list */}
+      {expanded && (
+        <div className="px-1.5 pb-1.5 space-y-0.5 pointer-events-auto max-h-[200px] overflow-y-auto">
           {stages.map((stage) => (
-            <StageRow key={stage.id} stage={stage} />
+            <CompactStageRow key={stage.id} stage={stage} />
           ))}
         </div>
+      )}
 
-        {/* Footer */}
-        <div className="px-4 py-2 border-t border-slate-800/40">
-          <p className="text-[10px] text-slate-600 text-center">
-            Graph size &amp; Neo4j load affect performance
+      {/* Branding footer — only when expanded */}
+      {expanded && (
+        <div className="px-3 py-1.5 border-t border-slate-800/40 pointer-events-auto">
+          <p className="text-[8px] text-slate-600/50 text-center tracking-wide">
+            Made by Freedom From Scratch
           </p>
         </div>
-      </div>
+      )}
     </div>
   )
 }

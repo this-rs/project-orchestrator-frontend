@@ -17,6 +17,7 @@ import {
   intelligenceErrorAtom,
   intelligenceSummaryAtom,
   intelligenceSummaryLoadingAtom,
+  intelligenceCommunitiesAtom,
   visibleNodesAtom,
   budgetedEdgesAtom,
   selectedNodeIdAtom,
@@ -130,6 +131,7 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
   const setError = useSetAtom(intelligenceErrorAtom)
   const setSummary = useSetAtom(intelligenceSummaryAtom)
   const setSummaryLoading = useSetAtom(intelligenceSummaryLoadingAtom)
+  const setCommunities = useSetAtom(intelligenceCommunitiesAtom)
   const [selectedNodeId, setSelectedNodeId] = useAtom(selectedNodeIdAtom)
   const [visibleLayers, setVisibleLayers] = useAtom(visibleLayersAtom)
   const setVisibilityMode = useSetAtom(visibilityModeAtom)
@@ -172,6 +174,11 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
 
       // Store project metadata
       setProjectMetas(data.projects)
+
+      // Store communities from the backend response
+      if (data.communities?.length > 0) {
+        setCommunities(data.communities)
+      }
 
       const rfNodes = data.nodes.map(toReactFlowNode)
       const rfEdges = [...data.edges, ...data.cross_project_edges].map(toReactFlowEdge)
@@ -217,7 +224,7 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
         return next
       })
     }
-  }, [workspaceSlug, setNodes, setEdges, setLoading, setError, setLoadingLayers, updateStage])
+  }, [workspaceSlug, setNodes, setEdges, setLoading, setError, setCommunities, setLoadingLayers, updateStage])
 
   const fetchGraph = useCallback(async () => {
     const layers = Array.from(visibleLayers) as string[]
@@ -287,7 +294,14 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
         (l) => !fetchedLayersRef.current.has(l),
       ) as string[]
       if (needed.length > 0) {
-        fetchGraphForLayers(needed, nodeLimit)
+        // Create loading stages for the incremental fetch + layout
+        const stageId = `fetch_${needed.join('_')}`
+        const stages: LoadingStage[] = [
+          { id: stageId, label: `Fetching ${needed.join(', ')} layers`, status: 'pending' },
+          { id: 'layout', label: 'Computing layout', status: 'pending' },
+        ]
+        setStages(stages)
+        fetchGraphForLayers(needed, nodeLimit, stageId)
       }
     }, 300)
     return () => {
@@ -325,6 +339,10 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
   const [layouting, setLayouting] = useState(false)
   const layoutVersionRef = useRef(0)
 
+  // Track node identity to detect edge-only changes (e.g. show-all-edges toggle)
+  const prevNodeFingerprintRef = useRef('')
+  const hasLayoutedOnceRef = useRef(false)
+
   // Filter nodes by project if a filter is active
   // IMPORTANT: useMemo prevents new array refs every render which would cause
   // the layout useEffect to re-fire infinitely → Context Lost loop
@@ -349,6 +367,31 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
       setLayoutedNodes([])
       setLayoutedEdges([])
       setLayouting(false)
+      prevNodeFingerprintRef.current = ''
+      hasLayoutedOnceRef.current = false
+      return
+    }
+
+    // Build a lightweight fingerprint of node IDs to detect node-set changes
+    const nodeFingerprint = filteredNodes.map((n) => n.id).sort().join(',')
+    const nodesChanged = nodeFingerprint !== prevNodeFingerprintRef.current
+    prevNodeFingerprintRef.current = nodeFingerprint
+
+    // If only edges changed (e.g. show-all-edges toggle, CO_CHANGED threshold),
+    // skip the full dagre re-layout — node positions don't change.
+    // Show a brief loading stage so the user sees feedback.
+    if (!nodesChanged && hasLayoutedOnceRef.current) {
+      const edgeCount = filteredEdges.length
+      const startedAt = Date.now()
+      setStages([
+        { id: 'update_edges', label: 'Updating edges', status: 'loading', startedAt, detail: `${edgeCount} edges` },
+      ])
+      requestAnimationFrame(() => {
+        setLayoutedEdges(filteredEdges)
+        setStages([
+          { id: 'update_edges', label: 'Updating edges', status: 'done', startedAt, completedAt: Date.now(), detail: `${edgeCount} edges` },
+        ])
+      })
       return
     }
 
@@ -393,6 +436,7 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
         )
         setLayoutedEdges(filteredEdges)
         setLayouting(false)
+        hasLayoutedOnceRef.current = true
         updateStage('layout', {
           status: 'done',
           completedAt: Date.now(),
