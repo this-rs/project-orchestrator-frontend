@@ -4,6 +4,7 @@ import type { EdgeProps, Edge } from '@xyflow/react'
 import type { IntelligenceEdgeData } from '@/types/intelligence'
 import { EDGE_STYLES } from '@/constants/intelligence'
 import { useAtomValue } from 'jotai'
+import { hoveredNodeIdAtom, selectedNodeIdAtom } from '@/atoms/intelligence'
 import { activationStateAtom } from '../SpreadingActivation'
 
 /**
@@ -44,10 +45,14 @@ function SynapseEdgeComponent({
   const bothActivated = sourceActivated && targetActivated
   const eitherActivated = sourceActivated || targetActivated
 
-  // Hover highlighting from propagation paths
-  const hasHover = (data as Record<string, unknown>)?._hasHover === true
-  const isHighlighted = (data as Record<string, unknown>)?._highlighted === true
-  const hoverDimmed = hasHover && !isHighlighted && !hasActiveSearch
+  // Hover/selection highlighting — read atoms directly (avoids edge object recreation on hover)
+  const hoveredNodeId = useAtomValue(hoveredNodeIdAtom)
+  const selectedNodeId = useAtomValue(selectedNodeIdAtom)
+  const isHoverConnected = !!hoveredNodeId && (source === hoveredNodeId || target === hoveredNodeId)
+  const isSelectConnected = !!selectedNodeId && (source === selectedNodeId || target === selectedNodeId)
+  const isHighlighted = isHoverConnected || isSelectConnected
+  const hasAnyHighlight = !!hoveredNodeId || !!selectedNodeId
+  const hoverDimmed = hasAnyHighlight && !isHighlighted && !hasActiveSearch
 
   // WebSocket animation hints
   const wsAnim = (data as Record<string, unknown>)?._wsAnimation as string | undefined
@@ -85,7 +90,7 @@ function SynapseEdgeComponent({
     // Hover propagation: dim non-connected synapses
     opacity = 0.06
     glowOpacity = 0.01
-  } else if (hasHover && isHighlighted) {
+  } else if (hasAnyHighlight && isHighlighted) {
     // Highlighted on hover — boost
     strokeWidth = strokeWidth * 1.5
     glowWidth = glowWidth * 1.3

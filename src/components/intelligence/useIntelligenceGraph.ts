@@ -108,7 +108,7 @@ function toReactFlowEdge(edge: BackendGraphEdge, index: number): IntelligenceEdg
   const attrs = edge.attributes ?? {}
 
   return {
-    id: `e-${edge.source}-${edge.target}-${index}`,
+    id: `e|${edge.source}|${edge.target}|${index}`,
     source: edge.source,
     target: edge.target,
     type: edgeType,

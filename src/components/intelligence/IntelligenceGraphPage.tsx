@@ -161,74 +161,63 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
     setHoveredNodeId(null)
   }, [setHoveredNodeId])
 
-  // Propagation path highlighting — hover (amber) AND selection (cyan) coexist simultaneously
-  // Also dims non-activated edges during spreading activation
-  const TINT_HOVER = '#F59E0B'    // amber-500
-  const TINT_SELECT = '#22D3EE'   // cyan-400
-  const hasAnyHighlight = !!hoveredNodeId || !!selectedNodeId
+  // ── CSS-driven edge highlighting (zero JS overhead on hover) ──────────────
+  // Default edges are dimmed/highlighted via dynamic <style> + data-testid selectors.
+  // Custom edges (synapse, co_changed, affects) read atoms directly.
+  // Only during spreading activation do we fall back to JS for default edges.
   const activationActive = activation.phase !== 'idle'
-  const highlightedEdges = useMemo((): IntelligenceEdge[] => {
-    if (!hasAnyHighlight && !activationActive) return edges
 
-    // During activation, pre-compute the set of activated node IDs
-    const activatedNodeIds = activationActive
-      ? new Set([...activation.directIds, ...activation.propagatedIds])
-      : null
+  /** CSS rules for hover/selection highlighting of default edges.
+   *  Edge IDs use `|` separator: `e|source|target|idx` → data-testid="rf__edge-e|src|tgt|idx"
+   *  Substring match `[data-testid*="|nodeId|"]` reliably targets connected edges. */
+  const highlightCss = useMemo(() => {
+    // During activation, JS handles default edges (can't express Set membership in CSS)
+    if (activationActive) return ''
+    if (!hoveredNodeId && !selectedNodeId) return ''
+
+    const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+    let css = `.react-flow__edge-default .react-flow__edge-path { opacity: 0.1; transition: opacity 200ms, stroke 200ms, stroke-width 200ms; }\n`
+
+    // Selection highlighting (cyan) — listed first, lower CSS specificity priority
+    if (selectedNodeId) {
+      const e = esc(selectedNodeId)
+      css += `.react-flow__edge-default[data-testid*="|${e}|"] .react-flow__edge-path { opacity: 1; stroke: #22D3EE; stroke-width: 2px; }\n`
+    }
+    // Hover highlighting (amber) — listed second, takes priority over selection
+    if (hoveredNodeId) {
+      const e = esc(hoveredNodeId)
+      css += `.react-flow__edge-default[data-testid*="|${e}|"] .react-flow__edge-path { opacity: 1; stroke: #F59E0B; stroke-width: 2px; }\n`
+    }
+
+    return css
+  }, [hoveredNodeId, selectedNodeId, activationActive])
+
+  /** During spreading activation, apply JS-based dimming to default edges.
+   *  Custom edges handle their own activation via activationStateAtom.
+   *  This useMemo does NOT depend on hoveredNodeId — hover is CSS-only even during activation. */
+  const displayEdges = useMemo(() => {
+    if (!activationActive) return edges
+
+    const activatedNodeIds = new Set([...activation.directIds, ...activation.propagatedIds])
 
     return edges.map((edge): IntelligenceEdge => {
-      const isHoverConnected = hoveredNodeId
-        ? (edge.source === hoveredNodeId || edge.target === hoveredNodeId)
-        : false
-      const isSelectConnected = selectedNodeId
-        ? (edge.source === selectedNodeId || edge.target === selectedNodeId)
-        : false
-      const isHighlightConnected = isHoverConnected || isSelectConnected
-      // Hover takes visual priority over selection when both match the same edge
-      const tintColor = isHoverConnected ? TINT_HOVER : isSelectConnected ? TINT_SELECT : undefined
+      // Custom edges handle their own activation highlighting via atoms
+      if (edge.type && edge.type !== 'default') return edge
 
-      // During activation: dim edges that aren't between two activated nodes
-      // (SynapseEdge handles its own activation styling — pass through activation data)
-      const isActivationRelevant = activatedNodeIds
-        ? (activatedNodeIds.has(edge.source) && activatedNodeIds.has(edge.target))
-        : false
+      const isActivationRelevant = activatedNodeIds.has(edge.source) && activatedNodeIds.has(edge.target)
 
-      if (edge.type && edge.type !== 'default') {
-        // Custom edges (synapse, co_changed, affects) — pass data flags
+      if (!isActivationRelevant) {
         return {
           ...edge,
-          data: {
-            ...edge.data!,
-            _highlighted: isHighlightConnected,
-            _hasHover: hasAnyHighlight,
-            _tintColor: tintColor,
-          } as IntelligenceEdge['data'],
+          style: { ...edge.style, opacity: 0.04, transition: 'opacity 300ms' },
         }
       }
-
-      // Default edges (IMPORTS, CALLS, EXTENDS, etc.)
-      let opacity = 1
-      if (activationActive && !isActivationRelevant && !isHighlightConnected) {
-        opacity = 0.04  // very dim during activation
-      } else if (hasAnyHighlight && !isHighlightConnected && !activationActive) {
-        opacity = 0.1   // dim on hover/selection
-      } else if (hasAnyHighlight && !isHighlightConnected && activationActive) {
-        opacity = isActivationRelevant ? 0.6 : 0.04
-      }
-
       return {
         ...edge,
-        style: {
-          ...edge.style,
-          opacity,
-          stroke: tintColor ?? (activationActive && isActivationRelevant ? '#22D3EE' : undefined),
-          strokeWidth: isHighlightConnected
-            ? ((edge.style?.strokeWidth as number) ?? 1) * 1.5
-            : edge.style?.strokeWidth,
-          transition: 'opacity 300ms, stroke-width 200ms, stroke 300ms',
-        },
+        style: { ...edge.style, stroke: '#22D3EE', transition: 'opacity 300ms, stroke 300ms' },
       }
     })
-  }, [edges, hoveredNodeId, selectedNodeId, hasAnyHighlight, activationActive, activation.directIds, activation.propagatedIds])
+  }, [edges, activationActive, activation.directIds, activation.propagatedIds])
 
   // Keyboard shortcut: Ctrl/Cmd+K to open spreading activation search
   useEffect(() => {
@@ -364,6 +353,9 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
         `}</style>
       )}
 
+      {/* Dynamic CSS for edge hover/selection highlighting — zero JS per hover event */}
+      {highlightCss && <style>{highlightCss}</style>}
+
       {/* Layer controls (top-left overlay) — presets always visible, details in Custom mode */}
       <LayerControls
         visibleLayers={visibleLayers}
@@ -380,7 +372,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
       {viewMode === '2d' ? (
         <ReactFlow
           nodes={nodes}
-          edges={highlightedEdges}
+          edges={displayEdges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           onNodesChange={onNodesChange}

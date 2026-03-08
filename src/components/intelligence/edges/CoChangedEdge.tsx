@@ -1,8 +1,10 @@
 import { memo } from 'react'
 import { BaseEdge, getBezierPath } from '@xyflow/react'
 import type { EdgeProps, Edge } from '@xyflow/react'
+import { useAtomValue } from 'jotai'
 import type { IntelligenceEdgeData } from '@/types/intelligence'
 import { EDGE_STYLES } from '@/constants/intelligence'
+import { hoveredNodeIdAtom, selectedNodeIdAtom } from '@/atoms/intelligence'
 
 /**
  * CO_CHANGED edge — warm orange, thickness scales with co-change count.
@@ -11,6 +13,8 @@ import { EDGE_STYLES } from '@/constants/intelligence'
  */
 function CoChangedEdgeComponent({
   id,
+  source,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -33,10 +37,14 @@ function CoChangedEdgeComponent({
   // Normalize count: 1→0, 10+→1
   const normalized = Math.min(1, Math.max(0, (count - 1) / 9))
 
-  // Hover highlighting from propagation paths
-  const hasHover = (data as Record<string, unknown>)?._hasHover === true
-  const isHighlighted = (data as Record<string, unknown>)?._highlighted === true
-  const dimmed = hasHover && !isHighlighted
+  // Hover/selection highlighting — read atoms directly (avoids edge object recreation on hover)
+  const hoveredNodeId = useAtomValue(hoveredNodeIdAtom)
+  const selectedNodeId = useAtomValue(selectedNodeIdAtom)
+  const isHoverConnected = !!hoveredNodeId && (source === hoveredNodeId || target === hoveredNodeId)
+  const isSelectConnected = !!selectedNodeId && (source === selectedNodeId || target === selectedNodeId)
+  const isHighlighted = isHoverConnected || isSelectConnected
+  const hasAnyHighlight = !!hoveredNodeId || !!selectedNodeId
+  const dimmed = hasAnyHighlight && !isHighlighted
 
   // WebSocket animation hints
   const wsAnim = (data as Record<string, unknown>)?._wsAnimation as string | undefined

@@ -1,7 +1,9 @@
 import { memo } from 'react'
 import { BaseEdge, getBezierPath, type EdgeProps, type Edge } from '@xyflow/react'
+import { useAtomValue } from 'jotai'
 import type { IntelligenceEdgeData } from '@/types/intelligence'
 import { EDGE_STYLES } from '@/constants/intelligence'
+import { hoveredNodeIdAtom, selectedNodeIdAtom } from '@/atoms/intelligence'
 
 /**
  * AFFECTS edge — violet arrow showing architectural decisions impacting code.
@@ -10,6 +12,8 @@ import { EDGE_STYLES } from '@/constants/intelligence'
  */
 function AffectsEdgeComponent({
   id,
+  source,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -29,10 +33,14 @@ function AffectsEdgeComponent({
 
   const style = EDGE_STYLES.AFFECTS
 
-  // Hover highlighting from propagation paths
-  const hasHover = (data as Record<string, unknown>)?._hasHover === true
-  const isHighlighted = (data as Record<string, unknown>)?._highlighted === true
-  const dimmed = hasHover && !isHighlighted
+  // Hover/selection highlighting — read atoms directly (avoids edge object recreation on hover)
+  const hoveredNodeId = useAtomValue(hoveredNodeIdAtom)
+  const selectedNodeId = useAtomValue(selectedNodeIdAtom)
+  const isHoverConnected = !!hoveredNodeId && (source === hoveredNodeId || target === hoveredNodeId)
+  const isSelectConnected = !!selectedNodeId && (source === selectedNodeId || target === selectedNodeId)
+  const isHighlighted = isHoverConnected || isSelectConnected
+  const hasAnyHighlight = !!hoveredNodeId || !!selectedNodeId
+  const dimmed = hasAnyHighlight && !isHighlighted
 
   // WebSocket animation hints
   const wsAnim = (data as Record<string, unknown>)?._wsAnimation as string | undefined
