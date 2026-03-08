@@ -18,7 +18,6 @@ import {
   intelligenceSummaryLoadingAtom,
   visibleNodesAtom,
   budgetedEdgesAtom,
-  hiddenEdgeCountAtom,
   selectedNodeIdAtom,
   visibleLayersAtom,
   visibilityModeAtom,
@@ -149,7 +148,6 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
 
   const visibleNodes = useAtomValue(visibleNodesAtom)
   const visibleEdges = useAtomValue(budgetedEdgesAtom)
-  const hiddenEdgeCount = useAtomValue(hiddenEdgeCountAtom)
 
   // Track which layers have already been fetched to avoid redundant calls
   const fetchedLayersRef = useRef<Set<string>>(new Set())
@@ -348,7 +346,6 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     layouting,
     allNodes: nodes,
     allEdges: edges,
-    hiddenEdgeCount,
     selectedNodeId,
     setSelectedNodeId,
     visibleLayers,

@@ -113,9 +113,13 @@ function getEdgePriority(edge: IntelligenceEdge): number {
   return relationType ? (edgePriorityIndex.get(relationType) ?? 999) : 999
 }
 
+/** When true, bypass the edge budget and show ALL edges */
+export const showAllEdgesAtom = atom<boolean>(false)
+
 /** Edges after budget culling — sorted by EDGE_RENDER_PRIORITY, capped at MAX_VISIBLE_EDGES */
 export const budgetedEdgesAtom = atom<IntelligenceEdge[]>((get) => {
   const edges = get(visibleEdgesAtom)
+  if (get(showAllEdgesAtom)) return edges
   const max = ANIMATION.MAX_VISIBLE_EDGES
   if (edges.length <= max) return edges
   // Sort by priority (stable: Array.sort is stable in V8)

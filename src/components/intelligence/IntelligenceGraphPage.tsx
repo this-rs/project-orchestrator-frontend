@@ -12,7 +12,7 @@ import {
   type NodeChange,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Box, Grid3x3, Maximize, Minimize, PanelRightClose, PanelRightOpen, Search } from 'lucide-react'
+import { Box, Grid3x3, Maximize, Minimize, PanelRightClose, PanelRightOpen, Search, EyeOff, Eye } from 'lucide-react'
 
 import { intelligenceNodeTypes } from './nodes'
 import { intelligenceEdgeTypes } from './edges'
@@ -30,6 +30,8 @@ import {
   hoveredNodeIdAtom,
   graphViewModeAtom,
   selectedNodeIdAtom,
+  showAllEdgesAtom,
+  hiddenEdgeCountAtom,
 } from '@/atoms/intelligence'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -119,13 +121,14 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   const [viewMode, setViewMode] = useAtom(graphViewModeAtom)
   const selectedNodeId = useAtomValue(selectedNodeIdAtom)
   const activation = useAtomValue(activationStateAtom)
+  const [showAllEdges, setShowAllEdges] = useAtom(showAllEdgesAtom)
+  const hiddenEdgeCount = useAtomValue(hiddenEdgeCountAtom)
 
   const {
     nodes: layoutedNodes,
     edges,
     layouting,
     allNodes,
-    hiddenEdgeCount,
     setSelectedNodeId,
     visibleLayers,
     toggleLayer,
@@ -556,26 +559,39 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
       </div>
 
       {/* Entity legend (bottom-left info section) — always visible, shows types for active layers */}
-      <div className="absolute bottom-3 left-3 z-40 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 px-3 py-2 max-w-md">
-        {ENTITY_LEGEND
-          .filter((group) => visibleLayers.has(group.layer))
-          .flatMap((group) => group.types)
-          .map((t) => {
-            const color = ENTITY_COLORS[t.key as keyof typeof ENTITY_COLORS] ?? '#6B7280'
-            return (
-              <span key={t.key} className="flex items-center gap-1.5 text-[10px] text-slate-400">
-                <span
-                  className="w-2 h-2 rounded-full shrink-0"
-                  style={{ backgroundColor: color }}
-                />
-                {t.label}
-              </span>
-            )
-          })}
+      <div className="absolute bottom-3 left-3 z-40 flex items-end gap-2">
+        {/* Entity legend */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 px-3 py-2 max-w-md">
+          {ENTITY_LEGEND
+            .filter((group) => visibleLayers.has(group.layer))
+            .flatMap((group) => group.types)
+            .map((t) => {
+              const color = ENTITY_COLORS[t.key as keyof typeof ENTITY_COLORS] ?? '#6B7280'
+              return (
+                <span key={t.key} className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: color }}
+                  />
+                  {t.label}
+                </span>
+              )
+            })}
+        </div>
+        {/* Hidden edges toggle button */}
         {hiddenEdgeCount > 0 && (
-          <span className="flex items-center gap-1 text-[10px] text-amber-400/80 ml-2 pl-2 border-l border-slate-700/60">
-            {hiddenEdgeCount} edges hidden
-          </span>
+          <button
+            onClick={() => setShowAllEdges(!showAllEdges)}
+            className={`flex items-center gap-1.5 rounded-lg backdrop-blur-sm border px-2.5 py-2 text-[10px] font-medium transition-colors shrink-0 ${
+              showAllEdges
+                ? 'bg-amber-950/60 border-amber-700/60 text-amber-300 hover:bg-amber-950/80'
+                : 'bg-slate-900/80 border-slate-700/60 text-amber-400/80 hover:bg-slate-800/80 hover:text-amber-300'
+            }`}
+            title={showAllEdges ? 'Hide low-priority edges' : `Show all ${hiddenEdgeCount} hidden edges`}
+          >
+            {showAllEdges ? <Eye size={12} /> : <EyeOff size={12} />}
+            {showAllEdges ? 'All edges' : `${hiddenEdgeCount} hidden`}
+          </button>
         )}
       </div>
 

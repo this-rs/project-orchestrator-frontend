@@ -19,7 +19,6 @@ import {
   intelligenceSummaryLoadingAtom,
   visibleNodesAtom,
   budgetedEdgesAtom,
-  hiddenEdgeCountAtom,
   selectedNodeIdAtom,
   visibleLayersAtom,
   visibilityModeAtom,
@@ -137,7 +136,6 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
 
   const visibleNodes = useAtomValue(visibleNodesAtom)
   const visibleEdges = useAtomValue(budgetedEdgesAtom)
-  const hiddenEdgeCount = useAtomValue(hiddenEdgeCountAtom)
 
   // Workspace-specific: project metadata + per-project filter
   const [projectMetas, setProjectMetas] = useState<ProjectGraphMeta[]>([])
@@ -353,7 +351,6 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
     layouting,
     allNodes: nodes,
     allEdges: edges,
-    hiddenEdgeCount,
     selectedNodeId,
     setSelectedNodeId,
     visibleLayers,
