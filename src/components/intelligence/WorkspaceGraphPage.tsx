@@ -16,6 +16,8 @@ import {
 } from '@/atoms/intelligence'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { useWindowFullscreen } from '@/hooks/useWindowFullscreen'
+import { isTauri } from '@/services/env'
 import type { IntelligenceLayer } from '@/types/intelligence'
 
 // ── Entity legend ──────────────────────────────────────────────────────────
@@ -86,21 +88,33 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
 
   // Fullscreen
   const containerRef = useRef<HTMLDivElement>(null)
-  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [browserFs, setBrowserFs] = useState(false)
+  const tauriFs = useWindowFullscreen()
+  const isFullscreen = isTauri ? tauriFs : browserFs
   const [showCustomPanel, setShowCustomPanel] = useState(false)
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false)
 
-  const toggleFullscreen = useCallback(() => {
-    if (!containerRef.current) return
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {})
+  const toggleFullscreen = useCallback(async () => {
+    if (isTauri) {
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window')
+        const win = getCurrentWindow()
+        const current = await win.isFullscreen()
+        await win.setFullscreen(!current)
+      } catch { /* fallback: no-op */ }
     } else {
-      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {})
+      if (!containerRef.current) return
+      if (!document.fullscreenElement) {
+        containerRef.current.requestFullscreen().then(() => setBrowserFs(true)).catch(() => {})
+      } else {
+        document.exitFullscreen().then(() => setBrowserFs(false)).catch(() => {})
+      }
     }
   }, [])
 
   useEffect(() => {
-    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement)
+    if (isTauri) return
+    const onFsChange = () => setBrowserFs(!!document.fullscreenElement)
     document.addEventListener('fullscreenchange', onFsChange)
     return () => document.removeEventListener('fullscreenchange', onFsChange)
   }, [])
@@ -255,15 +269,32 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
         </button>
       )}
 
-      {/* Fullscreen (bottom-right) */}
-      <div className="absolute bottom-3 right-3 z-40">
+      {/* Fullscreen + edges toggle (bottom-right) */}
+      <div className="absolute bottom-3 right-3 z-40 flex items-center gap-1 bg-slate-800/90 backdrop-blur-sm rounded-lg border border-slate-700 p-0.5">
         <button
           onClick={toggleFullscreen}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 backdrop-blur-sm border border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 transition-colors"
+          className="flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 transition-colors"
           title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
         >
           {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
         </button>
+        {hiddenEdgeCount > 0 && (
+          <>
+            <div className="w-px h-5 bg-slate-700 mx-0.5" />
+            <button
+              onClick={() => setShowAllEdges(!showAllEdges)}
+              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[10px] font-medium transition-colors ${
+                showAllEdges
+                  ? 'bg-amber-500/20 text-amber-300'
+                  : 'text-slate-400 hover:text-amber-300 hover:bg-slate-700/50'
+              }`}
+              title={showAllEdges ? 'Hide low-priority edges' : `Show all ${hiddenEdgeCount} hidden edges`}
+            >
+              {showAllEdges ? <Eye size={13} /> : <EyeOff size={13} />}
+              {showAllEdges ? 'All edges' : `${hiddenEdgeCount} hidden`}
+            </button>
+          </>
+        )}
       </div>
 
       {/* Entity legend (bottom-left) */}
@@ -286,21 +317,6 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
               )
             })}
         </div>
-        {/* Hidden edges toggle button */}
-        {hiddenEdgeCount > 0 && (
-          <button
-            onClick={() => setShowAllEdges(!showAllEdges)}
-            className={`flex items-center gap-1.5 rounded-lg backdrop-blur-sm border px-2.5 py-2 text-[10px] font-medium transition-colors shrink-0 ${
-              showAllEdges
-                ? 'bg-amber-950/60 border-amber-700/60 text-amber-300 hover:bg-amber-950/80'
-                : 'bg-slate-900/80 border-slate-700/60 text-amber-400/80 hover:bg-slate-800/80 hover:text-amber-300'
-            }`}
-            title={showAllEdges ? 'Hide low-priority edges' : `Show all ${hiddenEdgeCount} hidden edges`}
-          >
-            {showAllEdges ? <Eye size={12} /> : <EyeOff size={12} />}
-            {showAllEdges ? 'All edges' : `${hiddenEdgeCount} hidden`}
-          </button>
-        )}
       </div>
 
       {/* Keyboard shortcut hint (bottom-center) */}

@@ -35,6 +35,8 @@ import {
 } from '@/atoms/intelligence'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { useWindowFullscreen } from '@/hooks/useWindowFullscreen'
+import { isTauri } from '@/services/env'
 import type { IntelligenceNode, IntelligenceEdge, IntelligenceLayer } from '@/types/intelligence'
 
 // ── Entity legend data ──────────────────────────────────────────────────────
@@ -143,23 +145,35 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
 
   // Fullscreen
   const containerRef = useRef<HTMLDivElement>(null)
-  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [browserFs, setBrowserFs] = useState(false)
+  const tauriFs = useWindowFullscreen()
+  const isFullscreen = isTauri ? tauriFs : browserFs
   // Custom mode — shows LayerControls panel
   const [showCustomPanel, setShowCustomPanel] = useState(false)
   // Inspector collapsed
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false)
 
-  const toggleFullscreen = useCallback(() => {
-    if (!containerRef.current) return
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {})
+  const toggleFullscreen = useCallback(async () => {
+    if (isTauri) {
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window')
+        const win = getCurrentWindow()
+        const current = await win.isFullscreen()
+        await win.setFullscreen(!current)
+      } catch { /* fallback: no-op */ }
     } else {
-      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {})
+      if (!containerRef.current) return
+      if (!document.fullscreenElement) {
+        containerRef.current.requestFullscreen().then(() => setBrowserFs(true)).catch(() => {})
+      } else {
+        document.exitFullscreen().then(() => setBrowserFs(false)).catch(() => {})
+      }
     }
   }, [])
 
   useEffect(() => {
-    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement)
+    if (isTauri) return
+    const onFsChange = () => setBrowserFs(!!document.fullscreenElement)
     document.addEventListener('fullscreenchange', onFsChange)
     return () => document.removeEventListener('fullscreenchange', onFsChange)
   }, [])
@@ -556,6 +570,23 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
         >
           {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
         </button>
+        {hiddenEdgeCount > 0 && (
+          <>
+            <div className="w-px h-5 bg-slate-700 mx-0.5" />
+            <button
+              onClick={() => setShowAllEdges(!showAllEdges)}
+              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[10px] font-medium transition-colors ${
+                showAllEdges
+                  ? 'bg-amber-500/20 text-amber-300'
+                  : 'text-slate-400 hover:text-amber-300 hover:bg-slate-700/50'
+              }`}
+              title={showAllEdges ? 'Hide low-priority edges' : `Show all ${hiddenEdgeCount} hidden edges`}
+            >
+              {showAllEdges ? <Eye size={13} /> : <EyeOff size={13} />}
+              {showAllEdges ? 'All edges' : `${hiddenEdgeCount} hidden`}
+            </button>
+          </>
+        )}
       </div>
 
       {/* Entity legend (bottom-left info section) — always visible, shows types for active layers */}
@@ -578,21 +609,6 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
               )
             })}
         </div>
-        {/* Hidden edges toggle button */}
-        {hiddenEdgeCount > 0 && (
-          <button
-            onClick={() => setShowAllEdges(!showAllEdges)}
-            className={`flex items-center gap-1.5 rounded-lg backdrop-blur-sm border px-2.5 py-2 text-[10px] font-medium transition-colors shrink-0 ${
-              showAllEdges
-                ? 'bg-amber-950/60 border-amber-700/60 text-amber-300 hover:bg-amber-950/80'
-                : 'bg-slate-900/80 border-slate-700/60 text-amber-400/80 hover:bg-slate-800/80 hover:text-amber-300'
-            }`}
-            title={showAllEdges ? 'Hide low-priority edges' : `Show all ${hiddenEdgeCount} hidden edges`}
-          >
-            {showAllEdges ? <Eye size={12} /> : <EyeOff size={12} />}
-            {showAllEdges ? 'All edges' : `${hiddenEdgeCount} hidden`}
-          </button>
-        )}
       </div>
 
       {/* Keyboard shortcut hint (bottom-center) — prominent CTA, hidden when search is open */}

@@ -46,6 +46,8 @@ import {
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { useWindowFullscreen } from '@/hooks/useWindowFullscreen'
+import { isTauri } from '@/services/env'
 import { intelligenceApi } from '@/services/intelligence'
 import { adminApi } from '@/services/admin'
 import { ENTITY_COLORS } from '@/constants/intelligence'
@@ -829,20 +831,32 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
   const [showSynapses, setShowSynapses] = useState(true)
   const [showSkills, setShowSkills] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>('3d')
-  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [browserFs, setBrowserFs] = useState(false)
+  const tauriFs = useWindowFullscreen()
+  const isFullscreen = isTauri ? tauriFs : browserFs
   const fullscreenRef = useRef<HTMLDivElement>(null)
 
-  const toggleFullscreen = useCallback(() => {
-    if (!fullscreenRef.current) return
-    if (!document.fullscreenElement) {
-      fullscreenRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {})
+  const toggleFullscreen = useCallback(async () => {
+    if (isTauri) {
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window')
+        const win = getCurrentWindow()
+        const current = await win.isFullscreen()
+        await win.setFullscreen(!current)
+      } catch { /* fallback: no-op */ }
     } else {
-      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {})
+      if (!fullscreenRef.current) return
+      if (!document.fullscreenElement) {
+        fullscreenRef.current.requestFullscreen().then(() => setBrowserFs(true)).catch(() => {})
+      } else {
+        document.exitFullscreen().then(() => setBrowserFs(false)).catch(() => {})
+      }
     }
   }, [])
 
   useEffect(() => {
-    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement)
+    if (isTauri) return
+    const onFsChange = () => setBrowserFs(!!document.fullscreenElement)
     document.addEventListener('fullscreenchange', onFsChange)
     return () => document.removeEventListener('fullscreenchange', onFsChange)
   }, [])
