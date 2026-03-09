@@ -256,6 +256,54 @@ export interface ChatMessage {
 export type ChatPanelMode = 'closed' | 'open' | 'fullscreen'
 
 // ============================================================================
+// SESSION TREE & AGENT EXECUTIONS
+// ============================================================================
+
+/** A node in the session tree (hierarchical view of spawned sessions) */
+export interface SessionTreeNode {
+  session_id: string
+  parent_session_id?: string | null
+  spawn_type?: string | null
+  run_id?: string | null
+  task_id?: string | null
+  depth: number
+  created_at?: string | null
+  // Enriched fields (from T1 backend)
+  title?: string | null
+  model?: string | null
+  total_cost_usd?: number | null
+  is_streaming: boolean
+}
+
+/** An agent execution record for a plan run */
+export interface AgentExecution {
+  id: string
+  run_id: string
+  task_id: string
+  session_id?: string | null
+  started_at: string
+  completed_at?: string | null
+  cost_usd: number
+  duration_secs: number
+  status: 'running' | 'completed' | 'failed' | 'timeout'
+  tools_used?: string | null  // JSON string
+  files_modified: string[]
+  commits: string[]
+  persona_profile?: string | null
+}
+
+/** Lightweight session info returned by run-level endpoints */
+export interface SessionInfo {
+  id: string
+  title?: string | null
+  model?: string | null
+  created_at: string
+  updated_at?: string | null
+  total_cost_usd?: number | null
+  is_streaming: boolean
+}
+
+// ============================================================================
 // WEBSOCKET TYPES
 // ============================================================================
 

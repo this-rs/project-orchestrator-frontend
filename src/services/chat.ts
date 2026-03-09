@@ -1,5 +1,6 @@
 import { api, buildQuery } from './api'
 import type {
+  AgentExecution,
   ChatConfig,
   ChatSession,
   CliInstallResult,
@@ -12,6 +13,8 @@ import type {
   MessageHistoryResponse,
   MessageSearchResult,
   PermissionConfig,
+  SessionInfo,
+  SessionTreeNode,
 } from '@/types'
 
 interface ListSessionsParams {
@@ -84,4 +87,16 @@ export const chatApi = {
 
   installCli: (version?: string) =>
     api.post<CliInstallResult>('/chat/cli/install', { version: version ?? null }),
+
+  /** Get the hierarchical session tree starting from a root session */
+  getSessionTree: (sessionId: string) =>
+    api.get<SessionTreeNode[]>(`/chat/sessions/${sessionId}/tree`),
+
+  /** Get all sessions associated with a plan run */
+  getRunSessions: (runId: string) =>
+    api.get<SessionInfo[]>(`/chat/runs/${runId}/sessions`),
+
+  /** Get agent execution records for a plan run */
+  getAgentExecutions: (runId: string) =>
+    api.get<AgentExecution[]>(`/runs/${runId}/agent-executions`),
 }
