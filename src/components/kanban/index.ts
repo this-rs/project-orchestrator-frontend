@@ -10,3 +10,13 @@ export { PlanKanbanCard, PlanKanbanCardOverlay } from './PlanKanbanCard'
 export { MilestoneKanbanBoard } from './MilestoneKanbanBoard'
 export { MilestoneKanbanCard, MilestoneKanbanCardOverlay } from './MilestoneKanbanCard'
 export type { MilestoneWithProgress } from './MilestoneKanbanCard'
+
+// UniversalKanban
+export { UniversalKanban } from './UniversalKanban'
+export { UniversalKanbanCard } from './UniversalKanbanCard'
+export { UniversalKanbanColumn } from './UniversalKanbanColumn'
+export type { KanbanConfig, KanbanColumnDef } from './configs/types'
+export { createTaskKanbanConfig } from './configs/taskKanbanConfig'
+export { createPlanKanbanConfig } from './configs/planKanbanConfig'
+export { createMilestoneKanbanConfig } from './configs/milestoneKanbanConfig'
+export { createStepKanbanConfig } from './configs/stepKanbanConfig'

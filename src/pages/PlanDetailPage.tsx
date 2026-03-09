@@ -5,7 +5,7 @@ import { ChevronsUpDown, ChevronRight, Flag, FolderKanban, GitCommitHorizontal, 
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, InteractiveDecisionStatusBadge, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { plansApi, tasksApi, projectsApi, workspacesApi, decisionsApi } from '@/services'
-import { KanbanBoard } from '@/components/kanban'
+import { UniversalKanban, createTaskKanbanConfig } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { chatSuggestedProjectIdAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
@@ -211,12 +211,22 @@ export function PlanDetailPage() {
     [tasks],
   )
 
-  // Stable fetchFn for KanbanBoard — fetches tasks scoped to this plan
+  // Stable fetchFn for kanban — fetches tasks scoped to this plan
   const kanbanFetchFn = useCallback(
     (params: Record<string, unknown>): Promise<PaginatedResponse<KanbanTask>> => {
       return tasksApi.list({ plan_id: planId, ...params } as Record<string, string | number | undefined>)
     },
     [planId],
+  )
+
+  // UniversalKanban config for plan detail tasks
+  const planTaskKanbanConfig = useMemo(
+    () =>
+      createTaskKanbanConfig({
+        fetchFn: kanbanFetchFn,
+        onStatusChange: (id, status) => handleTaskStatusChange(id, status as TaskStatus),
+      }),
+    [kanbanFetchFn, handleTaskStatusChange],
   )
 
   const taskForm = CreateTaskForm({
@@ -501,10 +511,9 @@ export function PlanDetailPage() {
           {tasks.length === 0 ? (
             <p className="text-gray-500 text-sm">No tasks in this plan</p>
           ) : viewMode === 'kanban' ? (
-            <KanbanBoard
-              fetchFn={kanbanFetchFn}
-              onTaskStatusChange={handleTaskStatusChange}
-              onTaskClick={(taskId) => navigate(workspacePath(wsSlug, `/tasks/${taskId}`), { type: 'card-click' })}
+            <UniversalKanban
+              config={planTaskKanbanConfig}
+              onItemClick={(taskId) => navigate(workspacePath(wsSlug, `/tasks/${taskId}`), { type: 'card-click' })}
               refreshTrigger={taskRefresh}
             />
           ) : (

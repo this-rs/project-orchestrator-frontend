@@ -32,7 +32,7 @@ import {
 } from '@/hooks'
 import { CreatePlanForm, EditPlanForm } from '@/components/forms'
 import type { EditPlanFormData } from '@/components/forms/EditPlanForm'
-import { PlanKanbanBoard, PlanKanbanFilterBar } from '@/components/kanban'
+import { PlanKanbanFilterBar, UniversalKanban, createPlanKanbanConfig } from '@/components/kanban'
 import type { PlanKanbanFilters } from '@/components/kanban'
 import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
 import type { Plan, PlanStatus, PaginatedResponse } from '@/types'
@@ -223,6 +223,16 @@ export function PlansPage() {
     [plans, updateItem, toast]
   )
 
+  // UniversalKanban config for plans
+  const planKanbanConfig = useMemo(
+    () =>
+      createPlanKanbanConfig({
+        fetchFn: kanbanFetchFn,
+        onStatusChange: (id, status) => handlePlanStatusChange(id, status as PlanStatus),
+      }),
+    [kanbanFetchFn, handlePlanStatusChange],
+  )
+
   const planForm = CreatePlanForm({
     workspaceSlug: wsSlug,
     onSubmit: async (data) => {
@@ -318,12 +328,11 @@ export function PlansPage() {
       )}
 
       {viewMode === 'kanban' ? (
-        <PlanKanbanBoard
-          fetchFn={kanbanFetchFn}
+        <UniversalKanban
+          config={planKanbanConfig}
           filters={kanbanColumnFilters}
           hiddenStatuses={hiddenStatuses}
-          onPlanStatusChange={handlePlanStatusChange}
-          onPlanClick={(planId) =>
+          onItemClick={(planId) =>
             navigate(`/workspace/${wsSlug}/plans/${planId}`, { type: 'card-click' })
           }
           refreshTrigger={planRefresh}

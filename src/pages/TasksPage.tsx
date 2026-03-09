@@ -22,11 +22,11 @@ import {
   PulseIndicator,
 } from '@/components/ui'
 import { useKanbanFilters, useViewMode, useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug, useViewTransition } from '@/hooks'
-import { KanbanBoard, KanbanFilterBar } from '@/components/kanban'
+import { KanbanFilterBar, UniversalKanban, createTaskKanbanConfig } from '@/components/kanban'
 import { EditTaskForm } from '@/components/forms'
 import type { EditTaskFormData } from '@/components/forms/EditTaskForm'
 import type { TaskWithPlan, TaskStatus, PaginatedResponse } from '@/types'
-import type { KanbanTask } from '@/components/kanban'
+import type { KanbanTask } from '@/components/kanban/KanbanCard'
 import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
 
 const statusOptions = [
@@ -154,6 +154,16 @@ export function TasksPage() {
     [navigate, wsSlug],
   )
 
+  // UniversalKanban config for tasks
+  const taskKanbanConfig = useMemo(
+    () =>
+      createTaskKanbanConfig({
+        fetchFn: kanbanFetchFn,
+        onStatusChange: (id, status) => handleTaskStatusChange(id, status as TaskStatus),
+      }),
+    [kanbanFetchFn, handleTaskStatusChange],
+  )
+
   const editForm = EditTaskForm({
     initialValues: { title: editingTask?.title, description: editingTask?.description, priority: editingTask?.priority, estimated_complexity: editingTask?.estimated_complexity, tags: editingTask?.tags },
     onSubmit: async (data: EditTaskFormData) => {
@@ -227,12 +237,11 @@ export function TasksPage() {
 
       {/* Content */}
       {viewMode === 'kanban' ? (
-        <KanbanBoard
-          fetchFn={kanbanFetchFn}
+        <UniversalKanban
+          config={taskKanbanConfig}
           filters={kanbanColumnFilters}
           hiddenStatuses={hiddenStatuses}
-          onTaskStatusChange={handleTaskStatusChange}
-          onTaskClick={handleTaskClick}
+          onItemClick={handleTaskClick}
           refreshTrigger={taskRefresh}
         />
       ) : showListSkeleton ? (

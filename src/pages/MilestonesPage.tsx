@@ -6,7 +6,7 @@ import { milestoneRefreshAtom, workspaceRefreshAtom, activeWorkspaceAtom } from 
 import { Card, EmptyState, Badge, ProgressBar, InteractiveMilestoneStatusBadge, ViewToggle, Select, ConfirmDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, SkeletonCard, ErrorState } from '@/components/ui'
 import { workspacesApi, projectsApi } from '@/services'
 import { useViewMode, useConfirmDialog, useToast, useMultiSelect, useWorkspaceSlug, useViewTransition } from '@/hooks'
-import { MilestoneKanbanBoard } from '@/components/kanban'
+import { UniversalKanban, createMilestoneKanbanConfig } from '@/components/kanban'
 import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
 import type { MilestoneWithProgress } from '@/components/kanban'
 import type { MilestoneStatus } from '@/types'
@@ -148,6 +148,29 @@ export function MilestonesPage() {
     [allMilestones],
   )
 
+  // UniversalKanban config for milestones — wraps local data as a "fetchFn"
+  const milestoneFetchFn = useCallback(
+    async (params: Record<string, unknown>) => {
+      const status = params.status as string
+      const items = filteredMilestones.filter(
+        (m) => (m.status?.toLowerCase() || 'open') === status,
+      )
+      return { items, total: items.length, limit: 100, offset: 0 }
+    },
+    [filteredMilestones],
+  )
+
+  const milestoneRefreshKey = useMemo(() => filteredMilestones.length + msRefresh + wsRefresh, [filteredMilestones.length, msRefresh, wsRefresh])
+
+  const milestoneKanbanConfig = useMemo(
+    () =>
+      createMilestoneKanbanConfig({
+        fetchFn: milestoneFetchFn,
+        onStatusChange: (id, status) => handleStatusChange(id, status as MilestoneStatus),
+      }),
+    [milestoneFetchFn, handleStatusChange],
+  )
+
   const multiSelect = useMultiSelect(filteredMilestones, (m) => m.id)
 
   const handleBulkDelete = () => {
@@ -213,10 +236,10 @@ export function MilestonesPage() {
       </div>
 
       {viewMode === 'kanban' ? (
-        <MilestoneKanbanBoard
-          milestones={filteredMilestones}
-          onMilestoneStatusChange={handleStatusChange}
-          onMilestoneClick={(id) => navigate(`/workspace/${wsSlug}/milestones/${id}`, { type: 'card-click' })}
+        <UniversalKanban
+          config={milestoneKanbanConfig}
+          onItemClick={(id) => navigate(`/workspace/${wsSlug}/milestones/${id}`, { type: 'card-click' })}
+          refreshTrigger={milestoneRefreshKey}
         />
       ) : showListSkeleton ? (
         <div className="space-y-4">

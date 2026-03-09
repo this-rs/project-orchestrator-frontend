@@ -1,15 +1,16 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link, useLocation } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { ClipboardList, FolderKanban, GitCommitHorizontal, Pencil } from 'lucide-react'
-import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, TaskStatusBadge, InteractiveStepStatusBadge, InteractiveDecisionStatusBadge, ProgressBar, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
+import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, TaskStatusBadge, InteractiveStepStatusBadge, InteractiveDecisionStatusBadge, ProgressBar, PageHeader, StatusSelect, SectionNav, ViewToggle } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { tasksApi, plansApi, projectsApi, decisionsApi } from '@/services'
-import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug, useViewTransition } from '@/hooks'
+import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug, useViewTransition, useViewMode } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { taskRefreshAtom, projectRefreshAtom, planRefreshAtom } from '@/atoms'
 import { CreateStepForm, CreateDecisionForm, EditTaskForm, EditStepForm } from '@/components/forms'
 import { CommitList } from '@/components/commits'
+import { UniversalKanban, createStepKanbanConfig } from '@/components/kanban'
 import type { Task, Step, Decision, Commit, TaskStatus, StepStatus, DecisionStatus, Project } from '@/types'
 
 // The API response structure
@@ -193,6 +194,36 @@ export function TaskDetailPage() {
 
   const sectionIds = ['steps', 'dependencies', 'decisions', 'commits']
   const activeSection = useSectionObserver(sectionIds)
+  const [stepsViewMode, setStepsViewMode] = useViewMode()
+
+  // Step kanban config — wraps local steps data as a fetchFn
+  const stepFetchFn = useCallback(
+    async (params: Record<string, unknown>) => {
+      const status = params.status as string
+      const items = steps.filter((s) => s.status === status)
+      return { items, total: items.length, limit: 100, offset: 0 }
+    },
+    [steps],
+  )
+
+  const handleStepStatusChange = useCallback(
+    async (stepId: string, newStatus: string) => {
+      await tasksApi.updateStep(stepId, { status: newStatus })
+      setSteps((prev) => prev.map((s) => s.id === stepId ? { ...s, status: newStatus as StepStatus } : s))
+    },
+    [],
+  )
+
+  const stepKanbanConfig = useMemo(
+    () =>
+      createStepKanbanConfig({
+        fetchFn: stepFetchFn,
+        onStatusChange: handleStepStatusChange,
+      }),
+    [stepFetchFn, handleStepStatusChange],
+  )
+
+  const stepKanbanRefreshKey = useMemo(() => steps.length + steps.reduce((acc, s) => acc + s.status, '').length, [steps])
 
   const editStepForm = EditStepForm({
     initialValues: { description: editingStep?.description ?? '', verification: editingStep?.verification },
@@ -327,6 +358,7 @@ export function TaskDetailPage() {
                 <span className="text-sm text-gray-400">{completedSteps}/{steps.length} completed</span>
               )}
               <Button size="sm" onClick={() => stepFormDialog.open({ title: 'Add Step' })}>Add Step</Button>
+              <ViewToggle value={stepsViewMode} onChange={setStepsViewMode} />
             </div>
           </div>
           {steps.length > 0 && <ProgressBar value={stepProgress} size="sm" className="mt-2" />}
@@ -334,6 +366,11 @@ export function TaskDetailPage() {
         <CardContent>
           {steps.length === 0 ? (
             <p className="text-gray-500 text-sm">No steps defined</p>
+          ) : stepsViewMode === 'kanban' ? (
+            <UniversalKanban
+              config={stepKanbanConfig}
+              refreshTrigger={stepKanbanRefreshKey}
+            />
           ) : (
             <div className="space-y-2">
               {steps.map((step, index) => (
