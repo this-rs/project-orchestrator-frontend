@@ -1033,11 +1033,23 @@ export interface PaginatedResponse<T> {
   has_more?: boolean
 }
 
+export interface ActiveAgentInfo {
+  sessionId: string
+  isStreaming: boolean
+  costUsd?: number
+  elapsedSecs?: number
+}
+
 export interface DependencyGraphNode {
   id: string
   title?: string
   status: TaskStatus
   priority?: number
+  tags?: string[]
+  stepCount?: number
+  completedStepCount?: number
+  assignedTo?: string
+  activeAgent?: ActiveAgentInfo | null
 }
 
 export interface DependencyGraphEdge {

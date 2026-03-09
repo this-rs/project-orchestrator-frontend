@@ -10,7 +10,7 @@ import { useViewMode, useConfirmDialog, useFormDialog, useLinkDialog, useToast, 
 import { workspacePath } from '@/utils/paths'
 import { chatSuggestedProjectIdAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import { CreateTaskForm, CreateConstraintForm, EditPlanForm } from '@/components/forms'
-import { DependencyGraphView } from '@/components/DependencyGraphView'
+import { DependencyGraphView, TaskDrawer } from '@/components/DependencyGraphView'
 import { WaveView } from '@/components/plans/WaveView'
 import { CommitList } from '@/components/commits'
 import type { Plan, Decision, DecisionStatus, DependencyGraph, WaveComputationResult, Task, Constraint, Step, Commit, PlanStatus, TaskStatus, StepStatus, PaginatedResponse, Project } from '@/types'
@@ -54,6 +54,7 @@ export function PlanDetailPage() {
   const [waves, setWaves] = useState<WaveComputationResult | null>(null)
   const [wavesLoading, setWavesLoading] = useState(false)
   const [graphViewMode, setGraphViewMode] = useState<'dag' | 'waves'>('dag')
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
 
   const fetchWaves = useCallback(async () => {
     if (!planId) return
@@ -460,7 +461,7 @@ export function PlanDetailPage() {
             {graphViewMode === 'waves' && waves ? (
               <WaveView data={waves} taskStatuses={taskStatusMap} />
             ) : (
-              <DependencyGraphView graph={graph} taskStatuses={taskStatusMap} />
+              <DependencyGraphView graph={graph} taskStatuses={taskStatusMap} onNodeSelect={setSelectedTaskId} />
             )}
           </CardContent>
         </Card>
@@ -677,6 +678,18 @@ export function PlanDetailPage() {
       </FormDialog>
       <LinkEntityDialog {...linkDialog.dialogProps} />
       <ConfirmDialog {...confirmDialog.dialogProps} />
+
+      {/* Task Drawer — triggered from DependencyGraphView node click */}
+      {selectedTaskId && (
+        <TaskDrawer
+          taskId={selectedTaskId}
+          onClose={() => setSelectedTaskId(null)}
+          onOpenFullPage={(taskId) => {
+            setSelectedTaskId(null)
+            navigate(workspacePath(wsSlug, `/tasks/${taskId}`), { type: 'card-click' })
+          }}
+        />
+      )}
     </div>
   )
 }
