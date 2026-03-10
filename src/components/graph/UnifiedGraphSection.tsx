@@ -422,10 +422,10 @@ export function UnifiedGraphSection<T>({
   const graph3DContent = viewMode === '3d' ? (
     <div
       ref={containerRef}
-      className={`relative bg-[#0a0a0f] ${isFullscreen ? 'fixed inset-0 z-[9999]' : 'h-[500px]'}`}
+      className={`bg-[#0a0a0f] ${isFullscreen ? 'fixed inset-0 z-[9999]' : 'relative h-[500px]'}`}
     >
-      {/* EntityGroupPanel — overlaid top-left */}
-      <div className="absolute top-2 left-2 z-30 pointer-events-none">
+      {/* EntityGroupPanel — horizontal bar stuck to top */}
+      <div className="absolute top-0 left-0 right-0 z-30 pointer-events-none">
         <div className="pointer-events-auto">
           <EntityGroupPanel
             groups={groups}
@@ -434,8 +434,9 @@ export function UnifiedGraphSection<T>({
             onCycle={cycle}
             onEnableAll={enableAll}
             onResetDefaults={resetToDefaults}
-            direction="vertical"
+            direction="horizontal"
             enableHover
+            className="rounded-none border-x-0 border-t-0 border-b border-slate-700/60"
           />
         </div>
       </div>

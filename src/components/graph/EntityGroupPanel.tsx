@@ -1,16 +1,17 @@
 // ============================================================================
-// EntityGroupPanel — Toggleable entity group chips for fractal graph views
+// EntityGroupPanel — Compact icon-only entity group toggles
 // ============================================================================
 //
 // Each non-core group cycles through 3 visual modes:
-//   off         → dim chip, no content in graph
-//   connections → outlined chip with link icon, edges + tiny nodes in graph
-//   expanded    → fully lit chip, full nodes + edges in graph
+//   off         → dim icon, no content in graph
+//   connections → semi-lit icon with link indicator, edges + tiny nodes
+//   expanded    → fully lit icon, full nodes + edges in graph
 //
+// Hover reveals a tooltip with label, count, and current mode.
 // Core group is always on and cannot be toggled.
 // ============================================================================
 
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useSetAtom } from 'jotai'
 import {
   Circle,
@@ -20,9 +21,6 @@ import {
   MessageCircle,
   Network,
   Workflow,
-  RotateCcw,
-  Eye,
-  Link2,
 } from 'lucide-react'
 import { highlightedGroupAtom } from '@/atoms/intelligence'
 import type { EntityGroup, EntityGroupConfig, GroupMode } from '@/types/fractal-graph'
@@ -39,23 +37,23 @@ const GROUP_ICONS: Record<string, React.FC<{ size?: number; className?: string }
   Workflow,
 }
 
-// ── Group colors (subtle, matches overall dark theme) ───────────────────────
+// ── Group accent colors ─────────────────────────────────────────────────────
 
-const GROUP_COLORS: Record<EntityGroup, { bg: string; border: string; text: string; activeBg: string; activeBorder: string; connBg: string; connBorder: string }> = {
-  core:       { bg: 'bg-emerald-950/40', border: 'border-emerald-800/40', text: 'text-emerald-400', activeBg: 'bg-emerald-900/60', activeBorder: 'border-emerald-600/60', connBg: 'bg-emerald-950/25', connBorder: 'border-emerald-700/50' },
-  code:       { bg: 'bg-blue-950/40',    border: 'border-blue-800/40',    text: 'text-blue-400',    activeBg: 'bg-blue-900/60',    activeBorder: 'border-blue-600/60',    connBg: 'bg-blue-950/25',    connBorder: 'border-blue-700/50' },
-  knowledge:  { bg: 'bg-amber-950/40',   border: 'border-amber-800/40',   text: 'text-amber-400',   activeBg: 'bg-amber-900/60',   activeBorder: 'border-amber-600/60',   connBg: 'bg-amber-950/25',   connBorder: 'border-amber-700/50' },
-  git:        { bg: 'bg-lime-950/40',    border: 'border-lime-800/40',    text: 'text-lime-400',    activeBg: 'bg-lime-900/60',    activeBorder: 'border-lime-600/60',    connBg: 'bg-lime-950/25',    connBorder: 'border-lime-700/50' },
-  sessions:   { bg: 'bg-indigo-950/40',  border: 'border-indigo-800/40',  text: 'text-indigo-400',  activeBg: 'bg-indigo-900/60',  activeBorder: 'border-indigo-600/60',  connBg: 'bg-indigo-950/25',  connBorder: 'border-indigo-700/50' },
-  features:   { bg: 'bg-fuchsia-950/40', border: 'border-fuchsia-800/40', text: 'text-fuchsia-400', activeBg: 'bg-fuchsia-900/60', activeBorder: 'border-fuchsia-600/60', connBg: 'bg-fuchsia-950/25', connBorder: 'border-fuchsia-700/50' },
-  behavioral: { bg: 'bg-orange-950/40',  border: 'border-orange-800/40',  text: 'text-orange-400',  activeBg: 'bg-orange-900/60',  activeBorder: 'border-orange-600/60',  connBg: 'bg-orange-950/25',  connBorder: 'border-orange-700/50' },
+const GROUP_ACCENT: Record<EntityGroup, { active: string; conn: string; off: string; dot: string }> = {
+  core:       { active: 'text-emerald-400 bg-emerald-500/20 border-emerald-500/40', conn: 'text-emerald-400/70 bg-emerald-500/10 border-emerald-500/25', off: 'text-slate-500 bg-slate-800/40 border-slate-700/40', dot: 'bg-emerald-400' },
+  code:       { active: 'text-blue-400 bg-blue-500/20 border-blue-500/40',          conn: 'text-blue-400/70 bg-blue-500/10 border-blue-500/25',          off: 'text-slate-500 bg-slate-800/40 border-slate-700/40', dot: 'bg-blue-400' },
+  knowledge:  { active: 'text-amber-400 bg-amber-500/20 border-amber-500/40',       conn: 'text-amber-400/70 bg-amber-500/10 border-amber-500/25',       off: 'text-slate-500 bg-slate-800/40 border-slate-700/40', dot: 'bg-amber-400' },
+  git:        { active: 'text-lime-400 bg-lime-500/20 border-lime-500/40',           conn: 'text-lime-400/70 bg-lime-500/10 border-lime-500/25',           off: 'text-slate-500 bg-slate-800/40 border-slate-700/40', dot: 'bg-lime-400' },
+  sessions:   { active: 'text-indigo-400 bg-indigo-500/20 border-indigo-500/40',     conn: 'text-indigo-400/70 bg-indigo-500/10 border-indigo-500/25',     off: 'text-slate-500 bg-slate-800/40 border-slate-700/40', dot: 'bg-indigo-400' },
+  features:   { active: 'text-fuchsia-400 bg-fuchsia-500/20 border-fuchsia-500/40',  conn: 'text-fuchsia-400/70 bg-fuchsia-500/10 border-fuchsia-500/25',  off: 'text-slate-500 bg-slate-800/40 border-slate-700/40', dot: 'bg-fuchsia-400' },
+  behavioral: { active: 'text-orange-400 bg-orange-500/20 border-orange-500/40',     conn: 'text-orange-400/70 bg-orange-500/10 border-orange-500/25',     off: 'text-slate-500 bg-slate-800/40 border-slate-700/40', dot: 'bg-orange-400' },
 }
 
-// ── Mode labels for tooltip ─────────────────────────────────────────────────
+// ── Mode labels ─────────────────────────────────────────────────────────────
 
 const MODE_LABELS: Record<GroupMode, string> = {
   off: 'Off',
-  connections: 'Connections only',
+  connections: 'Connections',
   expanded: 'Expanded',
 }
 
@@ -94,6 +92,7 @@ export function EntityGroupPanel({
   enableHover = false,
 }: EntityGroupPanelProps) {
   const setHighlightedGroup = useSetAtom(highlightedGroupAtom)
+  const [tooltipGroup, setTooltipGroup] = useState<EntityGroup | null>(null)
 
   // Memoize Set instances per group to avoid creating new references on each hover
   const groupSetsRef = useRef<Map<EntityGroup, Set<string>>>(new Map())
@@ -117,6 +116,7 @@ export function EntityGroupPanel({
 
   const handleMouseEnter = useCallback(
     (group: EntityGroup) => {
+      setTooltipGroup(group)
       if (!enableHover) return
       if (leaveTimerRef.current) {
         clearTimeout(leaveTimerRef.current)
@@ -131,6 +131,7 @@ export function EntityGroupPanel({
   )
 
   const handleMouseLeave = useCallback(() => {
+    setTooltipGroup(null)
     if (!enableHover) return
     leaveTimerRef.current = setTimeout(() => {
       setHighlightedGroup(null)
@@ -147,95 +148,94 @@ export function EntityGroupPanel({
 
   return (
     <div
-      className={`flex ${isHorizontal ? 'flex-row flex-wrap' : 'flex-col'} items-start gap-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 ${className}`}
+      className={`flex ${isHorizontal ? 'flex-row items-center' : 'flex-col items-start'} gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 px-2 py-1.5 ${className}`}
     >
       {visibleGroups.map((group) => {
         const isCore = group.id === 'core'
         const mode: GroupMode = isCore ? 'expanded' : (groupModes.get(group.id) ?? 'off')
         const count = counts[group.id] ?? 0
-        const colors = GROUP_COLORS[group.id]
+        const accent = GROUP_ACCENT[group.id]
         const Icon = GROUP_ICONS[group.icon] ?? Circle
+        const isHovered = tooltipGroup === group.id
 
-        // Visual classes per mode
-        let chipClasses: string
-        let textClasses: string
-
-        if (mode === 'expanded') {
-          chipClasses = `${colors.activeBg} ${colors.activeBorder} ${colors.text}`
-          textClasses = colors.text
-        } else if (mode === 'connections') {
-          chipClasses = `${colors.connBg} ${colors.connBorder} ${colors.text}`
-          textClasses = `${colors.text} opacity-75`
-        } else {
-          chipClasses = `${colors.bg} ${colors.border} text-slate-500 opacity-50 hover:opacity-80`
-          textClasses = 'text-slate-500'
-        }
+        // Select accent classes by mode
+        const accentClasses = mode === 'expanded' ? accent.active
+          : mode === 'connections' ? accent.conn
+          : accent.off
 
         return (
-          <button
-            key={group.id}
-            onClick={() => !isCore && onCycle(group.id)}
-            onMouseEnter={() => handleMouseEnter(group.id)}
-            onMouseLeave={handleMouseLeave}
-            disabled={isCore}
-            className={`
-              flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium
-              border transition-colors duration-150 select-none
-              ${isCore ? 'cursor-default' : 'cursor-pointer'}
-              ${chipClasses}
-            `}
-            title={`${group.label}: ${count} entities — ${MODE_LABELS[mode]}${isCore ? ' (always on)' : ' (click to cycle)'}`}
-          >
-            <Icon size={12} />
-            <span className={textClasses}>{group.label}</span>
+          <div key={group.id} className="relative">
+            <button
+              onClick={() => !isCore && onCycle(group.id)}
+              onMouseEnter={() => handleMouseEnter(group.id)}
+              onMouseLeave={handleMouseLeave}
+              disabled={isCore}
+              className={`
+                relative flex items-center justify-center w-7 h-7 rounded-md
+                border transition-all duration-150 select-none
+                ${isCore ? 'cursor-default' : 'cursor-pointer hover:scale-110'}
+                ${accentClasses}
+              `}
+            >
+              <Icon size={14} />
 
-            {/* Mode indicator for connections */}
-            {mode === 'connections' && (
-              <Link2 size={9} className={`${colors.text} opacity-60`} />
-            )}
+              {/* Mode dot indicator (bottom-right) — non-core only */}
+              {!isCore && mode !== 'off' && (
+                <span className={`
+                  absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-slate-900
+                  ${mode === 'expanded' ? accent.dot : `${accent.dot} opacity-50`}
+                `} />
+              )}
 
-            {/* Count badge */}
-            {count > 0 && (
-              <span
-                className={`
-                  ml-0.5 px-1 py-px rounded text-[9px] font-semibold
-                  ${mode === 'expanded' ? 'bg-white/10' : mode === 'connections' ? 'bg-white/5' : 'bg-white/5'}
-                `}
-              >
-                {count}
-              </span>
-            )}
+              {/* Count badge (top-right) — compact */}
+              {count > 0 && mode !== 'off' && (
+                <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] flex items-center justify-center rounded-full bg-slate-800 border border-slate-600 text-[8px] font-bold text-slate-300 leading-none px-0.5">
+                  {count > 99 ? '99+' : count}
+                </span>
+              )}
+            </button>
 
-            {/* Small dot indicator for current mode (non-core only) */}
-            {!isCore && (
-              <span className={`
-                w-1.5 h-1.5 rounded-full ml-0.5 flex-shrink-0
-                ${mode === 'expanded' ? `bg-current opacity-80` : ''}
-                ${mode === 'connections' ? `bg-current opacity-40` : ''}
-                ${mode === 'off' ? 'bg-slate-600 opacity-30' : ''}
-              `} />
+            {/* Tooltip on hover */}
+            {isHovered && (
+              <div className={`absolute z-50 pointer-events-none whitespace-nowrap
+                ${isHorizontal ? 'top-full mt-1.5 left-1/2 -translate-x-1/2' : 'left-full ml-1.5 top-1/2 -translate-y-1/2'}
+              `}>
+                <div className="px-2 py-1 rounded-md bg-slate-800 border border-slate-600 shadow-lg text-[10px]">
+                  <div className="font-semibold text-slate-200">{group.label}</div>
+                  <div className="text-slate-400">
+                    {count} entities · {MODE_LABELS[mode]}
+                    {!isCore && ' · click to cycle'}
+                  </div>
+                </div>
+              </div>
             )}
-          </button>
+          </div>
         )
       })}
 
-      {/* Action buttons */}
-      <div className={`flex items-center gap-0.5 ${isHorizontal ? 'ml-1' : 'mt-1'} border-l border-slate-700/40 pl-1.5`}>
-        <button
-          onClick={onEnableAll}
-          className="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700/40 transition-colors"
-          title="Expand all groups"
-        >
-          <Eye size={12} />
-        </button>
-        <button
-          onClick={onResetDefaults}
-          className="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700/40 transition-colors"
-          title="Reset to defaults"
-        >
-          <RotateCcw size={12} />
-        </button>
-      </div>
+      {/* Separator + All toggle */}
+      {(() => {
+        const allExpanded = visibleGroups
+          .filter((g) => g.id !== 'core')
+          .every((g) => groupModes.get(g.id) === 'expanded')
+        return (
+          <div className={`flex items-center ${isHorizontal ? 'ml-0.5 pl-1 border-l' : 'mt-0.5 pt-1 border-t'} border-slate-700/40`}>
+            <button
+              onClick={allExpanded ? onResetDefaults : onEnableAll}
+              className={`
+                h-6 px-1.5 rounded text-[9px] font-bold tracking-wide uppercase transition-all duration-150
+                ${allExpanded
+                  ? 'text-cyan-400 bg-cyan-500/15 border border-cyan-500/30 hover:bg-cyan-500/25'
+                  : 'text-slate-500 bg-slate-800/40 border border-slate-700/40 hover:text-slate-300 hover:bg-slate-700/40'
+                }
+              `}
+              title={allExpanded ? 'Reset to defaults' : 'Expand all groups'}
+            >
+              All
+            </button>
+          </div>
+        )
+      })()}
     </div>
   )
 }
