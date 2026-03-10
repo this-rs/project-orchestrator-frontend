@@ -1,4 +1,5 @@
 export { AmbientBackground } from './AmbientBackground'
+export { Branding } from './Branding'
 export { Button } from './Button'
 export {
   Badge,

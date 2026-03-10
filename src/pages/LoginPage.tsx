@@ -10,7 +10,7 @@ import {
 } from '@/atoms'
 import { authApi, setAuthMode as setAuthModeService } from '@/services'
 import { LogIn } from 'lucide-react'
-import { Spinner } from '@/components/ui'
+import { Spinner, Branding } from '@/components/ui'
 import { PasswordLoginForm } from '@/components/auth/PasswordLoginForm'
 import { RegisterForm } from '@/components/auth/RegisterForm'
 
@@ -172,10 +172,7 @@ export function LoginPage() {
       </div>
 
       {/* Branding */}
-      <div className="absolute bottom-6 text-center text-xs tracking-wide">
-        <div className="text-gray-700">Made by</div>
-        <div className="text-gray-600">Freedom From Scratch</div>
-      </div>
+      <Branding className="absolute bottom-6" />
     </div>
   )
 }

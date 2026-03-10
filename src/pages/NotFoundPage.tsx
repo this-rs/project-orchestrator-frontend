@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { Home, ArrowLeft } from 'lucide-react'
-import { Button } from '@/components/ui'
+import { Button, Branding } from '@/components/ui'
 
 interface NotFoundPageProps {
   /** When true, renders without full-screen background and logo — for use inside MainLayout */
@@ -90,10 +90,7 @@ export function NotFoundPage({ embedded = false }: NotFoundPageProps) {
       {content}
 
       {/* Branding */}
-      <div className="absolute bottom-6 text-center text-xs tracking-wide animate-[fadeInUp_0.8s_ease-out]">
-        <div className="text-gray-700">Made by</div>
-        <div className="text-gray-600">Freedom From Scratch</div>
-      </div>
+      <Branding className="absolute bottom-6 animate-[fadeInUp_0.8s_ease-out]" />
     </div>
   )
 }

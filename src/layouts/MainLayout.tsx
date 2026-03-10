@@ -3,7 +3,7 @@ import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Menu, Home, Flag, Box, ClipboardList, CheckCircle2, FileText, Scale, Code, Brain, GitGraph, ChevronLeft, ChevronRight, MessageCircle, Settings } from 'lucide-react'
 import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, activeWorkspaceAtom, workspaceRefreshAtom } from '@/atoms'
-import { ToastContainer } from '@/components/ui'
+import { ToastContainer, Branding } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher'
@@ -329,10 +329,7 @@ export function MainLayout() {
           </div>
 
           {/* Branding */}
-          <div className="mt-4 text-center text-xs tracking-wide">
-            <div className="text-gray-600">Made by</div>
-            <div className="text-gray-500">Freedom From Scratch</div>
-          </div>
+          <Branding className="mt-4" />
         </div>
       </main>
 

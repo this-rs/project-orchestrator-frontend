@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react'
+import { Branding } from '@/components/ui'
 
 // ── Stage icons ──────────────────────────────────────────────────────────────
 
@@ -306,9 +307,7 @@ function GraphLoadingProgressComponent() {
       {/* Branding footer — only when expanded */}
       {expanded && (
         <div className="px-3 py-1.5 border-t border-slate-800/40 pointer-events-auto">
-          <p className="text-[8px] text-slate-600/50 text-center tracking-wide">
-            Made by Freedom From Scratch
-          </p>
+          <Branding variant="inline" className="text-[8px] text-slate-600/50 block text-center" />
         </div>
       )}
     </div>

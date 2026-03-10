@@ -20,6 +20,7 @@ import {
 import { ErrorState } from '@/components/ui/ErrorState'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Graph3DErrorBoundary } from '@/components/ui/Graph3DErrorBoundary'
+import { Branding } from '@/components/ui'
 import type { IntelligenceLayer } from '@/types/intelligence'
 
 // ── Entity legend ──────────────────────────────────────────────────────────
@@ -299,9 +300,7 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
             })}
         </div>
         {/* Branding */}
-        <span className="text-[9px] text-slate-600 tracking-wide pointer-events-none pl-1">
-          Made by Freedom From Scratch
-        </span>
+        <Branding variant="inline" className="pl-1" />
       </div>
 
       {/* Keyboard shortcut hint (bottom-center) */}
