@@ -4,12 +4,15 @@ import { useAtomValue } from 'jotai'
 import { ChevronsUpDown, Unlink, Link2 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, LinkEntityDialog, ProgressBar, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import { ExpandablePlanRow, ExpandableTaskRow } from '@/components/expandable'
+import { UnifiedGraphSection } from '@/components/graph/UnifiedGraphSection'
+import { MilestoneGraphAdapter } from '@/adapters/MilestoneGraphAdapter'
 import { workspacesApi, plansApi, tasksApi } from '@/services'
 import { PlanKanbanBoard } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug, useViewTransition } from '@/hooks'
+import { useMilestoneGraphData } from '@/hooks/useMilestoneGraphData'
 import { workspacePath } from '@/utils/paths'
 import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
-import type { MilestoneDetail, MilestoneProgress, Plan, Project, Task, MilestoneStatus, PlanStatus, PaginatedResponse } from '@/types'
+import type { MilestoneDetail, MilestonePlanSummary, MilestoneProgress, Plan, Project, Task, MilestoneStatus, PlanStatus, PaginatedResponse } from '@/types'
 
 export function MilestoneDetailPage() {
   const { milestoneId } = useParams<{ milestoneId: string }>()
@@ -30,6 +33,7 @@ export function MilestoneDetailPage() {
   const planRefresh = useAtomValue(planRefreshAtom)
   const taskRefresh = useAtomValue(taskRefreshAtom)
   const projectRefresh = useAtomValue(projectRefreshAtom)
+  const [enrichedPlans, setEnrichedPlans] = useState<MilestonePlanSummary[]>([])
   const [plansExpandAll, setPlansExpandAll] = useState(0)
   const [plansCollapseAll, setPlansCollapseAll] = useState(0)
   const [plansAllExpanded, setPlansAllExpanded] = useState(false)
@@ -52,7 +56,9 @@ export function MilestoneDetailPage() {
       setProgress(milestoneData.progress || null)
 
       // Plans come directly from the enriched response (with tasks and steps)
-      const enrichedPlans = (milestoneData.plans || [])
+      const enrichedPlansData = (milestoneData.plans || [])
+      setEnrichedPlans(enrichedPlansData)
+      const enrichedPlans = enrichedPlansData
       // Convert MilestonePlanSummary → Plan for ExpandablePlanRow
       setPlans(enrichedPlans.map(p => ({
         id: p.id,
@@ -136,7 +142,15 @@ export function MilestoneDetailPage() {
     [plans],
   )
 
-  const sectionIds = ['progress', 'plans', 'tasks', 'projects']
+  const milestoneGraphData = useMilestoneGraphData({
+    milestoneId,
+    milestoneTitle: milestone?.title ?? 'Milestone',
+    milestoneStatus: milestone?.status ?? 'planned',
+    plans: enrichedPlans,
+    progress,
+  })
+
+  const sectionIds = ['graph', 'progress', 'plans', 'tasks', 'projects']
   const activeSection = useSectionObserver(sectionIds)
 
   if (error) return <ErrorState title="Failed to load" description={error} onRetry={refreshData} />
@@ -144,6 +158,7 @@ export function MilestoneDetailPage() {
 
   const tags = milestone.tags || []
   const sections = [
+    { id: 'graph', label: 'Graph' },
     { id: 'progress', label: 'Progress' },
     { id: 'plans', label: 'Plans', count: plans.length },
     { id: 'tasks', label: 'Tasks', count: milestoneTasks.length },
@@ -203,6 +218,18 @@ export function MilestoneDetailPage() {
       </PageHeader>
 
       <SectionNav sections={sections} activeSection={activeSection} />
+
+      {/* Graph */}
+      {milestoneGraphData.data && (
+        <section id="graph" className="scroll-mt-20">
+          <UnifiedGraphSection
+            adapter={MilestoneGraphAdapter}
+            data={milestoneGraphData.data}
+            availableViews={['dag', '3d']}
+            defaultView="dag"
+          />
+        </section>
+      )}
 
       {/* Progress */}
       <section id="progress" className="scroll-mt-20">

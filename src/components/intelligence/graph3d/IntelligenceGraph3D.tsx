@@ -441,12 +441,14 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
       return 'rgba(107, 114, 128, 0.08)'
     }
 
-    // Group highlight — only show edges within the group
+    // Group highlight — only show edges within the group (match by entityType, not id)
     if (highlightedGroup) {
-      const bothInGroup = highlightedGroup.has(sourceId) && highlightedGroup.has(targetId)
+      const sourceType = typeof link.source === 'object' ? (link.source as Graph3DNode).entityType : ''
+      const targetType = typeof link.target === 'object' ? (link.target as Graph3DNode).entityType : ''
+      const bothInGroup = highlightedGroup.has(sourceType) && highlightedGroup.has(targetType)
       if (bothInGroup) return link.color
       // One end in group = faint connector visible
-      if (highlightedGroup.has(sourceId) || highlightedGroup.has(targetId)) return 'rgba(107, 114, 128, 0.12)'
+      if (highlightedGroup.has(sourceType) || highlightedGroup.has(targetType)) return 'rgba(107, 114, 128, 0.12)'
       return 'rgba(107, 114, 128, 0.03)'
     }
 
@@ -486,9 +488,11 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
       return (isHoverConnected || isSelectConnected) ? link.width * energyFactor * 2 : link.width * 0.15
     }
 
-    // Group highlight — edges within group keep normal width, outside dimmed
+    // Group highlight — edges within group keep normal width, outside dimmed (match by entityType)
     if (highlightedGroup) {
-      const bothInGroup = highlightedGroup.has(sourceId) && highlightedGroup.has(targetId)
+      const sourceType = typeof link.source === 'object' ? (link.source as Graph3DNode).entityType : ''
+      const targetType = typeof link.target === 'object' ? (link.target as Graph3DNode).entityType : ''
+      const bothInGroup = highlightedGroup.has(sourceType) && highlightedGroup.has(targetType)
       return bothInGroup ? link.width * energyFactor * 1.5 : link.width * 0.1
     }
 
@@ -821,7 +825,7 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
       const obj = (node as Graph3DNode & { __threeObj?: THREE.Object3D }).__threeObj
       if (!obj) continue
 
-      const isInGroup = highlightedGroup.has(node.id)
+      const isInGroup = highlightedGroup.has(node.entityType)
       const targetOpacity = isInGroup ? 1.0 : 0.08
 
       obj.traverse((child) => {
