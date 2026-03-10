@@ -87,7 +87,7 @@ export const ENTITY_GROUP_CONFIGS: EntityGroupConfig[] = [
     defaultEnabled: false,
     availableAt: ['plan', 'task'],
     entityTypes: ['note', 'decision', 'constraint'],
-    relationTypes: ['LINKED_TO', 'AFFECTS', 'INFORMED_BY'],
+    relationTypes: ['LINKED_TO', 'AFFECTS', 'INFORMED_BY', 'HAS_CONSTRAINT', 'HAS_DECISION'],
   },
   {
     id: 'git',
@@ -114,7 +114,7 @@ export const ENTITY_GROUP_CONFIGS: EntityGroupConfig[] = [
     defaultEnabled: false,
     availableAt: ['plan', 'project'],
     entityTypes: ['feature_graph'],
-    relationTypes: ['INCLUDES_ENTITY'],
+    relationTypes: ['INCLUDES_ENTITY', 'HAS_FEATURE_GRAPH'],
   },
   {
     id: 'behavioral',

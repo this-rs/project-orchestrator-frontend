@@ -45,7 +45,7 @@ export type FabricRelationType =
   | 'INCLUDES_ENTITY'
 export type NeuralRelationType = 'SYNAPSE'
 export type SkillRelationType = 'HAS_MEMBER'
-export type PMRelationType = 'CONTAINS' | 'DEPENDS_ON' | 'INFORMED_BY' | 'HAS_TASK' | 'HAS_STEP' | 'TARGETS_MILESTONE' | 'LINKED_TO_TASK' | 'LINKED_TO_PLAN'
+export type PMRelationType = 'CONTAINS' | 'DEPENDS_ON' | 'INFORMED_BY' | 'HAS_TASK' | 'HAS_STEP' | 'TARGETS_MILESTONE' | 'LINKED_TO_TASK' | 'LINKED_TO_PLAN' | 'HAS_CONSTRAINT' | 'HAS_DECISION' | 'HAS_FEATURE_GRAPH'
 export type ChatRelationType = 'DISCUSSED'
 export type BehavioralRelationType = 'HAS_STATE' | 'TRANSITION' | 'BELONGS_TO_SKILL'
 export type IntelligenceRelationType =
