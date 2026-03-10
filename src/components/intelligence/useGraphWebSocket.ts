@@ -7,6 +7,8 @@ import { fetchWsTicket } from '@/services/auth'
 import { isTauri } from '@/services/env'
 import type { IntelligenceNode, IntelligenceEdge, IntelligenceRelationType } from '@/types/intelligence'
 import { EDGE_STYLES } from '@/constants/intelligence'
+import { activationStateAtom, type ActivationState } from './SpreadingActivation'
+import { useAtomValue } from 'jotai'
 
 // ============================================================================
 // GRAPH WEBSOCKET EVENT TYPES
@@ -43,10 +45,22 @@ interface GraphReinforcement {
   new_weight: number
 }
 
+interface GraphActivationDelta {
+  direct_ids: string[]
+  propagated: Array<{ id: string; via: string; score: number }>
+  scores: Record<string, number>
+  active_edges: string[]
+  query: string
+  /** Streaming phase: "direct", "propagating", "done", or absent for legacy single-event */
+  phase?: 'direct' | 'propagating' | 'done'
+}
+
 interface GraphActivation {
   type: 'graph.activation'
-  activated_ids: string[]
-  scores: Record<string, number>
+  layer: string
+  delta: GraphActivationDelta
+  activated_ids?: string[]
+  scores?: Record<string, number>
 }
 
 interface GraphCommunityChanged {
@@ -109,6 +123,8 @@ export interface GraphWsState {
 export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState {
   const setNodes = useSetAtom(intelligenceNodesAtom)
   const setEdges = useSetAtom(intelligenceEdgesAtom)
+  const setActivation = useSetAtom(activationStateAtom)
+  const activationPhase = useAtomValue(activationStateAtom).phase
   const [connected, setConnected] = useState(false)
   const [lastEventAt, setLastEventAt] = useState<number | null>(null)
 
@@ -116,6 +132,10 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
   const pendingRef = useRef<PendingUpdate>(emptyPending())
   const rafRef = useRef<number | null>(null)
   const mountedRef = useRef(true)
+  const activationTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
+  // Track current activation phase in a ref so the memoized callback sees latest value
+  const activationPhaseRef = useRef<ActivationState['phase']>('idle')
+  activationPhaseRef.current = activationPhase
 
   // Flush buffered updates in a single React state update
   const flush = useCallback(() => {
@@ -313,9 +333,156 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
         }
 
         case 'graph.activation': {
-          // Activation events are handled by the SpreadingActivation component
-          // via its own atom. This is a no-op here — the backend would push
-          // activation data through the search API instead.
+          // If a local animation is already in progress (triggered by REST in
+          // SpreadingActivation.tsx), skip the WS echo to avoid interrupting
+          // the staggered animation. Only apply when phase is 'idle' or 'done'.
+          const currentPhase = activationPhaseRef.current
+          if (currentPhase === 'searching' || currentPhase === 'direct' || currentPhase === 'propagating') {
+            break
+          }
+
+          const delta = event.delta
+          if (!delta) break
+
+          // ── Streamed phased events (backend sends phase field) ──
+          if (delta.phase) {
+            switch (delta.phase) {
+              case 'direct': {
+                // Phase 1: Light up direct matches immediately
+                // Clear any previous WS-driven animation timers
+                activationTimersRef.current.forEach(clearTimeout)
+                activationTimersRef.current = []
+
+                const directIds = new Set(delta.direct_ids)
+                const scores = new Map<string, number>()
+                for (const [id, score] of Object.entries(delta.scores)) {
+                  scores.set(id, score)
+                }
+
+                setActivation({
+                  directIds,
+                  propagatedIds: new Set(),
+                  scores,
+                  activeEdges: new Set(),
+                  phase: 'direct',
+                })
+                break
+              }
+
+              case 'propagating': {
+                // Phase 2: MERGE propagated notes into existing state
+                setActivation((prev: ActivationState) => {
+                  const mergedPropagated = new Set(prev.propagatedIds)
+                  for (const p of delta.propagated) {
+                    mergedPropagated.add(p.id)
+                  }
+
+                  const mergedScores = new Map(prev.scores)
+                  for (const [id, score] of Object.entries(delta.scores)) {
+                    mergedScores.set(id, score)
+                  }
+
+                  const mergedEdges = new Set(prev.activeEdges)
+                  for (const edgeKey of delta.active_edges) {
+                    mergedEdges.add(edgeKey)
+                  }
+
+                  return {
+                    ...prev,
+                    propagatedIds: mergedPropagated,
+                    scores: mergedScores,
+                    activeEdges: mergedEdges,
+                    phase: 'propagating',
+                  }
+                })
+                break
+              }
+
+              case 'done': {
+                // Phase 3: Signal completion
+                setActivation((prev: ActivationState) => ({
+                  ...prev,
+                  phase: 'done' as const,
+                }))
+                break
+              }
+            }
+            break
+          }
+
+          // ── Legacy single-event fallback (no phase field) ──
+          // Clear any previous WS-driven animation timers
+          activationTimersRef.current.forEach(clearTimeout)
+          activationTimersRef.current = []
+
+          // Phase 1 (immediate): Light up direct matches
+          const directIds = new Set(delta.direct_ids)
+          const initialScores = new Map<string, number>()
+          for (const id of delta.direct_ids) {
+            if (delta.scores[id] !== undefined) {
+              initialScores.set(id, delta.scores[id])
+            }
+          }
+
+          setActivation({
+            directIds,
+            propagatedIds: new Set(),
+            scores: initialScores,
+            activeEdges: new Set(),
+            phase: 'direct',
+          })
+
+          // Phase 2 (staggered): Propagate along synapses in waves
+          const sorted = [...delta.propagated].sort((a, b) => b.score - a.score)
+          const batchSize = Math.max(1, Math.ceil(sorted.length / 5))
+          const delayPerBatch = 200
+
+          let accumulated = new Set<string>()
+          const allScores = new Map(initialScores)
+
+          for (let i = 0; i < sorted.length; i += batchSize) {
+            const batch = sorted.slice(i, i + batchSize)
+            const delay = 400 + (i / batchSize) * delayPerBatch
+
+            const timeout = setTimeout(() => {
+              if (!mountedRef.current) return
+
+              batch.forEach((r) => {
+                accumulated.add(r.id)
+                allScores.set(r.id, r.score)
+              })
+
+              // Build active edges from the delta
+              const allActivated = new Set([...directIds, ...accumulated])
+              const activeEdges = new Set<string>()
+              for (const edgeKey of delta.active_edges) {
+                const [src, tgt] = edgeKey.split('-')
+                if (src && tgt && allActivated.has(src) && allActivated.has(tgt)) {
+                  activeEdges.add(edgeKey)
+                }
+              }
+
+              setActivation({
+                directIds,
+                propagatedIds: new Set(accumulated),
+                scores: new Map(allScores),
+                activeEdges,
+                phase: i + batchSize >= sorted.length ? 'done' : 'propagating',
+              })
+              accumulated = new Set(accumulated)
+            }, delay)
+
+            activationTimersRef.current.push(timeout)
+          }
+
+          // If no propagated results, transition to done after direct phase
+          if (sorted.length === 0) {
+            const timeout = setTimeout(() => {
+              if (!mountedRef.current) return
+              setActivation((prev: ActivationState) => ({ ...prev, phase: 'done' as const }))
+            }, 400)
+            activationTimersRef.current.push(timeout)
+          }
           break
         }
 
@@ -338,7 +505,7 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
         }
       }
     },
-    [scheduleFlush, setEdges],
+    [scheduleFlush, setEdges, setActivation],
   )
 
   // Connect / disconnect lifecycle
@@ -411,6 +578,8 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
       shouldReconnect = false
       if (reconnectTimer) clearTimeout(reconnectTimer)
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+      activationTimersRef.current.forEach(clearTimeout)
+      activationTimersRef.current = []
       const ws = wsRef.current
       if (ws) {
         ws.onmessage = null

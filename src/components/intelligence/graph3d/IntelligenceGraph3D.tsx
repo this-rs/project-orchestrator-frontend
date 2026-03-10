@@ -12,6 +12,7 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import * as THREE from 'three'
 
 import { useGraph3DLayout, type Graph3DNode, type Graph3DLink } from './useGraph3DLayout'
+import { useActivationSync } from './useActivationSync'
 import { createNodeObject, disposeNodeCaches, setNodeQuality, getNodeQuality } from './nodeObjects'
 import { buildCommunityHulls, disposeCommunityHulls, type CommunityHullGroup } from './CommunityHulls3D'
 import { ENTITY_COLORS } from '@/constants/intelligence'
@@ -606,80 +607,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     })
   }
 
-  // ── Spreading Activation — live 3D visual updates ───────────────────
+  // ── Spreading Activation — live 3D visual updates (extracted hook) ───
   const activationPhase = activation.phase
-
-  const dirtyRef = useRef<{
-    sprites: Map<AnySpriteChild, SpriteOriginal>
-    lights: Set<THREE.PointLight>
-    nodeStates: Map<string, 'direct' | 'propagated' | 'dimmed'>
-  }>({ sprites: new Map(), lights: new Set(), nodeStates: new Map() })
-
-  useEffect(() => {
-    const fg = graphRef.current
-    if (!fg || typeof fg.scene !== 'function') return
-
-    const isActive = activationPhase !== 'idle' && activationPhase !== 'searching'
-    const dirty = dirtyRef.current
-
-    if (activationPhase === 'searching') return
-
-    // ── DEACTIVATION ──
-    if (!isActive) {
-      for (const [sprite, orig] of dirty.sprites) { restoreSprite(sprite, orig) }
-      dirty.sprites.clear()
-      for (const light of dirty.lights) { light.parent?.remove(light) }
-      dirty.lights.clear()
-      dirty.nodeStates.clear()
-      return
-    }
-
-    // ── ACTIVE PHASE ──
-    const newNodeStates = new Map<string, 'direct' | 'propagated' | 'dimmed'>()
-
-    for (const node of graphData.nodes) {
-      const obj = (node as Graph3DNode & { __threeObj?: THREE.Object3D }).__threeObj
-      if (!obj) continue
-
-      const isDirect = activation.directIds.has(node.id)
-      const isPropagated = activation.propagatedIds.has(node.id)
-      const desiredState: 'direct' | 'propagated' | 'dimmed' = isDirect ? 'direct' : isPropagated ? 'propagated' : 'dimmed'
-      const score = activation.scores.get(node.id) ?? 0
-      newNodeStates.set(node.id, desiredState)
-
-      const prevState = dirty.nodeStates.get(node.id)
-      if (prevState === desiredState && desiredState === 'dimmed') continue
-
-      const isLit = isDirect || isPropagated
-
-      // ── PointLight management ──
-      const existingLight = obj.children.find((c): c is THREE.PointLight => c instanceof THREE.PointLight && c.userData.__act__)
-      if (existingLight) { obj.remove(existingLight); dirty.lights.delete(existingLight) }
-
-      if (isLit) {
-        const lightColor = isDirect ? 0x34D399 : 0xA78BFA
-        const intensity = isDirect ? 60 + score * 80 : 30 + score * 50
-        const distance = isDirect ? 100 : 70
-        const pointLight = new THREE.PointLight(lightColor, intensity, distance, 1.5)
-        pointLight.userData.__act__ = true
-        obj.add(pointLight)
-        dirty.lights.add(pointLight)
-      }
-
-      // ── Sprite opacity updates ──
-      const targetOpacity = isDirect ? 1.0 : isPropagated ? 0.85 : 0.12
-      obj.traverse((child) => {
-        if (child instanceof THREE.Sprite && child.material) {
-          if (!dirty.sprites.has(child)) { dirty.sprites.set(child, saveSprite(child)) }
-          const mat = ensureOwnedMaterial(child)
-          mat.opacity = targetOpacity
-          mat.needsUpdate = true
-        }
-      })
-    }
-
-    dirty.nodeStates = newNodeStates
-  }, [activationPhase, activation.directIds, activation.propagatedIds, activation.scores, graphData.nodes])
+  useActivationSync(graphRef, graphData.nodes)
 
   // ── Heatmap overlays — energy (notes) & churn (files) ────────────────────
   const heatmapDirtyRef = useRef<Map<AnySpriteChild, SpriteOriginal>>(new Map())
@@ -921,59 +851,6 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       obj.scale.setScalar(0.5)
     }
   }, [dimmedEntityTypes, highlightedGroup, legendHoveredType, hoveredProjectSlug, graphData.nodes, activationPhase])
-
-  // ── Spreading Activation — zoom camera to activated cluster ──────────────
-  const prevActivationPhaseRef = useRef<string>('idle')
-  useEffect(() => {
-    const fg = graphRef.current
-    if (!fg || typeof fg.cameraPosition !== 'function') return
-
-    // Zoom when transitioning into 'direct' phase (results just arrived)
-    const wasIdle = prevActivationPhaseRef.current === 'idle' || prevActivationPhaseRef.current === 'searching'
-    prevActivationPhaseRef.current = activationPhase
-
-    if (!wasIdle || (activationPhase !== 'direct' && activationPhase !== 'done')) return
-
-    const allActivated = new Set([...activation.directIds, ...activation.propagatedIds])
-    if (allActivated.size === 0) return
-
-    // Compute centroid of activated nodes
-    let cx = 0, cy = 0, cz = 0, count = 0
-    let maxDist = 0
-    const positions: { x: number; y: number; z: number }[] = []
-
-    for (const node of graphData.nodes) {
-      if (!allActivated.has(node.id)) continue
-      const x = node.x ?? 0
-      const y = node.y ?? 0
-      const z = node.z ?? 0
-      cx += x; cy += y; cz += z; count++
-      positions.push({ x, y, z })
-    }
-
-    if (count === 0) return
-    cx /= count; cy /= count; cz /= count
-
-    // Compute radius of the activated cluster
-    for (const p of positions) {
-      const d = Math.sqrt((p.x - cx) ** 2 + (p.y - cy) ** 2 + (p.z - cz) ** 2)
-      if (d > maxDist) maxDist = d
-    }
-
-    // Position camera at a distance proportional to cluster radius
-    const dist = Math.max(maxDist * 2.5, 120)
-    // Offset camera along a diagonal for better perspective
-    const angle = Math.atan2(cy, cx)
-    const camX = cx + dist * Math.cos(angle + 0.3)
-    const camY = cy + dist * 0.4
-    const camZ = cz + dist * Math.sin(angle + 0.3)
-
-    fg.cameraPosition(
-      { x: camX, y: camY, z: camZ }, // new position
-      { x: cx, y: cy, z: cz },       // lookAt
-      1200,                            // transition duration ms
-    )
-  }, [activationPhase, activation.directIds, activation.propagatedIds, graphData.nodes])
 
   // ── Selected node highlight — persistent emissive ring on click ─────────
   const prevSelectedRef = useRef<string | null>(null)

@@ -20,6 +20,7 @@ import { Link } from 'react-router-dom'
 import { Graph3DErrorBoundary } from '@/components/ui/Graph3DErrorBoundary'
 import { EntityGroupPanel } from './EntityGroupPanel'
 import { useEntityGroups } from '@/hooks/useEntityGroups'
+import { useActivationWebSocket } from '@/hooks/useActivationWebSocket'
 import {
   selectedNodeIdAtom,
   intelligenceNodesAtom,
@@ -240,6 +241,9 @@ interface UnifiedGraphSectionProps<T> {
   /** Breadcrumb trail showing navigation path (e.g. Milestone > Plan > Task) */
   breadcrumbs?: GraphBreadcrumb[]
 
+  /** Project slug for activation WebSocket (enables spreading activation on fractal graphs) */
+  projectSlug?: string
+
   /** Additional CSS class */
   className?: string
 }
@@ -269,8 +273,13 @@ export function UnifiedGraphSection<T>({
   planStatus,
   onDrillDown,
   breadcrumbs,
+  projectSlug,
   className = '',
 }: UnifiedGraphSectionProps<T>) {
+  // Lightweight WS for spreading activation on fractal graphs (plan/milestone/task pages)
+  // Only connects when projectSlug is provided and 3D view is active
+  useActivationWebSocket(projectSlug)
+
   const views = availableViews ?? ['dag', 'waves', '3d']
   const [viewMode, setViewMode] = useState<FractalViewMode>(defaultView ?? views[0])
 

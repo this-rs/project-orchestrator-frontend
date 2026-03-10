@@ -301,6 +301,7 @@ export function ProjectMilestoneDetailPage() {
             defaultView="3d"
             onDrillDown={handleDrillDown}
             breadcrumbs={graphBreadcrumbs}
+            projectSlug={project?.slug}
           />
         </section>
       )}
