@@ -330,8 +330,8 @@ export function UnifiedGraphSection<T>({
 
       {/* Content */}
       <div className="relative">
-        {/* EntityGroupPanel overlay (top-left for 3D, inline for DAG/Waves) */}
-        {viewMode === '3d' ? (
+        {/* EntityGroupPanel overlay (only in 3D view — DAG/Waves don't need entity filtering) */}
+        {viewMode === '3d' && (
           <div className="absolute top-3 left-3 z-30">
             <EntityGroupPanel
               groups={groups}
@@ -341,18 +341,6 @@ export function UnifiedGraphSection<T>({
               onEnableAll={enableAll}
               onResetDefaults={resetToDefaults}
               direction="vertical"
-            />
-          </div>
-        ) : (
-          <div className="px-4 pt-2">
-            <EntityGroupPanel
-              groups={groups}
-              enabledGroups={enabledGroups}
-              counts={counts}
-              onToggle={toggle}
-              onEnableAll={enableAll}
-              onResetDefaults={resetToDefaults}
-              direction="horizontal"
             />
           </div>
         )}

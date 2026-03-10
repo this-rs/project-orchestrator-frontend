@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Layers, ArrowRight, FileCode2, Zap, ChevronDown, ExternalLink, Play, Eye } from 'lucide-react'
+import { AlertTriangle, Layers, ArrowRight, FileCode2, Zap, ChevronDown, ExternalLink, Play, Eye, Clock, Loader2, Ban, CheckCircle2, XCircle } from 'lucide-react'
 import { Badge, PulseIndicator } from '@/components/ui'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
@@ -56,6 +56,32 @@ const stepStatusLabels: Record<StepStatus, string> = {
   in_progress: 'In progress',
   completed: 'Done',
   skipped: 'Skipped',
+}
+
+// ── Task status icon (matching DependencyGraphView) ─────────────────────────
+
+const statusIconColors: Record<TaskStatus, string> = {
+  pending: 'text-gray-400',
+  in_progress: 'text-indigo-400',
+  blocked: 'text-amber-400',
+  completed: 'text-green-400',
+  failed: 'text-red-400',
+}
+
+function WaveTaskStatusIcon({ status }: { status: TaskStatus }) {
+  const color = statusIconColors[status] || statusIconColors.pending
+  switch (status) {
+    case 'completed':
+      return <CheckCircle2 className={`w-3.5 h-3.5 flex-shrink-0 ${color}`} />
+    case 'in_progress':
+      return <Loader2 className={`w-3.5 h-3.5 flex-shrink-0 animate-spin ${color}`} />
+    case 'blocked':
+      return <Ban className={`w-3.5 h-3.5 flex-shrink-0 ${color}`} />
+    case 'failed':
+      return <XCircle className={`w-3.5 h-3.5 flex-shrink-0 ${color}`} />
+    default:
+      return <Clock className={`w-3.5 h-3.5 flex-shrink-0 ${color}`} />
+  }
 }
 
 // ============================================================================
@@ -217,7 +243,7 @@ function WaveTaskCard({
       >
         {/* Status + Priority + Agent indicator */}
         <div className="flex items-center gap-2 mb-1.5">
-          <div className={`w-2 h-2 rounded-full ${colors.dot} flex-shrink-0`} />
+          <WaveTaskStatusIcon status={resolvedStatus} />
           <span className={`text-xs font-medium ${colors.text}`}>
             {statusLabels[resolvedStatus]}
           </span>

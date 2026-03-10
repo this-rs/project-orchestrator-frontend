@@ -12,7 +12,7 @@ import {
 } from '@xyflow/react'
 import dagre from 'dagre'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, FileCode2, StickyNote, BookOpen, ExternalLink, CheckCircle2, Circle, Loader2, SkipForward, MessageSquare, FileSearch } from 'lucide-react'
+import { AlertTriangle, FileCode2, StickyNote, BookOpen, ExternalLink, CheckCircle2, Circle, Loader2, SkipForward, MessageSquare, FileSearch, Clock, Ban, XCircle } from 'lucide-react'
 import { PulseIndicator } from '@/components/ui'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
@@ -103,6 +103,23 @@ function StepIcon({ status }: { status: string }) {
       return <SkipForward className="w-3 h-3 text-yellow-400 flex-shrink-0" />
     default:
       return <Circle className="w-3 h-3 text-gray-600 flex-shrink-0" />
+  }
+}
+
+// ── Task status icon (replaces the 7px dot with a meaningful icon) ───────────
+
+function TaskStatusIcon({ status }: { status: TaskStatus }) {
+  switch (status) {
+    case 'completed':
+      return <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" style={{ color: statusColors.completed.dot }} />
+    case 'in_progress':
+      return <Loader2 className="w-3.5 h-3.5 flex-shrink-0 animate-spin" style={{ color: statusColors.in_progress.dot }} />
+    case 'blocked':
+      return <Ban className="w-3.5 h-3.5 flex-shrink-0" style={{ color: statusColors.blocked.dot }} />
+    case 'failed':
+      return <XCircle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: statusColors.failed.dot }} />
+    default: // pending
+      return <Clock className="w-3.5 h-3.5 flex-shrink-0" style={{ color: statusColors.pending.dot }} />
   }
 }
 
@@ -216,22 +233,16 @@ function TaskNodeComponent({ data }: NodeProps<Node<TaskNodeData>>) {
       >
         <Handle type="target" position={Position.Top} style={{ background: colors.border, width: 8, height: 8 }} />
 
-        {/* Row 1: Status dot + label + agent indicator + priority + conflict */}
+        {/* Row 1: Status icon + label + agent indicator + priority + conflict */}
         <div className="flex items-center gap-1.5 mb-1">
-          <div
-            className={isInProgress ? 'pulse-indicator relative inline-flex shrink-0' : 'inline-flex shrink-0'}
-            style={{ width: 7, height: 7 }}
-          >
+          <div className={isInProgress ? 'pulse-indicator relative inline-flex shrink-0' : 'inline-flex shrink-0'}>
             {isInProgress && (
               <span
-                className="pulse-ring absolute inset-0 rounded-full opacity-75"
+                className="pulse-ring absolute inset-[-3px] rounded-full opacity-40"
                 style={{ background: colors.dot }}
               />
             )}
-            <span
-              className="relative inline-flex rounded-full"
-              style={{ background: colors.dot, width: 7, height: 7, borderRadius: '50%', flexShrink: 0 }}
-            />
+            <TaskStatusIcon status={data.status} />
           </div>
           <span className="text-[10px] font-medium" style={{ color: colors.text }}>
             {statusLabels[data.status]}
