@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback, lazy, Suspense } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useLocation } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { ClipboardList, FolderKanban, GitCommitHorizontal, Pencil } from 'lucide-react'
-
-const TaskUniverse3D = lazy(() => import('@/components/tasks/TaskUniverse3D'))
+import { UnifiedGraphSection } from '@/components/graph/UnifiedGraphSection'
+import { TaskGraphAdapter } from '@/adapters/TaskGraphAdapter'
+import { useTaskGraphData } from '@/hooks/useTaskGraphData'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, TaskStatusBadge, InteractiveStepStatusBadge, InteractiveDecisionStatusBadge, ProgressBar, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { tasksApi, plansApi, projectsApi, decisionsApi } from '@/services'
@@ -56,7 +57,6 @@ export function TaskDetailPage() {
   const [blocking, setBlocking] = useState<Task[]>([])
   const [commits, setCommits] = useState<Commit[]>([])
   const [commitShaInput, setCommitShaInput] = useState('')
-  const [show3D, setShow3D] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -64,6 +64,9 @@ export function TaskDetailPage() {
   const [parentPlanId, setParentPlanId] = useState<string | null>(null)
   const [parentPlanTitle, setParentPlanTitle] = useState<string | null>(null)
   const [parentProject, setParentProject] = useState<Project | null>(null)
+
+  // Task graph data for UnifiedGraphSection
+  const taskGraphData = useTaskGraphData(taskId, parentPlanId ?? undefined)
 
   const fetchData = useCallback(async () => {
     if (!taskId) return
@@ -229,6 +232,7 @@ export function TaskDetailPage() {
   const stepProgress = steps.length > 0 ? (completedSteps / steps.length) * 100 : 0
 
   const sections = [
+    { id: 'graph', label: 'Graph' },
     { id: 'steps', label: 'Steps', count: steps.length },
     { id: 'dependencies', label: 'Dependencies', count: blockers.length + blocking.length },
     { id: 'decisions', label: 'Decisions', count: decisions.length },
@@ -301,7 +305,6 @@ export function TaskDetailPage() {
           ) : undefined
         }
         overflowActions={[
-          { label: '3D View', onClick: () => setShow3D(true) },
           { label: 'Edit', onClick: () => editTaskDialog.open({ title: 'Edit Task' }) },
           { label: 'Delete', variant: 'danger', onClick: () => confirmDialog.open({
             title: 'Delete Task',
@@ -320,6 +323,19 @@ export function TaskDetailPage() {
       />
 
       <SectionNav sections={sections} activeSection={activeSection} />
+
+      {/* Graph — Task sub-graph with DAG/3D views */}
+      {taskGraphData.data && (
+        <section id="graph" className="scroll-mt-20">
+          <UnifiedGraphSection
+            adapter={TaskGraphAdapter}
+            data={taskGraphData.data}
+            title="Task Graph"
+            availableViews={['dag', '3d']}
+            defaultView="dag"
+          />
+        </section>
+      )}
 
       {/* Steps */}
       <section id="steps" className="scroll-mt-20">
@@ -585,16 +601,7 @@ export function TaskDetailPage() {
       <LinkEntityDialog {...linkDialog.dialogProps} />
       <ConfirmDialog {...confirmDialog.dialogProps} />
 
-      {/* 3D Universe View */}
-      {show3D && taskId && (
-        <Suspense fallback={
-          <div className="fixed inset-0 z-50 bg-[#0a0a0f] flex items-center justify-center">
-            <div className="text-gray-400 animate-pulse text-lg">Loading 3D engine...</div>
-          </div>
-        }>
-          <TaskUniverse3D taskId={taskId} onClose={() => setShow3D(false)} />
-        </Suspense>
-      )}
+      {/* 3D view is now integrated inline via UnifiedGraphSection above */}
     </div>
   )
 }
