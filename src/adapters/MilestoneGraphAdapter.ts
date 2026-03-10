@@ -2,22 +2,23 @@
 // MilestoneGraphAdapter — GraphAdapter<MilestoneGraphData> for milestone-level
 // ============================================================================
 //
-// Transforms a milestone's enriched data (plans with tasks and steps) into
-// FractalNode[] / FractalLink[], filtered by enabled EntityGroups.
+// Transforms a milestone's enriched data into FractalNode[] / FractalLink[],
+// filtered by enabled EntityGroups.
 //
 // Milestone graph structure:
 //   - Milestone center node (core)
 //   - Plan nodes (core) — linked to milestone via CONTAINS
 //   - Task nodes (core) — nested inside plans via HAS_TASK
-//   - Inter-task DEPENDS_ON edges (if tasks share the same plan dependency graph)
-//
-// Uses the enriched MilestoneDetail response that already includes
-// plans[].tasks[].steps[] — no extra backend endpoint needed.
+//   - Step nodes (core) — ordered chain within each task via HAS_STEP
+//   - File nodes (code) — affected_files from tasks
+//   - Decision nodes (knowledge) — linked to tasks
+//   - Note nodes (knowledge) — linked to tasks
+//   - Commit nodes (git) — linked to tasks, TOUCHES files
 // ============================================================================
 
 import { ENTITY_COLORS } from '@/constants/intelligence'
 import type { IntelligenceEntityType, IntelligenceLayer } from '@/types/intelligence'
-import type { MilestonePlanSummary, MilestoneProgress } from '@/types'
+import type { MilestonePlanSummary, MilestoneProgress, Decision, Commit } from '@/types'
 import type {
   GraphAdapter,
   EntityGroup,
@@ -27,6 +28,16 @@ import type {
 } from '@/types/fractal-graph'
 import { getGroupsForScale, getEntityGroup } from '@/types/fractal-graph'
 
+// ── Per-task enrichment (fetched by useMilestoneGraphData) ───────────────────
+
+export interface TaskEnrichment {
+  affectedFiles: string[]
+  decisions: Decision[]
+  commits: Commit[]
+  notes: Array<{ id: string; content: string; note_type: string; importance?: string }>
+  commitFilesMap: Map<string, string[]>
+}
+
 // ── Data bundle passed to the adapter ────────────────────────────────────────
 
 export interface MilestoneGraphData {
@@ -35,12 +46,17 @@ export interface MilestoneGraphData {
   milestoneStatus: string
   plans: MilestonePlanSummary[]
   progress: MilestoneProgress
+  /** Per-task enrichment data (affected_files, commits, decisions, notes) */
+  taskEnrichments: Map<string, TaskEnrichment>
 }
 
 // ── Layer mapping ────────────────────────────────────────────────────────────
 
 const LAYER_MAP: Record<string, IntelligenceLayer> = {
   milestone: 'pm', plan: 'pm', task: 'pm', step: 'pm',
+  file: 'code', function: 'code', struct: 'code',
+  note: 'knowledge', decision: 'knowledge', constraint: 'knowledge',
+  commit: 'pm',
 }
 
 // ── Status → color / energy ──────────────────────────────────────────────────
@@ -61,6 +77,13 @@ const TASK_STATUS_COLORS: Record<string, string> = {
   failed: '#EF4444',
 }
 
+const STEP_STATUS_COLORS: Record<string, string> = {
+  pending: '#9CA3AF',
+  in_progress: '#3B82F6',
+  completed: '#22C55E',
+  skipped: '#F59E0B',
+}
+
 function statusToEnergy(status: string | undefined): number {
   switch (status) {
     case 'in_progress': return 0.8
@@ -70,8 +93,17 @@ function statusToEnergy(status: string | undefined): number {
     case 'approved': return 0.6
     case 'draft': return 0.4
     case 'pending': return 0.5
+    case 'skipped': return 0.1
     default: return 0.5
   }
+}
+
+function normalizeStepStatus(status: string): string {
+  const s = status.toLowerCase()
+  if (s === 'completed') return 'completed'
+  if (s === 'inprogress' || s === 'in_progress') return 'in_progress'
+  if (s === 'skipped') return 'skipped'
+  return 'pending'
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -98,7 +130,7 @@ function makeNode(
     group: getEntityGroup(type),
     layer: LAYER_MAP[type] ?? 'pm',
     color: opts?.color ?? ENTITY_COLORS[type] ?? '#6B7280',
-    scaleLevel: 'project' as ScaleLevel, // Milestones are at project scale
+    scaleLevel: 'project' as ScaleLevel,
     data,
     subtitle: opts?.subtitle,
     progress: opts?.progress,
@@ -132,6 +164,7 @@ export const MilestoneGraphAdapter: GraphAdapter<MilestoneGraphData> = {
   toNodes(data: MilestoneGraphData, enabledGroups: Set<EntityGroup>): FractalNode[] {
     const nodes: FractalNode[] = []
     const nodeIds = new Set<string>()
+    const fileNodeIds = new Set<string>()
 
     const addNode = (node: FractalNode) => {
       if (nodeIds.has(node.id)) return
@@ -141,7 +174,7 @@ export const MilestoneGraphAdapter: GraphAdapter<MilestoneGraphData> = {
       }
     }
 
-    const { milestoneId, milestoneTitle, milestoneStatus, plans, progress } = data
+    const { milestoneId, milestoneTitle, milestoneStatus, plans, progress, taskEnrichments } = data
 
     // ── Milestone center node (core) ─────────────────────────────────────
     const totalTasks = plans.reduce((sum, p) => sum + p.tasks.length, 0)
@@ -217,12 +250,99 @@ export const MilestoneGraphAdapter: GraphAdapter<MilestoneGraphData> = {
             childCount: task.steps.length,
           },
         ))
+
+        // ── Step nodes (core) — ordered chain within task ────────────────
+        const sortedSteps = [...task.steps].sort((a, b) => a.order - b.order)
+        for (const step of sortedSteps) {
+          const normalizedStatus = normalizeStepStatus(step.status)
+          addNode(makeNode(
+            `step:${step.id}`,
+            `#${step.order} ${step.description.slice(0, 35)}`,
+            'step',
+            {
+              status: normalizedStatus,
+              order: step.order,
+              description: step.description,
+              verification: step.verification,
+              energy: statusToEnergy(normalizedStatus),
+            },
+            {
+              color: STEP_STATUS_COLORS[normalizedStatus] ?? ENTITY_COLORS.step,
+              status: normalizedStatus,
+              energy: statusToEnergy(normalizedStatus),
+              subtitle: step.verification?.slice(0, 40),
+            },
+          ))
+        }
+
+        // ── Enrichment data (affected_files, decisions, commits, notes) ──
+        const enrichment = taskEnrichments.get(task.id)
+        if (enrichment) {
+          // Affected files (code group)
+          for (const filePath of enrichment.affectedFiles) {
+            const fileId = `file:${filePath}`
+            if (!fileNodeIds.has(fileId)) {
+              fileNodeIds.add(fileId)
+              const parts = filePath.split('/')
+              const fileName = parts[parts.length - 1] || filePath
+              addNode(makeNode(fileId, fileName, 'file', { path: filePath, energy: 0.3 }, { subtitle: filePath, energy: 0.3 }))
+            }
+          }
+
+          // Decisions (knowledge group)
+          for (const decision of enrichment.decisions) {
+            const label = decision.chosen_option
+              ? `${decision.description.slice(0, 20)} → ${decision.chosen_option}`
+              : decision.description.slice(0, 30)
+            addNode(makeNode(
+              `decision:${decision.id}`,
+              label,
+              'decision',
+              { ...decision, energy: 0.5 },
+              { energy: 0.5, status: decision.status },
+            ))
+          }
+
+          // Notes (knowledge group)
+          for (const note of enrichment.notes) {
+            addNode(makeNode(
+              `note:${note.id}`,
+              note.content.slice(0, 30),
+              'note',
+              { note_type: note.note_type, importance: note.importance, energy: 0.4 },
+              { energy: 0.4, subtitle: note.note_type },
+            ))
+          }
+
+          // Commits (git group)
+          for (const commit of enrichment.commits) {
+            addNode(makeNode(
+              `commit:${commit.sha}`,
+              commit.sha.slice(0, 7) + (commit.message ? ` ${commit.message.slice(0, 20)}` : ''),
+              'commit',
+              { ...commit, energy: 0.2 },
+              { energy: 0.2, subtitle: commit.message?.slice(0, 50) },
+            ))
+
+            // TOUCHES files from commits
+            const touchedFiles = enrichment.commitFilesMap.get(commit.sha) || []
+            for (const filePath of touchedFiles) {
+              const fileId = `file:${filePath}`
+              if (!fileNodeIds.has(fileId)) {
+                fileNodeIds.add(fileId)
+                const parts = filePath.split('/')
+                const fileName = parts[parts.length - 1] || filePath
+                addNode(makeNode(fileId, fileName, 'file', { path: filePath, energy: 0.3 }, { subtitle: filePath, energy: 0.3 }))
+              }
+            }
+          }
+        }
       }
     }
 
-    // ── Limit to ~200 nodes ──────────────────────────────────────────────
-    if (nodes.length > 200) {
-      const kept = new Set(nodes.slice(0, 200).map((n) => n.id))
+    // ── Limit to ~300 nodes ──────────────────────────────────────────────
+    if (nodes.length > 300) {
+      const kept = new Set(nodes.slice(0, 300).map((n) => n.id))
       kept.add(milestoneId)
       return nodes.filter((n) => kept.has(n.id))
     }
@@ -234,14 +354,27 @@ export const MilestoneGraphAdapter: GraphAdapter<MilestoneGraphData> = {
 
   toLinks(data: MilestoneGraphData, enabledGroups: Set<EntityGroup>): FractalLink[] {
     const links: FractalLink[] = []
-    const { milestoneId, plans } = data
+    const { milestoneId, plans, taskEnrichments } = data
 
-    // Build nodeId set
+    // Build nodeId set for link validation
     const nodeIds = new Set<string>()
     nodeIds.add(milestoneId)
     for (const plan of plans) {
       nodeIds.add(plan.id)
-      for (const task of plan.tasks) nodeIds.add(task.id)
+      for (const task of plan.tasks) {
+        nodeIds.add(task.id)
+        for (const step of task.steps) nodeIds.add(`step:${step.id}`)
+        const enrichment = taskEnrichments.get(task.id)
+        if (enrichment) {
+          for (const f of enrichment.affectedFiles) nodeIds.add(`file:${f}`)
+          for (const d of enrichment.decisions) nodeIds.add(`decision:${d.id}`)
+          for (const n of enrichment.notes) nodeIds.add(`note:${n.id}`)
+          for (const c of enrichment.commits) {
+            nodeIds.add(`commit:${c.sha}`)
+            for (const f of enrichment.commitFilesMap.get(c.sha) || []) nodeIds.add(`file:${f}`)
+          }
+        }
+      }
     }
 
     const addLink = (source: string, target: string, type: FractalLink['type'], group: EntityGroup) => {
@@ -259,6 +392,40 @@ export const MilestoneGraphAdapter: GraphAdapter<MilestoneGraphData> = {
       // Plan → Tasks
       for (const task of plan.tasks) {
         addLink(plan.id, task.id, 'HAS_TASK', 'core')
+
+        // Task → first step, then step chain
+        const sortedSteps = [...task.steps].sort((a, b) => a.order - b.order)
+        if (sortedSteps.length > 0) {
+          addLink(task.id, `step:${sortedSteps[0].id}`, 'HAS_STEP', 'core')
+        }
+        for (let i = 0; i < sortedSteps.length - 1; i++) {
+          addLink(`step:${sortedSteps[i].id}`, `step:${sortedSteps[i + 1].id}`, 'HAS_STEP', 'core')
+        }
+
+        // ── Enrichment edges ─────────────────────────────────────────────
+        const enrichment = taskEnrichments.get(task.id)
+        if (enrichment) {
+          // Code edges (task → affected files)
+          for (const filePath of enrichment.affectedFiles) {
+            addLink(task.id, `file:${filePath}`, 'AFFECTS', 'code')
+          }
+
+          // Knowledge edges
+          for (const decision of enrichment.decisions) {
+            addLink(task.id, `decision:${decision.id}`, 'HAS_DECISION', 'knowledge')
+          }
+          for (const note of enrichment.notes) {
+            addLink(task.id, `note:${note.id}`, 'LINKED_TO', 'knowledge')
+          }
+
+          // Git edges
+          for (const commit of enrichment.commits) {
+            addLink(task.id, `commit:${commit.sha}`, 'LINKED_TO', 'git')
+            for (const filePath of enrichment.commitFilesMap.get(commit.sha) || []) {
+              addLink(`commit:${commit.sha}`, `file:${filePath}`, 'TOUCHES', 'git')
+            }
+          }
+        }
       }
     }
 
@@ -268,13 +435,36 @@ export const MilestoneGraphAdapter: GraphAdapter<MilestoneGraphData> = {
   // ── countByGroup ─────────────────────────────────────────────────────────
 
   countByGroup(data: MilestoneGraphData): Record<EntityGroup, number> {
+    let totalSteps = 0
+    let totalFiles = 0
+    let totalDecisions = 0
+    let totalNotes = 0
+    let totalCommits = 0
     const totalTasks = data.plans.reduce((sum, p) => sum + p.tasks.length, 0)
+    const fileSet = new Set<string>()
+
+    for (const plan of data.plans) {
+      for (const task of plan.tasks) {
+        totalSteps += task.steps.length
+        const enrichment = data.taskEnrichments.get(task.id)
+        if (enrichment) {
+          for (const f of enrichment.affectedFiles) fileSet.add(f)
+          totalDecisions += enrichment.decisions.length
+          totalNotes += enrichment.notes.length
+          totalCommits += enrichment.commits.length
+          for (const files of enrichment.commitFilesMap.values()) {
+            for (const f of files) fileSet.add(f)
+          }
+        }
+      }
+    }
+    totalFiles = fileSet.size
 
     return {
-      core: 1 + data.plans.length + totalTasks, // milestone + plans + tasks
-      code: 0,
-      knowledge: 0,
-      git: 0,
+      core: 1 + data.plans.length + totalTasks + totalSteps, // milestone + plans + tasks + steps
+      code: totalFiles,
+      knowledge: totalDecisions + totalNotes,
+      git: totalCommits,
       sessions: 0,
       features: 0,
       behavioral: 0,
