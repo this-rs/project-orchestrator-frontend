@@ -13,7 +13,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import React from 'react'
 import { useSetAtom, useAtomValue } from 'jotai'
-import { Layers, Box, GitFork } from 'lucide-react'
+import { Layers, Box, GitFork, ChevronRight } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { Graph3DErrorBoundary } from '@/components/ui/Graph3DErrorBoundary'
 import { EntityGroupPanel } from './EntityGroupPanel'
 import { useEntityGroups } from '@/hooks/useEntityGroups'
@@ -106,6 +107,36 @@ function toIntelligenceEdges(links: FractalLink[]): IntelligenceEdge[] {
   })) as unknown as IntelligenceEdge[]
 }
 
+// ── Breadcrumb types & component ──────────────────────────────────────────────
+
+export interface GraphBreadcrumb {
+  label: string
+  href?: string
+}
+
+function GraphBreadcrumbs({ items }: { items: GraphBreadcrumb[] }) {
+  if (items.length === 0) return null
+  return (
+    <nav className="flex items-center gap-1 px-4 py-1.5 text-xs text-gray-400 border-b border-gray-700/50 bg-gray-900/30">
+      {items.map((item, i) => (
+        <React.Fragment key={i}>
+          {i > 0 && <ChevronRight className="w-3 h-3 text-gray-600 flex-shrink-0" />}
+          {item.href ? (
+            <Link
+              to={item.href}
+              className="hover:text-gray-200 transition-colors truncate max-w-[200px]"
+            >
+              {item.label}
+            </Link>
+          ) : (
+            <span className="text-gray-300 font-medium truncate max-w-[200px]">{item.label}</span>
+          )}
+        </React.Fragment>
+      ))}
+    </nav>
+  )
+}
+
 // ── View mode button ─────────────────────────────────────────────────────────
 
 function ViewModeButton({
@@ -175,6 +206,9 @@ interface UnifiedGraphSectionProps<T> {
   /** Called when user double-clicks a node with a drillTarget */
   onDrillDown?: (target: { level: ScaleLevel; id: string }) => void
 
+  /** Breadcrumb trail showing navigation path (e.g. Milestone > Plan > Task) */
+  breadcrumbs?: GraphBreadcrumb[]
+
   /** Additional CSS class */
   className?: string
 }
@@ -202,7 +236,8 @@ export function UnifiedGraphSection<T>({
   wavesLoading = false,
   planId,
   planStatus,
-  onDrillDown: _onDrillDown,
+  onDrillDown,
+  breadcrumbs,
   className = '',
 }: UnifiedGraphSectionProps<T>) {
   const views = availableViews ?? ['dag', 'waves', '3d']
@@ -251,6 +286,20 @@ export function UnifiedGraphSection<T>({
     return () => { setHighlightedGroup(null) }
   }, [setHighlightedGroup])
 
+  // Handle drill-down: find node by id, check drillTarget, call onDrillDown
+  const handleNodeDoubleClick = useCallback((nodeId: string) => {
+    if (!onDrillDown) return
+    const node = nodes.find((n) => n.id === nodeId)
+    if (node?.drillTarget) {
+      onDrillDown(node.drillTarget)
+    }
+  }, [onDrillDown, nodes])
+
+  // Handle 3D drill-down (intelligence node id → fractal node lookup)
+  const handle3DNodeDoubleClick = useCallback((nodeId: string) => {
+    handleNodeDoubleClick(nodeId)
+  }, [handleNodeDoubleClick])
+
   // Handle waves button click
   const handleWavesClick = useCallback(() => {
     if (!waves && fetchWaves) {
@@ -287,6 +336,9 @@ export function UnifiedGraphSection<T>({
 
   return (
     <div className={`rounded-xl border border-gray-700/50 bg-gray-900/50 overflow-hidden ${className}`}>
+      {/* Breadcrumbs */}
+      {breadcrumbs && breadcrumbs.length > 0 && <GraphBreadcrumbs items={breadcrumbs} />}
+
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700/50">
         <div className="flex items-center gap-3">
@@ -359,6 +411,7 @@ export function UnifiedGraphSection<T>({
                 <IntelligenceGraph3D
                   nodes={intelligenceNodes}
                   edges={intelligenceEdges}
+                  onNodeDoubleClick={onDrillDown ? handle3DNodeDoubleClick : undefined}
                 />
               </Graph3DErrorBoundary>
               {/* NodeInspector for 3D */}
@@ -378,6 +431,7 @@ export function UnifiedGraphSection<T>({
               <DependencyGraphView
                 graph={graph}
                 taskStatuses={taskStatuses ?? new Map()}
+                onNodeDoubleClick={onDrillDown ? handleNodeDoubleClick : undefined}
               />
             </div>
           ) : (

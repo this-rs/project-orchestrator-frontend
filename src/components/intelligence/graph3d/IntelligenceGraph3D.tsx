@@ -76,6 +76,8 @@ function churnToColor3(churn: number): THREE.Color {
 interface IntelligenceGraph3DProps {
   nodes: IntelligenceNode[]
   edges: IntelligenceEdge[]
+  /** Callback when a node is double-clicked (fractal drill-down) */
+  onNodeDoubleClick?: (nodeId: string) => void
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -83,7 +85,7 @@ interface IntelligenceGraph3DProps {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type GraphRef = any // ForceGraph3D ref methods are dynamically extended
 
-export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3DProps) {
+export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }: IntelligenceGraph3DProps) {
   const graphRef = useRef<GraphRef>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
@@ -925,9 +927,35 @@ export default function IntelligenceGraph3D({ nodes, edges }: IntelligenceGraph3
   }, [selectedNodeId, graphData.nodes, activation.phase])
 
   // ── Interactions ────────────────────────────────────────────────────────
+  // Double-click detection: track last click time + node id
+  const lastClickRef = useRef<{ nodeId: string; time: number } | null>(null)
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const onNodeClick = useCallback((node: Graph3DNode) => {
-    setSelectedNodeId(node.id === selectedNodeId ? null : node.id)
-  }, [selectedNodeId, setSelectedNodeId])
+    const now = Date.now()
+    const last = lastClickRef.current
+
+    // Detect double-click (same node within 350ms)
+    if (last && last.nodeId === node.id && now - last.time < 350) {
+      // Clear pending single-click
+      if (clickTimerRef.current) {
+        clearTimeout(clickTimerRef.current)
+        clickTimerRef.current = null
+      }
+      lastClickRef.current = null
+      // Fire double-click
+      onNodeDoubleClick?.(node.id)
+      return
+    }
+
+    // Record click and defer single-click action
+    lastClickRef.current = { nodeId: node.id, time: now }
+    if (clickTimerRef.current) clearTimeout(clickTimerRef.current)
+    clickTimerRef.current = setTimeout(() => {
+      clickTimerRef.current = null
+      setSelectedNodeId(node.id === selectedNodeId ? null : node.id)
+    }, 350)
+  }, [selectedNodeId, setSelectedNodeId, onNodeDoubleClick])
 
   const onNodeHover = useCallback((node: Graph3DNode | null) => {
     setHoveredNodeId(node?.id ?? null)

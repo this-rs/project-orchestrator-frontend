@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link, useLocation } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { ClipboardList, FolderKanban, GitCommitHorizontal, Pencil } from 'lucide-react'
-import { UnifiedGraphSection } from '@/components/graph/UnifiedGraphSection'
+import { UnifiedGraphSection, type GraphBreadcrumb } from '@/components/graph/UnifiedGraphSection'
 import { TaskGraphAdapter } from '@/adapters/TaskGraphAdapter'
 import { useTaskGraphData } from '@/hooks/useTaskGraphData'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, TaskStatusBadge, InteractiveStepStatusBadge, InteractiveDecisionStatusBadge, ProgressBar, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
@@ -67,6 +67,18 @@ export function TaskDetailPage() {
 
   // Task graph data for UnifiedGraphSection
   const taskGraphData = useTaskGraphData(taskId, parentPlanId ?? undefined)
+
+  // Breadcrumb trail for graph section
+  const graphBreadcrumbs = useMemo<GraphBreadcrumb[]>(() => {
+    const crumbs: GraphBreadcrumb[] = []
+    if (parentPlanId && parentPlanTitle) {
+      crumbs.push({ label: `Plan: ${parentPlanTitle}`, href: workspacePath(wsSlug, `/plans/${parentPlanId}#graph`) })
+    }
+    if (task) {
+      crumbs.push({ label: `Task: ${task.title || task.id.slice(0, 8)}` })
+    }
+    return crumbs
+  }, [parentPlanId, parentPlanTitle, task, wsSlug])
 
   const fetchData = useCallback(async () => {
     if (!taskId) return
@@ -333,6 +345,7 @@ export function TaskDetailPage() {
             title="Task Graph"
             availableViews={['dag', '3d']}
             defaultView="dag"
+            breadcrumbs={graphBreadcrumbs}
           />
         </section>
       )}

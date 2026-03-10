@@ -1,10 +1,10 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { ChevronsUpDown, Unlink, Link2 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, LinkEntityDialog, ProgressBar, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import { ExpandablePlanRow, ExpandableTaskRow } from '@/components/expandable'
-import { UnifiedGraphSection } from '@/components/graph/UnifiedGraphSection'
+import { UnifiedGraphSection, type GraphBreadcrumb } from '@/components/graph/UnifiedGraphSection'
 import { MilestoneGraphAdapter } from '@/adapters/MilestoneGraphAdapter'
 import { workspacesApi, plansApi, tasksApi } from '@/services'
 import { PlanKanbanBoard } from '@/components/kanban'
@@ -150,6 +150,24 @@ export function MilestoneDetailPage() {
     progress,
   })
 
+  // Fractal drill-down: navigate to plan or task detail page
+  const handleDrillDown = useCallback((target: { level: string; id: string }) => {
+    if (target.level === 'plan') {
+      navigate(workspacePath(wsSlug, `/plans/${target.id}#graph`))
+    } else if (target.level === 'task') {
+      navigate(workspacePath(wsSlug, `/tasks/${target.id}#graph`))
+    }
+  }, [navigate, wsSlug])
+
+  // Breadcrumb trail for graph section
+  const graphBreadcrumbs = useMemo<GraphBreadcrumb[]>(() => {
+    const crumbs: GraphBreadcrumb[] = []
+    if (milestone) {
+      crumbs.push({ label: `Milestone: ${milestone.title || milestone.id.slice(0, 8)}` })
+    }
+    return crumbs
+  }, [milestone])
+
   const sectionIds = ['graph', 'progress', 'plans', 'tasks', 'projects']
   const activeSection = useSectionObserver(sectionIds)
 
@@ -227,6 +245,8 @@ export function MilestoneDetailPage() {
             data={milestoneGraphData.data}
             availableViews={['dag', '3d']}
             defaultView="dag"
+            onDrillDown={handleDrillDown}
+            breadcrumbs={graphBreadcrumbs}
           />
         </section>
       )}
