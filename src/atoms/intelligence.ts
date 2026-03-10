@@ -97,6 +97,10 @@ export const hoveredNodeIdAtom = atom<string | null>(null)
  *  Used by FG chip hover, milestone hover, etc. */
 export const highlightedGroupAtom = atom<Set<string> | null>(null)
 
+/** Entity types to dim (connections-only mode) — reduces opacity + scale for matching nodes.
+ *  Set by UnifiedGraphSection when groups are in 'connections' mode. */
+export const dimmedEntityTypesAtom = atom<Set<string> | null>(null)
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 
 /** Intelligence summary from backend */

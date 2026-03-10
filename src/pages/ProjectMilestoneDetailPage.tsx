@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { ChevronsUpDown, FolderKanban, Unlink, Link2 } from 'lucide-react'
@@ -20,12 +20,12 @@ import {
 } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { ExpandablePlanRow, ExpandableTaskRow } from '@/components/expandable'
-import { UnifiedGraphSection } from '@/components/graph/UnifiedGraphSection'
+import { UnifiedGraphSection, type GraphBreadcrumb } from '@/components/graph/UnifiedGraphSection'
 import { MilestoneGraphAdapter } from '@/adapters/MilestoneGraphAdapter'
 import { projectsApi, plansApi, tasksApi } from '@/services'
 // plansApi: used for status updates; tasksApi: used for Add Task dialog
 import { PlanKanbanBoard } from '@/components/kanban'
-import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
+import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { useMilestoneGraphData } from '@/hooks/useMilestoneGraphData'
 import { workspacePath } from '@/utils/paths'
 import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
@@ -43,7 +43,8 @@ import type {
 
 export function ProjectMilestoneDetailPage() {
   const { milestoneId } = useParams<{ milestoneId: string }>()
-  const navigate = useNavigate()
+  const navigateRR = useNavigate()
+  const { navigate } = useViewTransition()
   const wsSlug = useWorkspaceSlug()
   const [milestone, setMilestone] = useState<Milestone | null>(null)
   const [progress, setProgress] = useState<MilestoneProgress | null>(null)
@@ -180,7 +181,30 @@ export function ProjectMilestoneDetailPage() {
     milestoneStatus: milestone?.status ?? 'planned',
     plans: enrichedPlans,
     progress,
+    projectSlug: project?.slug,
+    projectId: project?.id,
   })
+
+  // Fractal drill-down: navigate to plan or task detail page
+  const handleDrillDown = useCallback((target: { level: string; id: string }) => {
+    if (target.level === 'plan') {
+      navigate(workspacePath(wsSlug, `/plans/${target.id}#graph`))
+    } else if (target.level === 'task') {
+      navigate(workspacePath(wsSlug, `/tasks/${target.id}#graph`))
+    }
+  }, [navigate, wsSlug])
+
+  // Breadcrumb trail for graph section
+  const graphBreadcrumbs = useMemo<GraphBreadcrumb[]>(() => {
+    const crumbs: GraphBreadcrumb[] = []
+    if (project) {
+      crumbs.push({ label: `Project: ${project.name}`, href: workspacePath(wsSlug, `/projects/${project.slug}`) })
+    }
+    if (milestone) {
+      crumbs.push({ label: `Milestone: ${milestone.title || milestone.id.slice(0, 8)}` })
+    }
+    return crumbs
+  }, [project, milestone, wsSlug])
 
   const sectionIds = ['graph', 'progress', 'plans', 'tasks']
   const activeSection = useSectionObserver(sectionIds)
@@ -258,7 +282,7 @@ export function ProjectMilestoneDetailPage() {
                 onConfirm: async () => {
                   await projectsApi.updateMilestone(milestone.id, { status: 'closed' })
                   toast.success('Milestone deleted')
-                  navigate(workspacePath(wsSlug, project ? `/projects/${project.slug}` : '/projects'))
+                  navigateRR(workspacePath(wsSlug, project ? `/projects/${project.slug}` : '/projects'))
                 },
               }),
           },
@@ -273,8 +297,10 @@ export function ProjectMilestoneDetailPage() {
           <UnifiedGraphSection
             adapter={MilestoneGraphAdapter}
             data={milestoneGraphData.data}
-            availableViews={['dag', '3d']}
-            defaultView="dag"
+            availableViews={['3d']}
+            defaultView="3d"
+            onDrillDown={handleDrillDown}
+            breadcrumbs={graphBreadcrumbs}
           />
         </section>
       )}
@@ -360,7 +386,7 @@ export function ProjectMilestoneDetailPage() {
               <PlanKanbanBoard
                 fetchFn={kanbanFetchFn}
                 onPlanStatusChange={handlePlanStatusChange}
-                onPlanClick={(planId) => navigate(workspacePath(wsSlug, `/plans/${planId}`))}
+                onPlanClick={(planId) => navigateRR(workspacePath(wsSlug, `/plans/${planId}`))}
                 refreshTrigger={planRefresh}
               />
             ) : (

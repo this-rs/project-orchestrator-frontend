@@ -1,13 +1,13 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link, useLocation } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { ClipboardList, FolderKanban, GitCommitHorizontal, Pencil } from 'lucide-react'
+import { ClipboardList, Flag, FolderKanban, GitCommitHorizontal, Pencil } from 'lucide-react'
 import { UnifiedGraphSection, type GraphBreadcrumb } from '@/components/graph/UnifiedGraphSection'
 import { TaskGraphAdapter } from '@/adapters/TaskGraphAdapter'
 import { useTaskGraphData } from '@/hooks/useTaskGraphData'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, TaskStatusBadge, InteractiveStepStatusBadge, InteractiveDecisionStatusBadge, ProgressBar, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
-import { tasksApi, plansApi, projectsApi, decisionsApi } from '@/services'
+import { tasksApi, plansApi, projectsApi, workspacesApi, decisionsApi } from '@/services'
 import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { taskRefreshAtom, projectRefreshAtom, planRefreshAtom } from '@/atoms'
@@ -64,13 +64,20 @@ export function TaskDetailPage() {
   const [parentPlanId, setParentPlanId] = useState<string | null>(null)
   const [parentPlanTitle, setParentPlanTitle] = useState<string | null>(null)
   const [parentProject, setParentProject] = useState<Project | null>(null)
+  const [parentMilestone, setParentMilestone] = useState<{ id: string; title: string; type: 'workspace' | 'project' } | null>(null)
 
   // Task graph data for UnifiedGraphSection
   const taskGraphData = useTaskGraphData(taskId, parentPlanId ?? undefined)
 
-  // Breadcrumb trail for graph section
+  // Breadcrumb trail for graph section — full ascending path: milestone → plan → task
   const graphBreadcrumbs = useMemo<GraphBreadcrumb[]>(() => {
     const crumbs: GraphBreadcrumb[] = []
+    if (parentMilestone) {
+      const msPath = parentMilestone.type === 'project'
+        ? `/project-milestones/${parentMilestone.id}#graph`
+        : `/milestones/${parentMilestone.id}#graph`
+      crumbs.push({ label: `Milestone: ${parentMilestone.title}`, href: workspacePath(wsSlug, msPath) })
+    }
     if (parentPlanId && parentPlanTitle) {
       crumbs.push({ label: `Plan: ${parentPlanTitle}`, href: workspacePath(wsSlug, `/plans/${parentPlanId}#graph`) })
     }
@@ -78,7 +85,7 @@ export function TaskDetailPage() {
       crumbs.push({ label: `Task: ${task.title || task.id.slice(0, 8)}` })
     }
     return crumbs
-  }, [parentPlanId, parentPlanTitle, task, wsSlug])
+  }, [parentMilestone, parentPlanId, parentPlanTitle, task, wsSlug])
 
   const fetchData = useCallback(async () => {
     if (!taskId) return
@@ -162,6 +169,45 @@ export function TaskDetailPage() {
 
       if (controller.signal.aborted) return
       setParentProject(project)
+
+      // 3. Resolve milestone — find if this plan belongs to a milestone
+      if (planId) {
+        try {
+          // Check workspace milestones
+          const wsMilestones = await workspacesApi.listMilestones(wsSlug, { limit: 100 })
+          for (const ms of wsMilestones.items || []) {
+            try {
+              const detail = await workspacesApi.getMilestone(ms.id)
+              if (Array.isArray(detail.plans) && detail.plans.some((p: { id: string }) => p.id === planId)) {
+                if (!controller.signal.aborted) {
+                  setParentMilestone({ id: detail.id, title: detail.title, type: 'workspace' })
+                }
+                return
+              }
+            } catch { /* skip */ }
+          }
+
+          // Check project milestones
+          const planData = (await plansApi.get(planId)) as unknown as { plan?: { project_id?: string } }
+          const projId = planData.plan?.project_id || (planData as unknown as { project_id?: string }).project_id
+          if (projId) {
+            try {
+              const projMilestones = await projectsApi.listMilestones(projId, { limit: 100 })
+              for (const ms of projMilestones.items || []) {
+                try {
+                  const detail = await projectsApi.getMilestone(ms.id)
+                  if (Array.isArray(detail.plans) && detail.plans.some((p: { id: string }) => p.id === planId)) {
+                    if (!controller.signal.aborted) {
+                      setParentMilestone({ id: detail.milestone.id, title: detail.milestone.title, type: 'project' })
+                    }
+                    return
+                  }
+                } catch { /* skip */ }
+              }
+            } catch { /* graceful degradation */ }
+          }
+        } catch { /* graceful degradation */ }
+      }
     }
 
     resolveParents()
@@ -251,8 +297,19 @@ export function TaskDetailPage() {
     { id: 'commits', label: 'Commits', count: commits.length },
   ]
 
-  // Build parent links for navigation
+  // Build parent links for navigation — ascending: milestone → project → plan
   const parentLinks: ParentLink[] = []
+  if (parentMilestone) {
+    const msPath = parentMilestone.type === 'project'
+      ? `/project-milestones/${parentMilestone.id}`
+      : `/milestones/${parentMilestone.id}`
+    parentLinks.push({
+      icon: Flag,
+      label: parentMilestone.type === 'project' ? 'Project Milestone' : 'Milestone',
+      name: parentMilestone.title,
+      href: workspacePath(wsSlug, msPath),
+    })
+  }
   if (parentProject) {
     parentLinks.push({
       icon: FolderKanban,

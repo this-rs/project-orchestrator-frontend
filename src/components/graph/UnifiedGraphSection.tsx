@@ -6,19 +6,29 @@
 //   1. Card with header (title + summary + view toggle)
 //   2. EntityGroupPanel overlay for toggling entity categories
 //   3. DAG (DependencyGraphView), Waves (WaveView), or 3D (IntelligenceGraph3D)
+//   4. Fullscreen + brightness controls (3D only)
 //
 // Works with any GraphAdapter<T> — same component, different adapters.
 // ============================================================================
 
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import React from 'react'
-import { useSetAtom, useAtomValue } from 'jotai'
-import { Layers, Box, GitFork, ChevronRight } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { useSetAtom, useAtomValue, useAtom } from 'jotai'
+import { Layers, Box, GitFork, ChevronRight, Maximize, Minimize, Sun } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Graph3DErrorBoundary } from '@/components/ui/Graph3DErrorBoundary'
 import { EntityGroupPanel } from './EntityGroupPanel'
 import { useEntityGroups } from '@/hooks/useEntityGroups'
-import { selectedNodeIdAtom, intelligenceNodesAtom, selectedNodeAtom, highlightedGroupAtom } from '@/atoms/intelligence'
+import {
+  selectedNodeIdAtom,
+  intelligenceNodesAtom,
+  selectedNodeAtom,
+  highlightedGroupAtom,
+  dimmedEntityTypesAtom,
+  graphBrightnessAtom,
+} from '@/atoms/intelligence'
+import { ENTITY_GROUP_CONFIGS } from '@/types/fractal-graph'
 import { NodeInspector } from '@/components/intelligence/NodeInspector'
 import type { IntelligenceNode, IntelligenceEdge, IntelligenceLayer } from '@/types/intelligence'
 import type {
@@ -27,6 +37,7 @@ import type {
   FractalLink,
   FractalViewMode,
   ScaleLevel,
+  EntityGroup,
 } from '@/types/fractal-graph'
 import type { DependencyGraph, WaveComputationResult, TaskStatus, PlanStatus } from '@/types'
 
@@ -42,6 +53,26 @@ const LAYER_MAP: Record<string, IntelligenceLayer> = {
   chat_session: 'chat',
   skill: 'skills',
   protocol: 'behavioral', protocol_state: 'behavioral',
+}
+
+// ── EntityGroup → entity type strings mapping ─────────────────────────────────
+
+const GROUP_TO_ENTITY_TYPES = new Map<EntityGroup, Set<string>>()
+for (const config of ENTITY_GROUP_CONFIGS) {
+  GROUP_TO_ENTITY_TYPES.set(config.id, new Set(config.entityTypes))
+}
+
+/** Convert a set of EntityGroup IDs to a set of entity type strings */
+function groupsToEntityTypes(groups: Set<EntityGroup>): Set<string> | null {
+  if (groups.size === 0) return null
+  const types = new Set<string>()
+  for (const group of groups) {
+    const groupTypes = GROUP_TO_ENTITY_TYPES.get(group)
+    if (groupTypes) {
+      for (const t of groupTypes) types.add(t)
+    }
+  }
+  return types.size > 0 ? types : null
 }
 
 // ── Convert FractalNode[] → IntelligenceNode[] (for 3D renderer) ─────────────
@@ -243,15 +274,27 @@ export function UnifiedGraphSection<T>({
   const views = availableViews ?? ['dag', 'waves', '3d']
   const [viewMode, setViewMode] = useState<FractalViewMode>(defaultView ?? views[0])
 
-  // Entity group toggle state
-  const { enabledGroups, toggle, enableAll, resetToDefaults, groups } = useEntityGroups(adapter)
+  // Entity group 3-state toggle (off / connections / expanded)
+  const { enabledGroups, groupModes, cycle, enableAll, resetToDefaults, groups } = useEntityGroups(adapter)
 
-  // Compute nodes/links from adapter
+  // Compute nodes/links from adapter (enabledGroups includes both connections + expanded)
   const nodes = useMemo(() => adapter.toNodes(data, enabledGroups), [adapter, data, enabledGroups])
   const links = useMemo(() => adapter.toLinks(data, enabledGroups), [adapter, data, enabledGroups])
   const counts = useMemo(() => adapter.countByGroup(data), [adapter, data])
 
-  // Convert to Intelligence format for 3D
+  // Build set of groups in "connections" mode (nodes should be dimmed via THREE.js)
+  const connectionGroups = useMemo(() => {
+    const set = new Set<EntityGroup>()
+    for (const [group, mode] of groupModes) {
+      if (mode === 'connections') set.add(group)
+    }
+    return set
+  }, [groupModes])
+
+  // Convert connection groups to entity type strings for the 3D dimming atom
+  const dimmedTypes = useMemo(() => groupsToEntityTypes(connectionGroups), [connectionGroups])
+
+  // Convert to Intelligence format for 3D (no energy manipulation — dimming is via THREE.js)
   const intelligenceNodes = useMemo(() => toIntelligenceNodes(nodes), [nodes])
   const intelligenceEdges = useMemo(() => toIntelligenceEdges(links), [links])
 
@@ -260,6 +303,34 @@ export function UnifiedGraphSection<T>({
   const setSelectedNodeId = useSetAtom(selectedNodeIdAtom)
   const selectedNode = useAtomValue(selectedNodeAtom)
   const setHighlightedGroup = useSetAtom(highlightedGroupAtom)
+  const setDimmedEntityTypes = useSetAtom(dimmedEntityTypesAtom)
+  const [graphBrightness, setGraphBrightness] = useAtom(graphBrightnessAtom)
+
+  // Fullscreen state
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  const toggleFullscreen = useCallback(() => {
+    setIsFullscreen((v) => !v)
+  }, [])
+
+  // Escape key exits fullscreen
+  useEffect(() => {
+    if (!isFullscreen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFullscreen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [isFullscreen])
+
+  // Sync dimmed entity types atom when connection groups change
+  useEffect(() => {
+    if (viewMode === '3d') {
+      setDimmedEntityTypes(dimmedTypes)
+    }
+    return () => { setDimmedEntityTypes(null) }
+  }, [dimmedTypes, setDimmedEntityTypes, viewMode])
 
   // Populate intelligenceNodesAtom for NodeInspector
   useEffect(() => {
@@ -281,10 +352,13 @@ export function UnifiedGraphSection<T>({
     setSelectedNodeId(null)
   }, [data, setSelectedNodeId])
 
-  // Clear highlight on unmount
+  // Clear highlight + dimmed types on unmount
   useEffect(() => {
-    return () => { setHighlightedGroup(null) }
-  }, [setHighlightedGroup])
+    return () => {
+      setHighlightedGroup(null)
+      setDimmedEntityTypes(null)
+    }
+  }, [setHighlightedGroup, setDimmedEntityTypes])
 
   // Handle drill-down: find node by id, check drillTarget, call onDrillDown
   const handleNodeDoubleClick = useCallback((nodeId: string) => {
@@ -334,6 +408,81 @@ export function UnifiedGraphSection<T>({
     return `${counts.core - 1} tasks · ${links.filter((l) => l.type === 'DEPENDS_ON').length} deps`
   }, [viewMode, waves, nodes.length, counts, links])
 
+  // ── 3D content (shared between inline and fullscreen portal) ──────────────
+
+  const graph3DContent = viewMode === '3d' ? (
+    <div
+      ref={containerRef}
+      className={`relative bg-[#0a0a0f] ${isFullscreen ? 'fixed inset-0 z-[9999]' : 'h-[500px]'}`}
+    >
+      {/* EntityGroupPanel — overlaid top-left */}
+      <div className="absolute top-2 left-2 z-30 pointer-events-none">
+        <div className="pointer-events-auto">
+          <EntityGroupPanel
+            groups={groups}
+            groupModes={groupModes}
+            counts={counts}
+            onCycle={cycle}
+            onEnableAll={enableAll}
+            onResetDefaults={resetToDefaults}
+            direction="vertical"
+            enableHover
+          />
+        </div>
+      </div>
+
+      {/* 3D Graph */}
+      <Graph3DErrorBoundary context="Unified Graph">
+        <IntelligenceGraph3D
+          nodes={intelligenceNodes}
+          edges={intelligenceEdges}
+          onNodeDoubleClick={onDrillDown ? handle3DNodeDoubleClick : undefined}
+        />
+      </Graph3DErrorBoundary>
+
+      {/* NodeInspector for 3D */}
+      {selectedNode && <NodeInspector />}
+
+      {/* Controls (bottom-right): brightness slider + fullscreen */}
+      <div className="absolute bottom-3 right-3 z-40 flex flex-col items-center gap-1.5">
+        {/* Brightness slider (vertical) */}
+        <div className="flex flex-col items-center gap-1 bg-slate-800/90 backdrop-blur-sm rounded-lg border border-slate-700 p-1">
+          <Sun size={11} className="text-slate-500 shrink-0" />
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={graphBrightness}
+            onChange={(e) => setGraphBrightness(parseFloat(e.target.value))}
+            className="graph-brightness-slider"
+            title={`Brightness: ${Math.round(graphBrightness * 100)}%`}
+            style={{
+              writingMode: 'vertical-lr',
+              direction: 'rtl',
+              width: '14px',
+              height: '80px',
+              appearance: 'none',
+              WebkitAppearance: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+            }}
+          />
+        </div>
+        {/* Fullscreen */}
+        <div className="flex items-center bg-slate-800/90 backdrop-blur-sm rounded-lg border border-slate-700 p-0.5">
+          <button
+            onClick={toggleFullscreen}
+            className="flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 transition-colors"
+            title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+          >
+            {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null
+
   return (
     <div className={`rounded-xl border border-gray-700/50 bg-gray-900/50 overflow-hidden ${className}`}>
       {/* Breadcrumbs */}
@@ -350,7 +499,6 @@ export function UnifiedGraphSection<T>({
         <div className="flex items-center rounded-lg bg-gray-800/60 border border-gray-700/50 p-0.5">
           {views.includes('dag') && (
             <ViewModeButton
-
               label="DAG"
               icon={<GitFork className="w-3 h-3" />}
               active={viewMode === 'dag'}
@@ -359,7 +507,6 @@ export function UnifiedGraphSection<T>({
           )}
           {views.includes('waves') && (
             <ViewModeButton
-
               label="Waves"
               icon={<Layers className="w-3 h-3" />}
               active={viewMode === 'waves'}
@@ -370,7 +517,6 @@ export function UnifiedGraphSection<T>({
           )}
           {views.includes('3d') && (
             <ViewModeButton
-
               label="3D"
               icon={<Box className="w-3 h-3" />}
               active={viewMode === '3d'}
@@ -382,22 +528,6 @@ export function UnifiedGraphSection<T>({
 
       {/* Content */}
       <div className="relative">
-        {/* EntityGroupPanel overlay (only in 3D view — DAG/Waves don't need entity filtering) */}
-        {viewMode === '3d' && (
-          <div className="absolute top-3 left-3 z-30">
-            <EntityGroupPanel
-              groups={groups}
-              enabledGroups={enabledGroups}
-              counts={counts}
-              onToggle={toggle}
-              onEnableAll={enableAll}
-              onResetDefaults={resetToDefaults}
-              direction="vertical"
-            />
-          </div>
-        )}
-
-        {/* View content */}
         <Suspense
           fallback={
             <div className="flex items-center justify-center h-[400px]">
@@ -406,17 +536,8 @@ export function UnifiedGraphSection<T>({
           }
         >
           {viewMode === '3d' ? (
-            <div className="h-[500px] bg-[#0a0a0f]">
-              <Graph3DErrorBoundary context="Unified Graph">
-                <IntelligenceGraph3D
-                  nodes={intelligenceNodes}
-                  edges={intelligenceEdges}
-                  onNodeDoubleClick={onDrillDown ? handle3DNodeDoubleClick : undefined}
-                />
-              </Graph3DErrorBoundary>
-              {/* NodeInspector for 3D */}
-              {selectedNode && <NodeInspector />}
-            </div>
+            // In fullscreen, render via portal to escape parent stacking context
+            isFullscreen ? createPortal(graph3DContent, document.body) : graph3DContent
           ) : viewMode === 'waves' && waves ? (
             <div className="p-4">
               <WaveView

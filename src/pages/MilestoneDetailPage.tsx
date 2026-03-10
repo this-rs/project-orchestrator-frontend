@@ -142,12 +142,17 @@ export function MilestoneDetailPage() {
     [plans],
   )
 
+  // Derive primary project slug/id for enrichment (chat sessions, feature graphs)
+  const primaryProject = projects.length > 0 ? projects[0] : null
+
   const milestoneGraphData = useMilestoneGraphData({
     milestoneId,
     milestoneTitle: milestone?.title ?? 'Milestone',
     milestoneStatus: milestone?.status ?? 'planned',
     plans: enrichedPlans,
     progress,
+    projectSlug: primaryProject?.slug,
+    projectId: primaryProject?.id,
   })
 
   // Fractal drill-down: navigate to plan or task detail page
@@ -243,8 +248,8 @@ export function MilestoneDetailPage() {
           <UnifiedGraphSection
             adapter={MilestoneGraphAdapter}
             data={milestoneGraphData.data}
-            availableViews={['dag', '3d']}
-            defaultView="dag"
+            availableViews={['3d']}
+            defaultView="3d"
             onDrillDown={handleDrillDown}
             breadcrumbs={graphBreadcrumbs}
           />

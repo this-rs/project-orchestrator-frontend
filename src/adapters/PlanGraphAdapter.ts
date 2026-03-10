@@ -275,6 +275,28 @@ export const PlanGraphAdapter: GraphAdapter<PlanGraphData> = {
         },
       ))
 
+      // ── Step nodes (core group — child chain) ────────────────────────
+      for (const step of task.steps || []) {
+        const stepId = `step:${step.id}`
+        addNode(makeNode(
+          stepId,
+          step.description.slice(0, 40),
+          'step',
+          {
+            status: step.status,
+            order: step.order,
+            verification: step.verification,
+            energy: statusToEnergy(step.status?.toLowerCase()),
+          },
+          {
+            color: TASK_STATUS_COLORS[step.status?.toLowerCase()] ?? ENTITY_COLORS.step,
+            status: step.status?.toLowerCase(),
+            energy: statusToEnergy(step.status?.toLowerCase()),
+            subtitle: step.verification ? `✓ ${step.verification.slice(0, 30)}` : undefined,
+          },
+        ))
+      }
+
       // ── Affected files (code group) ────────────────────────────────────
       for (const filePath of task.affected_files || []) {
         const fileId = `file:${filePath}`
@@ -426,6 +448,7 @@ export const PlanGraphAdapter: GraphAdapter<PlanGraphData> = {
     nodeIds.add(planId)
     for (const t of tasks) {
       nodeIds.add(t.id)
+      for (const s of t.steps || []) nodeIds.add(`step:${s.id}`)
       for (const f of t.affected_files || []) nodeIds.add(`file:${f}`)
     }
     for (const c of constraints) nodeIds.add(`constraint:${c.id}`)
@@ -475,6 +498,13 @@ export const PlanGraphAdapter: GraphAdapter<PlanGraphData> = {
     }
     for (const edge of graph.edges || []) {
       addLink(edge.from, edge.to, 'DEPENDS_ON')
+    }
+
+    // ── Step edges (task → steps) ────────────────────────────────────────
+    for (const task of tasks) {
+      for (const step of task.steps || []) {
+        addLink(task.id, `step:${step.id}`, 'HAS_STEP')
+      }
     }
 
     // ── Code edges (task → affected files) ──────────────────────────────
@@ -556,8 +586,10 @@ export const PlanGraphAdapter: GraphAdapter<PlanGraphData> = {
     const { graph, constraints, decisions, commits, chatSessions, featureGraphs } = data
     const tasks = graph.nodes || []
 
-    // Core: plan (1) + tasks
-    counts.core = 1 + tasks.length
+    // Core: plan (1) + tasks + steps
+    let stepCount = 0
+    for (const task of tasks) { stepCount += (task.steps || []).length }
+    counts.core = 1 + tasks.length + stepCount
 
     // Code: unique files across all tasks
     const uniqueFiles = new Set<string>()

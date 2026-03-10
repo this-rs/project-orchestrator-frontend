@@ -44,6 +44,9 @@ export type EntityGroup =
   | 'features'    // Feature graphs (overlay)
   | 'behavioral'  // Protocols, skills
 
+/** Display mode for a non-core entity group */
+export type GroupMode = 'off' | 'connections' | 'expanded'
+
 /** Configuration for a single entity group */
 export interface EntityGroupConfig {
   id: EntityGroup
@@ -76,7 +79,7 @@ export const ENTITY_GROUP_CONFIGS: EntityGroupConfig[] = [
     label: 'Code',
     icon: 'Code',
     defaultEnabled: false,
-    availableAt: ['plan', 'task'],
+    availableAt: ['project', 'plan', 'task'],
     entityTypes: ['file', 'function', 'struct', 'trait', 'enum'],
     relationTypes: ['IMPORTS', 'CALLS', 'EXTENDS', 'IMPLEMENTS'],
   },
@@ -85,7 +88,7 @@ export const ENTITY_GROUP_CONFIGS: EntityGroupConfig[] = [
     label: 'Knowledge',
     icon: 'BookOpen',
     defaultEnabled: false,
-    availableAt: ['plan', 'task'],
+    availableAt: ['project', 'plan', 'task'],
     entityTypes: ['note', 'decision', 'constraint'],
     relationTypes: ['LINKED_TO', 'AFFECTS', 'INFORMED_BY', 'HAS_CONSTRAINT', 'HAS_DECISION'],
   },
@@ -94,7 +97,7 @@ export const ENTITY_GROUP_CONFIGS: EntityGroupConfig[] = [
     label: 'Git',
     icon: 'GitCommit',
     defaultEnabled: false,
-    availableAt: ['plan', 'task'],
+    availableAt: ['project', 'plan', 'task'],
     entityTypes: ['commit'],
     relationTypes: ['TOUCHES', 'CO_CHANGED', 'LINKED_TO_TASK', 'LINKED_TO_PLAN'],
   },
@@ -103,7 +106,7 @@ export const ENTITY_GROUP_CONFIGS: EntityGroupConfig[] = [
     label: 'Sessions',
     icon: 'MessageCircle',
     defaultEnabled: false,
-    availableAt: ['plan', 'task'],
+    availableAt: ['project', 'plan', 'task'],
     entityTypes: ['chat_session'],
     relationTypes: ['DISCUSSED'],
   },
@@ -112,7 +115,7 @@ export const ENTITY_GROUP_CONFIGS: EntityGroupConfig[] = [
     label: 'Features',
     icon: 'Network',
     defaultEnabled: false,
-    availableAt: ['plan', 'project'],
+    availableAt: ['project', 'plan', 'task'],
     entityTypes: ['feature_graph'],
     relationTypes: ['INCLUDES_ENTITY', 'HAS_FEATURE_GRAPH'],
   },
@@ -121,7 +124,7 @@ export const ENTITY_GROUP_CONFIGS: EntityGroupConfig[] = [
     label: 'Behavioral',
     icon: 'Workflow',
     defaultEnabled: false,
-    availableAt: ['project'],
+    availableAt: ['project', 'plan', 'task'],
     entityTypes: ['protocol', 'protocol_state', 'skill'],
     relationTypes: ['HAS_STATE', 'TRANSITION', 'BELONGS_TO_SKILL', 'HAS_MEMBER'],
   },
@@ -224,6 +227,13 @@ export interface GraphAdapter<TData> {
 
   /** Entity groups supported at this scale level */
   supportedGroups: EntityGroupConfig[]
+
+  /**
+   * Default mode for non-core groups (overrides `defaultEnabled` from config).
+   * If set, non-core groups start in this mode instead of 'off'.
+   * Useful for milestone/project levels where enrichment should be visible immediately.
+   */
+  defaultGroupMode?: GroupMode
 
   /**
    * Transform raw API data into graph nodes, filtered by enabled groups.

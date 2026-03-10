@@ -24,6 +24,7 @@ import {
   legendHoveredTypeAtom,
   hoveredProjectSlugAtom,
   highlightedGroupAtom,
+  dimmedEntityTypesAtom,
   graphBrightnessAtom,
 } from '@/atoms/intelligence'
 import { activationStateAtom } from '../SpreadingActivation'
@@ -101,6 +102,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const legendHoveredType = useAtomValue(legendHoveredTypeAtom)
   const hoveredProjectSlug = useAtomValue(hoveredProjectSlugAtom)
   const highlightedGroup = useAtomValue(highlightedGroupAtom)
+  const dimmedEntityTypes = useAtomValue(dimmedEntityTypesAtom)
   const brightness = useAtomValue(graphBrightnessAtom)
 
   const { transformToGraph3D, savePositions } = useGraph3DLayout()
@@ -568,6 +570,20 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   type AnySpriteChild = THREE.Sprite
   interface SpriteOriginal { opacity: number; color: string }
 
+  /**
+   * Ensure a sprite owns its material (not shared via a cache).
+   * Clones the material on first call — subsequent calls return the owned clone.
+   * This prevents cross-node contamination when modifying opacity on cached materials
+   * (dot sprites, hitbox sprites, and glow sprites share SpriteMaterial instances).
+   */
+  function ensureOwnedMaterial(sprite: AnySpriteChild): THREE.SpriteMaterial {
+    if (!(sprite as unknown as { _ownsMaterial?: boolean })._ownsMaterial) {
+      sprite.material = (sprite.material as THREE.SpriteMaterial).clone()
+      ;(sprite as unknown as { _ownsMaterial?: boolean })._ownsMaterial = true
+    }
+    return sprite.material as THREE.SpriteMaterial
+  }
+
   function saveSprite(sprite: AnySpriteChild): SpriteOriginal {
     const mat = sprite.material as THREE.SpriteMaterial
     return { opacity: mat.opacity, color: '#' + (mat.color?.getHexString?.() ?? 'ffffff') }
@@ -583,8 +599,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   function setNodeOpacityAll(obj: THREE.Object3D, opacity: number): void {
     obj.traverse((child) => {
       if (child instanceof THREE.Sprite && child.material) {
-        ;(child.material as THREE.SpriteMaterial).opacity = opacity
-        ;(child.material as THREE.SpriteMaterial).needsUpdate = true
+        const mat = ensureOwnedMaterial(child)
+        mat.opacity = opacity
+        mat.needsUpdate = true
       }
     })
   }
@@ -654,8 +671,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       obj.traverse((child) => {
         if (child instanceof THREE.Sprite && child.material) {
           if (!dirty.sprites.has(child)) { dirty.sprites.set(child, saveSprite(child)) }
-          ;(child.material as THREE.SpriteMaterial).opacity = targetOpacity
-          ;(child.material as THREE.SpriteMaterial).needsUpdate = true
+          const mat = ensureOwnedMaterial(child)
+          mat.opacity = targetOpacity
+          mat.needsUpdate = true
         }
       })
     }
@@ -700,9 +718,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         obj.traverse((child) => {
           if (child instanceof THREE.Sprite && child.material) {
             if (!hDirty.has(child)) { hDirty.set(child, saveSprite(child)) }
-            ;(child.material as THREE.SpriteMaterial).color = heatColor
-            ;(child.material as THREE.SpriteMaterial).opacity = 0.6 + energy * 0.4
-            ;(child.material as THREE.SpriteMaterial).needsUpdate = true
+            const mat = ensureOwnedMaterial(child)
+            mat.color = heatColor
+            mat.opacity = 0.6 + energy * 0.4
+            mat.needsUpdate = true
           }
         })
       } else if (touchesHeatmap && isFile) {
@@ -713,17 +732,19 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         obj.traverse((child) => {
           if (child instanceof THREE.Sprite && child.material) {
             if (!hDirty.has(child)) { hDirty.set(child, saveSprite(child)) }
-            ;(child.material as THREE.SpriteMaterial).color = heatColor
-            ;(child.material as THREE.SpriteMaterial).opacity = 0.6 + churn * 0.4
-            ;(child.material as THREE.SpriteMaterial).needsUpdate = true
+            const mat = ensureOwnedMaterial(child)
+            mat.color = heatColor
+            mat.opacity = 0.6 + churn * 0.4
+            mat.needsUpdate = true
           }
         })
       } else if (isAnyHeatmap && !isNote && !isFile) {
         obj.traverse((child) => {
           if (child instanceof THREE.Sprite && child.material) {
             if (!hDirty.has(child)) { hDirty.set(child, saveSprite(child)) }
-            ;(child.material as THREE.SpriteMaterial).opacity = 0.15
-            ;(child.material as THREE.SpriteMaterial).needsUpdate = true
+            const mat = ensureOwnedMaterial(child)
+            mat.opacity = 0.15
+            mat.needsUpdate = true
           }
         })
       }
@@ -738,15 +759,16 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     const lDirty = legendDirtyRef.current
     const lScaled = legendScaledRef.current
 
-    const restoreLegend = () => {
-      for (const [sprite, orig] of lDirty) { restoreSprite(sprite, orig) }
-      lDirty.clear()
-      for (const [obj, origScale] of lScaled) { obj.scale.copy(origScale) }
-      lScaled.clear()
-    }
+    // When higher-priority effects are active, keep lDirty intact
+    if (activationPhase !== 'idle' && activationPhase !== 'searching') { return }
 
-    if (activationPhase !== 'idle' && activationPhase !== 'searching') { restoreLegend(); return }
-    if (!legendHoveredType) { restoreLegend(); return }
+    // Always restore first, then re-apply
+    for (const [sprite, orig] of lDirty) { restoreSprite(sprite, orig) }
+    lDirty.clear()
+    for (const [obj, origScale] of lScaled) { obj.scale.copy(origScale) }
+    lScaled.clear()
+
+    if (!legendHoveredType) return
 
     for (const node of graphData.nodes) {
       const obj = (node as Graph3DNode & { __threeObj?: THREE.Object3D }).__threeObj
@@ -758,8 +780,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       obj.traverse((child) => {
         if (child instanceof THREE.Sprite && child.material) {
           if (!lDirty.has(child)) { lDirty.set(child, saveSprite(child)) }
-          ;(child.material as THREE.SpriteMaterial).opacity = targetOpacity
-          ;(child.material as THREE.SpriteMaterial).needsUpdate = true
+          const mat = ensureOwnedMaterial(child)
+          mat.opacity = targetOpacity
+          mat.needsUpdate = true
         }
       })
 
@@ -775,13 +798,14 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     if (!graphRef.current) return
     const pDirty = projectDirtyRef.current
 
-    const restoreAll = () => {
-      for (const [sprite, orig] of pDirty) { restoreSprite(sprite, orig) }
-      pDirty.clear()
-    }
+    // When higher-priority effects are active, keep pDirty intact
+    if (legendHoveredType || (activationPhase !== 'idle' && activationPhase !== 'searching')) { return }
 
-    if (legendHoveredType || (activationPhase !== 'idle' && activationPhase !== 'searching')) { restoreAll(); return }
-    if (!hoveredProjectSlug) { restoreAll(); return }
+    // Always restore first, then re-apply
+    for (const [sprite, orig] of pDirty) { restoreSprite(sprite, orig) }
+    pDirty.clear()
+
+    if (!hoveredProjectSlug) return
 
     for (const node of graphData.nodes) {
       const obj = (node as Graph3DNode & { __threeObj?: THREE.Object3D }).__threeObj
@@ -794,8 +818,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       obj.traverse((child) => {
         if (child instanceof THREE.Sprite && child.material) {
           if (!pDirty.has(child)) { pDirty.set(child, saveSprite(child)) }
-          ;(child.material as THREE.SpriteMaterial).opacity = isMatch ? 1.0 : 0.15
-          ;(child.material as THREE.SpriteMaterial).needsUpdate = true
+          const mat = ensureOwnedMaterial(child)
+          mat.opacity = isMatch ? 1.0 : 0.15
+          mat.needsUpdate = true
         }
       })
     }
@@ -809,19 +834,19 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     const gDirty = groupDirtyRef.current
     const gScaled = groupScaledRef.current
 
-    const restoreGroup = () => {
-      for (const [sprite, orig] of gDirty) { restoreSprite(sprite, orig) }
-      gDirty.clear()
-      for (const [obj, origScale] of gScaled) { obj.scale.copy(origScale) }
-      gScaled.clear()
-    }
-
-    // Skip if higher-priority effects are active
+    // When higher-priority effects are active, DON'T restore or clear.
+    // Keep gDirty/gScaled with true originals for correct restoration later.
     if (legendHoveredType || hoveredProjectSlug || (activationPhase !== 'idle' && activationPhase !== 'searching')) {
-      restoreGroup()
       return
     }
-    if (!highlightedGroup) { restoreGroup(); return }
+
+    // Always restore first (handles: clearing, changing set, returning from higher-priority)
+    for (const [sprite, orig] of gDirty) { restoreSprite(sprite, orig) }
+    gDirty.clear()
+    for (const [obj, origScale] of gScaled) { obj.scale.copy(origScale) }
+    gScaled.clear()
+
+    if (!highlightedGroup) return
 
     for (const node of graphData.nodes) {
       const obj = (node as Graph3DNode & { __threeObj?: THREE.Object3D }).__threeObj
@@ -833,8 +858,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       obj.traverse((child) => {
         if (child instanceof THREE.Sprite && child.material) {
           if (!gDirty.has(child)) { gDirty.set(child, saveSprite(child)) }
-          ;(child.material as THREE.SpriteMaterial).opacity = targetOpacity
-          ;(child.material as THREE.SpriteMaterial).needsUpdate = true
+          const mat = ensureOwnedMaterial(child)
+          mat.opacity = targetOpacity
+          mat.needsUpdate = true
         }
       })
 
@@ -843,6 +869,58 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       obj.scale.setScalar(isInGroup ? 1.3 : 0.6)
     }
   }, [highlightedGroup, legendHoveredType, hoveredProjectSlug, graphData.nodes, activationPhase])
+
+  // ── Connection-dimmed entity types (3-state group toggle) ──────────────
+  // Reduces opacity + scale for nodes whose entity type is in 'connections' mode.
+  // Lower priority than highlightedGroup — only active when no highlight is set.
+  const dimDirtyRef = useRef<Map<AnySpriteChild, SpriteOriginal>>(new Map())
+  const dimScaledRef = useRef<Map<THREE.Object3D, THREE.Vector3>>(new Map())
+
+  useEffect(() => {
+    const dDirty = dimDirtyRef.current
+    const dScaled = dimScaledRef.current
+
+    // When higher-priority effects are active, DON'T restore or clear.
+    // Keep dDirty/dScaled intact with the true originals so we can properly
+    // restore when the higher-priority effect deactivates.
+    // (Without this, the group-highlight effect saves the dimmed opacity as
+    //  "original" and restores to it when it clears — making everything paler.)
+    if (highlightedGroup || legendHoveredType || hoveredProjectSlug || (activationPhase !== 'idle' && activationPhase !== 'searching')) {
+      return
+    }
+
+    // Always restore all previously dimmed sprites to their true originals first.
+    // This handles: (a) dimmedEntityTypes going null, (b) the set changing, and
+    // (c) returning from a higher-priority effect that left sprites in a wrong state.
+    for (const [sprite, orig] of dDirty) { restoreSprite(sprite, orig) }
+    dDirty.clear()
+    for (const [obj, origScale] of dScaled) { obj.scale.copy(origScale) }
+    dScaled.clear()
+
+    // Nothing to dim — we already restored above
+    if (!dimmedEntityTypes || dimmedEntityTypes.size === 0) return
+
+    // Apply dimming (saves from the freshly-restored true state)
+    for (const node of graphData.nodes) {
+      const obj = (node as Graph3DNode & { __threeObj?: THREE.Object3D }).__threeObj
+      if (!obj) continue
+
+      const isDimmed = dimmedEntityTypes.has(node.entityType)
+      if (!isDimmed) continue
+
+      obj.traverse((child) => {
+        if (child instanceof THREE.Sprite && child.material) {
+          if (!dDirty.has(child)) { dDirty.set(child, saveSprite(child)) }
+          const mat = ensureOwnedMaterial(child)
+          mat.opacity = 0.25
+          mat.needsUpdate = true
+        }
+      })
+
+      if (!dScaled.has(obj)) { dScaled.set(obj, obj.scale.clone()) }
+      obj.scale.setScalar(0.5)
+    }
+  }, [dimmedEntityTypes, highlightedGroup, legendHoveredType, hoveredProjectSlug, graphData.nodes, activationPhase])
 
   // ── Spreading Activation — zoom camera to activated cluster ──────────────
   const prevActivationPhaseRef = useRef<string>('idle')
