@@ -10,10 +10,12 @@ import {
   Button,
   Select,
   ConfirmDialog,
+  Dialog,
   PageShell,
   SkeletonCard,
   LoadMoreSentinel,
 } from '@/components/ui'
+import { PersonaBuilder } from '@/components/personas'
 import { useConfirmDialog, useToast, useInfiniteList, useWorkspaceSlug } from '@/hooks'
 import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
 import type { Persona, PersonaStatus, PaginatedResponse } from '@/types'
@@ -85,6 +87,7 @@ function relativeTime(dateStr: string): string {
 export function PersonasPage() {
   const [statusFilter, setStatusFilter] = useState<PersonaStatus | 'all'>('all')
   const [projectFilter] = useState<string>('all')
+  const [createOpen, setCreateOpen] = useState(false)
   const confirmDialog = useConfirmDialog()
   const toast = useToast()
   const wsSlug = useWorkspaceSlug()
@@ -141,7 +144,7 @@ export function PersonasPage() {
       title="Personas"
       description="Living knowledge agents scoped to code regions"
       actions={
-        <Button size="sm">
+        <Button size="sm" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4 mr-1" />
           Create
         </Button>
@@ -260,6 +263,14 @@ export function PersonasPage() {
       <LoadMoreSentinel sentinelRef={sentinelRef} hasMore={hasMore} loadingMore={loadingMore} />
 
       <ConfirmDialog {...confirmDialog.dialogProps} />
+
+      {/* Create persona wizard */}
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} title="Create Persona" size="lg">
+        <PersonaBuilder
+          projectId={projectFilter !== 'all' ? projectFilter : ''}
+          onClose={() => setCreateOpen(false)}
+        />
+      </Dialog>
     </PageShell>
   )
 }
