@@ -130,15 +130,17 @@ export function PersonasPage() {
         // Single project selected
         return personasApi.list({ ...typedParams, project_id: params.project_id })
       }
-      // Workspace mode: fetch from all projects in parallel and merge
+      // Workspace mode: fetch from all projects in parallel + global personas
       if (projects.length === 0) {
         return Promise.resolve({ items: [], total: 0, limit: params.limit, offset: params.offset })
       }
-      return Promise.all(
-        projects.map((p) =>
-          personasApi.list({ ...typedParams, project_id: p.id }).catch(() => ({ items: [] as Persona[], total: 0, limit: params.limit, offset: params.offset })),
-        ),
-      ).then((results) => {
+      const projectFetches = projects.map((p) =>
+        personasApi.list({ ...typedParams, project_id: p.id }).catch(() => ({ items: [] as Persona[], total: 0, limit: params.limit, offset: params.offset })),
+      )
+      const globalFetch = personasApi.listGlobal({ limit: params.limit, offset: params.offset })
+        .then((items) => ({ items: Array.isArray(items) ? items : [], total: 0, limit: params.limit, offset: params.offset }))
+        .catch(() => ({ items: [] as Persona[], total: 0, limit: params.limit, offset: params.offset }))
+      return Promise.all([...projectFetches, globalFetch]).then((results) => {
         const merged = results.flatMap((r) => r.items)
         const seen = new Set<string>()
         const unique = merged.filter((s) => { if (seen.has(s.id)) return false; seen.add(s.id); return true })
