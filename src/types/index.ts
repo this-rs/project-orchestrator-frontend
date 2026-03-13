@@ -949,6 +949,102 @@ export interface SkillDetectionResult {
 }
 
 // ============================================================================
+// LIVING PERSONAS
+// ============================================================================
+
+export type PersonaStatus = 'active' | 'emerging' | 'dormant' | 'archived'
+export type PersonaOrigin = 'manual' | 'auto_build' | 'imported'
+
+export interface Persona {
+  id: string
+  project_id?: string | null
+  name: string
+  description: string
+  status: PersonaStatus
+  complexity_default?: string | null
+  timeout_secs?: number | null
+  max_cost_usd?: number | null
+  model_preference?: string | null
+  system_prompt_override?: string | null
+  energy: number
+  cohesion: number
+  activation_count: number
+  success_rate: number
+  avg_duration_secs: number
+  last_activated?: string | null
+  origin: PersonaOrigin
+  created_at: string
+  updated_at?: string | null
+}
+
+export interface PersonaSubgraphRelation {
+  entity_id: string
+  weight: number
+  relation_type?: string
+}
+
+export interface PersonaSubgraphStats {
+  total_entities: number
+  coverage_score: number
+  freshness: number
+}
+
+export interface PersonaSubgraph {
+  persona: Persona
+  skills: PersonaSubgraphRelation[]
+  protocols: PersonaSubgraphRelation[]
+  files: PersonaSubgraphRelation[]
+  functions: PersonaSubgraphRelation[]
+  notes: PersonaSubgraphRelation[]
+  decisions: PersonaSubgraphRelation[]
+  parents: PersonaSubgraphRelation[]
+  children: PersonaSubgraphRelation[]
+  stats: PersonaSubgraphStats
+}
+
+export interface PersonaProposal {
+  suggested_name: string
+  sample_files: string[]
+  file_count: number
+  community_id: number
+  confidence: number
+}
+
+export interface PersonaMaintainResult {
+  decayed: number
+  pruned: number
+  cohesion_updated: number
+  project_id: string
+}
+
+export interface PersonaDetectResult {
+  proposals: PersonaProposal[]
+  count: number
+  project_id: string
+}
+
+export interface CreatePersonaRequest {
+  project_id?: string
+  name: string
+  description?: string
+  complexity_default?: string
+  timeout_secs?: number
+  max_cost_usd?: number
+  model_preference?: string
+  system_prompt_override?: string
+  origin?: string
+}
+
+export interface AutoBuildPersonaRequest {
+  project_id: string
+  name: string
+  description?: string
+  file_pattern?: string
+  entry_function?: string
+  depth?: number
+}
+
+// ============================================================================
 // FEATURE GRAPHS
 // ============================================================================
 

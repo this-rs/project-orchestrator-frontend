@@ -31,6 +31,8 @@ import {
   DecisionDetailPage,
   SkillsPage,
   SkillDetailPage,
+  PersonasPage,
+  PersonaDetailPage,
   FeatureGraphsPage,
   FeatureGraphDetailPage,
   ProtocolsPage,
@@ -167,6 +169,8 @@ function App() {
                         <Route path="code" element={<CodePage />} />
                         <Route path="skills" element={<SkillsPage />} />
                         <Route path="skills/:id" element={<SkillDetailPage />} />
+                        <Route path="personas" element={<PersonasPage />} />
+                        <Route path="personas/:id" element={<PersonaDetailPage />} />
                         <Route path="feature-graphs" element={<FeatureGraphsPage />} />
                         <Route path="feature-graphs/:id" element={<FeatureGraphDetailPage />} />
                         <Route path="protocols" element={<ProtocolsPage />} />
