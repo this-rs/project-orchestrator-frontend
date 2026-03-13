@@ -144,13 +144,13 @@ function buildSubgraphFlow(persona: Persona, subgraph: PersonaSubgraph): { nodes
   })
 
   const allGroups: { type: string; items: PersonaSubgraphRelation[] }[] = [
-    { type: 'file', items: subgraph.files },
-    { type: 'function', items: subgraph.functions },
-    { type: 'note', items: subgraph.notes },
-    { type: 'decision', items: subgraph.decisions },
-    { type: 'skill', items: subgraph.skills },
-    { type: 'parent', items: subgraph.parents },
-    { type: 'child', items: subgraph.children },
+    { type: 'file', items: subgraph.files ?? [] },
+    { type: 'function', items: subgraph.functions ?? [] },
+    { type: 'note', items: subgraph.notes ?? [] },
+    { type: 'decision', items: subgraph.decisions ?? [] },
+    { type: 'skill', items: subgraph.skills ?? [] },
+    { type: 'parent', items: subgraph.parents ?? [] },
+    { type: 'child', items: subgraph.children ?? [] },
   ]
 
   // Layout groups in a radial pattern around center
@@ -360,24 +360,24 @@ export function PersonaDetailPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <Card>
           <CardContent className="p-4">
-            <MetricBar label="Energy" value={persona.energy} colorFn={energyColor} />
+            <MetricBar label="Energy" value={persona.energy ?? 0} colorFn={energyColor} />
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <MetricBar label="Cohesion" value={persona.cohesion} colorFn={cohesionColor} />
+            <MetricBar label="Cohesion" value={persona.cohesion ?? 0} colorFn={cohesionColor} />
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 space-y-1">
             <div className="text-xs text-zinc-500">Activations</div>
-            <div className="text-2xl font-bold">{persona.activation_count}</div>
+            <div className="text-2xl font-bold">{persona.activation_count ?? 0}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 space-y-1">
             <div className="text-xs text-zinc-500">Success Rate</div>
-            <div className="text-2xl font-bold">{(persona.success_rate * 100).toFixed(0)}%</div>
+            <div className="text-2xl font-bold">{((persona.success_rate ?? 0) * 100).toFixed(0)}%</div>
           </CardContent>
         </Card>
       </div>
@@ -464,26 +464,26 @@ export function PersonaDetailPage() {
           <CardContent className="p-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               <div className="text-center">
-                <div className="text-2xl font-bold text-purple-400">{subgraph.files.length}</div>
+                <div className="text-2xl font-bold text-purple-400">{(subgraph.files ?? []).length}</div>
                 <div className="text-xs text-zinc-500">Files</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-400">{subgraph.notes.length}</div>
+                <div className="text-2xl font-bold text-yellow-400">{(subgraph.notes ?? []).length}</div>
                 <div className="text-xs text-zinc-500">Notes</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-indigo-400">{subgraph.decisions.length}</div>
+                <div className="text-2xl font-bold text-indigo-400">{(subgraph.decisions ?? []).length}</div>
                 <div className="text-xs text-zinc-500">Decisions</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-emerald-400">{subgraph.skills.length}</div>
+                <div className="text-2xl font-bold text-emerald-400">{(subgraph.skills ?? []).length}</div>
                 <div className="text-xs text-zinc-500">Skills</div>
               </div>
             </div>
             <div className="text-sm text-zinc-500 mb-3">
-              Coverage: {(subgraph.stats.coverage_score * 100).toFixed(0)}% |
-              Freshness: {(subgraph.stats.freshness * 100).toFixed(0)}% |
-              Total entities: {subgraph.stats.total_entities}
+              Coverage: {((subgraph.stats?.coverage_score ?? 0) * 100).toFixed(0)}% |
+              Freshness: {((subgraph.stats?.freshness ?? 0) * 100).toFixed(0)}% |
+              Total entities: {subgraph.stats?.total_entities ?? 0}
             </div>
             {/* Force-directed subgraph visualization */}
             {flowData.nodes.length > 1 ? (

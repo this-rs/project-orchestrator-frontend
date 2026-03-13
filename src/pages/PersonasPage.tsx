@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
-import { Users, Trash2, Zap, Plus } from 'lucide-react'
+import { Users, Trash2, Zap, Plus, Brain, CheckCircle2 } from 'lucide-react'
 import { personasApi } from '@/services'
 import {
   Card,
@@ -31,7 +31,7 @@ const statusOptions = [
   { value: 'archived', label: 'Archived' },
 ]
 
-// ── Energy bar colors ───────────────────────────────────────────────────
+// ── Visual helpers ──────────────────────────────────────────────────────
 
 function energyColor(energy: number): string {
   if (energy >= 0.7) return 'bg-emerald-500'
@@ -45,29 +45,14 @@ function cohesionColor(cohesion: number): string {
   return 'bg-indigo-300/60'
 }
 
-function originBadge(origin: string) {
-  switch (origin) {
-    case 'auto_build':
-      return <Badge variant="info">auto</Badge>
-    case 'imported':
-      return <Badge variant="purple">imported</Badge>
-    default:
-      return <Badge>manual</Badge>
-  }
-}
-
 function statusBadge(status: PersonaStatus) {
-  const colors: Record<PersonaStatus, string> = {
-    active: 'bg-emerald-500/20 text-emerald-400',
-    emerging: 'bg-amber-500/20 text-amber-400',
-    dormant: 'bg-zinc-500/20 text-zinc-400',
-    archived: 'bg-red-500/20 text-red-400',
+  const variants: Record<PersonaStatus, 'success' | 'warning' | 'default' | 'error'> = {
+    active: 'success',
+    emerging: 'warning',
+    dormant: 'default',
+    archived: 'error',
   }
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${colors[status]}`}>
-      {status}
-    </span>
-  )
+  return <Badge variant={variants[status] ?? 'default'}>{status}</Badge>
 }
 
 function relativeTime(dateStr: string): string {
@@ -98,10 +83,7 @@ export function PersonasPage() {
   useEffect(() => {
     if (!wsSlug) return
     import('@/services').then(({ workspacesApi }) => {
-      workspacesApi
-        .listProjects(wsSlug)
-        .then(setProjects)
-        .catch(() => {})
+      workspacesApi.listProjects(wsSlug).then(setProjects).catch(() => {})
     })
   }, [wsSlug])
 
@@ -114,7 +96,7 @@ export function PersonasPage() {
     () => ({
       status: statusFilter !== 'all' ? statusFilter : undefined,
       project_id: projectFilter !== 'all' ? projectFilter : undefined,
-      _projectCount: projects.length, // force re-fetch when projects load (fetcher depends on projects)
+      _projectCount: projects.length,
     }),
     [statusFilter, projectFilter, projects.length],
   )
@@ -125,14 +107,12 @@ export function PersonasPage() {
       const typedStatus = status as PersonaStatus | undefined
 
       if (project_id) {
-        // Single project selected — direct API call
         return personasApi.list({ project_id, status: typedStatus, limit, offset })
       }
 
       // Workspace mode — fetch from all projects + global, merge & dedup
       const all: Persona[] = []
 
-      // 1. Per-project fetches
       const projectResults = await Promise.allSettled(
         projects.map((p) => personasApi.list({ project_id: p.id, status: typedStatus, limit, offset })),
       )
@@ -142,26 +122,22 @@ export function PersonasPage() {
         }
       }
 
-      // 2. Global personas (returns Persona[] not PaginatedResponse)
       try {
         const globalResult = await personasApi.listGlobal({ limit, offset })
-        // Backend returns Vec<PersonaNode> (raw array), but TS types it as PaginatedResponse
         const globalItems = Array.isArray(globalResult)
           ? (globalResult as unknown as Persona[])
           : (globalResult as PaginatedResponse<Persona>).items ?? []
         all.push(...globalItems)
       } catch {
-        // Global endpoint failed — continue with project-scoped results
+        // silently continue
       }
 
-      // 3. Dedup by ID
       const seen = new Set<string>()
       const unique = all.filter((p) => {
         if (seen.has(p.id)) return false
         seen.add(p.id)
         return true
       })
-
       return { items: unique, total: unique.length, limit, offset }
     },
     [projects],
@@ -195,30 +171,25 @@ export function PersonasPage() {
       actions={
         <Button size="sm" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4 mr-1" />
-          Create
+          New Persona
         </Button>
       }
     >
       {/* Filters */}
       <div className="flex items-center gap-3 mb-6">
-        <Select
-          options={projectOptions}
-          value={projectFilter}
-          onChange={setProjectFilter}
-        />
-        <Select
-          value={statusFilter}
-          onChange={(v) => setStatusFilter(v as PersonaStatus | 'all')}
-          options={statusOptions}
-        />
+        <Select options={projectOptions} value={projectFilter} onChange={setProjectFilter} />
+        <Select value={statusFilter} onChange={(v) => setStatusFilter(v as PersonaStatus | 'all')} options={statusOptions} />
+        {personas.length > 0 && (
+          <span className="text-xs text-zinc-500 ml-auto">{personas.length} persona{personas.length !== 1 ? 's' : ''}</span>
+        )}
       </div>
 
-      {/* Empty state when no projects loaded yet */}
+      {/* Empty state — no projects */}
       {projects.length === 0 && !loading && (
-        <div className="text-center py-16 text-zinc-500">
-          <Users className="h-12 w-12 mx-auto mb-4 opacity-40" />
+        <div className="text-center py-20 text-zinc-500">
+          <Users className="h-14 w-14 mx-auto mb-4 opacity-30" />
           <p className="text-lg font-medium">No projects found</p>
-          <p className="text-sm mt-1">Add a project to this workspace to manage personas.</p>
+          <p className="text-sm mt-1 text-zinc-600">Add a project to this workspace to manage personas.</p>
         </div>
       )}
 
@@ -226,107 +197,119 @@ export function PersonasPage() {
       {projects.length > 0 && (
         <motion.div
           className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
-          {...(reducedMotion ? {} : staggerContainer)}
+          variants={reducedMotion ? undefined : staggerContainer}
+          initial="hidden"
+          animate="visible"
         >
           <AnimatePresence mode="popLayout">
-            {personas.map((persona) => (
-              <motion.div key={persona.id} {...(reducedMotion ? {} : fadeInUp)} layout>
-                <Link to={workspacePath(wsSlug, `/personas/${persona.id}`)}>
-                  <Card className="hover:border-purple-500/40 transition-colors cursor-pointer h-full">
-                    <CardContent className="p-4 space-y-3">
-                      {/* Header */}
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-sm truncate">{persona.name}</h3>
-                          <p className="text-xs text-zinc-500 truncate mt-0.5">
-                            {persona.description || 'No description'}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1.5 ml-2 shrink-0">
-                          {originBadge(persona.origin)}
+            {personas.map((persona) => {
+              const energy = persona.energy ?? 0
+              const cohesion = persona.cohesion ?? 0
+              const successRate = persona.success_rate ?? 0
+              const activations = persona.activation_count ?? 0
+
+              return (
+                <motion.div key={persona.id} variants={reducedMotion ? undefined : fadeInUp} initial="hidden" animate="visible" exit="exit" layout>
+                  <Link to={workspacePath(wsSlug, `/personas/${persona.id}`)}>
+                    <Card className="group hover:border-purple-500/40 transition-all cursor-pointer h-full hover:shadow-lg hover:shadow-purple-500/5">
+                      <CardContent className="p-5 space-y-4">
+                        {/* Header */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="h-9 w-9 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center shrink-0">
+                              <Brain className="h-4.5 w-4.5 text-purple-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-sm truncate group-hover:text-purple-300 transition-colors">
+                                {persona.name}
+                              </h3>
+                              <p className="text-xs text-zinc-500 truncate mt-0.5">
+                                {persona.description || 'No description'}
+                              </p>
+                            </div>
+                          </div>
                           {statusBadge(persona.status)}
                         </div>
-                      </div>
 
-                      {/* Energy bar */}
-                      <div>
-                        <div className="flex justify-between text-xs text-zinc-500 mb-1">
-                          <span>Energy</span>
-                          <span>{((persona.energy ?? 0) * 100).toFixed(0)}%</span>
+                        {/* Metric bars */}
+                        <div className="space-y-2.5">
+                          <div>
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-zinc-500">Energy</span>
+                              <span className="text-zinc-400 font-medium">{(energy * 100).toFixed(0)}%</span>
+                            </div>
+                            <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${energyColor(energy)}`}
+                                style={{ width: `${energy * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-zinc-500">Cohesion</span>
+                              <span className="text-zinc-400 font-medium">{(cohesion * 100).toFixed(0)}%</span>
+                            </div>
+                            <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${cohesionColor(cohesion)}`}
+                                style={{ width: `${cohesion * 100}%` }}
+                              />
+                            </div>
+                          </div>
                         </div>
-                        <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all ${energyColor(persona.energy ?? 0)}`}
-                            style={{ width: `${(persona.energy ?? 0) * 100}%` }}
-                          />
-                        </div>
-                      </div>
 
-                      {/* Cohesion bar */}
-                      <div>
-                        <div className="flex justify-between text-xs text-zinc-500 mb-1">
-                          <span>Cohesion</span>
-                          <span>{((persona.cohesion ?? 0) * 100).toFixed(0)}%</span>
+                        {/* Stats footer */}
+                        <div className="flex items-center justify-between pt-1 border-t border-white/[0.04]">
+                          <div className="flex items-center gap-3 text-xs text-zinc-500">
+                            <span className="flex items-center gap-1">
+                              <Zap className="h-3 w-3 text-amber-500/70" />
+                              <span className="text-zinc-400">{activations}</span>
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3 text-emerald-500/70" />
+                              <span className="text-zinc-400">{(successRate * 100).toFixed(0)}%</span>
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-zinc-600">
+                              {persona.last_activated ? relativeTime(persona.last_activated) : 'never'}
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                handleDelete(persona)
+                              }}
+                              className="text-zinc-700 hover:text-red-400 transition-colors p-0.5 opacity-0 group-hover:opacity-100"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </div>
-                        <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all ${cohesionColor(persona.cohesion ?? 0)}`}
-                            style={{ width: `${(persona.cohesion ?? 0) * 100}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Stats row */}
-                      <div className="flex items-center justify-between text-xs text-zinc-500 pt-1">
-                        <div className="flex items-center gap-3">
-                          <span className="flex items-center gap-1">
-                            <Zap className="h-3 w-3" />
-                            {persona.activation_count ?? 0}
-                          </span>
-                          <span>{((persona.success_rate ?? 0) * 100).toFixed(0)}% success</span>
-                        </div>
-                        <span>
-                          {persona.last_activated ? relativeTime(persona.last_activated) : 'never'}
-                        </span>
-                      </div>
-
-                      {/* Delete button (stop propagation) */}
-                      <div className="flex justify-end pt-1">
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            handleDelete(persona)
-                          }}
-                          className="text-zinc-600 hover:text-red-400 transition-colors p-1"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              </motion.div>
-            ))}
+                      </CardContent>
+                    </Card>
+                  </Link>
+                </motion.div>
+              )
+            })}
           </AnimatePresence>
 
-          {loading && Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={`skel-${i}`} />)}
+          {loading && Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={`skel-${i}`} />)}
 
           {!loading && personas.length === 0 && (
-            <div className="col-span-full text-center py-16 text-zinc-500">
-              <Users className="h-12 w-12 mx-auto mb-4 opacity-40" />
+            <div className="col-span-full text-center py-20 text-zinc-500">
+              <Brain className="h-14 w-14 mx-auto mb-4 opacity-30" />
               <p className="text-lg font-medium">No personas found</p>
-              <p className="text-sm mt-1">Create your first persona using the button above.</p>
+              <p className="text-sm mt-1 text-zinc-600">Create your first persona using the button above.</p>
             </div>
           )}
         </motion.div>
       )}
 
       <LoadMoreSentinel sentinelRef={sentinelRef} hasMore={hasMore} loadingMore={loadingMore} />
-
       <ConfirmDialog {...confirmDialog.dialogProps} />
 
-      {/* Create persona wizard */}
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} title="Create Persona" size="lg">
         <PersonaBuilder
           projectId={projectFilter !== 'all' ? projectFilter : projects[0]?.id ?? ''}
