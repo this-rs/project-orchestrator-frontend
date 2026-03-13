@@ -114,9 +114,9 @@ export function PersonasPage() {
     () => ({
       status: statusFilter !== 'all' ? statusFilter : undefined,
       project_id: projectFilter !== 'all' ? projectFilter : undefined,
-      _ws: wsSlug,
+      _projectCount: projects.length, // force re-fetch when projects load (fetcher depends on projects)
     }),
-    [statusFilter, projectFilter, wsSlug],
+    [statusFilter, projectFilter, projects.length],
   )
 
   const fetcher = useCallback(
@@ -235,12 +235,12 @@ export function PersonasPage() {
                       <div>
                         <div className="flex justify-between text-xs text-zinc-500 mb-1">
                           <span>Energy</span>
-                          <span>{(persona.energy * 100).toFixed(0)}%</span>
+                          <span>{((persona.energy ?? 0) * 100).toFixed(0)}%</span>
                         </div>
                         <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
                           <div
-                            className={`h-full rounded-full transition-all ${energyColor(persona.energy)}`}
-                            style={{ width: `${persona.energy * 100}%` }}
+                            className={`h-full rounded-full transition-all ${energyColor(persona.energy ?? 0)}`}
+                            style={{ width: `${(persona.energy ?? 0) * 100}%` }}
                           />
                         </div>
                       </div>
@@ -249,12 +249,12 @@ export function PersonasPage() {
                       <div>
                         <div className="flex justify-between text-xs text-zinc-500 mb-1">
                           <span>Cohesion</span>
-                          <span>{(persona.cohesion * 100).toFixed(0)}%</span>
+                          <span>{((persona.cohesion ?? 0) * 100).toFixed(0)}%</span>
                         </div>
                         <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
                           <div
-                            className={`h-full rounded-full transition-all ${cohesionColor(persona.cohesion)}`}
-                            style={{ width: `${persona.cohesion * 100}%` }}
+                            className={`h-full rounded-full transition-all ${cohesionColor(persona.cohesion ?? 0)}`}
+                            style={{ width: `${(persona.cohesion ?? 0) * 100}%` }}
                           />
                         </div>
                       </div>
@@ -264,9 +264,9 @@ export function PersonasPage() {
                         <div className="flex items-center gap-3">
                           <span className="flex items-center gap-1">
                             <Zap className="h-3 w-3" />
-                            {persona.activation_count}
+                            {persona.activation_count ?? 0}
                           </span>
-                          <span>{(persona.success_rate * 100).toFixed(0)}% success</span>
+                          <span>{((persona.success_rate ?? 0) * 100).toFixed(0)}% success</span>
                         </div>
                         <span>
                           {persona.last_activated ? relativeTime(persona.last_activated) : 'never'}
@@ -294,6 +294,14 @@ export function PersonasPage() {
           </AnimatePresence>
 
           {loading && Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={`skel-${i}`} />)}
+
+          {!loading && personas.length === 0 && (
+            <div className="col-span-full text-center py-16 text-zinc-500">
+              <Users className="h-12 w-12 mx-auto mb-4 opacity-40" />
+              <p className="text-lg font-medium">No personas found</p>
+              <p className="text-sm mt-1">Create your first persona using the button above.</p>
+            </div>
+          )}
         </motion.div>
       )}
 
