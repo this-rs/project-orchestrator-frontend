@@ -120,32 +120,49 @@ export function PersonasPage() {
   )
 
   const fetcher = useCallback(
-    (params: { limit: number; offset: number; status?: string; project_id?: string }): Promise<PaginatedResponse<Persona>> => {
-      const typedParams = {
-        limit: params.limit,
-        offset: params.offset,
-        status: params.status as PersonaStatus | undefined,
+    async (params: { limit: number; offset: number; status?: string; project_id?: string }): Promise<PaginatedResponse<Persona>> => {
+      const { limit, offset, status, project_id } = params
+      const typedStatus = status as PersonaStatus | undefined
+
+      if (project_id) {
+        // Single project selected — direct API call
+        return personasApi.list({ project_id, status: typedStatus, limit, offset })
       }
-      if (params.project_id) {
-        // Single project selected
-        return personasApi.list({ ...typedParams, project_id: params.project_id })
-      }
-      // Workspace mode: fetch from all projects in parallel + global personas
-      if (projects.length === 0) {
-        return Promise.resolve({ items: [], total: 0, limit: params.limit, offset: params.offset })
-      }
-      const projectFetches = projects.map((p) =>
-        personasApi.list({ ...typedParams, project_id: p.id }).catch(() => ({ items: [] as Persona[], total: 0, limit: params.limit, offset: params.offset })),
+
+      // Workspace mode — fetch from all projects + global, merge & dedup
+      const all: Persona[] = []
+
+      // 1. Per-project fetches
+      const projectResults = await Promise.allSettled(
+        projects.map((p) => personasApi.list({ project_id: p.id, status: typedStatus, limit, offset })),
       )
-      const globalFetch = personasApi.listGlobal({ limit: params.limit, offset: params.offset })
-        .then((items) => ({ items: Array.isArray(items) ? items : [], total: 0, limit: params.limit, offset: params.offset }))
-        .catch(() => ({ items: [] as Persona[], total: 0, limit: params.limit, offset: params.offset }))
-      return Promise.all([...projectFetches, globalFetch]).then((results) => {
-        const merged = results.flatMap((r) => r.items)
-        const seen = new Set<string>()
-        const unique = merged.filter((s) => { if (seen.has(s.id)) return false; seen.add(s.id); return true })
-        return { items: unique, total: unique.length, limit: params.limit, offset: params.offset }
+      for (const r of projectResults) {
+        if (r.status === 'fulfilled' && r.value.items) {
+          all.push(...r.value.items)
+        }
+      }
+
+      // 2. Global personas (returns Persona[] not PaginatedResponse)
+      try {
+        const globalResult = await personasApi.listGlobal({ limit, offset })
+        // Backend returns Vec<PersonaNode> (raw array), but TS types it as PaginatedResponse
+        const globalItems = Array.isArray(globalResult)
+          ? (globalResult as unknown as Persona[])
+          : (globalResult as PaginatedResponse<Persona>).items ?? []
+        all.push(...globalItems)
+      } catch {
+        // Global endpoint failed — continue with project-scoped results
+      }
+
+      // 3. Dedup by ID
+      const seen = new Set<string>()
+      const unique = all.filter((p) => {
+        if (seen.has(p.id)) return false
+        seen.add(p.id)
+        return true
       })
+
+      return { items: unique, total: unique.length, limit, offset }
     },
     [projects],
   )
