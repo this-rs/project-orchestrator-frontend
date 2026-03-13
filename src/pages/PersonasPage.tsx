@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
-import { Users, Trash2, Zap, Plus, Brain, CheckCircle2 } from 'lucide-react'
+import { Users, Trash2, Zap, Plus, Brain, CheckCircle2, FolderOpen } from 'lucide-react'
 import { personasApi } from '@/services'
 import {
   Card,
@@ -89,6 +89,12 @@ export function PersonasPage() {
 
   const projectOptions = useMemo(
     () => [{ value: 'all', label: 'All Projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))],
+    [projects],
+  )
+
+  // Map project_id → project name for card display
+  const projectNameById = useMemo(
+    () => Object.fromEntries(projects.map((p) => [p.id, p.name])),
     [projects],
   )
 
@@ -207,13 +213,16 @@ export function PersonasPage() {
               const cohesion = persona.cohesion ?? 0
               const successRate = persona.success_rate ?? 0
               const activations = persona.activation_count ?? 0
+              const projectName = persona.project_id ? projectNameById[persona.project_id] : null
+              const desc = persona.description || ''
+              const truncatedDesc = desc.length > 80 ? `${desc.slice(0, 80)}…` : desc
 
               return (
                 <motion.div key={persona.id} variants={reducedMotion ? undefined : fadeInUp} initial="hidden" animate="visible" exit="exit" layout>
                   <Link to={workspacePath(wsSlug, `/personas/${persona.id}`)}>
                     <Card className="group hover:border-purple-500/40 transition-all cursor-pointer h-full hover:shadow-lg hover:shadow-purple-500/5">
-                      <CardContent className="p-5 space-y-4">
-                        {/* Header */}
+                      <CardContent className="p-5 space-y-3">
+                        {/* Header — name + status only */}
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-3 flex-1 min-w-0">
                             <div className="h-9 w-9 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center shrink-0">
@@ -223,16 +232,25 @@ export function PersonasPage() {
                               <h3 className="font-semibold text-sm truncate group-hover:text-purple-300 transition-colors">
                                 {persona.name}
                               </h3>
-                              <p className="text-xs text-zinc-500 truncate mt-0.5">
-                                {persona.description || 'No description'}
-                              </p>
+                              {/* Project badge in workspace view */}
+                              {projectFilter === 'all' && projectName && (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-zinc-500 mt-0.5">
+                                  <FolderOpen className="h-2.5 w-2.5" />
+                                  {projectName}
+                                </span>
+                              )}
+                              {projectFilter === 'all' && !projectName && persona.project_id == null && (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-zinc-500/60 mt-0.5 italic">
+                                  global
+                                </span>
+                              )}
                             </div>
                           </div>
                           {statusBadge(persona.status)}
                         </div>
 
                         {/* Metric bars */}
-                        <div className="space-y-2.5">
+                        <div className="space-y-2">
                           <div>
                             <div className="flex justify-between text-xs mb-1">
                               <span className="text-zinc-500">Energy</span>
@@ -258,6 +276,13 @@ export function PersonasPage() {
                             </div>
                           </div>
                         </div>
+
+                        {/* Description — below metrics, truncated */}
+                        {truncatedDesc && (
+                          <p className="text-xs text-zinc-500 leading-relaxed line-clamp-2">
+                            {truncatedDesc}
+                          </p>
+                        )}
 
                         {/* Stats footer */}
                         <div className="flex items-center justify-between pt-1 border-t border-white/[0.04]">
