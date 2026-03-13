@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { Users, Trash2, Zap, Plus } from 'lucide-react'
@@ -86,12 +86,29 @@ function relativeTime(dateStr: string): string {
 
 export function PersonasPage() {
   const [statusFilter, setStatusFilter] = useState<PersonaStatus | 'all'>('all')
-  const [projectFilter] = useState<string>('all')
+  const [projectFilter, setProjectFilter] = useState<string>('all')
   const [createOpen, setCreateOpen] = useState(false)
   const confirmDialog = useConfirmDialog()
   const toast = useToast()
   const wsSlug = useWorkspaceSlug()
   const reducedMotion = useReducedMotion()
+
+  // Load projects for filter dropdown
+  const [projects, setProjects] = useState<{ id: string; name: string; slug: string }[]>([])
+  useEffect(() => {
+    if (!wsSlug) return
+    import('@/services').then(({ workspacesApi }) => {
+      workspacesApi
+        .listProjects(wsSlug)
+        .then(setProjects)
+        .catch(() => {})
+    })
+  }, [wsSlug])
+
+  const projectOptions = useMemo(
+    () => [{ value: 'all', label: 'All Projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))],
+    [projects],
+  )
 
   const filters = useMemo(
     () => ({
@@ -104,18 +121,31 @@ export function PersonasPage() {
 
   const fetcher = useCallback(
     (params: { limit: number; offset: number; status?: string; project_id?: string }): Promise<PaginatedResponse<Persona>> => {
-      if (!params.project_id) {
-        // No project selected — return empty
-        return Promise.resolve({ items: [], total: 0, limit: params.limit, offset: params.offset })
-      }
-      return personasApi.list({
-        project_id: params.project_id,
-        status: params.status as PersonaStatus | undefined,
+      const typedParams = {
         limit: params.limit,
         offset: params.offset,
+        status: params.status as PersonaStatus | undefined,
+      }
+      if (params.project_id) {
+        // Single project selected
+        return personasApi.list({ ...typedParams, project_id: params.project_id })
+      }
+      // Workspace mode: fetch from all projects in parallel and merge
+      if (projects.length === 0) {
+        return Promise.resolve({ items: [], total: 0, limit: params.limit, offset: params.offset })
+      }
+      return Promise.all(
+        projects.map((p) =>
+          personasApi.list({ ...typedParams, project_id: p.id }).catch(() => ({ items: [] as Persona[], total: 0, limit: params.limit, offset: params.offset })),
+        ),
+      ).then((results) => {
+        const merged = results.flatMap((r) => r.items)
+        const seen = new Set<string>()
+        const unique = merged.filter((s) => { if (seen.has(s.id)) return false; seen.add(s.id); return true })
+        return { items: unique, total: unique.length, limit: params.limit, offset: params.offset }
       })
     },
-    [],
+    [projects],
   )
 
   const {
@@ -125,7 +155,7 @@ export function PersonasPage() {
     hasMore,
     sentinelRef,
     removeItems,
-  } = useInfiniteList<Persona>({ fetcher, filters, enabled: projectFilter !== 'all' })
+  } = useInfiniteList<Persona>({ fetcher, filters, enabled: projects.length > 0 })
 
   const handleDelete = (persona: Persona) => {
     confirmDialog.open({
@@ -153,23 +183,28 @@ export function PersonasPage() {
       {/* Filters */}
       <div className="flex items-center gap-3 mb-6">
         <Select
+          options={projectOptions}
+          value={projectFilter}
+          onChange={setProjectFilter}
+        />
+        <Select
           value={statusFilter}
           onChange={(v) => setStatusFilter(v as PersonaStatus | 'all')}
           options={statusOptions}
         />
       </div>
 
-      {/* Empty state when no project selected */}
-      {projectFilter === 'all' && !loading && (
+      {/* Empty state when no projects loaded yet */}
+      {projects.length === 0 && !loading && (
         <div className="text-center py-16 text-zinc-500">
           <Users className="h-12 w-12 mx-auto mb-4 opacity-40" />
-          <p className="text-lg font-medium">Select a project to view personas</p>
-          <p className="text-sm mt-1">Personas are scoped to projects. Use the project selector above.</p>
+          <p className="text-lg font-medium">No projects found</p>
+          <p className="text-sm mt-1">Add a project to this workspace to manage personas.</p>
         </div>
       )}
 
       {/* Card grid */}
-      {projectFilter !== 'all' && (
+      {projects.length > 0 && (
         <motion.div
           className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
           {...(reducedMotion ? {} : staggerContainer)}
@@ -267,7 +302,7 @@ export function PersonasPage() {
       {/* Create persona wizard */}
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} title="Create Persona" size="lg">
         <PersonaBuilder
-          projectId={projectFilter !== 'all' ? projectFilter : ''}
+          projectId={projectFilter !== 'all' ? projectFilter : projects[0]?.id ?? ''}
           onClose={() => setCreateOpen(false)}
         />
       </Dialog>
