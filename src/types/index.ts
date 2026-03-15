@@ -1547,3 +1547,98 @@ export interface SkillMaintenanceResult {
 }
 
 export type MaintenanceLevel = 'hourly' | 'daily' | 'weekly' | 'full'
+
+// ============================================================================
+// SHARING & PRIVACY
+// ============================================================================
+
+export type SharingMode = 'manual' | 'suggest' | 'auto'
+
+export type SharingAction = 'auto' | 'never' | 'review'
+
+export type SharingConsent = 'not_set' | 'explicit_allow' | 'explicit_deny' | 'policy_auto'
+
+export type PrivacyMode = 'standard' | 'strict' | 'open'
+
+export interface SharingPolicy {
+  enabled: boolean
+  mode: SharingMode
+  min_shareability_score: number
+  type_overrides: Record<string, SharingAction>
+  l3_scan_enabled: boolean
+}
+
+export interface SharingStatusResponse {
+  enabled: boolean
+  policy: SharingPolicy
+}
+
+export interface SharingEvent {
+  id: string
+  content_hash: string
+  artifact_type: string
+  action: string
+  source_did: string
+  target_did: string
+  timestamp: string
+  consent: SharingConsent
+  privacy_mode: PrivacyMode
+  reason?: string
+}
+
+export interface ConsentStats {
+  consent_allowed: number
+  consent_denied: number
+  consent_pending: number
+  denied_reasons: DenialDetail[]
+}
+
+export interface DenialDetail {
+  artifact_id: string
+  artifact_type: string
+  reason: string
+}
+
+export interface SignedTombstone {
+  content_hash: string
+  issuer_did: string
+  signature_hex: string
+  issued_at: string
+  reason?: string
+}
+
+export interface SharingPreviewItem {
+  note_id: string
+  note_type: string
+  consent: SharingConsent
+  shareability_score: number
+  decision: string
+}
+
+export interface SharingSuggestionItem {
+  note_id: string
+  note_type: string
+  shareability_score: number
+  reason: string
+}
+
+export interface PrivacyReportResponse {
+  stats: ConsentStats | null
+  generated_at: string
+}
+
+export interface PolicyUpdateRequest {
+  mode?: SharingMode
+  min_shareability_score?: number
+  type_overrides?: Record<string, SharingAction>
+}
+
+export interface RetractRequest {
+  note_id?: string
+  content_hash?: string
+  reason?: string
+}
+
+export interface ConsentUpdateRequest {
+  consent: SharingConsent
+}

@@ -39,6 +39,7 @@ import {
   ProtocolDetailPage,
   RfcDetailPage,
   AdminPage,
+  SharingPage,
   RunnerDashboard,
 
   NotFoundPage,
@@ -179,6 +180,7 @@ function App() {
                         <Route path="rfcs/:rfcId" element={<RfcDetailPage />} />
                         {/* Intelligence sub-views are now embedded inline in ProjectDetailPage */}
                         <Route path="projects/:projectSlug/intelligence" element={<ProjectDetailPage />} />
+                        <Route path="sharing" element={<SharingPage />} />
                         <Route path="admin" element={<AdminPage />} />
                         <Route path="*" element={<NotFoundPage embedded />} />
                       </Route>

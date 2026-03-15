@@ -22,6 +22,7 @@ export { runnerApi, useRunnerStatus } from './runner'
 export type { RunSnapshot, ActiveAgentSnapshot, WaveSnapshot, AgentStatus } from './runner'
 export { protocolApi } from './protocolApi'
 export { rfcApi } from './rfcApi'
+export { sharingApi } from './sharing'
 export { EventBusClient, getEventBus } from './eventBus'
 export {
   forceLogout,
