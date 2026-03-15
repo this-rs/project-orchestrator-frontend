@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useAtomValue } from 'jotai'
 import {
   ChevronRight,
   Shield,
@@ -27,9 +26,8 @@ import {
   ConfirmDialog,
   PageShell,
 } from '@/components/ui'
-import { sharingApi } from '@/services'
-import { useConfirmDialog, useToast } from '@/hooks'
-import { selectedProjectAtom, projectsAtom, selectedProjectSlugAtom } from '@/atoms/projects'
+import { sharingApi, workspacesApi } from '@/services'
+import { useConfirmDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import type {
   SharingPolicy,
   SharingEvent,
@@ -108,14 +106,36 @@ function StatBox({ label, value, highlight }: { label: string; value: string; hi
 // ============================================================================
 
 export function SharingPage() {
-  const project = useAtomValue(selectedProjectAtom)
-  const projects = useAtomValue(projectsAtom)
-  const selectedSlug = useAtomValue(selectedProjectSlugAtom)
+  const wsSlug = useWorkspaceSlug()
 
-  const projectSlug = project?.slug || selectedSlug || ''
-  const hasProject = !!projectSlug
+  // Load workspace projects for the selector (same pattern as CodePage)
+  const [projects, setProjects] = useState<{ slug: string; name: string }[]>([])
+  const [selectedProject, setSelectedProject] = useState<string>('')
 
-  if (!hasProject && projects.length > 0) {
+  useEffect(() => {
+    async function loadProjects() {
+      try {
+        const wsProjects = await workspacesApi.listProjects(wsSlug)
+        const mapped = wsProjects.map((p) => ({ slug: p.slug, name: p.name }))
+        setProjects(mapped)
+        // Auto-select first project if none selected
+        if (!selectedProject && mapped.length > 0) {
+          setSelectedProject(mapped[0].slug)
+        }
+      } catch {
+        // No projects available
+      }
+    }
+    loadProjects()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsSlug])
+
+  const projectSlug = selectedProject
+  const selectedProjectName = projects.find((p) => p.slug === selectedProject)?.name
+
+  const projectOptions = projects.map((p) => ({ value: p.slug, label: p.name }))
+
+  if (projects.length === 0) {
     return (
       <PageShell
         title="Sharing & Privacy"
@@ -124,7 +144,7 @@ export function SharingPage() {
         <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-amber-500/[0.08] border border-amber-500/20">
           <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
           <p className="text-xs text-amber-300">
-            Select a project from the sidebar to configure sharing settings.
+            No projects found in this workspace. Add a project first.
           </p>
         </div>
       </PageShell>
@@ -134,16 +154,35 @@ export function SharingPage() {
   return (
     <PageShell
       title="Sharing & Privacy"
-      description={`Manage sharing policies, consent, and data retraction${project ? ` for ${project.name}` : ''}`}
+      description={`Manage sharing policies, consent, and data retraction${selectedProjectName ? ` for ${selectedProjectName}` : ''}`}
+      actions={
+        projectOptions.length > 1 ? (
+          <Select
+            options={projectOptions}
+            value={selectedProject}
+            onChange={(v) => setSelectedProject(v)}
+            className="w-56"
+          />
+        ) : undefined
+      }
     >
-      <div className="space-y-3">
-        <PolicySection slug={projectSlug} />
-        <LastReportSection slug={projectSlug} />
-        <PreviewSection slug={projectSlug} />
-        <SuggestSection slug={projectSlug} />
-        <AuditTrailSection slug={projectSlug} />
-        <TombstonesSection slug={projectSlug} />
-      </div>
+      {!projectSlug ? (
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-amber-500/[0.08] border border-amber-500/20">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+          <p className="text-xs text-amber-300">
+            Select a project above to configure sharing settings.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <PolicySection slug={projectSlug} />
+          <LastReportSection slug={projectSlug} />
+          <PreviewSection slug={projectSlug} />
+          <SuggestSection slug={projectSlug} />
+          <AuditTrailSection slug={projectSlug} />
+          <TombstonesSection slug={projectSlug} />
+        </div>
+      )}
     </PageShell>
   )
 }
