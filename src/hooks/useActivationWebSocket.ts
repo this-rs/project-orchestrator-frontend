@@ -1,5 +1,5 @@
 // ============================================================================
-// useActivationWebSocket — lightweight WS that ONLY handles graph.activation
+// useActivationWebSocket — lightweight EventBus subscriber for graph.activation
 // ============================================================================
 //
 // Unlike the full useGraphWebSocket (which manages node/edge CRUD on the
@@ -11,19 +11,20 @@
 // TaskDetailPage). The activation visuals are then applied by useActivationSync
 // inside IntelligenceGraph3D.
 //
-// If projectSlug is undefined, the hook is a no-op (no WS connection).
-// Disconnects are handled gracefully — no errors, just silent reconnect.
+// Events are received via the shared `/ws/events` WebSocket connection
+// (managed by EventBusClient). No separate WS connection is created.
+//
+// If projectSlug is undefined, the hook is a no-op (no subscription).
 // ============================================================================
 
 import { useEffect, useRef, useCallback } from 'react'
 import { useSetAtom, useAtomValue } from 'jotai'
-import { createWebSocket, type IWebSocket } from '@/services/wsAdapter'
-import { wsUrl } from '@/services/env'
-import { fetchWsTicket } from '@/services/auth'
-import { isTauri } from '@/services/env'
+import { projectSlugToIdAtom } from '@/atoms/projects'
+import { getEventBus } from '@/services/eventBus'
+import type { GraphEvent as BackendGraphEvent } from '@/types'
 import { activationStateAtom, type ActivationState } from '@/components/intelligence/SpreadingActivation'
 
-// ── WS event shape (subset of GraphEvent — only activation) ─────────────────
+// ── WS event shape (subset — only activation delta) ─────────────────
 
 interface GraphActivationDelta {
   direct_ids: string[]
@@ -33,33 +34,25 @@ interface GraphActivationDelta {
   query: string
 }
 
-interface GraphActivationEvent {
-  type: 'graph.activation'
-  layer: string
-  delta: GraphActivationDelta
-  activated_ids?: string[]
-  scores?: Record<string, number>
-}
-
 // ── Hook ────────────────────────────────────────────────────────────────────
 
 /**
- * Lightweight WebSocket that only processes `graph.activation` events
+ * Lightweight EventBus subscriber that only processes `activation` events
  * and updates `activationStateAtom` with 2-phase animation.
  *
- * @param projectSlug  Project slug for the WS endpoint. If undefined, no connection is made.
+ * @param projectSlug  Project slug for filtering. If undefined, no subscription is made.
  */
 export function useActivationWebSocket(projectSlug: string | undefined): void {
   const setActivation = useSetAtom(activationStateAtom)
   const activationPhase = useAtomValue(activationStateAtom).phase
-  const wsRef = useRef<IWebSocket | null>(null)
+  const slugToId = useAtomValue(projectSlugToIdAtom)
   const mountedRef = useRef(true)
   const activationTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
   const activationPhaseRef = useRef<ActivationState['phase']>('idle')
   activationPhaseRef.current = activationPhase
 
   const handleActivation = useCallback(
-    (event: GraphActivationEvent) => {
+    (delta: GraphActivationDelta) => {
       if (!mountedRef.current) return
 
       // Skip if a local animation is already in progress (e.g. from
@@ -68,9 +61,6 @@ export function useActivationWebSocket(projectSlug: string | undefined): void {
       if (currentPhase === 'searching' || currentPhase === 'direct' || currentPhase === 'propagating') {
         return
       }
-
-      const delta = event.delta
-      if (!delta) return
 
       // Clear previous WS-driven animation timers
       activationTimersRef.current.forEach(clearTimeout)
@@ -147,82 +137,33 @@ export function useActivationWebSocket(projectSlug: string | undefined): void {
     [setActivation],
   )
 
-  // Connect / disconnect lifecycle
+  // Subscribe to EventBus graph events (replaces direct WS connection)
   useEffect(() => {
     if (!projectSlug) return
 
     mountedRef.current = true
-    let shouldReconnect = true
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-    let reconnectDelay = 1000
 
-    async function connect() {
-      if (!shouldReconnect || !mountedRef.current) return
+    // Resolve slug → project_id for filtering
+    const projectId = slugToId.get(projectSlug)
 
-      try {
-        const ticketParam = isTauri ? await fetchWsTicket() : null
-        const path = `/ws/graph/${projectSlug}${ticketParam ? `?ticket=${ticketParam}` : ''}`
-        const url = wsUrl(path)
-
-        const ws = await createWebSocket(url, {
-          onopen: () => {
-            if (!mountedRef.current) return
-            reconnectDelay = 1000 // Reset backoff
-          },
-          onmessage: (ev: MessageEvent) => {
-            if (!mountedRef.current) return
-            try {
-              const data = JSON.parse(ev.data as string)
-              if (data.type === 'graph.activation') {
-                handleActivation(data as GraphActivationEvent)
-              }
-              // Silently ignore all other event types
-            } catch {
-              // Ignore non-JSON messages (e.g. auth_ok)
-            }
-          },
-          onclose: () => {
-            if (!mountedRef.current) return
-            wsRef.current = null
-            // Auto-reconnect with exponential backoff
-            if (shouldReconnect && mountedRef.current) {
-              reconnectTimer = setTimeout(() => {
-                reconnectDelay = Math.min(reconnectDelay * 2, 30000)
-                connect()
-              }, reconnectDelay)
-            }
-          },
-          onerror: () => {
-            // onclose will fire after onerror — handled there
-          },
-        })
-
-        wsRef.current = ws
-      } catch {
-        // Connection failed — retry with backoff
-        if (shouldReconnect && mountedRef.current) {
-          reconnectTimer = setTimeout(() => {
-            reconnectDelay = Math.min(reconnectDelay * 2, 30000)
-            connect()
-          }, reconnectDelay)
-        }
+    const unsubGraph = getEventBus().onGraph((raw: BackendGraphEvent) => {
+      if (!mountedRef.current) return
+      // Only process activation events
+      if (raw.type !== 'activation') return
+      // Filter by project
+      if (projectId && raw.project_id !== projectId) return
+      // Extract delta
+      const delta = raw.delta as GraphActivationDelta | null
+      if (delta) {
+        handleActivation(delta)
       }
-    }
-
-    connect()
+    })
 
     return () => {
       mountedRef.current = false
-      shouldReconnect = false
-      if (reconnectTimer) clearTimeout(reconnectTimer)
+      unsubGraph()
       activationTimersRef.current.forEach(clearTimeout)
       activationTimersRef.current = []
-      const ws = wsRef.current
-      if (ws) {
-        ws.onmessage = null
-        ws.close()
-      }
-      wsRef.current = null
     }
-  }, [projectSlug, handleActivation])
+  }, [projectSlug, slugToId, handleActivation])
 }

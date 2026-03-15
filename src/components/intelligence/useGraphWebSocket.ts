@@ -1,17 +1,15 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { useSetAtom } from 'jotai'
+import { useSetAtom, useAtomValue } from 'jotai'
 import { intelligenceNodesAtom, intelligenceEdgesAtom } from '@/atoms/intelligence'
-import { createWebSocket, type IWebSocket } from '@/services/wsAdapter'
-import { wsUrl } from '@/services/env'
-import { fetchWsTicket } from '@/services/auth'
-import { isTauri } from '@/services/env'
+import { projectSlugToIdAtom } from '@/atoms/projects'
+import { getEventBus } from '@/services/eventBus'
+import type { GraphEvent as BackendGraphEvent } from '@/types'
 import type { IntelligenceNode, IntelligenceEdge, IntelligenceRelationType } from '@/types/intelligence'
 import { EDGE_STYLES } from '@/constants/intelligence'
 import { activationStateAtom, type ActivationState } from './SpreadingActivation'
-import { useAtomValue } from 'jotai'
 
 // ============================================================================
-// GRAPH WEBSOCKET EVENT TYPES
+// FRONTEND GRAPH EVENT TYPES (mapped from backend GraphEvent)
 // ============================================================================
 
 interface GraphNodeCreated {
@@ -70,7 +68,7 @@ interface GraphCommunityChanged {
   community_label?: string
 }
 
-type GraphEvent =
+type FrontendGraphEvent =
   | GraphNodeCreated
   | GraphNodeUpdated
   | GraphEdgeCreated
@@ -78,6 +76,98 @@ type GraphEvent =
   | GraphReinforcement
   | GraphActivation
   | GraphCommunityChanged
+
+// ============================================================================
+// BACKEND → FRONTEND EVENT MAPPING
+// ============================================================================
+
+/**
+ * Map a backend GraphEvent (flat structure with `type: "node_created"`)
+ * to the frontend GraphEvent (enriched structure with `type: "graph.node_created"`).
+ *
+ * The backend sends flat events with node_id, target_id, edge_type, delta fields.
+ * The frontend expects structured events with nested objects (node, edge, etc.).
+ */
+function mapBackendEvent(raw: BackendGraphEvent): FrontendGraphEvent | null {
+  const delta = raw.delta as Record<string, unknown> | null
+
+  switch (raw.type) {
+    case 'node_created': {
+      return {
+        type: 'graph.node_created',
+        node: {
+          id: raw.node_id ?? '',
+          type: (delta?.entity_type as string) ?? raw.layer,
+          label: (delta?.label as string) ?? (delta?.note_type as string) ?? raw.node_id ?? '',
+          layer: raw.layer,
+          attributes: delta as Record<string, unknown> | undefined,
+        },
+      }
+    }
+
+    case 'node_updated': {
+      return {
+        type: 'graph.node_updated',
+        node_id: raw.node_id ?? '',
+        attributes: (delta as Record<string, unknown>) ?? {},
+      }
+    }
+
+    case 'edge_created': {
+      return {
+        type: 'graph.edge_created',
+        edge: {
+          source: raw.node_id ?? '',
+          target: raw.target_id ?? '',
+          type: raw.edge_type ?? 'UNKNOWN',
+          layer: raw.layer,
+          attributes: delta as Record<string, unknown> | undefined,
+        },
+      }
+    }
+
+    case 'edge_removed': {
+      return {
+        type: 'graph.edge_removed',
+        source: raw.node_id ?? '',
+        target: raw.target_id ?? '',
+        edge_type: raw.edge_type ?? '',
+      }
+    }
+
+    case 'reinforcement': {
+      return {
+        type: 'graph.reinforcement',
+        source: raw.node_id ?? '',
+        target: raw.target_id ?? '',
+        new_weight: (delta?.energy_delta as number) ?? 0,
+      }
+    }
+
+    case 'activation': {
+      // activation_result sends the full payload in delta
+      const d = delta as GraphActivationDelta | null
+      if (!d) return null
+      return {
+        type: 'graph.activation',
+        layer: raw.layer,
+        delta: d,
+      }
+    }
+
+    case 'community_changed': {
+      return {
+        type: 'graph.community_changed',
+        node_ids: (delta?.member_ids as string[]) ?? [],
+        community_id: (delta?.community_id as number) ?? 0,
+        community_label: delta?.community_label as string | undefined,
+      }
+    }
+
+    default:
+      return null
+  }
+}
 
 // ============================================================================
 // rAF BUFFER — batch multiple events into a single React update
@@ -108,27 +198,29 @@ function makeEdgeKey(source: string, target: string, type: string): string {
 // ============================================================================
 
 export interface GraphWsState {
-  /** Whether the WS is connected */
+  /** Whether the EventBus WS is connected */
   connected: boolean
   /** Timestamp of last received event (for Live pulse) */
   lastEventAt: number | null
 }
 
 /**
- * Hook that connects to the backend graph WS endpoint and applies
+ * Hook that subscribes to graph events from the EventBus and applies
  * real-time updates to the intelligence graph atoms.
  *
- * Events are buffered via requestAnimationFrame to avoid excessive re-renders.
+ * Events are received via the shared `/ws/events` WebSocket connection
+ * (managed by EventBusClient) and buffered via requestAnimationFrame
+ * to avoid excessive re-renders.
  */
 export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState {
   const setNodes = useSetAtom(intelligenceNodesAtom)
   const setEdges = useSetAtom(intelligenceEdgesAtom)
   const setActivation = useSetAtom(activationStateAtom)
   const activationPhase = useAtomValue(activationStateAtom).phase
+  const slugToId = useAtomValue(projectSlugToIdAtom)
   const [connected, setConnected] = useState(false)
   const [lastEventAt, setLastEventAt] = useState<number | null>(null)
 
-  const wsRef = useRef<IWebSocket | null>(null)
   const pendingRef = useRef<PendingUpdate>(emptyPending())
   const rafRef = useRef<number | null>(null)
   const mountedRef = useRef(true)
@@ -197,9 +289,9 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
     }
   }, [flush])
 
-  // Process a single graph event
+  // Process a single mapped frontend graph event
   const handleEvent = useCallback(
-    (event: GraphEvent) => {
+    (event: FrontendGraphEvent) => {
       if (!mountedRef.current) return
       setLastEventAt(Date.now())
 
@@ -508,86 +600,45 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
     [scheduleFlush, setEdges, setActivation],
   )
 
-  // Connect / disconnect lifecycle
+  // Subscribe to EventBus graph events (replaces direct WS connection)
   useEffect(() => {
     if (!projectSlug) return
 
     mountedRef.current = true
-    let shouldReconnect = true
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-    let reconnectDelay = 1000
 
-    async function connect() {
-      if (!shouldReconnect || !mountedRef.current) return
+    // Resolve slug → project_id for filtering
+    const projectId = slugToId.get(projectSlug)
 
-      try {
-        const ticketParam = isTauri ? await fetchWsTicket() : null
-        const path = `/ws/graph/${projectSlug}${ticketParam ? `?ticket=${ticketParam}` : ''}`
-        const url = wsUrl(path)
+    const eventBus = getEventBus()
 
-        const ws = await createWebSocket(url, {
-          onopen: () => {
-            if (!mountedRef.current) return
-            setConnected(true)
-            reconnectDelay = 1000 // Reset backoff
-          },
-          onmessage: (ev: MessageEvent) => {
-            if (!mountedRef.current) return
-            try {
-              const data = JSON.parse(ev.data as string) as GraphEvent
-              if (data.type?.startsWith('graph.')) {
-                handleEvent(data)
-              }
-            } catch {
-              // Ignore non-JSON messages (e.g. auth_ok)
-            }
-          },
-          onclose: () => {
-            if (!mountedRef.current) return
-            setConnected(false)
-            wsRef.current = null
-            // Auto-reconnect with exponential backoff
-            if (shouldReconnect && mountedRef.current) {
-              reconnectTimer = setTimeout(() => {
-                reconnectDelay = Math.min(reconnectDelay * 2, 30000)
-                connect()
-              }, reconnectDelay)
-            }
-          },
-          onerror: () => {
-            // onclose will fire after onerror
-          },
-        })
+    // Track EventBus connection status
+    const unsubStatus = eventBus.onStatus((status) => {
+      if (!mountedRef.current) return
+      setConnected(status === 'connected')
+    })
+    // Set initial status
+    setConnected(eventBus.status === 'connected')
 
-        wsRef.current = ws
-      } catch {
-        // Connection failed — retry
-        if (shouldReconnect && mountedRef.current) {
-          reconnectTimer = setTimeout(() => {
-            reconnectDelay = Math.min(reconnectDelay * 2, 30000)
-            connect()
-          }, reconnectDelay)
-        }
+    // Subscribe to graph events, filter by project, map and dispatch
+    const unsubGraph = eventBus.onGraph((raw: BackendGraphEvent) => {
+      if (!mountedRef.current) return
+      // Filter by project_id (skip events from other projects)
+      if (projectId && raw.project_id !== projectId) return
+      const mapped = mapBackendEvent(raw)
+      if (mapped) {
+        handleEvent(mapped)
       }
-    }
-
-    connect()
+    })
 
     return () => {
       mountedRef.current = false
-      shouldReconnect = false
-      if (reconnectTimer) clearTimeout(reconnectTimer)
+      unsubStatus()
+      unsubGraph()
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
       activationTimersRef.current.forEach(clearTimeout)
       activationTimersRef.current = []
-      const ws = wsRef.current
-      if (ws) {
-        ws.onmessage = null
-        ws.close()
-      }
-      wsRef.current = null
     }
-  }, [projectSlug, handleEvent])
+  }, [projectSlug, slugToId, handleEvent])
 
   return { connected, lastEventAt }
 }

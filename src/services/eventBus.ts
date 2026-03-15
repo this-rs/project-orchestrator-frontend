@@ -1,10 +1,11 @@
-import type { CrudEvent, EventBusStatus } from '@/types'
+import type { CrudEvent, EventBusStatus, GraphEvent } from '@/types'
 import { getAuthMode, fetchWsTicket } from './auth'
 import { forceLogout } from './authManager'
 import { wsUrl } from './env'
 import { createWebSocket, ReadyState, type IWebSocket } from './wsAdapter'
 
 type EventCallback = (event: CrudEvent) => void
+type GraphEventCallback = (event: GraphEvent) => void
 type StatusCallback = (status: EventBusStatus) => void
 
 const MIN_RECONNECT_DELAY = 1000
@@ -13,6 +14,7 @@ const MAX_RECONNECT_DELAY = 30000
 export class EventBusClient {
   private ws: IWebSocket | null = null
   private listeners = new Set<EventCallback>()
+  private graphListeners = new Set<GraphEventCallback>()
   private statusListeners = new Set<StatusCallback>()
   private _status: EventBusStatus = 'disconnected'
   private reconnectDelay = MIN_RECONNECT_DELAY
@@ -75,10 +77,24 @@ export class EventBusClient {
               }
             }
 
-            // Forward CRUD events to listeners
-            const crudEvent = data as CrudEvent
-            for (const listener of this.listeners) {
-              listener(crudEvent)
+            // Route by message kind
+            if (data.kind === 'graph_batch') {
+              // Batched graph events: {kind: "graph_batch", events: [...], count: N}
+              const events = data.events as GraphEvent[]
+              if (Array.isArray(events)) {
+                for (const ge of events) {
+                  this.dispatchGraphEvent(ge)
+                }
+              }
+            } else if (data.kind === 'graph') {
+              // Individual graph event
+              this.dispatchGraphEvent(data as GraphEvent)
+            } else {
+              // Forward CRUD events to listeners
+              const crudEvent = data as CrudEvent
+              for (const listener of this.listeners) {
+                listener(crudEvent)
+              }
             }
           } catch {
             // ignore malformed messages (e.g. ping frames)
@@ -138,9 +154,21 @@ export class EventBusClient {
     return () => this.listeners.delete(callback)
   }
 
+  /** Subscribe to graph events (node/edge/reinforcement/activation/community). */
+  onGraph(callback: GraphEventCallback) {
+    this.graphListeners.add(callback)
+    return () => this.graphListeners.delete(callback)
+  }
+
   onStatus(callback: StatusCallback) {
     this.statusListeners.add(callback)
     return () => this.statusListeners.delete(callback)
+  }
+
+  private dispatchGraphEvent(event: GraphEvent) {
+    for (const listener of this.graphListeners) {
+      listener(event)
+    }
   }
 
   private setStatus(status: EventBusStatus) {

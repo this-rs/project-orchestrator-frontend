@@ -14,3 +14,9 @@ export const selectedProjectAtom = atom<Project | null>((get) => {
 })
 
 export const projectRoadmapAtom = atom<ProjectRoadmap | null>(null)
+
+/** Lookup map: project slug → project id (derived from projectsAtom) */
+export const projectSlugToIdAtom = atom<Map<string, string>>((get) => {
+  const projects = get(projectsAtom)
+  return new Map(projects.map((p) => [p.slug, p.id]))
+})

@@ -47,6 +47,7 @@ export default defineConfig({
           // or WebSocket connections drop during development
           proxy.on('error', (err, _req, res) => {
             if ((err as NodeJS.ErrnoException).code === 'ECONNRESET') return
+            if ((err as NodeJS.ErrnoException).code === 'ECONNREFUSED') return
             console.error('[vite] ws proxy error:', err.message)
             if (res && 'writeHead' in res && !res.headersSent) {
               ;(res as import('http').ServerResponse).writeHead(502)
@@ -56,6 +57,7 @@ export default defineConfig({
           proxy.on('proxyReqWs', (_proxyReq, _req, socket) => {
             socket.on('error', (err) => {
               if ((err as NodeJS.ErrnoException).code === 'ECONNRESET') return
+              if ((err as NodeJS.ErrnoException).code === 'ECONNREFUSED') return
               console.error('[vite] ws socket error:', err.message)
             })
           })
