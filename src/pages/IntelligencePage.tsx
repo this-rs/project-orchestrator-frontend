@@ -436,15 +436,18 @@ export function IntelligencePage() {
     [],
   )
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (signal?: AbortSignal) => {
     if (!projectSlug) return
     setError(null)
     try {
       const [summaryData, healthData, projectData] = await Promise.allSettled([
-        intelligenceApi.getSummary(projectSlug),
-        codeApi.getHealth({ project_slug: projectSlug }),
-        projectsApi.get(projectSlug),
+        intelligenceApi.getSummary(projectSlug, signal),
+        codeApi.getHealth({ project_slug: projectSlug }, signal),
+        projectsApi.get(projectSlug, signal),
       ])
+
+      // Bail out if aborted — don't update state for a stale request
+      if (signal?.aborted) return
 
       if (summaryData.status === 'fulfilled') setSummary(summaryData.value)
       else throw new Error(summaryData.reason?.message ?? 'Failed to load intelligence data')
@@ -452,14 +455,20 @@ export function IntelligencePage() {
       if (healthData.status === 'fulfilled') setHealth(healthData.value)
       if (projectData.status === 'fulfilled') setProject(projectData.value)
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      if (signal?.aborted) return
       setError(err instanceof Error ? err.message : 'Failed to load intelligence data')
     }
   }, [projectSlug, setSummary])
 
-  // Initial load
+  // Initial load — abort in-flight requests on unmount / slug change
   useEffect(() => {
+    const controller = new AbortController()
     setLoading(true)
-    fetchAll().finally(() => setLoading(false))
+    fetchAll(controller.signal).finally(() => {
+      if (!controller.signal.aborted) setLoading(false)
+    })
+    return () => controller.abort()
   }, [fetchAll])
 
   // Refresh handler

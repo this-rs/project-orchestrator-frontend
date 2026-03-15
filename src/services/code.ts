@@ -135,8 +135,8 @@ export const codeApi = {
   getCommunities: (params: { project_slug: string; min_size?: number }) =>
     api.get<CodeCommunities>(`/code/communities${buildQuery(params)}`),
 
-  getHealth: (params: { project_slug: string; god_function_threshold?: number }) =>
-    api.get<CodeHealth>(`/code/health${buildQuery(params)}`),
+  getHealth: (params: { project_slug: string; god_function_threshold?: number }, signal?: AbortSignal) =>
+    api.get<CodeHealth>(`/code/health${buildQuery(params)}`, signal),
 
   getNodeImportance: (params: { project_slug: string; node_path: string; node_type?: string }) =>
     api.get<NodeImportance>(`/code/node-importance${buildQuery(params)}`),

@@ -26,7 +26,7 @@ export const projectsApi = {
   list: (params: ListParams = {}) =>
     api.get<PaginatedResponse<Project>>(`/projects${buildQuery(params)}`),
 
-  get: (slug: string) => api.get<Project>(`/projects/${slug}`),
+  get: (slug: string, signal?: AbortSignal) => api.get<Project>(`/projects/${slug}`, signal),
 
   create: (data: CreateProjectRequest) =>
     api.post<Project>('/projects', data),
