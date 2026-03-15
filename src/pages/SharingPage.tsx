@@ -322,7 +322,7 @@ function PolicySection({ slug }: { slug: string }) {
                 <StatBox label="L3 Scan" value={policy.l3_scan_enabled ? 'On' : 'Off'} />
                 <StatBox
                   label="Overrides"
-                  value={Object.keys(policy.type_overrides).length.toString()}
+                  value={Object.keys(policy.type_overrides ?? {}).length.toString()}
                 />
               </div>
 
@@ -351,11 +351,11 @@ function PolicySection({ slug }: { slug: string }) {
                 </div>
 
                 {/* Type overrides display */}
-                {Object.keys(policy.type_overrides).length > 0 && (
+                {Object.keys(policy.type_overrides ?? {}).length > 0 && (
                   <div>
                     <label className="text-xs text-gray-400 block mb-1.5">Type Overrides</label>
                     <div className="flex flex-wrap gap-1.5">
-                      {Object.entries(policy.type_overrides).map(([type, action]) => (
+                      {Object.entries(policy.type_overrides ?? {}).map(([type, action]) => (
                         <Badge key={type} variant={action === 'never' ? 'error' : action === 'auto' ? 'success' : 'warning'}>
                           {type}: {action}
                         </Badge>
