@@ -176,7 +176,8 @@ function PolicySection({ slug }: { slug: string }) {
     } finally {
       setLoading(false)
     }
-  }, [slug, toast])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug])
 
   useEffect(() => {
     fetchStatus()
