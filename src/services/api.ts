@@ -38,6 +38,10 @@ async function fetchWithStartupRetry(
   // Startup phase — retry on network errors (TypeError from fetch = connection refused)
   let lastError: unknown
   for (let attempt = 0; attempt <= STARTUP_RETRY_MAX; attempt++) {
+    // Bail out early if the request was aborted between retries
+    if (init.signal?.aborted) {
+      throw new DOMException('The operation was aborted.', 'AbortError')
+    }
     try {
       const resp = await fetch(url, init)
       _backendReachable = true
@@ -73,6 +77,7 @@ async function request<T>(
     headers['Authorization'] = `Bearer ${token}`
   }
 
+  // Preserve any AbortSignal passed via options
   const response = await fetchWithStartupRetry(url, {
     ...options,
     credentials: 'include', // Send HttpOnly refresh_token cookie
@@ -116,28 +121,32 @@ async function request<T>(
 }
 
 export const api = {
-  get: <T>(endpoint: string) => request<T>(endpoint),
+  get: <T>(endpoint: string, signal?: AbortSignal) =>
+    request<T>(endpoint, { signal }),
 
-  post: <T>(endpoint: string, data?: unknown) =>
+  post: <T>(endpoint: string, data?: unknown, signal?: AbortSignal) =>
     request<T>(endpoint, {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
+      signal,
     }),
 
-  patch: <T>(endpoint: string, data: unknown) =>
+  patch: <T>(endpoint: string, data: unknown, signal?: AbortSignal) =>
     request<T>(endpoint, {
       method: 'PATCH',
       body: JSON.stringify(data),
+      signal,
     }),
 
-  put: <T>(endpoint: string, data?: unknown) =>
+  put: <T>(endpoint: string, data?: unknown, signal?: AbortSignal) =>
     request<T>(endpoint, {
       method: 'PUT',
       body: data ? JSON.stringify(data) : undefined,
+      signal,
     }),
 
-  delete: <T>(endpoint: string) =>
-    request<T>(endpoint, { method: 'DELETE' }),
+  delete: <T>(endpoint: string, signal?: AbortSignal) =>
+    request<T>(endpoint, { method: 'DELETE', signal }),
 }
 
 // Query string builder

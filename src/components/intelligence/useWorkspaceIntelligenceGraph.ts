@@ -167,6 +167,7 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
     layers: string[],
     limit: number,
     stageId?: string,
+    signal?: AbortSignal,
   ) => {
     if (!workspaceSlug || layers.length === 0) return
     setLoading(true)
@@ -178,7 +179,7 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
     })
     if (stageId) updateStage(stageId, { status: 'loading', startedAt: Date.now() })
     try {
-      const data = await intelligenceApi.getWorkspaceGraph(workspaceSlug, { layers, limit })
+      const data = await intelligenceApi.getWorkspaceGraph(workspaceSlug, { layers, limit }, signal)
 
       // Store project metadata
       setProjectMetas(data.projects)
@@ -221,16 +222,21 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
 
       layers.forEach((l) => fetchedLayersRef.current.add(l))
     } catch (err) {
+      // AbortError is expected when navigating away — silently ignore
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      if (signal?.aborted) return
       console.error('[useWorkspaceIntelligenceGraph] fetch error:', err)
       setError(err instanceof Error ? err.message : 'Failed to load workspace graph')
       if (stageId) updateStage(stageId, { status: 'error', completedAt: Date.now() })
     } finally {
-      setLoading(false)
-      setLoadingLayers((prev: Set<string>) => {
-        const next = new Set(prev)
-        layers.forEach((l) => next.delete(l))
-        return next
-      })
+      if (!signal?.aborted) {
+        setLoading(false)
+        setLoadingLayers((prev: Set<string>) => {
+          const next = new Set(prev)
+          layers.forEach((l) => next.delete(l))
+          return next
+        })
+      }
     }
   }, [workspaceSlug, setNodes, setEdges, setLoading, setError, setCommunities, setLoadingLayers, updateStage])
 
@@ -241,23 +247,31 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
   }, [visibleLayers, nodeLimit, fetchGraphForLayers])
 
   // Fetch workspace summary (aggregated)
-  const fetchSummary = useCallback(async () => {
+  const fetchSummary = useCallback(async (signal?: AbortSignal) => {
     if (!workspaceSlug) return
     setSummaryLoading(true)
     updateStage('fetch_summary', { status: 'loading', startedAt: Date.now() })
     try {
-      const wsData = await intelligenceApi.getWorkspaceSummary(workspaceSlug)
+      const wsData = await intelligenceApi.getWorkspaceSummary(workspaceSlug, signal)
+      if (signal?.aborted) return
       setSummary(wsData.aggregated)
       updateStage('fetch_summary', { status: 'done', completedAt: Date.now() })
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      if (signal?.aborted) return
       updateStage('fetch_summary', { status: 'done', completedAt: Date.now(), detail: 'skipped' })
     } finally {
-      setSummaryLoading(false)
+      if (!signal?.aborted) {
+        setSummaryLoading(false)
+      }
     }
   }, [workspaceSlug, setSummary, setSummaryLoading, updateStage])
 
   // Load on mount / slug change — progressive loading
   useEffect(() => {
+    const controller = new AbortController()
+    const { signal } = controller
+
     fetchedLayersRef.current.clear()
     setNodes([])
     setEdges([])
@@ -284,16 +298,19 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
     setStages(stages)
 
     if (primary.length > 0 && rest.length > 0) {
-      fetchGraphForLayers(primary, nodeLimit, 'fetch_primary').then(() => {
-        fetchGraphForLayers(rest, nodeLimit, 'fetch_secondary')
+      fetchGraphForLayers(primary, nodeLimit, 'fetch_primary', signal).then(() => {
+        if (!signal.aborted) {
+          fetchGraphForLayers(rest, nodeLimit, 'fetch_secondary', signal)
+        }
       })
     } else {
-      fetchGraphForLayers(layers, nodeLimit, 'fetch_data')
+      fetchGraphForLayers(layers, nodeLimit, 'fetch_data', signal)
     }
-    fetchSummary()
+    fetchSummary(signal)
 
-    // Cleanup on unmount or slug change: free atom memory + terminate worker
+    // Cleanup on unmount or slug change: abort in-flight requests + free memory
     return () => {
+      controller.abort()
       setNodes([])
       setEdges([])
       setSummary(null)

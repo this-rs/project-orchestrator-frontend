@@ -22,9 +22,10 @@ import type { PaginatedResponse } from '@/types'
 export const intelligenceApi = {
   // Summary (layer counts & stats)
   // GET /api/projects/:slug/intelligence/summary
-  getSummary: (projectSlug: string) =>
+  getSummary: (projectSlug: string, signal?: AbortSignal) =>
     api.get<IntelligenceSummary>(
       `/projects/${projectSlug}/intelligence/summary`,
+      signal,
     ),
 
   // Embeddings UMAP 2D/3D projection for VectorSpaceExplorer
@@ -95,6 +96,7 @@ export const intelligenceApi = {
       limit?: number
       community?: number
     } = {},
+    signal?: AbortSignal,
   ) => {
     const query = buildQuery({
       layers: params.layers?.join(','),
@@ -103,6 +105,7 @@ export const intelligenceApi = {
     })
     return api.get<ProjectGraphResponse>(
       `/projects/${projectSlug}/graph${query}`,
+      signal,
     )
   },
 
@@ -117,6 +120,7 @@ export const intelligenceApi = {
       limit?: number
       community?: number
     } = {},
+    signal?: AbortSignal,
   ) => {
     const query = buildQuery({
       layers: params.layers?.join(','),
@@ -125,13 +129,15 @@ export const intelligenceApi = {
     })
     return api.get<WorkspaceGraphResponse>(
       `/workspaces/${workspaceSlug}/graph${query}`,
+      signal,
     )
   },
 
   // Workspace intelligence summary (aggregated across all workspace projects)
   // GET /api/workspaces/:slug/intelligence/summary
-  getWorkspaceSummary: (workspaceSlug: string) =>
+  getWorkspaceSummary: (workspaceSlug: string, signal?: AbortSignal) =>
     api.get<WorkspaceIntelligenceSummary>(
       `/workspaces/${workspaceSlug}/intelligence/summary`,
+      signal,
     ),
 }
