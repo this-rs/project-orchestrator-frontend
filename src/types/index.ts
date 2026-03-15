@@ -1610,6 +1610,7 @@ export interface SignedTombstone {
 export interface SharingPreviewItem {
   note_id: string
   note_type: string
+  content_preview: string
   consent: SharingConsent
   shareability_score: number
   decision: string
@@ -1618,6 +1619,7 @@ export interface SharingPreviewItem {
 export interface SharingSuggestionItem {
   note_id: string
   note_type: string
+  content_preview: string
   shareability_score: number
   reason: string
 }

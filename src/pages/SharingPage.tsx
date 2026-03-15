@@ -769,8 +769,7 @@ function PreviewSection({ slug }: { slug: string }) {
           <table className="w-full text-xs">
             <thead>
               <tr className="text-left text-gray-500 border-b border-white/[0.06]">
-                <th className="pb-2 pr-3 font-medium">Note ID</th>
-                <th className="pb-2 pr-3 font-medium">Type</th>
+                <th className="pb-2 pr-3 font-medium">Note</th>
                 <th className="pb-2 pr-3 font-medium">Score</th>
                 <th className="pb-2 pr-3 font-medium">Consent</th>
                 <th className="pb-2 font-medium">Decision</th>
@@ -779,11 +778,18 @@ function PreviewSection({ slug }: { slug: string }) {
             <tbody className="divide-y divide-white/[0.04]">
               {items.map((item) => (
                 <tr key={item.note_id} className="text-gray-300">
-                  <td className="py-2 pr-3 font-mono text-gray-400 truncate max-w-[120px]" title={item.note_id}>
-                    {item.note_id.slice(0, 8)}...
+                  <td className="py-2 pr-3 max-w-[360px]">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-[10px] font-mono text-gray-500" title={item.note_id}>
+                        {item.note_id.slice(0, 8)}
+                      </span>
+                      <Badge variant="default">{item.note_type}</Badge>
+                    </div>
+                    {item.content_preview && (
+                      <p className="text-[11px] text-gray-400 truncate leading-relaxed">{item.content_preview}</p>
+                    )}
                   </td>
-                  <td className="py-2 pr-3">{item.note_type}</td>
-                  <td className="py-2 pr-3">{item.shareability_score.toFixed(2)}</td>
+                  <td className="py-2 pr-3 text-gray-400">{item.shareability_score.toFixed(2)}</td>
                   <td className="py-2 pr-3">
                     <Badge variant={consentColor(item.consent)}>{item.consent}</Badge>
                   </td>
@@ -866,13 +872,15 @@ function SuggestSection({ slug }: { slug: string }) {
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-xs font-mono text-gray-400" title={s.note_id}>
-                    {s.note_id.slice(0, 8)}...
+                  <span className="text-[10px] font-mono text-gray-500" title={s.note_id}>
+                    {s.note_id.slice(0, 8)}
                   </span>
                   <Badge variant="default">{s.note_type}</Badge>
                   <Badge variant="info">score: {s.shareability_score.toFixed(2)}</Badge>
                 </div>
-                <p className="text-[11px] text-gray-500 truncate">{s.reason}</p>
+                {s.content_preview && (
+                  <p className="text-[11px] text-gray-400 truncate leading-relaxed">{s.content_preview}</p>
+                )}
               </div>
               <div className="flex gap-1.5 shrink-0">
                 <Button
