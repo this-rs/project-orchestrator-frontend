@@ -3,8 +3,6 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 import { readFileSync } from 'fs'
-import type { HttpProxy } from 'vite'
-
 const pkg = JSON.parse(
   readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'),
 )
@@ -12,14 +10,16 @@ const pkg = JSON.parse(
 /**
  * Shared proxy error handler for all proxy rules (/api, /auth, /ws).
  *
- * CRITICAL: When the browser aborts a fetch (AbortController) or navigates away,
- * the client-side connection closes. But http-proxy may still hold the upstream
- * connection (Vite → backend) open. Without proper cleanup:
- * - Dangling connections accumulate
- * - Browser's 6-connection-per-origin limit (HTTP/1.1) is exhausted
- * - ALL subsequent requests queue/hang — even to different proxy rules
+ * Ensures proxy errors (ECONNREFUSED, ECONNRESET, etc.) are handled gracefully:
+ * - HTTP responses get a 502 and are properly ended
+ * - WS upgrade sockets are destroyed
+ * - Silences expected errors (ECONNRESET, ECONNREFUSED) to reduce log noise
  *
- * This handler ensures both HTTP responses and WS sockets are properly closed.
+ * NOTE: Do NOT destroy upstream requests on `req.close` — for GET requests,
+ * `close` fires immediately after headers are read (before the response arrives),
+ * which would kill every single request. AbortController in React hooks handles
+ * the browser-side abort; http-proxy handles upstream cleanup via its own
+ * socket error detection.
  */
 function handleProxyError(proxy: HttpProxy.Server, label: string) {
   proxy.on('error', (err, _req, res) => {
@@ -38,18 +38,6 @@ function handleProxyError(proxy: HttpProxy.Server, label: string) {
     if (res && 'destroy' in res && !('writeHead' in res)) {
       ;(res as import('net').Socket).destroy()
     }
-  })
-
-  // When the client disconnects (abort / navigate away), abort the upstream
-  // request to the backend so it doesn't linger and block connection slots.
-  proxy.on('proxyReq', (proxyReq, req) => {
-    req.on('close', () => {
-      // Client closed the connection (e.g. AbortController.abort())
-      // Abort the upstream request to free the connection immediately
-      if (!proxyReq.destroyed) {
-        proxyReq.destroy()
-      }
-    })
   })
 }
 
