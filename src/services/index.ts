@@ -23,6 +23,8 @@ export type { RunSnapshot, ActiveAgentSnapshot, WaveSnapshot, AgentStatus } from
 export { protocolApi } from './protocolApi'
 export { rfcApi } from './rfcApi'
 export { sharingApi } from './sharing'
+export { neuralRoutingApi } from './neuralRouting'
+export type { NeuralRoutingStatus, NeuralRoutingConfig } from './neuralRouting'
 export { EventBusClient, getEventBus } from './eventBus'
 export {
   forceLogout,

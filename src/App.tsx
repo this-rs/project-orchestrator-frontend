@@ -39,6 +39,7 @@ import {
   ProtocolDetailPage,
   RfcDetailPage,
   AdminPage,
+  NeuralRoutingPage,
   SharingPage,
   RunnerDashboard,
 
@@ -181,6 +182,7 @@ function App() {
                         {/* Intelligence sub-views are now embedded inline in ProjectDetailPage */}
                         <Route path="projects/:projectSlug/intelligence" element={<ProjectDetailPage />} />
                         <Route path="sharing" element={<SharingPage />} />
+                        <Route path="neural-routing" element={<NeuralRoutingPage />} />
                         <Route path="admin" element={<AdminPage />} />
                         <Route path="*" element={<NotFoundPage embedded />} />
                       </Route>

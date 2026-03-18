@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Menu, Home, Flag, Box, ClipboardList, CheckCircle2, FileText, Scale, Code, Brain, Users, GitGraph, Workflow, ScrollText, ChevronLeft, ChevronRight, MessageCircle, Settings, Shield } from 'lucide-react'
+import { Menu, Home, Flag, Box, ClipboardList, CheckCircle2, FileText, Scale, Code, Brain, Users, GitGraph, Workflow, ScrollText, ChevronLeft, ChevronRight, MessageCircle, Settings, Shield, Gauge } from 'lucide-react'
 import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, activeWorkspaceAtom, workspaceRefreshAtom } from '@/atoms'
 import { ToastContainer, Branding } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
@@ -60,6 +60,7 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
       label: 'System',
       items: [
         { name: 'Sharing', href: workspacePath(wsSlug, '/sharing'), icon: Shield },
+        { name: 'Neural Routing', href: workspacePath(wsSlug, '/neural-routing'), icon: Gauge },
         { name: 'Admin', href: workspacePath(wsSlug, '/admin'), icon: Settings },
       ],
     },
