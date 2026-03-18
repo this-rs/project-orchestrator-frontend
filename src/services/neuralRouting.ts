@@ -2,6 +2,8 @@ import { api } from './api'
 
 // ── Types ────────────────────────────────────────────────────────────────
 
+export type RoutingMode = 'nn' | 'full'
+
 export interface NNMetricsSnapshot {
   total_queries: number
   hits: number
@@ -14,14 +16,14 @@ export interface NNMetricsSnapshot {
 
 export interface NeuralRoutingStatus {
   enabled: boolean
-  mode: string
+  mode: RoutingMode
   cpu_guard_paused: boolean
   metrics: NNMetricsSnapshot
 }
 
 export interface NeuralRoutingConfig {
   enabled: boolean
-  mode: string
+  mode: RoutingMode
   inference: {
     timeout_ms: number
     nn_fallback: boolean
@@ -69,9 +71,6 @@ export const neuralRoutingApi = {
 
   disable: () =>
     api.post<SuccessResponse>('/neural-routing/disable'),
-
-  setMode: (mode: string) =>
-    api.put<SuccessResponse>('/neural-routing/mode', { mode }),
 
   updateConfig: (config: UpdateConfigRequest) =>
     api.put<SuccessResponse>('/neural-routing/config', config),

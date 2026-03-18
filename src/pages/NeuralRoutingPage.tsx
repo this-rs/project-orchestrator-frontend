@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
-  ChevronRight,
   Power,
   PowerOff,
   Activity,
@@ -14,64 +13,16 @@ import {
   Database,
 } from 'lucide-react'
 import {
-  Card,
-  CardContent,
   Badge,
   Button,
   Select,
   Input,
   PageShell,
+  CollapsibleSection,
 } from '@/components/ui'
 import { useToast } from '@/hooks'
 import { neuralRoutingApi } from '@/services/neuralRouting'
 import type { NeuralRoutingStatus, NeuralRoutingConfig } from '@/services/neuralRouting'
-
-// ============================================================================
-// COLLAPSIBLE SECTION (same pattern as AdminPage)
-// ============================================================================
-
-interface SectionProps {
-  title: string
-  icon: React.ReactNode
-  description?: string
-  headerRight?: React.ReactNode
-  defaultOpen?: boolean
-  children: React.ReactNode
-}
-
-function Section({ title, icon, description, headerRight, defaultOpen = false, children }: SectionProps) {
-  const [open, setOpen] = useState(defaultOpen)
-
-  return (
-    <Card>
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-white/[0.02] transition-colors"
-      >
-        <ChevronRight
-          className={`w-4 h-4 text-gray-500 transition-transform duration-150 shrink-0 ${open ? 'rotate-90' : ''}`}
-        />
-        <span className="text-gray-400 shrink-0">{icon}</span>
-        <div className="flex-1 min-w-0">
-          <span className="text-sm font-semibold text-gray-200">{title}</span>
-          {description && (
-            <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{description}</p>
-          )}
-        </div>
-        {headerRight && (
-          <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-            {headerRight}
-          </div>
-        )}
-      </button>
-      {open && (
-        <CardContent className="pt-4 pb-5 px-5 border-t border-white/[0.06]">
-          {children}
-        </CardContent>
-      )}
-    </Card>
-  )
-}
 
 // ============================================================================
 // METRIC CARD
@@ -231,7 +182,7 @@ export function NeuralRoutingPage() {
     >
       <div className="space-y-4">
         {/* ── Status Overview ── */}
-        <Section
+        <CollapsibleSection
           title="Status"
           icon={<Activity className="w-4 h-4" />}
           description="Current neural routing state"
@@ -273,10 +224,10 @@ export function NeuralRoutingPage() {
               icon={<Zap className="w-4 h-4" />}
             />
           </div>
-        </Section>
+        </CollapsibleSection>
 
         {/* ── Routing Performance ── */}
-        <Section
+        <CollapsibleSection
           title="Performance"
           icon={<BarChart3 className="w-4 h-4" />}
           description="Routing metrics and throughput"
@@ -311,10 +262,10 @@ export function NeuralRoutingPage() {
               <p className="text-sm text-gray-500 italic">No queries recorded yet. Enable neural routing and make some queries to see metrics.</p>
             )}
           </div>
-        </Section>
+        </CollapsibleSection>
 
         {/* ── Configuration ── */}
-        <Section
+        <CollapsibleSection
           title="Configuration"
           icon={<Settings className="w-4 h-4" />}
           description="Neural routing parameters"
@@ -376,10 +327,10 @@ export function NeuralRoutingPage() {
               </Button>
             </div>
           </div>
-        </Section>
+        </CollapsibleSection>
 
         {/* ── System Info ── */}
-        <Section
+        <CollapsibleSection
           title="System"
           icon={<Cpu className="w-4 h-4" />}
           description="CPU guard and collection status"
@@ -412,7 +363,7 @@ export function NeuralRoutingPage() {
               </Badge>
             </div>
           </div>
-        </Section>
+        </CollapsibleSection>
       </div>
     </PageShell>
   )

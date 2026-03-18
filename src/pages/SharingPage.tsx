@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
-  ChevronRight,
   Shield,
   ShieldCheck,
   ShieldOff,
@@ -17,14 +16,13 @@ import {
   XCircle,
 } from 'lucide-react'
 import {
-  Card,
-  CardContent,
   Badge,
   Button,
   Select,
   Input,
   ConfirmDialog,
   PageShell,
+  CollapsibleSection,
 } from '@/components/ui'
 import { sharingApi, workspacesApi } from '@/services'
 import { useConfirmDialog, useToast, useWorkspaceSlug } from '@/hooks'
@@ -38,53 +36,6 @@ import type {
   SharingSuggestionItem,
   ConsentStats,
 } from '@/types'
-
-// ============================================================================
-// COLLAPSIBLE SECTION (same pattern as AdminPage)
-// ============================================================================
-
-interface SectionProps {
-  title: string
-  icon: React.ReactNode
-  description?: string
-  headerRight?: React.ReactNode
-  defaultOpen?: boolean
-  children: React.ReactNode
-}
-
-function Section({ title, icon, description, headerRight, defaultOpen = false, children }: SectionProps) {
-  const [open, setOpen] = useState(defaultOpen)
-
-  return (
-    <Card>
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-white/[0.02] transition-colors"
-      >
-        <ChevronRight
-          className={`w-4 h-4 text-gray-500 transition-transform duration-150 shrink-0 ${open ? 'rotate-90' : ''}`}
-        />
-        <span className="text-gray-400 shrink-0">{icon}</span>
-        <div className="flex-1 min-w-0">
-          <span className="text-sm font-semibold text-gray-200">{title}</span>
-          {description && (
-            <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{description}</p>
-          )}
-        </div>
-        {headerRight && (
-          <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-            {headerRight}
-          </div>
-        )}
-      </button>
-      {open && (
-        <CardContent className="pt-4 pb-5 px-5 border-t border-white/[0.06]">
-          {children}
-        </CardContent>
-      )}
-    </Card>
-  )
-}
 
 // ============================================================================
 // STAT BOX
@@ -274,7 +225,7 @@ function PolicySection({ slug }: { slug: string }) {
   ]
 
   return (
-    <Section
+    <CollapsibleSection
       title="Status & Policy"
       icon={<Shield className="w-4 h-4" />}
       description="Control how notes are shared from this project."
@@ -382,7 +333,7 @@ function PolicySection({ slug }: { slug: string }) {
       )}
 
       <ConfirmDialog {...confirmDialog.dialogProps} />
-    </Section>
+    </CollapsibleSection>
   )
 }
 
@@ -423,7 +374,7 @@ function AuditTrailSection({ slug }: { slug: string }) {
   }
 
   return (
-    <Section
+    <CollapsibleSection
       title="Audit Trail"
       icon={<ScrollText className="w-4 h-4" />}
       description="Paginated history of sharing events for this project."
@@ -505,7 +456,7 @@ function AuditTrailSection({ slug }: { slug: string }) {
           </div>
         </>
       )}
-    </Section>
+    </CollapsibleSection>
   )
 }
 
@@ -570,7 +521,7 @@ function TombstonesSection({ slug }: { slug: string }) {
   }
 
   return (
-    <Section
+    <CollapsibleSection
       title="Tombstones & Retraction"
       icon={<Skull className="w-4 h-4" />}
       description="Retracted artifacts and their cryptographic tombstones."
@@ -653,7 +604,7 @@ function TombstonesSection({ slug }: { slug: string }) {
       )}
 
       <ConfirmDialog {...confirmDialog.dialogProps} />
-    </Section>
+    </CollapsibleSection>
   )
 }
 
@@ -685,7 +636,7 @@ function LastReportSection({ slug }: { slug: string }) {
   }, [fetchReport])
 
   return (
-    <Section
+    <CollapsibleSection
       title="Privacy Report"
       icon={<BarChart3 className="w-4 h-4" />}
       description="Latest consent statistics for this project."
@@ -710,7 +661,7 @@ function LastReportSection({ slug }: { slug: string }) {
           )}
         </>
       )}
-    </Section>
+    </CollapsibleSection>
   )
 }
 
@@ -750,7 +701,7 @@ function PreviewSection({ slug }: { slug: string }) {
   }
 
   return (
-    <Section
+    <CollapsibleSection
       title="Sharing Preview"
       icon={<Eye className="w-4 h-4" />}
       description="Preview which notes would be shared under the current policy."
@@ -808,7 +759,7 @@ function PreviewSection({ slug }: { slug: string }) {
           </table>
         </div>
       )}
-    </Section>
+    </CollapsibleSection>
   )
 }
 
@@ -849,7 +800,7 @@ function SuggestSection({ slug }: { slug: string }) {
   }
 
   return (
-    <Section
+    <CollapsibleSection
       title="Sharing Suggestions"
       icon={<Lightbulb className="w-4 h-4" />}
       description="Notes that score above the threshold but don't have consent set yet."
@@ -904,6 +855,6 @@ function SuggestSection({ slug }: { slug: string }) {
           ))}
         </div>
       )}
-    </Section>
+    </CollapsibleSection>
   )
 }

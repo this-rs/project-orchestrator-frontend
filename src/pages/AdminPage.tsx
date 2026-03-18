@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
-  ChevronRight,
   FolderSync,
   Eye,
   EyeOff,
@@ -20,14 +19,13 @@ import {
   GitCommitHorizontal,
 } from 'lucide-react'
 import {
-  Card,
-  CardContent,
   Badge,
   Button,
   Select,
   Input,
   ConfirmDialog,
   PageShell,
+  CollapsibleSection,
 } from '@/components/ui'
 import { adminApi, workspacesApi } from '@/services'
 import { useConfirmDialog, useToast, useWorkspaceSlug } from '@/hooks'
@@ -37,52 +35,6 @@ import type {
   MaintenanceLevel,
 } from '@/types'
 
-// ============================================================================
-// COLLAPSIBLE SECTION
-// ============================================================================
-
-interface SectionProps {
-  title: string
-  icon: React.ReactNode
-  description?: string
-  headerRight?: React.ReactNode
-  defaultOpen?: boolean
-  children: React.ReactNode
-}
-
-function Section({ title, icon, description, headerRight, defaultOpen = false, children }: SectionProps) {
-  const [open, setOpen] = useState(defaultOpen)
-
-  return (
-    <Card>
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-white/[0.02] transition-colors"
-      >
-        <ChevronRight
-          className={`w-4 h-4 text-gray-500 transition-transform duration-150 shrink-0 ${open ? 'rotate-90' : ''}`}
-        />
-        <span className="text-gray-400 shrink-0">{icon}</span>
-        <div className="flex-1 min-w-0">
-          <span className="text-sm font-semibold text-gray-200">{title}</span>
-          {description && (
-            <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{description}</p>
-          )}
-        </div>
-        {headerRight && (
-          <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-            {headerRight}
-          </div>
-        )}
-      </button>
-      {open && (
-        <CardContent className="pt-4 pb-5 px-5 border-t border-white/[0.06]">
-          {children}
-        </CardContent>
-      )}
-    </Card>
-  )
-}
 
 // ============================================================================
 // ACTION ITEM — Row with icon, title, description and action button
@@ -471,7 +423,7 @@ function SyncWatchersSection() {
   }
 
   return (
-    <Section
+    <CollapsibleSection
       title="Sync & Watchers"
       icon={<FolderSync className="w-4 h-4" />}
       description="Parse your codebase with Tree-sitter and monitor file changes automatically."
@@ -556,7 +508,7 @@ function SyncWatchersSection() {
       </div>
 
       <ConfirmDialog {...confirmDialog.dialogProps} />
-    </Section>
+    </CollapsibleSection>
   )
 }
 
@@ -575,7 +527,7 @@ function SearchEngineSection() {
   }, [])
 
   return (
-    <Section
+    <CollapsibleSection
       title="Search Engine"
       icon={<Search className="w-4 h-4" />}
       description="Manage the Meilisearch full-text index used for semantic code search."
@@ -607,7 +559,7 @@ function SearchEngineSection() {
           }}
         />
       </ActionGroup>
-    </Section>
+    </CollapsibleSection>
   )
 }
 
@@ -617,7 +569,7 @@ function SearchEngineSection() {
 
 function EmbeddingsSection() {
   return (
-    <Section
+    <CollapsibleSection
       title="Embeddings & Backfills"
       icon={<Database className="w-4 h-4" />}
       description="Generate vector embeddings for semantic search and backfill missing data relationships."
@@ -662,7 +614,7 @@ function EmbeddingsSection() {
           />
         </ActionGroup>
       </div>
-    </Section>
+    </CollapsibleSection>
   )
 }
 
@@ -687,7 +639,7 @@ function KnowledgeFabricSection({ projectId, projectSlug, projectRequired }: Kno
   ]
 
   return (
-    <Section
+    <CollapsibleSection
       title="Knowledge Fabric"
       icon={<Brain className="w-4 h-4" />}
       description="Graph analytics, neural maintenance and knowledge pipeline. Requires a project to be selected."
@@ -859,7 +811,7 @@ function KnowledgeFabricSection({ projectId, projectSlug, projectRequired }: Kno
           }}
         />
       </ActionGroup>
-    </Section>
+    </CollapsibleSection>
   )
 }
 
@@ -869,7 +821,7 @@ function KnowledgeFabricSection({ projectId, projectSlug, projectRequired }: Kno
 
 function CleanupSection() {
   return (
-    <Section
+    <CollapsibleSection
       title="Cleanup"
       icon={<AlertTriangle className="w-4 h-4" />}
       description="Remove stale or incorrect data from the graph. These operations are safe but irreversible."
@@ -946,7 +898,7 @@ function CleanupSection() {
           }}
         />
       </ActionGroup>
-    </Section>
+    </CollapsibleSection>
   )
 }
 
