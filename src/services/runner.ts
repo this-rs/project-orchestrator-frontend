@@ -87,7 +87,25 @@ export interface PlanRun {
 // API
 // ---------------------------------------------------------------------------
 
+export interface StartRunResponse {
+  run_id: string
+  plan_id: string
+  total_waves: number
+  total_tasks: number
+}
+
 export const runnerApi = {
+  /**
+   * Start a plan run. The backend spawns agents and executes tasks in wave order.
+   * Returns 202 Accepted with run metadata.
+   * Throws 409 if the plan already has an active run.
+   */
+  startRun: async (planId: string, cwd: string, projectSlug?: string): Promise<StartRunResponse> => {
+    const body: Record<string, unknown> = { cwd, triggered_by: 'manual' }
+    if (projectSlug) body.project_slug = projectSlug
+    return api.post<StartRunResponse>(`/plans/${planId}/run`, body)
+  },
+
   /** List all plan runs across all plans (history), optionally scoped to a workspace. */
   listAllRuns: (params?: { limit?: number; offset?: number; status?: string; workspace_slug?: string }) =>
     api.get<PlanRun[]>(`/runs${buildQuery(params ?? {})}`),

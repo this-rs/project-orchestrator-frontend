@@ -6,6 +6,7 @@ import { ChevronsUpDown, ChevronRight, Flag, FolderKanban, GitCommitHorizontal }
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, InteractiveDecisionStatusBadge, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { plansApi, tasksApi, projectsApi, workspacesApi, decisionsApi } from '@/services'
+import { ApiError } from '@/services/api'
 import { UniversalKanban, createTaskKanbanConfig } from '@/components/kanban'
 import { useViewMode, useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
@@ -18,7 +19,7 @@ import { PlanGraphAdapter } from '@/adapters/PlanGraphAdapter'
 import { usePlanGraphData } from '@/hooks/usePlanGraphData'
 import { CommitList } from '@/components/commits'
 import { PlanRunHistory } from '@/components/runner/PlanRunHistory'
-import { useRunnerStatus } from '@/services/runner'
+import { runnerApi, useRunnerStatus } from '@/services/runner'
 import type { Plan, Decision, DecisionStatus, DependencyGraph, Task, Constraint, Step, Commit, PlanStatus, TaskStatus, StepStatus, PaginatedResponse, Project } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
 
@@ -717,8 +718,19 @@ export function PlanDetailPage() {
         onConfirm={async () => {
           setImplementLoading(true)
           try {
-            // Navigate to runner dashboard to start/monitor the run
+            const cwd = linkedProject?.root_path || '.'
+            await runnerApi.startRun(plan.id, cwd, linkedProject?.slug)
+            // Navigate to runner dashboard to monitor the run
             navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' })
+          } catch (err) {
+            // 409 = already running — navigate to dashboard anyway
+            if (err instanceof ApiError && err.status === 409) {
+              navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' })
+            } else {
+              const msg = err instanceof Error ? err.message : 'Failed to start run'
+              console.error('Failed to start plan run:', err)
+              alert(msg)
+            }
           } finally {
             setImplementLoading(false)
             setImplementDialogOpen(false)
