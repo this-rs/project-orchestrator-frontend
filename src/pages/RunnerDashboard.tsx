@@ -26,14 +26,15 @@ import { workspacePath } from '@/utils/paths'
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatElapsed(secs: number): string {
-  const m = Math.floor(secs / 60)
-  const s = Math.floor(secs % 60)
+function formatElapsed(secs: number | undefined | null): string {
+  const v = secs ?? 0
+  const m = Math.floor(v / 60)
+  const s = Math.floor(v % 60)
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-function formatCost(usd: number): string {
-  return `$${usd.toFixed(2)}`
+function formatCost(usd: number | undefined | null): string {
+  return `$${(usd ?? 0).toFixed(2)}`
 }
 
 const runStatusConfig: Record<string, { label: string; bg: string; text: string; dot: string }> = {
@@ -116,11 +117,11 @@ function WaveSection({ wave, isActive, defaultOpen = false, selectedSessionId, o
       {open && (
         <div className="px-4 pb-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {wave.agents.map((agent) => {
+            {wave.agents.map((agent, idx) => {
               const exec = executionsMap.get(agent.task_id)
               return (
                 <AgentCard
-                  key={agent.task_id}
+                  key={`${agent.task_id}-${idx}`}
                   agent={agent}
                   isSelected={selectedSessionId === agent.session_id}
                   onViewConversation={onViewConversation}
@@ -191,9 +192,10 @@ export function RunnerDashboard() {
     ? Math.round((snapshot.current_wave / snapshot.total_waves) * 100)
     : 0
 
-  // Split waves: active wave vs previous
-  const activeWave = snapshot.waves.find(w => w.wave_index === snapshot.current_wave)
-  const previousWaves = snapshot.waves.filter(w => w.wave_index < snapshot.current_wave)
+  // Split waves: active wave vs previous (guard against undefined waves)
+  const waves = snapshot.waves ?? []
+  const activeWave = waves.find(w => w.wave_index === snapshot.current_wave)
+  const previousWaves = waves.filter(w => w.wave_index < snapshot.current_wave)
 
   return (
     <div className="pt-6 flex flex-col h-full min-h-0">
@@ -315,7 +317,7 @@ export function RunnerDashboard() {
             )}
 
             {/* Empty state when no waves */}
-            {snapshot.waves.length === 0 && (
+            {waves.length === 0 && (
               <Card>
                 <CardContent className="py-12 text-center">
                   <p className="text-sm text-gray-500">No waves have started yet.</p>

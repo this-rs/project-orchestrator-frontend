@@ -77,9 +77,12 @@ function CommitRow({ commit }: { commit: Commit }) {
   return (
     <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] overflow-hidden">
       {/* Header row */}
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={handleExpand}
-        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-white/[0.03] transition-colors"
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleExpand() }}
+        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-white/[0.03] transition-colors cursor-pointer"
       >
         <ChevronRight
           className={`w-3.5 h-3.5 text-gray-600 transition-transform duration-150 shrink-0 ${expanded ? 'rotate-90' : ''}`}
@@ -110,7 +113,7 @@ function CommitRow({ commit }: { commit: Commit }) {
           {commit.author && `${commit.author} · `}
           {relativeTime(commit.timestamp)}
         </span>
-      </button>
+      </div>
 
       {/* Expanded: file list */}
       {expanded && (
