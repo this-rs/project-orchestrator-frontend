@@ -51,7 +51,7 @@ interface CallGraphNode {
   called_by: string[]
 }
 
-interface ImpactAnalysis {
+export interface ImpactAnalysis {
   direct_dependents: string[]
   transitive_dependents: string[]
   affected_tests: string[]

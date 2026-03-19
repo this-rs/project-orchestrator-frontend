@@ -13,6 +13,8 @@ import { workspacePath } from '@/utils/paths'
 import { taskRefreshAtom, projectRefreshAtom, planRefreshAtom } from '@/atoms'
 import { CreateStepForm, CreateDecisionForm, EditTaskForm, EditStepForm } from '@/components/forms'
 import { CommitList } from '@/components/commits'
+import { ImpactPreviewWidget } from '@/components/particles/widgets'
+import { useAttentionVizData } from '@/hooks/useVizData'
 import { UniversalKanban, createStepKanbanConfig } from '@/components/kanban'
 import type { Task, Step, Decision, Commit, TaskStatus, StepStatus, DecisionStatus, Project } from '@/types'
 
@@ -69,6 +71,9 @@ export function TaskDetailPage() {
 
   // Task graph data for UnifiedGraphSection
   const taskGraphData = useTaskGraphData(taskId, parentPlanId ?? undefined)
+  // Particle viz: impact analysis (first affected file as target)
+  const impactTarget = task?.affected_files?.[0]
+  const impactViz = useAttentionVizData(impactTarget)
 
   // Breadcrumb trail for graph section — full ascending path: milestone → plan → task
   const graphBreadcrumbs = useMemo<GraphBreadcrumb[]>(() => {
@@ -625,7 +630,7 @@ export function TaskDetailPage() {
 
       {/* Affected Files */}
       {affectedFiles.length > 0 && (
-        <section id="files" className="scroll-mt-20">
+        <section id="files" className="scroll-mt-20 space-y-4">
         <Card>
           <CardHeader>
             <CardTitle>Affected Files</CardTitle>
@@ -638,6 +643,9 @@ export function TaskDetailPage() {
             </div>
           </CardContent>
         </Card>
+        {impactViz.data && (
+          <ImpactPreviewWidget data={impactViz.data} height={250} className="rounded-lg" />
+        )}
         </section>
       )}
 

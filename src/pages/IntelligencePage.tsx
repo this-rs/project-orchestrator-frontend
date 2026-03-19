@@ -39,6 +39,8 @@ import { LoadingPage } from '@/components/ui/Spinner'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { intelligenceApi } from '@/services/intelligence'
 import { codeApi } from '@/services/code'
+import { CommunityVizWidget } from '@/components/particles/widgets'
+import { useEmbeddingsVizData } from '@/hooks/useVizData'
 import { adminApi } from '@/services/admin'
 import { projectsApi } from '@/services/projects'
 import { intelligenceSummaryAtom } from '@/atoms/intelligence'
@@ -413,6 +415,8 @@ export function IntelligencePage() {
   const [refreshing, setRefreshing] = useState(false)
 
   // Quick action states
+  // Particle viz: communities (embeddings)
+  const embeddingsViz = useEmbeddingsVizData(projectSlug)
   const [actions, setActions] = useState<Record<string, ActionResult>>({})
 
   const getAction = (key: string): ActionResult =>
@@ -659,6 +663,13 @@ export function IntelligencePage() {
             </div>
           )}
         </LayerCard>
+
+        {/* CODE COMMUNITIES VIZ */}
+        {embeddingsViz.data && (
+          <div className="md:col-span-2">
+            <CommunityVizWidget data={embeddingsViz.data} height={300} className="rounded-lg" />
+          </div>
+        )}
 
         {/* PROJECT MANAGEMENT LAYER */}
         <LayerCard title="Project Management" icon={LayoutList} color="#818cf8">

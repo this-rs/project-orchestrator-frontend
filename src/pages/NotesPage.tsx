@@ -1,9 +1,11 @@
 import { useState, useMemo, useCallback, useRef } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { motion, AnimatePresence } from 'motion/react'
-import { FileText, Code, FolderOpen, Package, Shapes, AlertTriangle, Search, Brain } from 'lucide-react'
+import { FileText, Code, FolderOpen, Package, Shapes, AlertTriangle, Search, Brain, Waves } from 'lucide-react'
 import { notesAtom, notesLoadingAtom, noteTypeFilterAtom, noteStatusFilterAtom, noteRefreshAtom } from '@/atoms'
 import { notesApi } from '@/services'
+import { PropagationVizWidget } from '@/components/particles/widgets'
+import { useDistributionVizData } from '@/hooks/useVizData'
 import { Card, CardContent, Button, EmptyState, Select, SearchInput, InteractiveNoteStatusBadge, ImportanceBadge, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, CollapsibleMarkdown, LoadMoreSentinel, SkeletonCard, Spinner } from '@/components/ui'
 import type { OverflowMenuAction } from '@/components/ui'
 import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug } from '@/hooks'
@@ -12,12 +14,13 @@ import { NeuronExplorer } from '@/components/knowledge'
 import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
 import type { Note, NoteType, NoteStatus, NoteScopeType, PaginatedResponse } from '@/types'
 
-type NotesTab = 'list' | 'semantic' | 'graph'
+type NotesTab = 'list' | 'semantic' | 'graph' | 'propagation'
 
 const TAB_CONFIG: { key: NotesTab; label: string; icon: typeof Search }[] = [
   { key: 'list', label: 'List', icon: FileText },
   { key: 'semantic', label: 'Semantic Search', icon: Search },
   { key: 'graph', label: 'Knowledge Graph', icon: Brain },
+  { key: 'propagation', label: 'Propagation', icon: Waves },
 ]
 
 const iconClass = 'w-3 h-3 flex-shrink-0'
@@ -244,11 +247,52 @@ export function NotesPage() {
         <NeuronExplorer workspaceSlug={wsSlug} />
       )}
 
+      {activeTab === 'propagation' && (
+        <PropagationTab workspaceSlug={wsSlug} />
+      )}
+
       <FormDialog {...formDialog.dialogProps} onSubmit={noteForm.submit}>
         {noteForm.fields}
       </FormDialog>
       <ConfirmDialog {...confirmDialog.dialogProps} />
     </PageShell>
+  )
+}
+
+// ── Propagation Tab ─────────────────────────────────────────────────────
+
+function PropagationTab({ workspaceSlug: _wsSlug }: { workspaceSlug: string }) {
+  const [entityId, setEntityId] = useState('')
+  const [activeEntityId, setActiveEntityId] = useState<string | undefined>(undefined)
+  const distributionViz = useDistributionVizData('note', activeEntityId)
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <input
+          type="text"
+          value={entityId}
+          onChange={(e) => setEntityId(e.target.value)}
+          placeholder="Enter a note ID to visualize propagation..."
+          className="flex-1 px-3 py-2 bg-white/[0.06] border border-white/[0.08] rounded-lg text-sm text-gray-200 placeholder:text-gray-500 font-mono focus:outline-none focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500/50"
+        />
+        <Button
+          size="sm"
+          onClick={() => setActiveEntityId(entityId.trim() || undefined)}
+          disabled={!entityId.trim()}
+        >
+          Visualize
+        </Button>
+      </div>
+      {distributionViz.data ? (
+        <PropagationVizWidget data={distributionViz.data} height={400} className="rounded-lg" />
+      ) : (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Waves className="w-8 h-8 text-slate-600 mb-3" />
+          <p className="text-sm text-slate-500">Enter a note ID above to visualize its knowledge propagation</p>
+        </div>
+      )}
+    </div>
   )
 }
 

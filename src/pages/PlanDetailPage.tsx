@@ -18,6 +18,8 @@ import { ImplementDialog } from '@/components/pipeline/ImplementDialog'
 import { PlanGraphAdapter } from '@/adapters/PlanGraphAdapter'
 import { usePlanGraphData } from '@/hooks/usePlanGraphData'
 import { CommitList } from '@/components/commits'
+import { WaveDispatchWidget } from '@/components/particles/widgets'
+import { useDelegationVizData } from '@/hooks/useVizData'
 import { PlanRunHistory } from '@/components/runner/PlanRunHistory'
 import { runnerApi, useRunnerStatus } from '@/services/runner'
 import type { Plan, Decision, DecisionStatus, DependencyGraph, Task, Constraint, Step, Commit, PlanStatus, TaskStatus, StepStatus, PaginatedResponse, Project } from '@/types'
@@ -64,6 +66,8 @@ export function PlanDetailPage() {
   const { isRunning: hasPipelineRunning } = useRunnerStatus(planId)
   // Plan graph data for UnifiedGraphSection (replaces inline graph section)
   const planGraphData = usePlanGraphData(planId, plan?.title, linkedProject?.slug)
+  // Particle viz: wave delegation
+  const delegationViz = useDelegationVizData(planId)
 
   // Fractal drill-down: navigate to task detail page
   const handleDrillDown = useCallback((target: { level: string; id: string }) => {
@@ -468,7 +472,7 @@ export function PlanDetailPage() {
 
       {/* Execution Waves / Dependency Graph — unified via GraphAdapter */}
       {planGraphData.data && (planGraphData.graph?.nodes || []).length > 0 && (
-        <section id="graph" className="scroll-mt-20">
+        <section id="graph" className="scroll-mt-20 space-y-4">
           <UnifiedGraphSection
             adapter={PlanGraphAdapter}
             data={planGraphData.data}
@@ -485,6 +489,9 @@ export function PlanDetailPage() {
             breadcrumbs={graphBreadcrumbs}
             projectSlug={linkedProject?.slug}
           />
+          {delegationViz.data && (
+            <WaveDispatchWidget data={delegationViz.data} height={250} className="rounded-lg" />
+          )}
         </section>
       )}
 

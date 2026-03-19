@@ -18,6 +18,8 @@ import { RunStatusBadge } from '@/components/protocols/RunStatusBadge'
 import { GanttTimeline } from '@/components/protocols/GanttTimeline'
 import type { GanttRun } from '@/components/protocols/GanttTimeline'
 import { Spinner, ErrorState, EmptyState, Button } from '@/components/ui'
+import { ProtocolRunWidget } from '@/components/particles/widgets'
+import { useFeedbackVizData } from '@/hooks/useVizData'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import type { Protocol, ProtocolRun, ProtocolStatus } from '@/types/protocol'
@@ -259,6 +261,8 @@ interface RunsTabProps {
 }
 
 function RunsTab({ runs, loading, error, selectedRunId, onSelectRun, onRefresh }: RunsTabProps) {
+  const feedbackViz = useFeedbackVizData(selectedRunId ?? undefined)
+
   if (error) {
     return <ErrorState title="Failed to load runs" description={error} onRetry={onRefresh} />
   }
@@ -324,17 +328,22 @@ function RunsTab({ runs, loading, error, selectedRunId, onSelectRun, onRefresh }
 
       {/* Side panel: Run tree */}
       {selectedRunId && (
-        <div className="w-1/2 border border-white/[0.06] rounded-xl bg-white/[0.02] p-3 relative">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-gray-200">Run Tree</h3>
-            <button
-              onClick={() => onSelectRun(null)}
-              className="p-1 rounded hover:bg-white/[0.06] text-gray-400 hover:text-gray-200 transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
+        <div className="w-1/2 space-y-4">
+          <div className="border border-white/[0.06] rounded-xl bg-white/[0.02] p-3 relative">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-gray-200">Run Tree</h3>
+              <button
+                onClick={() => onSelectRun(null)}
+                className="p-1 rounded hover:bg-white/[0.06] text-gray-400 hover:text-gray-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <RunTreeView rootRunId={selectedRunId} />
           </div>
-          <RunTreeView rootRunId={selectedRunId} />
+          {feedbackViz.data && (
+            <ProtocolRunWidget data={feedbackViz.data} height={200} className="rounded-lg" />
+          )}
         </div>
       )}
     </div>

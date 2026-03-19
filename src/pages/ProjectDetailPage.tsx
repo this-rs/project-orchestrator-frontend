@@ -13,6 +13,8 @@ import {
   IntelAttention,
 } from '@/components/intelligence/IntelligenceDashboard'
 import { projectsApi, featureGraphsApi } from '@/services'
+import { ProjectHealthWidget } from '@/components/particles/widgets'
+import { useMoatVizData } from '@/hooks/useVizData'
 import { useConfirmDialog, useFormDialog, useToast, useSectionObserver, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { chatSuggestedProjectIdAtom, projectRefreshAtom, planRefreshAtom, milestoneRefreshAtom, taskRefreshAtom } from '@/atoms'
@@ -72,6 +74,8 @@ export function ProjectDetailPage() {
   const [activeSubView, setActiveSubView] = useState<SubView | null>('timeline')
   // Intelligence data (composable sections)
   const intelligence = useIntelligenceData(slug ?? '')
+  // Particle viz: project health (moat)
+  const moatViz = useMoatVizData(slug)
 
   const fetchData = useCallback(async () => {
     if (!slug) return
@@ -311,11 +315,14 @@ export function ProjectDetailPage() {
 
       {/* ── 1. Health Breakdown ─────────────────────────────────────────── */}
       {intelReady && (
-        <section id="health" className="scroll-mt-20">
+        <section id="health" className="scroll-mt-20 space-y-4">
           <IntelHealthBreakdown
             data={intelligence}
             progress={roadmap ? { percentage: roadmap.progress.percentage } : undefined}
           />
+          {moatViz.data && (
+            <ProjectHealthWidget data={moatViz.data} height={200} className="rounded-lg" />
+          )}
         </section>
       )}
 
