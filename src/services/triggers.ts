@@ -66,26 +66,26 @@ export interface UpdateTriggerRequest {
 
 export const triggersApi = {
   list: (params?: { project_id?: string }) =>
-    api.get<EventTrigger[]>(`/api/triggers${buildQuery(params ?? {})}`),
+    api.get<EventTrigger[]>(`/api/event-triggers${buildQuery(params ?? {})}`),
 
   get: (id: string) =>
-    api.get<EventTrigger>(`/api/triggers/${id}`),
+    api.get<EventTrigger>(`/api/event-triggers/${id}`),
 
   create: (data: CreateTriggerRequest) =>
-    api.post<EventTrigger>('/api/triggers', data),
+    api.post<EventTrigger>('/api/event-triggers', data),
 
   update: (id: string, data: UpdateTriggerRequest) =>
-    api.put<{ ok: boolean }>(`/api/triggers/${id}`, data),
+    api.put<{ ok: boolean }>(`/api/event-triggers/${id}`, data),
 
   delete: (id: string) =>
-    api.delete<{ ok: boolean }>(`/api/triggers/${id}`),
+    api.delete<{ ok: boolean }>(`/api/event-triggers/${id}`),
 
   enable: (id: string) =>
-    api.post<{ ok: boolean; enabled: boolean }>(`/api/triggers/${id}/enable`),
+    api.post<{ ok: boolean; enabled: boolean }>(`/api/event-triggers/${id}/enable`),
 
   disable: (id: string) =>
-    api.post<{ ok: boolean; enabled: boolean }>(`/api/triggers/${id}/disable`),
+    api.post<{ ok: boolean; enabled: boolean }>(`/api/event-triggers/${id}/disable`),
 
   stats: () =>
-    api.get<TriggerStats>('/api/triggers/stats'),
+    api.get<TriggerStats>('/api/event-triggers/stats'),
 }
