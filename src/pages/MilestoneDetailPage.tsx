@@ -173,6 +173,13 @@ export function MilestoneDetailPage() {
     return crumbs
   }, [milestone])
 
+  // Build plan title map for run history display (must be before early returns — Rules of Hooks)
+  const planTitleMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const p of plans) { map[p.id] = p.title }
+    return map
+  }, [plans])
+
   const sectionIds = ['graph', 'progress', 'runs', 'plans', 'tasks', 'projects']
   const activeSection = useSectionObserver(sectionIds)
 
@@ -180,12 +187,6 @@ export function MilestoneDetailPage() {
   if (loading || !milestone) return <LoadingPage />
 
   const tags = milestone.tags || []
-  // Build plan title map for run history display
-  const planTitleMap = useMemo(() => {
-    const map: Record<string, string> = {}
-    for (const p of plans) { map[p.id] = p.title }
-    return map
-  }, [plans])
 
   const sections = [
     { id: 'graph', label: 'Graph' },
