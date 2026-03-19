@@ -66,8 +66,8 @@ function formatElapsed(secs: number): string {
   return `${m}m ${String(s).padStart(2, '0')}s`
 }
 
-function formatCost(usd: number): string {
-  return `$${usd.toFixed(2)}`
+function formatCost(usd: number | undefined | null): string {
+  return `$${(usd ?? 0).toFixed(2)}`
 }
 
 const runStatusConfig: Record<string, { label: string; variant: 'success' | 'error' | 'info' | 'default' | 'warning'; icon: typeof Play }> = {
@@ -145,14 +145,14 @@ function PipelineRunCard({
                   </div>
                   <div className="flex items-center gap-1">
                     <Clock className="w-3 h-3 text-gray-500" />
-                    <span className="font-mono tabular-nums">{formatElapsed(run.elapsed_secs)}</span>
+                    <span className="font-mono tabular-nums">{formatElapsed(run.elapsed_secs ?? 0)}</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <span className="font-mono tabular-nums text-gray-500">{formatCost(run.total_cost_usd)}</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <GitBranch className="w-3 h-3 text-gray-500" />
-                    <span>{run.waves.reduce((acc, w) => acc + w.agents.length, 0)} agents</span>
+                    <span>{(run.waves ?? []).reduce((acc, w) => acc + w.agents.length, 0)} agents</span>
                   </div>
                 </div>
 

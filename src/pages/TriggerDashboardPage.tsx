@@ -121,7 +121,14 @@ export function TriggerDashboardPage() {
         triggersApi.list(),
         triggersApi.stats(),
       ])
-      setTriggers(triggerList)
+      // Deduplicate by id (API may return duplicates from global + project scopes)
+      const seen = new Set<string>()
+      const dedupedTriggers = triggerList.filter(t => {
+        if (seen.has(t.id)) return false
+        seen.add(t.id)
+        return true
+      })
+      setTriggers(dedupedTriggers)
       setStats(triggerStats)
 
       // Fetch protocol names for display
