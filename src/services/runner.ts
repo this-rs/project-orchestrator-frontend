@@ -3,13 +3,16 @@
  * a React hook for real-time runner dashboard data.
  *
  * GET /api/plans/{id}/run/status -> RunSnapshot
+ *
+ * NOTE: The backend returns a global RunStatus (one runner at a time).
+ * Fields like plan_id, status, current_wave are optional (null when no run).
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, ApiError } from './api'
 
 // ---------------------------------------------------------------------------
-// Types
+// Types — aligned with backend RunStatus
 // ---------------------------------------------------------------------------
 
 export type AgentStatus = 'spawning' | 'running' | 'verifying' | 'completed' | 'failed'
@@ -17,28 +20,41 @@ export type AgentStatus = 'spawning' | 'running' | 'verifying' | 'completed' | '
 export interface ActiveAgentSnapshot {
   task_id: string
   task_title: string
-  session_id: string
+  session_id: string | null
   elapsed_secs: number
   cost_usd: number
   status: AgentStatus
 }
 
+/**
+ * Matches backend `RunStatus` from `runner/runner.rs`.
+ *
+ * The endpoint is global — a single runner processes one plan at a time.
+ * When no run is active, `running` is false and optional fields are null.
+ */
+export interface RunSnapshot {
+  running: boolean
+  run_id: string | null
+  plan_id: string | null
+  status: 'running' | 'completed' | 'failed' | 'cancelled' | null
+  current_wave: number | null
+  current_task_id: string | null
+  current_task_title: string | null
+  active_agents: ActiveAgentSnapshot[]
+  progress_pct: number
+  tasks_completed: number
+  tasks_total: number
+  elapsed_secs: number
+  cost_usd: number
+}
+
+/**
+ * Virtual wave snapshot built from active_agents for display purposes.
+ * The backend doesn't return wave structure — we group agents by wave.
+ */
 export interface WaveSnapshot {
   wave_index: number
   agents: ActiveAgentSnapshot[]
-}
-
-export interface RunSnapshot {
-  run_id: string
-  plan_id: string
-  plan_title: string
-  status: 'running' | 'completed' | 'failed' | 'cancelled'
-  current_wave: number
-  total_waves: number
-  waves: WaveSnapshot[]
-  total_cost_usd: number
-  elapsed_secs: number
-  started_at: string
 }
 
 // ---------------------------------------------------------------------------
@@ -113,7 +129,7 @@ export function useRunnerStatus(
         setError(null)
 
         // Stop polling when the run is no longer active
-        if (data.status !== 'running' && timerRef.current) {
+        if (!data.running && timerRef.current) {
           clearInterval(timerRef.current)
           timerRef.current = null
         }
@@ -147,7 +163,7 @@ export function useRunnerStatus(
     }
   }, [planId, intervalMs, fetchStatus])
 
-  const isRunning = snapshot?.status === 'running'
+  const isRunning = snapshot?.running === true
 
   return { snapshot, isRunning, error, refresh: fetchStatus }
 }

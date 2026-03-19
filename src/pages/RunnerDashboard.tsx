@@ -1,14 +1,15 @@
 /**
  * RunnerDashboard — real-time view of a plan's runner execution.
  *
- * Shows the current wave's agents as cards, with a side panel for
- * live WebSocket conversation viewing. Previous waves are collapsed
- * in an accordion below.
+ * Shows active agents as cards, with a side panel for
+ * live WebSocket conversation viewing.
+ *
+ * Aligned with backend RunStatus (flat structure, no waves array).
  */
 
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ChevronDown, ChevronRight, Activity, Clock, DollarSign, Layers, ArrowLeft, GitBranch } from 'lucide-react'
+import { ChevronDown, ChevronRight, Activity, Clock, DollarSign, Layers, ArrowLeft, GitBranch, CheckCircle2, Users } from 'lucide-react'
 import { Card, CardContent, LoadingPage, ErrorState, ProgressBar } from '@/components/ui'
 import { AgentCard } from '@/components/runner/AgentCard'
 import { AgentExecutionDetail } from '@/components/runner/AgentExecutionDetail'
@@ -17,7 +18,7 @@ import { ConversationPanel } from '@/components/runner/ConversationPanel'
 import { DiscussionTreeView } from '@/components/discussions/DiscussionTreeView'
 import { chatApi } from '@/services/chat'
 import { useRunnerStatus } from '@/services/runner'
-import type { ActiveAgentSnapshot, WaveSnapshot } from '@/services/runner'
+import type { ActiveAgentSnapshot } from '@/services/runner'
 import type { AgentExecution } from '@/types'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
@@ -48,7 +49,7 @@ const runStatusConfig: Record<string, { label: string; bg: string; text: string;
 // Agent executions lookup by task_id
 // ---------------------------------------------------------------------------
 
-function useAgentExecutionsMap(runId: string | undefined) {
+function useAgentExecutionsMap(runId: string | null | undefined) {
   const [execMap, setExecMap] = useState<Map<string, AgentExecution>>(new Map())
 
   const fetchExecutions = useCallback(async () => {
@@ -69,11 +70,12 @@ function useAgentExecutionsMap(runId: string | undefined) {
 }
 
 // ---------------------------------------------------------------------------
-// WaveSection (collapsible for previous waves)
+// AgentsSection (collapsible section showing a group of agents)
 // ---------------------------------------------------------------------------
 
-interface WaveSectionProps {
-  wave: WaveSnapshot
+interface AgentsSectionProps {
+  title: string
+  agents: ActiveAgentSnapshot[]
   isActive: boolean
   defaultOpen?: boolean
   selectedSessionId: string | null
@@ -81,12 +83,14 @@ interface WaveSectionProps {
   executionsMap: Map<string, AgentExecution>
 }
 
-function WaveSection({ wave, isActive, defaultOpen = false, selectedSessionId, onViewConversation, executionsMap }: WaveSectionProps) {
+function AgentsSection({ title, agents, isActive, defaultOpen = false, selectedSessionId, onViewConversation, executionsMap }: AgentsSectionProps) {
   const [open, setOpen] = useState(defaultOpen || isActive)
 
-  const completedCount = wave.agents.filter(a => a.status === 'completed').length
-  const failedCount = wave.agents.filter(a => a.status === 'failed').length
-  const totalCount = wave.agents.length
+  const completedCount = agents.filter(a => a.status === 'completed').length
+  const failedCount = agents.filter(a => a.status === 'failed').length
+  const totalCount = agents.length
+
+  if (totalCount === 0) return null
 
   return (
     <div className={`rounded-lg border ${isActive ? 'border-indigo-500/30 bg-indigo-500/[0.02]' : 'border-border-subtle bg-white/[0.02]'}`}>
@@ -97,7 +101,7 @@ function WaveSection({ wave, isActive, defaultOpen = false, selectedSessionId, o
         <div className="flex items-center gap-3">
           {open ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
           <span className="text-sm font-medium text-gray-200">
-            Wave {wave.wave_index + 1}
+            {title}
           </span>
           {isActive && (
             <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400 text-[10px] font-medium">
@@ -117,7 +121,7 @@ function WaveSection({ wave, isActive, defaultOpen = false, selectedSessionId, o
       {open && (
         <div className="px-4 pb-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {wave.agents.map((agent, idx) => {
+            {agents.map((agent, idx) => {
               const exec = executionsMap.get(agent.task_id)
               return (
                 <AgentCard
@@ -145,7 +149,7 @@ function WaveSection({ wave, isActive, defaultOpen = false, selectedSessionId, o
 // RunnerDashboard
 // ---------------------------------------------------------------------------
 
-type DashboardTab = 'waves' | 'discussions'
+type DashboardTab = 'agents' | 'discussions'
 
 export function RunnerDashboard() {
   const { planId } = useParams<{ planId: string }>()
@@ -156,7 +160,7 @@ export function RunnerDashboard() {
   const executionsMap = useAgentExecutionsMap(snapshot?.run_id)
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<DashboardTab>('waves')
+  const [activeTab, setActiveTab] = useState<DashboardTab>('agents')
 
   // Conversation panel state
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
@@ -164,11 +168,8 @@ export function RunnerDashboard() {
   // Find the task title for the selected session
   const selectedAgent: ActiveAgentSnapshot | null = useMemo(() => {
     if (!snapshot || !selectedSessionId) return null
-    for (const wave of snapshot.waves) {
-      const agent = wave.agents.find(a => a.session_id === selectedSessionId)
-      if (agent) return agent
-    }
-    return null
+    const agents = snapshot.active_agents ?? []
+    return agents.find(a => a.session_id === selectedSessionId) ?? null
   }, [snapshot, selectedSessionId])
 
   const handleViewConversation = (sessionId: string) => {
@@ -187,15 +188,17 @@ export function RunnerDashboard() {
     return <LoadingPage />
   }
 
-  const statusCfg = runStatusConfig[snapshot.status] ?? runStatusConfig.running
-  const progressPercent = snapshot.total_waves > 0
-    ? Math.round((snapshot.current_wave / snapshot.total_waves) * 100)
-    : 0
+  const statusStr = snapshot.status ?? (snapshot.running ? 'running' : 'completed')
+  const statusCfg = runStatusConfig[statusStr] ?? runStatusConfig.running
+  const progressPercent = Math.round(snapshot.progress_pct ?? 0)
 
-  // Split waves: active wave vs previous (guard against undefined waves)
-  const waves = snapshot.waves ?? []
-  const activeWave = waves.find(w => w.wave_index === snapshot.current_wave)
-  const previousWaves = waves.filter(w => w.wave_index < snapshot.current_wave)
+  // Split agents into active (running/spawning/verifying) vs completed/failed
+  const agents = snapshot.active_agents ?? []
+  const activeAgents = agents.filter(a => a.status === 'running' || a.status === 'spawning' || a.status === 'verifying')
+  const doneAgents = agents.filter(a => a.status === 'completed' || a.status === 'failed')
+
+  // Derive a plan title from current_task_title or planId
+  const planTitle = snapshot.current_task_title ?? `Plan ${planId?.slice(0, 8)}...`
 
   return (
     <div className="pt-6 flex flex-col h-full min-h-0">
@@ -213,8 +216,8 @@ export function RunnerDashboard() {
         {/* Title row */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-semibold text-gray-100">{snapshot.plan_title}</h1>
-            <p className="text-sm text-gray-500 mt-1">Runner Dashboard</p>
+            <h1 className="text-xl font-semibold text-gray-100">Runner Dashboard</h1>
+            <p className="text-sm text-gray-500 mt-1">{planTitle}</p>
           </div>
           <div className="flex items-center gap-3">
             <CancelButton planId={planId!} isRunning={isRunning} />
@@ -229,9 +232,19 @@ export function RunnerDashboard() {
 
         {/* Stats row */}
         <div className="flex flex-wrap items-center gap-6 text-sm">
+          {snapshot.current_wave != null && (
+            <div className="flex items-center gap-1.5 text-gray-400">
+              <Layers className="w-4 h-4 text-gray-500" />
+              <span>Wave {(snapshot.current_wave ?? 0) + 1}</span>
+            </div>
+          )}
           <div className="flex items-center gap-1.5 text-gray-400">
-            <Layers className="w-4 h-4 text-gray-500" />
-            <span>Wave {snapshot.current_wave + 1} / {snapshot.total_waves}</span>
+            <CheckCircle2 className="w-4 h-4 text-gray-500" />
+            <span>{snapshot.tasks_completed ?? 0} / {snapshot.tasks_total ?? 0} tasks</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-gray-400">
+            <Users className="w-4 h-4 text-gray-500" />
+            <span>{agents.length} agent{agents.length !== 1 ? 's' : ''}</span>
           </div>
           <div className="flex items-center gap-1.5 text-gray-400">
             <Clock className="w-4 h-4 text-gray-500" />
@@ -239,7 +252,7 @@ export function RunnerDashboard() {
           </div>
           <div className="flex items-center gap-1.5 text-gray-400">
             <DollarSign className="w-4 h-4 text-gray-500" />
-            <span className="font-mono tabular-nums">{formatCost(snapshot.total_cost_usd)}</span>
+            <span className="font-mono tabular-nums">{formatCost(snapshot.cost_usd)}</span>
           </div>
         </div>
 
@@ -249,16 +262,16 @@ export function RunnerDashboard() {
         {/* Tab bar */}
         <div className="flex items-center gap-1 border-b border-border-subtle">
           <button
-            onClick={() => setActiveTab('waves')}
+            onClick={() => setActiveTab('agents')}
             className={`px-4 py-2 text-sm font-medium transition-colors cursor-pointer border-b-2 -mb-px ${
-              activeTab === 'waves'
+              activeTab === 'agents'
                 ? 'border-indigo-500 text-gray-200'
                 : 'border-transparent text-gray-500 hover:text-gray-300'
             }`}
           >
             <span className="flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5" />
-              Waves
+              <Users className="w-3.5 h-3.5" />
+              Agents
             </span>
           </button>
           <button
@@ -278,49 +291,41 @@ export function RunnerDashboard() {
       </div>
 
       {/* Main content */}
-      {activeTab === 'waves' ? (
+      {activeTab === 'agents' ? (
         <div className="flex flex-1 min-h-0 gap-0">
-          {/* Left: waves list */}
-          <div className={`flex-1 min-w-0 overflow-y-auto space-y-3 pb-6 pr-0 ${selectedSessionId ? 'pr-0' : ''}`}>
-            {/* Active wave */}
-            {activeWave && (
-              <WaveSection
-                wave={activeWave}
-                isActive={true}
-                defaultOpen={true}
+          {/* Left: agents list */}
+          <div className={`flex-1 min-w-0 overflow-y-auto space-y-3 pb-6 pr-0`}>
+            {/* Active agents */}
+            <AgentsSection
+              title={`Active Agents${snapshot.current_wave != null ? ` (Wave ${(snapshot.current_wave ?? 0) + 1})` : ''}`}
+              agents={activeAgents}
+              isActive={true}
+              defaultOpen={true}
+              selectedSessionId={selectedSessionId}
+              onViewConversation={handleViewConversation}
+              executionsMap={executionsMap}
+            />
+
+            {/* Completed/failed agents */}
+            {doneAgents.length > 0 && (
+              <AgentsSection
+                title="Completed Agents"
+                agents={doneAgents}
+                isActive={false}
+                defaultOpen={false}
                 selectedSessionId={selectedSessionId}
                 onViewConversation={handleViewConversation}
                 executionsMap={executionsMap}
               />
             )}
 
-            {/* Previous waves (collapsed) */}
-            {previousWaves.length > 0 && (
-              <div className="space-y-2">
-                <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wider px-1">
-                  Previous waves
-                </h2>
-                {previousWaves
-                  .sort((a, b) => b.wave_index - a.wave_index)
-                  .map((wave) => (
-                    <WaveSection
-                      key={wave.wave_index}
-                      wave={wave}
-                      isActive={false}
-                      defaultOpen={false}
-                      selectedSessionId={selectedSessionId}
-                      onViewConversation={handleViewConversation}
-                      executionsMap={executionsMap}
-                    />
-                  ))}
-              </div>
-            )}
-
-            {/* Empty state when no waves */}
-            {waves.length === 0 && (
+            {/* Empty state when no agents */}
+            {agents.length === 0 && (
               <Card>
                 <CardContent className="py-12 text-center">
-                  <p className="text-sm text-gray-500">No waves have started yet.</p>
+                  <p className="text-sm text-gray-500">
+                    {snapshot.running ? 'Waiting for agents to start...' : 'No agents have been spawned.'}
+                  </p>
                 </CardContent>
               </Card>
             )}

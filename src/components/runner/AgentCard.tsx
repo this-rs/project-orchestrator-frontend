@@ -84,7 +84,7 @@ export function AgentCard({ agent, isSelected, onViewConversation, detailContent
       {/* Actions row */}
       <div className="flex items-center gap-2">
         <button
-          onClick={() => onViewConversation(agent.session_id)}
+          onClick={() => agent.session_id && onViewConversation(agent.session_id)}
           className={`
             flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium
             transition-colors cursor-pointer

@@ -102,11 +102,13 @@ function PipelineRunCard({
   onViewDetails: (planId: string) => void
 }) {
   const { plan, run } = planRun
-  const statusCfg = run ? runStatusConfig[run.status] ?? runStatusConfig.running : null
+
+  // Only consider the run relevant if it matches this plan
+  const isRunForThisPlan = run?.running && run.plan_id === plan.id
+  const statusStr = isRunForThisPlan ? (run.status ?? 'running') : null
+  const statusCfg = statusStr ? runStatusConfig[statusStr] ?? runStatusConfig.running : null
   const StatusIcon = statusCfg?.icon ?? Play
-  const progressPercent = run && run.total_waves > 0
-    ? Math.round(((run.status === 'completed' ? run.total_waves : run.current_wave) / run.total_waves) * 100)
-    : 0
+  const progressPercent = isRunForThisPlan ? Math.round(run.progress_pct ?? 0) : 0
 
   // Plan status color bar
   const planStatusColors: Record<PlanStatus, string> = {
@@ -135,24 +137,30 @@ function PipelineRunCard({
               )}
             </div>
 
-            {run ? (
+            {isRunForThisPlan && run ? (
               <>
                 {/* Run metrics */}
                 <div className="flex flex-wrap items-center gap-4 text-xs text-gray-400 mt-2">
+                  {run.current_wave != null && (
+                    <div className="flex items-center gap-1">
+                      <Layers className="w-3 h-3 text-gray-500" />
+                      <span>Wave {(run.current_wave ?? 0) + 1}</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-1">
-                    <Layers className="w-3 h-3 text-gray-500" />
-                    <span>Wave {run.status === 'completed' ? run.total_waves : run.current_wave + 1} / {run.total_waves}</span>
+                    <CheckCircle2 className="w-3 h-3 text-gray-500" />
+                    <span>{run.tasks_completed ?? 0} / {run.tasks_total ?? 0} tasks</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <Clock className="w-3 h-3 text-gray-500" />
                     <span className="font-mono tabular-nums">{formatElapsed(run.elapsed_secs ?? 0)}</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <span className="font-mono tabular-nums text-gray-500">{formatCost(run.total_cost_usd)}</span>
+                    <span className="font-mono tabular-nums text-gray-500">{formatCost(run.cost_usd)}</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <GitBranch className="w-3 h-3 text-gray-500" />
-                    <span>{(run.waves ?? []).reduce((acc, w) => acc + w.agents.length, 0)} agents</span>
+                    <span>{(run.active_agents ?? []).length} agent{(run.active_agents ?? []).length !== 1 ? 's' : ''}</span>
                   </div>
                 </div>
 
@@ -169,7 +177,7 @@ function PipelineRunCard({
           </div>
 
           {/* Right: action */}
-          {run && (
+          {isRunForThisPlan && (
             <button
               onClick={() => onViewDetails(plan.id)}
               className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-indigo-400 hover:bg-indigo-500/10 transition-colors cursor-pointer flex-shrink-0"
@@ -269,7 +277,7 @@ export function PipelineDashboardPage() {
 
   // Auto-refresh active runs
   useEffect(() => {
-    const hasActive = planRuns.some(pr => pr.run?.status === 'running')
+    const hasActive = planRuns.some(pr => pr.run?.running && pr.run.plan_id === pr.plan.id)
     if (!hasActive) return
 
     const timer = setInterval(() => {
@@ -286,15 +294,19 @@ export function PipelineDashboardPage() {
     navigate(workspacePath(wsSlug, `/plans/${planId}/runner`))
   }
 
+  // ── Helper: is the run relevant for this plan? ─────────────────────
+  const isActiveRun = (pr: PlanWithRun) => pr.run?.running && pr.run.plan_id === pr.plan.id
+  const runStatus = (pr: PlanWithRun) => isActiveRun(pr) ? (pr.run?.status ?? 'running') : null
+
   // ── Filter ───────────────────────────────────────────────────────────
   const filteredPlanRuns = useMemo(() => {
     switch (viewFilter) {
       case 'active':
-        return planRuns.filter(pr => pr.run?.status === 'running')
+        return planRuns.filter(pr => runStatus(pr) === 'running')
       case 'completed':
-        return planRuns.filter(pr => pr.run?.status === 'completed')
+        return planRuns.filter(pr => runStatus(pr) === 'completed')
       case 'failed':
-        return planRuns.filter(pr => pr.run?.status === 'failed' || pr.run?.status === 'cancelled')
+        return planRuns.filter(pr => runStatus(pr) === 'failed' || runStatus(pr) === 'cancelled')
       default:
         return planRuns
     }
@@ -302,13 +314,13 @@ export function PipelineDashboardPage() {
 
   // ── Stats ────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const withRuns = planRuns.filter(pr => pr.run !== null)
+    const withRuns = planRuns.filter(pr => isActiveRun(pr))
     return {
       totalPlans: planRuns.length,
-      activeRuns: withRuns.filter(pr => pr.run?.status === 'running').length,
-      completedRuns: withRuns.filter(pr => pr.run?.status === 'completed').length,
-      failedRuns: withRuns.filter(pr => pr.run?.status === 'failed' || pr.run?.status === 'cancelled').length,
-      totalCost: withRuns.reduce((acc, pr) => acc + (pr.run?.total_cost_usd ?? 0), 0),
+      activeRuns: withRuns.filter(pr => runStatus(pr) === 'running').length,
+      completedRuns: withRuns.filter(pr => runStatus(pr) === 'completed').length,
+      failedRuns: withRuns.filter(pr => runStatus(pr) === 'failed' || runStatus(pr) === 'cancelled').length,
+      totalCost: withRuns.reduce((acc, pr) => acc + (pr.run?.cost_usd ?? 0), 0),
     }
   }, [planRuns])
 
@@ -424,13 +436,9 @@ export function PipelineDashboardPage() {
           {filteredPlanRuns
             .sort((a, b) => {
               // Active runs first
-              const aActive = a.run?.status === 'running' ? 0 : 1
-              const bActive = b.run?.status === 'running' ? 0 : 1
+              const aActive = isActiveRun(a) ? 0 : 1
+              const bActive = isActiveRun(b) ? 0 : 1
               if (aActive !== bActive) return aActive - bActive
-              // Then plans with runs before plans without
-              const aHasRun = a.run ? 0 : 1
-              const bHasRun = b.run ? 0 : 1
-              if (aHasRun !== bHasRun) return aHasRun - bHasRun
               // Then by plan title
               return a.plan.title.localeCompare(b.plan.title)
             })
