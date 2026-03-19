@@ -18,7 +18,7 @@ import { ConversationPanel } from '@/components/runner/ConversationPanel'
 import { DiscussionTreeView } from '@/components/discussions/DiscussionTreeView'
 import { chatApi } from '@/services/chat'
 import { runnerApi, useRunnerStatus } from '@/services/runner'
-import type { ActiveAgentSnapshot, PlanRun } from '@/services/runner'
+import type { ActiveAgentSnapshot, PlanRun, RunSnapshot } from '@/services/runner'
 import type { AgentExecution } from '@/types'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
@@ -196,8 +196,43 @@ export function RunnerDashboard() {
   // Historical fallback — fetch the latest PlanRun when no active run
   const latestRun = useLatestPlanRun(planId)
 
+  // Build an effective snapshot that merges live data with historical data
+  // When no active run exists, the backend returns { running: false, run_id: null, ... }
+  // In that case, we build a synthetic snapshot from the latest PlanRun
+  const effectiveSnapshot: RunSnapshot | null = useMemo(() => {
+    if (!snapshot) return null
+
+    // If there's an active run with data, use it as-is
+    if (snapshot.running || snapshot.run_id) return snapshot
+
+    // No active run — build a synthetic snapshot from latest PlanRun
+    if (latestRun) {
+      const elapsed = latestRun.completed_at
+        ? (new Date(latestRun.completed_at).getTime() - new Date(latestRun.started_at).getTime()) / 1000
+        : 0
+      const totalDone = latestRun.completed_tasks.length + latestRun.failed_tasks.length
+      return {
+        running: false,
+        run_id: latestRun.run_id,
+        plan_id: latestRun.plan_id,
+        status: latestRun.status === 'budget_exceeded' ? 'failed' : latestRun.status,
+        current_wave: latestRun.current_wave,
+        current_task_id: latestRun.current_task_id,
+        current_task_title: latestRun.current_task_title,
+        active_agents: latestRun.active_agents ?? [],
+        progress_pct: latestRun.total_tasks > 0 ? (totalDone / latestRun.total_tasks) * 100 : 0,
+        tasks_completed: latestRun.completed_tasks.length,
+        tasks_total: latestRun.total_tasks,
+        elapsed_secs: elapsed,
+        cost_usd: latestRun.cost_usd ?? 0,
+      }
+    }
+
+    return snapshot
+  }, [snapshot, latestRun])
+
   // Determine the effective run_id (active run or latest historical)
-  const effectiveRunId = snapshot?.run_id ?? latestRun?.run_id ?? null
+  const effectiveRunId = effectiveSnapshot?.run_id ?? null
 
   // Fetch agent executions for the run (works for both active and completed)
   const executionsMap = useAgentExecutionsMap(effectiveRunId)
@@ -213,7 +248,7 @@ export function RunnerDashboard() {
 
   // Build agent list: prefer live snapshot agents, fall back to AgentExecution records
   const resolvedAgents: ActiveAgentSnapshot[] = useMemo(() => {
-    const liveAgents = snapshot?.active_agents ?? []
+    const liveAgents = effectiveSnapshot?.active_agents ?? []
     if (liveAgents.length > 0) return liveAgents
 
     // Fallback: convert AgentExecution records to ActiveAgentSnapshot shape
@@ -229,7 +264,7 @@ export function RunnerDashboard() {
     }
 
     return []
-  }, [snapshot, executionsMap])
+  }, [effectiveSnapshot, executionsMap])
 
   // Find the task title for the selected session
   const selectedAgent: ActiveAgentSnapshot | null = useMemo(() => {
@@ -246,16 +281,16 @@ export function RunnerDashboard() {
   }
 
   // Loading / error states
-  if (error && !snapshot) {
+  if (error && !snapshot && !latestRun) {
     return <ErrorState title="Runner not available" description={error} onRetry={refresh} />
   }
-  if (!snapshot) {
+  if (!effectiveSnapshot) {
     return <LoadingPage />
   }
 
-  const statusStr = snapshot.status ?? (snapshot.running ? 'running' : 'completed')
+  const statusStr = effectiveSnapshot.status ?? (effectiveSnapshot.running ? 'running' : 'completed')
   const statusCfg = runStatusConfig[statusStr] ?? runStatusConfig.running
-  const progressPercent = Math.round(snapshot.progress_pct ?? 0)
+  const progressPercent = Math.round(effectiveSnapshot.progress_pct ?? 0)
 
   // Split agents into active (running/spawning/verifying) vs completed/failed
   const agents = resolvedAgents
@@ -263,7 +298,7 @@ export function RunnerDashboard() {
   const doneAgents = agents.filter(a => a.status === 'completed' || a.status === 'failed')
 
   // Derive a plan title from current_task_title or planId
-  const planTitle = snapshot.current_task_title ?? `Plan ${planId?.slice(0, 8)}...`
+  const planTitle = effectiveSnapshot.current_task_title ?? `Plan ${planId?.slice(0, 8)}...`
 
   return (
     <div className="pt-6 flex flex-col h-full min-h-0">
@@ -297,15 +332,15 @@ export function RunnerDashboard() {
 
         {/* Stats row */}
         <div className="flex flex-wrap items-center gap-6 text-sm">
-          {snapshot.current_wave != null && (
+          {effectiveSnapshot.current_wave != null && (
             <div className="flex items-center gap-1.5 text-gray-400">
               <Layers className="w-4 h-4 text-gray-500" />
-              <span>Wave {(snapshot.current_wave ?? 0) + 1}</span>
+              <span>Wave {(effectiveSnapshot.current_wave ?? 0) + 1}</span>
             </div>
           )}
           <div className="flex items-center gap-1.5 text-gray-400">
             <CheckCircle2 className="w-4 h-4 text-gray-500" />
-            <span>{snapshot.tasks_completed ?? 0} / {snapshot.tasks_total ?? 0} tasks</span>
+            <span>{effectiveSnapshot.tasks_completed ?? 0} / {effectiveSnapshot.tasks_total ?? 0} tasks</span>
           </div>
           <div className="flex items-center gap-1.5 text-gray-400">
             <Users className="w-4 h-4 text-gray-500" />
@@ -313,11 +348,11 @@ export function RunnerDashboard() {
           </div>
           <div className="flex items-center gap-1.5 text-gray-400">
             <Clock className="w-4 h-4 text-gray-500" />
-            <span className="font-mono tabular-nums">{formatElapsed(snapshot.elapsed_secs)}</span>
+            <span className="font-mono tabular-nums">{formatElapsed(effectiveSnapshot.elapsed_secs)}</span>
           </div>
           <div className="flex items-center gap-1.5 text-gray-400">
             <DollarSign className="w-4 h-4 text-gray-500" />
-            <span className="font-mono tabular-nums">{formatCost(snapshot.cost_usd)}</span>
+            <span className="font-mono tabular-nums">{formatCost(effectiveSnapshot.cost_usd)}</span>
           </div>
         </div>
 
@@ -362,7 +397,7 @@ export function RunnerDashboard() {
           <div className={`flex-1 min-w-0 overflow-y-auto space-y-3 pb-6 pr-0`}>
             {/* Active agents */}
             <AgentsSection
-              title={`Active Agents${snapshot.current_wave != null ? ` (Wave ${(snapshot.current_wave ?? 0) + 1})` : ''}`}
+              title={`Active Agents${effectiveSnapshot.current_wave != null ? ` (Wave ${(effectiveSnapshot.current_wave ?? 0) + 1})` : ''}`}
               agents={activeAgents}
               isActive={true}
               defaultOpen={true}
@@ -389,7 +424,7 @@ export function RunnerDashboard() {
               <Card>
                 <CardContent className="py-12 text-center">
                   <p className="text-sm text-gray-500">
-                    {snapshot.running ? 'Waiting for agents to start...' : 'No agents have been spawned.'}
+                    {effectiveSnapshot.running ? 'Waiting for agents to start...' : 'No agents have been spawned.'}
                   </p>
                 </CardContent>
               </Card>

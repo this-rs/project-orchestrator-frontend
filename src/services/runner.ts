@@ -65,6 +65,8 @@ export interface WaveSnapshot {
 export interface PlanRun {
   run_id: string
   plan_id: string
+  /** Plan title enriched by the backend (available on list endpoints). */
+  plan_title?: string
   total_tasks: number
   current_wave: number
   current_task_id: string | null

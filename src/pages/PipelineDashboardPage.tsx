@@ -243,7 +243,6 @@ export function PipelineDashboardPage() {
 
   const [runs, setRuns] = useState<PlanRun[]>([])
   const [readyPlans, setReadyPlans] = useState<Plan[]>([])
-  const [planTitles, setPlanTitles] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -251,39 +250,19 @@ export function PipelineDashboardPage() {
   const [hasMore, setHasMore] = useState(true)
 
   const sentinelRef = useRef<HTMLDivElement | null>(null)
-  const planTitlesRef = useRef<Map<string, string>>(new Map())
 
-  // ── Fetch plan titles for new plan IDs ─────────────────────────────────
-  const fetchPlanTitles = useCallback(async (newRuns: PlanRun[]) => {
-    const existing = planTitlesRef.current
-    const newPlanIds = [...new Set(newRuns.map(r => r.plan_id))].filter(id => !existing.has(id))
-    if (newPlanIds.length === 0) {
-      // Even if no new IDs, ensure React state is in sync with ref
-      setPlanTitles(new Map(existing))
-      return
-    }
-
-    await Promise.all(
-      newPlanIds.map(async (pid) => {
-        try {
-          const plan = await plansApi.get(pid)
-          if (plan?.title) existing.set(pid, plan.title)
-        } catch {
-          // Plan may have been deleted
-        }
-      })
-    )
-    planTitlesRef.current = new Map(existing)
-    setPlanTitles(new Map(existing))
-  }, [])
+  // Track whether initial data has been loaded at least once
+  const hasLoadedOnce = useRef(false)
 
   // ── Initial fetch ──────────────────────────────────────────────────────
   const fetchInitial = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    setRuns([])
-    setHasMore(true)
-    // Do NOT reset planTitlesRef — keep cached titles across polls
+    // Only show loading skeleton on the FIRST load, not during polls
+    const isFirstLoad = !hasLoadedOnce.current
+    if (isFirstLoad) {
+      setLoading(true)
+      setError(null)
+    }
+    // Do NOT reset runs/planTitlesRef during polls — avoid flicker
 
     try {
       const status = filterToStatus(viewFilter)
@@ -305,13 +284,15 @@ export function PipelineDashboardPage() {
       }
       setReadyPlans(merged)
 
-      await fetchPlanTitles(batch)
+      hasLoadedOnce.current = true
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load pipeline data')
     } finally {
-      setLoading(false)
+      if (isFirstLoad) {
+        setLoading(false)
+      }
     }
-  }, [viewFilter, wsSlug, fetchPlanTitles])
+  }, [viewFilter, wsSlug])
 
   // ── Load more (infinite scroll) ────────────────────────────────────────
   const loadMore = useCallback(async () => {
@@ -337,7 +318,6 @@ export function PipelineDashboardPage() {
         const newRuns = batch.filter(r => !existingIds.has(r.run_id))
         if (newRuns.length > 0) {
           setRuns(prev => [...prev, ...newRuns])
-          await fetchPlanTitles(newRuns)
         }
       }
     } catch {
@@ -345,12 +325,13 @@ export function PipelineDashboardPage() {
     } finally {
       setLoadingMore(false)
     }
-  }, [loadingMore, hasMore, viewFilter, wsSlug, runs, fetchPlanTitles])
+  }, [loadingMore, hasMore, viewFilter, wsSlug, runs])
 
   // ── Effects ────────────────────────────────────────────────────────────
 
   // Initial fetch on mount and when filter changes
   useEffect(() => {
+    hasLoadedOnce.current = false
     fetchInitial()
   }, [fetchInitial])
 
@@ -505,7 +486,7 @@ export function PipelineDashboardPage() {
             <RunCard
               key={run.run_id}
               run={run}
-              planTitle={planTitles.get(run.plan_id) ?? `Plan ${run.plan_id.slice(0, 8)}...`}
+              planTitle={run.plan_title || `Plan ${run.plan_id.slice(0, 8)}...`}
               onViewDetails={handleViewDetails}
             />
           ))}
