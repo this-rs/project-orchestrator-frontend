@@ -134,7 +134,7 @@ function findNodeTitle(
 ): string | null {
   if (!node) return null
   if (node.session_id === sessionId) return node.title
-  for (const child of node.children) {
+  for (const child of node.children ?? []) {
     const found = findNodeTitle(child, sessionId)
     if (found) return found
   }

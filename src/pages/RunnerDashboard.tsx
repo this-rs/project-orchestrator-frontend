@@ -17,8 +17,8 @@ import { CancelButton } from '@/components/runner/CancelButton'
 import { ConversationPanel } from '@/components/runner/ConversationPanel'
 import { DiscussionTreeView } from '@/components/discussions/DiscussionTreeView'
 import { chatApi } from '@/services/chat'
-import { useRunnerStatus } from '@/services/runner'
-import type { ActiveAgentSnapshot } from '@/services/runner'
+import { runnerApi, useRunnerStatus } from '@/services/runner'
+import type { ActiveAgentSnapshot, PlanRun } from '@/services/runner'
 import type { AgentExecution } from '@/types'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
@@ -67,6 +67,43 @@ function useAgentExecutionsMap(runId: string | null | undefined) {
   useEffect(() => { fetchExecutions() }, [fetchExecutions])
 
   return execMap
+}
+
+// ---------------------------------------------------------------------------
+// Historical PlanRun fallback — for completed/failed runs
+// ---------------------------------------------------------------------------
+
+function useLatestPlanRun(planId: string | undefined) {
+  const [planRun, setPlanRun] = useState<PlanRun | null>(null)
+
+  useEffect(() => {
+    if (!planId) return
+    runnerApi.listPlanRuns(planId, 1).then((runs) => {
+      if (runs.length > 0) setPlanRun(runs[0])
+    }).catch(() => {})
+  }, [planId])
+
+  return planRun
+}
+
+// ---------------------------------------------------------------------------
+// Root session for a run — resolves run_id → root ChatSession ID
+// ---------------------------------------------------------------------------
+
+function useRunRootSession(runId: string | null | undefined) {
+  const [rootSessionId, setRootSessionId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!runId) { setRootSessionId(null); return }
+    chatApi.getRunSessions(runId).then((sessions) => {
+      if (sessions.length > 0) {
+        // The first session (sorted by created_at) is typically the root
+        setRootSessionId(sessions[0].id)
+      }
+    }).catch(() => {})
+  }, [runId])
+
+  return rootSessionId
 }
 
 // ---------------------------------------------------------------------------
@@ -156,8 +193,17 @@ export function RunnerDashboard() {
   const wsSlug = useWorkspaceSlug()
   const { snapshot, isRunning, error, refresh } = useRunnerStatus(planId)
 
-  // Fetch agent executions for the current run
-  const executionsMap = useAgentExecutionsMap(snapshot?.run_id)
+  // Historical fallback — fetch the latest PlanRun when no active run
+  const latestRun = useLatestPlanRun(planId)
+
+  // Determine the effective run_id (active run or latest historical)
+  const effectiveRunId = snapshot?.run_id ?? latestRun?.run_id ?? null
+
+  // Fetch agent executions for the run (works for both active and completed)
+  const executionsMap = useAgentExecutionsMap(effectiveRunId)
+
+  // Resolve root session for discussion tree (run_id → ChatSession ID)
+  const rootSessionId = useRunRootSession(effectiveRunId)
 
   // Tab state
   const [activeTab, setActiveTab] = useState<DashboardTab>('agents')
@@ -165,12 +211,31 @@ export function RunnerDashboard() {
   // Conversation panel state
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
 
+  // Build agent list: prefer live snapshot agents, fall back to AgentExecution records
+  const resolvedAgents: ActiveAgentSnapshot[] = useMemo(() => {
+    const liveAgents = snapshot?.active_agents ?? []
+    if (liveAgents.length > 0) return liveAgents
+
+    // Fallback: convert AgentExecution records to ActiveAgentSnapshot shape
+    if (executionsMap.size > 0) {
+      return Array.from(executionsMap.values()).map((exec) => ({
+        task_id: exec.task_id,
+        task_title: exec.task_id.slice(0, 8), // Will be enriched by AgentExecutionDetail
+        session_id: exec.session_id ?? null,
+        elapsed_secs: exec.duration_secs,
+        cost_usd: exec.cost_usd,
+        status: exec.status === 'timeout' ? 'failed' : exec.status as ActiveAgentSnapshot['status'],
+      }))
+    }
+
+    return []
+  }, [snapshot, executionsMap])
+
   // Find the task title for the selected session
   const selectedAgent: ActiveAgentSnapshot | null = useMemo(() => {
-    if (!snapshot || !selectedSessionId) return null
-    const agents = snapshot.active_agents ?? []
-    return agents.find(a => a.session_id === selectedSessionId) ?? null
-  }, [snapshot, selectedSessionId])
+    if (!selectedSessionId) return null
+    return resolvedAgents.find(a => a.session_id === selectedSessionId) ?? null
+  }, [resolvedAgents, selectedSessionId])
 
   const handleViewConversation = (sessionId: string) => {
     setSelectedSessionId(prev => prev === sessionId ? null : sessionId)
@@ -193,7 +258,7 @@ export function RunnerDashboard() {
   const progressPercent = Math.round(snapshot.progress_pct ?? 0)
 
   // Split agents into active (running/spawning/verifying) vs completed/failed
-  const agents = snapshot.active_agents ?? []
+  const agents = resolvedAgents
   const activeAgents = agents.filter(a => a.status === 'running' || a.status === 'spawning' || a.status === 'verifying')
   const doneAgents = agents.filter(a => a.status === 'completed' || a.status === 'failed')
 
@@ -344,12 +409,14 @@ export function RunnerDashboard() {
         </div>
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto pb-6 pt-3">
-          {snapshot.run_id ? (
-            <DiscussionTreeView sessionId={snapshot.run_id} />
+          {rootSessionId ? (
+            <DiscussionTreeView sessionId={rootSessionId} />
           ) : (
             <Card>
               <CardContent className="py-12 text-center">
-                <p className="text-sm text-gray-500">No discussion tree available.</p>
+                <p className="text-sm text-gray-500">
+                  {effectiveRunId ? 'Loading discussion tree...' : 'No discussion tree available.'}
+                </p>
               </CardContent>
             </Card>
           )}

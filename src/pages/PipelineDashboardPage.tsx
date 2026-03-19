@@ -257,7 +257,11 @@ export function PipelineDashboardPage() {
   const fetchPlanTitles = useCallback(async (newRuns: PlanRun[]) => {
     const existing = planTitlesRef.current
     const newPlanIds = [...new Set(newRuns.map(r => r.plan_id))].filter(id => !existing.has(id))
-    if (newPlanIds.length === 0) return
+    if (newPlanIds.length === 0) {
+      // Even if no new IDs, ensure React state is in sync with ref
+      setPlanTitles(new Map(existing))
+      return
+    }
 
     await Promise.all(
       newPlanIds.map(async (pid) => {
@@ -279,7 +283,7 @@ export function PipelineDashboardPage() {
     setError(null)
     setRuns([])
     setHasMore(true)
-    planTitlesRef.current = new Map()
+    // Do NOT reset planTitlesRef — keep cached titles across polls
 
     try {
       const status = filterToStatus(viewFilter)
