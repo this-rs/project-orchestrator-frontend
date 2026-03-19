@@ -12,6 +12,8 @@ import { workspacePath } from '@/utils/paths'
 import { chatSuggestedProjectIdAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import { CreateTaskForm, CreateConstraintForm, EditPlanForm } from '@/components/forms'
 import { UnifiedGraphSection, type GraphBreadcrumb } from '@/components/graph/UnifiedGraphSection'
+import { ImplementButton } from '@/components/pipeline/ImplementButton'
+import { ImplementDialog } from '@/components/pipeline/ImplementDialog'
 import { PlanGraphAdapter } from '@/adapters/PlanGraphAdapter'
 import { usePlanGraphData } from '@/hooks/usePlanGraphData'
 import { CommitList } from '@/components/commits'
@@ -53,6 +55,8 @@ export function PlanDetailPage() {
   const [tasksCollapseAll, setTasksCollapseAll] = useState(0)
   const [tasksAllExpanded, setTasksAllExpanded] = useState(false)
   const [linkedMilestones, setLinkedMilestones] = useState<Array<{ id: string; title: string; href: string; type: 'workspace' | 'project' }>>([])
+  const [implementDialogOpen, setImplementDialogOpen] = useState(false)
+  const [implementLoading, setImplementLoading] = useState(false)
   // Plan graph data for UnifiedGraphSection (replaces inline graph section)
   const planGraphData = usePlanGraphData(planId, plan?.title, linkedProject?.slug)
 
@@ -365,6 +369,13 @@ export function PlanDetailPage() {
           { label: 'Created by', value: plan.created_by },
           { label: 'Created', value: new Date(plan.created_at).toLocaleDateString() },
         ]}
+        actions={
+          <ImplementButton
+            mode="plan"
+            entityId={plan.id}
+            onClick={() => setImplementDialogOpen(true)}
+          />
+        }
         overflowActions={[
           { label: 'Runner Dashboard', onClick: () => navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' }) },
           { label: 'Edit', onClick: () => editPlanDialog.open({ title: 'Edit Plan' }) },
@@ -669,6 +680,23 @@ export function PlanDetailPage() {
       </FormDialog>
       <LinkEntityDialog {...linkDialog.dialogProps} />
       <ConfirmDialog {...confirmDialog.dialogProps} />
+      <ImplementDialog
+        open={implementDialogOpen}
+        onClose={() => setImplementDialogOpen(false)}
+        onConfirm={async () => {
+          setImplementLoading(true)
+          try {
+            // Navigate to runner dashboard to start/monitor the run
+            navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' })
+          } finally {
+            setImplementLoading(false)
+            setImplementDialogOpen(false)
+          }
+        }}
+        mode="plan"
+        entityTitle={plan.title || 'Untitled Plan'}
+        loading={implementLoading}
+      />
 
     </div>
   )
