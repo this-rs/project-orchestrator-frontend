@@ -278,9 +278,9 @@ export function PipelineDashboardPage() {
     try {
       const status = filterToStatus(viewFilter)
       const [batch, approvedRes, inProgressRes] = await Promise.all([
-        runnerApi.listAllRuns({ limit: PAGE_SIZE, offset: 0, status }),
-        plansApi.list({ status: 'approved', limit: 50 }),
-        plansApi.list({ status: 'in_progress', limit: 50 }),
+        runnerApi.listAllRuns({ limit: PAGE_SIZE, offset: 0, status, workspace_slug: wsSlug }),
+        plansApi.list({ status: 'approved', limit: 50, workspace_slug: wsSlug }),
+        plansApi.list({ status: 'in_progress', limit: 50, workspace_slug: wsSlug }),
       ])
       setRuns(batch)
       setHasMore(batch.length >= PAGE_SIZE)
@@ -301,7 +301,7 @@ export function PipelineDashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [viewFilter, fetchPlanTitles])
+  }, [viewFilter, wsSlug, fetchPlanTitles])
 
   // ── Load more (infinite scroll) ────────────────────────────────────────
   const loadMore = useCallback(async () => {
@@ -314,6 +314,7 @@ export function PipelineDashboardPage() {
         limit: PAGE_SIZE,
         offset: runs.length,
         status,
+        workspace_slug: wsSlug,
       })
 
       if (batch.length < PAGE_SIZE) {
@@ -334,7 +335,7 @@ export function PipelineDashboardPage() {
     } finally {
       setLoadingMore(false)
     }
-  }, [loadingMore, hasMore, viewFilter, runs, fetchPlanTitles])
+  }, [loadingMore, hasMore, viewFilter, wsSlug, runs, fetchPlanTitles])
 
   // ── Effects ────────────────────────────────────────────────────────────
 

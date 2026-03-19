@@ -85,8 +85,8 @@ export interface PlanRun {
 // ---------------------------------------------------------------------------
 
 export const runnerApi = {
-  /** List all plan runs across all plans (history). */
-  listAllRuns: (params?: { limit?: number; offset?: number; status?: string }) =>
+  /** List all plan runs across all plans (history), optionally scoped to a workspace. */
+  listAllRuns: (params?: { limit?: number; offset?: number; status?: string; workspace_slug?: string }) =>
     api.get<PlanRun[]>(`/runs${buildQuery(params ?? {})}`),
 
   /** List runs for a specific plan. */
