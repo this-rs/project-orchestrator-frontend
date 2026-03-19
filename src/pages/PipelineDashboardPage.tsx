@@ -25,11 +25,14 @@ import {
   DollarSign,
   Users,
   Loader2,
+  FileText,
+  Rocket,
 } from 'lucide-react'
 
 import { runnerApi } from '@/services/runner'
 import type { PlanRun } from '@/services/runner'
 import { plansApi } from '@/services'
+import type { Plan } from '@/types'
 import {
   PageShell,
   Button,
@@ -233,6 +236,7 @@ export function PipelineDashboardPage() {
   const navigate = useNavigate()
 
   const [runs, setRuns] = useState<PlanRun[]>([])
+  const [readyPlans, setReadyPlans] = useState<Plan[]>([])
   const [planTitles, setPlanTitles] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -273,9 +277,24 @@ export function PipelineDashboardPage() {
 
     try {
       const status = filterToStatus(viewFilter)
-      const batch = await runnerApi.listAllRuns({ limit: PAGE_SIZE, offset: 0, status })
+      const [batch, approvedRes, inProgressRes] = await Promise.all([
+        runnerApi.listAllRuns({ limit: PAGE_SIZE, offset: 0, status }),
+        plansApi.list({ status: 'approved', limit: 50 }),
+        plansApi.list({ status: 'in_progress', limit: 50 }),
+      ])
       setRuns(batch)
       setHasMore(batch.length >= PAGE_SIZE)
+
+      // Merge approved + in_progress plans for "ready to run" section
+      const approved = approvedRes.items ?? approvedRes ?? []
+      const inProgress = inProgressRes.items ?? inProgressRes ?? []
+      const seen = new Set<string>()
+      const merged: Plan[] = []
+      for (const p of [...(inProgress as Plan[]), ...(approved as Plan[])]) {
+        if (!seen.has(p.id)) { seen.add(p.id); merged.push(p) }
+      }
+      setReadyPlans(merged)
+
       await fetchPlanTitles(batch)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load pipeline data')
@@ -455,7 +474,7 @@ export function PipelineDashboardPage() {
         </div>
       ) : runs.length === 0 ? (
         <EmptyState
-          title="No pipeline runs found"
+          title="No pipeline runs yet"
           description={
             viewFilter === 'all'
               ? 'No pipeline runs have been recorded yet. Run a plan to see its execution history here.'
@@ -497,6 +516,47 @@ export function PipelineDashboardPage() {
               All {runs.length} runs loaded
             </div>
           )}
+        </div>
+      )}
+
+      {/* Ready to run plans */}
+      {!loading && readyPlans.length > 0 && (
+        <div className="mt-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Rocket className="w-4 h-4 text-indigo-400" />
+            <h2 className="text-sm font-semibold text-gray-200">Plans Ready to Run</h2>
+            <span className="text-xs text-gray-500">({readyPlans.length})</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {readyPlans.map((plan) => (
+              <Card
+                key={plan.id}
+                className="hover:border-indigo-500/30 transition-colors cursor-pointer"
+                onClick={() => navigate(workspacePath(wsSlug, `/plans/${plan.id}`))}
+              >
+                <CardContent className="py-3">
+                  <div className="flex items-start gap-3">
+                    <FileText className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm font-medium text-gray-100 truncate">{plan.title}</h3>
+                      {plan.description && (
+                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">{plan.description}</p>
+                      )}
+                      <div className="flex items-center gap-3 mt-2">
+                        <Badge variant={plan.status === 'in_progress' ? 'info' : 'warning'}>
+                          {plan.status === 'in_progress' ? 'In Progress' : 'Approved'}
+                        </Badge>
+                        {plan.priority > 0 && (
+                          <span className="text-xs text-gray-600">Priority {plan.priority}</span>
+                        )}
+                      </div>
+                    </div>
+                    <ArrowRight className="w-3.5 h-3.5 text-gray-600 flex-shrink-0 mt-0.5" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
     </PageShell>
