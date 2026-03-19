@@ -233,7 +233,15 @@ export function PipelineDashboardPage() {
       }
 
       const plansResult = await plansApi.list(params)
-      const plans: Plan[] = plansResult.items ?? plansResult
+      const rawPlans: Plan[] = plansResult.items ?? plansResult
+
+      // Deduplicate plans by id (API may return duplicates from multi-project scopes)
+      const seen = new Set<string>()
+      const plans = rawPlans.filter(p => {
+        if (seen.has(p.id)) return false
+        seen.add(p.id)
+        return true
+      })
 
       // For each plan, try to fetch its runner status
       const results = await Promise.all(
