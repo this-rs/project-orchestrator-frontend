@@ -728,8 +728,9 @@ export default function LearningTimeline(props: LearningTimelineProps) {
         })
       }
 
-      // Skills
-      for (const s of skills) {
+      // Skills (deduplicate by id to avoid duplicate React keys)
+      const uniqueSkills = skills.filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i)
+      for (const s of uniqueSkills) {
         evts.push({
           id: `skill-${s.id}`,
           type: 'skill_created',

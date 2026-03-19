@@ -254,6 +254,14 @@ export function PipelineDashboardPage() {
   // Track whether initial data has been loaded at least once
   const hasLoadedOnce = useRef(false)
 
+  // Refs to avoid re-creating loadMore on every state change (prevents infinite loop)
+  const runsRef = useRef(runs)
+  runsRef.current = runs
+  const loadingMoreRef = useRef(loadingMore)
+  loadingMoreRef.current = loadingMore
+  const hasMoreRef = useRef(hasMore)
+  hasMoreRef.current = hasMore
+
   // ── Initial fetch ──────────────────────────────────────────────────────
   const fetchInitial = useCallback(async () => {
     // Only show loading skeleton on the FIRST load, not during polls
@@ -296,14 +304,15 @@ export function PipelineDashboardPage() {
 
   // ── Load more (infinite scroll) ────────────────────────────────────────
   const loadMore = useCallback(async () => {
-    if (loadingMore || !hasMore) return
+    if (loadingMoreRef.current || !hasMoreRef.current) return
     setLoadingMore(true)
 
     try {
       const status = filterToStatus(viewFilter)
+      const currentRuns = runsRef.current
       const batch = await runnerApi.listAllRuns({
         limit: PAGE_SIZE,
-        offset: runs.length,
+        offset: currentRuns.length,
         status,
         workspace_slug: wsSlug,
       })
@@ -314,18 +323,18 @@ export function PipelineDashboardPage() {
 
       if (batch.length > 0) {
         // Deduplicate by run_id
-        const existingIds = new Set(runs.map(r => r.run_id))
-        const newRuns = batch.filter(r => !existingIds.has(r.run_id))
-        if (newRuns.length > 0) {
-          setRuns(prev => [...prev, ...newRuns])
-        }
+        setRuns(prev => {
+          const existingIds = new Set(prev.map(r => r.run_id))
+          const newRuns = batch.filter(r => !existingIds.has(r.run_id))
+          return newRuns.length > 0 ? [...prev, ...newRuns] : prev
+        })
       }
     } catch {
       // Silently fail on load-more — the user still has existing data
     } finally {
       setLoadingMore(false)
     }
-  }, [loadingMore, hasMore, viewFilter, wsSlug, runs])
+  }, [viewFilter, wsSlug])
 
   // ── Effects ────────────────────────────────────────────────────────────
 
@@ -482,9 +491,9 @@ export function PipelineDashboardPage() {
         />
       ) : (
         <div className="space-y-3">
-          {runs.map((run) => (
+          {runs.map((run, i) => (
             <RunCard
-              key={run.run_id}
+              key={`${run.run_id}-${i}`}
               run={run}
               planTitle={run.plan_title || `Plan ${run.plan_id.slice(0, 8)}...`}
               onViewDetails={handleViewDetails}
