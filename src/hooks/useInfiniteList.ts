@@ -14,6 +14,8 @@ interface UseInfiniteListOptions<T, F = Record<string, unknown>> {
   threshold?: number
   /** Whether fetching is enabled (default: true). Set false to pause. */
   enabled?: boolean
+  /** Extract a unique key from an item for deduplication (default: (item) => (item as any).id) */
+  getKey?: (item: T) => string
 }
 
 interface UseInfiniteListReturn<T> {
@@ -46,6 +48,7 @@ export function useInfiniteList<T, F = Record<string, unknown>>(
     pageSize = DEFAULT_PAGE_SIZE,
     threshold = 200,
     enabled = true,
+    getKey = (item: T) => (item as Record<string, unknown>).id as string,
   } = options
 
   const [items, setItems] = useState<T[]>([])
@@ -95,7 +98,11 @@ export function useInfiniteList<T, F = Record<string, unknown>>(
         if (isFirstPage) {
           setItems(newItems)
         } else {
-          setItems((prev) => [...prev, ...newItems])
+          setItems((prev) => {
+            const existingKeys = new Set(prev.map(getKey))
+            const deduped = newItems.filter((item) => !existingKeys.has(getKey(item)))
+            return [...prev, ...deduped]
+          })
         }
       } catch {
         // On error, stop trying to load more
