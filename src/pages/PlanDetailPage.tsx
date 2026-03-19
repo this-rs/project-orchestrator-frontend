@@ -584,14 +584,29 @@ export function PlanDetailPage() {
                           {decision.chosen_option && (
                             <Badge variant="success">{decision.chosen_option}</Badge>
                           )}
-                          <Link
-                            to={workspacePath(wsSlug, `/tasks/${decision.taskId}`)}
-                            state={{ planId: plan.id, planTitle: plan.title, projectId: plan.project_id }}
-                            className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-                            onClick={(e) => e.stopPropagation()}
+                          <span
+                            role="link"
+                            tabIndex={0}
+                            className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              navigate(workspacePath(wsSlug, `/tasks/${decision.taskId}`), {
+                                state: { planId: plan.id, planTitle: plan.title, projectId: plan.project_id }
+                              })
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                navigate(workspacePath(wsSlug, `/tasks/${decision.taskId}`), {
+                                  state: { planId: plan.id, planTitle: plan.title, projectId: plan.project_id }
+                                })
+                              }
+                            }}
                           >
                             ← {decision.taskTitle}
-                          </Link>
+                          </span>
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.preventDefault()}>
