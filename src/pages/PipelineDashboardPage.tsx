@@ -243,9 +243,13 @@ export function PipelineDashboardPage() {
       const plansResult = await plansApi.list(params)
       const rawPlans: Plan[] = plansResult.items ?? plansResult
 
+      // Only keep actionable plans (approved / in_progress) — skip draft, completed, cancelled
+      const relevantStatuses: PlanStatus[] = ['approved', 'in_progress']
+
       // Deduplicate plans by id (API may return duplicates from multi-project scopes)
       const seen = new Set<string>()
       const plans = rawPlans.filter(p => {
+        if (!relevantStatuses.includes(p.status)) return false
         if (seen.has(p.id)) return false
         seen.add(p.id)
         return true
