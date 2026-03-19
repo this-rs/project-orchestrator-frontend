@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, ApiError } from './api'
+import { api, ApiError, buildQuery } from './api'
 
 // ---------------------------------------------------------------------------
 // Types — aligned with backend RunStatus
@@ -57,11 +57,42 @@ export interface WaveSnapshot {
   agents: ActiveAgentSnapshot[]
 }
 
+/**
+ * Historical plan run record (from Neo4j PlanRun nodes).
+ * Returned by GET /api/runs and GET /api/plans/{id}/runs.
+ */
+export interface PlanRun {
+  run_id: string
+  plan_id: string
+  total_tasks: number
+  current_wave: number
+  current_task_id: string | null
+  current_task_title: string | null
+  active_agents: ActiveAgentSnapshot[]
+  completed_tasks: string[]
+  failed_tasks: string[]
+  git_branch: string
+  started_at: string
+  completed_at: string | null
+  status: 'Running' | 'Completed' | 'Failed' | 'Cancelled'
+  cost_usd: number
+  triggered_by: string | { Manual: null } | { Trigger: { trigger_id: string } } | { Schedule: { cron: string } }
+  project_id: string | null
+}
+
 // ---------------------------------------------------------------------------
 // API
 // ---------------------------------------------------------------------------
 
 export const runnerApi = {
+  /** List all plan runs across all plans (history). */
+  listAllRuns: (params?: { limit?: number; offset?: number; status?: string }) =>
+    api.get<PlanRun[]>(`/runs${buildQuery(params ?? {})}`),
+
+  /** List runs for a specific plan. */
+  listPlanRuns: (planId: string, limit?: number) =>
+    api.get<PlanRun[]>(`/plans/${planId}/runs${buildQuery({ limit })}`),
+
   getStatus: (planId: string) =>
     api.get<RunSnapshot>(`/plans/${planId}/run/status`),
 

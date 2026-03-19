@@ -1,15 +1,15 @@
 /**
- * PipelineDashboardPage — overview of all pipeline executions across plans.
+ * PipelineDashboardPage — history of all pipeline runs across plans.
  *
+ * Primary view: list of PlanRun records from the backend (not plans).
  * Features:
- *   - Stats cards: total runs, active, completed, failed
- *   - List of plans with active/recent pipeline runs
- *   - Pipeline run status with progress bars
+ *   - Stats cards: total runs, running, completed, failed
+ *   - Filterable list of historical runs sorted by started_at desc
+ *   - Infinite scroll pagination (loads 20 runs per page)
  *   - Click-through to RunnerDashboard for detailed view
- *   - Quality gate results summary per run
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   RefreshCw,
@@ -17,18 +17,19 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  Layers,
   ArrowRight,
   Activity,
   Gauge,
   GitBranch,
   Ban,
+  DollarSign,
+  Users,
+  Loader2,
 } from 'lucide-react'
 
-import { plansApi, workspacesApi } from '@/services'
 import { runnerApi } from '@/services/runner'
-import type { RunSnapshot } from '@/services/runner'
-import type { Plan, PlanStatus } from '@/types'
+import type { PlanRun } from '@/services/runner'
+import { plansApi } from '@/services'
 import {
   PageShell,
   Button,
@@ -37,7 +38,6 @@ import {
   CardContent,
   StatCard,
   ProgressBar,
-  Select,
   SkeletonCard,
   ErrorState,
   EmptyState,
@@ -46,14 +46,10 @@ import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 
 // ---------------------------------------------------------------------------
-// Types
+// Constants
 // ---------------------------------------------------------------------------
 
-interface PlanWithRun {
-  plan: Plan
-  run: RunSnapshot | null
-  runError: string | null
-}
+const PAGE_SIZE = 20
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -70,122 +66,158 @@ function formatCost(usd: number | undefined | null): string {
   return `$${(usd ?? 0).toFixed(2)}`
 }
 
+function formatDate(iso: string): string {
+  const d = new Date(iso)
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  if (diffMins < 1) return 'just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  const diffHours = Math.floor(diffMins / 60)
+  if (diffHours < 24) return `${diffHours}h ago`
+  const diffDays = Math.floor(diffHours / 24)
+  if (diffDays < 7) return `${diffDays}d ago`
+  return d.toLocaleDateString()
+}
+
+function elapsedSecs(run: PlanRun): number {
+  const start = new Date(run.started_at).getTime()
+  const end = run.completed_at ? new Date(run.completed_at).getTime() : Date.now()
+  return (end - start) / 1000
+}
+
+function progressPct(run: PlanRun): number {
+  if (run.total_tasks === 0) return 0
+  return Math.round(((run.completed_tasks.length + run.failed_tasks.length) / run.total_tasks) * 100)
+}
+
+function triggerLabel(triggered_by: PlanRun['triggered_by']): string {
+  if (typeof triggered_by === 'string') return triggered_by
+  if ('Manual' in triggered_by) return 'Manual'
+  if ('Trigger' in triggered_by) return 'Event Trigger'
+  if ('Schedule' in triggered_by) return 'Schedule'
+  return 'Unknown'
+}
+
 const runStatusConfig: Record<string, { label: string; variant: 'success' | 'error' | 'info' | 'default' | 'warning'; icon: typeof Play }> = {
-  running:   { label: 'Running',   variant: 'info',    icon: Activity },
-  completed: { label: 'Completed', variant: 'success', icon: CheckCircle2 },
-  failed:    { label: 'Failed',    variant: 'error',   icon: XCircle },
-  cancelled: { label: 'Cancelled', variant: 'default', icon: Ban },
+  Running:   { label: 'Running',   variant: 'info',    icon: Activity },
+  Completed: { label: 'Completed', variant: 'success', icon: CheckCircle2 },
+  Failed:    { label: 'Failed',    variant: 'error',   icon: XCircle },
+  Cancelled: { label: 'Cancelled', variant: 'default', icon: Ban },
 }
 
 // ---------------------------------------------------------------------------
 // Filter
 // ---------------------------------------------------------------------------
 
-type ViewFilter = 'all' | 'active' | 'completed' | 'failed'
+type ViewFilter = 'all' | 'running' | 'completed' | 'failed'
 
 const filterTabs: { value: ViewFilter; label: string }[] = [
-  { value: 'all', label: 'All Plans' },
-  { value: 'active', label: 'Active Runs' },
+  { value: 'all', label: 'All Runs' },
+  { value: 'running', label: 'Running' },
   { value: 'completed', label: 'Completed' },
   { value: 'failed', label: 'Failed' },
 ]
 
+/** Map filter to backend status param */
+function filterToStatus(f: ViewFilter): string | undefined {
+  switch (f) {
+    case 'running': return 'running'
+    case 'completed': return 'completed'
+    case 'failed': return 'failed'
+    default: return undefined
+  }
+}
+
 // ---------------------------------------------------------------------------
-// PipelineRunCard
+// RunCard
 // ---------------------------------------------------------------------------
 
-function PipelineRunCard({
-  planRun,
+function RunCard({
+  run,
+  planTitle,
   onViewDetails,
 }: {
-  planRun: PlanWithRun
+  run: PlanRun
+  planTitle: string
   onViewDetails: (planId: string) => void
 }) {
-  const { plan, run } = planRun
+  const statusCfg = runStatusConfig[run.status] ?? runStatusConfig.Running
+  const StatusIcon = statusCfg.icon
+  const progress = progressPct(run)
+  const elapsed = elapsedSecs(run)
 
-  // Only consider the run relevant if it matches this plan
-  const isRunForThisPlan = run?.running && run.plan_id === plan.id
-  const statusStr = isRunForThisPlan ? (run.status ?? 'running') : null
-  const statusCfg = statusStr ? runStatusConfig[statusStr] ?? runStatusConfig.running : null
-  const StatusIcon = statusCfg?.icon ?? Play
-  const progressPercent = isRunForThisPlan ? Math.round(run.progress_pct ?? 0) : 0
-
-  // Plan status color bar
-  const planStatusColors: Record<PlanStatus, string> = {
-    draft: 'border-l-gray-600',
-    approved: 'border-l-blue-500',
-    in_progress: 'border-l-indigo-500',
-    completed: 'border-l-green-500',
-    cancelled: 'border-l-gray-500',
+  const statusColors: Record<string, string> = {
+    Running: 'border-l-blue-500',
+    Completed: 'border-l-green-500',
+    Failed: 'border-l-red-500',
+    Cancelled: 'border-l-gray-500',
   }
 
   return (
-    <Card className={`border-l-4 ${planStatusColors[plan.status] ?? 'border-l-gray-600'}`}>
+    <Card className={`border-l-4 ${statusColors[run.status] ?? 'border-l-gray-600'}`}>
       <CardContent className="py-4">
         <div className="flex items-start justify-between gap-4">
-          {/* Left: plan + run info */}
+          {/* Left: run info */}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-1">
               <h3 className="text-sm font-semibold text-gray-100 truncate">
-                {plan.title}
+                {planTitle}
               </h3>
-              {statusCfg && (
-                <Badge variant={statusCfg.variant}>
-                  <StatusIcon className="w-3 h-3 mr-1" />
-                  {statusCfg.label}
-                </Badge>
-              )}
+              <Badge variant={statusCfg.variant}>
+                <StatusIcon className="w-3 h-3 mr-1" />
+                {statusCfg.label}
+              </Badge>
             </div>
 
-            {isRunForThisPlan && run ? (
-              <>
-                {/* Run metrics */}
-                <div className="flex flex-wrap items-center gap-4 text-xs text-gray-400 mt-2">
-                  {run.current_wave != null && (
-                    <div className="flex items-center gap-1">
-                      <Layers className="w-3 h-3 text-gray-500" />
-                      <span>Wave {(run.current_wave ?? 0) + 1}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-gray-500" />
-                    <span>{run.tasks_completed ?? 0} / {run.tasks_total ?? 0} tasks</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-gray-500" />
-                    <span className="font-mono tabular-nums">{formatElapsed(run.elapsed_secs ?? 0)}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="font-mono tabular-nums text-gray-500">{formatCost(run.cost_usd)}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <GitBranch className="w-3 h-3 text-gray-500" />
-                    <span>{(run.active_agents ?? []).length} agent{(run.active_agents ?? []).length !== 1 ? 's' : ''}</span>
-                  </div>
+            {/* Run metrics */}
+            <div className="flex flex-wrap items-center gap-4 text-xs text-gray-400 mt-2">
+              <div className="flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 text-gray-500" />
+                <span>{run.completed_tasks.length}/{run.total_tasks} tasks</span>
+              </div>
+              {run.failed_tasks.length > 0 && (
+                <div className="flex items-center gap-1">
+                  <XCircle className="w-3 h-3 text-red-400" />
+                  <span className="text-red-400">{run.failed_tasks.length} failed</span>
                 </div>
+              )}
+              <div className="flex items-center gap-1">
+                <Clock className="w-3 h-3 text-gray-500" />
+                <span className="font-mono tabular-nums">{formatElapsed(elapsed)}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <DollarSign className="w-3 h-3 text-gray-500" />
+                <span className="font-mono tabular-nums">{formatCost(run.cost_usd)}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Users className="w-3 h-3 text-gray-500" />
+                <span>{run.active_agents?.length ?? 0} active</span>
+              </div>
+              {run.git_branch && (
+                <div className="flex items-center gap-1">
+                  <GitBranch className="w-3 h-3 text-gray-500" />
+                  <span className="font-mono text-gray-500 truncate max-w-[120px]">{run.git_branch}</span>
+                </div>
+              )}
+              <span className="text-gray-600">{triggerLabel(run.triggered_by)}</span>
+              <span className="text-gray-600">{formatDate(run.started_at)}</span>
+            </div>
 
-                {/* Progress bar */}
-                <div className="mt-3">
-                  <ProgressBar value={progressPercent} />
-                </div>
-              </>
-            ) : (
-              <p className="text-xs text-gray-500 mt-1">
-                No active pipeline run
-              </p>
-            )}
+            {/* Progress bar */}
+            <div className="mt-3">
+              <ProgressBar value={progress} />
+            </div>
           </div>
 
           {/* Right: action */}
-          {isRunForThisPlan && (
-            <button
-              onClick={() => onViewDetails(plan.id)}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-indigo-400 hover:bg-indigo-500/10 transition-colors cursor-pointer flex-shrink-0"
-            >
-              Details
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          )}
+          <button
+            onClick={() => onViewDetails(run.plan_id)}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-indigo-400 hover:bg-indigo-500/10 transition-colors cursor-pointer flex-shrink-0"
+          >
+            Details
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         </div>
       </CardContent>
     </Card>
@@ -200,151 +232,154 @@ export function PipelineDashboardPage() {
   const wsSlug = useWorkspaceSlug()
   const navigate = useNavigate()
 
-  // Project filter
-  const [projects, setProjects] = useState<{ id: string; name: string; slug: string }[]>([])
-  const [projectFilter, setProjectFilter] = useState<string>('all')
-
-  useEffect(() => {
-    if (!wsSlug) return
-    workspacesApi
-      .listProjects(wsSlug)
-      .then(setProjects)
-      .catch(() => {})
-  }, [wsSlug])
-
-  const projectOptions = useMemo(
-    () => [
-      { value: 'all', label: 'All Projects' },
-      ...projects.map((p) => ({ value: p.id, label: p.name })),
-    ],
-    [projects],
-  )
-
-  const [planRuns, setPlanRuns] = useState<PlanWithRun[]>([])
+  const [runs, setRuns] = useState<PlanRun[]>([])
+  const [planTitles, setPlanTitles] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [refreshKey, setRefreshKey] = useState(0)
   const [viewFilter, setViewFilter] = useState<ViewFilter>('all')
+  const [hasMore, setHasMore] = useState(true)
 
-  // ── Fetch ────────────────────────────────────────────────────────────
-  const fetchData = useCallback(async () => {
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+  const planTitlesRef = useRef<Map<string, string>>(new Map())
+
+  // ── Fetch plan titles for new plan IDs ─────────────────────────────────
+  const fetchPlanTitles = useCallback(async (newRuns: PlanRun[]) => {
+    const existing = planTitlesRef.current
+    const newPlanIds = [...new Set(newRuns.map(r => r.plan_id))].filter(id => !existing.has(id))
+    if (newPlanIds.length === 0) return
+
+    await Promise.all(
+      newPlanIds.map(async (pid) => {
+        try {
+          const plan = await plansApi.get(pid)
+          if (plan?.title) existing.set(pid, plan.title)
+        } catch {
+          // Plan may have been deleted
+        }
+      })
+    )
+    planTitlesRef.current = new Map(existing)
+    setPlanTitles(new Map(existing))
+  }, [])
+
+  // ── Initial fetch ──────────────────────────────────────────────────────
+  const fetchInitial = useCallback(async () => {
     setLoading(true)
     setError(null)
+    setRuns([])
+    setHasMore(true)
+    planTitlesRef.current = new Map()
+
     try {
-      // Fetch in-progress and completed plans
-      const projectId = projectFilter !== 'all' ? projectFilter : undefined
-      const params: Record<string, string | number | undefined> = {
-        limit: 50,
-        offset: 0,
-        workspace_slug: wsSlug,
-        project_id: projectId,
-      }
-
-      const plansResult = await plansApi.list(params)
-      const rawPlans: Plan[] = plansResult.items ?? plansResult
-
-      // Only keep actionable plans (approved / in_progress) — skip draft, completed, cancelled
-      const relevantStatuses: PlanStatus[] = ['approved', 'in_progress']
-
-      // Deduplicate plans by id (API may return duplicates from multi-project scopes)
-      const seen = new Set<string>()
-      const plans = rawPlans.filter(p => {
-        if (!relevantStatuses.includes(p.status)) return false
-        if (seen.has(p.id)) return false
-        seen.add(p.id)
-        return true
-      })
-
-      // For each plan, try to fetch its runner status
-      const results = await Promise.all(
-        plans.map(async (plan) => {
-          try {
-            const run = await runnerApi.getStatus(plan.id)
-            return { plan, run, runError: null } as PlanWithRun
-          } catch {
-            return { plan, run: null, runError: null } as PlanWithRun
-          }
-        })
-      )
-
-      setPlanRuns(results)
+      const status = filterToStatus(viewFilter)
+      const batch = await runnerApi.listAllRuns({ limit: PAGE_SIZE, offset: 0, status })
+      setRuns(batch)
+      setHasMore(batch.length >= PAGE_SIZE)
+      await fetchPlanTitles(batch)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load pipeline data')
     } finally {
       setLoading(false)
     }
-  }, [wsSlug, projectFilter, refreshKey])
+  }, [viewFilter, fetchPlanTitles])
 
-  useEffect(() => {
-    fetchData()
-  }, [fetchData])
+  // ── Load more (infinite scroll) ────────────────────────────────────────
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return
+    setLoadingMore(true)
 
-  // Auto-refresh active runs
+    try {
+      const status = filterToStatus(viewFilter)
+      const batch = await runnerApi.listAllRuns({
+        limit: PAGE_SIZE,
+        offset: runs.length,
+        status,
+      })
+
+      if (batch.length < PAGE_SIZE) {
+        setHasMore(false)
+      }
+
+      if (batch.length > 0) {
+        // Deduplicate by run_id
+        const existingIds = new Set(runs.map(r => r.run_id))
+        const newRuns = batch.filter(r => !existingIds.has(r.run_id))
+        if (newRuns.length > 0) {
+          setRuns(prev => [...prev, ...newRuns])
+          await fetchPlanTitles(newRuns)
+        }
+      }
+    } catch {
+      // Silently fail on load-more — the user still has existing data
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [loadingMore, hasMore, viewFilter, runs, fetchPlanTitles])
+
+  // ── Effects ────────────────────────────────────────────────────────────
+
+  // Initial fetch on mount and when filter changes
   useEffect(() => {
-    const hasActive = planRuns.some(pr => pr.run?.running && pr.run.plan_id === pr.plan.id)
+    fetchInitial()
+  }, [fetchInitial])
+
+  // Auto-refresh if any run is active (poll every 5s)
+  useEffect(() => {
+    const hasActive = runs.some(r => r.status === 'Running')
     if (!hasActive) return
 
     const timer = setInterval(() => {
-      setRefreshKey(k => k + 1)
+      fetchInitial()
     }, 5000)
 
     return () => clearInterval(timer)
-  }, [planRuns])
+  }, [runs, fetchInitial])
+
+  // IntersectionObserver for infinite scroll
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          loadMore()
+        }
+      },
+      { rootMargin: '200px' },
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [loadMore])
 
   // ── Handlers ─────────────────────────────────────────────────────────
-  const handleRefresh = () => setRefreshKey(k => k + 1)
+  const handleRefresh = () => fetchInitial()
 
   const handleViewDetails = (planId: string) => {
     navigate(workspacePath(wsSlug, `/plans/${planId}/runner`))
   }
 
-  // ── Helper: is the run relevant for this plan? ─────────────────────
-  const isActiveRun = (pr: PlanWithRun) => pr.run?.running && pr.run.plan_id === pr.plan.id
-  const runStatus = (pr: PlanWithRun) => isActiveRun(pr) ? (pr.run?.status ?? 'running') : null
-
-  // ── Filter ───────────────────────────────────────────────────────────
-  const filteredPlanRuns = useMemo(() => {
-    switch (viewFilter) {
-      case 'active':
-        return planRuns.filter(pr => runStatus(pr) === 'running')
-      case 'completed':
-        return planRuns.filter(pr => runStatus(pr) === 'completed')
-      case 'failed':
-        return planRuns.filter(pr => runStatus(pr) === 'failed' || runStatus(pr) === 'cancelled')
-      default:
-        return planRuns
-    }
-  }, [planRuns, viewFilter])
-
-  // ── Stats ────────────────────────────────────────────────────────────
-  const stats = useMemo(() => {
-    const withRuns = planRuns.filter(pr => isActiveRun(pr))
-    return {
-      totalPlans: planRuns.length,
-      activeRuns: withRuns.filter(pr => runStatus(pr) === 'running').length,
-      completedRuns: withRuns.filter(pr => runStatus(pr) === 'completed').length,
-      failedRuns: withRuns.filter(pr => runStatus(pr) === 'failed' || runStatus(pr) === 'cancelled').length,
-      totalCost: withRuns.reduce((acc, pr) => acc + (pr.run?.cost_usd ?? 0), 0),
-    }
-  }, [planRuns])
+  // ── Stats (computed from loaded runs — approximate) ────────────────────
+  const stats = useMemo(() => ({
+    totalRuns: runs.length,
+    running: runs.filter(r => r.status === 'Running').length,
+    completed: runs.filter(r => r.status === 'Completed').length,
+    failed: runs.filter(r => r.status === 'Failed' || r.status === 'Cancelled').length,
+    totalCost: runs.reduce((acc, r) => acc + (r.cost_usd ?? 0), 0),
+  }), [runs])
 
   // ── Render ───────────────────────────────────────────────────────────
   return (
     <PageShell
       title="Pipeline Dashboard"
-      description="Pipeline executions across all plans — quality gates, waves, and progress"
+      description="Run history across all plans — status, cost, and progress"
       actions={
-        <div className="flex items-center gap-2">
-          <Select
-            options={projectOptions}
-            value={projectFilter}
-            onChange={setProjectFilter}
-          />
-          <Button variant="secondary" onClick={handleRefresh} disabled={loading}>
-            <RefreshCw className={`w-4 h-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
+        <Button variant="secondary" onClick={handleRefresh} disabled={loading}>
+          <RefreshCw className={`w-4 h-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       }
     >
       {/* Stats cards */}
@@ -352,30 +387,30 @@ export function PipelineDashboardPage() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           <StatCard
             icon={<Gauge className="w-5 h-5" />}
-            label="Total Plans"
-            value={stats.totalPlans}
+            label="Total Runs"
+            value={stats.totalRuns}
             accent="border-indigo-500"
           />
           <StatCard
             icon={<Activity className="w-5 h-5" />}
-            label="Active Runs"
-            value={stats.activeRuns}
+            label="Running"
+            value={stats.running}
             accent="border-blue-500"
           />
           <StatCard
             icon={<CheckCircle2 className="w-5 h-5" />}
             label="Completed"
-            value={stats.completedRuns}
+            value={stats.completed}
             accent="border-green-500"
           />
           <StatCard
             icon={<XCircle className="w-5 h-5" />}
             label="Failed"
-            value={stats.failedRuns}
+            value={stats.failed}
             accent="border-red-500"
           />
           <StatCard
-            icon={<Clock className="w-5 h-5" />}
+            icon={<DollarSign className="w-5 h-5" />}
             label="Total Cost"
             value={parseFloat(stats.totalCost.toFixed(2))}
             prefix="$"
@@ -388,10 +423,10 @@ export function PipelineDashboardPage() {
       <div className="flex items-center gap-1 mb-6 border-b border-white/[0.06]">
         {filterTabs.map((tab) => {
           let count = 0
-          if (tab.value === 'all') count = planRuns.length
-          else if (tab.value === 'active') count = stats.activeRuns
-          else if (tab.value === 'completed') count = stats.completedRuns
-          else if (tab.value === 'failed') count = stats.failedRuns
+          if (tab.value === 'all') count = runs.length
+          else if (tab.value === 'running') count = stats.running
+          else if (tab.value === 'completed') count = stats.completed
+          else if (tab.value === 'failed') count = stats.failed
 
           return (
             <button
@@ -418,41 +453,50 @@ export function PipelineDashboardPage() {
             <SkeletonCard key={i} lines={3} />
           ))}
         </div>
-      ) : filteredPlanRuns.length === 0 ? (
+      ) : runs.length === 0 ? (
         <EmptyState
           title="No pipeline runs found"
           description={
             viewFilter === 'all'
-              ? 'No plans found in this workspace. Create a plan and run its pipeline to see it here.'
-              : `No ${viewFilter} pipeline runs.`
+              ? 'No pipeline runs have been recorded yet. Run a plan to see its execution history here.'
+              : `No ${viewFilter} runs.`
           }
           action={
             viewFilter !== 'all' ? (
               <Button variant="secondary" onClick={() => setViewFilter('all')}>
-                Show all plans
+                Show all runs
               </Button>
             ) : undefined
           }
         />
       ) : (
         <div className="space-y-3">
-          {/* Plans with active runs first, then by status */}
-          {filteredPlanRuns
-            .sort((a, b) => {
-              // Active runs first
-              const aActive = isActiveRun(a) ? 0 : 1
-              const bActive = isActiveRun(b) ? 0 : 1
-              if (aActive !== bActive) return aActive - bActive
-              // Then by plan title
-              return a.plan.title.localeCompare(b.plan.title)
-            })
-            .map((planRun) => (
-              <PipelineRunCard
-                key={planRun.plan.id}
-                planRun={planRun}
-                onViewDetails={handleViewDetails}
-              />
-            ))}
+          {runs.map((run) => (
+            <RunCard
+              key={run.run_id}
+              run={run}
+              planTitle={planTitles.get(run.plan_id) ?? `Plan ${run.plan_id.slice(0, 8)}...`}
+              onViewDetails={handleViewDetails}
+            />
+          ))}
+
+          {/* Infinite scroll sentinel */}
+          <div ref={sentinelRef} className="h-1" />
+
+          {/* Loading more indicator */}
+          {loadingMore && (
+            <div className="flex items-center justify-center py-4 text-gray-400 text-sm gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading more runs...
+            </div>
+          )}
+
+          {/* End of list */}
+          {!hasMore && runs.length > PAGE_SIZE && (
+            <div className="text-center py-4 text-gray-600 text-xs">
+              All {runs.length} runs loaded
+            </div>
+          )}
         </div>
       )}
     </PageShell>
