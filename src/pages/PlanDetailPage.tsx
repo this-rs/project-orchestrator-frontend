@@ -18,6 +18,7 @@ import { PlanGraphAdapter } from '@/adapters/PlanGraphAdapter'
 import { usePlanGraphData } from '@/hooks/usePlanGraphData'
 import { CommitList } from '@/components/commits'
 import { PlanRunHistory } from '@/components/runner/PlanRunHistory'
+import { useRunnerStatus } from '@/services/runner'
 import type { Plan, Decision, DecisionStatus, DependencyGraph, Task, Constraint, Step, Commit, PlanStatus, TaskStatus, StepStatus, PaginatedResponse, Project } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
 
@@ -58,6 +59,8 @@ export function PlanDetailPage() {
   const [linkedMilestones, setLinkedMilestones] = useState<Array<{ id: string; title: string; href: string; type: 'workspace' | 'project' }>>([])
   const [implementDialogOpen, setImplementDialogOpen] = useState(false)
   const [implementLoading, setImplementLoading] = useState(false)
+  // Detect active pipeline run — used to hide/disable implement button
+  const { isRunning: hasPipelineRunning } = useRunnerStatus(planId)
   // Plan graph data for UnifiedGraphSection (replaces inline graph section)
   const planGraphData = usePlanGraphData(planId, plan?.title, linkedProject?.slug)
 
@@ -372,11 +375,16 @@ export function PlanDetailPage() {
           { label: 'Created', value: new Date(plan.created_at).toLocaleDateString() },
         ]}
         actions={
-          <ImplementButton
-            mode="plan"
-            entityId={plan.id}
-            onClick={() => setImplementDialogOpen(true)}
-          />
+          // Only show Implement button for actionable statuses (approved, in_progress)
+          // Hide for draft, completed, cancelled — and disable if a run is already active
+          (plan.status === 'approved' || plan.status === 'in_progress') ? (
+            <ImplementButton
+              mode="plan"
+              entityId={plan.id}
+              onClick={() => setImplementDialogOpen(true)}
+              disabled={hasPipelineRunning}
+            />
+          ) : undefined
         }
         overflowActions={[
           { label: 'Runner Dashboard', onClick: () => navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' }) },
