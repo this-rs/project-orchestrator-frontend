@@ -30,12 +30,27 @@ export interface DiscussionNode {
   metadata: DiscussionNodeMetadata
 }
 
+/**
+ * Flat node returned by the backend GET /api/chat/sessions/{id}/tree.
+ * The backend returns a flat list with parent_session_id + depth;
+ * the hook reconstructs the nested tree in the frontend.
+ */
+export interface SessionTreeNode {
+  session_id: string
+  parent_session_id: string | null
+  spawn_type: string | null
+  run_id: string | null
+  task_id: string | null
+  depth: number
+  created_at: string | null
+}
+
 // ---------------------------------------------------------------------------
 // API
 // ---------------------------------------------------------------------------
 
 export const discussionsApi = {
-  /** Fetch the full discussion tree rooted at `sessionId`. */
+  /** Fetch the flat session tree nodes rooted at `sessionId`. */
   getTree: (sessionId: string) =>
-    api.get<DiscussionNode>(`/chat/sessions/${sessionId}/tree`),
+    api.get<SessionTreeNode[]>(`/chat/sessions/${sessionId}/tree`),
 }

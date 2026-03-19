@@ -95,18 +95,23 @@ function progressPct(run: PlanRun): number {
 }
 
 function triggerLabel(triggered_by: PlanRun['triggered_by']): string {
-  if (typeof triggered_by === 'string') return triggered_by
-  if ('Manual' in triggered_by) return 'Manual'
-  if ('Trigger' in triggered_by) return 'Event Trigger'
-  if ('Schedule' in triggered_by) return 'Schedule'
+  if (typeof triggered_by === 'string') {
+    // "manual" or other plain string from serde snake_case
+    return triggered_by.charAt(0).toUpperCase() + triggered_by.slice(1)
+  }
+  if ('chat' in triggered_by) return 'Chat'
+  if ('schedule' in triggered_by) return 'Schedule'
+  if ('webhook' in triggered_by) return 'Webhook'
+  if ('event' in triggered_by) return 'Event'
   return 'Unknown'
 }
 
 const runStatusConfig: Record<string, { label: string; variant: 'success' | 'error' | 'info' | 'default' | 'warning'; icon: typeof Play }> = {
-  Running:   { label: 'Running',   variant: 'info',    icon: Activity },
-  Completed: { label: 'Completed', variant: 'success', icon: CheckCircle2 },
-  Failed:    { label: 'Failed',    variant: 'error',   icon: XCircle },
-  Cancelled: { label: 'Cancelled', variant: 'default', icon: Ban },
+  running:          { label: 'Running',          variant: 'info',    icon: Activity },
+  completed:        { label: 'Completed',        variant: 'success', icon: CheckCircle2 },
+  failed:           { label: 'Failed',           variant: 'error',   icon: XCircle },
+  cancelled:        { label: 'Cancelled',        variant: 'default', icon: Ban },
+  budget_exceeded:  { label: 'Budget Exceeded',  variant: 'warning', icon: Ban },
 }
 
 // ---------------------------------------------------------------------------
@@ -145,16 +150,17 @@ function RunCard({
   planTitle: string
   onViewDetails: (planId: string) => void
 }) {
-  const statusCfg = runStatusConfig[run.status] ?? runStatusConfig.Running
+  const statusCfg = runStatusConfig[run.status] ?? runStatusConfig.running
   const StatusIcon = statusCfg.icon
   const progress = progressPct(run)
   const elapsed = elapsedSecs(run)
 
   const statusColors: Record<string, string> = {
-    Running: 'border-l-blue-500',
-    Completed: 'border-l-green-500',
-    Failed: 'border-l-red-500',
-    Cancelled: 'border-l-gray-500',
+    running: 'border-l-blue-500',
+    completed: 'border-l-green-500',
+    failed: 'border-l-red-500',
+    cancelled: 'border-l-gray-500',
+    budget_exceeded: 'border-l-yellow-500',
   }
 
   return (
@@ -346,7 +352,7 @@ export function PipelineDashboardPage() {
 
   // Auto-refresh if any run is active (poll every 5s)
   useEffect(() => {
-    const hasActive = runs.some(r => r.status === 'Running')
+    const hasActive = runs.some(r => r.status === 'running')
     if (!hasActive) return
 
     const timer = setInterval(() => {
@@ -384,9 +390,9 @@ export function PipelineDashboardPage() {
   // ── Stats (computed from loaded runs — approximate) ────────────────────
   const stats = useMemo(() => ({
     totalRuns: runs.length,
-    running: runs.filter(r => r.status === 'Running').length,
-    completed: runs.filter(r => r.status === 'Completed').length,
-    failed: runs.filter(r => r.status === 'Failed' || r.status === 'Cancelled').length,
+    running: runs.filter(r => r.status === 'running').length,
+    completed: runs.filter(r => r.status === 'completed').length,
+    failed: runs.filter(r => r.status === 'failed' || r.status === 'cancelled' || r.status === 'budget_exceeded').length,
     totalCost: runs.reduce((acc, r) => acc + (r.cost_usd ?? 0), 0),
   }), [runs])
 

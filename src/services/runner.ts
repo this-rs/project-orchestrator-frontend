@@ -75,9 +75,9 @@ export interface PlanRun {
   git_branch: string
   started_at: string
   completed_at: string | null
-  status: 'Running' | 'Completed' | 'Failed' | 'Cancelled'
+  status: 'running' | 'completed' | 'failed' | 'cancelled' | 'budget_exceeded'
   cost_usd: number
-  triggered_by: string | { Manual: null } | { Trigger: { trigger_id: string } } | { Schedule: { cron: string } }
+  triggered_by: string | { chat: { session_id: string | null } } | { schedule: { trigger_id: string } } | { webhook: { trigger_id: string; payload_hash: string | null } } | { event: { trigger_id: string; source_event: string } }
   project_id: string | null
 }
 

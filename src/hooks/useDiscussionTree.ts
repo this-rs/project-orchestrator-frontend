@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { discussionsApi, type DiscussionNode } from '@/services/discussions'
+import type { SessionTreeNode } from '@/services/discussions'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -15,7 +16,49 @@ import { discussionsApi, type DiscussionNode } from '@/services/discussions'
 /** Recursively check if any node in the tree is actively streaming. */
 function hasStreamingNode(node: DiscussionNode): boolean {
   if (node.status === 'streaming') return true
-  return node.children.some(hasStreamingNode)
+  return (node.children ?? []).some(hasStreamingNode)
+}
+
+/**
+ * Build a nested DiscussionNode tree from the flat SessionTreeNode[] list
+ * returned by the backend. Each SessionTreeNode has a parent_session_id and
+ * depth — we reconstruct the hierarchy here.
+ */
+function buildTreeFromFlat(flatNodes: SessionTreeNode[]): DiscussionNode | null {
+  if (flatNodes.length === 0) return null
+
+  // Build a lookup map of session_id → DiscussionNode
+  const nodeMap = new Map<string, DiscussionNode>()
+  for (const flat of flatNodes) {
+    nodeMap.set(flat.session_id, {
+      session_id: flat.session_id,
+      title: null,
+      status: 'idle',
+      cost_usd: 0,
+      duration_secs: 0,
+      message_count: 0,
+      children: [],
+      metadata: {
+        type: flat.spawn_type ?? (flat.depth === 0 ? 'root' : 'conversation'),
+        run_id: flat.run_id ?? undefined,
+        task_id: flat.task_id ?? undefined,
+      },
+    })
+  }
+
+  // Wire parent→child relationships
+  let root: DiscussionNode | null = null
+  for (const flat of flatNodes) {
+    const node = nodeMap.get(flat.session_id)!
+    if (flat.parent_session_id && nodeMap.has(flat.parent_session_id)) {
+      nodeMap.get(flat.parent_session_id)!.children.push(node)
+    }
+    if (flat.depth === 0) {
+      root = node
+    }
+  }
+
+  return root ?? nodeMap.get(flatNodes[0].session_id) ?? null
 }
 
 // ---------------------------------------------------------------------------
@@ -46,13 +89,14 @@ export function useDiscussionTree(
 
     try {
       setIsLoading((prev) => (tree === null ? true : prev))
-      const data = await discussionsApi.getTree(sid)
+      const flatNodes = await discussionsApi.getTree(sid)
       if (sessionIdRef.current === sid) {
-        setTree(data)
+        const builtTree = buildTreeFromFlat(flatNodes)
+        setTree(builtTree)
         setError(null)
 
         // Stop polling when nothing is streaming
-        if (!hasStreamingNode(data) && timerRef.current) {
+        if (builtTree && !hasStreamingNode(builtTree) && timerRef.current) {
           clearInterval(timerRef.current)
           timerRef.current = null
         }

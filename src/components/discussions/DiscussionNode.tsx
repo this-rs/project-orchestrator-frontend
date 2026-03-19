@@ -89,7 +89,8 @@ export function DiscussionNodeRow({
   onSelectNode,
 }: DiscussionNodeRowProps) {
   const [expanded, setExpanded] = useState(true)
-  const hasChildren = node.children.length > 0
+  const children = node.children ?? []
+  const hasChildren = children.length > 0
   const isSelected = selectedSessionId === node.session_id
   const cfg = statusConfig[node.status] ?? statusConfig.idle
   const StatusIcon = cfg.icon
@@ -172,7 +173,7 @@ export function DiscussionNodeRow({
       {/* Children */}
       {hasChildren && expanded && (
         <div>
-          {node.children.map((child) => (
+          {children.map((child) => (
             <DiscussionNodeRow
               key={child.session_id}
               node={child}
