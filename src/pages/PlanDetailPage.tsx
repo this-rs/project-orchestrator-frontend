@@ -17,6 +17,7 @@ import { ImplementDialog } from '@/components/pipeline/ImplementDialog'
 import { PlanGraphAdapter } from '@/adapters/PlanGraphAdapter'
 import { usePlanGraphData } from '@/hooks/usePlanGraphData'
 import { CommitList } from '@/components/commits'
+import { PlanRunHistory } from '@/components/runner/PlanRunHistory'
 import type { Plan, Decision, DecisionStatus, DependencyGraph, Task, Constraint, Step, Commit, PlanStatus, TaskStatus, StepStatus, PaginatedResponse, Project } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
 
@@ -278,7 +279,7 @@ export function PlanDetailPage() {
     })
   }
 
-  const sectionIds = ['overview', 'tasks', 'constraints', 'decisions', 'commits', ...(graph && (graph.nodes || []).length > 0 ? ['graph'] : [])]
+  const sectionIds = ['overview', 'runs', 'tasks', 'constraints', 'decisions', 'commits', ...(graph && (graph.nodes || []).length > 0 ? ['graph'] : [])]
   const activeSection = useSectionObserver(sectionIds)
 
   // Build a fresh status map from local tasks state (includes optimistic updates)
@@ -318,6 +319,7 @@ export function PlanDetailPage() {
 
   const sections = [
     { id: 'overview', label: 'Overview' },
+    { id: 'runs', label: 'Runs' },
     ...(graph && (graph.nodes || []).length > 0 ? [{ id: 'graph', label: 'Waves', count: (graph.nodes || []).length }] : []),
     { id: 'tasks', label: 'Tasks', count: tasks.length },
     { id: 'commits', label: 'Commits', count: commits.length },
@@ -432,6 +434,27 @@ export function PlanDetailPage() {
         <StatCard label="Failed" value={tasksByStatus.failed.length} color="red" />
       </div>
 
+      </section>
+
+      {/* Pipeline Runs */}
+      <section id="runs" className="scroll-mt-20">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between w-full">
+              <CardTitle>Pipeline Runs</CardTitle>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' })}
+              >
+                Runner Dashboard
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <PlanRunHistory planIds={plan.id} maxRuns={5} />
+          </CardContent>
+        </Card>
       </section>
 
       {/* Execution Waves / Dependency Graph — unified via GraphAdapter */}

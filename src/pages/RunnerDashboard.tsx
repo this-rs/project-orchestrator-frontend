@@ -92,18 +92,26 @@ function useLatestPlanRun(planId: string | undefined) {
 
 function useRunRootSession(runId: string | null | undefined) {
   const [rootSessionId, setRootSessionId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!runId) { setRootSessionId(null); return }
+    if (!runId) { setRootSessionId(null); setLoading(false); return }
+    setLoading(true)
     chatApi.getRunSessions(runId).then((sessions) => {
       if (sessions.length > 0) {
         // The first session (sorted by created_at) is typically the root
         setRootSessionId(sessions[0].id)
+      } else {
+        setRootSessionId(null)
       }
-    }).catch(() => {})
+    }).catch(() => {
+      setRootSessionId(null)
+    }).finally(() => {
+      setLoading(false)
+    })
   }, [runId])
 
-  return rootSessionId
+  return { rootSessionId, loading }
 }
 
 // ---------------------------------------------------------------------------
@@ -238,7 +246,7 @@ export function RunnerDashboard() {
   const executionsMap = useAgentExecutionsMap(effectiveRunId)
 
   // Resolve root session for discussion tree (run_id → ChatSession ID)
-  const rootSessionId = useRunRootSession(effectiveRunId)
+  const { rootSessionId, loading: rootSessionLoading } = useRunRootSession(effectiveRunId)
 
   // Tab state
   const [activeTab, setActiveTab] = useState<DashboardTab>('agents')
@@ -450,7 +458,9 @@ export function RunnerDashboard() {
             <Card>
               <CardContent className="py-12 text-center">
                 <p className="text-sm text-gray-500">
-                  {effectiveRunId ? 'Loading discussion tree...' : 'No discussion tree available.'}
+                  {rootSessionLoading
+                    ? 'Loading discussion tree...'
+                    : 'No discussion sessions found for this run.'}
                 </p>
               </CardContent>
             </Card>

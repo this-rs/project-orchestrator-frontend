@@ -142,10 +142,8 @@ function useConversationWs(sessionId: string | null) {
       const ws = await createWebSocket(url, {
         onopen: () => {
           reconnectAttemptsRef.current = 0
-          // Send "ready" if ws is already assigned (browser mode)
-          if (wsRef.current) {
-            wsRef.current.send('"ready"')
-          }
+          // Don't send here — wsRef may not be assigned yet.
+          // We send "ready" after createWebSocket resolves (below).
         },
 
         onmessage: (event: MessageEvent) => {
@@ -204,9 +202,17 @@ function useConversationWs(sessionId: string | null) {
 
       wsRef.current = ws
 
-      // Tauri mode: onopen fired during init() when wsRef was null — send ready now
+      // Send "ready" now that wsRef is assigned and the socket is open.
+      // This covers both browser mode (onopen already fired) and Tauri mode.
       if (ws.readyState === ReadyState.OPEN) {
         ws.send('"ready"')
+      } else if (ws.readyState === ReadyState.CONNECTING) {
+        // Socket still connecting — wait for it to open before sending
+        const origOnopen = ws.onopen
+        ws.onopen = (ev: Event) => {
+          if (origOnopen) (origOnopen as (ev: Event) => void)(ev)
+          ws.send('"ready"')
+        }
       }
     } catch {
       scheduleReconnect()

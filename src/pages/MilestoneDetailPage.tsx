@@ -12,6 +12,7 @@ import { useViewMode, useConfirmDialog, useLinkDialog, useToast, useSectionObser
 import { useMilestoneGraphData } from '@/hooks/useMilestoneGraphData'
 import { workspacePath } from '@/utils/paths'
 import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
+import { PlanRunHistory } from '@/components/runner/PlanRunHistory'
 import type { MilestoneDetail, MilestonePlanSummary, MilestoneProgress, Plan, Project, Task, MilestoneStatus, PlanStatus, PaginatedResponse } from '@/types'
 
 export function MilestoneDetailPage() {
@@ -172,16 +173,24 @@ export function MilestoneDetailPage() {
     return crumbs
   }, [milestone])
 
-  const sectionIds = ['graph', 'progress', 'plans', 'tasks', 'projects']
+  const sectionIds = ['graph', 'progress', 'runs', 'plans', 'tasks', 'projects']
   const activeSection = useSectionObserver(sectionIds)
 
   if (error) return <ErrorState title="Failed to load" description={error} onRetry={refreshData} />
   if (loading || !milestone) return <LoadingPage />
 
   const tags = milestone.tags || []
+  // Build plan title map for run history display
+  const planTitleMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const p of plans) { map[p.id] = p.title }
+    return map
+  }, [plans])
+
   const sections = [
     { id: 'graph', label: 'Graph' },
     { id: 'progress', label: 'Progress' },
+    { id: 'runs', label: 'Runs' },
     { id: 'plans', label: 'Plans', count: plans.length },
     { id: 'tasks', label: 'Tasks', count: milestoneTasks.length },
     { id: 'projects', label: 'Projects', count: projects.length },
@@ -278,6 +287,29 @@ export function MilestoneDetailPage() {
           </CardContent>
         </Card>
       )}
+      </section>
+
+      {/* Pipeline Runs */}
+      <section id="runs" className="scroll-mt-20">
+        <Card>
+          <CardHeader>
+            <CardTitle>Pipeline Runs</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {plans.length > 0 ? (
+              <PlanRunHistory
+                planIds={plans.map(p => p.id)}
+                maxRuns={10}
+                showPlanTitle
+                planTitleMap={planTitleMap}
+              />
+            ) : (
+              <p className="text-sm text-gray-500 py-4 text-center">
+                No plans linked — no runs to display
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </section>
 
       {/* Plans section with view toggle */}
