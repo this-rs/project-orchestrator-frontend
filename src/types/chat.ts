@@ -69,10 +69,62 @@ export interface CliInstallResult {
 // SPAWNED BY (detached sessions)
 // ============================================================================
 
-/** Origin of a detached session — runner or sub-conversation */
+/** Origin of a detached session — runner, conversation, pipeline, gate, or trigger */
 export type SpawnedBy =
   | { type: 'runner'; run_id: string; plan_id: string }
   | { type: 'conversation'; parent_session_id: string }
+  | { type: 'pipeline'; run_id: string; plan_id: string; wave: number; task_id?: string }
+  | { type: 'gate'; run_id: string; gate_type: string; retry_count: number }
+  | { type: 'trigger'; trigger_id: string; event_type: string }
+
+// ============================================================================
+// PIPELINE GATE RESULTS
+// ============================================================================
+
+/** Status of a quality gate check */
+export type GateStatus = 'Pass' | 'Fail' | 'Skip' | 'Error'
+
+/** Result of a quality gate check (matches backend GateResult) */
+export interface GateResult {
+  gate_name: string
+  status: GateStatus
+  metrics: Record<string, number>
+  message: string
+  duration_ms: number
+}
+
+/** Response from GET /api/runs/{run_id}/gates */
+export interface GateResultsResponse {
+  run_id: string
+  gates: GateResult[]
+}
+
+// ============================================================================
+// PIPELINE PROGRESS SCORE
+// ============================================================================
+
+/** Per-dimension breakdown of progress score */
+export interface ScoreDimensions {
+  build: number
+  tests: number
+  coverage: number
+  steps: number
+}
+
+/** Trend direction derived from recent deltas */
+export type ProgressTrend = 'Improving' | 'Stable' | 'Regressing' | 'Stagnant' | 'Unknown'
+
+/** Response from GET /api/runs/{run_id}/progress */
+export interface ProgressScoreResponse {
+  run_id: string
+  score: number
+  delta: number | null
+  dimensions: ScoreDimensions
+  trend: ProgressTrend
+  total_checkpoints: number
+  best_score: number
+  worst_score: number
+}
 
 /** A child session with its streaming status */
 export interface DetachedSession {

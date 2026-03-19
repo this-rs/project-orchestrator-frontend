@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, ApiError, buildQuery } from './api'
+import type { GateResultsResponse, ProgressScoreResponse } from '@/types/chat'
 
 // ---------------------------------------------------------------------------
 // Types — aligned with backend RunStatus
@@ -95,6 +96,14 @@ export const runnerApi = {
 
   getStatus: (planId: string) =>
     api.get<RunSnapshot>(`/plans/${planId}/run/status`),
+
+  /** Get gate results for a pipeline run. */
+  getGates: (runId: string) =>
+    api.get<GateResultsResponse>(`/runs/${runId}/gates`),
+
+  /** Get progress score for a pipeline run. */
+  getProgress: (runId: string) =>
+    api.get<ProgressScoreResponse>(`/runs/${runId}/progress`),
 
   /**
    * Cancel an active run. The backend will gracefully stop all running agents.
