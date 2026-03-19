@@ -42,6 +42,8 @@ import {
   NeuralRoutingPage,
   SharingPage,
   RunnerDashboard,
+  PipelineDashboardPage,
+  TriggerDashboardPage,
 
   NotFoundPage,
   SettingsPage,
@@ -181,6 +183,8 @@ function App() {
                         <Route path="rfcs/:rfcId" element={<RfcDetailPage />} />
                         {/* Intelligence sub-views are now embedded inline in ProjectDetailPage */}
                         <Route path="projects/:projectSlug/intelligence" element={<ProjectDetailPage />} />
+                        <Route path="pipelines" element={<PipelineDashboardPage />} />
+                        <Route path="triggers" element={<TriggerDashboardPage />} />
                         <Route path="sharing" element={<SharingPage />} />
                         <Route path="neural-routing" element={<NeuralRoutingPage />} />
                         <Route path="admin" element={<AdminPage />} />
