@@ -12,6 +12,9 @@ import {
   Sparkles,
   Network,
   Loader2,
+  FileCode2,
+  StickyNote,
+  GitBranch,
 } from 'lucide-react'
 import {
   Card,
@@ -25,12 +28,15 @@ import {
   ErrorState,
   Badge,
   PageHeader,
+  ProgressBar,
 } from '@/components/ui'
 import { MetricTooltip } from '@/components/ui/MetricTooltip'
 import { ExpandableMilestoneRow } from '@/components/expandable'
 import {
   useIntelligenceData,
   IntelQuickActions,
+  IntelHealthBreakdown,
+  IntelAttention,
 } from '@/components/intelligence/IntelligenceDashboard'
 import { projectsApi } from '@/services'
 import { useConfirmDialog, useFormDialog, useToast, useWorkspaceSlug } from '@/hooks'
@@ -316,9 +322,12 @@ export function ProjectDetailPage() {
   const releaseCount = roadmap?.releases.length ?? 0
   const intelReady = !intelligence.loading && !intelligence.error && !!intelligence.summary
 
+  // Roadmap progress
+  const roadmapProgress = roadmap?.progress
+
   return (
     <div className="pt-6 space-y-6">
-      {/* ── Header: name, description, health badge, sync status ──────── */}
+      {/* ── 1. Header: name, description, health badge, sync status ──── */}
       <PageHeader
         title={project.name}
         description={project.description}
@@ -388,21 +397,90 @@ export function ProjectDetailPage() {
         </div>
       </PageHeader>
 
+      {/* ── 2. Overall progress bar ──────────────────────────────────── */}
+      {roadmapProgress && roadmapProgress.total_tasks > 0 && (
+        <div className="px-1">
+          <ProgressBar
+            value={roadmapProgress.percentage}
+            showLabel
+            size="lg"
+            gradient
+            shimmer={roadmapProgress.percentage < 100}
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            {roadmapProgress.completed_tasks} / {roadmapProgress.total_tasks} tasks completed
+          </p>
+        </div>
+      )}
 
-      {/* ── Section 1: Active Milestones ────────────────────────────────── */}
-      {milestoneCount > 0 && (
-        <section>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Milestones ({milestoneCount})</CardTitle>
-              <Button
-                size="sm"
-                onClick={() => milestoneFormDialog.open({ title: 'Add Milestone' })}
-              >
-                Add
-              </Button>
-            </CardHeader>
-            <CardContent>
+      {/* ── 3. Stat tiles grid (glassmorphism, matching workspace) ──── */}
+      {intelReady && intelligence.summary && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <ProjectStatTile
+            icon={<FileCode2 size={20} />}
+            value={intelligence.summary.code.files + intelligence.summary.code.functions}
+            label="Code Entities"
+            sub={`${intelligence.summary.code.files} files \u00b7 ${intelligence.summary.code.functions} functions`}
+            gradient="from-indigo-500/20 to-violet-500/20"
+            iconColor="text-indigo-400"
+            borderColor="border-indigo-500/20"
+          />
+          <ProjectStatTile
+            icon={<StickyNote size={20} />}
+            value={intelligence.summary.knowledge.notes + intelligence.summary.knowledge.decisions}
+            label="Notes & Decisions"
+            sub={`${intelligence.summary.knowledge.notes} notes \u00b7 ${intelligence.summary.knowledge.decisions} decisions`}
+            gradient="from-amber-500/20 to-orange-500/20"
+            iconColor="text-amber-400"
+            borderColor="border-amber-500/20"
+          />
+          <ProjectStatTile
+            icon={<Sparkles size={20} />}
+            value={intelligence.summary.skills.total}
+            label="Skills"
+            sub={`${intelligence.summary.skills.active} active \u00b7 ${intelligence.summary.skills.emerging} emerging`}
+            gradient="from-rose-500/20 to-pink-500/20"
+            iconColor="text-rose-400"
+            borderColor="border-rose-500/20"
+          />
+          <ProjectStatTile
+            icon={<GitBranch size={20} />}
+            value={intelligence.summary.neural.active_synapses}
+            label="Synapses"
+            sub={`${Math.round(intelligence.summary.neural.avg_energy * 100)}% avg energy`}
+            gradient="from-cyan-500/20 to-teal-500/20"
+            iconColor="text-cyan-400"
+            borderColor="border-cyan-500/20"
+          />
+        </div>
+      )}
+
+      {/* ── 4. Health Breakdown (first intel section) ─────────────────── */}
+      {intelReady ? (
+        <IntelHealthBreakdown
+          data={intelligence}
+          progress={roadmapProgress ? { percentage: roadmapProgress.percentage } : undefined}
+        />
+      ) : (
+        <IntelTabFallback intelligence={intelligence} />
+      )}
+
+      {/* ── 5. Active Milestones ─────────────────────────────────────── */}
+      <section>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Milestones ({milestoneCount})</CardTitle>
+            <Button
+              size="sm"
+              onClick={() => milestoneFormDialog.open({ title: 'Add Milestone' })}
+            >
+              Add
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {milestoneCount === 0 ? (
+              <p className="text-gray-500 text-sm">No milestones defined</p>
+            ) : (
               <div className="space-y-2">
                 {(roadmap!.milestones || []).map(({ milestone, progress }) => (
                   <ExpandableMilestoneRow
@@ -418,21 +496,20 @@ export function ProjectDetailPage() {
                   />
                 ))}
               </div>
-            </CardContent>
-          </Card>
-        </section>
-      )}
+            )}
+          </CardContent>
+        </Card>
+      </section>
 
-      {/* ── Section 2: Quick Actions / Intelligence fallback ──────────── */}
-      {intelReady ? (
-        <section>
+      {/* ── 6. Attention Needed + Quick Actions ──────────────────────── */}
+      {intelReady && (
+        <>
+          <IntelAttention data={intelligence} />
           <IntelQuickActions data={intelligence} />
-        </section>
-      ) : (
-        <IntelTabFallback intelligence={intelligence} />
+        </>
       )}
 
-      {/* ── Section 3: Releases (collapsible) ──────────────────────────── */}
+      {/* ── 7. Releases (collapsible) ────────────────────────────────── */}
       {releaseCount > 0 && (
         <section>
           <Card>
@@ -483,7 +560,7 @@ export function ProjectDetailPage() {
         </section>
       )}
 
-      {/* ── Links to dedicated pages (Intelligence, Skills, Feature Graphs) */}
+      {/* ── 8. Links to dedicated pages ──────────────────────────────── */}
       <DedicatedPageLinks wsSlug={wsSlug} projectSlug={slug ?? ''} />
 
       {/* ── Dialogs ─────────────────────────────────────────────────────── */}
@@ -497,6 +574,42 @@ export function ProjectDetailPage() {
         {editProjectForm.fields}
       </FormDialog>
       <ConfirmDialog {...confirmDialog.dialogProps} />
+    </div>
+  )
+}
+
+// ============================================================================
+// ProjectStatTile — glassmorphism stat card (same design as workspace)
+// ============================================================================
+
+function ProjectStatTile({
+  icon,
+  value,
+  label,
+  sub,
+  gradient,
+  iconColor,
+  borderColor,
+}: {
+  icon: React.ReactNode
+  value: number
+  label: string
+  sub: string
+  gradient: string
+  iconColor: string
+  borderColor: string
+}) {
+  return (
+    <div
+      className={`relative overflow-hidden rounded-xl border ${borderColor} bg-gradient-to-br ${gradient} backdrop-blur-sm p-4`}
+    >
+      <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-white/[0.03] blur-2xl" />
+      <div className={`${iconColor} mb-3`}>{icon}</div>
+      <div className="text-2xl font-bold text-gray-100 tracking-tight">
+        {value.toLocaleString()}
+      </div>
+      <div className="text-sm font-medium text-gray-300 mt-0.5">{label}</div>
+      <div className="text-[11px] text-gray-500 mt-1">{sub}</div>
     </div>
   )
 }
