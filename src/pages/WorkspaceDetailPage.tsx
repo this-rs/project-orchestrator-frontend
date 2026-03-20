@@ -16,7 +16,6 @@ import {
   PageHeader,
   ConfirmDialog,
   MilestoneStatusBadge,
-  CompactStatCard,
   MetricTooltip,
 } from '@/components/ui'
 import {
@@ -36,6 +35,7 @@ import {
   Check,
   AlertTriangle,
   Brain,
+  GitBranch,
 } from 'lucide-react'
 import { workspacesApi, projectsApi } from '@/services'
 import { adminApi } from '@/services/admin'
@@ -492,47 +492,20 @@ export function WorkspaceDetailPage() {
           },
         ]}
       >
-        {/* KPI row: health score + 3 compact stats */}
-        {intelReady && intelligence.summary && (
-          <div className="flex items-center gap-3 flex-wrap">
-            <MetricTooltip term="health_score">
-              <div
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
-                style={{
-                  backgroundColor: `${healthScoreColor(intelligence.healthScore)}15`,
-                  color: healthScoreColor(intelligence.healthScore),
-                }}
-              >
-                <Activity size={12} />
-                {intelligence.healthScore}
-              </div>
-            </MetricTooltip>
-
-            <CompactStatCard
-              label="Code Entities"
-              value={
-                intelligence.summary.code.files +
-                intelligence.summary.code.functions
-              }
-              icon={<FileCode2 className="w-4 h-4" />}
-              color="indigo"
-            />
-            <CompactStatCard
-              label="Notes & Decisions"
-              value={
-                intelligence.summary.knowledge.notes +
-                intelligence.summary.knowledge.decisions
-              }
-              icon={<StickyNote className="w-4 h-4" />}
-              color="amber"
-            />
-            <CompactStatCard
-              label="Skills"
-              value={intelligence.summary.skills.total}
-              icon={<Sparkles className="w-4 h-4" />}
-              color="rose"
-            />
-          </div>
+        {/* Health score badge only */}
+        {intelReady && (
+          <MetricTooltip term="health_score">
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold w-fit"
+              style={{
+                backgroundColor: `${healthScoreColor(intelligence.healthScore)}15`,
+                color: healthScoreColor(intelligence.healthScore),
+              }}
+            >
+              <Activity size={12} />
+              Health {intelligence.healthScore}
+            </div>
+          </MetricTooltip>
         )}
       </PageHeader>
 
@@ -553,17 +526,99 @@ export function WorkspaceDetailPage() {
         </div>
       )}
 
-      {/* ── 2. Intelligence sections (with inline fallback when not ready) ── */}
+      {/* ── 2. Stat cards — polished glassmorphism grid ── */}
+      {intelReady && intelligence.summary && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <StatTile
+            icon={<FileCode2 size={20} />}
+            value={intelligence.summary.code.files + intelligence.summary.code.functions}
+            label="Code Entities"
+            sub={`${intelligence.summary.code.files} files \u00b7 ${intelligence.summary.code.functions} functions`}
+            gradient="from-indigo-500/20 to-violet-500/20"
+            iconColor="text-indigo-400"
+            borderColor="border-indigo-500/20"
+          />
+          <StatTile
+            icon={<StickyNote size={20} />}
+            value={intelligence.summary.knowledge.notes + intelligence.summary.knowledge.decisions}
+            label="Notes & Decisions"
+            sub={`${intelligence.summary.knowledge.notes} notes \u00b7 ${intelligence.summary.knowledge.decisions} decisions`}
+            gradient="from-amber-500/20 to-orange-500/20"
+            iconColor="text-amber-400"
+            borderColor="border-amber-500/20"
+          />
+          <StatTile
+            icon={<Sparkles size={20} />}
+            value={intelligence.summary.skills.total}
+            label="Skills"
+            sub={`${intelligence.summary.skills.active} active \u00b7 ${intelligence.summary.skills.emerging} emerging`}
+            gradient="from-rose-500/20 to-pink-500/20"
+            iconColor="text-rose-400"
+            borderColor="border-rose-500/20"
+          />
+          <StatTile
+            icon={<GitBranch size={20} />}
+            value={intelligence.summary.neural.active_synapses}
+            label="Synapses"
+            sub={`${Math.round(intelligence.summary.neural.avg_energy * 100)}% avg energy`}
+            gradient="from-cyan-500/20 to-teal-500/20"
+            iconColor="text-cyan-400"
+            borderColor="border-cyan-500/20"
+          />
+        </div>
+      )}
+
+      {/* ── 3. Health Breakdown (first intelligence section) ── */}
       {intelReady ? (
-        <>
-          <IntelAttention data={intelligence} />
-          <IntelHealthBreakdown data={intelligence} />
-        </>
+        <IntelHealthBreakdown data={intelligence} />
       ) : (
         <IntelTabFallback intelligence={intelligence} />
       )}
 
-      {/* ── 3. Projects ── */}
+      {/* ── 4. Graph + Timeline ── */}
+      {slug && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card className="lg:col-span-2 min-h-[300px]">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Network size={16} />
+                Graph
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Suspense
+                fallback={
+                  <div className="h-[400px] rounded-lg bg-slate-800/50 animate-pulse" />
+                }
+              >
+                <WorkspaceGraphPage workspaceSlug={slug!} embedded />
+              </Suspense>
+            </CardContent>
+          </Card>
+          <Card className="lg:col-span-1">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar size={16} />
+                Timeline
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Suspense
+                fallback={
+                  <div className="h-[400px] rounded-lg bg-slate-800/50 animate-pulse" />
+                }
+              >
+                <WorkspaceLearningTimeline workspaceSlug={slug!} embedded />
+              </Suspense>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── 5. Attention Needed ── */}
+      {intelReady && <IntelAttention data={intelligence} />}
+
+      {/* ── 6. Projects ── */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -703,47 +758,7 @@ export function WorkspaceDetailPage() {
         </CardContent>
       </Card>
 
-      {/* ── 4. Graph + Timeline (always visible, not gated by intelligence) ── */}
-      {slug && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <Card className="lg:col-span-2 min-h-[300px]">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Network size={16} />
-                Graph
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Suspense
-                fallback={
-                  <div className="h-[400px] rounded-lg bg-slate-800/50 animate-pulse" />
-                }
-              >
-                <WorkspaceGraphPage workspaceSlug={slug!} embedded />
-              </Suspense>
-            </CardContent>
-          </Card>
-          <Card className="lg:col-span-1">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar size={16} />
-                Timeline
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Suspense
-                fallback={
-                  <div className="h-[400px] rounded-lg bg-slate-800/50 animate-pulse" />
-                }
-              >
-                <WorkspaceLearningTimeline workspaceSlug={slug!} embedded />
-              </Suspense>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* ── 5. Milestones with progress bars ── */}
+      {/* ── 7. Milestones with progress bars ── */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -799,7 +814,7 @@ export function WorkspaceDetailPage() {
         </CardContent>
       </Card>
 
-      {/* ── 6. Assets (resources + components) in compact grid ── */}
+      {/* ── 8. Assets (resources + components) in compact grid ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
@@ -939,6 +954,44 @@ export function WorkspaceDetailPage() {
       <LinkEntityDialog {...linkDialog.dialogProps} />
       <LinkEntityDialog {...moveDialog.dialogProps} />
       <ConfirmDialog {...confirmDialog.dialogProps} />
+    </div>
+  )
+}
+
+// ============================================================================
+// StatTile — polished glassmorphism stat card for the overview grid
+// ============================================================================
+
+function StatTile({
+  icon,
+  value,
+  label,
+  sub,
+  gradient,
+  iconColor,
+  borderColor,
+}: {
+  icon: React.ReactNode
+  value: number
+  label: string
+  sub: string
+  gradient: string
+  iconColor: string
+  borderColor: string
+}) {
+  return (
+    <div
+      className={`relative overflow-hidden rounded-xl border ${borderColor} bg-gradient-to-br ${gradient} backdrop-blur-sm p-4`}
+    >
+      {/* Subtle glow */}
+      <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-white/[0.03] blur-2xl" />
+
+      <div className={`${iconColor} mb-3`}>{icon}</div>
+      <div className="text-2xl font-bold text-gray-100 tracking-tight">
+        {value.toLocaleString()}
+      </div>
+      <div className="text-sm font-medium text-gray-300 mt-0.5">{label}</div>
+      <div className="text-[11px] text-gray-500 mt-1">{sub}</div>
     </div>
   )
 }
