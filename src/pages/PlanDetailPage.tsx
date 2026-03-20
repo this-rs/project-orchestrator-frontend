@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
 import React from 'react'
-import { ChevronsUpDown, ChevronRight, Flag, FolderKanban, GitCommitHorizontal, ListChecks, GitFork, Archive } from 'lucide-react'
+import { ChevronsUpDown, ChevronRight, Flag, FolderKanban, GitCommitHorizontal, ListChecks, GitFork, Archive, Eye } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, InteractiveDecisionStatusBadge, ViewToggle, PageHeader, StatusSelect, TabLayout } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { plansApi, tasksApi, projectsApi, workspacesApi, decisionsApi } from '@/services'
@@ -63,8 +63,8 @@ export function PlanDetailPage() {
   const [implementLoading, setImplementLoading] = useState(false)
   // Active tab state — default to "tasks"
   const [activeTab, setActiveTab] = useState('tasks')
-  // Detect active pipeline run — used to hide/disable implement button
-  const { isRunning: hasPipelineRunning } = useRunnerStatus(planId)
+  // Detect active pipeline run — used to hide/disable implement button & show "View Runner"
+  const { isRunning: hasPipelineRunning, hasRun: hasPipelineRun, snapshot: runnerSnapshot } = useRunnerStatus(planId)
   // Plan graph data for UnifiedGraphSection (replaces inline graph section)
   const planGraphData = usePlanGraphData(planId, plan?.title, linkedProject?.slug)
 
@@ -374,14 +374,22 @@ export function PlanDetailPage() {
           { label: 'Created', value: new Date(plan.created_at).toLocaleDateString() },
         ]}
         actions={
-          // Only show Implement button for actionable statuses (approved, in_progress)
-          // Hide for draft, completed, cancelled — and disable if a run is already active
-          (plan.status === 'approved' || plan.status === 'in_progress') ? (
+          // When a run is active or has completed, show "View Runner" button
+          hasPipelineRun ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' })}
+              className="gap-1.5"
+            >
+              <Eye className="w-4 h-4" />
+              View Runner
+            </Button>
+          ) : (plan.status === 'approved' || plan.status === 'in_progress') ? (
             <ImplementButton
               mode="plan"
               entityId={plan.id}
               onClick={() => setImplementDialogOpen(true)}
-              disabled={hasPipelineRunning}
             />
           ) : undefined
         }
@@ -519,6 +527,7 @@ export function PlanDetailPage() {
               wavesLoading={planGraphData.wavesLoading}
               planId={plan.id}
               planStatus={plan.status}
+              runId={runnerSnapshot?.run_id ?? undefined}
               onLaunch={() => setImplementDialogOpen(true)}
               isRunning={hasPipelineRunning}
               availableViews={['dag', 'waves']}

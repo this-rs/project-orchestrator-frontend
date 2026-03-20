@@ -147,7 +147,7 @@ function WaveSummaryBar({
       {/* Runner actions */}
       {planId && (
         <div className="ml-auto flex items-center gap-2">
-          {runId && (
+          {(isRunning || runId) ? (
             <Link
               to={workspacePath(wsSlug, `/plans/${planId}/runner`)}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md bg-indigo-500/15 text-indigo-400 hover:bg-indigo-500/25 transition-colors"
@@ -155,8 +155,7 @@ function WaveSummaryBar({
               <Eye className="w-3.5 h-3.5" />
               View Runner
             </Link>
-          )}
-          {!isRunning && (planStatus === 'approved' || planStatus === 'in_progress') && onLaunch && (
+          ) : (planStatus === 'approved' || planStatus === 'in_progress') && onLaunch ? (
             <button
               onClick={onLaunch}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-indigo-600 hover:bg-indigo-500 text-white transition-colors cursor-pointer"
@@ -164,7 +163,7 @@ function WaveSummaryBar({
               <Play className="w-3.5 h-3.5" />
               Launch Plan
             </button>
-          )}
+          ) : null}
         </div>
       )}
     </div>

@@ -136,6 +136,15 @@ export const runnerApi = {
   },
 
   /**
+   * Retry a failed task by delegating it to a new sub-agent.
+   * Uses the existing delegate_task endpoint.
+   * Returns the new session_id for the spawned agent.
+   */
+  retryTask: async (planId: string, taskId: string): Promise<{ session_id: string }> => {
+    return api.post<{ session_id: string }>(`/plans/${planId}/tasks/${taskId}/delegate`, {})
+  },
+
+  /**
    * Cancel an active run. The backend will gracefully stop all running agents.
    *
    * - 404 → no active run for this plan
@@ -156,6 +165,15 @@ export const runnerApi = {
       throw err
     }
   },
+
+  /**
+   * Force-cancel a stuck run. Unlike regular cancel (which sets a flag and waits),
+   * force-cancel immediately clears the runner state and persists the run as cancelled.
+   * Use when agents are stuck in "spawning" and never respond to the graceful cancel.
+   */
+  forceCancelRun: async (planId: string): Promise<void> => {
+    await api.post<void>(`/plans/${planId}/run/force-cancel`)
+  },
 }
 
 // ---------------------------------------------------------------------------
@@ -165,6 +183,10 @@ export const runnerApi = {
 interface UseRunnerStatusResult {
   snapshot: RunSnapshot | null
   isRunning: boolean
+  /** True when a run exists (active or terminal) */
+  hasRun: boolean
+  /** True when a run exists and is terminal (completed/failed/cancelled/budget_exceeded) */
+  isTerminal: boolean
   error: string | null
   /** Force an immediate refresh */
   refresh: () => void
@@ -234,6 +256,13 @@ export function useRunnerStatus(
   }, [planId, intervalMs, fetchStatus])
 
   const isRunning = snapshot?.running === true
+  const hasRun = snapshot?.run_id != null
+  const isTerminal = hasRun && !isRunning && (
+    snapshot?.status === 'completed' ||
+    snapshot?.status === 'failed' ||
+    snapshot?.status === 'cancelled' ||
+    snapshot?.status === 'budget_exceeded'
+  )
 
-  return { snapshot, isRunning, error, refresh: fetchStatus }
+  return { snapshot, isRunning, hasRun, isTerminal, error, refresh: fetchStatus }
 }
