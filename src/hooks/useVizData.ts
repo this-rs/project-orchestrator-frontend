@@ -157,12 +157,13 @@ const MOCK_DELEGATION: DelegationData = {
 
 const MOCK_MOAT: MoatData = {
   layers: [
-    { name: 'code', count: 156 },
-    { name: 'knowledge', count: 42 },
-    { name: 'skills', count: 8 },
-    { name: 'behavioral', count: 5 },
-    { name: 'neural', count: 234 },
+    { name: 'code', count: 156, health: 0.85 },
+    { name: 'knowledge', count: 42, health: 0.72 },
+    { name: 'skills', count: 8, health: 0.60 },
+    { name: 'behavioral', count: 5, health: 0.45 },
+    { name: 'neural', count: 234, health: 0.78 },
   ],
+  healthScore: 0.68,
 };
 
 const MOCK_FEEDBACK: FeedbackLoopData = {

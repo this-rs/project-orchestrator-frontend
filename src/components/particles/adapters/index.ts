@@ -291,16 +291,46 @@ export function wavesToDelegation(waves: Wave[]): DelegationData {
 // ── 5. Summary → Moat ───────────────────────────────────────
 
 export function summaryToMoat(summary: IntelligenceSummary): MoatData {
-  return {
-    layers: [
-      { name: 'code', count: summary.code.files },
-      { name: 'knowledge', count: summary.knowledge.notes + summary.knowledge.decisions },
-      { name: 'skills', count: summary.skills.total },
-      { name: 'behavioral', count: summary.behavioral.protocols },
-      { name: 'fabric', count: summary.fabric.co_changed_pairs },
-      { name: 'neural', count: summary.neural.active_synapses },
-    ].filter((l) => l.count > 0),
-  };
+  // Compute per-layer health (0-1)
+  const codeHealth = summary.code.files > 0
+    ? Math.min(1, 1 - summary.code.orphans / summary.code.files)
+    : 0;
+
+  const knowledgeHealth = summary.knowledge.notes > 0
+    ? Math.min(1, 1 - summary.knowledge.stale_count / summary.knowledge.notes)
+    : 0;
+
+  const skillsHealth = summary.skills.total > 0
+    ? Math.min(1, summary.skills.active / summary.skills.total)
+    : 0;
+
+  const behavioralHealth = summary.behavioral.protocols > 0
+    ? Math.min(1, summary.behavioral.skill_linked / summary.behavioral.protocols)
+    : 0;
+
+  const fabricHealth = summary.fabric.co_changed_pairs > 0
+    ? Math.min(1, summary.fabric.co_changed_pairs / 50) // normalize to ~50 pairs = healthy
+    : 0;
+
+  const neuralHealth = Math.min(1,
+    ((1 - summary.neural.weak_synapses_ratio) + summary.neural.avg_energy) / 2,
+  );
+
+  const layers: MoatData['layers'] = [
+    { name: 'code', count: summary.code.files, health: codeHealth },
+    { name: 'knowledge', count: summary.knowledge.notes + summary.knowledge.decisions, health: knowledgeHealth },
+    { name: 'skills', count: summary.skills.total, health: skillsHealth },
+    { name: 'behavioral', count: summary.behavioral.protocols, health: behavioralHealth },
+    { name: 'fabric', count: summary.fabric.co_changed_pairs, health: fabricHealth },
+    { name: 'neural', count: summary.neural.active_synapses, health: neuralHealth },
+  ].filter((l) => l.count > 0);
+
+  // Global health = average of active layer healths
+  const healthScore = layers.length > 0
+    ? layers.reduce((sum, l) => sum + l.health, 0) / layers.length
+    : 0;
+
+  return { layers, healthScore };
 }
 
 // ── 6. Protocol Run → Feedback Loop ────────────────────────

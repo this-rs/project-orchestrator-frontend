@@ -94,10 +94,14 @@ export interface DelegationData {
 export interface MoatLayer {
   name: string;
   count: number;
+  /** Health score for this layer (0-1). 1 = healthy, 0 = critical */
+  health: number;
 }
 
 export interface MoatData {
   layers: MoatLayer[];
+  /** Global health score (0-1) aggregated across all layers */
+  healthScore: number;
 }
 
 // ── Feedback Loop (protocol run → iteration viz) ────────────

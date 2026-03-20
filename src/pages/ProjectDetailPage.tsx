@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, useCallback } from 'react'
+import { lazy, Suspense, useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
 import { FolderOpen, Clipboard, RefreshCw, Trash2, ChevronRight, Orbit, Calendar, Network, Loader2, Brain, AlertTriangle, X } from 'lucide-react'
@@ -76,6 +76,24 @@ export function ProjectDetailPage() {
   const intelligence = useIntelligenceData(slug ?? '')
   // Particle viz: project health (moat)
   const moatViz = useMoatVizData(slug)
+
+  // Moat layer → page section mapping
+  const LAYER_SECTION_MAP: Record<string, string> = useMemo(() => ({
+    code: 'layers',        // Code layer card
+    knowledge: 'layers',   // Knowledge layer card
+    skills: 'skills',      // Skills section
+    behavioral: 'layers',  // Behavioral in layer cards
+    fabric: 'layers',      // Fabric layer card
+    neural: 'layers',      // Neural layer card
+  }), [])
+
+  const handleMoatLayerClick = useCallback((layerName: string) => {
+    const sectionId = LAYER_SECTION_MAP[layerName] ?? 'health'
+    const el = document.getElementById(sectionId)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [LAYER_SECTION_MAP])
 
   const fetchData = useCallback(async () => {
     if (!slug) return
@@ -321,7 +339,13 @@ export function ProjectDetailPage() {
             progress={roadmap ? { percentage: roadmap.progress.percentage } : undefined}
           />
           {moatViz.data && (
-            <ProjectHealthWidget data={moatViz.data} height={200} className="rounded-lg" />
+            <ProjectHealthWidget
+              data={moatViz.data}
+              height={200}
+              className="rounded-lg"
+              interactive
+              onLayerClick={handleMoatLayerClick}
+            />
           )}
         </section>
       )}

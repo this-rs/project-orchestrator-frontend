@@ -357,16 +357,41 @@ describe('summaryToMoat', () => {
     },
   };
 
-  it('creates layers from non-zero counts', () => {
+  it('creates layers from non-zero counts with health scores', () => {
     const result = summaryToMoat(mockSummary);
     expect(result.layers.length).toBeGreaterThan(0);
     expect(result.layers.every((l) => l.count > 0)).toBe(true);
+    expect(result.layers.every((l) => typeof l.health === 'number' && l.health >= 0 && l.health <= 1)).toBe(true);
+  });
+
+  it('computes global healthScore as average of layer healths', () => {
+    const result = summaryToMoat(mockSummary);
+    expect(typeof result.healthScore).toBe('number');
+    expect(result.healthScore).toBeGreaterThan(0);
+    expect(result.healthScore).toBeLessThanOrEqual(1);
+    // Verify it's the mean of layer healths
+    const expectedAvg = result.layers.reduce((s, l) => s + l.health, 0) / result.layers.length;
+    expect(result.healthScore).toBeCloseTo(expectedAvg, 5);
   });
 
   it('maps knowledge as notes + decisions', () => {
     const result = summaryToMoat(mockSummary);
     const knowledge = result.layers.find((l) => l.name === 'knowledge');
     expect(knowledge?.count).toBe(42); // 30 + 12
+  });
+
+  it('computes code health from orphan ratio', () => {
+    const result = summaryToMoat(mockSummary);
+    const code = result.layers.find((l) => l.name === 'code');
+    // 3 orphans out of 156 files → health ≈ 0.98
+    expect(code?.health).toBeGreaterThan(0.95);
+  });
+
+  it('computes knowledge health from stale ratio', () => {
+    const result = summaryToMoat(mockSummary);
+    const knowledge = result.layers.find((l) => l.name === 'knowledge');
+    // 2 stale out of 30 notes → health ≈ 0.93
+    expect(knowledge?.health).toBeGreaterThan(0.9);
   });
 
   it('filters out zero-count layers', () => {
