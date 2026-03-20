@@ -485,6 +485,8 @@ export function PlanDetailPage() {
             wavesLoading={planGraphData.wavesLoading}
             planId={plan.id}
             planStatus={plan.status}
+            onLaunch={() => setImplementDialogOpen(true)}
+            isRunning={hasPipelineRunning}
             availableViews={['dag', 'waves', '3d']}
             defaultView="dag"
             onDrillDown={handleDrillDown}

@@ -233,6 +233,12 @@ interface UnifiedGraphSectionProps<T> {
   planId?: string
   /** Plan status (for WaveView) */
   planStatus?: PlanStatus
+  /** Active run ID (for WaveView runner link) */
+  runId?: string
+  /** Callback to launch the plan (opens ImplementDialog) */
+  onLaunch?: () => void
+  /** Whether a pipeline is currently running */
+  isRunning?: boolean
 
   // ── Drill-down ──────────────────────────────────────────────────────────
   /** Called when user double-clicks a node with a drillTarget */
@@ -271,6 +277,9 @@ export function UnifiedGraphSection<T>({
   wavesLoading = false,
   planId,
   planStatus,
+  runId,
+  onLaunch,
+  isRunning,
   onDrillDown,
   breadcrumbs,
   projectSlug,
@@ -387,17 +396,16 @@ export function UnifiedGraphSection<T>({
   const handleWavesClick = useCallback(() => {
     if (!waves && fetchWaves) {
       fetchWaves()
-    } else {
-      setViewMode('waves')
     }
+    setViewMode('waves')
   }, [waves, fetchWaves])
 
-  // Switch to waves view when data loads
+  // Auto-fetch waves when switching to waves view without data
   useEffect(() => {
-    if (waves && wavesLoading === false && viewMode !== 'waves') {
-      // fetchWaves completed — auto-switch
+    if (viewMode === 'waves' && !waves && !wavesLoading && fetchWaves) {
+      fetchWaves()
     }
-  }, [waves, wavesLoading, viewMode])
+  }, [viewMode, waves, wavesLoading, fetchWaves])
 
   // Dynamic title
   const displayTitle = title ?? (
@@ -555,6 +563,9 @@ export function UnifiedGraphSection<T>({
                 taskStatuses={taskStatuses ?? new Map()}
                 planId={planId ?? ''}
                 planStatus={planStatus ?? ('approved' as PlanStatus)}
+                runId={runId}
+                onLaunch={onLaunch}
+                isRunning={isRunning}
               />
             </div>
           ) : viewMode === 'dag' && graph ? (

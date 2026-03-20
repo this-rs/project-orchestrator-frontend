@@ -21,6 +21,10 @@ interface WaveViewProps {
   planStatus?: PlanStatus
   /** Active run ID for runner link */
   runId?: string
+  /** Callback to launch the plan (opens ImplementDialog with budget) */
+  onLaunch?: () => void
+  /** Whether a pipeline is currently running (disables launch) */
+  isRunning?: boolean
   className?: string
 }
 
@@ -93,11 +97,15 @@ function WaveSummaryBar({
   planId,
   planStatus,
   runId,
+  onLaunch,
+  isRunning,
 }: {
   data: WaveComputationResult
   planId?: string
   planStatus?: PlanStatus
   runId?: string
+  onLaunch?: () => void
+  isRunning?: boolean
 }) {
   const wsSlug = useWorkspaceSlug()
   const { summary } = data
@@ -136,7 +144,7 @@ function WaveSummaryBar({
         </>
       )}
 
-      {/* Runner links */}
+      {/* Runner actions */}
       {planId && (
         <div className="ml-auto flex items-center gap-2">
           {runId && (
@@ -148,14 +156,14 @@ function WaveSummaryBar({
               View Runner
             </Link>
           )}
-          {!runId && planStatus === 'approved' && (
-            <Link
-              to={workspacePath(wsSlug, `/plans/${planId}/runner`)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors"
+          {!isRunning && (planStatus === 'approved' || planStatus === 'in_progress') && onLaunch && (
+            <button
+              onClick={onLaunch}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-indigo-600 hover:bg-indigo-500 text-white transition-colors cursor-pointer"
             >
               <Play className="w-3.5 h-3.5" />
               Launch Plan
-            </Link>
+            </button>
           )}
         </div>
       )}
@@ -447,7 +455,7 @@ function WaveColumn({
 // MAIN COMPONENT
 // ============================================================================
 
-export function WaveView({ data, taskStatuses, planId, planStatus, runId, className = '' }: WaveViewProps) {
+export function WaveView({ data, taskStatuses, planId, planStatus, runId, onLaunch, isRunning, className = '' }: WaveViewProps) {
   // Shared mutable steps cache (survives re-renders, updated by cards & events)
   const stepsDataRef = useRef(new Map<string, Step[]>())
   // Track tasks that just completed for flash animation
@@ -562,7 +570,7 @@ export function WaveView({ data, taskStatuses, planId, planStatus, runId, classN
         }
       `}</style>
 
-      <WaveSummaryBar data={data} planId={planId} planStatus={planStatus} runId={runId} />
+      <WaveSummaryBar data={data} planId={planId} planStatus={planStatus} runId={runId} onLaunch={onLaunch} isRunning={isRunning} />
 
       {/* Horizontal scrollable wave columns */}
       <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin">
