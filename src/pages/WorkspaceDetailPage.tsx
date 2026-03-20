@@ -20,7 +20,6 @@ import {
   MetricTooltip,
 } from '@/components/ui'
 import {
-  Brain,
   Network,
   AlertTriangle,
   Loader2,
@@ -555,14 +554,12 @@ export function WorkspaceDetailPage() {
         </div>
       )}
 
-      {/* ── 2. Alertes condensees (graceful degrade if intel not ready) ── */}
-      {intelReady ? (
-        <div className="space-y-4">
+      {/* ── 2. Alertes condensées (only if intel data available — no blocker) ── */}
+      {intelReady && (
+        <>
           <IntelAttention data={intelligence} />
           <IntelHealthBreakdown data={intelligence} />
-        </div>
-      ) : (
-        <IntelTabFallback intelligence={intelligence} />
+        </>
       )}
 
       {/* ── 3. Projects ── */}
@@ -705,10 +702,10 @@ export function WorkspaceDetailPage() {
         </CardContent>
       </Card>
 
-      {/* ── 4. Graph + Timeline (side by side on desktop, stacked on mobile) ── */}
-      {intelReady && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card>
+      {/* ── 4. Graph + Timeline (always visible, not gated by intelligence) ── */}
+      {slug && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Network size={16} />
@@ -718,16 +715,14 @@ export function WorkspaceDetailPage() {
             <CardContent>
               <Suspense
                 fallback={
-                  <div className="flex items-center justify-center py-16">
-                    <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
-                  </div>
+                  <div className="h-[400px] rounded-lg bg-slate-800/50 animate-pulse" />
                 }
               >
                 <WorkspaceGraphPage workspaceSlug={slug!} embedded />
               </Suspense>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="lg:col-span-1">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Calendar size={16} />
@@ -737,9 +732,7 @@ export function WorkspaceDetailPage() {
             <CardContent>
               <Suspense
                 fallback={
-                  <div className="flex items-center justify-center py-16">
-                    <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
-                  </div>
+                  <div className="h-[400px] rounded-lg bg-slate-800/50 animate-pulse" />
                 }
               >
                 <WorkspaceLearningTimeline workspaceSlug={slug!} embedded />
