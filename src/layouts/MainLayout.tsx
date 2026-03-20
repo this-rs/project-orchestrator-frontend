@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Menu, Home, Flag, Box, ClipboardList, CheckCircle2, FileText, Scale, Code, Brain, Users, GitGraph, Workflow, ScrollText, ChevronLeft, ChevronRight, MessageCircle, Settings, Shield, Gauge, Zap, Activity } from 'lucide-react'
+import { Menu, Home, Flag, Box, ClipboardList, FileText, Scale, Code, Brain, Users, Workflow, ChevronLeft, ChevronRight, MessageCircle, Settings, Activity } from 'lucide-react'
 import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, activeWorkspaceAtom, workspaceRefreshAtom } from '@/atoms'
 import { ToastContainer, Branding } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
@@ -40,29 +40,28 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
       label: 'Plan',
       items: [
         { name: 'Plans', href: workspacePath(wsSlug, '/plans'), icon: ClipboardList },
-        { name: 'Tasks', href: workspacePath(wsSlug, '/tasks'), icon: CheckCircle2 },
         { name: 'Pipelines', href: workspacePath(wsSlug, '/pipelines'), icon: Activity },
-        { name: 'Triggers', href: workspacePath(wsSlug, '/triggers'), icon: Zap },
       ],
     },
     {
       label: 'Knowledge',
       items: [
-        { name: 'RFCs', href: workspacePath(wsSlug, '/rfcs'), icon: ScrollText },
-        { name: 'Protocols', href: workspacePath(wsSlug, '/protocols'), icon: Workflow },
-        { name: 'Skills', href: workspacePath(wsSlug, '/skills'), icon: Brain },
-        { name: 'Personas', href: workspacePath(wsSlug, '/personas'), icon: Users },
         { name: 'Notes', href: workspacePath(wsSlug, '/notes'), icon: FileText },
         { name: 'Decisions', href: workspacePath(wsSlug, '/decisions'), icon: Scale },
         { name: 'Code', href: workspacePath(wsSlug, '/code'), icon: Code },
-        { name: 'Feature Graphs', href: workspacePath(wsSlug, '/feature-graphs'), icon: GitGraph },
+      ],
+    },
+    {
+      label: 'Intelligence',
+      items: [
+        { name: 'Skills', href: workspacePath(wsSlug, '/skills'), icon: Brain },
+        { name: 'Personas', href: workspacePath(wsSlug, '/personas'), icon: Users },
+        { name: 'Protocols', href: workspacePath(wsSlug, '/protocols'), icon: Workflow },
       ],
     },
     {
       label: 'System',
       items: [
-        { name: 'Sharing', href: workspacePath(wsSlug, '/sharing'), icon: Shield },
-        { name: 'Neural Routing', href: workspacePath(wsSlug, '/neural-routing'), icon: Gauge },
         { name: 'Admin', href: workspacePath(wsSlug, '/admin'), icon: Settings },
       ],
     },
@@ -380,6 +379,12 @@ function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceNa
       rfcs: 'RFCs',
       intelligence: 'Intelligence',
       graph: 'Graph',
+      triggers: 'Triggers',
+      pipelines: 'Pipelines',
+      sharing: 'Sharing',
+      'neural-routing': 'Neural Routing',
+      admin: 'Admin',
+      runner: 'Runner',
     }
     return labels[s] || s.charAt(0).toUpperCase() + s.slice(1)
   }
