@@ -156,10 +156,12 @@ export function WaveSection({
           )}
 
           {/* Inline conversation panel (full width, below agent cards) */}
-          {conversationInThisWave && selectedConversation && (
+          {conversationInThisWave && selectedConversation && conversationAgent && (
             <InlineConversation
               sessionId={selectedConversation.sessionId}
               taskTitle={selectedConversation.taskTitle}
+              agentStatus={conversationAgent.status}
+              elapsedSecs={conversationAgent.elapsed_secs}
               onClose={onCloseConversation}
             />
           )}
