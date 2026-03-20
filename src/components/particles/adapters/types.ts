@@ -59,11 +59,18 @@ export interface DistributionData {
 }
 
 // ── Delegation (waves → agent viz) ──────────────────────────
-// Scene pending — standalone type
+
+export interface DelegationTask {
+  title: string;
+  id: string;
+  status: string;
+  affected_files: string[];
+}
 
 export interface DelegationWave {
+  waveNumber: number;
   agents: number;
-  tasks: string[];
+  tasks: DelegationTask[];
 }
 
 export interface DelegationData {

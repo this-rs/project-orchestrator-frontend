@@ -62,12 +62,14 @@ export function PlanDetailPage() {
   const [linkedMilestones, setLinkedMilestones] = useState<Array<{ id: string; title: string; href: string; type: 'workspace' | 'project' }>>([])
   const [implementDialogOpen, setImplementDialogOpen] = useState(false)
   const [implementLoading, setImplementLoading] = useState(false)
+  // Particle viz: hovered task from wave dispatch widget
+  const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null)
   // Detect active pipeline run — used to hide/disable implement button
   const { isRunning: hasPipelineRunning } = useRunnerStatus(planId)
   // Plan graph data for UnifiedGraphSection (replaces inline graph section)
   const planGraphData = usePlanGraphData(planId, plan?.title, linkedProject?.slug)
-  // Particle viz: wave delegation
-  const delegationViz = useDelegationVizData(planId)
+  // Particle viz: wave delegation (live polling when pipeline is running)
+  const delegationViz = useDelegationVizData(planId, hasPipelineRunning)
 
   // Fractal drill-down: navigate to task detail page
   const handleDrillDown = useCallback((target: { level: string; id: string }) => {
@@ -490,7 +492,26 @@ export function PlanDetailPage() {
             projectSlug={linkedProject?.slug}
           />
           {delegationViz.data && (
-            <WaveDispatchWidget data={delegationViz.data} height={250} className="rounded-lg" />
+            <WaveDispatchWidget
+              data={delegationViz.data}
+              height={250}
+              className="rounded-lg"
+              interactive
+              onTaskHover={setHoveredTaskId}
+              onTaskClick={(taskId) => {
+                // Scroll to task in list and navigate
+                const el = document.getElementById(`task-row-${taskId}`)
+                if (el) {
+                  el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  // Brief highlight flash
+                  el.classList.add('ring-1', 'ring-cyan-500/50')
+                  setTimeout(() => el.classList.remove('ring-1', 'ring-cyan-500/50'), 1500)
+                }
+                navigate(workspacePath(wsSlug, `/tasks/${taskId}`), {
+                  state: { planId: plan.id, planTitle: plan.title, projectId: plan.project_id }
+                })
+              }}
+            />
           )}
         </section>
       )}
@@ -547,6 +568,7 @@ export function PlanDetailPage() {
                   planId={plan.id}
                   planTitle={plan.title}
                   projectId={plan.project_id}
+                  highlighted={hoveredTaskId === task.id}
                 />
               ))}
             </div>
@@ -761,6 +783,7 @@ function TaskRow({
   planId,
   planTitle,
   projectId,
+  highlighted,
 }: {
   task: Task
   onStatusChange: (status: TaskStatus) => Promise<void>
@@ -770,6 +793,7 @@ function TaskRow({
   planId?: string
   planTitle?: string
   projectId?: string
+  highlighted?: boolean
 }) {
   const wsSlug = useWorkspaceSlug()
   const [expanded, setExpanded] = useState(false)
@@ -826,7 +850,10 @@ function TaskRow({
   const totalSteps = steps?.length ?? 0
 
   return (
-    <div className="bg-white/[0.06] rounded-lg overflow-hidden">
+    <div
+      id={`task-row-${task.id}`}
+      className={`rounded-lg overflow-hidden transition-all duration-200 ${highlighted ? 'bg-cyan-500/[0.12] ring-1 ring-cyan-500/30' : 'bg-white/[0.06]'}`}
+    >
       <div className="flex items-center gap-2 p-3">
         <button
           onClick={toggleExpand}

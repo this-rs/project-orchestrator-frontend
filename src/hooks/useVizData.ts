@@ -5,7 +5,7 @@
  * Returns { data, isLoading, error } with fallback mock data when API is down.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { codeApi } from '@/services/code';
 import { notesApi } from '@/services/notes';
 import { plansApi } from '@/services/plans';
@@ -119,9 +119,30 @@ const MOCK_DISTRIBUTION: DistributionData = {
 
 const MOCK_DELEGATION: DelegationData = {
   waves: [
-    { agents: 2, tasks: ['Setup database', 'Init config'] },
-    { agents: 3, tasks: ['Build API', 'Build UI', 'Write tests'] },
-    { agents: 1, tasks: ['Integration test'] },
+    {
+      waveNumber: 1,
+      agents: 2,
+      tasks: [
+        { title: 'Setup database', id: 'mock-t1', status: 'completed', affected_files: [] },
+        { title: 'Init config', id: 'mock-t2', status: 'completed', affected_files: [] },
+      ],
+    },
+    {
+      waveNumber: 2,
+      agents: 3,
+      tasks: [
+        { title: 'Build API', id: 'mock-t3', status: 'in_progress', affected_files: ['api.ts'] },
+        { title: 'Build UI', id: 'mock-t4', status: 'pending', affected_files: ['ui.tsx'] },
+        { title: 'Write tests', id: 'mock-t5', status: 'pending', affected_files: [] },
+      ],
+    },
+    {
+      waveNumber: 3,
+      agents: 1,
+      tasks: [
+        { title: 'Integration test', id: 'mock-t6', status: 'pending', affected_files: [] },
+      ],
+    },
   ],
   totalTasks: 6,
 };
@@ -225,8 +246,19 @@ export function useDistributionVizData(
 
 export function useDelegationVizData(
   planId: string | undefined,
+  /** When true, re-fetches waves every 10s for live updates */
+  livePolling: boolean = false,
 ): VizDataResult<DelegationData> {
   const [fetcher, setFetcher] = useState<(() => Promise<Awaited<ReturnType<typeof plansApi.getWaves>>>) | null>(null);
+  // Poll tick — incremented every 10s when live polling is active
+  const [pollTick, setPollTick] = useState(0);
+
+  // Stable refetch function that creates a new fetcher reference to trigger useVizFetch
+  const triggerRefetch = useCallback(() => {
+    if (!planId) return;
+    // Create a NEW function reference to trigger the useEffect in useVizFetch
+    setFetcher(() => () => plansApi.getWaves(planId));
+  }, [planId]);
 
   useEffect(() => {
     if (!planId) {
@@ -235,6 +267,20 @@ export function useDelegationVizData(
     }
     setFetcher(() => () => plansApi.getWaves(planId));
   }, [planId]);
+
+  // Live polling: refetch every 10s when active
+  useEffect(() => {
+    if (!livePolling || !planId) return;
+    const interval = setInterval(() => {
+      setPollTick((t) => t + 1);
+    }, 10_000);
+    return () => clearInterval(interval);
+  }, [livePolling, planId]);
+
+  // Trigger refetch on poll tick change
+  useEffect(() => {
+    if (pollTick > 0) triggerRefetch();
+  }, [pollTick, triggerRefetch]);
 
   return useVizFetch(
     fetcher,

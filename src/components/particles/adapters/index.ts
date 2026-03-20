@@ -208,11 +208,16 @@ export function wavesToDelegation(waves: Wave[]): DelegationData {
   let totalTasks = 0;
 
   const delegationWaves = waves.map((w) => {
-    const tasks = w.tasks.map((t) => t.title ?? t.id);
     totalTasks += w.tasks.length;
     return {
+      waveNumber: w.wave_number,
       agents: w.tasks.length,
-      tasks,
+      tasks: w.tasks.map((t) => ({
+        title: t.title ?? t.id,
+        id: t.id,
+        status: t.status,
+        affected_files: t.affected_files ?? [],
+      })),
     };
   });
 

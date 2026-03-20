@@ -275,18 +275,31 @@ describe('wavesToDelegation', () => {
     },
   ];
 
-  it('maps each wave to agents count and task list', () => {
+  it('maps each wave to agents count and enriched task list', () => {
     const result = wavesToDelegation(mockWaves);
     expect(result.waves).toHaveLength(2);
-    expect(result.waves[0]).toEqual({
-      agents: 2,
-      tasks: ['Setup DB', 'Init config'],
+    expect(result.waves[0].agents).toBe(2);
+    expect(result.waves[0].waveNumber).toBe(1);
+    expect(result.waves[0].tasks[0]).toEqual({
+      title: 'Setup DB',
+      id: 't1',
+      status: 'pending',
+      affected_files: [],
+    });
+    expect(result.waves[0].tasks[1]).toEqual({
+      title: 'Init config',
+      id: 't2',
+      status: 'pending',
+      affected_files: [],
     });
   });
 
   it('falls back to task id when title is missing', () => {
     const result = wavesToDelegation(mockWaves);
-    expect(result.waves[1].tasks).toEqual(['t3']);
+    expect(result.waves[1].tasks[0].title).toBe('t3');
+    expect(result.waves[1].tasks[0].id).toBe('t3');
+    expect(result.waves[1].tasks[0].status).toBe('in_progress');
+    expect(result.waves[1].tasks[0].affected_files).toEqual(['a.ts']);
   });
 
   it('computes totalTasks correctly', () => {
