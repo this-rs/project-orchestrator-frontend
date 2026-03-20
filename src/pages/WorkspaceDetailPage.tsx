@@ -16,16 +16,12 @@ import {
   PageHeader,
   ConfirmDialog,
   MilestoneStatusBadge,
-  CompactStatCard,
   MetricTooltip,
 } from '@/components/ui'
 import {
   Network,
   Loader2,
   Calendar,
-  FileCode2,
-  StickyNote,
-  Sparkles,
   Wrench,
   Timer,
   Zap,
@@ -34,6 +30,8 @@ import {
   Search,
   Activity,
   Check,
+  AlertTriangle,
+  Brain,
 } from 'lucide-react'
 import { workspacesApi, projectsApi } from '@/services'
 import { adminApi } from '@/services/admin'
@@ -91,6 +89,48 @@ interface WorkspaceOverviewResponse {
     total_tasks: number
     percentage: number
   }
+}
+
+// ============================================================================
+// IntelTabFallback — inline loading/error/empty state for intelligence sections
+// ============================================================================
+
+function IntelTabFallback({
+  intelligence,
+}: {
+  intelligence: { loading: boolean; error: string | null; summary: unknown | null; handleRefresh: () => void }
+}) {
+  if (intelligence.loading) {
+    return (
+      <div data-testid="intel-loading" className="flex flex-col items-center justify-center py-16 text-center">
+        <Loader2 className="w-6 h-6 animate-spin text-slate-500 mb-3" />
+        <span className="text-sm text-slate-400">Loading intelligence data…</span>
+      </div>
+    )
+  }
+
+  if (intelligence.error) {
+    return (
+      <div data-testid="intel-error" className="flex flex-col items-center justify-center py-16 text-center">
+        <AlertTriangle className="w-8 h-8 text-amber-500 mb-3" />
+        <p className="text-sm text-slate-400 mb-3">{intelligence.error}</p>
+        <button
+          onClick={intelligence.handleRefresh}
+          className="text-xs text-cyan-400 hover:text-cyan-300 underline underline-offset-2"
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
+
+  // No summary available (empty state)
+  return (
+    <div data-testid="intel-empty" className="flex flex-col items-center justify-center py-16 text-center">
+      <Brain className="w-8 h-8 text-slate-600 mb-3" />
+      <p className="text-sm text-slate-500">No intelligence data available. Sync your projects first.</p>
+    </div>
+  )
 }
 
 // ============================================================================
@@ -448,49 +488,25 @@ export function WorkspaceDetailPage() {
           },
         ]}
       >
-        {/* KPI row: health score + 3 compact stats */}
-        {intelReady && intelligence.summary && (
-          <div className="flex items-center gap-3 flex-wrap">
-            <MetricTooltip term="health_score">
-              <div
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
-                style={{
-                  backgroundColor: `${healthScoreColor(intelligence.healthScore)}15`,
-                  color: healthScoreColor(intelligence.healthScore),
-                }}
-              >
-                <Activity size={12} />
-                {intelligence.healthScore}
-              </div>
-            </MetricTooltip>
-
-            <CompactStatCard
-              label="Code Entities"
-              value={
-                intelligence.summary.code.files +
-                intelligence.summary.code.functions
-              }
-              icon={<FileCode2 className="w-4 h-4" />}
-              color="indigo"
-            />
-            <CompactStatCard
-              label="Notes & Decisions"
-              value={
-                intelligence.summary.knowledge.notes +
-                intelligence.summary.knowledge.decisions
-              }
-              icon={<StickyNote className="w-4 h-4" />}
-              color="amber"
-            />
-            <CompactStatCard
-              label="Skills"
-              value={intelligence.summary.skills.total}
-              icon={<Sparkles className="w-4 h-4" />}
-              color="rose"
-            />
-          </div>
+        {/* Health score badge in header (subtle) */}
+        {intelReady && (
+          <MetricTooltip term="health_score">
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
+              style={{
+                backgroundColor: `${healthScoreColor(intelligence.healthScore)}15`,
+                color: healthScoreColor(intelligence.healthScore),
+              }}
+            >
+              <Activity size={12} />
+              {intelligence.healthScore}
+            </div>
+          </MetricTooltip>
         )}
       </PageHeader>
+
+      {/* ── 1. Health Breakdown (top priority — full overview) ── */}
+      {intelReady ? <IntelHealthBreakdown data={intelligence} /> : <IntelTabFallback intelligence={intelligence} />}
 
       {/* Overall progress bar (if tasks exist) */}
       {overallProgress && overallProgress.total_tasks > 0 && (
@@ -509,15 +525,51 @@ export function WorkspaceDetailPage() {
         </div>
       )}
 
-      {/* ── 2. Alertes condensées (only if intel data available — no blocker) ── */}
-      {intelReady && (
-        <>
-          <IntelAttention data={intelligence} />
-          <IntelHealthBreakdown data={intelligence} />
-        </>
+      {/* ── 2. Alertes condensées (only if issues detected) ── */}
+      {intelReady && <IntelAttention data={intelligence} />}
+      {/* Note: IntelAttention self-hides when no issues — no fallback needed */}
+
+      {/* ── 3. Graph + Timeline (always visible, not gated by intelligence) ── */}
+      {slug && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Network size={16} />
+                Graph
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Suspense
+                fallback={
+                  <div className="h-[400px] rounded-lg bg-slate-800/50 animate-pulse" />
+                }
+              >
+                <WorkspaceGraphPage workspaceSlug={slug!} embedded />
+              </Suspense>
+            </CardContent>
+          </Card>
+          <Card className="lg:col-span-1">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar size={16} />
+                Timeline
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Suspense
+                fallback={
+                  <div className="h-[400px] rounded-lg bg-slate-800/50 animate-pulse" />
+                }
+              >
+                <WorkspaceLearningTimeline workspaceSlug={slug!} embedded />
+              </Suspense>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
-      {/* ── 3. Projects ── */}
+      {/* ── 4. Projects ── */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -656,46 +708,6 @@ export function WorkspaceDetailPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* ── 4. Graph + Timeline (always visible, not gated by intelligence) ── */}
-      {slug && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Network size={16} />
-                Graph
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Suspense
-                fallback={
-                  <div className="h-[400px] rounded-lg bg-slate-800/50 animate-pulse" />
-                }
-              >
-                <WorkspaceGraphPage workspaceSlug={slug!} embedded />
-              </Suspense>
-            </CardContent>
-          </Card>
-          <Card className="lg:col-span-1">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar size={16} />
-                Timeline
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Suspense
-                fallback={
-                  <div className="h-[400px] rounded-lg bg-slate-800/50 animate-pulse" />
-                }
-              >
-                <WorkspaceLearningTimeline workspaceSlug={slug!} embedded />
-              </Suspense>
-            </CardContent>
-          </Card>
-        </div>
-      )}
 
       {/* ── 5. Milestones with progress bars ── */}
       <Card>

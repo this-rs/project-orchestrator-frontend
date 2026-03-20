@@ -19,12 +19,12 @@ import type { FileHistoryEntry, CoChanger } from '@/types'
 function relativeTime(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'à l\u2019instant'
-  if (mins < 60) return `il y a ${mins}m`
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `il y a ${hours}h`
+  if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
-  if (days < 30) return `il y a ${days}j`
+  if (days < 30) return `${days}d ago`
   return new Date(dateStr).toLocaleDateString()
 }
 
@@ -32,7 +32,7 @@ function relativeTime(dateStr: string): string {
 function groupByDate(entries: FileHistoryEntry[]): Map<string, FileHistoryEntry[]> {
   const map = new Map<string, FileHistoryEntry[]>()
   for (const entry of entries) {
-    const date = new Date(entry.date).toLocaleDateString('fr-FR', {
+    const date = new Date(entry.date).toLocaleDateString('en-US', {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
@@ -128,7 +128,7 @@ export function FileHistoryDrawer({
           <div className="flex items-center gap-2 min-w-0">
             <History className="w-4 h-4 text-indigo-400 shrink-0" />
             <h2 className="text-sm font-semibold text-gray-100 truncate">
-              Historique de{' '}
+              History of{' '}
               <code className="text-indigo-400 font-mono">{fileName}</code>
             </h2>
           </div>
@@ -151,7 +151,7 @@ export function FileHistoryDrawer({
           {loading && (
             <div className="flex items-center justify-center gap-2 py-12">
               <div className="w-4 h-4 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
-              <span className="text-sm text-gray-400">Chargement...</span>
+              <span className="text-sm text-gray-400">Loading...</span>
             </div>
           )}
 
@@ -167,7 +167,7 @@ export function FileHistoryDrawer({
               <CardContent>
                 {history.length === 0 ? (
                   <p className="text-sm text-gray-500 py-4 text-center">
-                    Aucun historique trouvé
+                    No history found
                   </p>
                 ) : (
                   <div className="relative">
@@ -234,10 +234,10 @@ export function FileHistoryDrawer({
                 <div className="flex items-center gap-2">
                   <ArrowRight className="w-4 h-4 text-gray-500" />
                   <MetricTooltip term="co_change" showIndicator>
-                    <CardTitle>Fichiers souvent modifiés ensemble</CardTitle>
+                    <CardTitle>Frequently co-changed files</CardTitle>
                   </MetricTooltip>
                   <span className="text-xs text-gray-500 ml-auto">
-                    {coChangers.length} fichiers
+                    {coChangers.length} files
                   </span>
                 </div>
               </CardHeader>
@@ -277,7 +277,7 @@ export function FileHistoryDrawer({
           {loadingCoChangers && (
             <div className="flex items-center gap-2 py-4 justify-center">
               <div className="w-3 h-3 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
-              <span className="text-xs text-gray-500">Chargement des co-changements...</span>
+              <span className="text-xs text-gray-500">Loading co-changes...</span>
             </div>
           )}
 
@@ -287,12 +287,12 @@ export function FileHistoryDrawer({
               {!showGraph ? (
                 <Button variant="secondary" size="sm" onClick={() => setShowGraph(true)}>
                   <GitBranch className="w-3.5 h-3.5 mr-1.5" />
-                  Graphe de co-changements
+                  Co-change Graph
                 </Button>
               ) : (
                 <>
                   <Button variant="secondary" size="sm" onClick={() => setShowGraph(false)}>
-                    Masquer le graphe
+                    Hide graph
                   </Button>
                   <CoChangeGraph projectSlug={projectSlug} />
                 </>

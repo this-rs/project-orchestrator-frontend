@@ -13,7 +13,7 @@ type CodeTab = 'explorer' | 'architecture' | 'sante'
 const TABS: TabItem[] = [
   { id: 'explorer', label: 'Explorer', icon: <Search className="w-4 h-4" /> },
   { id: 'architecture', label: 'Architecture', icon: <Blocks className="w-4 h-4" /> },
-  { id: 'sante', label: 'Santé', icon: <HeartPulse className="w-4 h-4" /> },
+  { id: 'sante', label: 'Health', icon: <HeartPulse className="w-4 h-4" /> },
 ]
 
 export function CodePage() {
@@ -39,7 +39,7 @@ export function CodePage() {
   const projectSlug = selectedProject !== 'all' ? selectedProject : null
 
   const projectOptions = [
-    { value: 'all', label: 'Tout le workspace' },
+    { value: 'all', label: 'Entire workspace' },
     ...projects.map((p) => ({ value: p.slug, label: p.name })),
   ]
 
@@ -51,7 +51,7 @@ export function CodePage() {
     <div className="space-y-4">
       <PageHeader
         title="Code Explorer"
-        description="Recherche, architecture et santé du code dans vos projets."
+        description="Search, architecture, and code health across your projects."
         actions={
           projects.length > 1 ? (
             <Select

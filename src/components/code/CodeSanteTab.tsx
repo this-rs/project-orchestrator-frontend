@@ -11,8 +11,8 @@ interface CodeSanteTabProps {
 type SubTab = 'health' | 'processes'
 
 const SUB_TABS: TabItem[] = [
-  { id: 'health', label: 'Métriques & Hotspots', icon: <HeartPulse className="w-4 h-4" /> },
-  { id: 'processes', label: 'Processus', icon: <Workflow className="w-4 h-4" /> },
+  { id: 'health', label: 'Metrics & Hotspots', icon: <HeartPulse className="w-4 h-4" /> },
+  { id: 'processes', label: 'Processes', icon: <Workflow className="w-4 h-4" /> },
 ]
 
 export function CodeSanteTab({ projectSlug }: CodeSanteTabProps) {
@@ -21,8 +21,8 @@ export function CodeSanteTab({ projectSlug }: CodeSanteTabProps) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-400">
-        Indicateurs de santé du code : fonctions trop grosses, fichiers orphelins,
-        points chauds de modification, et processus métier détectés.
+        Code health indicators: oversized functions, orphan files,
+        modification hotspots, and detected business processes.
       </p>
 
       <div className="flex gap-2">

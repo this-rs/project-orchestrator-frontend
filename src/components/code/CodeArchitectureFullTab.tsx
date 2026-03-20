@@ -13,9 +13,9 @@ interface CodeArchitectureFullTabProps {
 type SubTab = 'overview' | 'communities' | 'heritage'
 
 const SUB_TABS: TabItem[] = [
-  { id: 'overview', label: 'Vue d\'ensemble', icon: <Blocks className="w-4 h-4" /> },
-  { id: 'communities', label: 'Communautés', icon: <Users className="w-4 h-4" /> },
-  { id: 'heritage', label: 'Héritage', icon: <GitFork className="w-4 h-4" /> },
+  { id: 'overview', label: 'Overview', icon: <Blocks className="w-4 h-4" /> },
+  { id: 'communities', label: 'Communities', icon: <Users className="w-4 h-4" /> },
+  { id: 'heritage', label: 'Inheritance', icon: <GitFork className="w-4 h-4" /> },
 ]
 
 export function CodeArchitectureFullTab({
@@ -27,8 +27,8 @@ export function CodeArchitectureFullTab({
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-400">
-        Structure du code : vue d&apos;ensemble des modules, communautés de fichiers couplés,
-        et hiérarchies d&apos;héritage.
+        Code structure: module overview, communities of coupled files,
+        and inheritance hierarchies.
       </p>
 
       <div className="flex gap-2">

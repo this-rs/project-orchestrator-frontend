@@ -50,9 +50,8 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug }: CodeExplorerTabP
   return (
     <div className="space-y-6">
       <p className="text-sm text-gray-400">
-        Recherche sémantique dans les fichiers, fonctions et structures de votre codebase.
-        Les résultats sont classés par pertinence. Cliquez sur l&apos;icône historique
-        d&apos;un fichier pour voir ses commits récents.
+        Semantic search across files, functions, and structures in your codebase.
+        Results are ranked by relevance. Click the history icon on a file to see its recent commits.
       </p>
 
       {/* Search Box */}
@@ -63,11 +62,11 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug }: CodeExplorerTabP
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              placeholder="Rechercher dans le code..."
+              placeholder="Search in code..."
               className="flex-1"
             />
             <Button onClick={handleSearch} loading={loading}>
-              Rechercher
+              Search
             </Button>
           </div>
         </CardContent>
@@ -77,12 +76,12 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug }: CodeExplorerTabP
       {loading ? (
         <LoadingPage />
       ) : searchError ? (
-        <ErrorState title="Échec de la recherche" description={searchError} onRetry={handleSearch} />
+        <ErrorState title="Search failed" description={searchError} onRetry={handleSearch} />
       ) : searchResults.length === 0 ? (
         <EmptyState
           variant="search"
-          title="Aucun résultat"
-          description="Entrez un terme de recherche pour explorer le code de vos projets."
+          title="No results"
+          description="Enter a search term to explore the code across your projects."
         />
       ) : (
         <div className="space-y-4">
@@ -103,7 +102,7 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug }: CodeExplorerTabP
                     <button
                       onClick={() => openFileHistory(result.document.path)}
                       className="p-1 rounded hover:bg-white/[0.08] text-gray-500 hover:text-indigo-400 transition-colors"
-                      title="Voir l'historique du fichier"
+                      title="View file history"
                     >
                       <History className="w-4 h-4" />
                     </button>
@@ -118,7 +117,7 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug }: CodeExplorerTabP
 
                 {result.document.symbols && result.document.symbols.length > 0 && (
                   <div className="mb-3">
-                    <div className="text-xs text-gray-500 mb-1">Symboles :</div>
+                    <div className="text-xs text-gray-500 mb-1">Symbols:</div>
                     <div className="flex flex-wrap gap-1">
                       {result.document.symbols.slice(0, 10).map((symbol) => (
                         <span
@@ -130,7 +129,7 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug }: CodeExplorerTabP
                       ))}
                       {result.document.symbols.length > 10 && (
                         <span className="text-xs text-gray-500">
-                          +{result.document.symbols.length - 10} de plus
+                          +{result.document.symbols.length - 10} more
                         </span>
                       )}
                     </div>
@@ -139,12 +138,12 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug }: CodeExplorerTabP
 
                 {result.document.signatures && result.document.signatures.length > 0 && (
                   <div>
-                    <div className="text-xs text-gray-500 mb-1">Signatures :</div>
+                    <div className="text-xs text-gray-500 mb-1">Signatures:</div>
                     <pre className="bg-gray-900 p-2 rounded text-xs text-gray-300 overflow-x-auto max-h-32">
                       <code>{result.document.signatures.slice(0, 5).join('\n')}</code>
                       {result.document.signatures.length > 5 && (
                         <span className="text-gray-500">
-                          {'\n'}... +{result.document.signatures.length - 5} de plus
+                          {'\n'}... +{result.document.signatures.length - 5} more
                         </span>
                       )}
                     </pre>

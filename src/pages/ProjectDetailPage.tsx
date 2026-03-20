@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { lazy, Suspense, useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
 import {
@@ -7,10 +7,20 @@ import {
   RefreshCw,
   ChevronRight,
   Brain,
-  AlertTriangle,
   ArrowRight,
   Sparkles,
   Network,
+  Activity,
+  Calendar,
+  Wrench,
+  Timer,
+  Zap,
+  Waves,
+  BrainCircuit,
+  Search,
+  Loader2,
+  Check,
+  AlertTriangle,
 } from 'lucide-react'
 import {
   Card,
@@ -23,15 +33,19 @@ import {
   LoadingPage,
   ErrorState,
   Badge,
+  ProgressBar,
   PageHeader,
+  MetricTooltip,
 } from '@/components/ui'
-import { MetricTooltip } from '@/components/ui/MetricTooltip'
 import { ExpandableMilestoneRow } from '@/components/expandable'
 import {
   useIntelligenceData,
+  IntelHealthBreakdown,
+  IntelAttention,
   IntelQuickActions,
 } from '@/components/intelligence/IntelligenceDashboard'
 import { projectsApi } from '@/services'
+import { adminApi } from '@/services/admin'
 import { useConfirmDialog, useFormDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import {
@@ -44,83 +58,225 @@ import {
 import { CreateMilestoneForm, CreateReleaseForm, EditProjectForm } from '@/components/forms'
 import type { Project, ProjectRoadmap } from '@/types'
 
-// ─── Health Badge with Popover ──────────────────────────────────────────────
+// Lazy-load heavy intelligence components (project-level)
+const IntelligenceGraphPage = lazy(
+  () => import('@/components/intelligence/IntelligenceGraphPage'),
+)
+const LearningTimeline = lazy(
+  () => import('@/components/intelligence/LearningTimeline'),
+)
 
-function HealthBadgeWithAlerts({
-  healthScore,
+// ─── IntelTabFallback — inline loading/error/empty for intelligence sections ─
+
+function IntelTabFallback({
   intelligence,
 }: {
-  healthScore: number
-  intelligence: ReturnType<typeof useIntelligenceData>
+  intelligence: { loading: boolean; error: string | null; summary: unknown | null; handleRefresh: () => void }
 }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  // Close on outside click
-  useEffect(() => {
-    if (!open) return
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
-
-  const color =
-    healthScore >= 0.7
-      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-      : healthScore >= 0.4
-        ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
-        : 'bg-red-500/20 text-red-400 border-red-500/40'
-
-  // Collect alerts
-  const s = intelligence.summary
-  const alerts: { label: string; color: string }[] = []
-  if (s) {
-    if (s.knowledge.stale_count > 0)
-      alerts.push({ label: `${s.knowledge.stale_count} stale notes`, color: 'text-amber-400' })
-    if (s.neural.dead_notes_count > 0)
-      alerts.push({ label: `${s.neural.dead_notes_count} dead notes`, color: 'text-slate-400' })
-    if (s.code.orphans > 5)
-      alerts.push({ label: `${s.code.orphans} orphan files`, color: 'text-amber-400' })
+  if (intelligence.loading) {
+    return (
+      <div data-testid="intel-loading" className="flex flex-col items-center justify-center py-16 text-center">
+        <Loader2 className="w-6 h-6 animate-spin text-slate-500 mb-3" />
+        <span className="text-sm text-slate-400">Loading intelligence data…</span>
+      </div>
+    )
   }
-  if (intelligence.health?.risk_assessment?.critical_count && intelligence.health.risk_assessment.critical_count > 0)
-    alerts.push({
-      label: `${intelligence.health.risk_assessment.critical_count} critical risk files`,
-      color: 'text-red-400',
-    })
-  if (intelligence.health && intelligence.health.god_function_count > 0)
-    alerts.push({
-      label: `${intelligence.health.god_function_count} god functions`,
-      color: 'text-orange-400',
-    })
+
+  if (intelligence.error) {
+    return (
+      <div data-testid="intel-error" className="flex flex-col items-center justify-center py-16 text-center">
+        <AlertTriangle className="w-8 h-8 text-amber-500 mb-3" />
+        <p className="text-sm text-slate-400 mb-3">{intelligence.error}</p>
+        <button
+          onClick={intelligence.handleRefresh}
+          className="text-xs text-cyan-400 hover:text-cyan-300 underline underline-offset-2"
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
+
+  // No summary available (empty state)
+  return (
+    <div data-testid="intel-empty" className="flex flex-col items-center justify-center py-16 text-center">
+      <Brain className="w-8 h-8 text-slate-600 mb-3" />
+      <p className="text-sm text-slate-500">No intelligence data available. Sync your projects first.</p>
+    </div>
+  )
+}
+
+// ─── Maintenance Dropdown (project-level) ───────────────────────────────────
+
+function MaintenanceDropdown({
+  intelligence,
+  projectId,
+}: {
+  intelligence: ReturnType<typeof useIntelligenceData>
+  projectId?: string
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false)
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [isOpen])
+
+  if (!intelligence.summary) return null
+
+  const actions = [
+    {
+      key: 'staleness',
+      label: 'Update Staleness',
+      description: 'Recalculate staleness scores for all notes',
+      icon: Timer,
+      color: '#fb923c',
+      run: async () => {
+        const r = await adminApi.updateStaleness()
+        await intelligence.handleRefresh()
+        return `${r.notes_updated} notes updated`
+      },
+    },
+    {
+      key: 'energy',
+      label: 'Recalculate Energy',
+      description: 'Update neural energy scores based on activity',
+      icon: Zap,
+      color: '#22d3ee',
+      run: async () => {
+        const r = await adminApi.updateEnergy()
+        await intelligence.handleRefresh()
+        return `${r.notes_updated} notes updated`
+      },
+    },
+    {
+      key: 'decay',
+      label: 'Decay Synapses',
+      description: 'Decay weak synapses and prune dead connections',
+      icon: Waves,
+      color: '#a78bfa',
+      run: async () => {
+        const r = await adminApi.decayNeurons()
+        await intelligence.handleRefresh()
+        return `${r.synapses_decayed} decayed, ${r.synapses_pruned} pruned`
+      },
+    },
+    {
+      key: 'fabric',
+      label: 'Update Fabric Scores',
+      description: 'Recalculate graph metrics (PageRank, communities)',
+      icon: Network,
+      color: '#94a3b8',
+      run: async () => {
+        if (projectId) {
+          await adminApi.updateFabricScores({ project_id: projectId })
+          await intelligence.handleRefresh()
+          return 'Fabric scores updated'
+        }
+        return 'No project ID available'
+      },
+    },
+    {
+      key: 'skills',
+      label: 'Detect Skills',
+      description: 'Auto-detect emergent skills from note clusters',
+      icon: BrainCircuit,
+      color: '#ec4899',
+      run: async () => {
+        if (projectId) {
+          await adminApi.detectSkills(projectId)
+          await intelligence.handleRefresh()
+          return 'Skills detection completed'
+        }
+        return 'No project ID available'
+      },
+    },
+    {
+      key: 'backfill',
+      label: 'Backfill Synapses',
+      description: 'Create missing synapses from semantic similarity',
+      icon: Search,
+      color: '#06b6d4',
+      run: async () => {
+        await adminApi.startBackfillSynapses()
+        return 'Backfill job started'
+      },
+    },
+  ]
 
   return (
-    <div className="relative" ref={ref}>
-      <MetricTooltip term="health_score">
-        <button
-          onClick={() => setOpen(!open)}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors ${color}`}
-        >
-          {Math.round(healthScore * 100)}%
-          {alerts.length > 0 && (
-            <AlertTriangle size={12} className="text-amber-400" />
-          )}
-        </button>
-      </MetricTooltip>
+    <div ref={dropdownRef} className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-white/[0.06] transition-colors"
+        title="Maintenance actions"
+      >
+        <Wrench size={14} />
+        Maintenance
+      </button>
 
-      {open && alerts.length > 0 && (
-        <div className="absolute right-0 top-full mt-2 z-50 w-72 bg-slate-900 border border-white/10 rounded-lg shadow-xl p-3 space-y-1.5">
-          <div className="text-[11px] font-medium text-slate-400 mb-1">Attention Needed</div>
-          {alerts.map((a) => (
-            <div
-              key={a.label}
-              className={`flex items-center gap-2 text-[11px] ${a.color}`}
-            >
-              <AlertTriangle size={10} />
-              {a.label}
-            </div>
-          ))}
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1 z-50 w-72 rounded-lg border border-white/[0.08] bg-[var(--surface-popover,#232733)] shadow-xl py-1">
+          <div className="px-3 py-1.5 text-[10px] text-slate-500 uppercase tracking-wider font-medium">
+            Knowledge Graph Maintenance
+          </div>
+          {actions.map((action) => {
+            const state = intelligence.getAction(action.key)
+            const isRunning = state.status === 'running'
+            const isDone = state.status === 'success'
+            const isError = state.status === 'error'
+            const Icon = action.icon
+
+            return (
+              <button
+                key={action.key}
+                onClick={() => intelligence.runAction(action.key, action.run)}
+                disabled={isRunning}
+                className="w-full px-3 py-2 text-left hover:bg-white/[0.06] transition-colors flex items-center gap-2.5 disabled:opacity-50"
+              >
+                <div
+                  className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: `${action.color}15` }}
+                >
+                  {isRunning ? (
+                    <Loader2 size={12} color={action.color} className="animate-spin" />
+                  ) : isDone ? (
+                    <Check size={12} className="text-emerald-400" />
+                  ) : (
+                    <Icon size={12} color={action.color} />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-slate-300">{action.label}</p>
+                  <p className="text-[10px] text-slate-600 leading-tight">
+                    {action.description}
+                  </p>
+                  {isDone && state.message && (
+                    <p className="text-[10px] text-emerald-500 mt-0.5">{state.message}</p>
+                  )}
+                  {isError && state.message && (
+                    <p className="text-[10px] text-red-400 mt-0.5">{state.message}</p>
+                  )}
+                </div>
+              </button>
+            )
+          })}
         </div>
       )}
     </div>
@@ -156,6 +312,15 @@ function DedicatedPageLinks({ wsSlug, projectSlug }: { wsSlug: string; projectSl
   )
 }
 
+// ─── Health Score Color Helper ──────────────────────────────────────────────
+
+function healthScoreColor(score: number): string {
+  if (score >= 80) return '#4ade80'
+  if (score >= 60) return '#fbbf24'
+  if (score >= 40) return '#fb923c'
+  return '#f87171'
+}
+
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 export function ProjectDetailPage() {
@@ -183,6 +348,7 @@ export function ProjectDetailPage() {
 
   // Intelligence data
   const intelligence = useIntelligenceData(slug ?? '')
+  const intelReady = !intelligence.loading && !intelligence.error && !!intelligence.summary
 
   const fetchData = useCallback(async () => {
     if (!slug) return
@@ -273,20 +439,32 @@ export function ProjectDetailPage() {
 
   const milestoneCount = (roadmap?.milestones || []).length
   const releaseCount = roadmap?.releases.length ?? 0
-  const intelReady = !intelligence.loading && !intelligence.error && !!intelligence.summary
+
+  // Compute overall progress from roadmap milestones
+  const overallProgress = (() => {
+    const milestones = roadmap?.milestones || []
+    if (milestones.length === 0) return null
+    let completed = 0
+    let total = 0
+    for (const { progress } of milestones) {
+      if (progress) {
+        completed += progress.completed ?? 0
+        total += progress.total ?? 0
+      }
+    }
+    if (total === 0) return null
+    return { completed_tasks: completed, total_tasks: total, percentage: Math.round((completed / total) * 100) }
+  })()
 
   return (
     <div className="pt-6 space-y-6">
-      {/* ── Header: name, description, health badge, sync status ──────── */}
+      {/* ── 1. Header: name, description, health badge, sync, maintenance ── */}
       <PageHeader
         title={project.name}
         description={project.description}
-        status={intelReady ? (
-          <HealthBadgeWithAlerts
-            healthScore={intelligence.healthScore}
-            intelligence={intelligence}
-          />
-        ) : undefined}
+        actions={
+          <MaintenanceDropdown intelligence={intelligence} projectId={project.id} />
+        }
         overflowActions={[
           {
             label: 'Rename',
@@ -309,8 +487,22 @@ export function ProjectDetailPage() {
           },
         ]}
       >
-        {/* Inline metadata: path + sync button */}
+        {/* Inline metadata: health badge + path + sync button */}
         <div className="flex items-center gap-1.5">
+          {intelReady && (
+            <MetricTooltip term="health_score">
+              <div
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
+                style={{
+                  backgroundColor: `${healthScoreColor(intelligence.healthScore)}15`,
+                  color: healthScoreColor(intelligence.healthScore),
+                }}
+              >
+                <Activity size={12} />
+                {intelligence.healthScore}
+              </div>
+            </MetricTooltip>
+          )}
           {project.root_path && (
             <div className="flex items-center gap-1.5 bg-white/[0.04] border border-white/[0.08] rounded-md px-2.5 py-1 group">
               <FolderOpen className="w-3.5 h-3.5 text-gray-500 shrink-0" />
@@ -347,8 +539,70 @@ export function ProjectDetailPage() {
         </div>
       </PageHeader>
 
+      {/* ── 2. Health Breakdown (top priority — full overview) ────────── */}
+      {intelReady ? <IntelHealthBreakdown data={intelligence} progress={overallProgress ? { percentage: overallProgress.percentage } : undefined} /> : <IntelTabFallback intelligence={intelligence} />}
 
-      {/* ── Section 1: Active Milestones ────────────────────────────────── */}
+      {/* ── 3. Overall progress bar (if tasks exist) ──────────────────── */}
+      {overallProgress && overallProgress.total_tasks > 0 && (
+        <div className="px-1">
+          <ProgressBar
+            value={overallProgress.percentage}
+            showLabel
+            size="lg"
+            gradient
+            shimmer={overallProgress.percentage < 100}
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            {overallProgress.completed_tasks} / {overallProgress.total_tasks}{' '}
+            tasks completed
+          </p>
+        </div>
+      )}
+
+      {/* ── 4. Alerts (only if issues detected) ───────────────────────── */}
+      {intelReady && <IntelAttention data={intelligence} />}
+
+      {/* ── 5. Graph + Timeline (always visible, not gated by intelligence) */}
+      {slug && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Network size={16} />
+                Graph
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Suspense
+                fallback={
+                  <div className="h-[400px] rounded-lg bg-slate-800/50 animate-pulse" />
+                }
+              >
+                <IntelligenceGraphPage projectSlug={slug} embedded />
+              </Suspense>
+            </CardContent>
+          </Card>
+          <Card className="lg:col-span-1">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar size={16} />
+                Timeline
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Suspense
+                fallback={
+                  <div className="h-[400px] rounded-lg bg-slate-800/50 animate-pulse" />
+                }
+              >
+                <LearningTimeline projectSlug={slug} embedded />
+              </Suspense>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── 6. Milestones ─────────────────────────────────────────────── */}
       {milestoneCount > 0 && (
         <section>
           <Card>
@@ -382,14 +636,15 @@ export function ProjectDetailPage() {
         </section>
       )}
 
-      {/* ── Section 2: Quick Actions (plans in progress) ────────────────── */}
-      {intelReady && (
+      {/* ── 7. Quick Actions (plans in progress) ─────────────────────── */}
+      {intelReady ? (
         <section>
           <IntelQuickActions data={intelligence} />
         </section>
-      )}
+      ) : null}
+      {/* Quick Actions only shown when ready — Health Breakdown already shows fallback */}
 
-      {/* ── Section 3: Releases (collapsible) ──────────────────────────── */}
+      {/* ── 8. Releases (collapsible) ─────────────────────────────────── */}
       {releaseCount > 0 && (
         <section>
           <Card>
@@ -440,10 +695,10 @@ export function ProjectDetailPage() {
         </section>
       )}
 
-      {/* ── Links to dedicated pages (Intelligence, Skills, Feature Graphs) */}
+      {/* ── 9. Links to dedicated pages (Intelligence, Skills, Feature Graphs) */}
       <DedicatedPageLinks wsSlug={wsSlug} projectSlug={slug ?? ''} />
 
-      {/* ── Dialogs ─────────────────────────────────────────────────────── */}
+      {/* ── Dialogs ───────────────────────────────────────────────────── */}
       <FormDialog {...milestoneFormDialog.dialogProps} onSubmit={milestoneForm.submit}>
         {milestoneForm.fields}
       </FormDialog>
