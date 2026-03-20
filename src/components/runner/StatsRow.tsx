@@ -1,8 +1,8 @@
 /**
  * StatsRow — two-level stats display for the runner dashboard.
  *
- * Primary row: status badge, progress bar, elapsed time
- * Secondary row: budget (inline-editable), agents count, wave progress
+ * Primary row: progress bar + tasks completed + elapsed time
+ * Secondary row: budget (inline-editable glass card), agents count, wave progress (StatCards)
  *
  * ~190 lines — within the 200-line target.
  */
@@ -14,12 +14,12 @@ import {
   Layers,
   Users,
   CheckCircle2,
-  AlertTriangle,
   Pencil,
   Check,
   X,
   Loader2,
 } from 'lucide-react'
+import { StatCard } from '@/components/ui/StatCard'
 import { ProgressBar } from '@/components/ui'
 import { formatElapsed, formatCost } from './shared'
 import type { RunSnapshot, ActiveAgentSnapshot } from '@/services/runner'
@@ -38,10 +38,10 @@ export interface StatsRowProps {
 }
 
 // ---------------------------------------------------------------------------
-// BudgetDisplay — inline editing sub-component
+// BudgetCard — glassmorphic card with always-visible edit affordance
 // ---------------------------------------------------------------------------
 
-function BudgetDisplay({
+function BudgetCard({
   costUsd,
   maxCostUsd,
   isRunning,
@@ -55,11 +55,13 @@ function BudgetDisplay({
   const [editing, setEditing] = useState(false)
   const [input, setInput] = useState('')
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
 
   const handleEdit = useCallback(() => {
-    setInput(String(maxCostUsd))
+    setInput(String(maxCostUsd || Math.ceil(costUsd * 2) || 10))
     setEditing(true)
-  }, [maxCostUsd])
+    setSaved(false)
+  }, [maxCostUsd, costUsd])
 
   const handleSave = useCallback(async () => {
     const value = parseFloat(input)
@@ -68,15 +70,16 @@ function BudgetDisplay({
     try {
       await onSave(value)
       setEditing(false)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
     } catch {
-      // silently fail — polling will show the real value
+      // polling will show real value
     } finally {
       setSaving(false)
     }
   }, [input, onSave])
 
   const handleCancel = useCallback(() => setEditing(false), [])
-
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter') handleSave()
@@ -86,58 +89,53 @@ function BudgetDisplay({
   )
 
   return (
-    <div className="flex items-center gap-2 text-sm">
-      <DollarSign className="w-4 h-4 text-gray-500 shrink-0" />
-      <span className="font-mono tabular-nums text-gray-300">{formatCost(costUsd)}</span>
-
-      {maxCostUsd > 0 && (
-        <>
-          <span className="text-gray-600">/</span>
-          {editing ? (
-            <span className="inline-flex items-center gap-1">
-              <span className="text-gray-500">$</span>
-              <input
-                type="number"
-                min={1}
-                max={500}
-                step={5}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                autoFocus
-                className="w-16 px-1.5 py-0.5 bg-white/[0.06] border border-indigo-500/50 rounded text-sm text-gray-200 font-mono tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
-              />
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="p-0.5 text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
-              >
-                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-              </button>
-              <button
-                onClick={handleCancel}
-                className="p-0.5 text-gray-500 hover:text-gray-300 transition-colors cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </span>
-          ) : (
-            <button
-              onClick={isRunning ? handleEdit : undefined}
-              className={`group inline-flex items-center gap-1 font-mono tabular-nums ${
-                isRunning ? 'hover:text-indigo-400 transition-colors cursor-pointer' : ''
-              }`}
-              title={isRunning ? 'Click to edit budget' : undefined}
-              disabled={!isRunning}
-            >
-              <span className="text-gray-400">{formatCost(maxCostUsd)}</span>
-              {isRunning && (
-                <Pencil className="w-3 h-3 text-gray-600 group-hover:text-indigo-400 transition-colors" />
-              )}
+    <div className="glass rounded-xl shadow-sm overflow-hidden border-t-2 border-yellow-500">
+      <div className="p-4">
+        <div className="text-gray-500 mb-2"><DollarSign className="w-4 h-4" /></div>
+        {editing ? (
+          <div className="flex items-center gap-1.5">
+            <span className="text-gray-300 font-mono tabular-nums text-sm">{formatCost(costUsd)} /</span>
+            <span className="text-gray-500">$</span>
+            <input
+              type="number"
+              min={1}
+              max={500}
+              step={5}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              autoFocus
+              className="w-16 px-1.5 py-0.5 bg-white/[0.06] border border-indigo-500/50 rounded text-sm text-gray-200 font-mono tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
+            />
+            <button onClick={handleSave} disabled={saving} className="p-0.5 text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer" title="Save">
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
             </button>
-          )}
-        </>
-      )}
+            <button onClick={handleCancel} className="p-0.5 text-gray-500 hover:text-gray-300 transition-colors cursor-pointer" title="Cancel">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <span className="text-2xl font-bold text-gray-100" style={{ fontSize: 'var(--fluid-2xl)' }}>
+              {formatCost(costUsd)}
+            </span>
+            {maxCostUsd > 0 && (
+              <span className="text-sm text-gray-500 font-mono">/ {formatCost(maxCostUsd)}</span>
+            )}
+            {isRunning && (
+              <button
+                onClick={handleEdit}
+                className="ml-1 p-1 rounded text-gray-500 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors cursor-pointer"
+                title="Edit budget limit"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {saved && <span className="text-xs text-green-400 animate-pulse ml-1">Saved!</span>}
+          </div>
+        )}
+        <div className="text-sm text-gray-400 mt-0.5">Budget</div>
+      </div>
     </div>
   )
 }
@@ -155,6 +153,10 @@ export function StatsRow({
   onBudgetSave,
 }: StatsRowProps) {
   const progressPercent = Math.round(effectiveSnapshot.progress_pct ?? 0)
+  const completedTasks = effectiveSnapshot.tasks_completed ?? 0
+  const totalTasks = effectiveSnapshot.tasks_total ?? 0
+  const currentWave = (effectiveSnapshot.current_wave ?? 0) + 1
+
   const failedCount = useMemo(
     () => resolvedAgents.filter((a) => a.status === 'failed').length,
     [resolvedAgents],
@@ -167,23 +169,18 @@ export function StatsRow({
 
   return (
     <div className="space-y-3">
-      {/* Primary row: progress + tasks + elapsed */}
+      {/* Primary: progress bar with task count and time */}
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-4 text-sm">
           <div className="flex items-center gap-1.5 text-gray-300">
             <CheckCircle2 className="w-4 h-4 text-gray-500" />
-            <span className="font-medium">
-              {effectiveSnapshot.tasks_completed ?? 0} / {effectiveSnapshot.tasks_total ?? 0} tasks
-            </span>
+            <span className="font-medium">{completedTasks} / {totalTasks} tasks</span>
             <span className="text-gray-500 ml-1">({progressPercent}%)</span>
+            {failedCount > 0 && (
+              <span className="text-red-400 ml-2">{failedCount} failed</span>
+            )}
           </div>
-          {failedCount > 0 && (
-            <div className="flex items-center gap-1.5 text-red-400">
-              <AlertTriangle className="w-4 h-4" />
-              <span>{failedCount} failed</span>
-            </div>
-          )}
-          <div className="flex items-center gap-1.5 text-gray-400 ml-auto">
+          <div className="flex items-center gap-1.5 text-gray-400">
             <Clock className="w-4 h-4 text-gray-500" />
             <span className="font-mono tabular-nums">{formatElapsed(effectiveSnapshot.elapsed_secs)}</span>
           </div>
@@ -191,23 +188,34 @@ export function StatsRow({
         <ProgressBar value={progressPercent} />
       </div>
 
-      {/* Secondary row: budget, agents, waves */}
-      <div className="flex flex-wrap items-center gap-6 text-sm text-gray-400">
-        <BudgetDisplay
+      {/* Secondary: stat cards grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <BudgetCard
           costUsd={effectiveSnapshot.cost_usd}
           maxCostUsd={effectiveSnapshot.max_cost_usd}
           isRunning={isRunning}
           onSave={handleBudgetSave}
         />
-        <div className="flex items-center gap-1.5">
-          <Users className="w-4 h-4 text-gray-500" />
-          <span>{resolvedAgents.length} agent{resolvedAgents.length !== 1 ? 's' : ''}</span>
-        </div>
-        {effectiveSnapshot.current_wave != null && (
-          <div className="flex items-center gap-1.5">
-            <Layers className="w-4 h-4 text-gray-500" />
-            <span>Wave {(effectiveSnapshot.current_wave ?? 0) + 1}{wavesTotal ? ` / ${wavesTotal}` : ''}</span>
-          </div>
+        <StatCard
+          icon={<Users className="w-4 h-4" />}
+          label="Agents"
+          value={resolvedAgents.length}
+          accent="border-blue-500"
+        />
+        {effectiveSnapshot.current_wave != null ? (
+          <StatCard
+            icon={<Layers className="w-4 h-4" />}
+            label={wavesTotal ? `Wave ${currentWave} / ${wavesTotal}` : `Wave ${currentWave}`}
+            value={currentWave}
+            accent="border-purple-500"
+          />
+        ) : (
+          <StatCard
+            icon={<Layers className="w-4 h-4" />}
+            label="Waves"
+            value={0}
+            accent="border-purple-500"
+          />
         )}
       </div>
     </div>

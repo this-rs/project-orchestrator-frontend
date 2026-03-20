@@ -1,11 +1,13 @@
 /**
  * RunnerHeader — uses the design system <PageHeader> with breadcrumb, status badge, and actions.
+ *
+ * Actions: Cancel Run (while running), Retry Run (when failed/budget_exceeded).
  */
 
 import { useMemo } from 'react'
-import { Link } from 'react-router-dom'
-import { ClipboardList, Rocket } from 'lucide-react'
+import { ClipboardList, Rocket, RotateCcw } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { Button } from '@/components/ui/Button'
 import { CancelButton } from './CancelButton'
 import { runStatusConfig } from './shared'
 import type { RunSnapshot } from '@/services/runner'
@@ -17,6 +19,9 @@ export interface RunnerHeaderProps {
   workspacePath: (slug: string, path: string) => string
   effectiveSnapshot: RunSnapshot
   isRunning: boolean
+  /** Called when user clicks "Retry Run" on a failed/budget_exceeded run */
+  onRetryRun?: () => void
+  retrying?: boolean
 }
 
 export function RunnerHeader({
@@ -26,6 +31,8 @@ export function RunnerHeader({
   workspacePath: wpFn,
   effectiveSnapshot,
   isRunning,
+  onRetryRun,
+  retrying = false,
 }: RunnerHeaderProps) {
   const statusStr = effectiveSnapshot.status ?? (effectiveSnapshot.running ? 'running' : 'completed')
   const statusCfg = runStatusConfig[statusStr] ?? runStatusConfig.running
@@ -39,20 +46,28 @@ export function RunnerHeader({
     </span>
   ), [statusCfg, isRunning])
 
+  const canRetry = !isRunning && (statusStr === 'failed' || statusStr === 'budget_exceeded' || statusStr === 'cancelled')
+
   const actions = useMemo(() => (
     <div className="flex items-center gap-2">
       {isRunning && <CancelButton planId={planId} isRunning={isRunning} />}
-      {effectiveSnapshot.status === 'budget_exceeded' && !isRunning && (
-        <Link
-          to={wpFn(wsSlug, `/plans/${planId}`)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+      {canRetry && onRetryRun && (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onRetryRun}
+          disabled={retrying}
         >
-          <Rocket className="w-3.5 h-3.5" />
-          Relaunch with higher budget
-        </Link>
+          {statusStr === 'budget_exceeded' ? (
+            <Rocket className="w-3.5 h-3.5" />
+          ) : (
+            <RotateCcw className={`w-3.5 h-3.5 ${retrying ? 'animate-spin' : ''}`} />
+          )}
+          {retrying ? 'Retrying...' : statusStr === 'budget_exceeded' ? 'Relaunch' : 'Retry Run'}
+        </Button>
       )}
     </div>
-  ), [isRunning, planId, effectiveSnapshot.status, wpFn, wsSlug])
+  ), [isRunning, planId, canRetry, onRetryRun, retrying, statusStr])
 
   const parentLinks = useMemo(() => [
     {
