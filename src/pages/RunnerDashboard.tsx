@@ -543,8 +543,8 @@ export function RunnerDashboard() {
   // Historical fallback
   const latestRun = useLatestPlanRun(planId)
 
-  // Fetch wave structure
-  const { waves: wavesData, loading: wavesLoading } = useWavesData(planId)
+  // Fetch wave structure (polls every 5s while running + reacts to task CRUD events)
+  const { waves: wavesData, loading: wavesLoading } = useWavesData(planId, isRunning)
 
   // Build effective snapshot
   const effectiveSnapshot: RunSnapshot | null = useMemo(() => {
@@ -657,27 +657,11 @@ export function RunnerDashboard() {
     return map
   }, [resolvedAgents, taskWaveMap])
 
-  // Build a set of known failed task IDs from the PlanRun record (more reliable
-  // than wavesData statuses which are fetched once on mount and may be stale).
-  const failedTaskIds = useMemo(() => {
-    const set = new Set<string>()
-    if (latestRun?.failed_tasks) {
-      for (const id of latestRun.failed_tasks) set.add(id)
-    }
-    return set
-  }, [latestRun])
-
-  const completedTaskIds = useMemo(() => {
-    const set = new Set<string>()
-    if (latestRun?.completed_tasks) {
-      for (const id of latestRun.completed_tasks) set.add(id)
-    }
-    return set
-  }, [latestRun])
-
   // Build ordered wave list with task IDs.
   // For tasks that were skipped (already completed/blocked at run start), inject
   // synthetic agent entries so they appear in the wave instead of "Waiting...".
+  // Since useWavesData now polls every 5s and reacts to task CRUD events,
+  // wave task statuses are fresh — no need for a getSyntheticStatus workaround.
   const orderedWaves = useMemo<Array<{ waveNumber: number; taskIds: string[]; agents: ActiveAgentSnapshot[] }>>(() => {
     if (!wavesData) {
       // Fallback: no wave data, group all agents in "Wave 1"
@@ -689,18 +673,6 @@ export function RunnerDashboard() {
         }]
       }
       return []
-    }
-
-    // Determine synthetic status using PlanRun data (authoritative) > wavesData status (stale)
-    const getSyntheticStatus = (t: { id: string; status: string }): ActiveAgentSnapshot['status'] => {
-      if (failedTaskIds.has(t.id)) return 'failed'
-      if (completedTaskIds.has(t.id)) return 'completed'
-      // Fall back to wavesData status
-      if (t.status === 'completed') return 'completed'
-      if (t.status === 'failed') return 'failed'
-      // Task never ran (pending/blocked) — don't pretend it completed
-      if (t.status === 'pending' || t.status === 'blocked') return 'failed'
-      return 'completed'
     }
 
     return wavesData.waves.map((wave) => {
@@ -721,7 +693,10 @@ export function RunnerDashboard() {
               session_id: null,
               elapsed_secs: 0,
               cost_usd: 0,
-              status: getSyntheticStatus(t),
+              status: (t.status === 'completed' ? 'completed'
+                : t.status === 'failed' ? 'failed'
+                : t.status === 'pending' || t.status === 'blocked' ? 'failed'
+                : 'completed') as ActiveAgentSnapshot['status'],
             }))
         : []
 
@@ -731,7 +706,7 @@ export function RunnerDashboard() {
         agents: [...waveAgents, ...syntheticAgents],
       }
     })
-  }, [wavesData, waveAgentsMap, resolvedAgents, failedTaskIds, completedTaskIds])
+  }, [wavesData, waveAgentsMap, resolvedAgents, effectiveSnapshot, isRunning])
 
   const handleToggleConversation = useCallback((sessionId: string, taskTitle: string) => {
     setSelectedConversation(prev =>
