@@ -263,7 +263,7 @@ export function PersonasPage() {
               const activations = persona.activation_count ?? 0
               const projectName = persona.project_id ? projectNameById[persona.project_id] : null
               const desc = persona.description || ''
-              const truncatedDesc = desc.length > 80 ? `${desc.slice(0, 80)}…` : desc
+              const truncatedDesc = desc.length > 200 ? `${desc.slice(0, 200)}…` : desc
               const sub = subgraphs[persona.id]
               const skillNames = sub?.skills?.slice(0, 3) ?? []
               const fileNames = sub?.files?.slice(0, 3) ?? []
@@ -304,13 +304,13 @@ export function PersonasPage() {
                         <div className="flex items-center gap-3">
                           <MetricTooltip term="energy" showIndicator>
                             <span className="inline-flex items-center gap-1.5 text-xs">
-                              <span className="text-zinc-500">Activité :</span>
+                              <span className="text-zinc-500">Activity:</span>
                               <span className={`font-medium ${energyLabel(energy).color}`}>{energyLabel(energy).text}</span>
                             </span>
                           </MetricTooltip>
                           <MetricTooltip term="cohesion" showIndicator>
                             <span className="inline-flex items-center gap-1.5 text-xs">
-                              <span className="text-zinc-500">Cohérence :</span>
+                              <span className="text-zinc-500">Cohesion:</span>
                               <span className={`font-medium ${cohesionLabel(cohesion).color}`}>{cohesionLabel(cohesion).text}</span>
                             </span>
                           </MetricTooltip>
@@ -318,7 +318,7 @@ export function PersonasPage() {
 
                         {/* Description — below metrics, truncated */}
                         {truncatedDesc && (
-                          <p className="text-xs text-zinc-500 leading-relaxed line-clamp-2">
+                          <p className="text-sm text-zinc-400 leading-relaxed line-clamp-4">
                             {truncatedDesc}
                           </p>
                         )}

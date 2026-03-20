@@ -382,6 +382,16 @@ export function PersonaDetailPage() {
         </Card>
       </div>
 
+      {/* Description (read-only) */}
+      {!editing && persona.description && (
+        <Card className="mb-6">
+          <CardContent className="p-4">
+            <div className="text-xs text-zinc-500 mb-2">Description</div>
+            <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">{persona.description}</p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Edit panel */}
       {editing && (
         <Card className="mb-6 border-purple-500/30">
