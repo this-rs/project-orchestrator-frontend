@@ -27,7 +27,7 @@ import { workspacePath } from '@/utils/paths'
 import { useConversationWs } from '@/hooks/runner'
 import { MessageBubble } from './MessageBubble'
 import { WsStatusIndicator } from './WsStatusIndicator'
-import { formatElapsed } from './shared'
+import { formatElapsed, agentStatusConfig, agentStatusBadgeVariant } from './shared'
 
 // ---------------------------------------------------------------------------
 // Props
@@ -48,18 +48,6 @@ export interface InlineConversationProps {
 const MIN_HEIGHT = 200
 const MAX_HEIGHT_VH = 0.8 // 80vh
 const DEFAULT_HEIGHT = 400
-
-// ---------------------------------------------------------------------------
-// Status → Badge variant mapping
-// ---------------------------------------------------------------------------
-
-const statusBadgeMap: Record<string, { label: string; variant: 'default' | 'success' | 'warning' | 'error' | 'info' | 'purple' }> = {
-  spawning:  { label: 'Spawning',  variant: 'warning' },
-  running:   { label: 'Running',   variant: 'info' },
-  verifying: { label: 'Verifying', variant: 'purple' },
-  completed: { label: 'Completed', variant: 'success' },
-  failed:    { label: 'Failed',    variant: 'error' },
-}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -165,8 +153,9 @@ export function InlineConversation({
     finally { setStopping(false) }
   }, [sessionId])
 
-  // --- Badge config ---
-  const badgeCfg = agentStatus ? statusBadgeMap[agentStatus] : null
+  // --- Badge config (use shared maps) ---
+  const badgeVariant = agentStatus ? agentStatusBadgeVariant[agentStatus as keyof typeof agentStatusBadgeVariant] : null
+  const badgeLabel = agentStatus ? agentStatusConfig[agentStatus as keyof typeof agentStatusConfig]?.label : null
 
   return (
     <div className="border border-indigo-500/20 rounded-lg bg-[#0d0d1a] overflow-hidden transition-all duration-200">
@@ -188,9 +177,9 @@ export function InlineConversation({
           <h4 className="text-sm font-medium text-gray-200 truncate">{taskTitle}</h4>
 
           {/* Agent status badge */}
-          {badgeCfg && (
-            <Badge variant={badgeCfg.variant} className="text-[10px]">
-              {badgeCfg.label}
+          {badgeVariant && badgeLabel && (
+            <Badge variant={badgeVariant} className="text-[10px]">
+              {badgeLabel}
             </Badge>
           )}
 
