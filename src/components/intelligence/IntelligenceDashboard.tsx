@@ -620,7 +620,7 @@ export function IntelQuickActions({ data }: { data: IntelligenceData }) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
           <QuickActionButton
             label="Update Staleness"
             icon={Timer}
@@ -723,10 +723,10 @@ export function IntelLayerCards({ data }: { data: IntelligenceData }) {
   if (!s) return null
 
   return (
-    <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       {/* CODE LAYER */}
       <LayerCard title="Code" icon={FileCode2} color="#3B82F6">
-        <div className="grid grid-cols-2 gap-2 mb-3">
+        <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-2 mb-3">
           <MiniStat label="Files" value={s.code.files} icon={FileCode2} color="#3B82F6" />
           <MiniStat label="Functions" value={s.code.functions} icon={Network} color="#60A5FA" />
           <MiniStat label="Communities" value={s.code.communities} icon={Network} color="#6366F1" />
@@ -753,7 +753,7 @@ export function IntelLayerCards({ data }: { data: IntelligenceData }) {
 
       {/* PROJECT MANAGEMENT LAYER */}
       <LayerCard title="Project Management" icon={LayoutList} color="#818cf8">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-2">
           <MiniStat
             label="Notes"
             value={s.knowledge.notes}
@@ -794,7 +794,7 @@ export function IntelLayerCards({ data }: { data: IntelligenceData }) {
           </span>
         }
       >
-        <div className="grid grid-cols-2 gap-2 mb-3">
+        <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-2 mb-3">
           <MiniStat
             label="Co-changed Pairs"
             value={s.fabric.co_changed_pairs}
@@ -831,7 +831,7 @@ export function IntelLayerCards({ data }: { data: IntelligenceData }) {
 
       {/* NEURAL LAYER */}
       <LayerCard title="Neural" icon={Brain} color="#06B6D4">
-        <div className="grid grid-cols-2 gap-2 mb-3">
+        <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-2 mb-3">
           <MiniStat label="Active Synapses" value={s.neural.active_synapses} icon={Brain} color="#06B6D4" />
           <MiniStat
             label="Dead Notes"
@@ -955,7 +955,7 @@ export function IntelAttention({ data }: { data: IntelligenceData }) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {s.knowledge.stale_count > 0 && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-950/20 border border-amber-900/30 text-[11px] text-amber-400">
               <StickyNote size={12} />
