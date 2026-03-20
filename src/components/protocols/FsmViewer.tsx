@@ -125,13 +125,6 @@ function FsmStateNode({ data }: { data: FsmStateNodeData }) {
   let borderStyle = 'border'
   let icon = <Circle className="w-3 h-3 text-gray-400" />
 
-  // Highlight override from external navigation (spiral marker click)
-  if (isHighlighted) {
-    bgClass = 'bg-cyan-500/20'
-    borderClass = 'border-cyan-400/60'
-    borderStyle = 'border-2'
-  }
-
   if (isMacro) {
     bgClass = 'bg-violet-500/10'
     borderClass = 'border-violet-400/40'
@@ -145,6 +138,13 @@ function FsmStateNode({ data }: { data: FsmStateNodeData }) {
     bgClass = 'bg-green-500/10'
     borderClass = 'border-green-400/40'
     icon = <Square className="w-3 h-3 text-green-400" />
+  }
+
+  // Highlight override from external navigation (spiral marker click) — takes priority
+  if (isHighlighted) {
+    bgClass = 'bg-cyan-500/20'
+    borderClass = 'border-cyan-400/60'
+    borderStyle = 'border-2'
   }
 
   return (
