@@ -14,7 +14,7 @@
 
 import { TAU } from '../engine/types';
 import { renderGlowDot, renderRing, renderLine } from '../renderer/CanvasRenderer';
-import { renderLabel, renderTitle } from '../renderer/TextRenderer';
+import { renderLabel } from '../renderer/TextRenderer';
 import type { ParticleScene } from './types';
 import { smoothstep, clamp, lerp } from './types';
 
@@ -232,9 +232,6 @@ export class MoatScene implements ParticleScene {
     const maxLayers = this.layerStates.length;
     const hs = this.healthScore;
 
-    // ── Title ───────────────────────────────────────────
-    renderTitle(ctx, this.title, width, 0.5);
-
     // ── Label layout: split layers left/right ───────────
     // Even indices (0, 2, 4) → LEFT side
     // Odd indices (1, 3, 5) → RIGHT side
@@ -245,9 +242,9 @@ export class MoatScene implements ParticleScene {
       else rightIndices.push(n);
     }
 
-    // Vertical distribution for each side
-    const labelTop = 52;
-    const labelBottom = height - 30;
+    // Vertical distribution — symmetric padding top/bottom for true centering
+    const labelTop = 16;
+    const labelBottom = height - 16;
     const leftRowH = leftIndices.length > 1
       ? Math.min(42, (labelBottom - labelTop) / leftIndices.length)
       : 42;
@@ -407,27 +404,6 @@ export class MoatScene implements ParticleScene {
       align: 'center',
     });
 
-    // ── Summary at bottom ───────────────────────────────
-    const displayLayers = clamp(Math.floor(progress * (maxLayers + 1)), 0, maxLayers);
-    if (displayLayers > 0) {
-      const counterOpacity = smoothstep(0.1, 0.3, progress) * 0.5;
-      const warningCount = this.layerStates.filter(l => l.health < 0.5).length;
-
-      let text = `${displayLayers} layer${displayLayers > 1 ? 's' : ''} active`;
-      if (warningCount > 0 && progress > 0.5) {
-        text += ` \u00B7 ${warningCount} need${warningCount > 1 ? '' : 's'} attention`;
-      }
-
-      renderLabel(ctx, {
-        text,
-        x: width / 2,
-        y: height - 14,
-        opacity: counterOpacity,
-        size: 9,
-        color: warningCount > 0 ? '#fb923c' : '#22d3ee',
-        align: 'center',
-      });
-    }
   }
 
   /** Health bar growing left-to-right */
