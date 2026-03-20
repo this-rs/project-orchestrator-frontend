@@ -75,7 +75,7 @@ const runStatusConfig: Record<string, { label: string; bg: string; text: string;
 // Agent executions lookup by task_id
 // ---------------------------------------------------------------------------
 
-function useAgentExecutionsMap(runId: string | null | undefined) {
+function useAgentExecutionsMap(runId: string | null | undefined, isRunning: boolean) {
   const [execMap, setExecMap] = useState<Map<string, AgentExecution>>(new Map())
 
   const fetchExecutions = useCallback(async () => {
@@ -90,7 +90,13 @@ function useAgentExecutionsMap(runId: string | null | undefined) {
     }
   }, [runId])
 
-  useEffect(() => { fetchExecutions() }, [fetchExecutions])
+  // Initial fetch + poll every 5s while the run is active
+  useEffect(() => {
+    fetchExecutions()
+    if (!isRunning) return
+    const interval = setInterval(fetchExecutions, 5000)
+    return () => clearInterval(interval)
+  }, [fetchExecutions, isRunning])
 
   return execMap
 }
@@ -786,7 +792,7 @@ export function RunnerDashboard() {
   }, [snapshot, latestRun])
 
   const effectiveRunId = effectiveSnapshot?.run_id ?? null
-  const executionsMap = useAgentExecutionsMap(effectiveRunId)
+  const executionsMap = useAgentExecutionsMap(effectiveRunId, isRunning)
   const { rootSessionId, loading: rootSessionLoading } = useRunRootSession(effectiveRunId)
 
   const [activeTab, setActiveTab] = useState<DashboardTab>('waves')
@@ -819,35 +825,41 @@ export function RunnerDashboard() {
     }
   }, [planId, budgetInput, refresh])
 
-  // Build agent list
+  // Map agents to waves: build task_id → wave_number and task_id → title lookups
+  const { taskWaveMap, taskTitleMap } = useMemo(() => {
+    const waveMap = new Map<string, number>()
+    const titleMap = new Map<string, string>()
+    if (wavesData) {
+      for (const wave of wavesData.waves) {
+        for (const task of wave.tasks) {
+          waveMap.set(task.id, wave.wave_number)
+          if (task.title) titleMap.set(task.id, task.title)
+        }
+      }
+    }
+    return { taskWaveMap: waveMap, taskTitleMap: titleMap }
+  }, [wavesData])
+
+  // Build agent list — merge live agents with historical executions.
+  // Live agents take priority per task_id; executions fill in completed waves.
   const resolvedAgents: ActiveAgentSnapshot[] = useMemo(() => {
     const liveAgents = effectiveSnapshot?.active_agents ?? []
-    if (liveAgents.length > 0) return liveAgents
-    if (executionsMap.size > 0) {
-      return Array.from(executionsMap.values()).map((exec) => ({
+    const liveTaskIds = new Set(liveAgents.map(a => a.task_id))
+
+    // Convert historical executions to ActiveAgentSnapshot (skip those already live)
+    const historicalAgents: ActiveAgentSnapshot[] = Array.from(executionsMap.values())
+      .filter(exec => !liveTaskIds.has(exec.task_id))
+      .map((exec) => ({
         task_id: exec.task_id,
-        task_title: exec.task_id.slice(0, 8),
+        task_title: taskTitleMap.get(exec.task_id) ?? exec.task_id.slice(0, 8),
         session_id: exec.session_id ?? null,
         elapsed_secs: exec.duration_secs,
         cost_usd: exec.cost_usd,
         status: exec.status === 'timeout' ? 'failed' : exec.status as ActiveAgentSnapshot['status'],
       }))
-    }
-    return []
-  }, [effectiveSnapshot, executionsMap])
 
-  // Map agents to waves: build a task_id → wave_number lookup
-  const taskWaveMap = useMemo(() => {
-    const map = new Map<string, number>()
-    if (wavesData) {
-      for (const wave of wavesData.waves) {
-        for (const task of wave.tasks) {
-          map.set(task.id, wave.wave_number)
-        }
-      }
-    }
-    return map
-  }, [wavesData])
+    return [...liveAgents, ...historicalAgents]
+  }, [effectiveSnapshot, executionsMap, taskTitleMap])
 
   // Group agents by wave
   const waveAgentsMap = useMemo(() => {
