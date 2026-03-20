@@ -63,6 +63,7 @@ export function impactToAttention(impact: ImpactAnalysis): AttentionData {
     (path, i) => ({
       label: basename(path),
       score: 1 - i * 0.05, // direct deps have highest score, decreasing
+      metadata: { filePath: path, impactScore: 1 - i * 0.05, isDirect: true },
     }),
   );
 
@@ -70,6 +71,7 @@ export function impactToAttention(impact: ImpactAnalysis): AttentionData {
     impact.transitive_dependents.map((path, i) => ({
       label: basename(path),
       score: 0.5 - i * 0.02, // transitive deps have lower score
+      metadata: { filePath: path, impactScore: 0.5 - i * 0.02, isDirect: false },
     }));
 
   const relevantTokens = [...directTokens, ...transitiveTokens].filter(
@@ -78,6 +80,65 @@ export function impactToAttention(impact: ImpactAnalysis): AttentionData {
 
   const totalCount =
     impact.direct_dependents.length + impact.transitive_dependents.length;
+
+  return {
+    totalTokens: totalCount,
+    relevantTokens,
+    ignoredCount: Math.max(0, totalCount - relevantTokens.length),
+  };
+}
+
+/**
+ * Merge impact analyses from multiple files into a single AttentionData.
+ * Accepts either a single ImpactAnalysis or an array of them (from Promise.all).
+ * Each affected file becomes a high-relevance particle; transitive deps are dimmed.
+ * Deduplicates by full file path, keeping the highest score.
+ */
+export function mergedImpactToAttention(
+  input: ImpactAnalysis | ImpactAnalysis[],
+): AttentionData {
+  // Single impact — delegate to original
+  if (!Array.isArray(input)) {
+    return impactToAttention(input);
+  }
+
+  const tokenMap = new Map<string, AttentionToken>();
+
+  for (const impact of input) {
+    // Direct dependents — high relevance
+    for (let i = 0; i < impact.direct_dependents.length; i++) {
+      const path = impact.direct_dependents[i];
+      const score = 1 - i * 0.05;
+      const existing = tokenMap.get(path);
+      if (!existing || existing.score < score) {
+        tokenMap.set(path, {
+          label: basename(path),
+          score,
+          metadata: { filePath: path, impactScore: score, isDirect: true },
+        });
+      }
+    }
+
+    // Transitive dependents — lower relevance
+    for (let i = 0; i < impact.transitive_dependents.length; i++) {
+      const path = impact.transitive_dependents[i];
+      const score = 0.5 - i * 0.02;
+      const existing = tokenMap.get(path);
+      if (!existing || existing.score < score) {
+        tokenMap.set(path, {
+          label: basename(path),
+          score,
+          metadata: { filePath: path, impactScore: score, isDirect: existing?.metadata?.isDirect ?? false },
+        });
+      }
+    }
+  }
+
+  const relevantTokens = [...tokenMap.values()]
+    .filter((t) => t.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  const totalCount = tokenMap.size;
 
   return {
     totalTokens: totalCount,

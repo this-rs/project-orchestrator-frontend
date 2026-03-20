@@ -13,7 +13,7 @@ import { intelligenceApi } from '@/services/intelligence';
 import { protocolApi } from '@/services/protocolApi';
 import {
   communitiesToEmbeddings,
-  impactToAttention,
+  mergedImpactToAttention,
   propagatedToDistribution,
   wavesToDelegation,
   summaryToMoat,
@@ -167,19 +167,29 @@ export function useEmbeddingsVizData(
 // ── 2. Attention ────────────────────────────────────────────
 
 export function useAttentionVizData(
-  target: string | undefined,
+  target: string | string[] | undefined,
 ): VizDataResult<AttentionData> {
-  const [fetcher, setFetcher] = useState<(() => Promise<Awaited<ReturnType<typeof codeApi.analyzeImpact>>>) | null>(null);
+  const [fetcher, setFetcher] = useState<(() => Promise<Awaited<ReturnType<typeof codeApi.analyzeImpact>> | Awaited<ReturnType<typeof codeApi.analyzeImpact>>[]>) | null>(null);
+
+  // Stable key for array targets to avoid infinite re-renders
+  const targetKey = Array.isArray(target) ? target.join('\0') : target;
 
   useEffect(() => {
-    if (!target) {
+    if (!target || (Array.isArray(target) && target.length === 0)) {
       setFetcher(null);
       return;
     }
-    setFetcher(() => () => codeApi.analyzeImpact(target));
-  }, [target]);
 
-  return useVizFetch(fetcher, impactToAttention, MOCK_ATTENTION);
+    if (Array.isArray(target)) {
+      // Fetch impact for ALL files, return array of results
+      setFetcher(() => () => Promise.all(target.map((t) => codeApi.analyzeImpact(t))));
+    } else {
+      setFetcher(() => () => codeApi.analyzeImpact(target));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetKey]);
+
+  return useVizFetch(fetcher, mergedImpactToAttention, MOCK_ATTENTION);
 }
 
 // ── 3. Distribution ─────────────────────────────────────────

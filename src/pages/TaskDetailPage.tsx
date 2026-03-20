@@ -14,6 +14,7 @@ import { taskRefreshAtom, projectRefreshAtom, planRefreshAtom } from '@/atoms'
 import { CreateStepForm, CreateDecisionForm, EditTaskForm, EditStepForm } from '@/components/forms'
 import { CommitList } from '@/components/commits'
 import { ImpactPreviewWidget } from '@/components/particles/widgets'
+import type { ParticleHitInfo } from '@/components/particles/ParticleViz'
 import { useAttentionVizData } from '@/hooks/useVizData'
 import { UniversalKanban, createStepKanbanConfig } from '@/components/kanban'
 import type { Task, Step, Decision, Commit, TaskStatus, StepStatus, DecisionStatus, Project } from '@/types'
@@ -71,9 +72,11 @@ export function TaskDetailPage() {
 
   // Task graph data for UnifiedGraphSection
   const taskGraphData = useTaskGraphData(taskId, parentPlanId ?? undefined)
-  // Particle viz: impact analysis (first affected file as target)
-  const impactTarget = task?.affected_files?.[0]
-  const impactViz = useAttentionVizData(impactTarget)
+  // Particle viz: impact analysis for ALL affected files
+  const impactTargets = task?.affected_files?.length ? task.affected_files : undefined
+  const impactViz = useAttentionVizData(impactTargets)
+  // Bidirectional hover sync between file list and particle viz
+  const [hoveredFile, setHoveredFile] = useState<string | null>(null)
 
   // Breadcrumb trail for graph section — full ascending path: milestone → plan → task
   const graphBreadcrumbs = useMemo<GraphBreadcrumb[]>(() => {
@@ -633,18 +636,57 @@ export function TaskDetailPage() {
         <section id="files" className="scroll-mt-20 space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle>Affected Files</CardTitle>
+            <CardTitle>Affected Files ({affectedFiles.length})</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
               {affectedFiles.map((file, index) => (
-                <div key={`${file}-${index}`} className="font-mono text-sm text-gray-300 p-1 truncate" title={file}>{file}</div>
+                <div
+                  key={`${file}-${index}`}
+                  className={`font-mono text-sm p-1.5 rounded truncate transition-colors cursor-default ${
+                    hoveredFile === file
+                      ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30'
+                      : 'text-gray-300 border border-transparent hover:bg-white/[0.04]'
+                  }`}
+                  title={file}
+                  onMouseEnter={() => setHoveredFile(file)}
+                  onMouseLeave={() => setHoveredFile(null)}
+                  onClick={() => navigate(workspacePath(wsSlug, `/code?file=${encodeURIComponent(file)}`), { type: 'card-click' })}
+                  style={{ cursor: 'pointer' }}
+                >
+                  {file}
+                </div>
               ))}
             </div>
           </CardContent>
         </Card>
         {impactViz.data && (
-          <ImpactPreviewWidget data={impactViz.data} height={250} className="rounded-lg" />
+          <ImpactPreviewWidget
+            data={impactViz.data}
+            height={250}
+            className="rounded-lg"
+            interactive
+            highlightedId={
+              hoveredFile && impactViz.data
+                ? impactViz.data.relevantTokens.findIndex(
+                    (t) => t.metadata?.filePath === hoveredFile,
+                  )
+                : undefined
+            }
+            onParticleHover={(info: ParticleHitInfo | null) => {
+              if (info?.metadata?.filePath) {
+                setHoveredFile(info.metadata.filePath as string)
+              } else {
+                setHoveredFile(null)
+              }
+            }}
+            onParticleClick={(info: ParticleHitInfo) => {
+              const filePath = info.metadata?.filePath as string | undefined
+              if (filePath) {
+                navigate(workspacePath(wsSlug, `/code?file=${encodeURIComponent(filePath)}`), { type: 'card-click' })
+              }
+            }}
+          />
         )}
         </section>
       )}

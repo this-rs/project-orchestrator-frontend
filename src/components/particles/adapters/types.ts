@@ -31,6 +31,8 @@ export interface EmbeddingsData {
 export interface AttentionToken {
   label: string;
   score: number;
+  /** Metadata for interactive hit-testing (filePath, impactScore, etc.) */
+  metadata?: Record<string, unknown>;
 }
 
 export interface AttentionData {
