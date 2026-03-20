@@ -44,12 +44,10 @@ export interface StatsRowProps {
 function BudgetCard({
   costUsd,
   maxCostUsd,
-  isRunning,
   onSave,
 }: {
   costUsd: number
   maxCostUsd: number
-  isRunning: boolean
   onSave: (value: number) => Promise<void>
 }) {
   const [editing, setEditing] = useState(false)
@@ -89,11 +87,25 @@ function BudgetCard({
   )
 
   return (
-    <div className="glass rounded-xl shadow-sm overflow-hidden border-t-2 border-yellow-500">
+    <div
+      className={`glass rounded-xl shadow-sm overflow-hidden border-t-2 border-yellow-500 group transition-colors ${
+        !editing ? 'hover:bg-white/[0.03] cursor-pointer' : ''
+      }`}
+      onClick={!editing ? handleEdit : undefined}
+      role={!editing ? 'button' : undefined}
+      tabIndex={!editing ? 0 : undefined}
+      onKeyDown={!editing ? (e) => { if (e.key === 'Enter' || e.key === ' ') handleEdit() } : undefined}
+      title={!editing ? 'Click to edit budget limit' : undefined}
+    >
       <div className="p-4">
-        <div className="text-gray-500 mb-2"><DollarSign className="w-4 h-4" /></div>
+        <div className="flex items-center gap-1.5 text-gray-500 mb-2">
+          <DollarSign className="w-4 h-4" />
+          {!editing && (
+            <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-indigo-400" />
+          )}
+        </div>
         {editing ? (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
             <span className="text-gray-300 font-mono tabular-nums text-sm">{formatCost(costUsd)} /</span>
             <span className="text-gray-500">$</span>
             <input
@@ -122,19 +134,13 @@ function BudgetCard({
             {maxCostUsd > 0 && (
               <span className="text-sm text-gray-500 font-mono">/ {formatCost(maxCostUsd)}</span>
             )}
-            {isRunning && (
-              <button
-                onClick={handleEdit}
-                className="ml-1 p-1 rounded text-gray-500 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors cursor-pointer"
-                title="Edit budget limit"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-              </button>
-            )}
             {saved && <span className="text-xs text-green-400 animate-pulse ml-1">Saved!</span>}
           </div>
         )}
-        <div className="text-sm text-gray-400 mt-0.5">Budget</div>
+        <div className="text-sm text-gray-400 mt-0.5">
+          Budget
+          {!editing && <span className="text-xs text-gray-600 ml-1.5 group-hover:text-indigo-400/60 transition-colors">· click to edit</span>}
+        </div>
       </div>
     </div>
   )
@@ -146,7 +152,7 @@ function BudgetCard({
 
 export function StatsRow({
   effectiveSnapshot,
-  isRunning,
+  isRunning: _isRunning,
   resolvedAgents,
   wavesTotal,
   planId,
@@ -193,7 +199,6 @@ export function StatsRow({
         <BudgetCard
           costUsd={effectiveSnapshot.cost_usd}
           maxCostUsd={effectiveSnapshot.max_cost_usd}
-          isRunning={isRunning}
           onSave={handleBudgetSave}
         />
         <StatCard
