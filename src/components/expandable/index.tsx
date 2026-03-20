@@ -425,7 +425,7 @@ function MilestoneTaskRow({ task, wsSlug }: { task: MilestoneTaskSummary; wsSlug
 
 // ── Milestone Plan Row (from enriched data) ───────────────────────────────────
 
-function MilestonePlanRow({ plan, wsSlug }: { plan: MilestonePlanSummary; wsSlug: string }) {
+export function MilestonePlanRow({ plan, wsSlug }: { plan: MilestonePlanSummary; wsSlug: string }) {
   const [expanded, setExpanded] = useState(false)
 
   return (

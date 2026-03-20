@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { ChevronsUpDown, FolderKanban } from 'lucide-react'
+import { FolderKanban } from 'lucide-react'
 import {
   Card,
   CardHeader,
@@ -19,10 +19,10 @@ import {
   SectionNav,
 } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
-import { ExpandableTaskRow } from '@/components/expandable'
+import { MilestonePlanRow } from '@/components/expandable'
 import { UnifiedGraphSection, type GraphBreadcrumb } from '@/components/graph/UnifiedGraphSection'
 import { MilestoneGraphAdapter } from '@/adapters/MilestoneGraphAdapter'
-import { workspacesApi, projectsApi, tasksApi } from '@/services'
+import { workspacesApi, projectsApi, plansApi } from '@/services'
 import {
   useConfirmDialog,
   useLinkDialog,
@@ -41,7 +41,6 @@ import type {
   MilestoneProgress,
   Plan,
   Project,
-  Task,
   MilestoneStatus,
   PlanStatus,
 } from '@/types'
@@ -74,7 +73,6 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
   const [project, setProject] = useState<Project | null>(null)
   const [plans, setPlans] = useState<Plan[]>([])
   const [enrichedPlans, setEnrichedPlans] = useState<MilestonePlanSummary[]>([])
-  const [milestoneTasks, setMilestoneTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showGraph, setShowGraph] = useState(false)
@@ -88,9 +86,6 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
   const taskRefresh = useAtomValue(taskRefreshAtom)
   const projectRefresh = useAtomValue(projectRefreshAtom)
 
-  const [tasksExpandAll, setTasksExpandAll] = useState(0)
-  const [tasksCollapseAll, setTasksCollapseAll] = useState(0)
-  const [tasksAllExpanded, setTasksAllExpanded] = useState(false)
 
   const refreshData = useCallback(async () => {
     if (!milestoneId) return
@@ -123,22 +118,6 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
           created_by: '',
           priority: 0,
         })))
-
-        // Flatten tasks from plans
-        setMilestoneTasks(enrichedPlansData.flatMap(p =>
-          (p.tasks || []).map(t => ({
-            id: t.id,
-            title: t.title,
-            description: t.description,
-            status: t.status as Task['status'],
-            priority: t.priority,
-            tags: t.tags || [],
-            acceptance_criteria: [],
-            affected_files: [],
-            created_at: t.created_at,
-            completed_at: t.completed_at,
-          } as Task)),
-        ))
 
         // Fetch workspace projects
         if (data.workspace_id) {
@@ -175,21 +154,6 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
           created_by: '',
           priority: 0,
         })))
-
-        setMilestoneTasks(enrichedPlansData.flatMap(p =>
-          (p.tasks || []).map(t => ({
-            id: t.id,
-            title: t.title,
-            description: t.description,
-            status: t.status as Task['status'],
-            priority: t.priority,
-            tags: t.tags || [],
-            acceptance_criteria: [],
-            affected_files: [],
-            created_at: t.created_at,
-            completed_at: t.completed_at,
-          } as Task)),
-        ))
 
         // Fetch parent project
         if (ms.project_id) {
@@ -254,7 +218,7 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
 
   // Section IDs depend on scope
   const sectionIds = useMemo(() => {
-    const ids = ['progress', 'tasks']
+    const ids = ['progress', 'plans']
     if (scope === 'workspace') {
       ids.push('runs', 'projects')
     }
@@ -268,7 +232,7 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
 
   const sections = [
     { id: 'progress', label: 'Progress' },
-    { id: 'tasks', label: 'Tasks', count: milestoneTasks.length },
+    { id: 'plans', label: 'Plans', count: enrichedPlans.length },
     ...(scope === 'workspace' ? [
       { id: 'runs', label: 'Runs' },
       { id: 'projects', label: 'Projects', count: projects.length },
@@ -312,24 +276,24 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
     toast.success('Status updated')
   }
 
-  const handleAddTask = () => linkDialog.open({
-    title: 'Add Task to Milestone',
-    submitLabel: 'Add',
+  const handleLinkPlan = () => linkDialog.open({
+    title: 'Link Plan to Milestone',
+    submitLabel: 'Link',
     fetchOptions: async () => {
-      const data = await tasksApi.list({ limit: 100 })
-      const existingIds = new Set(milestoneTasks.map(t => t.id))
+      const data = await plansApi.list({ limit: 100 })
+      const existingIds = new Set(enrichedPlans.map(p => p.id))
       return (data.items || [])
-        .filter(t => !existingIds.has(t.id))
-        .map(t => ({ value: t.id, label: t.title || t.description || 'Untitled', description: t.status }))
+        .filter(p => !existingIds.has(p.id))
+        .map(p => ({ value: p.id, label: p.title || 'Untitled', description: p.status }))
     },
-    onLink: async (taskId) => {
+    onLink: async (planId) => {
       if (scope === 'workspace') {
-        await workspacesApi.addTaskToMilestone(milestoneId!, taskId)
+        await workspacesApi.linkPlanToMilestone(milestoneId!, planId)
       } else {
-        await projectsApi.addTaskToMilestone(milestoneId!, taskId)
+        await projectsApi.linkPlanToMilestone(milestoneId!, planId)
       }
       await refreshData()
-      toast.success('Task added')
+      toast.success('Plan linked')
     },
   })
 
@@ -424,45 +388,25 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
         )}
       </section>
 
-      {/* Tasks — flat list */}
-      <section id="tasks" className="scroll-mt-20">
+      {/* Plans — expandable list (Plan -> Tasks -> Steps) */}
+      <section id="plans" className="scroll-mt-20">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CardTitle>Tasks ({milestoneTasks.length})</CardTitle>
-                {milestoneTasks.length > 0 && (
-                  <button
-                    onClick={() => {
-                      if (tasksAllExpanded) {
-                        setTasksCollapseAll(s => s + 1)
-                      } else {
-                        setTasksExpandAll(s => s + 1)
-                      }
-                      setTasksAllExpanded(!tasksAllExpanded)
-                    }}
-                    className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
-                    title={tasksAllExpanded ? 'Collapse all' : 'Expand all'}
-                  >
-                    <ChevronsUpDown className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-              <Button size="sm" onClick={handleAddTask}>Add Task</Button>
+              <CardTitle>Plans ({enrichedPlans.length})</CardTitle>
+              <Button size="sm" onClick={handleLinkPlan}>Link Plan</Button>
             </div>
           </CardHeader>
           <CardContent>
-            {milestoneTasks.length === 0 ? (
-              <p className="text-gray-500 text-sm">No tasks linked to this milestone</p>
+            {enrichedPlans.length === 0 ? (
+              <p className="text-gray-500 text-sm">No plans linked to this milestone</p>
             ) : (
               <div className="space-y-2">
-                {milestoneTasks.map(task => (
-                  <ExpandableTaskRow
-                    key={task.id}
-                    task={task}
-                    refreshTrigger={taskRefresh}
-                    expandAllSignal={tasksExpandAll}
-                    collapseAllSignal={tasksCollapseAll}
+                {enrichedPlans.map(plan => (
+                  <MilestonePlanRow
+                    key={plan.id}
+                    plan={plan}
+                    wsSlug={wsSlug}
                   />
                 ))}
               </div>
