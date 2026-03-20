@@ -19,6 +19,7 @@ import {
   summaryToMoat,
   runToFeedbackLoop,
 } from '@/components/particles/adapters';
+import type { CommunitiesEnrichment } from '@/components/particles/adapters';
 import type {
   EmbeddingsData,
   AttentionData,
@@ -89,10 +90,17 @@ function useVizFetch<TRaw, TOut>(
 
 const MOCK_EMBEDDINGS: EmbeddingsData = {
   clusters: [
-    { label: 'Core Engine', count: 24, color: '#22d3ee' },
-    { label: 'API Layer', count: 18, color: '#a78bfa' },
-    { label: 'UI Components', count: 31, color: '#f472b6' },
-    { label: 'Data Models', count: 12, color: '#34d399' },
+    { label: 'Core Engine', count: 24, color: '#22d3ee', files: [
+      { path: 'src/engine/core.rs', language: 'Rust', isHotspot: true },
+      { path: 'src/engine/pool.rs', language: 'Rust', isHotspot: false },
+    ] },
+    { label: 'API Layer', count: 18, color: '#a78bfa', files: [
+      { path: 'src/api/routes.rs', language: 'Rust', isHotspot: false },
+    ] },
+    { label: 'UI Components', count: 31, color: '#f472b6', files: [
+      { path: 'src/components/App.tsx', language: 'TypeScript', isHotspot: true },
+    ] },
+    { label: 'Data Models', count: 12, color: '#34d399', files: [] },
   ],
 };
 
@@ -171,8 +179,13 @@ const MOCK_FEEDBACK: FeedbackLoopData = {
 
 export function useEmbeddingsVizData(
   projectSlug: string | undefined,
+  enrichment?: CommunitiesEnrichment,
 ): VizDataResult<EmbeddingsData> {
   const [fetcher, setFetcher] = useState<(() => Promise<ReturnType<typeof codeApi.getCommunities> extends Promise<infer R> ? R : never>) | null>(null);
+
+  // Stable ref to enrichment to avoid re-triggering adapter on every render
+  const enrichmentRef = useRef(enrichment);
+  enrichmentRef.current = enrichment;
 
   useEffect(() => {
     if (!projectSlug) {
@@ -182,7 +195,11 @@ export function useEmbeddingsVizData(
     setFetcher(() => () => codeApi.getCommunities({ project_slug: projectSlug }));
   }, [projectSlug]);
 
-  return useVizFetch(fetcher, communitiesToEmbeddings, MOCK_EMBEDDINGS);
+  return useVizFetch(
+    fetcher,
+    (raw) => communitiesToEmbeddings(raw, enrichmentRef.current),
+    MOCK_EMBEDDINGS,
+  );
 }
 
 // ── 2. Attention ────────────────────────────────────────────

@@ -40,6 +40,7 @@ import { ErrorState } from '@/components/ui/ErrorState'
 import { intelligenceApi } from '@/services/intelligence'
 import { codeApi } from '@/services/code'
 import { CommunityVizWidget } from '@/components/particles/widgets'
+import type { ParticleHitInfo } from '@/components/particles/ParticleViz'
 import { useEmbeddingsVizData } from '@/hooks/useVizData'
 import { adminApi } from '@/services/admin'
 import { projectsApi } from '@/services/projects'
@@ -414,9 +415,38 @@ export function IntelligencePage() {
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
+  // Community filter state — set when clicking a cluster label in the viz
+  const [selectedCommunity, setSelectedCommunity] = useState<string | null>(null)
+
   // Quick action states
-  // Particle viz: communities (embeddings)
-  const embeddingsViz = useEmbeddingsVizData(projectSlug)
+  // Particle viz: communities (embeddings) — enriched with hotspot paths
+  const hotspotPaths = useMemo(() => {
+    if (!summary) return undefined
+    const s2 = summary as IntelligenceSummary
+    if (!s2.code.hotspots?.length) return undefined
+    return new Set(s2.code.hotspots.map((h) => h.path))
+  }, [summary])
+  const embeddingsViz = useEmbeddingsVizData(projectSlug, hotspotPaths ? { hotspotPaths } : undefined)
+
+  // Click handler for community viz particles
+  const handleCommunityParticleClick = useCallback(
+    (info: ParticleHitInfo) => {
+      const filePath = info.metadata?.filePath as string | null
+      const clusterLabel = info.metadata?.clusterLabel as string | null
+
+      if (filePath && projectSlug) {
+        // Navigate to CodePage with the file selected
+        navigate(
+          workspacePath(wsSlug, `/projects/${projectSlug}/code?file=${encodeURIComponent(filePath)}`),
+        )
+      } else if (clusterLabel) {
+        // Toggle community filter for Code Layer section
+        setSelectedCommunity((prev) => (prev === clusterLabel ? null : clusterLabel))
+      }
+    },
+    [projectSlug, navigate, wsSlug],
+  )
+
   const [actions, setActions] = useState<Record<string, ActionResult>>({})
 
   const getAction = (key: string): ActionResult =>
@@ -637,7 +667,21 @@ export function IntelligencePage() {
       {/* ── Layer Cards Grid ────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* CODE LAYER */}
-        <LayerCard title="Code" icon={FileCode2} color="#3B82F6">
+        <LayerCard
+          title={selectedCommunity ? `Code — ${selectedCommunity}` : 'Code'}
+          icon={FileCode2}
+          color="#3B82F6"
+          badge={
+            selectedCommunity ? (
+              <button
+                onClick={() => setSelectedCommunity(null)}
+                className="text-[10px] text-cyan-400 hover:text-cyan-300 px-1.5 py-0.5 rounded bg-cyan-950/30 border border-cyan-900/30"
+              >
+                Clear filter
+              </button>
+            ) : undefined
+          }
+        >
           <div className="grid grid-cols-2 gap-2 mb-3">
             <MiniStat label="Files" value={s.code.files} icon={FileCode2} color="#3B82F6" />
             <MiniStat label="Functions" value={s.code.functions} icon={Network} color="#60A5FA" />
@@ -649,25 +693,61 @@ export function IntelligencePage() {
               color={s.code.orphans > 10 ? '#F59E0B' : '#4ade80'}
             />
           </div>
-          {/* Hotspots top 5 */}
-          {s.code.hotspots.length > 0 && (
-            <div>
-              <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mb-1.5">
-                Top Hotspots
-              </p>
-              <div className="space-y-0.5">
-                {s.code.hotspots.slice(0, 5).map((h) => (
-                  <HotspotRow key={h.path} path={h.path} score={h.churn_score} />
-                ))}
+          {/* Hotspots — filtered by selectedCommunity if active */}
+          {(() => {
+            // Get file paths for selected community from embeddings data
+            const communityFiles = selectedCommunity && embeddingsViz.data
+              ? new Set(
+                  embeddingsViz.data.clusters
+                    .filter((c) => c.label === selectedCommunity)
+                    .flatMap((c) => c.files?.map((f) => f.path) ?? []),
+                )
+              : null
+
+            const filteredHotspots = communityFiles
+              ? s.code.hotspots.filter((h) => communityFiles.has(h.path))
+              : s.code.hotspots
+
+            return filteredHotspots.length > 0 ? (
+              <div>
+                <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mb-1.5">
+                  {selectedCommunity ? `Hotspots in ${selectedCommunity}` : 'Top Hotspots'}
+                </p>
+                <div className="space-y-0.5">
+                  {filteredHotspots.slice(0, 5).map((h) => (
+                    <HotspotRow key={h.path} path={h.path} score={h.churn_score} />
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            ) : selectedCommunity ? (
+              <p className="text-[10px] text-slate-500 italic">No hotspots in this community</p>
+            ) : null
+          })()}
         </LayerCard>
 
-        {/* CODE COMMUNITIES VIZ */}
+        {/* CODE COMMUNITIES VIZ — interactive */}
         {embeddingsViz.data && (
           <div className="md:col-span-2">
-            <CommunityVizWidget data={embeddingsViz.data} height={300} className="rounded-lg" />
+            <CommunityVizWidget
+              data={embeddingsViz.data}
+              height={300}
+              className="rounded-lg"
+              interactive
+              onParticleClick={handleCommunityParticleClick}
+            />
+            {selectedCommunity && (
+              <div className="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-md bg-cyan-950/30 border border-cyan-900/30 text-[11px] text-cyan-400">
+                <span>
+                  Filtering Code Layer by community: <strong>{selectedCommunity}</strong>
+                </span>
+                <button
+                  onClick={() => setSelectedCommunity(null)}
+                  className="ml-auto text-cyan-500 hover:text-cyan-300 text-xs"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
           </div>
         )}
 

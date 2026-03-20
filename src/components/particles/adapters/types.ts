@@ -15,10 +15,20 @@
 // ── Embeddings (communities → cluster viz) ──────────────────
 // Compatible with EmbeddingsScene.EmbeddingsData
 
+export interface EmbeddingsFile {
+  path: string;
+  language?: string;
+  isHotspot: boolean;
+}
+
 export interface EmbeddingsCluster {
   label: string;
   count: number;
   color: string;
+  /** File-level detail for interactive mode */
+  files?: EmbeddingsFile[];
+  /** True for the orphan cluster (isolated particles) */
+  isOrphan?: boolean;
 }
 
 export interface EmbeddingsData {

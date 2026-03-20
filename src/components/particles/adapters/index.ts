@@ -13,6 +13,7 @@ import type { ProtocolRun } from '@/types/protocol';
 import type { ImpactAnalysis } from '@/services/code';
 import type {
   EmbeddingsData,
+  EmbeddingsFile,
   AttentionData,
   AttentionToken,
   DistributionData,
@@ -39,16 +40,76 @@ const COMMUNITY_COLORS = [
 
 // ── 1. Communities → Embeddings ─────────────────────────────
 
+/** Hotspot paths for cross-referencing (optional enrichment) */
+export interface CommunitiesEnrichment {
+  hotspotPaths?: Set<string>;
+}
+
 export function communitiesToEmbeddings(
   communities: CodeCommunities,
+  enrichment?: CommunitiesEnrichment,
 ): EmbeddingsData {
-  return {
-    clusters: communities.communities.map((c, i) => ({
+  const hotspotSet = enrichment?.hotspotPaths ?? new Set<string>();
+
+  // Track all assigned files to compute orphans
+  const assignedFiles = new Set<string>();
+
+  const clusters: EmbeddingsData['clusters'] = communities.communities.map((c, i) => {
+    const members = c.members ?? c.key_files ?? [];
+    members.forEach((f) => assignedFiles.add(f));
+
+    const files: EmbeddingsFile[] = members.map((filePath) => ({
+      path: filePath,
+      language: guessLanguage(filePath),
+      isHotspot: hotspotSet.has(filePath),
+    }));
+
+    return {
       label: c.label || `Cluster ${c.id}`,
       count: c.size,
-      color: COMMUNITY_COLORS[i % COMMUNITY_COLORS.length],
-    })),
+      color: COMMUNITY_COLORS[i % COMMUNITY_COLORS.length] as string,
+      files,
+    };
+  });
+
+  // Orphan files: total_files - assigned. We don't have individual orphan paths
+  // from this endpoint, so we create a placeholder orphan cluster if count > 0.
+  const orphanCount = Math.max(0, communities.total_files - assignedFiles.size);
+  if (orphanCount > 0) {
+    clusters.push({
+      label: 'Orphans',
+      count: orphanCount,
+      color: '#64748b', // slate-500
+      files: [], // no individual file data available for orphans
+      isOrphan: true,
+    });
+  }
+
+  return { clusters };
+}
+
+function guessLanguage(filePath: string): string {
+  const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
+  const map: Record<string, string> = {
+    rs: 'Rust',
+    ts: 'TypeScript',
+    tsx: 'TypeScript',
+    js: 'JavaScript',
+    jsx: 'JavaScript',
+    py: 'Python',
+    go: 'Go',
+    java: 'Java',
+    rb: 'Ruby',
+    css: 'CSS',
+    html: 'HTML',
+    yaml: 'YAML',
+    yml: 'YAML',
+    toml: 'TOML',
+    json: 'JSON',
+    md: 'Markdown',
+    sql: 'SQL',
   };
+  return map[ext] ?? ext.toUpperCase();
 }
 
 // ── 2. Impact → Attention ───────────────────────────────────
