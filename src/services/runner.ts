@@ -37,7 +37,7 @@ export interface RunSnapshot {
   running: boolean
   run_id: string | null
   plan_id: string | null
-  status: 'running' | 'completed' | 'failed' | 'cancelled' | null
+  status: 'running' | 'completed' | 'failed' | 'cancelled' | 'budget_exceeded' | null
   current_wave: number | null
   current_task_id: string | null
   current_task_title: string | null
@@ -100,9 +100,10 @@ export const runnerApi = {
    * Returns 202 Accepted with run metadata.
    * Throws 409 if the plan already has an active run.
    */
-  startRun: async (planId: string, cwd: string, projectSlug?: string): Promise<StartRunResponse> => {
+  startRun: async (planId: string, cwd: string, projectSlug?: string, maxCostUsd?: number): Promise<StartRunResponse> => {
     const body: Record<string, unknown> = { cwd, triggered_by: 'manual' }
     if (projectSlug) body.project_slug = projectSlug
+    if (maxCostUsd !== undefined && maxCostUsd > 0) body.max_cost_usd = maxCostUsd
     return api.post<StartRunResponse>(`/plans/${planId}/run`, body)
   },
 

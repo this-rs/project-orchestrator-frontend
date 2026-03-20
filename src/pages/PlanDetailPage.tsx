@@ -744,11 +744,11 @@ export function PlanDetailPage() {
       <ImplementDialog
         open={implementDialogOpen}
         onClose={() => setImplementDialogOpen(false)}
-        onConfirm={async () => {
+        onConfirm={async (maxCostUsd: number) => {
           setImplementLoading(true)
           try {
             const cwd = linkedProject?.root_path || '.'
-            await runnerApi.startRun(plan.id, cwd, linkedProject?.slug)
+            await runnerApi.startRun(plan.id, cwd, linkedProject?.slug, maxCostUsd)
             // Navigate to runner dashboard to monitor the run
             navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' })
           } catch (err) {

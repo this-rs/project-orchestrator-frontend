@@ -9,7 +9,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ChevronDown, ChevronRight, Activity, Clock, DollarSign, Layers, ArrowLeft, GitBranch, CheckCircle2, Users } from 'lucide-react'
+import { ChevronDown, ChevronRight, Activity, Clock, DollarSign, Layers, ArrowLeft, GitBranch, CheckCircle2, Users, Rocket } from 'lucide-react'
 import { Card, CardContent, LoadingPage, ErrorState, ProgressBar } from '@/components/ui'
 import { AgentCard } from '@/components/runner/AgentCard'
 import { AgentExecutionDetail } from '@/components/runner/AgentExecutionDetail'
@@ -39,10 +39,11 @@ function formatCost(usd: number | undefined | null): string {
 }
 
 const runStatusConfig: Record<string, { label: string; bg: string; text: string; dot: string }> = {
-  running:   { label: 'Running',   bg: 'bg-blue-500/15',   text: 'text-blue-400',   dot: 'bg-blue-400' },
-  completed: { label: 'Completed', bg: 'bg-green-500/15',  text: 'text-green-400',  dot: 'bg-green-400' },
-  failed:    { label: 'Failed',    bg: 'bg-red-500/15',    text: 'text-red-400',    dot: 'bg-red-400' },
-  cancelled: { label: 'Cancelled', bg: 'bg-gray-500/15',   text: 'text-gray-400',   dot: 'bg-gray-400' },
+  running:          { label: 'Running',          bg: 'bg-blue-500/15',   text: 'text-blue-400',   dot: 'bg-blue-400' },
+  completed:        { label: 'Completed',        bg: 'bg-green-500/15',  text: 'text-green-400',  dot: 'bg-green-400' },
+  failed:           { label: 'Failed',           bg: 'bg-red-500/15',    text: 'text-red-400',    dot: 'bg-red-400' },
+  cancelled:        { label: 'Cancelled',        bg: 'bg-gray-500/15',   text: 'text-gray-400',   dot: 'bg-gray-400' },
+  budget_exceeded:  { label: 'Budget Exceeded',  bg: 'bg-yellow-500/15', text: 'text-yellow-400', dot: 'bg-yellow-400' },
 }
 
 // ---------------------------------------------------------------------------
@@ -223,7 +224,7 @@ export function RunnerDashboard() {
         running: false,
         run_id: latestRun.run_id,
         plan_id: latestRun.plan_id,
-        status: latestRun.status === 'budget_exceeded' ? 'failed' : latestRun.status,
+        status: latestRun.status as RunSnapshot['status'],
         current_wave: latestRun.current_wave,
         current_task_id: latestRun.current_task_id,
         current_task_title: latestRun.current_task_title,
@@ -329,6 +330,15 @@ export function RunnerDashboard() {
           </div>
           <div className="flex items-center gap-3">
             <CancelButton planId={planId!} isRunning={isRunning} />
+            {effectiveSnapshot.status === 'budget_exceeded' && !isRunning && (
+              <Link
+                to={workspacePath(wsSlug, `/plans/${planId}`)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+              >
+                <Rocket className="w-3.5 h-3.5" />
+                Relaunch with higher budget
+              </Link>
+            )}
             <span
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${statusCfg.bg} ${statusCfg.text}`}
             >
