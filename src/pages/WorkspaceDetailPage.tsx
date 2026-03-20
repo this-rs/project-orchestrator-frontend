@@ -21,7 +21,6 @@ import {
 } from '@/components/ui'
 import {
   Network,
-  AlertTriangle,
   Loader2,
   Calendar,
   FileCode2,
@@ -273,50 +272,6 @@ function MaintenanceDropdown({
           })}
         </div>
       )}
-    </div>
-  )
-}
-
-// ============================================================================
-// IntelTabFallback — shown when intelligence data isn't ready
-// ============================================================================
-
-function IntelTabFallback({
-  intelligence,
-}: {
-  intelligence: ReturnType<typeof useWorkspaceIntelligenceData>
-}) {
-  if (intelligence.loading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
-        <span className="ml-3 text-sm text-slate-500">Loading intelligence data…</span>
-      </div>
-    )
-  }
-
-  if (intelligence.error) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <AlertTriangle className="w-8 h-8 text-amber-500 mb-3" />
-        <p className="text-sm text-slate-400 mb-3">{intelligence.error}</p>
-        <button
-          onClick={intelligence.handleRefresh}
-          className="text-xs text-cyan-400 hover:text-cyan-300 underline underline-offset-2"
-        >
-          Retry
-        </button>
-      </div>
-    )
-  }
-
-  // No summary available (empty state)
-  return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <Brain className="w-8 h-8 text-slate-600 mb-3" />
-      <p className="text-sm text-slate-500">
-        No intelligence data available. Sync your projects first.
-      </p>
     </div>
   )
 }
