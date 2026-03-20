@@ -1,30 +1,29 @@
-import { useState, useEffect } from 'react'
-import { Button, Select, PageShell } from '@/components/ui'
+import { useState, useEffect, useCallback } from 'react'
+import { Select, PageHeader, TabLayout } from '@/components/ui'
+import type { TabItem } from '@/components/ui'
 import { workspacesApi } from '@/services'
 import { useWorkspaceSlug } from '@/hooks'
-import { CodeSearchTab, CodeArchitectureTab, CodeHealthTab, CodeCommunitiesTab, CodeProcessesTab, CodeHeritageTab, FileHistoryTab } from '@/components/code'
+import { Search, Blocks, HeartPulse } from 'lucide-react'
+import { CodeExplorerTab } from '@/components/code/CodeExplorerTab'
+import { CodeArchitectureFullTab } from '@/components/code/CodeArchitectureFullTab'
+import { CodeSanteTab } from '@/components/code/CodeSanteTab'
 
-type CodeTab = 'search' | 'architecture' | 'health' | 'communities' | 'processes' | 'heritage' | 'history'
+type CodeTab = 'explorer' | 'architecture' | 'sante'
 
-const TAB_CONFIG: { key: CodeTab; label: string; requiresProject?: boolean }[] = [
-  { key: 'search', label: 'Search' },
-  { key: 'architecture', label: 'Architecture' },
-  { key: 'health', label: 'Health', requiresProject: true },
-  { key: 'communities', label: 'Communities', requiresProject: true },
-  { key: 'processes', label: 'Processes', requiresProject: true },
-  { key: 'heritage', label: 'Heritage' },
-  { key: 'history', label: 'File History' },
+const TABS: TabItem[] = [
+  { id: 'explorer', label: 'Explorer', icon: <Search className="w-4 h-4" /> },
+  { id: 'architecture', label: 'Architecture', icon: <Blocks className="w-4 h-4" /> },
+  { id: 'sante', label: 'Santé', icon: <HeartPulse className="w-4 h-4" /> },
 ]
 
 export function CodePage() {
   const wsSlug = useWorkspaceSlug()
-  const [activeTab, setActiveTab] = useState<CodeTab>('search')
+  const [activeTab, setActiveTab] = useState<CodeTab>('explorer')
 
   // Project filter
   const [projects, setProjects] = useState<{ slug: string; name: string }[]>([])
   const [selectedProject, setSelectedProject] = useState('all')
 
-  // Load workspace projects for filter
   useEffect(() => {
     async function loadProjects() {
       try {
@@ -40,74 +39,50 @@ export function CodePage() {
   const projectSlug = selectedProject !== 'all' ? selectedProject : null
 
   const projectOptions = [
-    { value: 'all', label: 'All workspace' },
+    { value: 'all', label: 'Tout le workspace' },
     ...projects.map((p) => ({ value: p.slug, label: p.name })),
   ]
 
-  const handleTabChange = (tab: CodeTab) => {
-    // If tab requires a project and none selected, don't block but let tab handle it
-    setActiveTab(tab)
-  }
+  const handleTabChange = useCallback((tabId: string) => {
+    setActiveTab(tabId as CodeTab)
+  }, [])
 
   return (
-    <PageShell
-      title="Code Explorer"
-      description="Search and explore code in workspace projects"
-      actions={
-        <div className="flex flex-wrap gap-2">
-          {TAB_CONFIG.map((tab) => (
-            <Button
-              key={tab.key}
-              variant={activeTab === tab.key ? 'primary' : 'secondary'}
-              size="sm"
-              onClick={() => handleTabChange(tab.key)}
-            >
-              {tab.label}
-            </Button>
-          ))}
-        </div>
-      }
-    >
-      {/* Project filter */}
-      {projects.length > 1 && (
-        <div className="mb-4">
-          <Select
-            options={projectOptions}
-            value={selectedProject}
-            onChange={(value) => setSelectedProject(value)}
-            className="w-full sm:w-48"
-          />
-        </div>
-      )}
+    <div className="space-y-4">
+      <PageHeader
+        title="Code Explorer"
+        description="Recherche, architecture et santé du code dans vos projets."
+        actions={
+          projects.length > 1 ? (
+            <Select
+              options={projectOptions}
+              value={selectedProject}
+              onChange={(value) => setSelectedProject(value)}
+              className="w-48"
+            />
+          ) : undefined
+        }
+      />
 
-      {/* Tab content */}
-      {activeTab === 'search' && (
-        <CodeSearchTab projectSlug={projectSlug} workspaceSlug={wsSlug} />
-      )}
+      <TabLayout tabs={TABS} activeTab={activeTab} onTabChange={handleTabChange}>
+        {activeTab === 'explorer' && (
+          <div className="pt-4">
+            <CodeExplorerTab projectSlug={projectSlug} workspaceSlug={wsSlug} />
+          </div>
+        )}
 
-      {activeTab === 'architecture' && (
-        <CodeArchitectureTab projectSlug={projectSlug} workspaceSlug={wsSlug} />
-      )}
+        {activeTab === 'architecture' && (
+          <div className="pt-4">
+            <CodeArchitectureFullTab projectSlug={projectSlug} workspaceSlug={wsSlug} />
+          </div>
+        )}
 
-      {activeTab === 'health' && (
-        <CodeHealthTab projectSlug={projectSlug} />
-      )}
-
-      {activeTab === 'communities' && (
-        <CodeCommunitiesTab projectSlug={projectSlug} />
-      )}
-
-      {activeTab === 'processes' && (
-        <CodeProcessesTab projectSlug={projectSlug} />
-      )}
-
-      {activeTab === 'heritage' && (
-        <CodeHeritageTab />
-      )}
-
-      {activeTab === 'history' && (
-        <FileHistoryTab projectSlug={projectSlug} workspaceSlug={wsSlug} />
-      )}
-    </PageShell>
+        {activeTab === 'sante' && (
+          <div className="pt-4">
+            <CodeSanteTab projectSlug={projectSlug} />
+          </div>
+        )}
+      </TabLayout>
+    </div>
   )
 }
