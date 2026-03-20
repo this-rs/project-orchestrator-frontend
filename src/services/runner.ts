@@ -47,6 +47,7 @@ export interface RunSnapshot {
   tasks_total: number
   elapsed_secs: number
   cost_usd: number
+  max_cost_usd: number
 }
 
 /**
@@ -125,6 +126,14 @@ export const runnerApi = {
   /** Get progress score for a pipeline run. */
   getProgress: (runId: string) =>
     api.get<ProgressScoreResponse>(`/runs/${runId}/progress`),
+
+  /**
+   * Update the budget limit of a running execution.
+   * Takes effect immediately on the next budget check in the execution loop.
+   */
+  updateBudget: async (planId: string, maxCostUsd: number): Promise<void> => {
+    await api.patch<void>(`/plans/${planId}/run/budget`, { max_cost_usd: maxCostUsd })
+  },
 
   /**
    * Cancel an active run. The backend will gracefully stop all running agents.

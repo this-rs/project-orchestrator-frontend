@@ -31,6 +31,8 @@ import {
   FileCode2,
   GitCommitHorizontal,
   Wrench,
+  Pencil,
+  Check,
 } from 'lucide-react'
 import { Card, CardContent, LoadingPage, ErrorState, ProgressBar, PulseIndicator } from '@/components/ui'
 import { CancelButton } from '@/components/runner/CancelButton'
@@ -777,6 +779,7 @@ export function RunnerDashboard() {
         tasks_total: latestRun.total_tasks,
         elapsed_secs: elapsed,
         cost_usd: latestRun.cost_usd ?? 0,
+        max_cost_usd: 0,
       }
     }
     return snapshot
@@ -788,6 +791,33 @@ export function RunnerDashboard() {
 
   const [activeTab, setActiveTab] = useState<DashboardTab>('waves')
   const [selectedConversation, setSelectedConversation] = useState<{ sessionId: string; taskTitle: string } | null>(null)
+
+  // Budget editing
+  const [editingBudget, setEditingBudget] = useState(false)
+  const [budgetInput, setBudgetInput] = useState('')
+  const [budgetSaving, setBudgetSaving] = useState(false)
+
+  const handleBudgetEdit = useCallback(() => {
+    const currentBudget = effectiveSnapshot?.max_cost_usd ?? 10
+    setBudgetInput(String(currentBudget))
+    setEditingBudget(true)
+  }, [effectiveSnapshot?.max_cost_usd])
+
+  const handleBudgetSave = useCallback(async () => {
+    if (!planId) return
+    const value = parseFloat(budgetInput)
+    if (isNaN(value) || value <= 0) return
+    setBudgetSaving(true)
+    try {
+      await runnerApi.updateBudget(planId, value)
+      setEditingBudget(false)
+      refresh()
+    } catch {
+      // silently fail — status poll will show the real value
+    } finally {
+      setBudgetSaving(false)
+    }
+  }, [planId, budgetInput, refresh])
 
   // Build agent list
   const resolvedAgents: ActiveAgentSnapshot[] = useMemo(() => {
@@ -936,6 +966,50 @@ export function RunnerDashboard() {
           <div className="flex items-center gap-1.5 text-gray-400">
             <DollarSign className="w-4 h-4 text-gray-500" />
             <span className="font-mono tabular-nums">{formatCost(effectiveSnapshot.cost_usd)}</span>
+            {effectiveSnapshot.max_cost_usd > 0 && (
+              <>
+                <span className="text-gray-600">/</span>
+                {editingBudget ? (
+                  <span className="flex items-center gap-1">
+                    <span className="text-gray-500">$</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={500}
+                      step={5}
+                      value={budgetInput}
+                      onChange={(e) => setBudgetInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleBudgetSave(); if (e.key === 'Escape') setEditingBudget(false) }}
+                      autoFocus
+                      className="w-16 px-1.5 py-0.5 bg-white/[0.06] border border-indigo-500/50 rounded text-sm text-gray-200 font-mono tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
+                    />
+                    <button
+                      onClick={handleBudgetSave}
+                      disabled={budgetSaving}
+                      className="p-0.5 text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setEditingBudget(false)}
+                      className="p-0.5 text-gray-500 hover:text-gray-300 transition-colors cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    onClick={isRunning ? handleBudgetEdit : undefined}
+                    className={`flex items-center gap-1 font-mono tabular-nums ${isRunning ? 'hover:text-indigo-400 transition-colors cursor-pointer' : ''}`}
+                    title={isRunning ? 'Click to edit budget' : undefined}
+                    disabled={!isRunning}
+                  >
+                    <span>{formatCost(effectiveSnapshot.max_cost_usd)}</span>
+                    {isRunning && <Pencil className="w-3 h-3 text-gray-600" />}
+                  </button>
+                )}
+              </>
+            )}
           </div>
         </div>
 
