@@ -7,12 +7,9 @@
  * Active wave = auto-expanded, completed waves = collapsed, pending = collapsed.
  */
 
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
-  ChevronDown,
-  ChevronRight,
-  Activity,
   Clock,
   DollarSign,
   Layers,
@@ -21,28 +18,19 @@ import {
   CheckCircle2,
   Users,
   Rocket,
-  Eye,
-  Wifi,
-  WifiOff,
   Loader2,
   X,
-  ExternalLink,
-  Square,
-  FileCode2,
-  GitCommitHorizontal,
-  Wrench,
   Pencil,
   Check,
-  RotateCcw,
   AlertTriangle,
 } from 'lucide-react'
-import { Card, CardContent, LoadingPage, ErrorState, ProgressBar, PulseIndicator } from '@/components/ui'
+import { Card, CardContent, LoadingPage, ErrorState, ProgressBar } from '@/components/ui'
 import { CancelButton } from '@/components/runner/CancelButton'
+import { WaveSection } from '@/components/runner/WaveSection'
+import { formatElapsed, formatCost, runStatusConfig, getWaveStatus } from '@/components/runner/shared'
 import { DiscussionTreeView } from '@/components/discussions/DiscussionTreeView'
-import { chatApi } from '@/services/chat'
 import { runnerApi, useRunnerStatus } from '@/services/runner'
 import type { ActiveAgentSnapshot, RunSnapshot } from '@/services/runner'
-import type { AgentExecution } from '@/types'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import {
@@ -50,490 +38,17 @@ import {
   useLatestPlanRun,
   useRunRootSession,
   useWavesData,
-  useConversationWs,
 } from '@/hooks/runner'
-import type { ConversationMessage, WsStatus } from '@/hooks/runner'
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Tab type
 // ---------------------------------------------------------------------------
 
-function formatElapsed(secs: number | undefined | null): string {
-  const v = secs ?? 0
-  const m = Math.floor(v / 60)
-  const s = Math.floor(v % 60)
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-}
-
-function formatCost(usd: number | undefined | null): string {
-  return `$${(usd ?? 0).toFixed(2)}`
-}
-
-const runStatusConfig: Record<string, { label: string; bg: string; text: string; dot: string }> = {
-  running:          { label: 'Running',          bg: 'bg-blue-500/15',   text: 'text-blue-400',   dot: 'bg-blue-400' },
-  completed:        { label: 'Completed',        bg: 'bg-green-500/15',  text: 'text-green-400',  dot: 'bg-green-400' },
-  failed:           { label: 'Failed',           bg: 'bg-red-500/15',    text: 'text-red-400',    dot: 'bg-red-400' },
-  cancelled:        { label: 'Cancelled',        bg: 'bg-gray-500/15',   text: 'text-gray-400',   dot: 'bg-gray-400' },
-  budget_exceeded:  { label: 'Budget Exceeded',  bg: 'bg-yellow-500/15', text: 'text-yellow-400', dot: 'bg-yellow-400' },
-}
-
-
-// ---------------------------------------------------------------------------
-// Inline Conversation Panel (full-width, under the wave)
-// ---------------------------------------------------------------------------
-
-const typeStyles: Record<ConversationMessage['type'], { label: string; border: string; bg: string; text: string }> = {
-  text:        { label: 'Assistant', border: 'border-blue-500/20',   bg: 'bg-blue-500/[0.04]',   text: 'text-blue-400' },
-  tool_use:    { label: 'Tool Use',  border: 'border-purple-500/20', bg: 'bg-purple-500/[0.04]', text: 'text-purple-400' },
-  tool_result: { label: 'Result',    border: 'border-cyan-500/20',   bg: 'bg-cyan-500/[0.04]',   text: 'text-cyan-400' },
-  system:      { label: 'System',    border: 'border-gray-500/20',   bg: 'bg-white/[0.02]',      text: 'text-gray-500' },
-  error:       { label: 'Error',     border: 'border-red-500/20',    bg: 'bg-red-500/[0.04]',    text: 'text-red-400' },
-  unknown:     { label: 'Event',     border: 'border-gray-500/20',   bg: 'bg-white/[0.02]',      text: 'text-gray-500' },
-}
-
-function MessageBubble({ message }: { message: ConversationMessage }) {
-  const style = typeStyles[message.type] ?? typeStyles.unknown
-  return (
-    <div className={`border-l-2 ${style.border} ${style.bg} rounded-r-md px-3 py-2`}>
-      <div className="flex items-center gap-2 mb-1">
-        <span className={`text-[10px] font-medium uppercase ${style.text}`}>{style.label}</span>
-      </div>
-      <pre className="text-xs text-gray-300 whitespace-pre-wrap break-words font-mono leading-relaxed max-h-60 overflow-y-auto">
-        {message.content}
-      </pre>
-    </div>
-  )
-}
-
-function WsStatusIndicator({ status }: { status: WsStatus }) {
-  if (status === 'connected') return (
-    <span className="flex items-center gap-1.5 text-[11px] text-green-400"><Wifi className="w-3 h-3" />Live</span>
-  )
-  if (status === 'connecting' || status === 'reconnecting') return (
-    <span className="flex items-center gap-1.5 text-[11px] text-yellow-400">
-      <Loader2 className="w-3 h-3 animate-spin" />
-      {status === 'connecting' ? 'Connecting...' : 'Reconnecting...'}
-    </span>
-  )
-  return <span className="flex items-center gap-1.5 text-[11px] text-gray-500"><WifiOff className="w-3 h-3" />Disconnected</span>
-}
-
-function InlineConversation({ sessionId, taskTitle, onClose }: { sessionId: string; taskTitle: string; onClose: () => void }) {
-  const { messages, status } = useConversationWs(sessionId)
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const wsSlug = useWorkspaceSlug()
-  const [stopping, setStopping] = useState(false)
-
-  useEffect(() => {
-    const el = scrollRef.current
-    if (el) el.scrollTop = el.scrollHeight
-  }, [messages.length])
-
-  const handleStop = async () => {
-    setStopping(true)
-    try { await chatApi.interruptSession(sessionId) } catch { /* ignore */ }
-    finally { setStopping(false) }
-  }
-
-  return (
-    <div className="border border-indigo-500/20 rounded-lg bg-[#0d0d1a] overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-indigo-500/10 bg-indigo-500/[0.03]">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <Eye className="w-4 h-4 text-indigo-400 flex-shrink-0" />
-          <h4 className="text-sm font-medium text-gray-200 truncate">{taskTitle}</h4>
-          <WsStatusIndicator status={status} />
-        </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {status === 'connected' && (
-            <button
-              onClick={handleStop}
-              disabled={stopping}
-              className="p-1.5 rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/[0.1] transition-colors cursor-pointer disabled:opacity-50"
-              title="Stop session"
-            >
-              {stopping ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Square className="w-3.5 h-3.5" />}
-            </button>
-          )}
-          <Link
-            to={workspacePath(wsSlug, `/chat/${sessionId}`)}
-            className="p-1.5 rounded-md text-gray-500 hover:text-gray-300 hover:bg-white/[0.06] transition-colors"
-            title="View full conversation"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-          </Link>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-md text-gray-500 hover:text-gray-300 hover:bg-white/[0.06] transition-colors cursor-pointer"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-      {/* Messages */}
-      <div ref={scrollRef} className="max-h-[400px] overflow-y-auto p-4 space-y-2">
-        {messages.length === 0 ? (
-          <div className="flex items-center justify-center py-8">
-            <p className="text-sm text-gray-500">
-              {status === 'connected' ? 'Waiting for messages...' : status === 'connecting' ? 'Connecting to agent...' : 'No messages yet'}
-            </p>
-          </div>
-        ) : (
-          messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Agent status badge config
-// ---------------------------------------------------------------------------
-
-type AgentStatus = ActiveAgentSnapshot['status']
-
-const agentStatusConfig: Record<AgentStatus, { label: string; bg: string; text: string; dot: string }> = {
-  spawning:   { label: 'Spawning',   bg: 'bg-yellow-500/15', text: 'text-yellow-400', dot: 'bg-yellow-400' },
-  running:    { label: 'Running',    bg: 'bg-blue-500/15',   text: 'text-blue-400',   dot: 'bg-blue-400' },
-  verifying:  { label: 'Verifying',  bg: 'bg-purple-500/15', text: 'text-purple-400', dot: 'bg-purple-400' },
-  completed:  { label: 'Completed',  bg: 'bg-green-500/15',  text: 'text-green-400',  dot: 'bg-green-400' },
-  failed:     { label: 'Failed',     bg: 'bg-red-500/15',    text: 'text-red-400',    dot: 'bg-red-400' },
-}
-
-// ---------------------------------------------------------------------------
-// Wave Agent Card (compact card within a wave section)
-// ---------------------------------------------------------------------------
-
-function WaveAgentCard({
-  agent,
-  execution,
-  isSelected,
-  onToggleConversation,
-  onRetryTask,
-}: {
-  agent: ActiveAgentSnapshot
-  execution?: AgentExecution
-  isSelected: boolean
-  onToggleConversation: (sessionId: string, taskTitle: string) => void
-  onRetryTask?: (taskId: string, taskTitle: string) => void
-}) {
-  const cfg = agentStatusConfig[agent.status] ?? agentStatusConfig.running
-  const [detailOpen, setDetailOpen] = useState(false)
-  const isLive = agent.status === 'running' || agent.status === 'spawning' || agent.status === 'verifying'
-
-  const tools = useMemo(() => {
-    if (!execution?.tools_used) return []
-    try {
-      const parsed = JSON.parse(execution.tools_used)
-      return Array.isArray(parsed) ? parsed.map(String) : []
-    } catch { return [] }
-  }, [execution?.tools_used])
-
-  return (
-    <div
-      className={`
-        rounded-lg border p-3 transition-all duration-200
-        ${isSelected
-          ? 'border-indigo-500/40 bg-indigo-500/[0.06] shadow-[0_0_12px_rgba(99,102,241,0.1)]'
-          : 'border-border-subtle bg-white/[0.04] hover:bg-white/[0.06] hover:border-border-default'
-        }
-      `}
-    >
-      {/* Header: title + status */}
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <h4 className="text-sm font-medium text-gray-200 leading-snug line-clamp-2 flex-1 min-w-0">
-          {agent.task_title}
-        </h4>
-        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap ${cfg.bg} ${cfg.text}`}>
-          {isLive && <PulseIndicator variant="active" size={6} />}
-          {!isLive && <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />}
-          {cfg.label}
-        </span>
-      </div>
-
-      {/* Metrics */}
-      <div className="flex items-center gap-4 text-xs text-gray-500 mb-2">
-        <span className="inline-flex items-center gap-1">
-          <Clock className="w-3 h-3" />
-          <span className="font-mono tabular-nums">{formatElapsed(agent.elapsed_secs)}</span>
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <DollarSign className="w-3 h-3" />
-          <span className="font-mono tabular-nums">{formatCost(agent.cost_usd)}</span>
-        </span>
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-2">
-        {agent.session_id && (
-          <button
-            onClick={() => onToggleConversation(agent.session_id!, agent.task_title)}
-            className={`
-              flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium
-              transition-colors cursor-pointer
-              ${isSelected
-                ? 'bg-indigo-500/20 text-indigo-300'
-                : 'bg-white/[0.06] text-gray-400 hover:bg-white/[0.1] hover:text-gray-200'
-              }
-            `}
-          >
-            <Eye className="w-3.5 h-3.5" />
-            {isSelected ? 'Viewing' : 'Conversation'}
-            {isLive && !isSelected && (
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-            )}
-          </button>
-        )}
-        {agent.status === 'failed' && onRetryTask && (
-          <button
-            onClick={() => onRetryTask(agent.task_id, agent.task_title)}
-            className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors cursor-pointer"
-            title="Retry this task"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Retry
-          </button>
-        )}
-        {execution && (
-          <button
-            onClick={() => setDetailOpen(!detailOpen)}
-            className="flex items-center justify-center p-1.5 rounded-md text-xs text-gray-500 bg-white/[0.06] hover:bg-white/[0.1] hover:text-gray-300 transition-colors cursor-pointer"
-            title={detailOpen ? 'Hide details' : 'Show details'}
-          >
-            {detailOpen ? <ChevronDown className="w-3.5 h-3.5 rotate-180" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
-        )}
-      </div>
-
-      {/* Expandable execution detail */}
-      {detailOpen && execution && (
-        <div className="mt-3 pt-3 border-t border-white/[0.06] space-y-2">
-          {execution.files_modified.length > 0 && (
-            <div className="space-y-1">
-              <h5 className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Files modified</h5>
-              <ul className="space-y-0.5">
-                {execution.files_modified.map((file) => (
-                  <li key={file} className="flex items-center gap-1.5 text-xs text-gray-400">
-                    <FileCode2 className="w-3 h-3 text-gray-500 shrink-0" />
-                    <span className="truncate font-mono">{file}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {execution.commits.length > 0 && (
-            <div className="space-y-1">
-              <h5 className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Commits</h5>
-              <ul className="space-y-0.5">
-                {execution.commits.map((sha) => (
-                  <li key={sha} className="flex items-center gap-1.5 text-xs text-gray-400">
-                    <GitCommitHorizontal className="w-3 h-3 text-gray-500 shrink-0" />
-                    <span className="font-mono">{sha.slice(0, 7)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {tools.length > 0 && (
-            <div className="space-y-1">
-              <h5 className="text-[10px] font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                <Wrench className="w-3 h-3" /> Tools used
-              </h5>
-              <div className="flex flex-wrap gap-1">
-                {tools.map((tool) => (
-                  <span key={tool} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-white/[0.06] text-gray-400">
-                    {tool}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Wave Section (collapsible accordion for a wave)
-// ---------------------------------------------------------------------------
-
-type WaveStatus = 'active' | 'completed' | 'failed' | 'pending' | 'partial'
-
-function getWaveStatus(agents: ActiveAgentSnapshot[]): WaveStatus {
-  if (agents.length === 0) return 'pending'
-  const hasRunning = agents.some(a => a.status === 'running' || a.status === 'spawning' || a.status === 'verifying')
-  if (hasRunning) return 'active'
-  const allDone = agents.every(a => a.status === 'completed' || a.status === 'failed')
-  if (allDone) {
-    const hasFailed = agents.some(a => a.status === 'failed')
-    if (hasFailed) return 'failed'
-    return 'completed'
-  }
-  return 'partial'
-}
-
-const waveStatusStyles: Record<WaveStatus, { border: string; bg: string; badge: string; badgeText: string }> = {
-  active:    { border: 'border-indigo-500/30', bg: 'bg-indigo-500/[0.02]', badge: 'bg-indigo-500/15', badgeText: 'text-indigo-400' },
-  completed: { border: 'border-green-500/20',  bg: 'bg-green-500/[0.01]',  badge: 'bg-green-500/15',  badgeText: 'text-green-400' },
-  failed:    { border: 'border-red-500/30',    bg: 'bg-red-500/[0.02]',    badge: 'bg-red-500/15',    badgeText: 'text-red-400' },
-  pending:   { border: 'border-border-subtle',  bg: 'bg-white/[0.01]',     badge: 'bg-white/[0.08]',  badgeText: 'text-gray-500' },
-  partial:   { border: 'border-yellow-500/20', bg: 'bg-yellow-500/[0.01]', badge: 'bg-yellow-500/15', badgeText: 'text-yellow-400' },
-}
-
-const waveStatusLabels: Record<WaveStatus, string> = {
-  active: 'Active',
-  completed: 'Completed',
-  failed: 'Failed',
-  pending: 'Pending',
-  partial: 'Partial',
-}
-
-interface WaveSectionProps {
-  waveNumber: number
-  taskIds: string[]
-  agents: ActiveAgentSnapshot[]
-  executionsMap: Map<string, AgentExecution>
-  selectedConversation: { sessionId: string; taskTitle: string } | null
-  onToggleConversation: (sessionId: string, taskTitle: string) => void
-  onCloseConversation: () => void
-  onRetryTask?: (taskId: string, taskTitle: string) => void
-  defaultOpen: boolean
-}
-
-function WaveSection({
-  waveNumber,
-  taskIds,
-  agents,
-  executionsMap,
-  selectedConversation,
-  onToggleConversation,
-  onCloseConversation,
-  onRetryTask,
-  defaultOpen,
-}: WaveSectionProps) {
-  const [open, setOpen] = useState(defaultOpen)
-  const waveStatus = getWaveStatus(agents)
-  const styles = waveStatusStyles[waveStatus]
-
-  const completedCount = agents.filter(a => a.status === 'completed').length
-  const failedCount = agents.filter(a => a.status === 'failed').length
-  const totalCount = taskIds.length
-  const waveCost = agents.reduce((sum, a) => sum + a.cost_usd, 0)
-  const waveTime = agents.reduce((max, a) => Math.max(max, a.elapsed_secs), 0)
-
-  // Check if the selected conversation belongs to this wave
-  const conversationInThisWave = selectedConversation && agents.some(a => a.session_id === selectedConversation.sessionId)
-
-  return (
-    <div className={`rounded-lg border ${styles.border} ${styles.bg} transition-all duration-200`}>
-      {/* Wave header (clickable) */}
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-3 text-left cursor-pointer"
-      >
-        <div className="flex items-center gap-3">
-          {open
-            ? <ChevronDown className="w-4 h-4 text-gray-500" />
-            : <ChevronRight className="w-4 h-4 text-gray-500" />
-          }
-          <span className="text-sm font-semibold text-gray-200">
-            Wave {waveNumber}
-          </span>
-          {waveStatus === 'active' && (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400 text-[10px] font-medium">
-              <Activity className="w-3 h-3" />
-              Active
-            </span>
-          )}
-          {waveStatus === 'failed' && (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 text-[10px] font-medium">
-              <AlertTriangle className="w-3 h-3" />
-              Failed
-            </span>
-          )}
-          {waveStatus !== 'active' && waveStatus !== 'failed' && (
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${styles.badge} ${styles.badgeText}`}>
-              {waveStatusLabels[waveStatus]}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-4 text-xs text-gray-500">
-          {failedCount > 0 && (
-            <span className="text-red-400">{failedCount} failed</span>
-          )}
-          <span>{completedCount}/{totalCount} tasks</span>
-          {waveCost > 0 && (
-            <span className="font-mono tabular-nums">{formatCost(waveCost)}</span>
-          )}
-          {waveTime > 0 && (
-            <span className="font-mono tabular-nums">{formatElapsed(waveTime)}</span>
-          )}
-        </div>
-      </button>
-
-      {/* Progress bar */}
-      {totalCount > 0 && (
-        <div className="px-4 pb-1">
-          <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden flex">
-            {completedCount > 0 && (
-              <div
-                className="h-full bg-green-500/70 transition-all duration-300"
-                style={{ width: `${(completedCount / totalCount) * 100}%` }}
-              />
-            )}
-            {failedCount > 0 && (
-              <div
-                className="h-full bg-red-500/70 transition-all duration-300"
-                style={{ width: `${(failedCount / totalCount) * 100}%` }}
-              />
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Expanded content */}
-      {open && (
-        <div className="px-4 pb-4 pt-2 space-y-3">
-          {/* Agent cards grid */}
-          {agents.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {agents.map((agent, idx) => (
-                <WaveAgentCard
-                  key={`${agent.task_id}-${idx}`}
-                  agent={agent}
-                  execution={executionsMap.get(agent.task_id)}
-                  isSelected={selectedConversation?.sessionId === agent.session_id}
-                  onToggleConversation={onToggleConversation}
-                  onRetryTask={onRetryTask}
-                />
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-gray-500 py-2">
-              {waveStatus === 'pending' ? 'Waiting for previous waves to complete...' : 'No agents for this wave.'}
-            </p>
-          )}
-
-          {/* Inline conversation panel (full width, below agent cards) */}
-          {conversationInThisWave && selectedConversation && (
-            <InlineConversation
-              sessionId={selectedConversation.sessionId}
-              taskTitle={selectedConversation.taskTitle}
-              onClose={onCloseConversation}
-            />
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
+type DashboardTab = 'waves' | 'discussions'
 
 // ---------------------------------------------------------------------------
 // RunnerDashboard
 // ---------------------------------------------------------------------------
-
-type DashboardTab = 'waves' | 'discussions'
 
 export function RunnerDashboard() {
   const { planId } = useParams<{ planId: string }>()
@@ -625,12 +140,10 @@ export function RunnerDashboard() {
   }, [wavesData])
 
   // Build agent list — merge live agents with historical executions.
-  // Live agents take priority per task_id; executions fill in completed waves.
   const resolvedAgents: ActiveAgentSnapshot[] = useMemo(() => {
     const liveAgents = effectiveSnapshot?.active_agents ?? []
     const liveTaskIds = new Set(liveAgents.map(a => a.task_id))
 
-    // Convert historical executions to ActiveAgentSnapshot (skip those already live)
     const historicalAgents: ActiveAgentSnapshot[] = Array.from(executionsMap.values())
       .filter(exec => !liveTaskIds.has(exec.task_id))
       .map((exec) => ({
@@ -657,14 +170,9 @@ export function RunnerDashboard() {
     return map
   }, [resolvedAgents, taskWaveMap])
 
-  // Build ordered wave list with task IDs.
-  // For tasks that were skipped (already completed/blocked at run start), inject
-  // synthetic agent entries so they appear in the wave instead of "Waiting...".
-  // Since useWavesData now polls every 5s and reacts to task CRUD events,
-  // wave task statuses are fresh — no need for a getSyntheticStatus workaround.
+  // Build ordered wave list with task IDs and synthetic agents for skipped tasks.
   const orderedWaves = useMemo<Array<{ waveNumber: number; taskIds: string[]; agents: ActiveAgentSnapshot[] }>>(() => {
     if (!wavesData) {
-      // Fallback: no wave data, group all agents in "Wave 1"
       if (resolvedAgents.length > 0) {
         return [{
           waveNumber: 1,
@@ -679,9 +187,6 @@ export function RunnerDashboard() {
       const waveAgents = waveAgentsMap.get(wave.wave_number) ?? []
       const agentTaskIds = new Set(waveAgents.map(a => a.task_id))
 
-      // For tasks with no agent in waves that already ran (skipped = already completed/blocked),
-      // create synthetic entries so they show up instead of "Waiting...".
-      // Only for waves at or before the current wave (don't synthesize future waves).
       const currentWave = effectiveSnapshot?.current_wave ?? 0
       const waveAlreadyRan = wave.wave_number <= currentWave || !isRunning
       const syntheticAgents: ActiveAgentSnapshot[] = waveAlreadyRan
