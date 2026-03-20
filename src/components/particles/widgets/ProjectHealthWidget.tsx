@@ -28,7 +28,7 @@ export interface ProjectHealthWidgetProps {
   data?: MoatData;
   className?: string;
   height?: number;
-  /** Enable interactive mode: hover tooltips + click callbacks */
+  /** Enable interactive mode: hover tooltips + click callbacks. Default: true */
   interactive?: boolean;
   /** Called when a layer ring is clicked. Receives the layer name (e.g. 'code', 'skills') */
   onLayerClick?: (layerName: string) => void;
@@ -57,8 +57,8 @@ const TOOLTIP_STYLE: React.CSSProperties = {
 export function ProjectHealthWidget({
   data,
   className = '',
-  height = 200,
-  interactive = false,
+  height = 240,
+  interactive = true,
   onLayerClick,
 }: ProjectHealthWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);

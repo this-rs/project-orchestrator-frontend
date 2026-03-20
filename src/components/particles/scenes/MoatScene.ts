@@ -1,22 +1,24 @@
 /**
- * MoatScene — slide 15/15
- * "chaque couche rend la forteresse plus infranchissable"
+ * MoatScene — Project Health visualization.
  *
- * Elements:
- *   - Central core (white, big glow) — pulse proportional to healthScore
- *   - Concentric layers added progressively
+ * Concentric rings represent knowledge graph layers.
+ * Each ring's color/behavior reflects its health score.
+ *
+ * Layout:
+ *   - Central core (white glow) — pulse proportional to global healthScore
+ *   - Concentric layer rings added progressively
  *   - Each layer = ring of small particles with differential rotation
- *   - Health-based coloring: healthy = white fluid, weak = reddish erratic
- *   - Center: health score percentage text
- *   - Counter: "N couche(s) de défense"
+ *   - Health-based coloring: healthy = cyan/white, weak = orange/red + jitter
+ *   - Layer labels on the RIGHT with name, count, health bar
+ *   - Center: global health score percentage
+ *   - Bottom: summary counter
  *
- * Formulas:
+ * Visual encoding:
  *   layer_r(n) = core_radius + n * layer_spacing
  *   particles_per_layer = 6 + n * 2
- *   ω_n = base_speed / (n + 1) — outer layers rotate slower
- *   layer appearance = smoothstep based on progress
- *   health → color interpolation: white(1.0) → orange(0.5) → red(0.0)
- *   health → movement: fluid(1.0) → erratic jitter(0.0)
+ *   omega_n = base_speed / (n + 1) — outer layers rotate slower
+ *   health -> color: cyan(1.0) -> orange(0.5) -> red(0.0)
+ *   health -> movement: fluid(1.0) -> erratic jitter(0.0)
  */
 
 import { TAU } from '../engine/types';
@@ -42,38 +44,52 @@ export interface MoatData {
 const DEFAULT_DATA: MoatData = {
   layers: [
     { name: 'code', count: 8, health: 0.8 },
-    { name: 'notes', count: 12, health: 0.6 },
+    { name: 'knowledge', count: 12, health: 0.6 },
     { name: 'skills', count: 16, health: 0.9 },
-    { name: 'personas', count: 20, health: 0.4 },
-    { name: 'episodes', count: 24, health: 0.7 },
+    { name: 'behavioral', count: 20, health: 0.4 },
+    { name: 'neural', count: 24, health: 0.7 },
   ],
   healthScore: 0.68,
+};
+
+// ── Human-readable layer names ────────────────────────────────
+
+const LAYER_DISPLAY_NAMES: Record<string, string> = {
+  code: 'Code',
+  knowledge: 'Knowledge',
+  skills: 'Skills',
+  behavioral: 'Behavioral',
+  fabric: 'Fabric',
+  neural: 'Neural',
+  notes: 'Notes',
+  personas: 'Personas',
+  episodes: 'Episodes',
 };
 
 // ── Constants ─────────────────────────────────────────────────
 
 const CORE_RADIUS = 16;
-const LAYER_SPACING = 28;
+const LAYER_SPACING = 24;
 const BASE_ORBIT_SPEED = 0.8; // rad/s
 
 // ── Health → Color helpers ────────────────────────────────────
 
-/** Interpolate from red (#f87171) through orange (#fb923c) to white (#ffffff) based on health 0-1 */
+/** Health color: cyan (#22d3ee) at 1.0 → orange (#fb923c) at 0.5 → red (#f87171) at 0.0 */
 function healthToColor(health: number): string {
   const h = clamp(health, 0, 1);
   if (h >= 0.7) {
-    // White zone: lerp from slight warm to pure white
+    // Cyan zone: lerp from warm cyan to bright cyan
     const t = (h - 0.7) / 0.3;
-    const r = Math.round(lerp(255, 255, t));
-    const g = Math.round(lerp(230, 255, t));
-    const b = Math.round(lerp(210, 255, t));
+    const r = Math.round(lerp(100, 34, t));
+    const g = Math.round(lerp(200, 211, t));
+    const b = Math.round(lerp(220, 238, t));
     return `rgb(${r},${g},${b})`;
   } else if (h >= 0.4) {
     // Orange zone
     const t = (h - 0.4) / 0.3;
-    const r = Math.round(lerp(251, 255, t));
-    const g = Math.round(lerp(146, 230, t));
-    const b = Math.round(lerp(60, 210, t));
+    const r = Math.round(lerp(251, 100, t));
+    const g = Math.round(lerp(146, 200, t));
+    const b = Math.round(lerp(60, 220, t));
     return `rgb(${r},${g},${b})`;
   } else {
     // Red zone
@@ -85,21 +101,28 @@ function healthToColor(health: number): string {
   }
 }
 
+/** Health to status emoji/symbol for label */
+function healthToIndicator(health: number): string {
+  if (health >= 0.8) return '';
+  if (health >= 0.5) return '';
+  return '';
+}
+
 // ── Pre-allocated particle ring positions ─────────────────────
 
 interface LayerParticle {
-  angleOffset: number; // fixed offset within ring
+  angleOffset: number;
   sizeVariance: number;
   opacityVariance: number;
-  /** Random seed for erratic jitter (unique per particle) */
   jitterSeed: number;
 }
 
 interface LayerState {
   radius: number;
-  speed: number; // angular velocity
+  speed: number;
   particles: LayerParticle[];
   name: string;
+  displayName: string;
   count: number;
   color: string;
   health: number;
@@ -109,13 +132,15 @@ interface LayerState {
 
 export class MoatScene implements ParticleScene {
   readonly name = 'moat';
-  readonly title = 'MOAT';
+  readonly title = 'PROJECT HEALTH';
   readonly description =
-    'chaque couche rend la forteresse plus infranchissable';
+    'Knowledge graph layers — health & coverage';
 
   private data: MoatData = DEFAULT_DATA;
   private cx = 0;
   private cy = 0;
+  private w = 0;
+  private h = 0;
   private progress = 0;
   private time = 0;
   private healthScore = 0.68;
@@ -132,19 +157,30 @@ export class MoatScene implements ParticleScene {
   }
 
   init(width: number, height: number): void {
-    this.cx = width * 0.5;
+    this.w = width;
+    this.h = height;
+    // Center the rings slightly left to leave room for labels on the right
+    this.cx = width * 0.38;
     this.cy = height * 0.48;
     this.buildLayers();
   }
 
   resize(width: number, height: number): void {
-    this.cx = width * 0.5;
+    this.w = width;
+    this.h = height;
+    this.cx = width * 0.38;
     this.cy = height * 0.48;
   }
 
   private buildLayers(): void {
     const { layers } = this.data;
     this.layerStates = [];
+
+    // Adaptive spacing: if many layers, reduce spacing to fit
+    const maxRadius = Math.min(this.w * 0.32, this.h * 0.38);
+    const spacing = layers.length > 0
+      ? Math.min(LAYER_SPACING, (maxRadius - CORE_RADIUS) / layers.length)
+      : LAYER_SPACING;
 
     for (let n = 0; n < layers.length; n++) {
       const layer = layers[n];
@@ -162,10 +198,11 @@ export class MoatScene implements ParticleScene {
       }
 
       this.layerStates.push({
-        radius: CORE_RADIUS + (n + 1) * LAYER_SPACING,
-        speed: BASE_ORBIT_SPEED / (n + 1), // outer = slower
+        radius: CORE_RADIUS + (n + 1) * spacing,
+        speed: BASE_ORBIT_SPEED / (n + 1),
         particles,
         name: layer.name,
+        displayName: LAYER_DISPLAY_NAMES[layer.name] || layer.name,
         count: layer.count,
         color: healthToColor(health),
         health,
@@ -173,7 +210,7 @@ export class MoatScene implements ParticleScene {
     }
   }
 
-  /** Hit-test helper: returns the layer index at the given canvas coordinates, or -1 */
+  /** Hit-test: returns layer index at canvas coordinates, or -1 */
   hitTestLayer(x: number, y: number): number {
     const dx = x - this.cx;
     const dy = y - this.cy;
@@ -210,35 +247,33 @@ export class MoatScene implements ParticleScene {
     const progress = this.progress;
     const time = this.time;
     const maxLayers = this.layerStates.length;
-    const currentLayers = Math.floor(progress * (maxLayers + 1));
     const hs = this.healthScore;
 
     // ── Title ───────────────────────────────────────────
     renderTitle(ctx, this.title, width, 0.5);
 
-    // ── Layer rings + particles ────────────────────────
+    // ── Layer rings + particles + labels ────────────────
     for (let n = 0; n < maxLayers; n++) {
       const ls = this.layerStates[n];
 
       // Layer appearance animation
       const layerPhase = smoothstep(
-        n / maxLayers - 0.05,
-        n / maxLayers + 0.05,
+        n / (maxLayers + 1),
+        (n + 0.5) / (maxLayers + 1),
         progress,
       );
       if (layerPhase < 0.01) continue;
 
-      // Ring color tinted by health
-      const ringAlpha = layerPhase * 0.06;
+      // Ring
+      const ringAlpha = layerPhase * 0.08;
       renderRing(ctx, cx, cy, ls.radius, ringAlpha, ls.color);
 
       // Particle ring with rotation
       const rotation = ls.speed * time;
-      const particleOpacity = layerPhase * (0.4 + 0.1 * n);
+      const particleOpacity = layerPhase * (0.35 + 0.08 * n);
 
-      // Erratic jitter amplitude: unhealthy = more jitter
-      const jitterAmp = (1 - ls.health) * 6;
-      // Unhealthy layers have faster erratic movement
+      // Erratic jitter for unhealthy layers
+      const jitterAmp = (1 - ls.health) * 5;
       const jitterSpeed = 2 + (1 - ls.health) * 8;
 
       for (const p of ls.particles) {
@@ -246,7 +281,6 @@ export class MoatScene implements ParticleScene {
         let px = cx + Math.cos(angle) * ls.radius;
         let py = cy + Math.sin(angle) * ls.radius;
 
-        // Add jitter for unhealthy layers
         if (jitterAmp > 0.1) {
           px += Math.sin(time * jitterSpeed + p.jitterSeed) * jitterAmp;
           py += Math.cos(time * jitterSpeed * 1.3 + p.jitterSeed * 2) * jitterAmp;
@@ -255,28 +289,50 @@ export class MoatScene implements ParticleScene {
         const size = 1.5 * p.sizeVariance;
         const opacity = clamp(particleOpacity * p.opacityVariance, 0.05, 1.0);
 
-        // Draw particle with health-tinted glow
         renderGlowDot(ctx, px, py, size, opacity, ls.color, size * 3);
       }
 
-      // Layer name label (to the right of the ring)
-      if (layerPhase > 0.3) {
+      // ── Layer label (right side, stacked vertically) ──
+      if (layerPhase > 0.15) {
+        const labelX = cx + ls.radius + 18;
+        // Y position: distribute labels along the ring's actual Y position
+        // Use a slight vertical offset per layer for readability
+        const labelY = cy - ls.radius * 0.3 + n * 2;
+
+        const labelOpacity = layerPhase * 0.7;
+        const healthPct = Math.round(ls.health * 100);
+        const indicator = healthToIndicator(ls.health);
+
+        // Layer name
         renderLabel(ctx, {
-          text: ls.name,
-          x: cx + ls.radius + 16,
-          y: cy,
-          opacity: layerPhase * 0.5,
+          text: `${ls.displayName}`,
+          x: labelX,
+          y: labelY,
+          opacity: labelOpacity,
           size: 9,
           color: ls.color,
+          align: 'left',
+        });
+
+        // Health bar (drawn manually — a small horizontal bar)
+        this.drawHealthBar(ctx, labelX, labelY + 9, 40, 3, ls.health, ls.color, labelOpacity);
+
+        // Count + health %
+        renderLabel(ctx, {
+          text: `${ls.count} ${indicator} ${healthPct}%`,
+          x: labelX,
+          y: labelY + 18,
+          opacity: labelOpacity * 0.6,
+          size: 8,
+          color: '#94a3b8',
           align: 'left',
         });
       }
     }
 
     // ── Core glow (pulsating proportional to health) ───
-    // High health = slow + large pulse; Low health = fast + small pulse
-    const pulseFreq = lerp(5, 1.2, hs); // fast (5 Hz) when sick, slow (1.2 Hz) when healthy
-    const pulseAmplitude = lerp(0.05, 0.2, hs); // small when sick, large when healthy
+    const pulseFreq = lerp(5, 1.2, hs);
+    const pulseAmplitude = lerp(0.05, 0.2, hs);
     const coreGlowIntensity = 0.4 + pulseAmplitude * Math.sin(time * pulseFreq);
     const coreScale = 1 + pulseAmplitude * 0.5 * Math.sin(time * pulseFreq);
 
@@ -295,32 +351,79 @@ export class MoatScene implements ParticleScene {
 
     // ── Health percentage at center ─────────────────────
     const pctText = `${Math.round(hs * 100)}%`;
+    const healthColor = healthToColor(hs);
     renderLabel(ctx, {
       text: pctText,
       x: cx,
-      y: cy + CORE_RADIUS + 8,
-      opacity: 0.8,
-      size: 10,
-      color: '#22d3ee',
+      y: cy + CORE_RADIUS + 10,
+      opacity: 0.9,
+      size: 12,
+      color: healthColor,
       align: 'center',
     });
 
-    // ── Counter ───────────────────────────────────────
-    const displayLayers = clamp(currentLayers, 0, maxLayers);
-    const counterText =
-      displayLayers === 0
-        ? '0 couche de défense'
-        : `${displayLayers} couche${displayLayers > 1 ? 's' : ''} de défense`;
-
+    // Small "HEALTH" label under the percentage
     renderLabel(ctx, {
-      text: counterText,
-      x: width / 2,
-      y: height - 30,
-      opacity: 0.7,
-      size: 11,
-      color: '#22d3ee',
+      text: 'health',
+      x: cx,
+      y: cy + CORE_RADIUS + 22,
+      opacity: 0.4,
+      size: 8,
+      color: '#94a3b8',
       align: 'center',
     });
+
+    // ── Summary counter at bottom ───────────────────────
+    const displayLayers = clamp(
+      Math.floor(progress * (maxLayers + 1)),
+      0,
+      maxLayers,
+    );
+
+    if (displayLayers > 0) {
+      const counterOpacity = smoothstep(0.1, 0.3, progress) * 0.6;
+      const warningCount = this.layerStates.filter(l => l.health < 0.5).length;
+
+      let counterText = `${displayLayers} layer${displayLayers > 1 ? 's' : ''} active`;
+      if (warningCount > 0 && progress > 0.5) {
+        counterText += ` \u00B7 ${warningCount} need${warningCount > 1 ? '' : 's'} attention`;
+      }
+
+      renderLabel(ctx, {
+        text: counterText,
+        x: width / 2,
+        y: height - 24,
+        opacity: counterOpacity,
+        size: 10,
+        color: warningCount > 0 ? '#fb923c' : '#22d3ee',
+        align: 'center',
+      });
+    }
+  }
+
+  /** Draw a mini health bar */
+  private drawHealthBar(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    health: number,
+    color: string,
+    opacity: number,
+  ): void {
+    // Background track
+    ctx.globalAlpha = opacity * 0.15;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x, y, width, height);
+
+    // Filled portion
+    const fillWidth = width * clamp(health, 0, 1);
+    ctx.globalAlpha = opacity * 0.7;
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, fillWidth, height);
+
+    ctx.globalAlpha = 1;
   }
 
   dispose(): void {

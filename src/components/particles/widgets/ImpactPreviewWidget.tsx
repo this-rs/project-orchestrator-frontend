@@ -16,7 +16,7 @@ export interface ImpactPreviewWidgetProps {
   data?: AttentionData;
   className?: string;
   height?: number;
-  /** Enable interactive mode: hit-testing, tooltips, hover highlights. Default false */
+  /** Enable interactive mode: hit-testing, tooltips, hover highlights. Default true */
   interactive?: boolean;
   /** Called when a particle is clicked (interactive mode only) */
   onParticleClick?: (info: ParticleHitInfo) => void;
@@ -30,7 +30,7 @@ export function ImpactPreviewWidget({
   data,
   className = '',
   height = 250,
-  interactive = false,
+  interactive = true,
   onParticleClick,
   onParticleHover,
   highlightedId,

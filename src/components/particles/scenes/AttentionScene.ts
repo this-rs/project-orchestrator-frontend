@@ -1,10 +1,13 @@
 /**
- * AttentionScene — "100 tokens, seuls 5 comptent — le reste est ignoré"
+ * AttentionScene — Impact visualization with real data.
  *
- * Phase 1 (0-30%): ~80 particles all same size/opacity
- * Phase 2 (30-70%): K particles illuminate (size ×2, glow, cyan), connections appear
- * Phase 3 (70-100%): K form fully-connected graph, rest nearly invisible
- * Counter: "K pertinents · N-K ignorés"
+ * Consumes AttentionData from the adapter (real file names, impact scores).
+ * Each relevant file = a bright cyan particle with label tooltip.
+ * Ignored files = dim white particles in the background.
+ *
+ * Phase 1 (0-30%): all particles same size, scattered
+ * Phase 2 (30-70%): relevant particles illuminate (size grows, glow, cyan), connections appear
+ * Phase 3 (70-100%): relevant form cluster, noise fades, counter shows
  */
 
 import type { ParticleScene } from './types';
@@ -21,43 +24,34 @@ import type { Particle } from '../engine/types';
 import { renderGlowDot, renderLine } from '../renderer/CanvasRenderer';
 import { renderLabel, renderTitle } from '../renderer/TextRenderer';
 
+// ── Data types (compatible with adapter output) ─────────────
+
+export interface AttentionToken {
+  label: string;
+  score: number;
+  metadata?: Record<string, unknown>;
+}
+
 export interface AttentionData {
   totalTokens?: number;
   relevantCount?: number;
+  // Rich adapter format
+  relevantTokens?: AttentionToken[];
+  ignoredCount?: number;
 }
 
-const DEFAULT_TOTAL = 80;
-const DEFAULT_K = 5;
-const MAX_CAPACITY = 100;
+// ── Constants ────────────────────────────────────────────────
 
-/**
- * Simplified softmax: normalize scores so top-K dominate.
- * Returns normalized 0..1 scores per particle.
- */
-function computeAttentionScores(total: number, k: number, temperature: number): number[] {
-  const scores: number[] = [];
-  let sumExp = 0;
-
-  for (let i = 0; i < total; i++) {
-    // Relevant particles get score 1.0, rest get random 0..0.1
-    const raw = i < k ? 1.0 : Math.random() * 0.1;
-    const exp = Math.exp(raw / temperature);
-    scores.push(exp);
-    sumExp += exp;
-  }
-
-  // Normalize
-  for (let i = 0; i < total; i++) {
-    scores[i] /= sumExp;
-  }
-
-  return scores;
-}
+const MAX_CAPACITY = 150;
+const MAX_RELEVANT_SIZE = 8;  // max pixel radius for relevant particles
+const MIN_RELEVANT_SIZE = 4;  // min pixel radius for relevant particles
+const BASE_SIZE = 2.5;        // default particle size
+const NOISE_SIZE = 1.5;       // size of noise particles when faded
 
 export class AttentionScene implements ParticleScene {
   readonly name = 'attention';
-  readonly title = 'ATTENTION';
-  readonly description = '100 tokens, seuls 5 comptent — le reste est ignoré';
+  readonly title = 'IMPACT ANALYSIS';
+  readonly description = 'Affected files highlighted — hover for details';
 
   private pool!: ParticlePool;
   private engine!: ParticleEngine;
@@ -66,14 +60,50 @@ export class AttentionScene implements ParticleScene {
   private w = 0;
   private h = 0;
   private progress = 0;
-  private total: number;
-  private k: number;
-  private attentionScores: number[] = [];
   private initialized = false;
 
+  // Real data
+  private tokens: Array<{ label: string; score: number; metadata: Record<string, unknown> }> = [];
+  private relevantCount = 0;
+  private totalCount = 0;
+  private ignoredCount = 0;
+
   constructor(data?: AttentionData) {
-    this.total = data?.totalTokens ?? DEFAULT_TOTAL;
-    this.k = data?.relevantCount ?? DEFAULT_K;
+    if (data) this.parseData(data);
+  }
+
+  private parseData(data: AttentionData): void {
+    if (data.relevantTokens && data.relevantTokens.length > 0) {
+      // Rich adapter format — use real data
+      this.tokens = data.relevantTokens.map((t) => ({
+        label: t.label,
+        score: Math.max(0, Math.min(1, t.score)), // clamp 0-1
+        metadata: t.metadata ?? {},
+      }));
+      this.relevantCount = this.tokens.length;
+      this.totalCount = data.totalTokens ?? this.relevantCount;
+      this.ignoredCount = data.ignoredCount ?? Math.max(0, this.totalCount - this.relevantCount);
+    } else {
+      // Legacy format — generate synthetic tokens
+      this.totalCount = data.totalTokens ?? 40;
+      this.relevantCount = data.relevantCount ?? Math.min(5, this.totalCount);
+      this.ignoredCount = this.totalCount - this.relevantCount;
+      this.tokens = [];
+      for (let i = 0; i < this.relevantCount; i++) {
+        this.tokens.push({
+          label: `Token ${i + 1}`,
+          score: 1 - i * (0.8 / Math.max(1, this.relevantCount)),
+          metadata: {},
+        });
+      }
+    }
+
+    // Cap total particles for performance
+    if (this.totalCount > MAX_CAPACITY) {
+      const ratio = MAX_CAPACITY / this.totalCount;
+      this.ignoredCount = Math.floor(this.ignoredCount * ratio);
+      this.totalCount = this.relevantCount + this.ignoredCount;
+    }
   }
 
   init(width: number, height: number): void {
@@ -83,7 +113,7 @@ export class AttentionScene implements ParticleScene {
     this.pool = new ParticlePool(MAX_CAPACITY);
     this.engine = new ParticleEngine(this.pool, 0.97);
 
-    this.noise = new NoiseForce({ frequency: 0.008, amplitude: 25, speed: 0.3 });
+    this.noise = new NoiseForce({ frequency: 0.008, amplitude: 20, speed: 0.3 });
     const drag = new DragForce({ coefficient: 2.5 });
     this.boundary = new BoundaryForce({
       left: 15,
@@ -97,29 +127,56 @@ export class AttentionScene implements ParticleScene {
     this.engine.addForce(drag);
     this.engine.addForce(this.boundary);
 
-    // Pre-compute attention scores (softmax, temperature=0.5)
-    this.attentionScores = computeAttentionScores(this.total, this.k, 0.5);
-
     this.spawnParticles();
     this.initialized = true;
   }
 
   private spawnParticles(): void {
     this.pool.reset();
-    const { w, h, total, k } = this;
+    const { w, h } = this;
 
-    for (let i = 0; i < total; i++) {
+    // Spawn relevant particles (group 1) — with real data
+    for (let i = 0; i < this.tokens.length; i++) {
+      const token = this.tokens[i];
       this.pool.spawn({
-        x: w * 0.1 + Math.random() * w * 0.8,
+        x: w * 0.15 + Math.random() * w * 0.7,
         y: h * 0.15 + Math.random() * h * 0.7,
-        vx: (Math.random() - 0.5) * 12,
-        vy: (Math.random() - 0.5) * 12,
-        size: 3,
+        vx: (Math.random() - 0.5) * 10,
+        vy: (Math.random() - 0.5) * 10,
+        size: BASE_SIZE,
         opacity: 0.5,
         color: '#ffffff',
         maxLife: 99999,
-        group: i < k ? 1 : 0, // 1 = relevant, 0 = noise
-        mass: i, // abuse mass to store particle index for score lookup
+        group: 1,
+        mass: i, // index into this.tokens for score/metadata lookup
+        metadata: {
+          label: token.label,
+          name: token.label,
+          filePath: token.metadata.filePath,
+          impactScore: token.score,
+          isDirect: token.metadata.isDirect,
+          ...token.metadata,
+        },
+      });
+    }
+
+    // Spawn noise/ignored particles (group 0)
+    for (let i = 0; i < this.ignoredCount; i++) {
+      this.pool.spawn({
+        x: w * 0.05 + Math.random() * w * 0.9,
+        y: h * 0.1 + Math.random() * h * 0.8,
+        vx: (Math.random() - 0.5) * 8,
+        vy: (Math.random() - 0.5) * 8,
+        size: BASE_SIZE,
+        opacity: 0.4,
+        color: '#ffffff',
+        maxLife: 99999,
+        group: 0,
+        mass: this.tokens.length + i,
+        metadata: {
+          label: `Background file ${i + 1}`,
+          name: `ignored-${i}`,
+        },
       });
     }
   }
@@ -132,91 +189,91 @@ export class AttentionScene implements ParticleScene {
     this.spawnParticles();
   }
 
-  update(dt: number, progress: number, time: number): void {
+  update(dt: number, progress: number, _time: number): void {
     this.progress = progress;
     if (!this.initialized) return;
 
-    // attention_phase = smoothstep(0.2, 0.6, progress)
     const attPhase = smoothstep(0.2, 0.6, progress);
     const cx = this.w / 2;
     const cy = this.h / 2;
 
     this.pool.forEachActive((p: Particle) => {
-      const idx = Math.round(p.mass); // particle index
-      const score = this.attentionScores[idx] ?? 0;
-
       if (p.group === 1) {
-        // Relevant: attract toward center cluster
+        // Relevant particle — use real score for sizing
+        const idx = Math.round(p.mass);
+        const score = this.tokens[idx]?.score ?? 0.5;
+
+        // Attract toward center cluster as attention focuses
         if (attPhase > 0.05) {
           const dx = cx - p.x;
           const dy = cy - p.y;
           const distSq = dx * dx + dy * dy;
           const dist = Math.sqrt(Math.max(distSq, 1));
-          const strength = 400 * attPhase;
-          const f = strength / Math.max(distSq, 200);
+          const strength = 350 * attPhase;
+          const f = strength / Math.max(distSq, 300);
           p.ax += (f * dx) / dist;
           p.ay += (f * dy) / dist;
         }
 
-        // particle_i.opacity = lerp(0.5, normalized_i, attention_phase)
-        // particle_i.size = lerp(3, 3 + normalized_i * 8, attention_phase)
-        p.opacity = lerp(0.5, Math.max(score * this.total, 0.9), attPhase);
-        p.size = lerp(3, 3 + score * this.total * 8, attPhase);
+        // Size: lerp from base to score-proportional (capped)
+        const targetSize = lerp(MIN_RELEVANT_SIZE, MAX_RELEVANT_SIZE, score);
+        p.size = lerp(BASE_SIZE, targetSize, attPhase);
+
+        // Opacity: bright
+        p.opacity = lerp(0.5, 0.7 + score * 0.3, attPhase);
+
+        // Color: transition to cyan
         p.color = attPhase > 0.3 ? '#22d3ee' : '#ffffff';
       } else {
-        // Noise: fade + shrink based on low score
-        p.opacity = lerp(0.5, Math.max(score * this.total, 0.08), attPhase);
-        p.size = lerp(3, Math.max(1.5, 2 * score * this.total), attPhase);
+        // Noise particle — fade and shrink
+        p.opacity = lerp(0.4, 0.08, attPhase);
+        p.size = lerp(BASE_SIZE, NOISE_SIZE, attPhase);
         p.color = '#ffffff';
       }
     });
 
     // Noise amplitude decreases as attention focuses
-    this.noise.amplitude = lerp(25, 6, attPhase);
+    this.noise.amplitude = lerp(20, 5, attPhase);
 
-    this.engine.step(dt, time);
+    this.engine.step(dt, _time);
   }
 
   draw(ctx: CanvasRenderingContext2D, width: number, height: number): void {
     if (!this.initialized) return;
 
-    const { pool, progress, k, total, attentionScores } = this;
+    const { pool, progress } = this;
     const attPhase = smoothstep(0.2, 0.6, progress);
 
-    // ── Connections between relevant particles (fully connected) ──
+    // ── Connections between relevant particles ──
     if (attPhase > 0.1) {
       const relevant: Array<{ p: Particle; score: number }> = [];
       pool.forEachActive((p: Particle) => {
         if (p.group === 1) {
           const idx = Math.round(p.mass);
-          relevant.push({ p, score: attentionScores[idx] ?? 0 });
+          relevant.push({ p, score: this.tokens[idx]?.score ?? 0.5 });
         }
       });
 
+      // Draw connections (fully connected but line width based on scores)
       for (let i = 0; i < relevant.length; i++) {
         for (let j = i + 1; j < relevant.length; j++) {
-          // line_width = 1 + normalized_i * normalized_j * 2
-          const w =
-            1 +
-            relevant[i].score *
-              total *
-              (relevant[j].score * total) *
-              2;
+          const combinedScore = relevant[i].score * relevant[j].score;
+          const lineWidth = 0.5 + combinedScore * 2;
           renderLine(
             ctx,
             relevant[i].p.x,
             relevant[i].p.y,
             relevant[j].p.x,
             relevant[j].p.y,
-            attPhase * 0.4,
-            Math.min(w, 3),
+            attPhase * 0.3,
+            Math.min(lineWidth, 2.5),
             'rgba(34,211,238,1)',
           );
         }
       }
     }
 
-    // ── Dim particles (noise tokens) ──
+    // ── Dim particles (noise) ──
     ctx.save();
     pool.forEachActive((p: Particle) => {
       if (p.group === 0) {
@@ -230,22 +287,40 @@ export class AttentionScene implements ParticleScene {
     });
     ctx.restore();
 
-    // ── Bright particles (relevant tokens, with glow) ──
+    // ── Bright particles (relevant, with glow) ──
     pool.forEachActive((p: Particle) => {
       if (p.group === 1) {
-        renderGlowDot(ctx, p.x, p.y, p.size, p.opacity, '#22d3ee', 12);
+        renderGlowDot(ctx, p.x, p.y, p.size, p.opacity, '#22d3ee', 10);
       }
     });
+
+    // ── Inline labels for relevant particles (when focused) ──
+    if (attPhase > 0.4) {
+      const labelOpacity = smoothstep(0.4, 0.7, progress) * 0.8;
+      pool.forEachActive((p: Particle) => {
+        if (p.group === 1 && p.metadata?.label) {
+          renderLabel(ctx, {
+            text: String(p.metadata.label),
+            x: p.x,
+            y: p.y + p.size + 10,
+            opacity: labelOpacity,
+            size: 9,
+            color: '#94a3b8', // slate-400
+            align: 'center',
+          });
+        }
+      });
+    }
 
     // ── Title ──
     renderTitle(ctx, this.title, width, 0.5);
 
-    // ── Token count label (early phase) ──
+    // ── Count label (early phase) ──
     if (progress < 0.25) {
       const op =
         smoothstep(0, 0.05, progress) * (1 - smoothstep(0.15, 0.25, progress));
       renderLabel(ctx, {
-        text: `${total} TOKENS`,
+        text: `${this.totalCount} FILES ANALYZED`,
         x: width / 2,
         y: height - 30,
         opacity: op * 0.5,
@@ -254,13 +329,11 @@ export class AttentionScene implements ParticleScene {
       });
     }
 
-    // ── Counter (late phase): "K pertinents · N-K ignorés" ──
-    // counter_opacity = smoothstep(0.5, 0.7, progress)
+    // ── Counter (late phase): "K affected · N ignored" ──
     const counterOpacity = smoothstep(0.5, 0.7, progress);
     if (counterOpacity > 0.01) {
-      const ignored = total - k;
       renderLabel(ctx, {
-        text: `${k} PERTINENTS \u00B7 ${ignored} IGNOR\u00C9S`,
+        text: `${this.relevantCount} AFFECTED \u00B7 ${this.ignoredCount} UNAFFECTED`,
         x: width / 2,
         y: height - 30,
         opacity: counterOpacity * 0.6,
@@ -273,19 +346,22 @@ export class AttentionScene implements ParticleScene {
 
   dispose(): void {
     if (this.pool) this.pool.reset();
-    this.attentionScores = [];
+    this.tokens = [];
     this.initialized = false;
   }
 
   setData(data: unknown): void {
     const d = data as AttentionData;
     if (d) {
-      if (d.totalTokens != null) this.total = d.totalTokens;
-      if (d.relevantCount != null) this.k = d.relevantCount;
+      this.parseData(d);
       if (this.initialized) {
-        this.attentionScores = computeAttentionScores(this.total, this.k, 0.5);
         this.spawnParticles();
       }
     }
+  }
+
+  /** Expose pool for hit-testing (interactive mode) */
+  getPool(): ParticlePool | null {
+    return this.pool ?? null;
   }
 }
