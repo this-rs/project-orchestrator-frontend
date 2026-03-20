@@ -23,7 +23,23 @@ import type {
   RegisterRequest,
 } from '@/types'
 
-import { isTauri, getAuthBase } from './env'
+import { isTauri, getAuthBase, getBackendPort } from './env'
+
+/**
+ * Build the origin query parameter for OAuth redirect_uri construction.
+ *
+ * - **Tauri desktop**: sends `http://localhost:{port}` so the backend can
+ *   construct a dynamic redirect_uri that matches the webview origin.
+ *   (The webview navigates to http://localhost:{port} for same-origin cookies.)
+ * - **Browser**: sends nothing — the backend falls back to the static
+ *   `redirect_uri` from the OIDC config (e.g. https://ffs.dev/auth/callback).
+ *   Using `window.location.origin` in the browser would produce a localhost URI
+ *   that is not registered with the OAuth provider.
+ */
+function getOAuthOrigin(): string | null {
+  if (!isTauri) return null
+  return `http://localhost:${getBackendPort()}`
+}
 
 /**
  * Module-level auth mode cache.
@@ -152,17 +168,18 @@ export const authApi = {
   // OIDC (generic — Google, Microsoft, Okta, etc.)
   // =========================================================================
 
-  /** GET /auth/oidc — Get OIDC authorization URL (sends current origin for dynamic redirect_uri) */
+  /** GET /auth/oidc — Get OIDC authorization URL (Tauri sends origin for dynamic redirect_uri) */
   getOidcAuthUrl: () => {
-    const origin = encodeURIComponent(window.location.origin)
-    return authRequest<AuthUrlResponse>(`/oidc?origin=${origin}`)
+    const origin = getOAuthOrigin()
+    const qs = origin ? `?origin=${encodeURIComponent(origin)}` : ''
+    return authRequest<AuthUrlResponse>(`/oidc${qs}`)
   },
 
-  /** POST /auth/oidc/callback — Exchange OIDC auth code for JWT + user (sends origin for redirect_uri matching) */
+  /** POST /auth/oidc/callback — Exchange OIDC auth code for JWT + user (Tauri sends origin for redirect_uri matching) */
   exchangeOidcCode: (code: string) =>
     authRequest<AuthTokenResponse>('/oidc/callback', {
       method: 'POST',
-      body: JSON.stringify({ code, origin: window.location.origin }),
+      body: JSON.stringify({ code, origin: getOAuthOrigin() }),
     }),
 
   // =========================================================================
@@ -171,15 +188,16 @@ export const authApi = {
 
   /** @deprecated Use getOidcAuthUrl() instead */
   getGoogleAuthUrl: () => {
-    const origin = encodeURIComponent(window.location.origin)
-    return authRequest<AuthUrlResponse>(`/google?origin=${origin}`)
+    const origin = getOAuthOrigin()
+    const qs = origin ? `?origin=${encodeURIComponent(origin)}` : ''
+    return authRequest<AuthUrlResponse>(`/google${qs}`)
   },
 
   /** @deprecated Use exchangeOidcCode() instead */
   exchangeCode: (code: string) =>
     authRequest<AuthTokenResponse>('/google/callback', {
       method: 'POST',
-      body: JSON.stringify({ code, origin: window.location.origin }),
+      body: JSON.stringify({ code, origin: getOAuthOrigin() }),
     }),
 
   // =========================================================================
