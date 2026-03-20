@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useRef } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { motion, AnimatePresence } from 'motion/react'
 import { FileText, Code, FolderOpen, Package, Shapes, AlertTriangle, Search, Brain, Waves } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { notesAtom, notesLoadingAtom, noteTypeFilterAtom, noteStatusFilterAtom, noteRefreshAtom } from '@/atoms'
 import { notesApi } from '@/services'
 import { PropagationVizWidget } from '@/components/particles/widgets'
@@ -13,14 +14,14 @@ import { CreateNoteForm } from '@/components/forms'
 import { NeuronExplorer } from '@/components/knowledge'
 import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
 import type { Note, NoteType, NoteStatus, NoteScopeType, PaginatedResponse } from '@/types'
+import type { ParticleHitInfo } from '@/components/particles/ParticleViz'
 
-type NotesTab = 'list' | 'semantic' | 'graph' | 'propagation'
+type NotesTab = 'list' | 'semantic' | 'graph'
 
 const TAB_CONFIG: { key: NotesTab; label: string; icon: typeof Search }[] = [
   { key: 'list', label: 'List', icon: FileText },
   { key: 'semantic', label: 'Semantic Search', icon: Search },
   { key: 'graph', label: 'Knowledge Graph', icon: Brain },
-  { key: 'propagation', label: 'Propagation', icon: Waves },
 ]
 
 const iconClass = 'w-3 h-3 flex-shrink-0'
@@ -53,6 +54,7 @@ const statusOptions = [
 
 export function NotesPage() {
   const [activeTab, setActiveTab] = useState<NotesTab>('list')
+  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null)
   const [, setNotesAtom] = useAtom(notesAtom)
   const [, setLoadingAtom] = useAtom(notesLoadingAtom)
   const [typeFilter, setTypeFilter] = useAtom(noteTypeFilterAtom)
@@ -63,6 +65,20 @@ export function NotesPage() {
   const toast = useToast()
   const wsSlug = useWorkspaceSlug()
   const reducedMotion = useReducedMotion()
+  const navigate = useNavigate()
+
+  // Propagation viz data driven by selected note
+  const distributionViz = useDistributionVizData('note', selectedNoteId ?? undefined)
+
+  const handleParticleClick = useCallback(
+    (info: ParticleHitInfo) => {
+      const noteId = info.metadata?.id as string | undefined
+      if (noteId) {
+        navigate(`/notes/${noteId}`)
+      }
+    },
+    [navigate],
+  )
 
   const filters = useMemo(
     () => ({
@@ -175,6 +191,11 @@ export function NotesPage() {
             />
             <Button onClick={openCreateNote}>Create Note</Button>
           </div>
+
+          {/* Split view: list left, propagation right */}
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Left panel — note list (60%) */}
+            <div className="w-full lg:w-[60%] min-w-0">
       {loading ? (
         <div className="space-y-4">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -209,6 +230,8 @@ export function NotesPage() {
               {notes.map((note) => (
                 <motion.div key={note.id} variants={fadeInUp} exit="exit" layout={!reducedMotion}>
                   <NoteCard
+                    active={selectedNoteId === note.id}
+                    onSelect={() => setSelectedNoteId(selectedNoteId === note.id ? null : note.id)}
                     selected={multiSelect.isSelected(note.id)}
                     onToggleSelect={(shiftKey) => multiSelect.toggle(note.id, shiftKey)}
                     note={note}
@@ -219,6 +242,7 @@ export function NotesPage() {
                       onConfirm: async () => {
                         await notesApi.delete(note.id)
                         removeItems((n) => n.id === note.id)
+                        if (selectedNoteId === note.id) setSelectedNoteId(null)
                         toast.success('Note deleted')
                       },
                     })}
@@ -230,6 +254,38 @@ export function NotesPage() {
           <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
         </>
       )}
+            </div>
+
+            {/* Right panel — propagation viz (40%) */}
+            <div className="w-full lg:w-[40%] lg:sticky lg:top-4 lg:self-start">
+              <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] overflow-hidden">
+                <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.08]">
+                  <Waves className="w-3.5 h-3.5 text-cyan-400" />
+                  <span className="text-xs font-mono text-gray-400">Propagation</span>
+                </div>
+                {selectedNoteId ? (
+                  distributionViz.isLoading ? (
+                    <div className="flex items-center justify-center py-16">
+                      <Spinner />
+                    </div>
+                  ) : (
+                    <PropagationVizWidget
+                      data={distributionViz.data ?? undefined}
+                      height={350}
+                      interactive
+                      onParticleClick={handleParticleClick}
+                      className="rounded-b-lg"
+                    />
+                  )
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+                    <Waves className="w-8 h-8 text-slate-600 mb-3" />
+                    <p className="text-sm text-slate-500">Sélectionnez une note pour voir sa propagation</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
 
       <BulkActionBar
         count={multiSelect.selectionCount}
@@ -247,52 +303,11 @@ export function NotesPage() {
         <NeuronExplorer workspaceSlug={wsSlug} />
       )}
 
-      {activeTab === 'propagation' && (
-        <PropagationTab workspaceSlug={wsSlug} />
-      )}
-
       <FormDialog {...formDialog.dialogProps} onSubmit={noteForm.submit}>
         {noteForm.fields}
       </FormDialog>
       <ConfirmDialog {...confirmDialog.dialogProps} />
     </PageShell>
-  )
-}
-
-// ── Propagation Tab ─────────────────────────────────────────────────────
-
-function PropagationTab({ workspaceSlug: _wsSlug }: { workspaceSlug: string }) {
-  const [entityId, setEntityId] = useState('')
-  const [activeEntityId, setActiveEntityId] = useState<string | undefined>(undefined)
-  const distributionViz = useDistributionVizData('note', activeEntityId)
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <input
-          type="text"
-          value={entityId}
-          onChange={(e) => setEntityId(e.target.value)}
-          placeholder="Enter a note ID to visualize propagation..."
-          className="flex-1 px-3 py-2 bg-white/[0.06] border border-white/[0.08] rounded-lg text-sm text-gray-200 placeholder:text-gray-500 font-mono focus:outline-none focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500/50"
-        />
-        <Button
-          size="sm"
-          onClick={() => setActiveEntityId(entityId.trim() || undefined)}
-          disabled={!entityId.trim()}
-        >
-          Visualize
-        </Button>
-      </div>
-      {distributionViz.data ? (
-        <PropagationVizWidget data={distributionViz.data} height={400} className="rounded-lg" />
-      ) : (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <Waves className="w-8 h-8 text-slate-600 mb-3" />
-          <p className="text-sm text-slate-500">Enter a note ID above to visualize its knowledge propagation</p>
-        </div>
-      )}
-    </div>
   )
 }
 
@@ -431,9 +446,13 @@ interface NoteCardProps {
   onUpdate: (updatedNote: Note) => void
   selected?: boolean
   onToggleSelect?: (shiftKey: boolean) => void
+  /** Whether this note is selected for propagation viz */
+  active?: boolean
+  /** Called when user clicks to select for propagation */
+  onSelect?: () => void
 }
 
-function NoteCard({ note, onDelete, onUpdate, selected, onToggleSelect }: NoteCardProps) {
+function NoteCard({ note, onDelete, onUpdate, selected, onToggleSelect, active, onSelect }: NoteCardProps) {
   const tags = note.tags || []
   const anchors = note.anchors || []
   const toast = useToast()
@@ -492,7 +511,7 @@ function NoteCard({ note, onDelete, onUpdate, selected, onToggleSelect }: NoteCa
   const hiddenCount = anchors.length - visibleAnchors.length
 
   return (
-    <Card lazy="sm" className={`border-l-4 ${typeColors[note.note_type] || 'border-l-gray-500'} transition-colors ${selected ? 'border-l-indigo-500 bg-indigo-500/[0.05]' : ''}`}>
+    <Card lazy="sm" className={`border-l-4 ${typeColors[note.note_type] || 'border-l-gray-500'} transition-colors cursor-pointer ${active ? 'ring-1 ring-cyan-500/50 bg-cyan-500/[0.04]' : ''} ${selected ? 'border-l-indigo-500 bg-indigo-500/[0.05]' : ''}`} onClick={onSelect}>
       <div className="flex">
         {onToggleSelect && (
           <SelectZone selected={!!selected} onToggle={onToggleSelect} />
