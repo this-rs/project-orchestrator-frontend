@@ -33,20 +33,26 @@ import {
   Wrench,
   Pencil,
   Check,
+  RotateCcw,
+  AlertTriangle,
 } from 'lucide-react'
 import { Card, CardContent, LoadingPage, ErrorState, ProgressBar, PulseIndicator } from '@/components/ui'
 import { CancelButton } from '@/components/runner/CancelButton'
 import { DiscussionTreeView } from '@/components/discussions/DiscussionTreeView'
 import { chatApi } from '@/services/chat'
-import { plansApi } from '@/services/plans'
 import { runnerApi, useRunnerStatus } from '@/services/runner'
-import type { ActiveAgentSnapshot, PlanRun, RunSnapshot } from '@/services/runner'
-import type { AgentExecution, WaveComputationResult } from '@/types'
+import type { ActiveAgentSnapshot, RunSnapshot } from '@/services/runner'
+import type { AgentExecution } from '@/types'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
-import { createWebSocket, ReadyState, type IWebSocket } from '@/services/wsAdapter'
-import { wsUrl } from '@/services/env'
-import { fetchWsTicket } from '@/services/auth'
+import {
+  useAgentExecutionsMap,
+  useLatestPlanRun,
+  useRunRootSession,
+  useWavesData,
+  useConversationWs,
+} from '@/hooks/runner'
+import type { ConversationMessage, WsStatus } from '@/hooks/runner'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -71,261 +77,6 @@ const runStatusConfig: Record<string, { label: string; bg: string; text: string;
   budget_exceeded:  { label: 'Budget Exceeded',  bg: 'bg-yellow-500/15', text: 'text-yellow-400', dot: 'bg-yellow-400' },
 }
 
-// ---------------------------------------------------------------------------
-// Agent executions lookup by task_id
-// ---------------------------------------------------------------------------
-
-function useAgentExecutionsMap(runId: string | null | undefined, isRunning: boolean) {
-  const [execMap, setExecMap] = useState<Map<string, AgentExecution>>(new Map())
-
-  const fetchExecutions = useCallback(async () => {
-    if (!runId) return
-    try {
-      const execs = await chatApi.getAgentExecutions(runId)
-      const map = new Map<string, AgentExecution>()
-      for (const e of execs) map.set(e.task_id, e)
-      setExecMap(map)
-    } catch {
-      // Endpoint may not be available yet — graceful fallback
-    }
-  }, [runId])
-
-  // Initial fetch + poll every 5s while the run is active
-  useEffect(() => {
-    fetchExecutions()
-    if (!isRunning) return
-    const interval = setInterval(fetchExecutions, 5000)
-    return () => clearInterval(interval)
-  }, [fetchExecutions, isRunning])
-
-  return execMap
-}
-
-// ---------------------------------------------------------------------------
-// Historical PlanRun fallback — for completed/failed runs
-// ---------------------------------------------------------------------------
-
-function useLatestPlanRun(planId: string | undefined) {
-  const [planRun, setPlanRun] = useState<PlanRun | null>(null)
-
-  useEffect(() => {
-    if (!planId) return
-    runnerApi.listPlanRuns(planId, 1).then((runs) => {
-      if (runs.length > 0) setPlanRun(runs[0])
-    }).catch(() => {})
-  }, [planId])
-
-  return planRun
-}
-
-// ---------------------------------------------------------------------------
-// Root session for a run — resolves run_id → root ChatSession ID
-// ---------------------------------------------------------------------------
-
-function useRunRootSession(runId: string | null | undefined) {
-  const [rootSessionId, setRootSessionId] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    if (!runId) { setRootSessionId(null); setLoading(false); return }
-    setLoading(true)
-    chatApi.getRunSessions(runId).then((sessions) => {
-      if (sessions.length > 0) {
-        setRootSessionId(sessions[0].id)
-      } else {
-        setRootSessionId(null)
-      }
-    }).catch(() => {
-      setRootSessionId(null)
-    }).finally(() => {
-      setLoading(false)
-    })
-  }, [runId])
-
-  return { rootSessionId, loading }
-}
-
-// ---------------------------------------------------------------------------
-// Waves data hook
-// ---------------------------------------------------------------------------
-
-function useWavesData(planId: string | undefined) {
-  const [waves, setWaves] = useState<WaveComputationResult | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    if (!planId) return
-    setLoading(true)
-    plansApi.getWaves(planId).then((data) => {
-      setWaves(data)
-    }).catch(() => {
-      setWaves(null)
-    }).finally(() => {
-      setLoading(false)
-    })
-  }, [planId])
-
-  return { waves, loading }
-}
-
-// ---------------------------------------------------------------------------
-// WebSocket conversation hook (extracted from ConversationPanel for reuse)
-// ---------------------------------------------------------------------------
-
-interface ConversationMessage {
-  id: string
-  type: 'text' | 'tool_use' | 'tool_result' | 'system' | 'error' | 'unknown'
-  content: string
-  timestamp: number
-}
-
-type WsStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting'
-
-const MAX_RECONNECT_ATTEMPTS = 5
-const RECONNECT_BASE_DELAY = 1500
-
-function useConversationWs(sessionId: string | null) {
-  const [messages, setMessages] = useState<ConversationMessage[]>([])
-  const [status, setStatus] = useState<WsStatus>('disconnected')
-  const wsRef = useRef<IWebSocket | null>(null)
-  const reconnectAttemptsRef = useRef(0)
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const shouldReconnectRef = useRef(true)
-  const authenticatedRef = useRef(false)
-  const sessionIdRef = useRef(sessionId)
-  sessionIdRef.current = sessionId
-  const nextIdRef = useRef(0)
-
-  const cleanup = useCallback(() => {
-    if (reconnectTimerRef.current) {
-      clearTimeout(reconnectTimerRef.current)
-      reconnectTimerRef.current = null
-    }
-    if (wsRef.current) {
-      wsRef.current.onmessage = null
-      wsRef.current.onclose = null
-      wsRef.current.onerror = null
-      wsRef.current.close()
-      wsRef.current = null
-    }
-    authenticatedRef.current = false
-  }, [])
-
-  const parseMessage = useCallback((data: unknown): ConversationMessage | null => {
-    if (!data || typeof data !== 'object') return null
-    const d = data as Record<string, unknown>
-    const id = String(++nextIdRef.current)
-    const timestamp = Date.now()
-
-    if (d.type === 'assistant_message' || d.type === 'text') {
-      const content = typeof d.content === 'string'
-        ? d.content
-        : typeof d.text === 'string' ? d.text : JSON.stringify(d)
-      return { id, type: 'text', content, timestamp }
-    }
-    if (d.type === 'tool_use') {
-      const name = (d.name as string) || 'tool'
-      const input = d.input ? JSON.stringify(d.input, null, 2) : ''
-      return { id, type: 'tool_use', content: `${name}\n${input}`, timestamp }
-    }
-    if (d.type === 'tool_result') {
-      const content = typeof d.content === 'string'
-        ? d.content
-        : typeof d.output === 'string' ? d.output : JSON.stringify(d)
-      return { id, type: 'tool_result', content, timestamp }
-    }
-    if (d.type === 'system') return { id, type: 'system', content: String(d.message || d.content || ''), timestamp }
-    if (d.type === 'error') return { id, type: 'error', content: String(d.message || d.error || ''), timestamp }
-    if (
-      d.type === 'auth_ok' || d.type === 'auth_error' ||
-      d.type === 'replay_complete' || d.type === 'events_lagged' ||
-      d.type === 'session_dormant' || d.type === 'session_closed' ||
-      d.type === 'result'
-    ) return null
-    if (d.content || d.text || d.message) {
-      return { id, type: 'unknown', content: String(d.content || d.text || d.message), timestamp }
-    }
-    return null
-  }, [])
-
-  const connect = useCallback(async () => {
-    const sid = sessionIdRef.current
-    if (!sid) return
-    setStatus('connecting')
-    authenticatedRef.current = false
-    try {
-      const ticket = await fetchWsTicket()
-      const params = new URLSearchParams({ last_event: '0' })
-      if (ticket) params.set('ticket', ticket)
-      const url = wsUrl(`/ws/chat/${sid}?${params.toString()}`)
-      const ws = await createWebSocket(url, {
-        onopen: () => { reconnectAttemptsRef.current = 0 },
-        onmessage: (event: MessageEvent) => {
-          try {
-            const data = JSON.parse(event.data as string)
-            if (!authenticatedRef.current) {
-              if (data.type === 'auth_ok') { authenticatedRef.current = true; setStatus('connected'); return }
-              if (data.type === 'auth_error') { shouldReconnectRef.current = false; wsRef.current?.close(); return }
-            }
-            if (data.type === 'replay_complete' || data.type === 'events_lagged' || data.type === 'session_dormant') return
-            if (data.type === 'session_closed') { shouldReconnectRef.current = false; setStatus('disconnected'); return }
-            const msg = parseMessage(data)
-            if (msg) setMessages(prev => [...prev, msg])
-          } catch { /* ignore */ }
-        },
-        onclose: () => {
-          wsRef.current = null
-          authenticatedRef.current = false
-          if (shouldReconnectRef.current && sessionIdRef.current === sid) {
-            setStatus('reconnecting')
-            scheduleReconnect()
-          } else {
-            setStatus('disconnected')
-          }
-        },
-        onerror: () => {},
-      })
-      wsRef.current = ws
-      if (ws.readyState === ReadyState.OPEN) {
-        ws.send('"ready"')
-      } else if (ws.readyState === ReadyState.CONNECTING) {
-        const origOnopen = ws.onopen
-        ws.onopen = (ev: Event) => {
-          if (origOnopen) (origOnopen as (ev: Event) => void)(ev)
-          ws.send('"ready"')
-        }
-      }
-    } catch { scheduleReconnect() }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [parseMessage])
-
-  function scheduleReconnect() {
-    if (reconnectTimerRef.current) return
-    reconnectAttemptsRef.current++
-    if (reconnectAttemptsRef.current > MAX_RECONNECT_ATTEMPTS) {
-      setStatus('disconnected'); shouldReconnectRef.current = false; return
-    }
-    const delay = RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttemptsRef.current - 1)
-    reconnectTimerRef.current = setTimeout(() => {
-      reconnectTimerRef.current = null
-      if (shouldReconnectRef.current && sessionIdRef.current) connect()
-    }, Math.min(delay, 30000))
-  }
-
-  useEffect(() => {
-    cleanup()
-    setMessages([])
-    if (sessionId) {
-      shouldReconnectRef.current = true
-      reconnectAttemptsRef.current = 0
-      connect()
-    } else { setStatus('disconnected') }
-    return cleanup
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId])
-
-  return { messages, status }
-}
 
 // ---------------------------------------------------------------------------
 // Inline Conversation Panel (full-width, under the wave)
@@ -458,11 +209,13 @@ function WaveAgentCard({
   execution,
   isSelected,
   onToggleConversation,
+  onRetryTask,
 }: {
   agent: ActiveAgentSnapshot
   execution?: AgentExecution
   isSelected: boolean
   onToggleConversation: (sessionId: string, taskTitle: string) => void
+  onRetryTask?: (taskId: string, taskTitle: string) => void
 }) {
   const cfg = agentStatusConfig[agent.status] ?? agentStatusConfig.running
   const [detailOpen, setDetailOpen] = useState(false)
@@ -531,6 +284,16 @@ function WaveAgentCard({
             )}
           </button>
         )}
+        {agent.status === 'failed' && onRetryTask && (
+          <button
+            onClick={() => onRetryTask(agent.task_id, agent.task_title)}
+            className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors cursor-pointer"
+            title="Retry this task"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Retry
+          </button>
+        )}
         {execution && (
           <button
             onClick={() => setDetailOpen(!detailOpen)}
@@ -595,20 +358,25 @@ function WaveAgentCard({
 // Wave Section (collapsible accordion for a wave)
 // ---------------------------------------------------------------------------
 
-type WaveStatus = 'active' | 'completed' | 'pending' | 'partial'
+type WaveStatus = 'active' | 'completed' | 'failed' | 'pending' | 'partial'
 
 function getWaveStatus(agents: ActiveAgentSnapshot[]): WaveStatus {
   if (agents.length === 0) return 'pending'
   const hasRunning = agents.some(a => a.status === 'running' || a.status === 'spawning' || a.status === 'verifying')
   if (hasRunning) return 'active'
   const allDone = agents.every(a => a.status === 'completed' || a.status === 'failed')
-  if (allDone) return 'completed'
+  if (allDone) {
+    const hasFailed = agents.some(a => a.status === 'failed')
+    if (hasFailed) return 'failed'
+    return 'completed'
+  }
   return 'partial'
 }
 
 const waveStatusStyles: Record<WaveStatus, { border: string; bg: string; badge: string; badgeText: string }> = {
   active:    { border: 'border-indigo-500/30', bg: 'bg-indigo-500/[0.02]', badge: 'bg-indigo-500/15', badgeText: 'text-indigo-400' },
   completed: { border: 'border-green-500/20',  bg: 'bg-green-500/[0.01]',  badge: 'bg-green-500/15',  badgeText: 'text-green-400' },
+  failed:    { border: 'border-red-500/30',    bg: 'bg-red-500/[0.02]',    badge: 'bg-red-500/15',    badgeText: 'text-red-400' },
   pending:   { border: 'border-border-subtle',  bg: 'bg-white/[0.01]',     badge: 'bg-white/[0.08]',  badgeText: 'text-gray-500' },
   partial:   { border: 'border-yellow-500/20', bg: 'bg-yellow-500/[0.01]', badge: 'bg-yellow-500/15', badgeText: 'text-yellow-400' },
 }
@@ -616,6 +384,7 @@ const waveStatusStyles: Record<WaveStatus, { border: string; bg: string; badge: 
 const waveStatusLabels: Record<WaveStatus, string> = {
   active: 'Active',
   completed: 'Completed',
+  failed: 'Failed',
   pending: 'Pending',
   partial: 'Partial',
 }
@@ -628,6 +397,7 @@ interface WaveSectionProps {
   selectedConversation: { sessionId: string; taskTitle: string } | null
   onToggleConversation: (sessionId: string, taskTitle: string) => void
   onCloseConversation: () => void
+  onRetryTask?: (taskId: string, taskTitle: string) => void
   defaultOpen: boolean
 }
 
@@ -639,6 +409,7 @@ function WaveSection({
   selectedConversation,
   onToggleConversation,
   onCloseConversation,
+  onRetryTask,
   defaultOpen,
 }: WaveSectionProps) {
   const [open, setOpen] = useState(defaultOpen)
@@ -675,7 +446,13 @@ function WaveSection({
               Active
             </span>
           )}
-          {waveStatus !== 'active' && (
+          {waveStatus === 'failed' && (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 text-[10px] font-medium">
+              <AlertTriangle className="w-3 h-3" />
+              Failed
+            </span>
+          )}
+          {waveStatus !== 'active' && waveStatus !== 'failed' && (
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${styles.badge} ${styles.badgeText}`}>
               {waveStatusLabels[waveStatus]}
             </span>
@@ -698,13 +475,19 @@ function WaveSection({
       {/* Progress bar */}
       {totalCount > 0 && (
         <div className="px-4 pb-1">
-          <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-300 ${
-                failedCount > 0 ? 'bg-red-500/70' : 'bg-green-500/70'
-              }`}
-              style={{ width: `${((completedCount + failedCount) / totalCount) * 100}%` }}
-            />
+          <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden flex">
+            {completedCount > 0 && (
+              <div
+                className="h-full bg-green-500/70 transition-all duration-300"
+                style={{ width: `${(completedCount / totalCount) * 100}%` }}
+              />
+            )}
+            {failedCount > 0 && (
+              <div
+                className="h-full bg-red-500/70 transition-all duration-300"
+                style={{ width: `${(failedCount / totalCount) * 100}%` }}
+              />
+            )}
           </div>
         </div>
       )}
@@ -722,6 +505,7 @@ function WaveSection({
                   execution={executionsMap.get(agent.task_id)}
                   isSelected={selectedConversation?.sessionId === agent.session_id}
                   onToggleConversation={onToggleConversation}
+                  onRetryTask={onRetryTask}
                 />
               ))}
             </div>
@@ -873,6 +657,24 @@ export function RunnerDashboard() {
     return map
   }, [resolvedAgents, taskWaveMap])
 
+  // Build a set of known failed task IDs from the PlanRun record (more reliable
+  // than wavesData statuses which are fetched once on mount and may be stale).
+  const failedTaskIds = useMemo(() => {
+    const set = new Set<string>()
+    if (latestRun?.failed_tasks) {
+      for (const id of latestRun.failed_tasks) set.add(id)
+    }
+    return set
+  }, [latestRun])
+
+  const completedTaskIds = useMemo(() => {
+    const set = new Set<string>()
+    if (latestRun?.completed_tasks) {
+      for (const id of latestRun.completed_tasks) set.add(id)
+    }
+    return set
+  }, [latestRun])
+
   // Build ordered wave list with task IDs.
   // For tasks that were skipped (already completed/blocked at run start), inject
   // synthetic agent entries so they appear in the wave instead of "Waiting...".
@@ -888,6 +690,19 @@ export function RunnerDashboard() {
       }
       return []
     }
+
+    // Determine synthetic status using PlanRun data (authoritative) > wavesData status (stale)
+    const getSyntheticStatus = (t: { id: string; status: string }): ActiveAgentSnapshot['status'] => {
+      if (failedTaskIds.has(t.id)) return 'failed'
+      if (completedTaskIds.has(t.id)) return 'completed'
+      // Fall back to wavesData status
+      if (t.status === 'completed') return 'completed'
+      if (t.status === 'failed') return 'failed'
+      // Task never ran (pending/blocked) — don't pretend it completed
+      if (t.status === 'pending' || t.status === 'blocked') return 'failed'
+      return 'completed'
+    }
+
     return wavesData.waves.map((wave) => {
       const waveAgents = waveAgentsMap.get(wave.wave_number) ?? []
       const agentTaskIds = new Set(waveAgents.map(a => a.task_id))
@@ -906,7 +721,7 @@ export function RunnerDashboard() {
               session_id: null,
               elapsed_secs: 0,
               cost_usd: 0,
-              status: (t.status === 'completed' ? 'completed' : t.status === 'failed' ? 'failed' : 'completed') as ActiveAgentSnapshot['status'],
+              status: getSyntheticStatus(t),
             }))
         : []
 
@@ -916,7 +731,7 @@ export function RunnerDashboard() {
         agents: [...waveAgents, ...syntheticAgents],
       }
     })
-  }, [wavesData, waveAgentsMap, resolvedAgents])
+  }, [wavesData, waveAgentsMap, resolvedAgents, failedTaskIds, completedTaskIds])
 
   const handleToggleConversation = useCallback((sessionId: string, taskTitle: string) => {
     setSelectedConversation(prev =>
@@ -927,6 +742,20 @@ export function RunnerDashboard() {
   const handleCloseConversation = useCallback(() => {
     setSelectedConversation(null)
   }, [])
+
+  const [retryingTaskId, setRetryingTaskId] = useState<string | null>(null)
+  const handleRetryTask = useCallback(async (taskId: string, _taskTitle: string) => {
+    if (!planId || retryingTaskId) return
+    setRetryingTaskId(taskId)
+    try {
+      await runnerApi.retryTask(planId, taskId)
+      refresh()
+    } catch (err) {
+      console.error('Failed to retry task:', err)
+    } finally {
+      setRetryingTaskId(null)
+    }
+  }, [planId, retryingTaskId, refresh])
 
   // Loading / error states
   if (error && !snapshot && !latestRun) {
@@ -961,7 +790,7 @@ export function RunnerDashboard() {
             <p className="text-sm text-gray-500 mt-1">{planTitle}</p>
           </div>
           <div className="flex items-center gap-3">
-            <CancelButton planId={planId!} isRunning={isRunning} />
+            {isRunning && <CancelButton planId={planId!} isRunning={isRunning} />}
             {effectiveSnapshot.status === 'budget_exceeded' && !isRunning && (
               <Link
                 to={workspacePath(wsSlug, `/plans/${planId}`)}
@@ -992,6 +821,12 @@ export function RunnerDashboard() {
             <CheckCircle2 className="w-4 h-4 text-gray-500" />
             <span>{effectiveSnapshot.tasks_completed ?? 0} / {effectiveSnapshot.tasks_total ?? 0} tasks</span>
           </div>
+          {resolvedAgents.filter(a => a.status === 'failed').length > 0 && (
+            <div className="flex items-center gap-1.5 text-red-400">
+              <AlertTriangle className="w-4 h-4" />
+              <span>{resolvedAgents.filter(a => a.status === 'failed').length} failed</span>
+            </div>
+          )}
           <div className="flex items-center gap-1.5 text-gray-400">
             <Users className="w-4 h-4 text-gray-500" />
             <span>{resolvedAgents.length} agent{resolvedAgents.length !== 1 ? 's' : ''}</span>
@@ -1097,7 +932,7 @@ export function RunnerDashboard() {
           ) : orderedWaves.length > 0 ? (
             orderedWaves.map((wave) => {
               const wStatus = getWaveStatus(wave.agents)
-              const defaultOpen = wStatus === 'active' || wStatus === 'partial' || (wStatus === 'pending' && orderedWaves.every(w => getWaveStatus(w.agents) !== 'active'))
+              const defaultOpen = wStatus === 'active' || wStatus === 'partial' || wStatus === 'failed' || (wStatus === 'pending' && orderedWaves.every(w => getWaveStatus(w.agents) !== 'active'))
               return (
                 <WaveSection
                   key={wave.waveNumber}
@@ -1108,6 +943,7 @@ export function RunnerDashboard() {
                   selectedConversation={selectedConversation}
                   onToggleConversation={handleToggleConversation}
                   onCloseConversation={handleCloseConversation}
+                  onRetryTask={handleRetryTask}
                   defaultOpen={defaultOpen}
                 />
               )
