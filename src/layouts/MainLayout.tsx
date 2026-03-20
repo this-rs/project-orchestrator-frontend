@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Menu, Home, Flag, Box, ClipboardList, FileText, Scale, Code, Brain, Users, Workflow, ChevronLeft, ChevronRight, MessageCircle, Settings, Activity } from 'lucide-react'
+import { Menu, Home, Flag, Box, ClipboardList, FileText, Scale, Code, Brain, Users, Workflow, ChevronLeft, ChevronRight, MessageCircle, Settings, Activity, ScrollText } from 'lucide-react'
 import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, activeWorkspaceAtom, workspaceRefreshAtom } from '@/atoms'
 import { ToastContainer, Branding } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
@@ -47,6 +47,7 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
       label: 'Knowledge',
       items: [
         { name: 'Notes', href: workspacePath(wsSlug, '/notes'), icon: FileText },
+        { name: 'RFCs', href: workspacePath(wsSlug, '/rfcs'), icon: ScrollText },
         { name: 'Decisions', href: workspacePath(wsSlug, '/decisions'), icon: Scale },
         { name: 'Code', href: workspacePath(wsSlug, '/code'), icon: Code },
       ],
