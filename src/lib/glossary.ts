@@ -116,6 +116,16 @@ export const glossary: Record<string, GlossaryEntry> = {
     description:
       "Version publiée du projet, regroupant un ensemble de changements prêts pour la mise en production.",
   },
+  success_rate: {
+    label: 'Taux de réussite',
+    description:
+      'Pourcentage de tâches complétées avec succès par cette persona. Reflète sa fiabilité sur les missions assignées.',
+  },
+  activation_count: {
+    label: 'Activations',
+    description:
+      "Nombre de fois qu'un élément a été activé (utilisé par un agent). Plus le nombre est élevé, plus l'élément est sollicité.",
+  },
   analysis_profile: {
     label: "Profil d'analyse",
     description:
@@ -135,6 +145,71 @@ export const glossary: Record<string, GlossaryEntry> = {
     label: 'Taux de modification (Churn)',
     description:
       "Fréquence à laquelle un fichier est modifié. Un churn élevé peut indiquer une zone instable ou en développement actif.",
+  },
+  hotspot: {
+    label: 'Point chaud (Hotspot)',
+    description:
+      'Fichier fréquemment modifié et complexe. Les hotspots sont des zones à surveiller car elles concentrent les risques de bugs.',
+  },
+  orphan: {
+    label: 'Fichier orphelin',
+    description:
+      "Fichier qui n'est ni importé ni exporté par d'autres fichiers. Peut indiquer du code mort ou un fichier mal intégré.",
+  },
+  dead_note: {
+    label: 'Note morte',
+    description:
+      "Note sans énergie résiduelle — elle n'a pas été consultée ou modifiée depuis longtemps et risque d'être obsolète.",
+  },
+  stale_note: {
+    label: 'Note périmée',
+    description:
+      "Note dont le contenu n'a pas été mis à jour depuis un certain temps et pourrait ne plus refléter l'état actuel du projet.",
+  },
+  god_function: {
+    label: 'Fonction géante (God Function)',
+    description:
+      'Fonction excessivement longue ou complexe qui fait trop de choses. Devrait être découpée en fonctions plus petites.',
+  },
+  clustering_coefficient: {
+    label: 'Coefficient de clustering',
+    description:
+      "Mesure la densité des connexions entre les voisins d'un nœud. Un coefficient élevé indique un groupe fortement interconnecté.",
+  },
+  knowledge_coverage: {
+    label: 'Couverture des connaissances',
+    description:
+      'Ratio entre le nombre de notes/décisions et le nombre de fichiers de code. Indique si le code est bien documenté.',
+  },
+  note_freshness: {
+    label: 'Fraîcheur des notes',
+    description:
+      'Proportion de notes encore à jour. Un taux bas signifie que beaucoup de notes nécessitent une relecture.',
+  },
+  synapse_quality: {
+    label: 'Qualité des synapses',
+    description:
+      'Proportion de connexions solides dans le réseau. Les synapses faibles sont des liens peu fiables entre éléments.',
+  },
+  skills_maturity: {
+    label: 'Maturité des compétences',
+    description:
+      "Ratio de compétences actives par rapport au total. Indique le niveau de maîtrise global de l'équipe sur le projet.",
+  },
+  code_safety: {
+    label: 'Sécurité du code',
+    description:
+      "Score basé sur l'évaluation des risques. Tient compte des fichiers critiques, à haut risque et des vulnérabilités.",
+  },
+  health_score: {
+    label: 'Score de santé',
+    description:
+      'Score global combinant couverture des connaissances, fraîcheur des notes, énergie neurale, qualité des synapses et maturité des compétences.',
+  },
+  circular_dependency: {
+    label: 'Dépendance circulaire',
+    description:
+      "Situation où deux modules dépendent l'un de l'autre, créant une boucle. Rend le code plus difficile à maintenir et tester.",
   },
 } as const
 

@@ -1,7 +1,17 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
-import { Users, Trash2, Zap, Plus, Brain, CheckCircle2, FolderOpen } from 'lucide-react'
+import {
+  Users,
+  Trash2,
+  Zap,
+  Plus,
+  Brain,
+  CheckCircle2,
+  FolderOpen,
+  Info,
+  FileCode,
+} from 'lucide-react'
 import { personasApi } from '@/services'
 import {
   Card,
@@ -14,11 +24,12 @@ import {
   PageShell,
   SkeletonCard,
   LoadMoreSentinel,
+  MetricTooltip,
 } from '@/components/ui'
 import { PersonaBuilder } from '@/components/personas'
 import { useConfirmDialog, useToast, useInfiniteList, useWorkspaceSlug } from '@/hooks'
 import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
-import type { Persona, PersonaStatus, PaginatedResponse } from '@/types'
+import type { Persona, PersonaStatus, PersonaSubgraph, PaginatedResponse } from '@/types'
 import { workspacePath } from '@/utils/paths'
 
 // ── Filter options ──────────────────────────────────────────────────────
@@ -33,16 +44,15 @@ const statusOptions = [
 
 // ── Visual helpers ──────────────────────────────────────────────────────
 
-function energyColor(energy: number): string {
-  if (energy >= 0.7) return 'bg-emerald-500'
-  if (energy >= 0.3) return 'bg-amber-500'
-  return 'bg-red-500'
+function energyLabel(energy: number): { text: string; color: string } {
+  if (energy >= 0.7) return { text: 'Haute', color: 'text-emerald-400' }
+  if (energy >= 0.3) return { text: 'Moyenne', color: 'text-amber-400' }
+  return { text: 'Basse', color: 'text-red-400' }
 }
 
-function cohesionColor(cohesion: number): string {
-  if (cohesion >= 0.7) return 'bg-indigo-500'
-  if (cohesion >= 0.4) return 'bg-indigo-400'
-  return 'bg-indigo-300/60'
+function cohesionLabel(cohesion: number): { text: string; color: string } {
+  if (cohesion >= 0.5) return { text: 'Forte', color: 'text-indigo-400' }
+  return { text: 'Faible', color: 'text-indigo-300/60' }
 }
 
 function statusBadge(status: PersonaStatus) {
@@ -65,6 +75,12 @@ function relativeTime(dateStr: string): string {
   const days = Math.floor(hours / 24)
   if (days < 30) return `${days}d ago`
   return new Date(dateStr).toLocaleDateString()
+}
+
+/** Extract short filename from path */
+function shortPath(filePath: string): string {
+  const parts = filePath.split('/')
+  return parts.length > 2 ? `…/${parts.slice(-2).join('/')}` : filePath
 }
 
 // ── Main page ───────────────────────────────────────────────────────────
@@ -158,6 +174,28 @@ export function PersonasPage() {
     removeItems,
   } = useInfiniteList<Persona>({ fetcher, filters, enabled: projects.length > 0 })
 
+  // Fetch subgraphs for visible personas (skills + files)
+  const [subgraphs, setSubgraphs] = useState<Record<string, PersonaSubgraph>>({})
+  useEffect(() => {
+    if (personas.length === 0) return
+    const ids = personas.map((p) => p.id)
+    // Only fetch subgraphs we don't already have
+    const missing = ids.filter((id) => !subgraphs[id])
+    if (missing.length === 0) return
+    Promise.allSettled(missing.map((id) => personasApi.getSubgraph(id))).then((results) => {
+      const newEntries: Record<string, PersonaSubgraph> = {}
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') {
+          newEntries[missing[i]] = r.value
+        }
+      })
+      if (Object.keys(newEntries).length > 0) {
+        setSubgraphs((prev) => ({ ...prev, ...newEntries }))
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personas.map((p) => p.id).join(',')])
+
   const handleDelete = (persona: Persona) => {
     confirmDialog.open({
       title: `Delete "${persona.name}"?`,
@@ -173,7 +211,7 @@ export function PersonasPage() {
   return (
     <PageShell
       title="Personas"
-      description="Living knowledge agents scoped to code regions"
+      description="Profils spécialisés assignés aux agents pour orienter leur comportement selon le contexte du code."
       actions={
         <Button size="sm" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4 mr-1" />
@@ -181,6 +219,16 @@ export function PersonasPage() {
         </Button>
       }
     >
+      {/* Explainer banner */}
+      <div className="flex items-start gap-3 rounded-lg bg-purple-500/[0.07] border border-purple-500/20 px-4 py-3 mb-6">
+        <Info className="w-4 h-4 text-purple-400 mt-0.5 shrink-0" />
+        <p className="text-sm text-gray-300 leading-relaxed">
+          Une <strong>persona</strong> est un profil d'expertise assigné à un agent.
+          Elle détermine quels fichiers et compétences l'agent connaît, et oriente ses réponses.
+          Les personas peuvent émerger automatiquement ou être créées manuellement.
+        </p>
+      </div>
+
       {/* Filters */}
       <div className="flex items-center gap-3 mb-6">
         <Select options={projectOptions} value={projectFilter} onChange={setProjectFilter} />
@@ -194,8 +242,8 @@ export function PersonasPage() {
       {projects.length === 0 && !loading && (
         <div className="text-center py-20 text-zinc-500">
           <Users className="h-14 w-14 mx-auto mb-4 opacity-30" />
-          <p className="text-lg font-medium">No projects found</p>
-          <p className="text-sm mt-1 text-zinc-600">Add a project to this workspace to manage personas.</p>
+          <p className="text-lg font-medium">Aucun projet trouvé</p>
+          <p className="text-sm mt-1 text-zinc-600">Ajoutez un projet à ce workspace pour gérer les personas.</p>
         </div>
       )}
 
@@ -216,6 +264,9 @@ export function PersonasPage() {
               const projectName = persona.project_id ? projectNameById[persona.project_id] : null
               const desc = persona.description || ''
               const truncatedDesc = desc.length > 80 ? `${desc.slice(0, 80)}…` : desc
+              const sub = subgraphs[persona.id]
+              const skillNames = sub?.skills?.slice(0, 3) ?? []
+              const fileNames = sub?.files?.slice(0, 3) ?? []
 
               return (
                 <motion.div key={persona.id} variants={reducedMotion ? undefined : fadeInUp} initial="hidden" animate="visible" exit="exit" layout>
@@ -249,32 +300,20 @@ export function PersonasPage() {
                           {statusBadge(persona.status)}
                         </div>
 
-                        {/* Metric bars */}
-                        <div className="space-y-2">
-                          <div>
-                            <div className="flex justify-between text-xs mb-1">
-                              <span className="text-zinc-500">Energy</span>
-                              <span className="text-zinc-400 font-medium">{(energy * 100).toFixed(0)}%</span>
-                            </div>
-                            <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all duration-500 ${energyColor(energy)}`}
-                                style={{ width: `${energy * 100}%` }}
-                              />
-                            </div>
-                          </div>
-                          <div>
-                            <div className="flex justify-between text-xs mb-1">
-                              <span className="text-zinc-500">Cohesion</span>
-                              <span className="text-zinc-400 font-medium">{(cohesion * 100).toFixed(0)}%</span>
-                            </div>
-                            <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all duration-500 ${cohesionColor(cohesion)}`}
-                                style={{ width: `${cohesion * 100}%` }}
-                              />
-                            </div>
-                          </div>
+                        {/* Human-readable metrics with tooltips */}
+                        <div className="flex items-center gap-3">
+                          <MetricTooltip term="energy" showIndicator>
+                            <span className="inline-flex items-center gap-1.5 text-xs">
+                              <span className="text-zinc-500">Activité :</span>
+                              <span className={`font-medium ${energyLabel(energy).color}`}>{energyLabel(energy).text}</span>
+                            </span>
+                          </MetricTooltip>
+                          <MetricTooltip term="cohesion" showIndicator>
+                            <span className="inline-flex items-center gap-1.5 text-xs">
+                              <span className="text-zinc-500">Cohérence :</span>
+                              <span className={`font-medium ${cohesionLabel(cohesion).color}`}>{cohesionLabel(cohesion).text}</span>
+                            </span>
+                          </MetricTooltip>
                         </div>
 
                         {/* Description — below metrics, truncated */}
@@ -284,17 +323,51 @@ export function PersonasPage() {
                           </p>
                         )}
 
+                        {/* Associated skills */}
+                        {skillNames.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1">
+                            <Brain className="w-3 h-3 text-indigo-400/70 shrink-0" />
+                            {skillNames.map((s) => (
+                              <Badge key={s.entity_id} variant="default">
+                                {(s as { entity_id: string; weight: number; relation_type?: string }).entity_id.slice(0, 8)}
+                              </Badge>
+                            ))}
+                            {(sub?.skills?.length ?? 0) > 3 && (
+                              <span className="text-[10px] text-zinc-500">+{(sub?.skills?.length ?? 0) - 3}</span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Associated files */}
+                        {fileNames.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1">
+                            <FileCode className="w-3 h-3 text-sky-400/70 shrink-0" />
+                            {fileNames.map((f) => (
+                              <span key={f.entity_id} className="text-[10px] text-zinc-400 bg-white/[0.04] rounded px-1.5 py-0.5 truncate max-w-[140px]">
+                                {shortPath(f.entity_id)}
+                              </span>
+                            ))}
+                            {(sub?.files?.length ?? 0) > 3 && (
+                              <span className="text-[10px] text-zinc-500">+{(sub?.files?.length ?? 0) - 3}</span>
+                            )}
+                          </div>
+                        )}
+
                         {/* Stats footer */}
                         <div className="flex items-center justify-between pt-1 border-t border-white/[0.04]">
                           <div className="flex items-center gap-3 text-xs text-zinc-500">
-                            <span className="flex items-center gap-1">
-                              <Zap className="h-3 w-3 text-amber-500/70" />
-                              <span className="text-zinc-400">{activations}</span>
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <CheckCircle2 className="h-3 w-3 text-emerald-500/70" />
-                              <span className="text-zinc-400">{(successRate * 100).toFixed(0)}%</span>
-                            </span>
+                            <MetricTooltip term="activation_count">
+                              <span className="flex items-center gap-1">
+                                <Zap className="h-3 w-3 text-amber-500/70" />
+                                <span className="text-zinc-400">{activations}</span>
+                              </span>
+                            </MetricTooltip>
+                            <MetricTooltip term="success_rate" showIndicator>
+                              <span className="flex items-center gap-1">
+                                <CheckCircle2 className="h-3 w-3 text-emerald-500/70" />
+                                <span className="text-zinc-400">{(successRate * 100).toFixed(0)}%</span>
+                              </span>
+                            </MetricTooltip>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-zinc-600">
@@ -322,11 +395,21 @@ export function PersonasPage() {
 
           {loading && Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={`skel-${i}`} />)}
 
+          {/* Empty state */}
           {!loading && personas.length === 0 && (
-            <div className="col-span-full text-center py-20 text-zinc-500">
-              <Brain className="h-14 w-14 mx-auto mb-4 opacity-30" />
-              <p className="text-lg font-medium">No personas found</p>
-              <p className="text-sm mt-1 text-zinc-600">Create your first persona using the button above.</p>
+            <div className="col-span-full flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-white/[0.06] rounded-2xl">
+              <div className="w-16 h-16 rounded-full bg-white/[0.03] flex items-center justify-center text-gray-500 mb-4">
+                <Brain className="w-8 h-8" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-200 mb-1">Aucune persona trouvée</h3>
+              <p className="text-sm text-gray-400 mb-6 max-w-md">
+                Les personas sont des profils d'expertise qui orientent le comportement des agents.
+                Créez votre première persona pour spécialiser un agent sur une partie de votre codebase.
+              </p>
+              <Button onClick={() => setCreateOpen(true)}>
+                <Plus className="w-4 h-4 mr-1.5" />
+                Créer une persona
+              </Button>
             </div>
           )}
         </motion.div>

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { motion, AnimatePresence } from 'motion/react'
-import { Brain, Trash2, Zap, Upload, Sparkles, FileText, Globe } from 'lucide-react'
+import { Brain, Trash2, Zap, Upload, Sparkles, FileText, Globe, Info } from 'lucide-react'
 import { skillRefreshAtom } from '@/atoms/events'
 import { skillsApi, adminApi, notesApi } from '@/services'
 import { SkillBrowser, ImportWizard } from '@/components/registry'
@@ -19,7 +19,10 @@ import {
   Spinner,
   SkeletonCard,
   LoadMoreSentinel,
+  MetricTooltip,
+  TabLayout,
 } from '@/components/ui'
+import type { TabItem } from '@/components/ui'
 import { useConfirmDialog, useFormDialog, useToast, useInfiniteList, useWorkspaceSlug } from '@/hooks'
 import { CreateSkillForm, ImportSkillForm } from '@/components/forms'
 import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
@@ -37,18 +40,17 @@ const statusOptions = [
   { value: 'imported', label: 'Imported' },
 ]
 
-// ── Energy bar colors ───────────────────────────────────────────────────
+// ── Human-readable labels for Energy / Cohesion ─────────────────────────
 
-function energyColor(energy: number): string {
-  if (energy >= 0.7) return 'bg-emerald-500'
-  if (energy >= 0.3) return 'bg-amber-500'
-  return 'bg-red-500'
+function energyLabel(energy: number): { text: string; color: string } {
+  if (energy >= 0.7) return { text: 'Haute', color: 'text-emerald-400' }
+  if (energy >= 0.3) return { text: 'Moyenne', color: 'text-amber-400' }
+  return { text: 'Basse', color: 'text-red-400' }
 }
 
-function cohesionColor(cohesion: number): string {
-  if (cohesion >= 0.7) return 'bg-indigo-500'
-  if (cohesion >= 0.4) return 'bg-indigo-400'
-  return 'bg-indigo-300/60'
+function cohesionLabel(cohesion: number): { text: string; color: string } {
+  if (cohesion >= 0.5) return { text: 'Forte', color: 'text-indigo-400' }
+  return { text: 'Faible', color: 'text-indigo-300/60' }
 }
 
 // ── Relative time ───────────────────────────────────────────────────────
@@ -65,6 +67,13 @@ function relativeTime(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString()
 }
 
+// ── Tab definitions ─────────────────────────────────────────────────────
+
+const tabItems: TabItem[] = [
+  { id: 'skills', label: 'Mes Skills', icon: <Brain className="w-4 h-4" /> },
+  { id: 'registry', label: 'Catalogue partagé', icon: <Globe className="w-4 h-4" /> },
+]
+
 // ── Main page ───────────────────────────────────────────────────────────
 
 export function SkillsPage() {
@@ -79,7 +88,7 @@ export function SkillsPage() {
   const wsSlug = useWorkspaceSlug()
   const reducedMotion = useReducedMotion()
 
-  const [activeTab, setActiveTab] = useState<'skills' | 'registry'>('skills')
+  const [activeTab, setActiveTab] = useState<string>('skills')
   const [detecting, setDetecting] = useState(false)
   const [noteCount, setNoteCount] = useState<number | null>(null)
   const [importTarget, setImportTarget] = useState<PublishedSkillSummary | null>(null)
@@ -225,8 +234,8 @@ export function SkillsPage() {
 
   return (
     <PageShell
-      title="Neural Skills"
-      description="Emergent knowledge clusters with activation, health and export capabilities"
+      title="Skills"
+      description="Groupes de connaissances émergents, détectés automatiquement à partir de vos notes et décisions."
       actions={
         <>
           {activeTab === 'skills' && (
@@ -256,78 +265,64 @@ export function SkillsPage() {
         </>
       }
     >
-      {/* Tab switcher */}
-      <div className="flex items-center gap-1 mb-6 border-b border-white/[0.06]">
-        <button
-          onClick={() => setActiveTab('skills')}
-          className={`px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
-            activeTab === 'skills'
-              ? 'border-indigo-500 text-white'
-              : 'border-transparent text-gray-400 hover:text-gray-200'
-          }`}
-        >
-          <Brain className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
-          My Skills
-        </button>
-        <button
-          onClick={() => setActiveTab('registry')}
-          className={`px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
-            activeTab === 'registry'
-              ? 'border-indigo-500 text-white'
-              : 'border-transparent text-gray-400 hover:text-gray-200'
-          }`}
-        >
-          <Globe className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
-          Browse Registry
-        </button>
+      {/* Explainer banner */}
+      <div className="flex items-start gap-3 rounded-lg bg-indigo-500/[0.07] border border-indigo-500/20 px-4 py-3 mb-6">
+        <Info className="w-4 h-4 text-indigo-400 mt-0.5 shrink-0" />
+        <p className="text-sm text-gray-300 leading-relaxed">
+          Les <strong>skills</strong> sont des groupes de connaissances qui émergent automatiquement de vos notes.
+          Plus vous ajoutez de notes liées entre elles, plus le système identifie des domaines d'expertise.
+          Vous pouvez aussi en créer manuellement ou en importer depuis le catalogue partagé.
+        </p>
       </div>
 
-      {activeTab === 'registry' ? (
-        <SkillBrowser onImport={setImportTarget} />
-      ) : loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <SkeletonCard key={i} lines={4} />
-          ))}
-        </div>
-      ) : skills.length === 0 ? (
-        total === 0 && statusFilter === 'all' ? (
-          <SkillsEmptyState
-            noteCount={noteCount}
-            detecting={detecting}
-            onDetect={handleDetectSkills}
-            onCreate={openCreate}
-          />
-        ) : (
-          <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-white/[0.06] rounded-2xl">
-            <h3 className="text-lg font-medium text-gray-200 mb-1">No matching skills</h3>
-            <p className="text-sm text-gray-400 max-w-xs">No skills match the current filters.</p>
+      <TabLayout tabs={tabItems} activeTab={activeTab} onTabChange={setActiveTab} className="pt-4">
+        {activeTab === 'registry' ? (
+          <SkillBrowser onImport={setImportTarget} />
+        ) : loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <SkeletonCard key={i} lines={4} />
+            ))}
           </div>
-        )
-      ) : (
-        <>
-          <motion.div
-            className="grid grid-cols-1 md:grid-cols-2 gap-4"
-            variants={reducedMotion ? undefined : staggerContainer}
-            initial="hidden"
-            animate="visible"
-          >
-            <AnimatePresence mode="popLayout">
-              {skills.map((skill) => (
-                <motion.div key={skill.id} variants={fadeInUp} exit="exit" layout={!reducedMotion}>
-                  <SkillCard
-                    skill={skill}
-                    wsSlug={wsSlug}
-                    onStatusChange={(status) => handleStatusChange(skill, status)}
-                    onDelete={() => handleDelete(skill)}
-                  />
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </motion.div>
-          <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
-        </>
-      )}
+        ) : skills.length === 0 ? (
+          total === 0 && statusFilter === 'all' ? (
+            <SkillsEmptyState
+              noteCount={noteCount}
+              detecting={detecting}
+              onDetect={handleDetectSkills}
+              onCreate={openCreate}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-white/[0.06] rounded-2xl">
+              <h3 className="text-lg font-medium text-gray-200 mb-1">Aucun skill correspondant</h3>
+              <p className="text-sm text-gray-400 max-w-xs">Aucun skill ne correspond aux filtres actuels.</p>
+            </div>
+          )
+        ) : (
+          <>
+            <motion.div
+              className="grid grid-cols-1 md:grid-cols-2 gap-4"
+              variants={reducedMotion ? undefined : staggerContainer}
+              initial="hidden"
+              animate="visible"
+            >
+              <AnimatePresence mode="popLayout">
+                {skills.map((skill) => (
+                  <motion.div key={skill.id} variants={fadeInUp} exit="exit" layout={!reducedMotion}>
+                    <SkillCard
+                      skill={skill}
+                      wsSlug={wsSlug}
+                      onStatusChange={(status) => handleStatusChange(skill, status)}
+                      onDelete={() => handleDelete(skill)}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </motion.div>
+            <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
+          </>
+        )}
+      </TabLayout>
 
       <FormDialog {...formDialog.dialogProps} onSubmit={skillForm.submit}>
         {skillForm.fields}
@@ -371,9 +366,10 @@ function SkillsEmptyState({ noteCount, detecting, onDetect, onCreate }: SkillsEm
         <Brain className="w-8 h-8" />
       </div>
 
-      <h3 className="text-lg font-medium text-gray-200 mb-1">No skills detected</h3>
-      <p className="text-sm text-gray-400 mb-6 max-w-sm">
-        Neural skills emerge automatically from clusters of related knowledge notes.
+      <h3 className="text-lg font-medium text-gray-200 mb-1">Aucun skill détecté</h3>
+      <p className="text-sm text-gray-400 mb-6 max-w-md">
+        Les skills apparaissent automatiquement quand vous avez suffisamment de notes liées entre elles.
+        Ajoutez des notes (gotchas, patterns, guidelines) à votre projet pour que le système puisse identifier des domaines d'expertise.
       </p>
 
       {/* Note count progress */}
@@ -385,9 +381,9 @@ function SkillsEmptyState({ noteCount, detecting, onDetect, onCreate }: SkillsEm
               {noteCount} / {MIN_NOTES_FOR_DETECTION} notes
             </span>
             {ready ? (
-              <span className="text-xs text-emerald-400">Ready</span>
+              <span className="text-xs text-emerald-400">Prêt pour la détection</span>
             ) : (
-              <span className="text-xs text-gray-500">{MIN_NOTES_FOR_DETECTION - noteCount} more needed</span>
+              <span className="text-xs text-gray-500">Encore {MIN_NOTES_FOR_DETECTION - noteCount} notes nécessaires</span>
             )}
           </div>
           <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
@@ -398,7 +394,7 @@ function SkillsEmptyState({ noteCount, detecting, onDetect, onCreate }: SkillsEm
           </div>
           {!ready && (
             <p className="text-xs text-gray-500 mt-2">
-              Add knowledge notes (gotchas, patterns, guidelines) to your project to enable detection.
+              Le minimum de {MIN_NOTES_FOR_DETECTION} notes permet d'avoir assez de connexions pour identifier des groupes cohérents.
             </p>
           )}
         </div>
@@ -411,19 +407,19 @@ function SkillsEmptyState({ noteCount, detecting, onDetect, onCreate }: SkillsEm
             {detecting ? (
               <>
                 <Spinner size="sm" className="mr-1.5" />
-                Detecting...
+                Détection en cours...
               </>
             ) : (
               <>
                 <Sparkles className="w-4 h-4 mr-1.5" />
-                Detect Skills
+                Lancer la détection
               </>
             )}
           </Button>
         )}
         <Button variant="secondary" onClick={onCreate}>
           <Brain className="w-4 h-4 mr-1.5" />
-          Create Manually
+          Créer manuellement
         </Button>
       </div>
     </div>
@@ -441,6 +437,8 @@ interface SkillCardProps {
 
 function SkillCard({ skill, wsSlug, onStatusChange, onDelete }: SkillCardProps) {
   const memberCount = skill.note_count + skill.decision_count
+  const energy = energyLabel(skill.energy)
+  const cohesion = cohesionLabel(skill.cohesion)
 
   return (
     <Card className="group relative">
@@ -470,32 +468,20 @@ function SkillCard({ skill, wsSlug, onStatusChange, onDelete }: SkillCardProps) 
             </div>
           </div>
 
-          {/* Energy bar */}
-          <div className="mb-2">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] uppercase tracking-wider text-gray-500">Energy</span>
-              <span className="text-xs text-gray-400">{(skill.energy * 100).toFixed(0)}%</span>
-            </div>
-            <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all ${energyColor(skill.energy)}`}
-                style={{ width: `${Math.max(skill.energy * 100, 1)}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Cohesion bar */}
-          <div className="mb-3">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] uppercase tracking-wider text-gray-500">Cohesion</span>
-              <span className="text-xs text-gray-400">{(skill.cohesion * 100).toFixed(0)}%</span>
-            </div>
-            <div className="h-1 bg-white/[0.06] rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all ${cohesionColor(skill.cohesion)}`}
-                style={{ width: `${Math.max(skill.cohesion * 100, 1)}%` }}
-              />
-            </div>
+          {/* Human-readable metrics with tooltips */}
+          <div className="flex items-center gap-3 mb-3">
+            <MetricTooltip term="energy" showIndicator>
+              <span className="inline-flex items-center gap-1.5 text-xs">
+                <span className="text-gray-500">Activité :</span>
+                <span className={`font-medium ${energy.color}`}>{energy.text}</span>
+              </span>
+            </MetricTooltip>
+            <MetricTooltip term="cohesion" showIndicator>
+              <span className="inline-flex items-center gap-1.5 text-xs">
+                <span className="text-gray-500">Cohérence :</span>
+                <span className={`font-medium ${cohesion.color}`}>{cohesion.text}</span>
+              </span>
+            </MetricTooltip>
           </div>
 
           {/* Tags */}
@@ -514,13 +500,15 @@ function SkillCard({ skill, wsSlug, onStatusChange, onDelete }: SkillCardProps) 
           <div className="flex items-center gap-4 text-xs text-gray-500">
             <span className="flex items-center gap-1">
               <Brain className="w-3 h-3" />
-              {memberCount} members
+              {memberCount} membres
             </span>
             {skill.activation_count > 0 && (
-              <span className="flex items-center gap-1">
-                <Zap className="w-3 h-3" />
-                {skill.activation_count} activations
-              </span>
+              <MetricTooltip term="activation_count">
+                <span className="flex items-center gap-1">
+                  <Zap className="w-3 h-3" />
+                  {skill.activation_count} activations
+                </span>
+              </MetricTooltip>
             )}
             <span className="ml-auto">{relativeTime(skill.created_at)}</span>
           </div>
