@@ -1,33 +1,18 @@
 /**
  * RunnerDashboard — real-time view of a plan's runner execution.
  *
- * Wave-centric layout: agents are grouped by wave, each wave is a collapsible
- * accordion section. Conversations open inline below the wave (full width).
- *
- * Active wave = auto-expanded, completed waves = collapsed, pending = collapsed.
+ * Composition-only orchestrator: delegates header, stats, and wave content
+ * to extracted components. ~280 lines.
  */
 
 import { useState, useMemo, useCallback } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import {
-  Clock,
-  DollarSign,
-  Layers,
-  ArrowLeft,
-  GitBranch,
-  CheckCircle2,
-  Users,
-  Rocket,
-  Loader2,
-  X,
-  Pencil,
-  Check,
-  AlertTriangle,
-} from 'lucide-react'
-import { Card, CardContent, LoadingPage, ErrorState, ProgressBar } from '@/components/ui'
-import { CancelButton } from '@/components/runner/CancelButton'
+import { useParams } from 'react-router-dom'
+import { Layers, GitBranch, Loader2 } from 'lucide-react'
+import { Card, CardContent, LoadingPage, ErrorState } from '@/components/ui'
+import { RunnerHeader } from '@/components/runner/RunnerHeader'
+import { StatsRow } from '@/components/runner/StatsRow'
 import { WaveSection } from '@/components/runner/WaveSection'
-import { formatElapsed, formatCost, runStatusConfig, getWaveStatus } from '@/components/runner/shared'
+import { getWaveStatus } from '@/components/runner/shared'
 import { DiscussionTreeView } from '@/components/discussions/DiscussionTreeView'
 import { runnerApi, useRunnerStatus } from '@/services/runner'
 import type { ActiveAgentSnapshot, RunSnapshot } from '@/services/runner'
@@ -97,32 +82,12 @@ export function RunnerDashboard() {
   const [activeTab, setActiveTab] = useState<DashboardTab>('waves')
   const [selectedConversation, setSelectedConversation] = useState<{ sessionId: string; taskTitle: string } | null>(null)
 
-  // Budget editing
-  const [editingBudget, setEditingBudget] = useState(false)
-  const [budgetInput, setBudgetInput] = useState('')
-  const [budgetSaving, setBudgetSaving] = useState(false)
-
-  const handleBudgetEdit = useCallback(() => {
-    const currentBudget = effectiveSnapshot?.max_cost_usd ?? 10
-    setBudgetInput(String(currentBudget))
-    setEditingBudget(true)
-  }, [effectiveSnapshot?.max_cost_usd])
-
-  const handleBudgetSave = useCallback(async () => {
+  // Budget save handler — passed to StatsRow
+  const handleBudgetSave = useCallback(async (_planId: string, value: number) => {
     if (!planId) return
-    const value = parseFloat(budgetInput)
-    if (isNaN(value) || value <= 0) return
-    setBudgetSaving(true)
-    try {
-      await runnerApi.updateBudget(planId, value)
-      setEditingBudget(false)
-      refresh()
-    } catch {
-      // silently fail — status poll will show the real value
-    } finally {
-      setBudgetSaving(false)
-    }
-  }, [planId, budgetInput, refresh])
+    await runnerApi.updateBudget(planId, value)
+    refresh()
+  }, [planId, refresh])
 
   // Map agents to waves: build task_id → wave_number and task_id → title lookups
   const { taskWaveMap, taskTitleMap } = useMemo(() => {
@@ -245,128 +210,29 @@ export function RunnerDashboard() {
     return <LoadingPage />
   }
 
-  const statusStr = effectiveSnapshot.status ?? (effectiveSnapshot.running ? 'running' : 'completed')
-  const statusCfg = runStatusConfig[statusStr] ?? runStatusConfig.running
-  const progressPercent = Math.round(effectiveSnapshot.progress_pct ?? 0)
   const planTitle = effectiveSnapshot.current_task_title ?? `Plan ${planId?.slice(0, 8)}...`
 
   return (
     <div className="pt-6 flex flex-col h-full min-h-0">
-      {/* Header */}
+      {/* Header + Stats */}
       <div className="mb-6 space-y-4 flex-shrink-0">
-        {/* Breadcrumb */}
-        <Link
-          to={workspacePath(wsSlug, `/plans/${planId}`)}
-          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-300 transition-colors"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Back to plan
-        </Link>
+        <RunnerHeader
+          planId={planId!}
+          planTitle={planTitle}
+          wsSlug={wsSlug}
+          workspacePath={workspacePath}
+          effectiveSnapshot={effectiveSnapshot}
+          isRunning={isRunning}
+        />
 
-        {/* Title row */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-semibold text-gray-100">Runner Dashboard</h1>
-            <p className="text-sm text-gray-500 mt-1">{planTitle}</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {isRunning && <CancelButton planId={planId!} isRunning={isRunning} />}
-            {effectiveSnapshot.status === 'budget_exceeded' && !isRunning && (
-              <Link
-                to={workspacePath(wsSlug, `/plans/${planId}`)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
-              >
-                <Rocket className="w-3.5 h-3.5" />
-                Relaunch with higher budget
-              </Link>
-            )}
-            <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${statusCfg.bg} ${statusCfg.text}`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot} ${isRunning ? 'animate-pulse' : ''}`} />
-              {statusCfg.label}
-            </span>
-          </div>
-        </div>
-
-        {/* Stats row */}
-        <div className="flex flex-wrap items-center gap-6 text-sm">
-          {effectiveSnapshot.current_wave != null && (
-            <div className="flex items-center gap-1.5 text-gray-400">
-              <Layers className="w-4 h-4 text-gray-500" />
-              <span>Wave {(effectiveSnapshot.current_wave ?? 0) + 1}{wavesData ? ` / ${wavesData.waves.length}` : ''}</span>
-            </div>
-          )}
-          <div className="flex items-center gap-1.5 text-gray-400">
-            <CheckCircle2 className="w-4 h-4 text-gray-500" />
-            <span>{effectiveSnapshot.tasks_completed ?? 0} / {effectiveSnapshot.tasks_total ?? 0} tasks</span>
-          </div>
-          {resolvedAgents.filter(a => a.status === 'failed').length > 0 && (
-            <div className="flex items-center gap-1.5 text-red-400">
-              <AlertTriangle className="w-4 h-4" />
-              <span>{resolvedAgents.filter(a => a.status === 'failed').length} failed</span>
-            </div>
-          )}
-          <div className="flex items-center gap-1.5 text-gray-400">
-            <Users className="w-4 h-4 text-gray-500" />
-            <span>{resolvedAgents.length} agent{resolvedAgents.length !== 1 ? 's' : ''}</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-gray-400">
-            <Clock className="w-4 h-4 text-gray-500" />
-            <span className="font-mono tabular-nums">{formatElapsed(effectiveSnapshot.elapsed_secs)}</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-gray-400">
-            <DollarSign className="w-4 h-4 text-gray-500" />
-            <span className="font-mono tabular-nums">{formatCost(effectiveSnapshot.cost_usd)}</span>
-            {effectiveSnapshot.max_cost_usd > 0 && (
-              <>
-                <span className="text-gray-600">/</span>
-                {editingBudget ? (
-                  <span className="flex items-center gap-1">
-                    <span className="text-gray-500">$</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={500}
-                      step={5}
-                      value={budgetInput}
-                      onChange={(e) => setBudgetInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleBudgetSave(); if (e.key === 'Escape') setEditingBudget(false) }}
-                      autoFocus
-                      className="w-16 px-1.5 py-0.5 bg-white/[0.06] border border-indigo-500/50 rounded text-sm text-gray-200 font-mono tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
-                    />
-                    <button
-                      onClick={handleBudgetSave}
-                      disabled={budgetSaving}
-                      className="p-0.5 text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setEditingBudget(false)}
-                      className="p-0.5 text-gray-500 hover:text-gray-300 transition-colors cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </span>
-                ) : (
-                  <button
-                    onClick={isRunning ? handleBudgetEdit : undefined}
-                    className={`flex items-center gap-1 font-mono tabular-nums ${isRunning ? 'hover:text-indigo-400 transition-colors cursor-pointer' : ''}`}
-                    title={isRunning ? 'Click to edit budget' : undefined}
-                    disabled={!isRunning}
-                  >
-                    <span>{formatCost(effectiveSnapshot.max_cost_usd)}</span>
-                    {isRunning && <Pencil className="w-3 h-3 text-gray-600" />}
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Progress bar */}
-        <ProgressBar value={progressPercent} />
+        <StatsRow
+          effectiveSnapshot={effectiveSnapshot}
+          isRunning={isRunning}
+          resolvedAgents={resolvedAgents}
+          wavesTotal={wavesData?.waves.length ?? null}
+          planId={planId!}
+          onBudgetSave={handleBudgetSave}
+        />
 
         {/* Tab bar */}
         <div className="flex items-center gap-1 border-b border-border-subtle">

@@ -7,6 +7,12 @@ export { CancelButton } from './CancelButton'
 export { ConversationPanel } from './ConversationPanel'
 export { PlanRunHistory } from './PlanRunHistory'
 
+// Header & stats (design system composition)
+export { RunnerHeader } from './RunnerHeader'
+export type { RunnerHeaderProps } from './RunnerHeader'
+export { StatsRow } from './StatsRow'
+export type { StatsRowProps } from './StatsRow'
+
 // Extracted wave-centric components
 export { MessageBubble } from './MessageBubble'
 export type { MessageBubbleProps } from './MessageBubble'
