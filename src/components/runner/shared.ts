@@ -45,6 +45,15 @@ export const agentStatusConfig: Record<AgentStatus, { label: string; bg: string;
   failed:     { label: 'Failed',     bg: 'bg-red-500/15',    text: 'text-red-400',    dot: 'bg-red-400' },
 }
 
+/** Maps agent status to Badge variant for the UI Badge component. */
+export const agentStatusBadgeVariant: Record<AgentStatus, 'default' | 'success' | 'warning' | 'error' | 'info' | 'purple'> = {
+  spawning:  'warning',
+  running:   'info',
+  verifying: 'purple',
+  completed: 'success',
+  failed:    'error',
+}
+
 // ---------------------------------------------------------------------------
 // Wave status types & config
 // ---------------------------------------------------------------------------

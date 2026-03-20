@@ -59,8 +59,11 @@ export function WaveSection({
   const waveCost = agents.reduce((sum, a) => sum + a.cost_usd, 0)
   const waveTime = agents.reduce((max, a) => Math.max(max, a.elapsed_secs), 0)
 
-  // Check if the selected conversation belongs to this wave
-  const conversationInThisWave = selectedConversation && agents.some(a => a.session_id === selectedConversation.sessionId)
+  // Check if the selected conversation belongs to this wave + find the matching agent
+  const conversationAgent = selectedConversation
+    ? agents.find(a => a.session_id === selectedConversation.sessionId)
+    : null
+  const conversationInThisWave = !!conversationAgent
 
   return (
     <div className={`rounded-lg border ${styles.border} ${styles.bg} transition-all duration-200`}>
@@ -134,7 +137,7 @@ export function WaveSection({
         <div className="px-4 pb-4 pt-2 space-y-3">
           {/* Agent cards grid */}
           {agents.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {agents.map((agent, idx) => (
                 <WaveAgentCard
                   key={`${agent.task_id}-${idx}`}

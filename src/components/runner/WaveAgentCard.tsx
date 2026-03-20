@@ -1,25 +1,29 @@
 /**
- * WaveAgentCard — compact card for a single agent within a wave section.
+ * WaveAgentCard — card for a single agent within a wave section.
  *
- * Shows agent status, metrics (elapsed time, cost), conversation toggle,
- * retry button for failed agents, and expandable execution details.
+ * 3-zone layout:
+ *   Header — task title + Badge status
+ *   Body   — spaced metrics (elapsed, cost)
+ *   Footer — explicit action buttons with labels (Conversation, Retry, Details)
  */
 
 import { useState, useMemo } from 'react'
 import {
   Clock,
   DollarSign,
-  ChevronDown,
+  ChevronUp,
   Eye,
+  EyeOff,
   RotateCcw,
   FileCode2,
   GitCommitHorizontal,
   Wrench,
+  List,
 } from 'lucide-react'
-import { PulseIndicator } from '@/components/ui'
+import { Badge, PulseIndicator } from '@/components/ui'
 import type { ActiveAgentSnapshot } from '@/services/runner'
 import type { AgentExecution } from '@/types'
-import { formatElapsed, formatCost, agentStatusConfig } from './shared'
+import { formatElapsed, formatCost, agentStatusConfig, agentStatusBadgeVariant } from './shared'
 
 // ---------------------------------------------------------------------------
 // Props
@@ -45,6 +49,7 @@ export function WaveAgentCard({
   onRetryTask,
 }: WaveAgentCardProps) {
   const cfg = agentStatusConfig[agent.status] ?? agentStatusConfig.running
+  const badgeVariant = agentStatusBadgeVariant[agent.status] ?? 'info'
   const [detailOpen, setDetailOpen] = useState(false)
   const isLive = agent.status === 'running' || agent.status === 'spawning' || agent.status === 'verifying'
 
@@ -59,39 +64,39 @@ export function WaveAgentCard({
   return (
     <div
       className={`
-        rounded-lg border p-3 transition-all duration-200
+        rounded-lg border transition-all duration-200 flex flex-col
         ${isSelected
           ? 'border-indigo-500/40 bg-indigo-500/[0.06] shadow-[0_0_12px_rgba(99,102,241,0.1)]'
           : 'border-border-subtle bg-white/[0.04] hover:bg-white/[0.06] hover:border-border-default'
         }
       `}
     >
-      {/* Header: title + status */}
-      <div className="flex items-start justify-between gap-2 mb-2">
+      {/* ── Header: title + Badge status ── */}
+      <div className="flex items-start justify-between gap-2 px-4 pt-3 pb-2">
         <h4 className="text-sm font-medium text-gray-200 leading-snug line-clamp-2 flex-1 min-w-0">
           {agent.task_title}
         </h4>
-        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap ${cfg.bg} ${cfg.text}`}>
+        <Badge variant={badgeVariant} className="shrink-0 gap-1.5">
           {isLive && <PulseIndicator variant="active" size={6} />}
           {!isLive && <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />}
           {cfg.label}
-        </span>
+        </Badge>
       </div>
 
-      {/* Metrics */}
-      <div className="flex items-center gap-4 text-xs text-gray-500 mb-2">
-        <span className="inline-flex items-center gap-1">
-          <Clock className="w-3 h-3" />
+      {/* ── Body: spaced metrics ── */}
+      <div className="flex items-center gap-6 px-4 py-2 border-t border-white/[0.04]">
+        <div className="flex items-center gap-1.5 text-xs text-gray-400">
+          <Clock className="w-3.5 h-3.5 text-gray-500" />
           <span className="font-mono tabular-nums">{formatElapsed(agent.elapsed_secs)}</span>
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <DollarSign className="w-3 h-3" />
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-gray-400">
+          <DollarSign className="w-3.5 h-3.5 text-gray-500" />
           <span className="font-mono tabular-nums">{formatCost(agent.cost_usd)}</span>
-        </span>
+        </div>
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-2">
+      {/* ── Footer: explicit action buttons with labels ── */}
+      <div className="flex items-center gap-2 px-4 pt-2 pb-3 border-t border-white/[0.04]">
         {agent.session_id && (
           <button
             onClick={() => onToggleConversation(agent.session_id!, agent.task_title)}
@@ -104,8 +109,8 @@ export function WaveAgentCard({
               }
             `}
           >
-            <Eye className="w-3.5 h-3.5" />
-            {isSelected ? 'Viewing' : 'Conversation'}
+            {isSelected ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            {isSelected ? 'Hide conversation' : 'View conversation'}
             {isLive && !isSelected && (
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
             )}
@@ -115,26 +120,25 @@ export function WaveAgentCard({
           <button
             onClick={() => onRetryTask(agent.task_id, agent.task_title)}
             className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors cursor-pointer"
-            title="Retry this task"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            Retry
+            Retry task
           </button>
         )}
         {execution && (
           <button
             onClick={() => setDetailOpen(!detailOpen)}
-            className="flex items-center justify-center p-1.5 rounded-md text-xs text-gray-500 bg-white/[0.06] hover:bg-white/[0.1] hover:text-gray-300 transition-colors cursor-pointer"
-            title={detailOpen ? 'Hide details' : 'Show details'}
+            className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-gray-500 bg-white/[0.06] hover:bg-white/[0.1] hover:text-gray-300 transition-colors cursor-pointer"
           >
-            {detailOpen ? <ChevronDown className="w-3.5 h-3.5 rotate-180" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            {detailOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <List className="w-3.5 h-3.5" />}
+            {detailOpen ? 'Hide details' : 'View details'}
           </button>
         )}
       </div>
 
-      {/* Expandable execution detail */}
+      {/* ── Expandable execution detail ── */}
       {detailOpen && execution && (
-        <div className="mt-3 pt-3 border-t border-white/[0.06] space-y-2">
+        <div className="px-4 pb-3 border-t border-white/[0.06] pt-3 space-y-2">
           {execution.files_modified.length > 0 && (
             <div className="space-y-1">
               <h5 className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Files modified</h5>
