@@ -120,6 +120,8 @@ export class MoatScene implements ParticleScene {
   private time = 0;
   private healthScore = 0.68;
   private layerStates: LayerState[] = [];
+  /** Once intro animation completes, lock progress to 1.0 — no more fade cycling */
+  private introComplete = false;
 
   setData(data: unknown): void {
     const d = data as MoatData;
@@ -213,7 +215,12 @@ export class MoatScene implements ParticleScene {
   }
 
   update(_dt: number, progress: number, time: number): void {
-    this.progress = progress;
+    // Once all layers have faded in, lock progress to 1.0 permanently.
+    // Only the ring rotation (driven by time) continues animating.
+    if (!this.introComplete && progress >= 0.95) {
+      this.introComplete = true;
+    }
+    this.progress = this.introComplete ? 1.0 : progress;
     this.time = time;
   }
 
