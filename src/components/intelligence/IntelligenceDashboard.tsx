@@ -31,6 +31,7 @@ import {
   Link2,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
+import { MetricTooltip } from '@/components/ui/MetricTooltip'
 import { intelligenceApi } from '@/services/intelligence'
 import { codeApi } from '@/services/code'
 import { adminApi } from '@/services/admin'
@@ -233,16 +234,23 @@ function MiniGauge({
   value,
   color,
   suffix = '%',
+  tooltipTerm,
 }: {
   label: string
   value: number
   color: string
   suffix?: string
+  tooltipTerm?: string
 }) {
   const pct = Math.min(100, Math.max(0, value * 100))
+  const labelEl = (
+    <span className="text-[10px] text-slate-500 min-w-[80px] shrink-0">{label}</span>
+  )
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[10px] text-slate-500 min-w-[80px] shrink-0">{label}</span>
+      {tooltipTerm ? (
+        <MetricTooltip term={tooltipTerm} showIndicator>{labelEl}</MetricTooltip>
+      ) : labelEl}
       <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-700"
@@ -519,26 +527,31 @@ export function IntelHealthBreakdown({
               label="Knowledge Coverage"
               value={s.code.files > 0 ? Math.min(1, (s.knowledge.notes + s.knowledge.decisions) / s.code.files / 2) : 0}
               color="#fbbf24"
+              tooltipTerm="knowledge_coverage"
             />
             <MiniGauge
               label="Note Freshness"
               value={s.knowledge.notes > 0 ? 1 - s.knowledge.stale_count / s.knowledge.notes : 1}
               color="#4ade80"
+              tooltipTerm="note_freshness"
             />
             <MiniGauge
               label="Neural Energy"
               value={s.neural.avg_energy}
               color="#22d3ee"
+              tooltipTerm="energy"
             />
             <MiniGauge
               label="Synapse Quality"
               value={1 - s.neural.weak_synapses_ratio}
               color="#a78bfa"
+              tooltipTerm="synapse_quality"
             />
             <MiniGauge
               label="Skills Maturity"
               value={s.skills.total > 0 ? s.skills.active / s.skills.total : 0}
               color="#ec4899"
+              tooltipTerm="skills_maturity"
             />
             {data.health?.risk_assessment && (
               <MiniGauge
@@ -552,6 +565,7 @@ export function IntelHealthBreakdown({
                   })()
                 }
                 color="#f87171"
+                tooltipTerm="code_safety"
               />
             )}
           </div>
@@ -800,7 +814,7 @@ export function IntelLayerCards({ data }: { data: IntelligenceData }) {
         {data.health && data.health.circular_dependency_count > 0 && (
           <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-red-950/30 border border-red-900/30 text-[10px] text-red-400">
             <AlertTriangle size={10} />
-            {data.health.circular_dependency_count} circular dependencies detected
+            {data.health.circular_dependency_count} <MetricTooltip term="circular_dependency" showIndicator>circular dependencies</MetricTooltip> detected
           </div>
         )}
         {data.health?.coupling_metrics?.most_coupled_file && (
@@ -827,11 +841,12 @@ export function IntelLayerCards({ data }: { data: IntelligenceData }) {
           />
         </div>
         <div className="space-y-1.5">
-          <MiniGauge label="Avg Energy" value={s.neural.avg_energy} color="#22d3ee" />
+          <MiniGauge label="Avg Energy" value={s.neural.avg_energy} color="#22d3ee" tooltipTerm="energy" />
           <MiniGauge
             label="Weak Synapses"
             value={s.neural.weak_synapses_ratio}
             color={s.neural.weak_synapses_ratio > 0.5 ? '#fb923c' : '#4ade80'}
+            tooltipTerm="synapse"
           />
         </div>
       </LayerCard>
@@ -869,7 +884,7 @@ export function IntelSkillsCard({ data }: { data: IntelligenceData }) {
           color="#F9A8D4"
         />
       </div>
-      <MiniGauge label="Skill Maturity" value={s.skills.total > 0 ? s.skills.active / s.skills.total : 0} color="#ec4899" />
+      <MiniGauge label="Skill Maturity" value={s.skills.total > 0 ? s.skills.active / s.skills.total : 0} color="#ec4899" tooltipTerm="skills_maturity" />
     </LayerCard>
   )
 }
@@ -908,6 +923,7 @@ export function IntelBehavioralCard({ data }: { data: IntelligenceData }) {
         label="Skill Coverage"
         value={s.behavioral.protocols > 0 ? s.behavioral.skill_linked / s.behavioral.protocols : 0}
         color="#F97316"
+        tooltipTerm="skill"
       />
     </LayerCard>
   )
@@ -944,7 +960,7 @@ export function IntelAttention({ data }: { data: IntelligenceData }) {
             <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-950/20 border border-amber-900/30 text-[11px] text-amber-400">
               <StickyNote size={12} />
               <span>
-                <strong>{s.knowledge.stale_count}</strong> stale notes need review
+                <strong>{s.knowledge.stale_count}</strong> <MetricTooltip term="stale_note" showIndicator>stale notes</MetricTooltip> need review
               </span>
             </div>
           )}
@@ -952,7 +968,7 @@ export function IntelAttention({ data }: { data: IntelligenceData }) {
             <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-800/50 border border-slate-700/50 text-[11px] text-slate-400">
               <Brain size={12} className="text-cyan-500" />
               <span>
-                <strong>{s.neural.dead_notes_count}</strong> dead notes (no energy)
+                <strong>{s.neural.dead_notes_count}</strong> <MetricTooltip term="dead_note" showIndicator>dead notes</MetricTooltip> (no energy)
               </span>
             </div>
           )}
@@ -960,7 +976,7 @@ export function IntelAttention({ data }: { data: IntelligenceData }) {
             <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-950/20 border border-amber-900/30 text-[11px] text-amber-400">
               <FileCode2 size={12} />
               <span>
-                <strong>{s.code.orphans}</strong> orphan files (no imports/exports)
+                <strong>{s.code.orphans}</strong> <MetricTooltip term="orphan" showIndicator>orphan files</MetricTooltip> (no imports/exports)
               </span>
             </div>
           )}
@@ -976,7 +992,7 @@ export function IntelAttention({ data }: { data: IntelligenceData }) {
             <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-orange-950/20 border border-orange-900/30 text-[11px] text-orange-400">
               <Flame size={12} />
               <span>
-                <strong>{data.health.god_function_count}</strong> god functions (threshold: {data.health.god_function_threshold})
+                <strong>{data.health.god_function_count}</strong> <MetricTooltip term="god_function" showIndicator>god functions</MetricTooltip> (threshold: {data.health.god_function_threshold})
               </span>
             </div>
           )}
