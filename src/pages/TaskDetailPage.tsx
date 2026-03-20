@@ -2,20 +2,14 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link, useLocation } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { ClipboardList, Flag, FolderKanban, GitCommitHorizontal, Pencil } from 'lucide-react'
-import { UnifiedGraphSection, type GraphBreadcrumb } from '@/components/graph/UnifiedGraphSection'
-import { TaskGraphAdapter } from '@/adapters/TaskGraphAdapter'
-import { useTaskGraphData } from '@/hooks/useTaskGraphData'
-import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, TaskStatusBadge, InteractiveStepStatusBadge, InteractiveDecisionStatusBadge, ProgressBar, PageHeader, StatusSelect, SectionNav, ViewToggle } from '@/components/ui'
+import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, TaskStatusBadge, InteractiveStepStatusBadge, InteractiveDecisionStatusBadge, ProgressBar, PageHeader, StatusSelect, TabLayout, ViewToggle } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { tasksApi, plansApi, projectsApi, workspacesApi, decisionsApi } from '@/services'
-import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug, useViewTransition, useViewMode } from '@/hooks'
+import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useWorkspaceSlug, useViewTransition, useViewMode } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { taskRefreshAtom, projectRefreshAtom, planRefreshAtom } from '@/atoms'
 import { CreateStepForm, CreateDecisionForm, EditTaskForm, EditStepForm } from '@/components/forms'
 import { CommitList } from '@/components/commits'
-import { ImpactPreviewWidget } from '@/components/particles/widgets'
-import type { ParticleHitInfo } from '@/components/particles/ParticleViz'
-import { useAttentionVizData } from '@/hooks/useVizData'
 import { UniversalKanban, createStepKanbanConfig } from '@/components/kanban'
 import type { Task, Step, Decision, Commit, TaskStatus, StepStatus, DecisionStatus, Project } from '@/types'
 
@@ -63,38 +57,13 @@ export function TaskDetailPage() {
   const [commitShaInput, setCommitShaInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState('steps')
 
   // Parent resolution state
   const [parentPlanId, setParentPlanId] = useState<string | null>(null)
   const [parentPlanTitle, setParentPlanTitle] = useState<string | null>(null)
   const [parentProject, setParentProject] = useState<Project | null>(null)
   const [parentMilestone, setParentMilestone] = useState<{ id: string; title: string; type: 'workspace' | 'project' } | null>(null)
-
-  // Task graph data for UnifiedGraphSection
-  const taskGraphData = useTaskGraphData(taskId, parentPlanId ?? undefined)
-  // Particle viz: impact analysis for ALL affected files
-  const impactTargets = task?.affected_files?.length ? task.affected_files : undefined
-  const impactViz = useAttentionVizData(impactTargets)
-  // Bidirectional hover sync between file list and particle viz
-  const [hoveredFile, setHoveredFile] = useState<string | null>(null)
-
-  // Breadcrumb trail for graph section — full ascending path: milestone → plan → task
-  const graphBreadcrumbs = useMemo<GraphBreadcrumb[]>(() => {
-    const crumbs: GraphBreadcrumb[] = []
-    if (parentMilestone) {
-      const msPath = parentMilestone.type === 'project'
-        ? `/project-milestones/${parentMilestone.id}#graph`
-        : `/milestones/${parentMilestone.id}#graph`
-      crumbs.push({ label: `Milestone: ${parentMilestone.title}`, href: workspacePath(wsSlug, msPath) })
-    }
-    if (parentPlanId && parentPlanTitle) {
-      crumbs.push({ label: `Plan: ${parentPlanTitle}`, href: workspacePath(wsSlug, `/plans/${parentPlanId}#graph`) })
-    }
-    if (task) {
-      crumbs.push({ label: `Task: ${task.title || task.id.slice(0, 8)}` })
-    }
-    return crumbs
-  }, [parentMilestone, parentPlanId, parentPlanTitle, task, wsSlug])
 
   const fetchData = useCallback(async () => {
     if (!taskId) return
@@ -264,8 +233,6 @@ export function TaskDetailPage() {
     })
   }
 
-  const sectionIds = ['steps', 'dependencies', 'decisions', 'commits']
-  const activeSection = useSectionObserver(sectionIds)
   const [stepsViewMode, setStepsViewMode] = useViewMode()
 
   // Step kanban config — wraps local steps data as a fetchFn
@@ -328,12 +295,11 @@ export function TaskDetailPage() {
   const completedSteps = steps.filter((s) => s.status === 'completed').length
   const stepProgress = steps.length > 0 ? (completedSteps / steps.length) * 100 : 0
 
-  const sections = [
-    { id: 'graph', label: 'Graph' },
+  // Tab definitions
+  const tabs = [
     { id: 'steps', label: 'Steps', count: steps.length },
     { id: 'dependencies', label: 'Dependencies', count: blockers.length + blocking.length },
-    { id: 'decisions', label: 'Decisions', count: decisions.length },
-    { id: 'commits', label: 'Commits', count: commits.length },
+    { id: 'artefacts', label: 'Artefacts', count: decisions.length + commits.length },
   ]
 
   // Build parent links for navigation — ascending: milestone → project → plan
@@ -430,294 +396,242 @@ export function TaskDetailPage() {
         ]}
       />
 
-      <SectionNav sections={sections} activeSection={activeSection} />
-
-      {/* Graph — Task sub-graph with DAG/3D views */}
-      {taskGraphData.data && (
-        <section id="graph" className="scroll-mt-20">
-          <UnifiedGraphSection
-            adapter={TaskGraphAdapter}
-            data={taskGraphData.data}
-            title="Task Graph"
-            availableViews={['dag', '3d']}
-            defaultView="dag"
-            breadcrumbs={graphBreadcrumbs}
-            projectSlug={parentProject?.slug}
-          />
-        </section>
-      )}
-
-      {/* Steps */}
-      <section id="steps" className="scroll-mt-20">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Steps ({steps.length})</CardTitle>
-            <div className="flex items-center gap-2">
-              {steps.length > 0 && (
-                <span className="text-sm text-gray-400">{completedSteps}/{steps.length} completed</span>
-              )}
-              <Button size="sm" onClick={() => stepFormDialog.open({ title: 'Add Step' })}>Add Step</Button>
-              <ViewToggle value={stepsViewMode} onChange={setStepsViewMode} />
-            </div>
-          </div>
-          {steps.length > 0 && <ProgressBar value={stepProgress} size="sm" className="mt-2" />}
-        </CardHeader>
-        <CardContent>
-          {steps.length === 0 ? (
-            <p className="text-gray-500 text-sm">No steps defined</p>
-          ) : stepsViewMode === 'kanban' ? (
-            <UniversalKanban
-              config={stepKanbanConfig}
-              refreshTrigger={stepKanbanRefreshKey}
-            />
-          ) : (
-            <div className="space-y-2">
-              {steps.map((step, index) => (
-                <StepRow
-                  key={step.id || index}
-                  step={step}
-                  index={index}
-                  onStatusChange={async (newStatus) => {
-                    await tasksApi.updateStep(step.id, { status: newStatus })
-                    setSteps(prev => prev.map(s => s.id === step.id ? { ...s, status: newStatus } : s))
-                    toast.success('Step status updated')
-                  }}
-                  onEdit={() => {
-                    setEditingStep(step)
-                    editStepDialog.open({ title: 'Edit Step' })
-                  }}
-                  onDelete={async () => {
-                    await tasksApi.deleteStep(step.id)
-                    setSteps(prev => prev.filter(s => s.id !== step.id))
-                    toast.success('Step deleted')
-                  }}
-                />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      </section>
-
-      {/* Acceptance Criteria */}
-      {acceptanceCriteria.length > 0 && (
-        <section id="criteria" className="scroll-mt-20">
-        <Card>
-          <CardHeader>
-            <CardTitle>Acceptance Criteria</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              {acceptanceCriteria.map((criterion, index) => (
-                <li key={index} className="flex items-start gap-2 text-gray-300">
-                  <span className="text-indigo-400 mt-0.5 shrink-0">•</span>
-                  <span className="break-words min-w-0">{criterion}</span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-        </section>
-      )}
-
-      {/* Blockers & Blocking */}
-      <section id="dependencies" className="scroll-mt-20">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Blocked By ({blockers.length})</CardTitle>
-              <Button size="sm" onClick={() => linkDialog.open({
-                title: 'Add Dependency',
-                submitLabel: 'Add',
-                fetchOptions: async () => {
-                  const data = await tasksApi.list({ limit: 100 })
-                  const existingIds = new Set([taskId, ...blockers.map(b => b.id)])
-                  return (data.items || [])
-                    .filter(t => !existingIds.has(t.id))
-                    .map(t => ({ value: t.id, label: t.title || t.description || 'Untitled', description: t.status }))
-                },
-                onLink: async (depId) => {
-                  await tasksApi.addDependencies(taskId!, [depId])
-                  const blockersData = await tasksApi.getBlockers(taskId!).catch(() => ({ items: [] }))
-                  setBlockers(blockersData.items || [])
-                  toast.success('Dependency added')
-                },
-              })}>Add</Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {blockers.length === 0 ? (
-              <p className="text-gray-500 text-sm">No blockers</p>
-            ) : (
-              <div className="space-y-2">
-                {blockers.map((blocker) => (
-                  <div key={blocker.id} className="flex items-center justify-between gap-2 p-2 bg-white/[0.06] rounded">
-                    <Link to={workspacePath(wsSlug, `/tasks/${blocker.id}`)} className="text-gray-200 truncate min-w-0 hover:text-indigo-400 transition-colors">
-                      {blocker.title || blocker.description}
-                    </Link>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <TaskStatusBadge status={blocker.status} />
-                      <button
-                        onClick={async () => {
-                          await tasksApi.removeDependency(taskId!, blocker.id)
-                          setBlockers(prev => prev.filter(b => b.id !== blocker.id))
-                          toast.success('Dependency removed')
-                        }}
-                        className="text-gray-500 hover:text-red-400 text-sm px-1"
-                        title="Remove dependency"
-                      >
-                        &times;
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Blocking ({blocking.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {blocking.length === 0 ? (
-              <p className="text-gray-500 text-sm">Not blocking any tasks</p>
-            ) : (
-              <div className="space-y-2">
-                {blocking.map((blocked) => (
-                  <div key={blocked.id} className="flex items-center justify-between gap-2 p-2 bg-white/[0.06] rounded">
-                    <Link to={workspacePath(wsSlug, `/tasks/${blocked.id}`)} className="text-gray-200 truncate min-w-0 hover:text-indigo-400 transition-colors">
-                      {blocked.title || blocked.description}
-                    </Link>
-                    <TaskStatusBadge status={blocked.status} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-      </section>
-
-      {/* Decisions */}
-      <section id="decisions" className="scroll-mt-20">
-      <Card>
-        <CardHeader>
-          <CardTitle>Decisions ({decisions.length})</CardTitle>
-          <Button size="sm" onClick={() => decisionFormDialog.open({ title: 'Add Decision', size: 'lg' })}>Add Decision</Button>
-        </CardHeader>
-        <CardContent>
-          {decisions.length === 0 ? (
-            <p className="text-gray-500 text-sm">No decisions recorded</p>
-          ) : (
-            <div className="space-y-2">
-              {decisions.map((decision) => (
-                <DecisionRow
-                  key={decision.id}
-                  decision={decision}
-                  wsSlug={wsSlug}
-                  onStatusChange={(status) => handleDecisionStatusChange(decision, status)}
-                  onDelete={() => handleDeleteDecision(decision)}
-                />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      </section>
-
-      {/* Affected Files */}
+      {/* Affected files — compact chips under header */}
       {affectedFiles.length > 0 && (
-        <section id="files" className="scroll-mt-20 space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Affected Files ({affectedFiles.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-1">
-              {affectedFiles.map((file, index) => (
-                <div
-                  key={`${file}-${index}`}
-                  className={`font-mono text-sm p-1.5 rounded truncate transition-colors cursor-default ${
-                    hoveredFile === file
-                      ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30'
-                      : 'text-gray-300 border border-transparent hover:bg-white/[0.04]'
-                  }`}
-                  title={file}
-                  onMouseEnter={() => setHoveredFile(file)}
-                  onMouseLeave={() => setHoveredFile(null)}
-                  onClick={() => navigate(workspacePath(wsSlug, `/code?file=${encodeURIComponent(file)}`), { type: 'card-click' })}
-                  style={{ cursor: 'pointer' }}
-                >
-                  {file}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-        {impactViz.data && (
-          <ImpactPreviewWidget
-            data={impactViz.data}
-            height={250}
-            className="rounded-lg"
-            interactive
-            highlightedId={
-              hoveredFile && impactViz.data
-                ? impactViz.data.relevantTokens.findIndex(
-                    (t) => t.metadata?.filePath === hoveredFile,
-                  )
-                : undefined
-            }
-            onParticleHover={(info: ParticleHitInfo | null) => {
-              if (info?.metadata?.filePath) {
-                setHoveredFile(info.metadata.filePath as string)
-              } else {
-                setHoveredFile(null)
-              }
-            }}
-            onParticleClick={(info: ParticleHitInfo) => {
-              const filePath = info.metadata?.filePath as string | undefined
-              if (filePath) {
-                navigate(workspacePath(wsSlug, `/code?file=${encodeURIComponent(filePath)}`), { type: 'card-click' })
-              }
-            }}
-          />
-        )}
-        </section>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-gray-500 mr-1">Files:</span>
+          {affectedFiles.map((file, index) => (
+            <button
+              key={`${file}-${index}`}
+              onClick={() => navigate(workspacePath(wsSlug, `/code?file=${encodeURIComponent(file)}`), { type: 'card-click' })}
+              className="inline-flex items-center bg-white/[0.06] border border-white/[0.08] rounded-full px-2 py-0.5 text-[11px] font-mono text-gray-400 hover:bg-white/[0.10] hover:text-gray-200 hover:border-white/[0.14] transition-colors truncate max-w-[240px]"
+              title={file}
+            >
+              {file.split('/').pop()}
+            </button>
+          ))}
+        </div>
       )}
 
-      {/* Commits */}
-      <section id="commits" className="scroll-mt-20">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-2">
-              <GitCommitHorizontal className="w-4 h-4 text-gray-500" />
-              <CardTitle>Commits ({commits.length})</CardTitle>
-            </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => { setCommitShaInput(''); commitFormDialog.open({ title: 'Link Commit', submitLabel: 'Link', size: 'sm' }) }}
-            >
-              Link Commit
-            </Button>
+      {/* Tabbed body: Steps | Dependencies | Artefacts */}
+      <TabLayout
+        tabs={tabs}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      >
+        {/* Tab: Steps */}
+        {activeTab === 'steps' && (
+          <div className="space-y-4 pt-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Steps ({steps.length})</CardTitle>
+                  <div className="flex items-center gap-2">
+                    {steps.length > 0 && (
+                      <span className="text-sm text-gray-400">{completedSteps}/{steps.length} completed</span>
+                    )}
+                    <Button size="sm" onClick={() => stepFormDialog.open({ title: 'Add Step' })}>Add Step</Button>
+                    <ViewToggle value={stepsViewMode} onChange={setStepsViewMode} />
+                  </div>
+                </div>
+                {steps.length > 0 && <ProgressBar value={stepProgress} size="sm" className="mt-2" />}
+              </CardHeader>
+              <CardContent>
+                {steps.length === 0 ? (
+                  <p className="text-gray-500 text-sm">No steps defined</p>
+                ) : stepsViewMode === 'kanban' ? (
+                  <UniversalKanban
+                    config={stepKanbanConfig}
+                    refreshTrigger={stepKanbanRefreshKey}
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    {steps.map((step, index) => (
+                      <StepRow
+                        key={step.id || index}
+                        step={step}
+                        index={index}
+                        onStatusChange={async (newStatus) => {
+                          await tasksApi.updateStep(step.id, { status: newStatus })
+                          setSteps(prev => prev.map(s => s.id === step.id ? { ...s, status: newStatus } : s))
+                          toast.success('Step status updated')
+                        }}
+                        onEdit={() => {
+                          setEditingStep(step)
+                          editStepDialog.open({ title: 'Edit Step' })
+                        }}
+                        onDelete={async () => {
+                          await tasksApi.deleteStep(step.id)
+                          setSteps(prev => prev.filter(s => s.id !== step.id))
+                          toast.success('Step deleted')
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Acceptance Criteria — inside Steps tab */}
+            {acceptanceCriteria.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Acceptance Criteria</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    {acceptanceCriteria.map((criterion, index) => (
+                      <li key={index} className="flex items-start gap-2 text-gray-300">
+                        <span className="text-indigo-400 mt-0.5 shrink-0">•</span>
+                        <span className="break-words min-w-0">{criterion}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
           </div>
-        </CardHeader>
-        <CardContent>
-          {commits.length > 0 ? (
-            <CommitList commits={commits} />
-          ) : (
-            <p className="text-sm text-gray-500 py-4 text-center">No commits linked to this task yet</p>
-          )}
-        </CardContent>
-      </Card>
-      </section>
+        )}
+
+        {/* Tab: Dependencies */}
+        {activeTab === 'dependencies' && (
+          <div className="space-y-4 pt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Blocked By ({blockers.length})</CardTitle>
+                    <Button size="sm" onClick={() => linkDialog.open({
+                      title: 'Add Dependency',
+                      submitLabel: 'Add',
+                      fetchOptions: async () => {
+                        const data = await tasksApi.list({ limit: 100 })
+                        const existingIds = new Set([taskId, ...blockers.map(b => b.id)])
+                        return (data.items || [])
+                          .filter(t => !existingIds.has(t.id))
+                          .map(t => ({ value: t.id, label: t.title || t.description || 'Untitled', description: t.status }))
+                      },
+                      onLink: async (depId) => {
+                        await tasksApi.addDependencies(taskId!, [depId])
+                        const blockersData = await tasksApi.getBlockers(taskId!).catch(() => ({ items: [] }))
+                        setBlockers(blockersData.items || [])
+                        toast.success('Dependency added')
+                      },
+                    })}>Add</Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {blockers.length === 0 ? (
+                    <p className="text-gray-500 text-sm">No blockers</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {blockers.map((blocker) => (
+                        <div key={blocker.id} className="flex items-center justify-between gap-2 p-2 bg-white/[0.06] rounded">
+                          <Link to={workspacePath(wsSlug, `/tasks/${blocker.id}`)} className="text-gray-200 truncate min-w-0 hover:text-indigo-400 transition-colors">
+                            {blocker.title || blocker.description}
+                          </Link>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <TaskStatusBadge status={blocker.status} />
+                            <button
+                              onClick={async () => {
+                                await tasksApi.removeDependency(taskId!, blocker.id)
+                                setBlockers(prev => prev.filter(b => b.id !== blocker.id))
+                                toast.success('Dependency removed')
+                              }}
+                              className="text-gray-500 hover:text-red-400 text-sm px-1"
+                              title="Remove dependency"
+                            >
+                              &times;
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Blocking ({blocking.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {blocking.length === 0 ? (
+                    <p className="text-gray-500 text-sm">Not blocking any tasks</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {blocking.map((blocked) => (
+                        <div key={blocked.id} className="flex items-center justify-between gap-2 p-2 bg-white/[0.06] rounded">
+                          <Link to={workspacePath(wsSlug, `/tasks/${blocked.id}`)} className="text-gray-200 truncate min-w-0 hover:text-indigo-400 transition-colors">
+                            {blocked.title || blocked.description}
+                          </Link>
+                          <TaskStatusBadge status={blocked.status} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
+
+        {/* Tab: Artefacts (Decisions + Commits) */}
+        {activeTab === 'artefacts' && (
+          <div className="space-y-4 pt-4">
+            {/* Decisions */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Decisions ({decisions.length})</CardTitle>
+                <Button size="sm" onClick={() => decisionFormDialog.open({ title: 'Add Decision', size: 'lg' })}>Add Decision</Button>
+              </CardHeader>
+              <CardContent>
+                {decisions.length === 0 ? (
+                  <p className="text-gray-500 text-sm">No decisions recorded</p>
+                ) : (
+                  <div className="space-y-2">
+                    {decisions.map((decision) => (
+                      <DecisionRow
+                        key={decision.id}
+                        decision={decision}
+                        wsSlug={wsSlug}
+                        onStatusChange={(status) => handleDecisionStatusChange(decision, status)}
+                        onDelete={() => handleDeleteDecision(decision)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Commits */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <GitCommitHorizontal className="w-4 h-4 text-gray-500" />
+                    <CardTitle>Commits ({commits.length})</CardTitle>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => { setCommitShaInput(''); commitFormDialog.open({ title: 'Link Commit', submitLabel: 'Link', size: 'sm' }) }}
+                  >
+                    Link Commit
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {commits.length > 0 ? (
+                  <CommitList commits={commits} />
+                ) : (
+                  <p className="text-sm text-gray-500 py-4 text-center">No commits linked to this task yet</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </TabLayout>
 
       <FormDialog {...editStepDialog.dialogProps} onSubmit={editStepForm.submit}>
         {editStepForm.fields}
@@ -758,8 +672,6 @@ export function TaskDetailPage() {
       </FormDialog>
       <LinkEntityDialog {...linkDialog.dialogProps} />
       <ConfirmDialog {...confirmDialog.dialogProps} />
-
-      {/* 3D view is now integrated inline via UnifiedGraphSection above */}
     </div>
   )
 }
