@@ -107,10 +107,18 @@ export interface MoatData {
 // ── Feedback Loop (protocol run → iteration viz) ────────────
 // Compatible with FeedbackLoopScene.FeedbackLoopData (iterations?, labels?)
 
+export type FeedbackIterationStatus = 'running' | 'completed' | 'failed';
+
 export interface FeedbackIteration {
   label: string;
   state: string;
   timestamp: string;
+  /** Duration spent in this state (ms) */
+  duration_ms?: number;
+  /** Status of this state visit */
+  status?: FeedbackIterationStatus;
+  /** State ID for FSM cross-referencing */
+  state_id?: string;
 }
 
 export interface FeedbackLoopData {

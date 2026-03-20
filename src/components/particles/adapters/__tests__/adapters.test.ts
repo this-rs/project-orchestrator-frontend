@@ -451,14 +451,44 @@ describe('runToFeedbackLoop', () => {
     expect(result.labels).toEqual(['draft', 'review', 'approved']);
   });
 
-  it('creates steps with v-prefixed labels', () => {
+  it('creates steps with v-prefixed labels and enriched fields', () => {
     const result = runToFeedbackLoop(mockRun);
     expect(result.steps[0]).toEqual({
       label: 'v1',
       state: 'draft',
       timestamp: '2026-03-01T10:00:00Z',
+      duration_ms: undefined,
+      status: 'completed',
+      state_id: 's1',
     });
     expect(result.steps[2].label).toBe('v3');
+    // Last state of a completed run should also be 'completed'
+    expect(result.steps[2].status).toBe('completed');
+  });
+
+  it('marks last state as failed when run status is failed', () => {
+    const failedRun: ProtocolRun = {
+      ...mockRun,
+      status: 'failed',
+    };
+    const result = runToFeedbackLoop(failedRun);
+    expect(result.steps[2].status).toBe('failed');
+    expect(result.steps[0].status).toBe('completed');
+  });
+
+  it('marks last state as running when run is running and no exit', () => {
+    const runningRun: ProtocolRun = {
+      ...mockRun,
+      status: 'running',
+      states_visited: [
+        { state_id: 's1', state_name: 'draft', entered_at: '2026-03-01T10:00:00Z', exited_at: '2026-03-01T11:00:00Z' },
+        { state_id: 's2', state_name: 'review', entered_at: '2026-03-01T11:00:00Z' },
+      ],
+    };
+    const result = runToFeedbackLoop(runningRun);
+    expect(result.steps[1].status).toBe('running');
+    expect(result.steps[0].status).toBe('completed');
+    expect(result.steps[0].duration_ms).toBe(3600000); // 1 hour
   });
 
   it('falls back to state_id when state_name is missing', () => {
@@ -471,6 +501,7 @@ describe('runToFeedbackLoop', () => {
     const result = runToFeedbackLoop(noNames);
     expect(result.labels[0]).toBe('sid-1');
     expect(result.steps[0].state).toBe('sid-1');
+    expect(result.steps[0].state_id).toBe('sid-1');
   });
 
   it('handles undefined states_visited', () => {

@@ -341,10 +341,31 @@ export function runToFeedbackLoop(run: ProtocolRun): FeedbackLoopData {
   return {
     iterations: visits.length,
     labels: visits.map((s) => s.state_name ?? s.state_id),
-    steps: visits.map((s, i) => ({
-      label: `v${i + 1}`,
-      state: s.state_name ?? s.state_id,
-      timestamp: s.entered_at,
-    })),
+    steps: visits.map((s, i) => {
+      // Compute duration_ms from entered_at / exited_at if available
+      let duration_ms: number | undefined;
+      if (s.entered_at && s.exited_at) {
+        duration_ms = new Date(s.exited_at).getTime() - new Date(s.entered_at).getTime();
+      }
+
+      // Derive status: last visit without exit = running, with exit = completed
+      // If the run itself failed and this is the last state, mark as failed
+      let status: 'running' | 'completed' | 'failed' = 'completed';
+      const isLast = i === visits.length - 1;
+      if (isLast && run.status === 'failed') {
+        status = 'failed';
+      } else if (isLast && !s.exited_at && run.status === 'running') {
+        status = 'running';
+      }
+
+      return {
+        label: `v${i + 1}`,
+        state: s.state_name ?? s.state_id,
+        timestamp: s.entered_at,
+        duration_ms,
+        status,
+        state_id: s.state_id,
+      };
+    }),
   };
 }

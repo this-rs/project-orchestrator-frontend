@@ -69,6 +69,9 @@ export function ProtocolDetailPage() {
 
   const [activeTab, setActiveTab] = useState<Tab>('fsm')
 
+  // FSM highlight state (set by spiral marker click)
+  const [highlightedStateId, setHighlightedStateId] = useState<string | null>(null)
+
   // Runs tab state
   const [runs, setRuns] = useState<ProtocolRun[]>([])
   const [runsLoading, setRunsLoading] = useState(false)
@@ -204,7 +207,7 @@ export function ProtocolDetailPage() {
       {/* Tab content */}
       {activeTab === 'fsm' && (
         <div className="rounded-xl border border-white/10 bg-white/[0.02] overflow-hidden" style={{ height: '70vh' }}>
-          <FsmViewer protocol={protocol} />
+          <FsmViewer protocol={protocol} highlightedStateId={highlightedStateId} />
         </div>
       )}
 
@@ -216,6 +219,10 @@ export function ProtocolDetailPage() {
           selectedRunId={selectedRunId}
           onSelectRun={setSelectedRunId}
           onRefresh={fetchRuns}
+          onNavigateToFsmState={(stateId) => {
+            setHighlightedStateId(stateId)
+            setActiveTab('fsm')
+          }}
         />
       )}
 
@@ -258,9 +265,11 @@ interface RunsTabProps {
   selectedRunId: string | null
   onSelectRun: (id: string | null) => void
   onRefresh: () => void
+  /** Navigate to FSM tab and highlight a specific state */
+  onNavigateToFsmState?: (stateId: string) => void
 }
 
-function RunsTab({ runs, loading, error, selectedRunId, onSelectRun, onRefresh }: RunsTabProps) {
+function RunsTab({ runs, loading, error, selectedRunId, onSelectRun, onRefresh, onNavigateToFsmState }: RunsTabProps) {
   const feedbackViz = useFeedbackVizData(selectedRunId ?? undefined)
 
   if (error) {
@@ -342,7 +351,18 @@ function RunsTab({ runs, loading, error, selectedRunId, onSelectRun, onRefresh }
             <RunTreeView rootRunId={selectedRunId} />
           </div>
           {feedbackViz.data && (
-            <ProtocolRunWidget data={feedbackViz.data} height={200} className="rounded-lg" />
+            <ProtocolRunWidget
+              data={feedbackViz.data}
+              height={200}
+              className="rounded-lg"
+              interactive
+              onMarkerClick={(info) => {
+                const stateId = info.metadata?.state_id as string | undefined
+                if (stateId && onNavigateToFsmState) {
+                  onNavigateToFsmState(stateId)
+                }
+              }}
+            />
           )}
         </div>
       )}
