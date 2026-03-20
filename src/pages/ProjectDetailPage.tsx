@@ -6,7 +6,6 @@ import {
   Clipboard,
   RefreshCw,
   ChevronRight,
-  Loader2,
   Brain,
   AlertTriangle,
   ArrowRight,
@@ -348,30 +347,6 @@ export function ProjectDetailPage() {
         </div>
       </PageHeader>
 
-      {/* ── Intelligence: Loading / Error / Empty ───────────────────────── */}
-      {intelligence.loading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
-        </div>
-      )}
-      {intelligence.error && (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <AlertTriangle className="w-8 h-8 text-amber-500 mb-3" />
-          <p className="text-sm text-slate-400 mb-3">{intelligence.error}</p>
-          <button
-            onClick={intelligence.handleRefresh}
-            className="text-xs text-cyan-400 hover:text-cyan-300 underline underline-offset-2"
-          >
-            Retry
-          </button>
-        </div>
-      )}
-      {!intelligence.loading && !intelligence.error && !intelligence.summary && (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <Brain className="w-8 h-8 text-slate-600 mb-3" />
-          <p className="text-sm text-slate-500">No intelligence data available</p>
-        </div>
-      )}
 
       {/* ── Section 1: Active Milestones ────────────────────────────────── */}
       {milestoneCount > 0 && (

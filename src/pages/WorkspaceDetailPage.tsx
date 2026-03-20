@@ -288,6 +288,50 @@ function MaintenanceDropdown({
 }
 
 // ============================================================================
+// IntelTabFallback — shown inside intel-dependent tabs when data isn't ready
+// ============================================================================
+
+function IntelTabFallback({
+  intelligence,
+}: {
+  intelligence: ReturnType<typeof useWorkspaceIntelligenceData>
+}) {
+  if (intelligence.loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+        <span className="ml-3 text-sm text-slate-500">Loading intelligence data…</span>
+      </div>
+    )
+  }
+
+  if (intelligence.error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <AlertTriangle className="w-8 h-8 text-amber-500 mb-3" />
+        <p className="text-sm text-slate-400 mb-3">{intelligence.error}</p>
+        <button
+          onClick={intelligence.handleRefresh}
+          className="text-xs text-cyan-400 hover:text-cyan-300 underline underline-offset-2"
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
+
+  // No summary available (empty state)
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <Brain className="w-8 h-8 text-slate-600 mb-3" />
+      <p className="text-sm text-slate-500">
+        No intelligence data available. Sync your projects first.
+      </p>
+    </div>
+  )
+}
+
+// ============================================================================
 // Health Tab — Alerts first, then breakdown
 // ============================================================================
 
@@ -550,15 +594,15 @@ export function WorkspaceDetailPage() {
   const intelReady =
     !intelligence.loading && !intelligence.error && !!intelligence.summary
 
-  if (error)
+  if (loading) return <LoadingPage />
+  if (error || !workspace)
     return (
       <ErrorState
         title="Failed to load"
-        description={error}
+        description={error ?? 'Workspace data unavailable'}
         onRetry={fetchData}
       />
     )
-  if (loading || !workspace) return <LoadingPage />
 
   const tabs: TabItem[] = [
     {
@@ -688,47 +732,31 @@ export function WorkspaceDetailPage() {
         </div>
       )}
 
-      {/* Intelligence loading/error/empty states */}
-      {intelligence.loading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
-        </div>
-      )}
-      {intelligence.error && (
-        <div className="flex flex-col items-center justify-center py-10 text-center">
-          <AlertTriangle className="w-8 h-8 text-amber-500 mb-3" />
-          <p className="text-sm text-slate-400 mb-3">{intelligence.error}</p>
-          <button
-            onClick={intelligence.handleRefresh}
-            className="text-xs text-cyan-400 hover:text-cyan-300 underline underline-offset-2"
-          >
-            Retry
-          </button>
-        </div>
-      )}
-      {!intelligence.loading &&
-        !intelligence.error &&
-        !intelligence.summary && (
-          <div className="flex flex-col items-center justify-center py-10 text-center">
-            <Brain className="w-8 h-8 text-slate-600 mb-3" />
-            <p className="text-sm text-slate-500">
-              No intelligence data available. Sync your projects first.
-            </p>
-          </div>
-        )}
 
       {/* Tabbed content */}
       <TabLayout tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab}>
-        {activeTab === 'health' && intelReady && (
-          <HealthTab intelligence={intelligence} />
+        {activeTab === 'health' && (
+          intelReady ? (
+            <HealthTab intelligence={intelligence} />
+          ) : (
+            <IntelTabFallback intelligence={intelligence} />
+          )
         )}
 
-        {activeTab === 'code' && intelReady && (
-          <CodeTab intelligence={intelligence} slug={slug!} />
+        {activeTab === 'code' && (
+          intelReady ? (
+            <CodeTab intelligence={intelligence} slug={slug!} />
+          ) : (
+            <IntelTabFallback intelligence={intelligence} />
+          )
         )}
 
-        {activeTab === 'knowledge' && intelReady && (
-          <KnowledgeTab intelligence={intelligence} />
+        {activeTab === 'knowledge' && (
+          intelReady ? (
+            <KnowledgeTab intelligence={intelligence} />
+          ) : (
+            <IntelTabFallback intelligence={intelligence} />
+          )
         )}
 
         {activeTab === 'projects' && (
