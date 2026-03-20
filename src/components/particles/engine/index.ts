@@ -3,10 +3,6 @@
  */
 export { ParticleEngine } from './ParticleEngine';
 export { ParticlePool } from './ParticlePool';
-export { CanvasRenderer, colorWithAlpha } from './CanvasRenderer';
-export type { RenderConfig } from './CanvasRenderer';
-export { TextRenderer } from './TextRenderer';
-export type { TextStyle, CounterOptions } from './TextRenderer';
 export {
   PointEmitter,
   RingEmitter,
@@ -35,7 +31,5 @@ export type {
   Emitter,
   Rect,
   SceneConfig,
-  Scene,
-  SceneType,
 } from './types';
 export { TAU, DAMPING_DEFAULT, MAX_PARTICLES, MIN_DIST_SQ } from './types';

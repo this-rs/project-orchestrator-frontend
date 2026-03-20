@@ -85,52 +85,6 @@ export interface SceneConfig {
   height: number;
 }
 
-// ── Scene Interface ─────────────────────────────────────────
-import type { ParticleEngine } from './ParticleEngine';
-import type { ParticlePool } from './ParticlePool';
-import type { CanvasRenderer } from './CanvasRenderer';
-import type { TextRenderer } from './TextRenderer';
-
-export interface Scene {
-  name: string;
-  title: string;
-  subtitle: string;
-
-  // Lifecycle
-  setup(engine: ParticleEngine, pool: ParticlePool, bounds: Rect): void;
-  update(
-    engine: ParticleEngine,
-    pool: ParticlePool,
-    time: number,
-    dt: number,
-    progress: number,
-  ): void;
-  draw(
-    ctx: CanvasRenderingContext2D,
-    renderer: CanvasRenderer,
-    textRenderer: TextRenderer,
-    pool: ParticlePool,
-    time: number,
-    progress: number,
-  ): void;
-  teardown(): void;
-
-  // Optional: external data injection
-  setData?(data: unknown): void;
-
-  // Config
-  duration: number;
-  particleCount: number;
-  damping: number;
-}
-
-// ── Scene Registry Type ─────────────────────────────────────
-export type SceneType =
-  | 'leverage'
-  | 'system'
-  | 'contextWindow'
-  | 'focus'
-  | 'embeddings'
-  | 'distribution'
-  | 'feedbackLoop'
-  | 'moat';
+// ── Note ─────────────────────────────────────────────────────
+// The real scene interface is `ParticleScene` in `scenes/types.ts`.
+// Scene registry lives in `scenes/index.ts` (SCENE_REGISTRY).
