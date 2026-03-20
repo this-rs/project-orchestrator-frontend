@@ -43,14 +43,14 @@ const statusOptions = [
 // ── Human-readable labels for Energy / Cohesion ─────────────────────────
 
 function energyLabel(energy: number): { text: string; color: string } {
-  if (energy >= 0.7) return { text: 'Haute', color: 'text-emerald-400' }
-  if (energy >= 0.3) return { text: 'Moyenne', color: 'text-amber-400' }
-  return { text: 'Basse', color: 'text-red-400' }
+  if (energy >= 0.7) return { text: 'High', color: 'text-emerald-400' }
+  if (energy >= 0.3) return { text: 'Medium', color: 'text-amber-400' }
+  return { text: 'Low', color: 'text-red-400' }
 }
 
 function cohesionLabel(cohesion: number): { text: string; color: string } {
-  if (cohesion >= 0.5) return { text: 'Forte', color: 'text-indigo-400' }
-  return { text: 'Faible', color: 'text-indigo-300/60' }
+  if (cohesion >= 0.5) return { text: 'Strong', color: 'text-indigo-400' }
+  return { text: 'Weak', color: 'text-indigo-300/60' }
 }
 
 // ── Relative time ───────────────────────────────────────────────────────
@@ -70,8 +70,8 @@ function relativeTime(dateStr: string): string {
 // ── Tab definitions ─────────────────────────────────────────────────────
 
 const tabItems: TabItem[] = [
-  { id: 'skills', label: 'Mes Skills', icon: <Brain className="w-4 h-4" /> },
-  { id: 'registry', label: 'Catalogue partagé', icon: <Globe className="w-4 h-4" /> },
+  { id: 'skills', label: 'My Skills', icon: <Brain className="w-4 h-4" /> },
+  { id: 'registry', label: 'Shared Catalog', icon: <Globe className="w-4 h-4" /> },
 ]
 
 // ── Main page ───────────────────────────────────────────────────────────
@@ -235,7 +235,7 @@ export function SkillsPage() {
   return (
     <PageShell
       title="Skills"
-      description="Groupes de connaissances émergents, détectés automatiquement à partir de vos notes et décisions."
+      description="Emergent knowledge clusters, automatically detected from your notes and decisions."
       actions={
         <>
           {activeTab === 'skills' && (
@@ -269,9 +269,9 @@ export function SkillsPage() {
       <div className="flex items-start gap-3 rounded-lg bg-indigo-500/[0.07] border border-indigo-500/20 px-4 py-3 mb-6">
         <Info className="w-4 h-4 text-indigo-400 mt-0.5 shrink-0" />
         <p className="text-sm text-gray-300 leading-relaxed">
-          Les <strong>skills</strong> sont des groupes de connaissances qui émergent automatiquement de vos notes.
-          Plus vous ajoutez de notes liées entre elles, plus le système identifie des domaines d'expertise.
-          Vous pouvez aussi en créer manuellement ou en importer depuis le catalogue partagé.
+          <strong>Skills</strong> are knowledge clusters that emerge automatically from your notes.
+          The more linked notes you add, the more expertise domains the system identifies.
+          You can also create them manually or import from the shared catalog.
         </p>
       </div>
 
@@ -294,8 +294,8 @@ export function SkillsPage() {
             />
           ) : (
             <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-white/[0.06] rounded-2xl">
-              <h3 className="text-lg font-medium text-gray-200 mb-1">Aucun skill correspondant</h3>
-              <p className="text-sm text-gray-400 max-w-xs">Aucun skill ne correspond aux filtres actuels.</p>
+              <h3 className="text-lg font-medium text-gray-200 mb-1">No matching skills</h3>
+              <p className="text-sm text-gray-400 max-w-xs">No skills match the current filters.</p>
             </div>
           )
         ) : (
@@ -366,10 +366,10 @@ function SkillsEmptyState({ noteCount, detecting, onDetect, onCreate }: SkillsEm
         <Brain className="w-8 h-8" />
       </div>
 
-      <h3 className="text-lg font-medium text-gray-200 mb-1">Aucun skill détecté</h3>
+      <h3 className="text-lg font-medium text-gray-200 mb-1">No skills detected</h3>
       <p className="text-sm text-gray-400 mb-6 max-w-md">
-        Les skills apparaissent automatiquement quand vous avez suffisamment de notes liées entre elles.
-        Ajoutez des notes (gotchas, patterns, guidelines) à votre projet pour que le système puisse identifier des domaines d'expertise.
+        Skills appear automatically when you have enough linked notes.
+        Add notes (gotchas, patterns, guidelines) to your project so the system can identify expertise domains.
       </p>
 
       {/* Note count progress */}
@@ -381,9 +381,9 @@ function SkillsEmptyState({ noteCount, detecting, onDetect, onCreate }: SkillsEm
               {noteCount} / {MIN_NOTES_FOR_DETECTION} notes
             </span>
             {ready ? (
-              <span className="text-xs text-emerald-400">Prêt pour la détection</span>
+              <span className="text-xs text-emerald-400">Ready for detection</span>
             ) : (
-              <span className="text-xs text-gray-500">Encore {MIN_NOTES_FOR_DETECTION - noteCount} notes nécessaires</span>
+              <span className="text-xs text-gray-500">{MIN_NOTES_FOR_DETECTION - noteCount} more notes needed</span>
             )}
           </div>
           <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
@@ -394,7 +394,7 @@ function SkillsEmptyState({ noteCount, detecting, onDetect, onCreate }: SkillsEm
           </div>
           {!ready && (
             <p className="text-xs text-gray-500 mt-2">
-              Le minimum de {MIN_NOTES_FOR_DETECTION} notes permet d'avoir assez de connexions pour identifier des groupes cohérents.
+              A minimum of {MIN_NOTES_FOR_DETECTION} notes is needed to have enough connections to identify coherent clusters.
             </p>
           )}
         </div>
@@ -407,19 +407,19 @@ function SkillsEmptyState({ noteCount, detecting, onDetect, onCreate }: SkillsEm
             {detecting ? (
               <>
                 <Spinner size="sm" className="mr-1.5" />
-                Détection en cours...
+                Detecting...
               </>
             ) : (
               <>
                 <Sparkles className="w-4 h-4 mr-1.5" />
-                Lancer la détection
+                Run detection
               </>
             )}
           </Button>
         )}
         <Button variant="secondary" onClick={onCreate}>
           <Brain className="w-4 h-4 mr-1.5" />
-          Créer manuellement
+          Create manually
         </Button>
       </div>
     </div>
@@ -472,13 +472,13 @@ function SkillCard({ skill, wsSlug, onStatusChange, onDelete }: SkillCardProps) 
           <div className="flex items-center gap-3 mb-3">
             <MetricTooltip term="energy" showIndicator>
               <span className="inline-flex items-center gap-1.5 text-xs">
-                <span className="text-gray-500">Activité :</span>
+                <span className="text-gray-500">Activity:</span>
                 <span className={`font-medium ${energy.color}`}>{energy.text}</span>
               </span>
             </MetricTooltip>
             <MetricTooltip term="cohesion" showIndicator>
               <span className="inline-flex items-center gap-1.5 text-xs">
-                <span className="text-gray-500">Cohérence :</span>
+                <span className="text-gray-500">Cohesion:</span>
                 <span className={`font-medium ${cohesion.color}`}>{cohesion.text}</span>
               </span>
             </MetricTooltip>
@@ -500,7 +500,7 @@ function SkillCard({ skill, wsSlug, onStatusChange, onDelete }: SkillCardProps) 
           <div className="flex items-center gap-4 text-xs text-gray-500">
             <span className="flex items-center gap-1">
               <Brain className="w-3 h-3" />
-              {memberCount} membres
+              {memberCount} members
             </span>
             {skill.activation_count > 0 && (
               <MetricTooltip term="activation_count">
