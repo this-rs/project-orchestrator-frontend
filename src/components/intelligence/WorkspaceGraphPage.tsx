@@ -133,11 +133,12 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
       className={`overflow-hidden bg-[#0f172a] ${
         isFullscreen
           ? 'fixed inset-0 z-[9999] bg-slate-950'
-          : `relative ${embedded ? 'w-full' : '-mx-4 md:-mx-6 -mb-2'}`
+          : `relative ${embedded ? 'w-full h-[300px] sm:h-[450px] lg:h-[600px]' : '-mx-4 md:-mx-6 -mb-2'}`
       }`}
       style={{
         ...(!isFullscreen && {
-          height: embedded ? '600px' : 'calc(100dvh - 5rem)',
+          height: embedded ? undefined : 'calc(100dvh - 5rem)',
+          minHeight: embedded ? '300px' : undefined,
         }),
       }}
     >

@@ -527,7 +527,7 @@ export function IntelligencePage() {
   return (
     <div className="py-6 space-y-6 max-w-6xl">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-200 flex items-center gap-2">
             <Brain size={22} className="text-cyan-400" />
@@ -538,7 +538,7 @@ export function IntelligencePage() {
             <span className="text-slate-400 font-medium">{projectSlug}</span>
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={handleRefresh}
             disabled={refreshing}

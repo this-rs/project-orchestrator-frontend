@@ -706,7 +706,7 @@ export function WorkspaceDetailPage() {
       {/* ── 4. Graph + Timeline (always visible, not gated by intelligence) ── */}
       {slug && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <Card className="lg:col-span-2">
+          <Card className="lg:col-span-2 min-h-[300px]">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Network size={16} />
