@@ -2,17 +2,18 @@
  * MoatScene — Project Health visualization.
  *
  * Layout:
- *   TOP: Concentric rings (center) with global health % in the core
- *   BOTTOM: 2-column legend grid — each cell = colored dot + name + description + health bar
+ *   CENTER: Concentric rings with global health % in the core
+ *   LEFT:   Labels for layers 0, 2, 4 (even indices)
+ *   RIGHT:  Labels for layers 1, 3, 5 (odd indices)
+ *   Each label has: name + health%, description, health bar, connector line to ring
  *
  * Visual encoding:
  *   health -> color: cyan(1.0) -> orange(0.5) -> red(0.0)
  *   health -> movement: fluid(1.0) -> erratic jitter(0.0)
- *   ring radius grows per layer, outer layers rotate slower
  */
 
 import { TAU } from '../engine/types';
-import { renderGlowDot, renderRing } from '../renderer/CanvasRenderer';
+import { renderGlowDot, renderRing, renderLine } from '../renderer/CanvasRenderer';
 import { renderLabel, renderTitle } from '../renderer/TextRenderer';
 import type { ParticleScene } from './types';
 import { smoothstep, clamp, lerp } from './types';
@@ -64,7 +65,6 @@ const LAYER_META: Record<string, LayerMeta> = {
 // ── Constants ─────────────────────────────────────────────────
 
 const CORE_RADIUS = 14;
-const LAYER_SPACING = 20;
 const BASE_ORBIT_SPEED = 0.8;
 
 // ── Health → Color ────────────────────────────────────────────
@@ -133,9 +133,8 @@ export class MoatScene implements ParticleScene {
   init(width: number, height: number): void {
     this.w = width;
     this.h = height;
-    // Rings in upper-center area (top 50% of canvas)
     this.cx = width * 0.5;
-    this.cy = height * 0.30;
+    this.cy = height * 0.5;
     this.buildLayers();
   }
 
@@ -143,18 +142,18 @@ export class MoatScene implements ParticleScene {
     this.w = width;
     this.h = height;
     this.cx = width * 0.5;
-    this.cy = height * 0.30;
+    this.cy = height * 0.5;
   }
 
   private buildLayers(): void {
     const { layers } = this.data;
     this.layerStates = [];
 
-    // Adaptive spacing to fit within the ring area
-    const maxRadius = Math.min(this.w * 0.28, this.h * 0.24);
+    // Max ring radius: leave room for labels on sides (~30% each side)
+    const maxRadius = Math.min(this.w * 0.20, this.h * 0.32);
     const spacing = layers.length > 0
-      ? Math.min(LAYER_SPACING, (maxRadius - CORE_RADIUS) / layers.length)
-      : LAYER_SPACING;
+      ? Math.min(20, (maxRadius - CORE_RADIUS) / layers.length)
+      : 20;
 
     for (let n = 0; n < layers.length; n++) {
       const layer = layers[n];
@@ -229,10 +228,41 @@ export class MoatScene implements ParticleScene {
     // ── Title ───────────────────────────────────────────
     renderTitle(ctx, this.title, width, 0.5);
 
+    // ── Label layout: split layers left/right ───────────
+    // Even indices (0, 2, 4) → LEFT side
+    // Odd indices (1, 3, 5) → RIGHT side
+    const leftIndices: number[] = [];
+    const rightIndices: number[] = [];
+    for (let n = 0; n < maxLayers; n++) {
+      if (n % 2 === 0) leftIndices.push(n);
+      else rightIndices.push(n);
+    }
+
+    // Vertical distribution for each side
+    const labelTop = 52;
+    const labelBottom = height - 30;
+    const leftRowH = leftIndices.length > 1
+      ? Math.min(42, (labelBottom - labelTop) / leftIndices.length)
+      : 42;
+    const rightRowH = rightIndices.length > 1
+      ? Math.min(42, (labelBottom - labelTop) / rightIndices.length)
+      : 42;
+
+    // Center each side's label block vertically
+    const leftBlockH = leftIndices.length * leftRowH;
+    const leftStartY = labelTop + (labelBottom - labelTop - leftBlockH) / 2 + leftRowH / 2;
+    const rightBlockH = rightIndices.length * rightRowH;
+    const rightStartY = labelTop + (labelBottom - labelTop - rightBlockH) / 2 + rightRowH / 2;
+
+    // Horizontal positions for label columns
+    const leftLabelX = width * 0.26;  // right-aligned labels on left side
+    const rightLabelX = width * 0.74; // left-aligned labels on right side
+    const barWidth = width * 0.18;
+
     // ── Layer phases ────────────────────────────────────
     const layerPhases: number[] = [];
 
-    // ── Rings + particles (upper area) ──────────────────
+    // ── Rings + particles ───────────────────────────────
     for (let n = 0; n < maxLayers; n++) {
       const ls = this.layerStates[n];
       const layerPhase = smoothstep(
@@ -266,6 +296,90 @@ export class MoatScene implements ParticleScene {
       }
     }
 
+    // ── LEFT labels (even layers: 0, 2, 4) ──────────────
+    for (let i = 0; i < leftIndices.length; i++) {
+      const n = leftIndices[i];
+      const ls = this.layerStates[n];
+      const layerPhase = layerPhases[n];
+      if (layerPhase < 0.1) continue;
+
+      const labelY = leftStartY + i * leftRowH;
+      const fadeIn = layerPhase * 0.85;
+      const healthPct = Math.round(ls.health * 100);
+
+      // Connector: label → ring (left side of ring)
+      const ringEdgeX = cx - ls.radius;
+      renderLine(ctx, leftLabelX + 4, labelY, ringEdgeX, cy, fadeIn * 0.07, 0.5, ls.color);
+      renderGlowDot(ctx, ringEdgeX, cy, 1.5, fadeIn * 0.5, ls.color, 3);
+
+      // Name + health % (right-aligned)
+      renderLabel(ctx, {
+        text: `${healthPct}%  ${ls.displayName}`,
+        x: leftLabelX,
+        y: labelY - 5,
+        opacity: fadeIn,
+        size: 9,
+        color: ls.color,
+        align: 'right',
+      });
+
+      // Description (right-aligned)
+      renderLabel(ctx, {
+        text: `${ls.desc} (${ls.count})`,
+        x: leftLabelX,
+        y: labelY + 7,
+        opacity: fadeIn * 0.4,
+        size: 7,
+        color: '#94a3b8',
+        align: 'right',
+      });
+
+      // Health bar (right-aligned: grows leftward)
+      this.drawHealthBarRight(ctx, leftLabelX, labelY + 15, barWidth, 2, ls.health, ls.color, fadeIn);
+    }
+
+    // ── RIGHT labels (odd layers: 1, 3, 5) ──────────────
+    for (let i = 0; i < rightIndices.length; i++) {
+      const n = rightIndices[i];
+      const ls = this.layerStates[n];
+      const layerPhase = layerPhases[n];
+      if (layerPhase < 0.1) continue;
+
+      const labelY = rightStartY + i * rightRowH;
+      const fadeIn = layerPhase * 0.85;
+      const healthPct = Math.round(ls.health * 100);
+
+      // Connector: ring → label (right side of ring)
+      const ringEdgeX = cx + ls.radius;
+      renderLine(ctx, ringEdgeX, cy, rightLabelX - 4, labelY, fadeIn * 0.07, 0.5, ls.color);
+      renderGlowDot(ctx, ringEdgeX, cy, 1.5, fadeIn * 0.5, ls.color, 3);
+
+      // Name + health % (left-aligned)
+      renderLabel(ctx, {
+        text: `${ls.displayName}  ${healthPct}%`,
+        x: rightLabelX,
+        y: labelY - 5,
+        opacity: fadeIn,
+        size: 9,
+        color: ls.color,
+        align: 'left',
+      });
+
+      // Description (left-aligned)
+      renderLabel(ctx, {
+        text: `${ls.desc} (${ls.count})`,
+        x: rightLabelX,
+        y: labelY + 7,
+        opacity: fadeIn * 0.4,
+        size: 7,
+        color: '#94a3b8',
+        align: 'left',
+      });
+
+      // Health bar (left-aligned)
+      this.drawHealthBar(ctx, rightLabelX, labelY + 15, barWidth, 2, ls.health, ls.color, fadeIn);
+    }
+
     // ── Core glow ───────────────────────────────────────
     const pulseFreq = lerp(5, 1.2, hs);
     const pulseAmp = lerp(0.05, 0.2, hs);
@@ -275,7 +389,7 @@ export class MoatScene implements ParticleScene {
     renderGlowDot(ctx, cx, cy, CORE_RADIUS * 0.5 * coreScale, coreGlow, '#ffffff', CORE_RADIUS * 2 * coreScale);
     renderGlowDot(ctx, cx, cy, 4, 0.9, '#ffffff', 12);
 
-    // ── Health percentage at center ─────────────────────
+    // ── Health % at center ──────────────────────────────
     renderLabel(ctx, {
       text: `${Math.round(hs * 100)}%`,
       x: cx,
@@ -286,69 +400,19 @@ export class MoatScene implements ParticleScene {
       align: 'center',
     });
 
-    // ── 2-column legend grid (lower area) ───────────────
-    // Layout: 2 columns, rows auto-computed from layer count
-    const legendTop = height * 0.56; // start below the rings
-    const cols = 2;
-    const colWidth = (width - 40) / cols; // 20px padding each side
-    const rowHeight = 32;
-    // Center the grid horizontally
-    const gridLeft = 20;
-
-    for (let n = 0; n < maxLayers; n++) {
-      const ls = this.layerStates[n];
-      const layerPhase = layerPhases[n];
-      if (layerPhase < 0.1) continue;
-
-      const col = n % cols;
-      const row = Math.floor(n / cols);
-      const cellX = gridLeft + col * colWidth;
-      const cellY = legendTop + row * rowHeight;
-      const fadeIn = layerPhase * 0.85;
-      const healthPct = Math.round(ls.health * 100);
-
-      // Colored dot
-      renderGlowDot(ctx, cellX + 6, cellY + 6, 3, fadeIn, ls.color, 6);
-
-      // Layer name + health %
-      renderLabel(ctx, {
-        text: `${ls.displayName}  ${healthPct}%`,
-        x: cellX + 16,
-        y: cellY + 5,
-        opacity: fadeIn,
-        size: 9,
-        color: ls.color,
-        align: 'left',
-      });
-
-      // Description + count
-      renderLabel(ctx, {
-        text: `${ls.desc} (${ls.count})`,
-        x: cellX + 16,
-        y: cellY + 18,
-        opacity: fadeIn * 0.45,
-        size: 7,
-        color: '#94a3b8',
-        align: 'left',
-      });
-
-      // Mini health bar
-      this.drawHealthBar(ctx, cellX + 16, cellY + 26, colWidth - 36, 2, ls.health, ls.color, fadeIn);
-    }
-
-    // ── Summary counter at bottom ───────────────────────
+    // ── Summary at bottom ───────────────────────────────
     const displayLayers = clamp(Math.floor(progress * (maxLayers + 1)), 0, maxLayers);
     if (displayLayers > 0) {
       const counterOpacity = smoothstep(0.1, 0.3, progress) * 0.5;
       const warningCount = this.layerStates.filter(l => l.health < 0.5).length;
 
-      let counterText = `${displayLayers} layer${displayLayers > 1 ? 's' : ''} active`;
+      let text = `${displayLayers} layer${displayLayers > 1 ? 's' : ''} active`;
       if (warningCount > 0 && progress > 0.5) {
-        counterText += ` \u00B7 ${warningCount} need${warningCount > 1 ? '' : 's'} attention`;
+        text += ` \u00B7 ${warningCount} need${warningCount > 1 ? '' : 's'} attention`;
       }
 
       renderLabel(ctx, {
-        text: counterText,
+        text,
         x: width / 2,
         y: height - 14,
         opacity: counterOpacity,
@@ -359,22 +423,37 @@ export class MoatScene implements ParticleScene {
     }
   }
 
-  /** Draw a mini health bar */
+  /** Health bar growing left-to-right */
   private drawHealthBar(
     ctx: CanvasRenderingContext2D,
     x: number, y: number,
     barWidth: number, barHeight: number,
-    health: number, color: string,
-    opacity: number,
+    health: number, color: string, opacity: number,
   ): void {
     ctx.globalAlpha = opacity * 0.15;
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(x, y, barWidth, barHeight);
-
     ctx.globalAlpha = opacity * 0.7;
     ctx.fillStyle = color;
     ctx.fillRect(x, y, barWidth * clamp(health, 0, 1), barHeight);
+    ctx.globalAlpha = 1;
+  }
 
+  /** Health bar growing right-to-left (for left-side labels) */
+  private drawHealthBarRight(
+    ctx: CanvasRenderingContext2D,
+    rightEdge: number, y: number,
+    barWidth: number, barHeight: number,
+    health: number, color: string, opacity: number,
+  ): void {
+    const x = rightEdge - barWidth;
+    ctx.globalAlpha = opacity * 0.15;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x, y, barWidth, barHeight);
+    const fillWidth = barWidth * clamp(health, 0, 1);
+    ctx.globalAlpha = opacity * 0.7;
+    ctx.fillStyle = color;
+    ctx.fillRect(rightEdge - fillWidth, y, fillWidth, barHeight);
     ctx.globalAlpha = 1;
   }
 
