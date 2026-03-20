@@ -141,6 +141,11 @@ export const runnerApi = {
    * - 404 → no active run for this plan
    * - 409 → cancellation already in progress
    */
+  /** Retry a failed task within a run. */
+  retryTask: async (planId: string, taskId: string): Promise<void> => {
+    await api.post<void>(`/plans/${planId}/run/tasks/${taskId}/retry`)
+  },
+
   cancelRun: async (planId: string): Promise<void> => {
     try {
       await api.post<void>(`/plans/${planId}/run/cancel`)

@@ -16,20 +16,12 @@ import {
   PageHeader,
   ConfirmDialog,
   MilestoneStatusBadge,
-  TabLayout,
   CompactStatCard,
   MetricTooltip,
 } from '@/components/ui'
-import type { TabItem } from '@/components/ui'
 import {
-  Box,
-  Flag,
-  Cpu,
-  Brain,
   Network,
-  AlertTriangle,
   Loader2,
-  X,
   Calendar,
   FileCode2,
   StickyNote,
@@ -42,6 +34,8 @@ import {
   Search,
   Activity,
   Check,
+  AlertTriangle,
+  Brain,
 } from 'lucide-react'
 import { workspacesApi, projectsApi } from '@/services'
 import { adminApi } from '@/services/admin'
@@ -67,10 +61,7 @@ import {
 } from '@/components/forms'
 import {
   IntelHealthBreakdown,
-  IntelLayerCards,
-  IntelSkillsCard,
   IntelAttention,
-  IntelBehavioralCard,
 } from '@/components/intelligence/IntelligenceDashboard'
 import { useWorkspaceIntelligenceData } from '@/components/intelligence/useWorkspaceIntelligenceData'
 import type {
@@ -102,6 +93,48 @@ interface WorkspaceOverviewResponse {
     total_tasks: number
     percentage: number
   }
+}
+
+// ============================================================================
+// IntelTabFallback — inline loading/error/empty for intelligence sections
+// ============================================================================
+
+function IntelTabFallback({
+  intelligence,
+}: {
+  intelligence: { loading: boolean; error: string | null; summary: unknown | null; handleRefresh: () => void }
+}) {
+  if (intelligence.loading) {
+    return (
+      <div data-testid="intel-loading" className="flex flex-col items-center justify-center py-16 text-center">
+        <Loader2 className="w-6 h-6 animate-spin text-slate-500 mb-3" />
+        <span className="text-sm text-slate-400">Loading intelligence data…</span>
+      </div>
+    )
+  }
+
+  if (intelligence.error) {
+    return (
+      <div data-testid="intel-error" className="flex flex-col items-center justify-center py-16 text-center">
+        <AlertTriangle className="w-8 h-8 text-amber-500 mb-3" />
+        <p className="text-sm text-slate-400 mb-3">{intelligence.error}</p>
+        <button
+          onClick={intelligence.handleRefresh}
+          className="text-xs text-cyan-400 hover:text-cyan-300 underline underline-offset-2"
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
+
+  // No summary available (empty state)
+  return (
+    <div data-testid="intel-empty" className="flex flex-col items-center justify-center py-16 text-center">
+      <Brain className="w-8 h-8 text-slate-600 mb-3" />
+      <p className="text-sm text-slate-500">No intelligence data available. Sync your projects first.</p>
+    </div>
+  )
 }
 
 // ============================================================================
@@ -288,137 +321,7 @@ function MaintenanceDropdown({
 }
 
 // ============================================================================
-// Health Tab — Alerts first, then breakdown
-// ============================================================================
-
-function HealthTab({
-  intelligence,
-}: {
-  intelligence: ReturnType<typeof useWorkspaceIntelligenceData>
-}) {
-  const s = intelligence.summary
-  if (!s) return null
-
-  return (
-    <div className="space-y-4 pt-4">
-      {/* Alerts/Warnings FIRST */}
-      <IntelAttention data={intelligence} />
-
-      {/* Health breakdown bars */}
-      <IntelHealthBreakdown data={intelligence} />
-    </div>
-  )
-}
-
-// ============================================================================
-// Code Tab — Communities, hotspots, architecture
-// ============================================================================
-
-function CodeTab({
-  intelligence,
-  slug,
-}: {
-  intelligence: ReturnType<typeof useWorkspaceIntelligenceData>
-  slug: string
-}) {
-  type SubView = 'graph' | 'timeline' | null
-  const [subView, setSubView] = useState<SubView>('graph')
-
-  const s = intelligence.summary
-  if (!s) return null
-
-  return (
-    <div className="space-y-4 pt-4">
-      {/* Sub-view switcher */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => setSubView(subView === 'graph' ? null : 'graph')}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
-            subView === 'graph'
-              ? 'bg-blue-500/20 text-blue-300 ring-1 ring-blue-500/40'
-              : 'text-blue-400 hover:bg-blue-500/10'
-          }`}
-        >
-          <Network size={13} />
-          Graph
-        </button>
-        <button
-          onClick={() =>
-            setSubView(subView === 'timeline' ? null : 'timeline')
-          }
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
-            subView === 'timeline'
-              ? 'bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/40'
-              : 'text-violet-400 hover:bg-violet-500/10'
-          }`}
-        >
-          <Calendar size={13} />
-          Timeline
-        </button>
-        {subView && (
-          <button
-            onClick={() => setSubView(null)}
-            className="ml-1 p-1 rounded-md text-slate-500 hover:text-slate-300 hover:bg-white/[0.06] transition-colors"
-            title="Close view"
-          >
-            <X size={14} />
-          </button>
-        )}
-      </div>
-
-      {/* Inline graph sub-view */}
-      {subView === 'graph' && (
-        <Suspense
-          fallback={
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
-            </div>
-          }
-        >
-          <WorkspaceGraphPage workspaceSlug={slug} embedded />
-        </Suspense>
-      )}
-
-      {/* Inline timeline sub-view */}
-      {subView === 'timeline' && (
-        <Suspense
-          fallback={
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
-            </div>
-          }
-        >
-          <WorkspaceLearningTimeline workspaceSlug={slug} embedded />
-        </Suspense>
-      )}
-
-      {/* Code layer card — communities, orphans, hotspots */}
-      <IntelLayerCards data={intelligence} />
-    </div>
-  )
-}
-
-// ============================================================================
-// Knowledge Tab — Notes, decisions, skills, neural, behavioral
-// ============================================================================
-
-function KnowledgeTab({
-  intelligence,
-}: {
-  intelligence: ReturnType<typeof useWorkspaceIntelligenceData>
-}) {
-  if (!intelligence.summary) return null
-
-  return (
-    <div className="space-y-4 pt-4">
-      <IntelSkillsCard data={intelligence} />
-      <IntelBehavioralCard data={intelligence} />
-    </div>
-  )
-}
-
-// ============================================================================
-// MAIN PAGE
+// MAIN PAGE — Linear vertical layout (no tabs)
 // ============================================================================
 
 export function WorkspaceDetailPage() {
@@ -450,9 +353,6 @@ export function WorkspaceDetailPage() {
   } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  // Active tab
-  const [activeTab, setActiveTab] = useState('health')
 
   const fetchData = useCallback(async () => {
     if (!slug) return
@@ -550,54 +450,19 @@ export function WorkspaceDetailPage() {
   const intelReady =
     !intelligence.loading && !intelligence.error && !!intelligence.summary
 
-  if (error)
+  if (loading) return <LoadingPage />
+  if (error || !workspace)
     return (
       <ErrorState
         title="Failed to load"
-        description={error}
+        description={error ?? 'Workspace data unavailable'}
         onRetry={fetchData}
       />
     )
-  if (loading || !workspace) return <LoadingPage />
-
-  const tabs: TabItem[] = [
-    {
-      id: 'health',
-      label: 'Health',
-      icon: <Activity size={14} />,
-    },
-    {
-      id: 'code',
-      label: 'Code',
-      icon: <FileCode2 size={14} />,
-    },
-    {
-      id: 'knowledge',
-      label: 'Knowledge',
-      icon: <Brain size={14} />,
-    },
-    {
-      id: 'projects',
-      label: 'Projects',
-      icon: <Box size={14} />,
-      count: projects.length,
-    },
-    {
-      id: 'milestones',
-      label: 'Milestones',
-      icon: <Flag size={14} />,
-      count: milestones.length,
-    },
-    {
-      id: 'assets',
-      label: 'Assets',
-      icon: <Cpu size={14} />,
-      count: resources.length + components.length,
-    },
-  ]
 
   return (
     <div className="pt-6 space-y-6">
+      {/* ── 1. Header ── */}
       <PageHeader
         title={workspace.name}
         description={workspace.description}
@@ -688,364 +553,363 @@ export function WorkspaceDetailPage() {
         </div>
       )}
 
-      {/* Intelligence loading/error/empty states */}
-      {intelligence.loading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
-        </div>
+      {/* ── 2. Intelligence sections (with inline fallback when not ready) ── */}
+      {intelReady ? (
+        <>
+          <IntelAttention data={intelligence} />
+          <IntelHealthBreakdown data={intelligence} />
+        </>
+      ) : (
+        <IntelTabFallback intelligence={intelligence} />
       )}
-      {intelligence.error && (
-        <div className="flex flex-col items-center justify-center py-10 text-center">
-          <AlertTriangle className="w-8 h-8 text-amber-500 mb-3" />
-          <p className="text-sm text-slate-400 mb-3">{intelligence.error}</p>
-          <button
-            onClick={intelligence.handleRefresh}
-            className="text-xs text-cyan-400 hover:text-cyan-300 underline underline-offset-2"
-          >
-            Retry
-          </button>
-        </div>
-      )}
-      {!intelligence.loading &&
-        !intelligence.error &&
-        !intelligence.summary && (
-          <div className="flex flex-col items-center justify-center py-10 text-center">
-            <Brain className="w-8 h-8 text-slate-600 mb-3" />
-            <p className="text-sm text-slate-500">
-              No intelligence data available. Sync your projects first.
+
+      {/* ── 3. Projects ── */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Projects</CardTitle>
+            <Button
+              size="sm"
+              onClick={() =>
+                linkDialog.open({
+                  title: 'Add Project to Workspace',
+                  submitLabel: 'Add',
+                  fetchOptions: async () => {
+                    const data = await projectsApi.list()
+                    const existingIds = new Set(
+                      projects.map((p) => p.id),
+                    )
+                    return (data.items || [])
+                      .filter((p) => !existingIds.has(p.id))
+                      .map((p) => ({
+                        value: p.id,
+                        label: p.name,
+                        description: p.slug,
+                      }))
+                  },
+                  onLink: async (projectId) => {
+                    await workspacesApi.addProject(
+                      workspace.slug,
+                      projectId,
+                    )
+                    const data = await projectsApi.list()
+                    const proj = (data.items || []).find(
+                      (p) => p.id === projectId,
+                    )
+                    if (proj)
+                      setProjects((prev) => [...prev, proj])
+                    toast.success('Project added')
+                  },
+                })
+              }
+            >
+              Add Project
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {projects.length === 0 ? (
+            <p className="text-gray-500 text-sm">
+              No projects in this workspace
             </p>
+          ) : (
+            <div className="space-y-2">
+              {projects.map((project) => (
+                <div
+                  key={project.id}
+                  className="flex items-center justify-between p-3 bg-white/[0.06] rounded-lg"
+                >
+                  <Link
+                    to={workspacePath(
+                      slug,
+                      `/projects/${project.slug}`,
+                    )}
+                    className="font-medium text-gray-200 hover:text-indigo-400 transition-colors flex-1 min-w-0"
+                  >
+                    {project.name}
+                  </Link>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs text-gray-500 hidden sm:inline">
+                      {project.slug}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        moveDialog.open({
+                          title: `Move "${project.name}" to workspace`,
+                          submitLabel: 'Move',
+                          fetchOptions: async () => {
+                            const allWorkspaces =
+                              await workspacesApi.list()
+                            return (allWorkspaces.items || [])
+                              .filter(
+                                (w) => w.slug !== workspace.slug,
+                              )
+                              .map((w) => ({
+                                value: w.slug,
+                                label: w.name,
+                                description: w.slug,
+                              }))
+                          },
+                          onLink: async (targetSlug) => {
+                            await workspacesApi.removeProject(
+                              workspace.slug,
+                              project.id,
+                            )
+                            await workspacesApi.addProject(
+                              targetSlug,
+                              project.id,
+                            )
+                            setProjects((prev) =>
+                              prev.filter(
+                                (p) => p.id !== project.id,
+                              ),
+                            )
+                            toast.success(
+                              `Project moved to ${targetSlug}`,
+                            )
+                          },
+                        })
+                      }}
+                      className="text-gray-500 hover:text-indigo-400 text-xs px-1"
+                      title="Move to another workspace"
+                    >
+                      Move
+                    </button>
+                    <button
+                      onClick={async (e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        await workspacesApi.removeProject(
+                          workspace.slug,
+                          project.id,
+                        )
+                        setProjects((prev) =>
+                          prev.filter((p) => p.id !== project.id),
+                        )
+                        toast.success('Project removed')
+                      }}
+                      className="text-gray-500 hover:text-red-400 text-sm px-1"
+                      title="Remove from workspace"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── 4. Graph + Timeline (always visible, not gated by intelligence) ── */}
+      {slug && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Network size={16} />
+                Graph
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Suspense
+                fallback={
+                  <div className="h-[400px] rounded-lg bg-slate-800/50 animate-pulse" />
+                }
+              >
+                <WorkspaceGraphPage workspaceSlug={slug!} embedded />
+              </Suspense>
+            </CardContent>
+          </Card>
+          <Card className="lg:col-span-1">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar size={16} />
+                Timeline
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Suspense
+                fallback={
+                  <div className="h-[400px] rounded-lg bg-slate-800/50 animate-pulse" />
+                }
+              >
+                <WorkspaceLearningTimeline workspaceSlug={slug!} embedded />
+              </Suspense>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── 5. Milestones with progress bars ── */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Milestones</CardTitle>
+            <Button
+              size="sm"
+              onClick={() =>
+                milestoneFormDialog.open({ title: 'Add Milestone' })
+              }
+            >
+              Add Milestone
+            </Button>
           </div>
-        )}
+        </CardHeader>
+        <CardContent>
+          {milestones.length === 0 ? (
+            <p className="text-gray-500 text-sm">
+              No milestones defined
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {milestones.map((milestone) => (
+                <Link
+                  key={milestone.id}
+                  to={workspacePath(
+                    slug,
+                    `/milestones/${milestone.id}`,
+                  )}
+                  className="block p-4 bg-white/[0.06] rounded-lg hover:bg-white/[0.08] transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="font-medium text-gray-200 truncate min-w-0">
+                      {milestone.title}
+                    </span>
+                    <MilestoneStatusBadge status={milestone.status} />
+                  </div>
+                  {milestone.progress && (
+                    <div className="space-y-1">
+                      <ProgressBar
+                        value={milestone.progress.percentage}
+                        showLabel
+                      />
+                      <p className="text-xs text-gray-500">
+                        {milestone.progress.completed} /{' '}
+                        {milestone.progress.total} tasks completed
+                      </p>
+                    </div>
+                  )}
+                </Link>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      {/* Tabbed content */}
-      <TabLayout tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab}>
-        {activeTab === 'health' && intelReady && (
-          <HealthTab intelligence={intelligence} />
-        )}
-
-        {activeTab === 'code' && intelReady && (
-          <CodeTab intelligence={intelligence} slug={slug!} />
-        )}
-
-        {activeTab === 'knowledge' && intelReady && (
-          <KnowledgeTab intelligence={intelligence} />
-        )}
-
-        {activeTab === 'projects' && (
-          <div className="pt-4">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Projects</CardTitle>
-                  <Button
-                    size="sm"
-                    onClick={() =>
-                      linkDialog.open({
-                        title: 'Add Project to Workspace',
-                        submitLabel: 'Add',
-                        fetchOptions: async () => {
-                          const data = await projectsApi.list()
-                          const existingIds = new Set(
-                            projects.map((p) => p.id),
+      {/* ── 6. Assets (resources + components) in compact grid ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Resources</CardTitle>
+              <Button
+                size="sm"
+                onClick={() =>
+                  resourceFormDialog.open({
+                    title: 'Add Resource',
+                    size: 'lg',
+                  })
+                }
+              >
+                Add
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {resources.length === 0 ? (
+              <p className="text-gray-500 text-sm">
+                No resources defined
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {resources.map((resource) => (
+                  <div
+                    key={resource.id}
+                    className="flex items-center justify-between gap-2 p-2"
+                  >
+                    <span className="text-gray-200 truncate min-w-0">
+                      {resource.name}
+                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge>{resource.resource_type}</Badge>
+                      <button
+                        onClick={async () => {
+                          await workspacesApi.deleteResource(resource.id)
+                          setResources((prev) =>
+                            prev.filter((r) => r.id !== resource.id),
                           )
-                          return (data.items || [])
-                            .filter((p) => !existingIds.has(p.id))
-                            .map((p) => ({
-                              value: p.id,
-                              label: p.name,
-                              description: p.slug,
-                            }))
-                        },
-                        onLink: async (projectId) => {
-                          await workspacesApi.addProject(
-                            workspace.slug,
-                            projectId,
+                          toast.success('Resource deleted')
+                        }}
+                        className="text-gray-500 hover:text-red-400 text-sm px-1"
+                        title="Delete resource"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Components</CardTitle>
+              <Button
+                size="sm"
+                onClick={() =>
+                  componentFormDialog.open({ title: 'Add Component' })
+                }
+              >
+                Add
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {components.length === 0 ? (
+              <p className="text-gray-500 text-sm">
+                No components defined
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {components.map((component) => (
+                  <div
+                    key={component.id}
+                    className="flex items-center justify-between gap-2 p-2"
+                  >
+                    <span className="text-gray-200 truncate min-w-0">
+                      {component.name}
+                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge>{component.component_type}</Badge>
+                      <button
+                        onClick={async () => {
+                          await workspacesApi.deleteComponent(
+                            component.id,
                           )
-                          const data = await projectsApi.list()
-                          const proj = (data.items || []).find(
-                            (p) => p.id === projectId,
+                          setComponents((prev) =>
+                            prev.filter((c) => c.id !== component.id),
                           )
-                          if (proj)
-                            setProjects((prev) => [...prev, proj])
-                          toast.success('Project added')
-                        },
-                      })
-                    }
-                  >
-                    Add Project
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {projects.length === 0 ? (
-                  <p className="text-gray-500 text-sm">
-                    No projects in this workspace
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {projects.map((project) => (
-                      <div
-                        key={project.id}
-                        className="flex items-center justify-between p-3 bg-white/[0.06] rounded-lg"
+                          toast.success('Component deleted')
+                        }}
+                        className="text-gray-500 hover:text-red-400 text-sm px-1"
+                        title="Delete component"
                       >
-                        <Link
-                          to={workspacePath(
-                            slug,
-                            `/projects/${project.slug}`,
-                          )}
-                          className="font-medium text-gray-200 hover:text-indigo-400 transition-colors flex-1 min-w-0"
-                        >
-                          {project.name}
-                        </Link>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-xs text-gray-500 hidden sm:inline">
-                            {project.slug}
-                          </span>
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              moveDialog.open({
-                                title: `Move "${project.name}" to workspace`,
-                                submitLabel: 'Move',
-                                fetchOptions: async () => {
-                                  const allWorkspaces =
-                                    await workspacesApi.list()
-                                  return (allWorkspaces.items || [])
-                                    .filter(
-                                      (w) => w.slug !== workspace.slug,
-                                    )
-                                    .map((w) => ({
-                                      value: w.slug,
-                                      label: w.name,
-                                      description: w.slug,
-                                    }))
-                                },
-                                onLink: async (targetSlug) => {
-                                  await workspacesApi.removeProject(
-                                    workspace.slug,
-                                    project.id,
-                                  )
-                                  await workspacesApi.addProject(
-                                    targetSlug,
-                                    project.id,
-                                  )
-                                  setProjects((prev) =>
-                                    prev.filter(
-                                      (p) => p.id !== project.id,
-                                    ),
-                                  )
-                                  toast.success(
-                                    `Project moved to ${targetSlug}`,
-                                  )
-                                },
-                              })
-                            }}
-                            className="text-gray-500 hover:text-indigo-400 text-xs px-1"
-                            title="Move to another workspace"
-                          >
-                            Move
-                          </button>
-                          <button
-                            onClick={async (e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              await workspacesApi.removeProject(
-                                workspace.slug,
-                                project.id,
-                              )
-                              setProjects((prev) =>
-                                prev.filter((p) => p.id !== project.id),
-                              )
-                              toast.success('Project removed')
-                            }}
-                            className="text-gray-500 hover:text-red-400 text-sm px-1"
-                            title="Remove from workspace"
-                          >
-                            &times;
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                        &times;
+                      </button>
+                    </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {activeTab === 'milestones' && (
-          <div className="pt-4">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Milestones</CardTitle>
-                  <Button
-                    size="sm"
-                    onClick={() =>
-                      milestoneFormDialog.open({ title: 'Add Milestone' })
-                    }
-                  >
-                    Add Milestone
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {milestones.length === 0 ? (
-                  <p className="text-gray-500 text-sm">
-                    No milestones defined
-                  </p>
-                ) : (
-                  <div className="space-y-4">
-                    {milestones.map((milestone) => (
-                      <Link
-                        key={milestone.id}
-                        to={workspacePath(
-                          slug,
-                          `/milestones/${milestone.id}`,
-                        )}
-                        className="block p-4 bg-white/[0.06] rounded-lg hover:bg-white/[0.06] transition-colors"
-                      >
-                        <div className="flex items-center justify-between gap-2 mb-2">
-                          <span className="font-medium text-gray-200 truncate min-w-0">
-                            {milestone.title}
-                          </span>
-                          <MilestoneStatusBadge status={milestone.status} />
-                        </div>
-                        {milestone.progress && (
-                          <div className="space-y-1">
-                            <ProgressBar
-                              value={milestone.progress.percentage}
-                              showLabel
-                            />
-                            <p className="text-xs text-gray-500">
-                              {milestone.progress.completed} /{' '}
-                              {milestone.progress.total} tasks completed
-                            </p>
-                          </div>
-                        )}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {activeTab === 'assets' && (
-          <div className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Resources</CardTitle>
-                  <Button
-                    size="sm"
-                    onClick={() =>
-                      resourceFormDialog.open({
-                        title: 'Add Resource',
-                        size: 'lg',
-                      })
-                    }
-                  >
-                    Add
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {resources.length === 0 ? (
-                  <p className="text-gray-500 text-sm">
-                    No resources defined
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {resources.map((resource) => (
-                      <div
-                        key={resource.id}
-                        className="flex items-center justify-between gap-2 p-2"
-                      >
-                        <span className="text-gray-200 truncate min-w-0">
-                          {resource.name}
-                        </span>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Badge>{resource.resource_type}</Badge>
-                          <button
-                            onClick={async () => {
-                              await workspacesApi.deleteResource(resource.id)
-                              setResources((prev) =>
-                                prev.filter((r) => r.id !== resource.id),
-                              )
-                              toast.success('Resource deleted')
-                            }}
-                            className="text-gray-500 hover:text-red-400 text-sm px-1"
-                            title="Delete resource"
-                          >
-                            &times;
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Components</CardTitle>
-                  <Button
-                    size="sm"
-                    onClick={() =>
-                      componentFormDialog.open({ title: 'Add Component' })
-                    }
-                  >
-                    Add
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {components.length === 0 ? (
-                  <p className="text-gray-500 text-sm">
-                    No components defined
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {components.map((component) => (
-                      <div
-                        key={component.id}
-                        className="flex items-center justify-between gap-2 p-2"
-                      >
-                        <span className="text-gray-200 truncate min-w-0">
-                          {component.name}
-                        </span>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Badge>{component.component_type}</Badge>
-                          <button
-                            onClick={async () => {
-                              await workspacesApi.deleteComponent(
-                                component.id,
-                              )
-                              setComponents((prev) =>
-                                prev.filter((c) => c.id !== component.id),
-                              )
-                              toast.success('Component deleted')
-                            }}
-                            className="text-gray-500 hover:text-red-400 text-sm px-1"
-                            title="Delete component"
-                          >
-                            &times;
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-      </TabLayout>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Dialogs */}
       <FormDialog
