@@ -162,7 +162,7 @@ function WaveSummaryBar({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-indigo-600 hover:bg-indigo-500 text-white transition-colors cursor-pointer"
             >
               <Play className="w-3.5 h-3.5" />
-              Launch Plan
+              {planStatus === 'in_progress' ? 'Resume Plan' : 'Launch Plan'}
             </button>
           )}
         </div>
