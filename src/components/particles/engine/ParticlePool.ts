@@ -24,6 +24,7 @@ function createDeadParticle(): Particle {
     mass: 1,
     group: 0,
     active: false,
+    metadata: {},
   };
 }
 
@@ -68,6 +69,7 @@ export class ParticlePool {
         p.color = config.color ?? '#ffffff';
         p.mass = config.mass ?? 1;
         p.group = config.group ?? 0;
+        p.metadata = config.metadata ?? {};
         p.active = true;
         this._activeCount++;
         return p;
@@ -83,6 +85,7 @@ export class ParticlePool {
   recycle(p: Particle): void {
     if (p.active) {
       p.active = false;
+      p.metadata = {};
       this._activeCount--;
     }
   }
@@ -99,6 +102,42 @@ export class ParticlePool {
         seen++;
       }
     }
+  }
+
+  /**
+   * Hit-test: find the closest active particle within a radius (in CSS px).
+   * DPR-aware: caller passes mouse coords in CSS space.
+   * Returns the particle or null if none within radius.
+   */
+  hitTest(
+    mouseX: number,
+    mouseY: number,
+    radius: number = 15,
+  ): Particle | null {
+    let closest: Particle | null = null;
+    let closestDistSq = radius * radius;
+    let seen = 0;
+
+    for (let i = 0; i < this.capacity && seen < this._activeCount; i++) {
+      const p = this.particles[i];
+      if (!p.active) continue;
+      seen++;
+
+      const dx = p.x - mouseX;
+      const dy = p.y - mouseY;
+      const distSq = dx * dx + dy * dy;
+
+      // Use particle size as minimum hit area (at least 8px radius)
+      const hitRadius = Math.max(p.size, 8);
+      const effectiveRadiusSq = Math.max(hitRadius * hitRadius, closestDistSq);
+
+      if (distSq < effectiveRadiusSq && distSq < closestDistSq) {
+        closestDistSq = distSq;
+        closest = p;
+      }
+    }
+
+    return closest;
   }
 
   /**

@@ -33,6 +33,7 @@ export interface Particle {
   mass: number; // for force calculations
   group: number; // cluster/group id
   active: boolean; // pool management
+  metadata: Record<string, unknown>; // opaque data for interaction callbacks
 }
 
 // ── Spawn Config ───────────────────────────────────────────
@@ -47,6 +48,7 @@ export interface SpawnConfig {
   color?: string;
   mass?: number;
   group?: number;
+  metadata?: Record<string, unknown>;
 }
 
 // ── Force ──────────────────────────────────────────────────

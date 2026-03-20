@@ -28,6 +28,9 @@ export interface ParticleScene {
 
   /** Optional: inject external data */
   setData?(data: unknown): void;
+
+  /** Optional: expose pool for hit-testing in interactive mode */
+  getPool?(): import('../engine/ParticlePool').ParticlePool | null;
 }
 
 /** Easing functions — zero-alloc */

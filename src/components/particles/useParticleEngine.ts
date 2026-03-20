@@ -8,6 +8,7 @@
  *   - Scene lifecycle (init/dispose on swap)
  *   - Data forwarding via scene.setData()
  *   - IntersectionObserver → pause RAF when off-screen
+ *   - Highlight rendering for interactive mode (glow ×2, size ×1.5)
  *   - Cleanup on unmount
  */
 
@@ -22,6 +23,8 @@ export interface UseParticleEngineOptions {
   /** External progress override (0..1). Disables internal time */
   externalProgress?: number;
   onComplete?: () => void;
+  /** Index of highlighted particle (for interactive hover glow) */
+  highlightedId?: number;
 }
 
 export interface UseParticleEngineReturn {
@@ -42,14 +45,17 @@ export function useParticleEngine(
     cycleDuration = 10,
     externalProgress,
     onComplete,
+    highlightedId,
   } = options;
 
   // Refs for mutable state accessed in RAF — avoids stale closures
   const visibleRef = useRef(true);
   const onCompleteRef = useRef(onComplete);
   const externalProgressRef = useRef(externalProgress);
+  const highlightedIdRef = useRef(highlightedId);
   onCompleteRef.current = onComplete;
   externalProgressRef.current = externalProgress;
+  highlightedIdRef.current = highlightedId;
 
   // Forward data to scene
   useEffect(() => {
@@ -179,6 +185,48 @@ export function useParticleEngine(
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, cw, ch);
       scene.draw(ctx, cw, ch);
+
+      // ── Highlight overlay for interactive mode ────────────────
+      const hId = highlightedIdRef.current;
+      if (hId != null && scene.getPool) {
+        const pool = scene.getPool();
+        if (pool && hId >= 0 && hId < pool.particles.length) {
+          const p = pool.particles[hId];
+          if (p.active) {
+            // Amplified glow: radius ×2, size ×1.5, opacity boost +0.3
+            const highlightSize = p.size * 1.5;
+            const highlightOpacity = Math.min(p.opacity + 0.3, 1);
+
+            // Outer glow halo
+            ctx.save();
+            ctx.globalAlpha = highlightOpacity * 0.4;
+            ctx.shadowColor = '#22d3ee';
+            ctx.shadowBlur = p.size * 4;
+            ctx.fillStyle = '#22d3ee';
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, highlightSize * 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Inner bright dot
+            ctx.globalAlpha = highlightOpacity;
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, highlightSize, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Cyan ring accent
+            ctx.globalAlpha = highlightOpacity * 0.6;
+            ctx.strokeStyle = '#22d3ee';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, highlightSize + 4, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.restore();
+          }
+        }
+      }
 
       // Completion (non-loop mode only)
       if (!loop && progress >= 1 && !completeFired) {
