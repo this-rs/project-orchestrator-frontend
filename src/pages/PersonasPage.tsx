@@ -45,14 +45,14 @@ const statusOptions = [
 // ── Visual helpers ──────────────────────────────────────────────────────
 
 function energyLabel(energy: number): { text: string; color: string } {
-  if (energy >= 0.7) return { text: 'Haute', color: 'text-emerald-400' }
-  if (energy >= 0.3) return { text: 'Moyenne', color: 'text-amber-400' }
-  return { text: 'Basse', color: 'text-red-400' }
+  if (energy >= 0.7) return { text: 'High', color: 'text-emerald-400' }
+  if (energy >= 0.3) return { text: 'Medium', color: 'text-amber-400' }
+  return { text: 'Low', color: 'text-red-400' }
 }
 
 function cohesionLabel(cohesion: number): { text: string; color: string } {
-  if (cohesion >= 0.5) return { text: 'Forte', color: 'text-indigo-400' }
-  return { text: 'Faible', color: 'text-indigo-300/60' }
+  if (cohesion >= 0.5) return { text: 'Strong', color: 'text-indigo-400' }
+  return { text: 'Weak', color: 'text-indigo-300/60' }
 }
 
 function statusBadge(status: PersonaStatus) {
@@ -211,7 +211,7 @@ export function PersonasPage() {
   return (
     <PageShell
       title="Personas"
-      description="Profils spécialisés assignés aux agents pour orienter leur comportement selon le contexte du code."
+      description="Specialized profiles assigned to agents to guide their behavior based on code context."
       actions={
         <Button size="sm" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4 mr-1" />
@@ -223,9 +223,9 @@ export function PersonasPage() {
       <div className="flex items-start gap-3 rounded-lg bg-purple-500/[0.07] border border-purple-500/20 px-4 py-3 mb-6">
         <Info className="w-4 h-4 text-purple-400 mt-0.5 shrink-0" />
         <p className="text-sm text-gray-300 leading-relaxed">
-          Une <strong>persona</strong> est un profil d'expertise assigné à un agent.
-          Elle détermine quels fichiers et compétences l'agent connaît, et oriente ses réponses.
-          Les personas peuvent émerger automatiquement ou être créées manuellement.
+          A <strong>persona</strong> is an expertise profile assigned to an agent.
+          It determines which files and skills the agent knows, and guides its responses.
+          Personas can emerge automatically or be created manually.
         </p>
       </div>
 
@@ -242,8 +242,8 @@ export function PersonasPage() {
       {projects.length === 0 && !loading && (
         <div className="text-center py-20 text-zinc-500">
           <Users className="h-14 w-14 mx-auto mb-4 opacity-30" />
-          <p className="text-lg font-medium">Aucun projet trouvé</p>
-          <p className="text-sm mt-1 text-zinc-600">Ajoutez un projet à ce workspace pour gérer les personas.</p>
+          <p className="text-lg font-medium">No projects found</p>
+          <p className="text-sm mt-1 text-zinc-600">Add a project to this workspace to manage personas.</p>
         </div>
       )}
 
@@ -401,14 +401,14 @@ export function PersonasPage() {
               <div className="w-16 h-16 rounded-full bg-white/[0.03] flex items-center justify-center text-gray-500 mb-4">
                 <Brain className="w-8 h-8" />
               </div>
-              <h3 className="text-lg font-medium text-gray-200 mb-1">Aucune persona trouvée</h3>
+              <h3 className="text-lg font-medium text-gray-200 mb-1">No personas found</h3>
               <p className="text-sm text-gray-400 mb-6 max-w-md">
-                Les personas sont des profils d'expertise qui orientent le comportement des agents.
-                Créez votre première persona pour spécialiser un agent sur une partie de votre codebase.
+                Personas are expertise profiles that guide agent behavior.
+                Create your first persona to specialize an agent on a part of your codebase.
               </p>
               <Button onClick={() => setCreateOpen(true)}>
                 <Plus className="w-4 h-4 mr-1.5" />
-                Créer une persona
+                Create a persona
               </Button>
             </div>
           )}
