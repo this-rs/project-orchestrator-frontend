@@ -873,7 +873,9 @@ export function RunnerDashboard() {
     return map
   }, [resolvedAgents, taskWaveMap])
 
-  // Build ordered wave list with task IDs
+  // Build ordered wave list with task IDs.
+  // For tasks that were skipped (already completed/blocked at run start), inject
+  // synthetic agent entries so they appear in the wave instead of "Waiting...".
   const orderedWaves = useMemo<Array<{ waveNumber: number; taskIds: string[]; agents: ActiveAgentSnapshot[] }>>(() => {
     if (!wavesData) {
       // Fallback: no wave data, group all agents in "Wave 1"
@@ -886,11 +888,34 @@ export function RunnerDashboard() {
       }
       return []
     }
-    return wavesData.waves.map((wave) => ({
-      waveNumber: wave.wave_number,
-      taskIds: wave.tasks.map(t => t.id),
-      agents: waveAgentsMap.get(wave.wave_number) ?? [],
-    }))
+    return wavesData.waves.map((wave) => {
+      const waveAgents = waveAgentsMap.get(wave.wave_number) ?? []
+      const agentTaskIds = new Set(waveAgents.map(a => a.task_id))
+
+      // For tasks with no agent in waves that already ran (skipped = already completed/blocked),
+      // create synthetic entries so they show up instead of "Waiting...".
+      // Only for waves at or before the current wave (don't synthesize future waves).
+      const currentWave = effectiveSnapshot?.current_wave ?? 0
+      const waveAlreadyRan = wave.wave_number <= currentWave || !isRunning
+      const syntheticAgents: ActiveAgentSnapshot[] = waveAlreadyRan
+        ? wave.tasks
+            .filter(t => !agentTaskIds.has(t.id))
+            .map(t => ({
+              task_id: t.id,
+              task_title: t.title ?? t.id.slice(0, 8),
+              session_id: null,
+              elapsed_secs: 0,
+              cost_usd: 0,
+              status: (t.status === 'completed' ? 'completed' : t.status === 'failed' ? 'failed' : 'completed') as ActiveAgentSnapshot['status'],
+            }))
+        : []
+
+      return {
+        waveNumber: wave.wave_number,
+        taskIds: wave.tasks.map(t => t.id),
+        agents: [...waveAgents, ...syntheticAgents],
+      }
+    })
   }, [wavesData, waveAgentsMap, resolvedAgents])
 
   const handleToggleConversation = useCallback((sessionId: string, taskTitle: string) => {
