@@ -13,7 +13,6 @@ import { workspacePath } from '@/utils/paths'
 import { chatSuggestedProjectIdAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import { CreateTaskForm, CreateConstraintForm, EditPlanForm } from '@/components/forms'
 import { UnifiedGraphSection, type GraphBreadcrumb } from '@/components/graph/UnifiedGraphSection'
-import { ImplementButton } from '@/components/pipeline/ImplementButton'
 import { ImplementDialog } from '@/components/pipeline/ImplementDialog'
 import { PlanGraphAdapter } from '@/adapters/PlanGraphAdapter'
 import { usePlanGraphData } from '@/hooks/usePlanGraphData'
@@ -373,18 +372,7 @@ export function PlanDetailPage() {
           { label: 'Created by', value: plan.created_by },
           { label: 'Created', value: new Date(plan.created_at).toLocaleDateString() },
         ]}
-        actions={
-          // Only show Implement button for actionable statuses (approved, in_progress)
-          // Hide for draft, completed, cancelled — and disable if a run is already active
-          (plan.status === 'approved' || plan.status === 'in_progress') ? (
-            <ImplementButton
-              mode="plan"
-              entityId={plan.id}
-              onClick={() => setImplementDialogOpen(true)}
-              disabled={hasPipelineRunning}
-            />
-          ) : undefined
-        }
+        actions={undefined}
         overflowActions={[
           { label: 'Runner Dashboard', onClick: () => navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' }) },
           { label: 'Edit', onClick: () => editPlanDialog.open({ title: 'Edit Plan' }) },

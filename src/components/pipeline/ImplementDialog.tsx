@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Rocket, AlertTriangle, DollarSign } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import type { ImplementMode } from './ImplementButton'
+export type ImplementMode = 'plan' | 'task' | 'milestone'
 
 // ---------------------------------------------------------------------------
 // Props
