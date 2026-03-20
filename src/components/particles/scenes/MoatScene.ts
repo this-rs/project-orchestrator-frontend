@@ -22,7 +22,7 @@
  */
 
 import { TAU } from '../engine/types';
-import { renderGlowDot, renderRing } from '../renderer/CanvasRenderer';
+import { renderGlowDot, renderRing, renderLine } from '../renderer/CanvasRenderer';
 import { renderLabel, renderTitle } from '../renderer/TextRenderer';
 import type { ParticleScene } from './types';
 import { smoothstep, clamp, lerp } from './types';
@@ -99,13 +99,6 @@ function healthToColor(health: number): string {
     const b = Math.round(lerp(113, 60, t));
     return `rgb(${r},${g},${b})`;
   }
-}
-
-/** Health to status emoji/symbol for label */
-function healthToIndicator(health: number): string {
-  if (health >= 0.8) return '';
-  if (health >= 0.5) return '';
-  return '';
 }
 
 // ── Pre-allocated particle ring positions ─────────────────────
@@ -249,10 +242,25 @@ export class MoatScene implements ParticleScene {
     const maxLayers = this.layerStates.length;
     const hs = this.healthScore;
 
+    // ── Layout: label column on the right ────────────────
+    // Labels are placed in a fixed column, evenly distributed vertically
+    const labelColumnX = width * 0.62; // fixed X for all labels
+    const labelTopY = 50;              // start below title
+    const labelBottomY = height - 40;  // end above counter
+    const labelRowHeight = maxLayers > 1
+      ? Math.min(30, (labelBottomY - labelTopY) / maxLayers)
+      : 30;
+    // Center the label block vertically
+    const labelBlockHeight = maxLayers * labelRowHeight;
+    const labelStartY = labelTopY + (labelBottomY - labelTopY - labelBlockHeight) / 2 + labelRowHeight / 2;
+
     // ── Title ───────────────────────────────────────────
     renderTitle(ctx, this.title, width, 0.5);
 
-    // ── Layer rings + particles + labels ────────────────
+    // ── Collect layer phases for label drawing ──────────
+    const layerPhases: number[] = [];
+
+    // ── Layer rings + particles ─────────────────────────
     for (let n = 0; n < maxLayers; n++) {
       const ls = this.layerStates[n];
 
@@ -262,6 +270,7 @@ export class MoatScene implements ParticleScene {
         (n + 0.5) / (maxLayers + 1),
         progress,
       );
+      layerPhases.push(layerPhase);
       if (layerPhase < 0.01) continue;
 
       // Ring
@@ -291,43 +300,62 @@ export class MoatScene implements ParticleScene {
 
         renderGlowDot(ctx, px, py, size, opacity, ls.color, size * 3);
       }
+    }
 
-      // ── Layer label (right side, stacked vertically) ──
-      if (layerPhase > 0.15) {
-        const labelX = cx + ls.radius + 18;
-        // Y position: distribute labels along the ring's actual Y position
-        // Use a slight vertical offset per layer for readability
-        const labelY = cy - ls.radius * 0.3 + n * 2;
+    // ── Layer labels (fixed column, evenly spaced) ──────
+    for (let n = 0; n < maxLayers; n++) {
+      const ls = this.layerStates[n];
+      const layerPhase = layerPhases[n];
+      if (layerPhase < 0.15) continue;
 
-        const labelOpacity = layerPhase * 0.7;
-        const healthPct = Math.round(ls.health * 100);
-        const indicator = healthToIndicator(ls.health);
+      const labelY = labelStartY + n * labelRowHeight;
+      const labelOpacity = layerPhase * 0.8;
+      const healthPct = Math.round(ls.health * 100);
 
-        // Layer name
-        renderLabel(ctx, {
-          text: `${ls.displayName}`,
-          x: labelX,
-          y: labelY,
-          opacity: labelOpacity,
-          size: 9,
-          color: ls.color,
-          align: 'left',
-        });
+      // Connector line: from ring edge to label
+      const ringEdgeX = cx + ls.radius;
+      const ringEdgeY = cy; // connect from the right side of the ring
+      renderLine(
+        ctx,
+        ringEdgeX, ringEdgeY,
+        labelColumnX - 8, labelY,
+        layerPhase * 0.06,
+        0.5,
+        ls.color,
+      );
 
-        // Health bar (drawn manually — a small horizontal bar)
-        this.drawHealthBar(ctx, labelX, labelY + 9, 40, 3, ls.health, ls.color, labelOpacity);
+      // Small dot at the ring connection point
+      renderGlowDot(ctx, ringEdgeX, ringEdgeY, 1.5, layerPhase * 0.4, ls.color, 3);
 
-        // Count + health %
-        renderLabel(ctx, {
-          text: `${ls.count} ${indicator} ${healthPct}%`,
-          x: labelX,
-          y: labelY + 18,
-          opacity: labelOpacity * 0.6,
-          size: 8,
-          color: '#94a3b8',
-          align: 'left',
-        });
-      }
+      // Layer name + health %
+      renderLabel(ctx, {
+        text: `${ls.displayName}  ${healthPct}%`,
+        x: labelColumnX,
+        y: labelY - 4,
+        opacity: labelOpacity,
+        size: 9,
+        color: ls.color,
+        align: 'left',
+      });
+
+      // Health bar underneath the name
+      this.drawHealthBar(
+        ctx,
+        labelColumnX, labelY + 6,
+        50, 2,
+        ls.health, ls.color, labelOpacity,
+      );
+
+      // Count underneath the bar
+      renderLabel(ctx, {
+        text: `${ls.count} entities`,
+        x: labelColumnX,
+        y: labelY + 16,
+        opacity: labelOpacity * 0.45,
+        size: 7,
+        color: '#94a3b8',
+        align: 'left',
+      });
     }
 
     // ── Core glow (pulsating proportional to health) ───
