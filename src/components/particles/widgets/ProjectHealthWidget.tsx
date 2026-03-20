@@ -57,7 +57,7 @@ const TOOLTIP_STYLE: React.CSSProperties = {
 export function ProjectHealthWidget({
   data,
   className = '',
-  height = 240,
+  height = 320,
   interactive = true,
   onLayerClick,
 }: ProjectHealthWidgetProps) {
