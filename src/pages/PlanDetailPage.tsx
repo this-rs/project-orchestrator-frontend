@@ -2,13 +2,13 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
 import React from 'react'
-import { ChevronsUpDown, ChevronRight, Flag, FolderKanban, GitCommitHorizontal } from 'lucide-react'
-import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, InteractiveDecisionStatusBadge, ViewToggle, PageHeader, StatusSelect, SectionNav } from '@/components/ui'
+import { ChevronsUpDown, ChevronRight, Flag, FolderKanban, GitCommitHorizontal, ListChecks, GitFork, Archive } from 'lucide-react'
+import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, InteractiveDecisionStatusBadge, ViewToggle, PageHeader, StatusSelect, TabLayout } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { plansApi, tasksApi, projectsApi, workspacesApi, decisionsApi } from '@/services'
 import { ApiError } from '@/services/api'
 import { UniversalKanban, createTaskKanbanConfig } from '@/components/kanban'
-import { useViewMode, useConfirmDialog, useFormDialog, useLinkDialog, useToast, useSectionObserver, useWorkspaceSlug, useViewTransition } from '@/hooks'
+import { useViewMode, useConfirmDialog, useFormDialog, useLinkDialog, useToast, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { chatSuggestedProjectIdAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import { CreateTaskForm, CreateConstraintForm, EditPlanForm } from '@/components/forms'
@@ -18,9 +18,6 @@ import { ImplementDialog } from '@/components/pipeline/ImplementDialog'
 import { PlanGraphAdapter } from '@/adapters/PlanGraphAdapter'
 import { usePlanGraphData } from '@/hooks/usePlanGraphData'
 import { CommitList } from '@/components/commits'
-import { WaveDispatchWidget } from '@/components/particles/widgets'
-import { useDelegationVizData } from '@/hooks/useVizData'
-import { PlanRunHistory } from '@/components/runner/PlanRunHistory'
 import { runnerApi, useRunnerStatus } from '@/services/runner'
 import type { Plan, Decision, DecisionStatus, DependencyGraph, Task, Constraint, Step, Commit, PlanStatus, TaskStatus, StepStatus, PaginatedResponse, Project } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
@@ -40,7 +37,9 @@ export function PlanDetailPage() {
   const [decisions, setDecisions] = useState<DecisionWithTask[]>([])
   const [commits, setCommits] = useState<Commit[]>([])
   const [commitShaInput, setCommitShaInput] = useState('')
-  const [graph, setGraph] = useState<DependencyGraph | null>(null)
+  // graph state kept for fetchData compatibility — data consumed via planGraphData hook
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_graph, setGraph] = useState<DependencyGraph | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useViewMode()
@@ -62,14 +61,12 @@ export function PlanDetailPage() {
   const [linkedMilestones, setLinkedMilestones] = useState<Array<{ id: string; title: string; href: string; type: 'workspace' | 'project' }>>([])
   const [implementDialogOpen, setImplementDialogOpen] = useState(false)
   const [implementLoading, setImplementLoading] = useState(false)
-  // Particle viz: hovered task from wave dispatch widget
-  const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null)
+  // Active tab state — default to "tasks"
+  const [activeTab, setActiveTab] = useState('tasks')
   // Detect active pipeline run — used to hide/disable implement button
   const { isRunning: hasPipelineRunning } = useRunnerStatus(planId)
   // Plan graph data for UnifiedGraphSection (replaces inline graph section)
   const planGraphData = usePlanGraphData(planId, plan?.title, linkedProject?.slug)
-  // Particle viz: wave delegation (live polling when pipeline is running)
-  const delegationViz = useDelegationVizData(planId, hasPipelineRunning)
 
   // Fractal drill-down: navigate to task detail page
   const handleDrillDown = useCallback((target: { level: string; id: string }) => {
@@ -289,9 +286,6 @@ export function PlanDetailPage() {
     })
   }
 
-  const sectionIds = ['overview', 'runs', 'tasks', 'constraints', 'decisions', 'commits', ...(graph && (graph.nodes || []).length > 0 ? ['graph'] : [])]
-  const activeSection = useSectionObserver(sectionIds)
-
   // Build a fresh status map from local tasks state (includes optimistic updates)
   // Must be before early return to respect Rules of Hooks
   const taskStatusMap = useMemo(
@@ -327,16 +321,6 @@ export function PlanDetailPage() {
     failed: tasks.filter((t) => t.status === 'failed'),
   }
 
-  const sections = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'runs', label: 'Runs' },
-    ...(graph && (graph.nodes || []).length > 0 ? [{ id: 'graph', label: 'Waves', count: (graph.nodes || []).length }] : []),
-    { id: 'tasks', label: 'Tasks', count: tasks.length },
-    { id: 'commits', label: 'Commits', count: commits.length },
-    { id: 'constraints', label: 'Constraints', count: constraints.length },
-    { id: 'decisions', label: 'Decisions', count: decisions.length },
-  ]
-
   // Build parent links for milestone navigation
   const parentLinks: ParentLink[] = linkedMilestones.map((ms) => ({
     icon: ms.type === 'project' ? FolderKanban : Flag,
@@ -344,6 +328,14 @@ export function PlanDetailPage() {
     name: ms.title,
     href: ms.href,
   }))
+
+  // Tab definitions
+  const hasGraphNodes = planGraphData.data && (planGraphData.graph?.nodes || []).length > 0
+  const tabs = [
+    { id: 'tasks', label: 'Tasks', icon: <ListChecks className="w-4 h-4" />, count: tasks.length },
+    ...(hasGraphNodes ? [{ id: 'graph', label: 'Graph', icon: <GitFork className="w-4 h-4" />, count: (planGraphData.graph?.nodes || []).length }] : []),
+    { id: 'artefacts', label: 'Artefacts', icon: <Archive className="w-4 h-4" />, count: commits.length + decisions.length + constraints.length },
+  ]
 
   return (
     <div className="pt-6 space-y-6">
@@ -437,10 +429,7 @@ export function PlanDetailPage() {
         </div>
       </PageHeader>
 
-      <SectionNav sections={sections} activeSection={activeSection} />
-
-      {/* Task Stats */}
-      <section id="overview" className="scroll-mt-20">
+      {/* Task Stats — 5 stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 md:gap-4">
         <StatCard label="Pending" value={tasksByStatus.pending.length} color="gray" />
         <StatCard label="In Progress" value={tasksByStatus.in_progress.length} color="blue" />
@@ -449,263 +438,224 @@ export function PlanDetailPage() {
         <StatCard label="Failed" value={tasksByStatus.failed.length} color="red" />
       </div>
 
-      </section>
-
-      {/* Pipeline Runs */}
-      <section id="runs" className="scroll-mt-20">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between w-full">
-              <CardTitle>Pipeline Runs</CardTitle>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' })}
-              >
-                Runner Dashboard
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <PlanRunHistory planIds={plan.id} maxRuns={5} />
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* Execution Waves / Dependency Graph — unified via GraphAdapter */}
-      {planGraphData.data && (planGraphData.graph?.nodes || []).length > 0 && (
-        <section id="graph" className="scroll-mt-20 space-y-4">
-          <UnifiedGraphSection
-            adapter={PlanGraphAdapter}
-            data={planGraphData.data}
-            graph={planGraphData.graph}
-            taskStatuses={taskStatusMap}
-            waves={planGraphData.waves}
-            fetchWaves={planGraphData.fetchWaves}
-            wavesLoading={planGraphData.wavesLoading}
-            planId={plan.id}
-            planStatus={plan.status}
-            onLaunch={() => setImplementDialogOpen(true)}
-            isRunning={hasPipelineRunning}
-            availableViews={['dag', 'waves', '3d']}
-            defaultView="dag"
-            onDrillDown={handleDrillDown}
-            breadcrumbs={graphBreadcrumbs}
-            projectSlug={linkedProject?.slug}
-          />
-          {delegationViz.data && (
-            <WaveDispatchWidget
-              data={delegationViz.data}
-              height={250}
-              className="rounded-lg"
-              interactive
-              onTaskHover={setHoveredTaskId}
-              onTaskClick={(taskId) => {
-                // Scroll to task in list and navigate
-                const el = document.getElementById(`task-row-${taskId}`)
-                if (el) {
-                  el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                  // Brief highlight flash
-                  el.classList.add('ring-1', 'ring-cyan-500/50')
-                  setTimeout(() => el.classList.remove('ring-1', 'ring-cyan-500/50'), 1500)
-                }
-                navigate(workspacePath(wsSlug, `/tasks/${taskId}`), {
-                  state: { planId: plan.id, planTitle: plan.title, projectId: plan.project_id }
-                })
-              }}
-            />
-          )}
-        </section>
-      )}
-
-      {/* Tasks */}
-      <section id="tasks" className="scroll-mt-20">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CardTitle>Tasks ({tasks.length})</CardTitle>
-              {tasks.length > 0 && viewMode === 'list' && (
-                <button
-                  onClick={() => {
-                    if (tasksAllExpanded) {
-                      setTasksCollapseAll((s) => s + 1)
-                    } else {
-                      setTasksExpandAll((s) => s + 1)
-                    }
-                    setTasksAllExpanded(!tasksAllExpanded)
-                  }}
-                  className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
-                  title={tasksAllExpanded ? 'Collapse all' : 'Expand all'}
-                >
-                  <ChevronsUpDown className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button size="sm" onClick={() => taskFormDialog.open({ title: 'Add Task', size: 'lg' })}>Add Task</Button>
-              <ViewToggle value={viewMode} onChange={setViewMode} />
-            </div>
+      {/* 3-tab layout: Tasks | Graph | Artefacts */}
+      <TabLayout
+        tabs={tabs}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      >
+        {/* ── Tab: Tasks ── */}
+        {activeTab === 'tasks' && (
+          <div className="pt-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CardTitle>Tasks ({tasks.length})</CardTitle>
+                    {tasks.length > 0 && viewMode === 'list' && (
+                      <button
+                        onClick={() => {
+                          if (tasksAllExpanded) {
+                            setTasksCollapseAll((s) => s + 1)
+                          } else {
+                            setTasksExpandAll((s) => s + 1)
+                          }
+                          setTasksAllExpanded(!tasksAllExpanded)
+                        }}
+                        className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                        title={tasksAllExpanded ? 'Collapse all' : 'Expand all'}
+                      >
+                        <ChevronsUpDown className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" onClick={() => taskFormDialog.open({ title: 'Add Task', size: 'lg' })}>Add Task</Button>
+                    <ViewToggle value={viewMode} onChange={setViewMode} />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {tasks.length === 0 ? (
+                  <p className="text-gray-500 text-sm">No tasks in this plan</p>
+                ) : viewMode === 'kanban' ? (
+                  <UniversalKanban
+                    config={planTaskKanbanConfig}
+                    onItemClick={(taskId) => navigate(workspacePath(wsSlug, `/tasks/${taskId}`), { type: 'card-click' })}
+                    refreshTrigger={taskRefresh}
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    {tasks.map((task) => (
+                      <TaskRow
+                        key={task.id}
+                        task={task}
+                        onStatusChange={(newStatus) => handleTaskStatusChange(task.id, newStatus)}
+                        refreshTrigger={taskRefresh}
+                        expandAllSignal={tasksExpandAll}
+                        collapseAllSignal={tasksCollapseAll}
+                        planId={plan.id}
+                        planTitle={plan.title}
+                        projectId={plan.project_id}
+                      />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
-        </CardHeader>
-        <CardContent>
-          {tasks.length === 0 ? (
-            <p className="text-gray-500 text-sm">No tasks in this plan</p>
-          ) : viewMode === 'kanban' ? (
-            <UniversalKanban
-              config={planTaskKanbanConfig}
-              onItemClick={(taskId) => navigate(workspacePath(wsSlug, `/tasks/${taskId}`), { type: 'card-click' })}
-              refreshTrigger={taskRefresh}
+        )}
+
+        {/* ── Tab: Graph (DAG only, with waves toggle) ── */}
+        {activeTab === 'graph' && hasGraphNodes && (
+          <div className="pt-4">
+            <UnifiedGraphSection
+              adapter={PlanGraphAdapter}
+              data={planGraphData.data}
+              graph={planGraphData.graph}
+              taskStatuses={taskStatusMap}
+              waves={planGraphData.waves}
+              fetchWaves={planGraphData.fetchWaves}
+              wavesLoading={planGraphData.wavesLoading}
+              planId={plan.id}
+              planStatus={plan.status}
+              onLaunch={() => setImplementDialogOpen(true)}
+              isRunning={hasPipelineRunning}
+              availableViews={['dag', 'waves']}
+              defaultView="dag"
+              onDrillDown={handleDrillDown}
+              breadcrumbs={graphBreadcrumbs}
+              projectSlug={linkedProject?.slug}
             />
-          ) : (
-            <div className="space-y-2">
-              {tasks.map((task) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  onStatusChange={(newStatus) => handleTaskStatusChange(task.id, newStatus)}
-                  refreshTrigger={taskRefresh}
-                  expandAllSignal={tasksExpandAll}
-                  collapseAllSignal={tasksCollapseAll}
-                  planId={plan.id}
-                  planTitle={plan.title}
-                  projectId={plan.project_id}
-                  highlighted={hoveredTaskId === task.id}
-                />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      </section>
-
-      {/* Commits */}
-      <section id="commits" className="scroll-mt-20">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-2">
-              <GitCommitHorizontal className="w-4 h-4 text-gray-500" />
-              <CardTitle>Commits ({commits.length})</CardTitle>
-            </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => { setCommitShaInput(''); commitFormDialog.open({ title: 'Link Commit', submitLabel: 'Link', size: 'sm' }) }}
-            >
-              Link Commit
-            </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          {commits.length > 0 ? (
-            <CommitList commits={commits} />
-          ) : (
-            <p className="text-sm text-gray-500 py-4 text-center">No commits linked to this plan yet</p>
-          )}
-        </CardContent>
-      </Card>
-      </section>
+        )}
 
-      {/* Constraints & Decisions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-        <section id="constraints" className="scroll-mt-20">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between w-full">
-              <CardTitle>Constraints ({constraints.length})</CardTitle>
-              <Button size="sm" onClick={() => constraintFormDialog.open({ title: 'Add Constraint' })}>Add</Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {constraints.length === 0 ? (
-              <p className="text-gray-500 text-sm">No constraints defined</p>
-            ) : (
-              <div className="space-y-2">
-                {constraints.map((constraint) => (
-                  <ConstraintRow key={constraint.id} constraint={constraint} onDelete={async () => {
-                    await plansApi.deleteConstraint(constraint.id)
-                    setConstraints(prev => prev.filter(c => c.id !== constraint.id))
-                  }} />
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        </section>
-
-        <section id="decisions" className="scroll-mt-20">
-        <Card>
-          <CardHeader>
-            <CardTitle>Decisions ({decisions.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {decisions.length === 0 ? (
-              <p className="text-gray-500 text-sm">No decisions recorded</p>
-            ) : (
-              <div className="space-y-2">
-                {decisions.map((decision) => (
-                  <Link
-                    key={decision.id}
-                    to={workspacePath(wsSlug, `/decisions/${decision.id}`)}
-                    className="block p-3 bg-white/[0.06] rounded-lg overflow-hidden hover:bg-white/[0.09] transition-colors group/dec"
+        {/* ── Tab: Artefacts (commits + decisions + constraints) ── */}
+        {activeTab === 'artefacts' && (
+          <div className="pt-4 space-y-4">
+            {/* Commits */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <GitCommitHorizontal className="w-4 h-4 text-gray-500" />
+                    <CardTitle>Commits ({commits.length})</CardTitle>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => { setCommitShaInput(''); commitFormDialog.open({ title: 'Link Commit', submitLabel: 'Link', size: 'sm' }) }}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-gray-200 break-words line-clamp-2 mb-1">{decision.description}</p>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {decision.chosen_option && (
-                            <Badge variant="success">{decision.chosen_option}</Badge>
-                          )}
-                          <span
-                            role="link"
-                            tabIndex={0}
-                            className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              navigate(workspacePath(wsSlug, `/tasks/${decision.taskId}`), {
-                                state: { planId: plan.id, planTitle: plan.title, projectId: plan.project_id }
-                              })
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                navigate(workspacePath(wsSlug, `/tasks/${decision.taskId}`), {
-                                  state: { planId: plan.id, planTitle: plan.title, projectId: plan.project_id }
-                                })
-                              }
-                            }}
-                          >
-                            ← {decision.taskTitle}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.preventDefault()}>
-                        <InteractiveDecisionStatusBadge status={decision.status} onStatusChange={(status) => handleDecisionStatusChange(decision, status)} />
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            handleDeleteDecision(decision)
-                          }}
-                          className="p-1 rounded text-gray-600 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover/dec:opacity-100 transition-all"
-                          title="Delete decision"
-                        >
-                          &times;
-                        </button>
-                      </div>
+                    Link Commit
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {commits.length > 0 ? (
+                  <CommitList commits={commits} />
+                ) : (
+                  <p className="text-sm text-gray-500 py-4 text-center">No commits linked to this plan yet</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Constraints & Decisions side by side */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between w-full">
+                    <CardTitle>Constraints ({constraints.length})</CardTitle>
+                    <Button size="sm" onClick={() => constraintFormDialog.open({ title: 'Add Constraint' })}>Add</Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {constraints.length === 0 ? (
+                    <p className="text-gray-500 text-sm">No constraints defined</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {constraints.map((constraint) => (
+                        <ConstraintRow key={constraint.id} constraint={constraint} onDelete={async () => {
+                          await plansApi.deleteConstraint(constraint.id)
+                          setConstraints(prev => prev.filter(c => c.id !== constraint.id))
+                        }} />
+                      ))}
                     </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        </section>
-      </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Decisions ({decisions.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {decisions.length === 0 ? (
+                    <p className="text-gray-500 text-sm">No decisions recorded</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {decisions.map((decision) => (
+                        <Link
+                          key={decision.id}
+                          to={workspacePath(wsSlug, `/decisions/${decision.id}`)}
+                          className="block p-3 bg-white/[0.06] rounded-lg overflow-hidden hover:bg-white/[0.09] transition-colors group/dec"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium text-gray-200 break-words line-clamp-2 mb-1">{decision.description}</p>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {decision.chosen_option && (
+                                  <Badge variant="success">{decision.chosen_option}</Badge>
+                                )}
+                                <span
+                                  role="link"
+                                  tabIndex={0}
+                                  className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    navigate(workspacePath(wsSlug, `/tasks/${decision.taskId}`), {
+                                      state: { planId: plan.id, planTitle: plan.title, projectId: plan.project_id }
+                                    })
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      navigate(workspacePath(wsSlug, `/tasks/${decision.taskId}`), {
+                                        state: { planId: plan.id, planTitle: plan.title, projectId: plan.project_id }
+                                      })
+                                    }
+                                  }}
+                                >
+                                  ← {decision.taskTitle}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.preventDefault()}>
+                              <InteractiveDecisionStatusBadge status={decision.status} onStatusChange={(status) => handleDecisionStatusChange(decision, status)} />
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  handleDeleteDecision(decision)
+                                }}
+                                className="p-1 rounded text-gray-600 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover/dec:opacity-100 transition-all"
+                                title="Delete decision"
+                              >
+                                &times;
+                              </button>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
+      </TabLayout>
 
       <FormDialog {...editPlanDialog.dialogProps} onSubmit={editPlanForm.submit}>
         {editPlanForm.fields}
@@ -785,7 +735,6 @@ function TaskRow({
   planId,
   planTitle,
   projectId,
-  highlighted,
 }: {
   task: Task
   onStatusChange: (status: TaskStatus) => Promise<void>
@@ -795,7 +744,6 @@ function TaskRow({
   planId?: string
   planTitle?: string
   projectId?: string
-  highlighted?: boolean
 }) {
   const wsSlug = useWorkspaceSlug()
   const [expanded, setExpanded] = useState(false)
@@ -854,7 +802,7 @@ function TaskRow({
   return (
     <div
       id={`task-row-${task.id}`}
-      className={`rounded-lg overflow-hidden transition-all duration-200 ${highlighted ? 'bg-cyan-500/[0.12] ring-1 ring-cyan-500/30' : 'bg-white/[0.06]'}`}
+      className="rounded-lg overflow-hidden transition-all duration-200 bg-white/[0.06]"
     >
       <div className="flex items-center gap-2 p-3">
         <button
