@@ -41,7 +41,7 @@ export type IntelligenceEntityType = CodeEntityType | PMEntityType | KnowledgeEn
 
 export type FabricRelationType =
   | 'IMPORTS' | 'CALLS' | 'EXTENDS' | 'IMPLEMENTS'
-  | 'TOUCHES' | 'CO_CHANGED' | 'AFFECTS' | 'LINKED_TO'
+  | 'TOUCHES' | 'CO_CHANGED' | 'CO_CHANGED_TRANSITIVE' | 'AFFECTS' | 'LINKED_TO'
   | 'INCLUDES_ENTITY'
 export type NeuralRelationType = 'SYNAPSE'
 export type SkillRelationType = 'HAS_MEMBER'

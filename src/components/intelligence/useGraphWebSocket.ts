@@ -335,6 +335,7 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
           const style = EDGE_STYLES[relationType] ?? { color: '#6B7280', strokeWidth: 1 }
           const edgeType = relationType === 'SYNAPSE' ? 'synapse'
             : relationType === 'CO_CHANGED' ? 'co_changed'
+            : relationType === 'CO_CHANGED_TRANSITIVE' ? 'co_changed'
             : relationType === 'AFFECTS' ? 'affects'
             : 'default'
           const attrs = e.attributes ?? {}

@@ -96,6 +96,7 @@ function mapEdgeType(relationType: IntelligenceRelationType): string {
   switch (relationType) {
     case 'SYNAPSE': return 'synapse'
     case 'CO_CHANGED': return 'co_changed'
+    case 'CO_CHANGED_TRANSITIVE': return 'co_changed'
     case 'AFFECTS': return 'affects'
     default: return 'default'
   }

@@ -134,6 +134,7 @@ export const EDGE_STYLES: Record<IntelligenceRelationType, {
   IMPLEMENTS: { color: '#4338CA', strokeWidth: 1.5, strokeDasharray: '8 3 2 3' },
   TOUCHES:    { color: '#86EFAC', strokeWidth: 0.5, strokeDasharray: '4 4' },
   CO_CHANGED: { color: '#FED7AA', strokeWidth: 1 },
+  CO_CHANGED_TRANSITIVE: { color: '#FDBA74', strokeWidth: 0.8, strokeDasharray: '4 2' },
   AFFECTS:    { color: '#A855F7', strokeWidth: 2.5 },
   LINKED_TO:  { color: '#9CA3AF', strokeWidth: 1 },
   SYNAPSE:    { color: '#22D3EE', strokeWidth: 1.5, animated: true },

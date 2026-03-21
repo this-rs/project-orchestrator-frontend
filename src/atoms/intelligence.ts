@@ -140,6 +140,11 @@ export const visibleEdgesAtom = atom<IntelligenceEdge[]>((get) => {
       const count = edgeData.count ?? 1
       return count >= coChangeThreshold
     }
+    // CO_CHANGED_TRANSITIVE edges use the same threshold (Rolfsnes et al. 2018)
+    if (edgeData?.relationType === 'CO_CHANGED_TRANSITIVE') {
+      const score = edgeData.score ?? 0
+      return score >= 0.1 // min_transitive_score default
+    }
     return true
   })
 })
