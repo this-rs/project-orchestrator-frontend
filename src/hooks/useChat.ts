@@ -466,17 +466,7 @@ function historyEventsToMessages(events: any[]): ChatMessage[] {
       }
 
       case 'system_hint': {
-        // System-generated hint (post-compaction context, objective reminder, etc.)
-        // Rendered as a discreet block in the assistant message, NOT as a user message.
-        const content = evt.content ?? ''
-        if (content) {
-          const msg = lastAssistant(createdAt)
-          msg.blocks.push({
-            id: nextBlockId(),
-            type: 'system_hint',
-            content,
-          })
-        }
+        // System-generated hints are internal — never rendered in the UI.
         lastEventWasMaxTurns = false
         break
       }
@@ -1242,19 +1232,7 @@ export function useChat() {
         }
 
         case 'system_hint': {
-          // System-generated hint (post-compaction, objective reminder, guard hint)
-          // Rendered as a discreet info block, NOT as a user message.
-          const shData = event.replaying
-            ? (event as { data?: { content?: string } }).data ?? event
-            : event
-          const shContent = (shData as { content?: string }).content ?? ''
-          if (shContent) {
-            lastMsg.blocks.push({
-              id: nextBlockId(),
-              type: 'system_hint',
-              content: shContent,
-            })
-          }
+          // System-generated hints are internal — never rendered in the UI.
           break
         }
 

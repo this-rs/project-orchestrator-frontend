@@ -17,7 +17,6 @@ import { ResultErrorBlock } from './ResultErrorBlock'
 import { SystemInitBlock } from './SystemInitBlock'
 import { ContinueIndicatorBlock } from './ContinueIndicatorBlock'
 import { RetryIndicatorBlock } from './RetryIndicatorBlock'
-import { SystemHintBlock } from './SystemHintBlock'
 import { VizBlockRenderer } from './viz'
 
 /**
@@ -284,12 +283,8 @@ export function ChatMessageBubble({ message, isStreaming, onRespondPermission, o
               )
 
             case 'system_hint':
-              return (
-                <SystemHintBlock
-                  key={block.id}
-                  block={block}
-                />
-              )
+              // System hints are internal — never rendered in the UI.
+              return null
 
             case 'result_max_turns': {
               // Hide the entire block if the user already continued past this point
