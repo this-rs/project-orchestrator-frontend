@@ -78,15 +78,17 @@ export function TaskDetailPage() {
         // Handle both nested and flat response structures
         const taskData = response.task || response
         setTask(taskData)
-        setSteps(response.steps || [])
         setDecisions(response.decisions || [])
 
-        // Fetch blockers and blocking separately
-        const [blockersData, blockingData, commitsData] = await Promise.all([
+        // Fetch steps via dedicated endpoint (task.steps can have stale statuses)
+        // Also fetch blockers, blocking, and commits in parallel
+        const [stepsData, blockersData, blockingData, commitsData] = await Promise.all([
+          tasksApi.listSteps(taskId).catch(() => [] as Step[]),
           tasksApi.getBlockers(taskId).catch(() => ({ items: [] })),
           tasksApi.getBlocking(taskId).catch(() => ({ items: [] })),
           tasksApi.getCommits(taskId).catch(() => ({ items: [] })),
         ])
+        setSteps(stepsData)
         setBlockers(blockersData.items || [])
         setBlocking(blockingData.items || [])
         setCommits(commitsData.items || [])
