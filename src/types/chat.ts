@@ -223,6 +223,7 @@ export type ChatEvent =
   | { type: 'system_init'; cli_session_id: string; model?: string; tools?: string[]; mcp_servers?: { name: string; status?: string }[]; permission_mode?: string }
   | { type: 'auto_continue'; session_id: string; delay_ms: number }
   | { type: 'auto_continue_state_changed'; session_id: string; enabled: boolean }
+  | { type: 'system_hint'; content: string }
   | { type: 'retrying'; attempt: number; max_attempts: number; delay_ms: number; error_message: string }
   | { type: 'viz_block'; viz_type: string; data: Record<string, unknown>; interactive?: boolean; fallback_text: string; title?: string; max_height?: number }
 
@@ -289,7 +290,7 @@ export interface MessageSearchResult {
 
 export interface ContentBlock {
   id: string
-  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'permission_request' | 'input_request' | 'ask_user_question' | 'error' | 'compact_boundary' | 'model_changed' | 'result_max_turns' | 'result_error' | 'system_init' | 'continue_indicator' | 'retry_indicator' | 'viz'
+  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'permission_request' | 'input_request' | 'ask_user_question' | 'error' | 'compact_boundary' | 'model_changed' | 'result_max_turns' | 'result_error' | 'system_init' | 'system_hint' | 'continue_indicator' | 'retry_indicator' | 'viz'
   content: string
   metadata?: Record<string, unknown>
 }

@@ -17,6 +17,7 @@ import { ResultErrorBlock } from './ResultErrorBlock'
 import { SystemInitBlock } from './SystemInitBlock'
 import { ContinueIndicatorBlock } from './ContinueIndicatorBlock'
 import { RetryIndicatorBlock } from './RetryIndicatorBlock'
+import { SystemHintBlock } from './SystemHintBlock'
 import { VizBlockRenderer } from './viz'
 
 /**
@@ -277,6 +278,14 @@ export function ChatMessageBubble({ message, isStreaming, onRespondPermission, o
             case 'system_init':
               return (
                 <SystemInitBlock
+                  key={block.id}
+                  block={block}
+                />
+              )
+
+            case 'system_hint':
+              return (
+                <SystemHintBlock
                   key={block.id}
                   block={block}
                 />
