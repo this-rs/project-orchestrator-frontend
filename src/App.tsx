@@ -55,6 +55,7 @@ import { RfcDashboardPage } from '@/components/protocols'
 // Intelligence is a dedicated page — no longer embedded in ProjectDetailPage
 import IntelligenceGraphPage from '@/components/intelligence/IntelligenceGraphPage'
 import VectorSpaceExplorer from '@/components/intelligence/VectorSpaceExplorer'
+import ChatSessionPage from '@/pages/ChatSessionPage'
 
 /**
  * Captures the `?from=tray` query parameter on first render and stores
@@ -189,6 +190,7 @@ function App() {
                         <Route path="projects/:projectSlug/intelligence" element={<IntelligencePage />} />
                         <Route path="projects/:projectSlug/intelligence/graph" element={<IntelligenceGraphPage />} />
                         <Route path="projects/:projectSlug/intelligence/vector-space" element={<VectorSpaceExplorer />} />
+                        <Route path="chat/:sessionId" element={<ChatSessionPage />} />
                         <Route path="pipelines" element={<PipelineDashboardPage />} />
                         <Route path="triggers" element={<TriggerDashboardPage />} />
                         <Route path="sharing" element={<SharingPage />} />
