@@ -52,9 +52,9 @@ export default function ChatSessionPage() {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-slate-900/50 shrink-0">
+    <div className="relative flex flex-col h-[calc(100vh-4rem)] -mx-4 md:-mx-6">
+      {/* Header — full bleed via negative margins to counter MainLayout px-4/px-6 */}
+      <div className="flex items-center gap-3 px-6 py-3 border-b border-white/10 bg-slate-900/80 backdrop-blur-sm shrink-0">
         <Link
           to={workspacePath(wsSlug, '/overview')}
           className="p-1.5 rounded-md text-slate-500 hover:text-slate-300 hover:bg-white/[0.06] transition-colors"
@@ -63,12 +63,12 @@ export default function ChatSessionPage() {
           <ArrowLeft className="w-4 h-4" />
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="text-sm font-medium text-slate-300 truncate">
-            Session {sessionId.slice(0, 8)}...
+          <h1 className="text-sm font-medium text-slate-200 truncate">
+            Session {sessionId.slice(0, 8)}
           </h1>
           <div className="flex items-center gap-2 mt-0.5">
             <WsStatusIndicator status={wsStatus} />
-            <span className="text-[11px] text-slate-600">
+            <span className="text-[11px] text-slate-500">
               {messages.length} messages
             </span>
           </div>
@@ -78,7 +78,7 @@ export default function ChatSessionPage() {
       {/* Messages */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-4 py-4 space-y-1"
+        className="flex-1 overflow-y-auto px-6 py-4 space-y-1"
       >
         {messages.length === 0 && wsStatus === 'connected' && (
           <div className="text-center text-slate-600 text-sm py-12">
