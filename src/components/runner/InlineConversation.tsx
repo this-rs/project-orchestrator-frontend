@@ -25,7 +25,7 @@ import { chatApi } from '@/services/chat'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { useConversationWs } from '@/hooks/runner'
-import { MessageBubble } from './MessageBubble'
+import { ChatMessageBubble } from '@/components/chat/ChatMessageBubble'
 import { WsStatusIndicator } from './WsStatusIndicator'
 import { formatElapsed, agentStatusConfig, agentStatusBadgeVariant } from './shared'
 
@@ -153,6 +153,10 @@ export function InlineConversation({
     finally { setStopping(false) }
   }, [sessionId])
 
+  // --- No-op handlers for ChatMessageBubble (runner has no user interaction) ---
+  const handleRespondPermission = useCallback(() => {}, [])
+  const handleRespondInput = useCallback(() => {}, [])
+
   // --- Badge config (use shared maps) ---
   const badgeVariant = agentStatus ? agentStatusBadgeVariant[agentStatus as keyof typeof agentStatusBadgeVariant] : null
   const badgeLabel = agentStatus ? agentStatusConfig[agentStatus as keyof typeof agentStatusConfig]?.label : null
@@ -233,7 +237,7 @@ export function InlineConversation({
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="overflow-y-auto p-4 space-y-2"
+          className="overflow-y-auto p-4 space-y-2 chat-markdown prose prose-invert prose-sm max-w-none"
           style={{ height: collapsed ? 0 : height - 8 }}
         >
           {messages.length === 0 ? (
@@ -243,7 +247,14 @@ export function InlineConversation({
               </p>
             </div>
           ) : (
-            messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)
+            messages.map((msg) => (
+                <ChatMessageBubble
+                  key={msg.id}
+                  message={msg}
+                  onRespondPermission={handleRespondPermission}
+                  onRespondInput={handleRespondInput}
+                />
+              ))
           )}
         </div>
 

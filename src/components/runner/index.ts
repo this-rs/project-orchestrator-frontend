@@ -14,8 +14,6 @@ export { StatsRow } from './StatsRow'
 export type { StatsRowProps } from './StatsRow'
 
 // Extracted wave-centric components
-export { MessageBubble } from './MessageBubble'
-export type { MessageBubbleProps } from './MessageBubble'
 export { WsStatusIndicator } from './WsStatusIndicator'
 export type { WsStatusIndicatorProps } from './WsStatusIndicator'
 export { InlineConversation } from './InlineConversation'
