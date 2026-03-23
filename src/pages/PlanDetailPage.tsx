@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
 import React from 'react'
-import { ChevronsUpDown, ChevronRight, Flag, FolderKanban, GitCommitHorizontal, ListChecks, GitFork, Archive } from 'lucide-react'
+import { ChevronsUpDown, ChevronRight, Flag, FolderKanban, GitCommitHorizontal, ListChecks, GitFork, Archive, Play, ExternalLink } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, InteractiveDecisionStatusBadge, ViewToggle, PageHeader, StatusSelect, TabLayout } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { plansApi, tasksApi, projectsApi, workspacesApi, decisionsApi } from '@/services'
@@ -17,6 +17,8 @@ import { ImplementDialog } from '@/components/pipeline/ImplementDialog'
 import { PlanGraphAdapter } from '@/adapters/PlanGraphAdapter'
 import { usePlanGraphData } from '@/hooks/usePlanGraphData'
 import { CommitList } from '@/components/commits'
+import { PlanRunHistory } from '@/components/runner/PlanRunHistory'
+import { StatsRow } from '@/components/runner/StatsRow'
 import { runnerApi, useRunnerStatus } from '@/services/runner'
 import type { Plan, Decision, DecisionStatus, DependencyGraph, Task, Constraint, Step, Commit, PlanStatus, TaskStatus, StepStatus, PaginatedResponse, Project } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
@@ -62,8 +64,8 @@ export function PlanDetailPage() {
   const [implementLoading, setImplementLoading] = useState(false)
   // Active tab state — default to "tasks"
   const [activeTab, setActiveTab] = useState('tasks')
-  // Detect active pipeline run — used to hide/disable implement button
-  const { isRunning: hasPipelineRunning } = useRunnerStatus(planId)
+  // Detect active pipeline run — used to hide/disable implement button + runner tab
+  const { isRunning: hasPipelineRunning, snapshot: runnerSnapshot } = useRunnerStatus(planId)
   // Plan graph data for UnifiedGraphSection (replaces inline graph section)
   const planGraphData = usePlanGraphData(planId, plan?.title, linkedProject?.slug)
 
@@ -333,6 +335,7 @@ export function PlanDetailPage() {
   const tabs = [
     { id: 'tasks', label: 'Tasks', icon: <ListChecks className="w-4 h-4" />, count: tasks.length },
     ...(hasGraphNodes ? [{ id: 'graph', label: 'Graph', icon: <GitFork className="w-4 h-4" />, count: (planGraphData.graph?.nodes || []).length }] : []),
+    { id: 'runner', label: 'Runner', icon: <Play className="w-4 h-4" /> },
     { id: 'artefacts', label: 'Artefacts', icon: <Archive className="w-4 h-4" />, count: commits.length + decisions.length + constraints.length },
   ]
 
@@ -515,6 +518,84 @@ export function PlanDetailPage() {
               breadcrumbs={graphBreadcrumbs}
               projectSlug={linkedProject?.slug}
             />
+          </div>
+        )}
+
+        {/* ── Tab: Runner (active run + history + launch) ── */}
+        {activeTab === 'runner' && plan && (
+          <div className="pt-4 space-y-4">
+            {/* Active run status */}
+            {hasPipelineRunning && runnerSnapshot && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                      <CardTitle>Active Run</CardTitle>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' })}
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                      Full Dashboard
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <StatsRow
+                    effectiveSnapshot={runnerSnapshot}
+                    isRunning={hasPipelineRunning}
+                    resolvedAgents={runnerSnapshot.active_agents || []}
+                    wavesTotal={runnerSnapshot.current_wave}
+                    planId={plan.id}
+                    onBudgetSave={async (pid, value) => {
+                      await runnerApi.updateBudget(pid, value)
+                    }}
+                  />
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Launch actions */}
+            {!hasPipelineRunning && (
+              <Card>
+                <CardContent className="py-6">
+                  <div className="flex flex-col items-center gap-3 text-center">
+                    <Play className="w-8 h-8 text-gray-500" />
+                    <p className="text-sm text-gray-400">No active pipeline run for this plan</p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => setImplementDialogOpen(true)}
+                      >
+                        <Play className="w-3.5 h-3.5 mr-1.5" />
+                        Launch Pipeline
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' })}
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                        Runner Dashboard
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Run history */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Run History</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <PlanRunHistory planIds={plan.id} maxRuns={10} />
+              </CardContent>
+            </Card>
           </div>
         )}
 
