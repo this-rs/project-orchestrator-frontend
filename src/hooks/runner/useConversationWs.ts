@@ -2,24 +2,20 @@
  * useConversationWs — WebSocket-based real-time conversation hook.
  *
  * Connects to a chat session via WebSocket, handles authentication,
- * message parsing, and automatic reconnection with exponential backoff.
+ * accumulates raw ChatEvents, and assembles them into ChatMessage[]
+ * via historyEventsToMessages.
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { createWebSocket, ReadyState, type IWebSocket } from '@/services/wsAdapter'
 import { wsUrl } from '@/services/env'
 import { fetchWsTicket } from '@/services/auth'
+import { historyEventsToMessages } from '@/utils/chatAssembly'
+import type { ChatMessage } from '@/types'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-export interface ConversationMessage {
-  id: string
-  type: 'text' | 'tool_use' | 'tool_result' | 'system' | 'error' | 'unknown'
-  content: string
-  timestamp: number
-}
 
 export type WsStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting'
 
@@ -30,12 +26,22 @@ export type WsStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecti
 const MAX_RECONNECT_ATTEMPTS = 5
 const RECONNECT_BASE_DELAY = 1500
 
+/** Event types that are control-flow only (not accumulated as chat events). */
+const CONTROL_EVENTS = new Set([
+  'auth_ok',
+  'auth_error',
+  'replay_complete',
+  'events_lagged',
+  'session_dormant',
+  'session_closed',
+])
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
 
 export function useConversationWs(sessionId: string | null) {
-  const [messages, setMessages] = useState<ConversationMessage[]>([])
+  const [rawEvents, setRawEvents] = useState<unknown[]>([])
   const [status, setStatus] = useState<WsStatus>('disconnected')
   const wsRef = useRef<IWebSocket | null>(null)
   const reconnectAttemptsRef = useRef(0)
@@ -44,7 +50,30 @@ export function useConversationWs(sessionId: string | null) {
   const authenticatedRef = useRef(false)
   const sessionIdRef = useRef(sessionId)
   sessionIdRef.current = sessionId
-  const nextIdRef = useRef(0)
+
+  // Assemble ChatMessage[] from raw events via historyEventsToMessages
+  const messages: ChatMessage[] = useMemo(
+    () => historyEventsToMessages(rawEvents as Record<string, unknown>[]),
+    [rawEvents],
+  )
+
+  // Mark the last assistant message as streaming when the WS is connected
+  // (i.e., the agent is actively producing events)
+  const messagesWithStreaming: ChatMessage[] = useMemo(() => {
+    if (messages.length === 0) return messages
+    const isAgentActive = status === 'connected'
+    if (!isAgentActive) return messages
+
+    // Clone messages array with last assistant message marked as streaming
+    const result = [...messages]
+    for (let i = result.length - 1; i >= 0; i--) {
+      if (result[i].role === 'assistant') {
+        result[i] = { ...result[i], isStreaming: true }
+        break
+      }
+    }
+    return result
+  }, [messages, status])
 
   const cleanup = useCallback(() => {
     if (reconnectTimerRef.current) {
@@ -59,43 +88,6 @@ export function useConversationWs(sessionId: string | null) {
       wsRef.current = null
     }
     authenticatedRef.current = false
-  }, [])
-
-  const parseMessage = useCallback((data: unknown): ConversationMessage | null => {
-    if (!data || typeof data !== 'object') return null
-    const d = data as Record<string, unknown>
-    const id = String(++nextIdRef.current)
-    const timestamp = Date.now()
-
-    if (d.type === 'assistant_message' || d.type === 'text') {
-      const content = typeof d.content === 'string'
-        ? d.content
-        : typeof d.text === 'string' ? d.text : JSON.stringify(d)
-      return { id, type: 'text', content, timestamp }
-    }
-    if (d.type === 'tool_use') {
-      const name = (d.name as string) || 'tool'
-      const input = d.input ? JSON.stringify(d.input, null, 2) : ''
-      return { id, type: 'tool_use', content: `${name}\n${input}`, timestamp }
-    }
-    if (d.type === 'tool_result') {
-      const content = typeof d.content === 'string'
-        ? d.content
-        : typeof d.output === 'string' ? d.output : JSON.stringify(d)
-      return { id, type: 'tool_result', content, timestamp }
-    }
-    if (d.type === 'system') return { id, type: 'system', content: String(d.message || d.content || ''), timestamp }
-    if (d.type === 'error') return { id, type: 'error', content: String(d.message || d.error || ''), timestamp }
-    if (
-      d.type === 'auth_ok' || d.type === 'auth_error' ||
-      d.type === 'replay_complete' || d.type === 'events_lagged' ||
-      d.type === 'session_dormant' || d.type === 'session_closed' ||
-      d.type === 'result'
-    ) return null
-    if (d.content || d.text || d.message) {
-      return { id, type: 'unknown', content: String(d.content || d.text || d.message), timestamp }
-    }
-    return null
   }, [])
 
   const connect = useCallback(async () => {
@@ -117,11 +109,12 @@ export function useConversationWs(sessionId: string | null) {
               if (data.type === 'auth_ok') { authenticatedRef.current = true; setStatus('connected'); return }
               if (data.type === 'auth_error') { shouldReconnectRef.current = false; wsRef.current?.close(); return }
             }
-            if (data.type === 'replay_complete' || data.type === 'events_lagged' || data.type === 'session_dormant') return
             if (data.type === 'session_closed') { shouldReconnectRef.current = false; setStatus('disconnected'); return }
-            const msg = parseMessage(data)
-            if (msg) setMessages(prev => [...prev, msg])
-          } catch { /* ignore */ }
+            // Skip control events — don't accumulate them
+            if (CONTROL_EVENTS.has(data.type)) return
+            // Accumulate raw event for assembly
+            setRawEvents(prev => [...prev, data])
+          } catch { /* ignore parse errors */ }
         },
         onclose: () => {
           wsRef.current = null
@@ -147,7 +140,7 @@ export function useConversationWs(sessionId: string | null) {
       }
     } catch { scheduleReconnect() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [parseMessage])
+  }, [])
 
   function scheduleReconnect() {
     if (reconnectTimerRef.current) return
@@ -164,7 +157,7 @@ export function useConversationWs(sessionId: string | null) {
 
   useEffect(() => {
     cleanup()
-    setMessages([])
+    setRawEvents([])
     if (sessionId) {
       shouldReconnectRef.current = true
       reconnectAttemptsRef.current = 0
@@ -174,5 +167,5 @@ export function useConversationWs(sessionId: string | null) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
 
-  return { messages, status }
+  return { messages: messagesWithStreaming, status }
 }

@@ -304,6 +304,8 @@ export interface ChatMessage {
   duration_ms?: number
   /** Total turn cost in USD (from backend result event) */
   cost_usd?: number
+  /** True when the agent is actively streaming this message */
+  isStreaming?: boolean
 }
 
 export type ChatPanelMode = 'closed' | 'open' | 'fullscreen'
