@@ -29,7 +29,6 @@ import {
   Waves,
   Search,
   Orbit,
-  Calendar,
   Workflow,
   GitBranch,
   Link2,
@@ -525,7 +524,7 @@ export function IntelligencePage() {
   if (!s) return <ErrorState description="No data available" />
 
   return (
-    <div className="py-6 space-y-6 max-w-6xl">
+    <div className="py-6 space-y-6">
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -557,17 +556,6 @@ export function IntelligencePage() {
           >
             <Orbit size={14} />
             Vector Space
-          </button>
-          <button
-            onClick={() =>
-              navigate(
-                workspacePath(wsSlug, `/projects/${projectSlug}/intelligence/timeline`),
-              )
-            }
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30 transition-colors text-sm font-medium"
-          >
-            <Calendar size={14} />
-            Timeline
           </button>
           <button
             onClick={() =>
