@@ -240,6 +240,7 @@ export interface IntelligenceEdgeData extends Record<string, unknown> {
   weight?: number
   confidence?: number
   count?: number
+  score?: number
 }
 
 // ============================================================================

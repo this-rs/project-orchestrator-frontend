@@ -128,7 +128,7 @@ export const visibleEdgesAtom = atom<IntelligenceEdge[]>((get) => {
   const coChangeThreshold = get(coChangeThresholdAtom)
 
   return edges.filter((e) => {
-    const edgeData = e.data as { layer?: IntelligenceLayer; relationType?: string; count?: number } | undefined
+    const edgeData = e.data as { layer?: IntelligenceLayer; relationType?: string; count?: number; score?: number } | undefined
     const layer = edgeData?.layer
     const layerVisible = layer ? layers.has(layer) : true
     // Both source and target must be visible
