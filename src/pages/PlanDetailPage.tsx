@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
 import React from 'react'
-import { ChevronsUpDown, ChevronRight, Flag, FolderKanban, GitCommitHorizontal, ListChecks, GitFork, Archive, Play, ExternalLink } from 'lucide-react'
+import { ChevronsUpDown, ChevronRight, Flag, FolderKanban, GitCommitHorizontal, ListChecks, GitFork, Archive, Play, ExternalLink, AlertTriangle, Zap } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, InteractiveDecisionStatusBadge, ViewToggle, PageHeader, StatusSelect, TabLayout } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { plansApi, tasksApi, projectsApi, workspacesApi, decisionsApi } from '@/services'
@@ -522,56 +522,41 @@ export function PlanDetailPage() {
         )}
 
         {/* ── Tab: Runner (active run + history + launch) ── */}
-        {activeTab === 'runner' && plan && (
-          <div className="pt-4 space-y-4">
-            {/* Active run status */}
-            {hasPipelineRunning && runnerSnapshot && (
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                      <CardTitle>Active Run</CardTitle>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' })}
-                    >
-                      <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-                      Full Dashboard
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <StatsRow
-                    effectiveSnapshot={runnerSnapshot}
-                    isRunning={hasPipelineRunning}
-                    resolvedAgents={runnerSnapshot.active_agents || []}
-                    wavesTotal={runnerSnapshot.current_wave}
-                    planId={plan.id}
-                    onBudgetSave={async (pid, value) => {
-                      await runnerApi.updateBudget(pid, value)
-                    }}
-                  />
-                </CardContent>
-              </Card>
-            )}
+        {activeTab === 'runner' && plan && (() => {
+          // Stuck detection: run reports as running but all tasks are done
+          const isStuck = hasPipelineRunning && runnerSnapshot != null
+            && runnerSnapshot.tasks_total > 0
+            && runnerSnapshot.tasks_completed >= runnerSnapshot.tasks_total
+            && runnerSnapshot.active_agents.every(a => a.status === 'completed' || a.status === 'failed')
 
-            {/* Launch actions */}
-            {!hasPipelineRunning && (
-              <Card>
-                <CardContent className="py-6">
-                  <div className="flex flex-col items-center gap-3 text-center">
-                    <Play className="w-8 h-8 text-gray-500" />
-                    <p className="text-sm text-gray-400">No active pipeline run for this plan</p>
+          return (
+            <div className="pt-4 space-y-4">
+              {/* Stuck run warning + recovery */}
+              {isStuck && runnerSnapshot && (
+                <div className="flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-500/25 rounded-xl">
+                  <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 space-y-2">
+                    <div>
+                      <p className="text-sm font-medium text-amber-300">Run bloqué</p>
+                      <p className="text-xs text-amber-400/80 mt-0.5">
+                        Toutes les tâches sont terminées ({runnerSnapshot.tasks_completed}/{runnerSnapshot.tasks_total}) mais le run est toujours marqué comme actif. Le runner ne s'est pas finalisé correctement.
+                      </p>
+                    </div>
                     <div className="flex items-center gap-2">
                       <Button
                         size="sm"
-                        onClick={() => setImplementDialogOpen(true)}
+                        onClick={async () => {
+                          try {
+                            await runnerApi.forceCancelRun(plan.id)
+                            toast.success('Run finalisé avec succès')
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : 'Échec de la finalisation')
+                          }
+                        }}
+                        className="bg-amber-600 hover:bg-amber-500 text-white"
                       >
-                        <Play className="w-3.5 h-3.5 mr-1.5" />
-                        Launch Pipeline
+                        <Zap className="w-3.5 h-3.5 mr-1.5" />
+                        Forcer la finalisation
                       </Button>
                       <Button
                         size="sm"
@@ -579,25 +564,88 @@ export function PlanDetailPage() {
                         onClick={() => navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' })}
                       >
                         <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-                        Runner Dashboard
+                        Full Dashboard
                       </Button>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Active run status (normal, not stuck) */}
+              {hasPipelineRunning && runnerSnapshot && !isStuck && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                        <CardTitle>Active Run</CardTitle>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' })}
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                        Full Dashboard
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <StatsRow
+                      effectiveSnapshot={runnerSnapshot}
+                      isRunning={hasPipelineRunning}
+                      resolvedAgents={runnerSnapshot.active_agents || []}
+                      wavesTotal={runnerSnapshot.current_wave}
+                      planId={plan.id}
+                      onBudgetSave={async (pid, value) => {
+                        await runnerApi.updateBudget(pid, value)
+                      }}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Launch actions — only when plan is approved AND no run is active */}
+              {!hasPipelineRunning && plan.status === 'approved' && (
+                <Card>
+                  <CardContent className="py-6">
+                    <div className="flex flex-col items-center gap-3 text-center">
+                      <Play className="w-8 h-8 text-gray-500" />
+                      <p className="text-sm text-gray-400">No active pipeline run for this plan</p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => setImplementDialogOpen(true)}
+                        >
+                          <Play className="w-3.5 h-3.5 mr-1.5" />
+                          Launch Pipeline
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' })}
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                          Runner Dashboard
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Run history */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Run History</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <PlanRunHistory planIds={plan.id} maxRuns={10} />
                 </CardContent>
               </Card>
-            )}
-
-            {/* Run history */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Run History</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <PlanRunHistory planIds={plan.id} maxRuns={10} />
-              </CardContent>
-            </Card>
-          </div>
-        )}
+            </div>
+          )
+        })()}
 
         {/* ── Tab: Artefacts (commits + decisions + constraints) ── */}
         {activeTab === 'artefacts' && (

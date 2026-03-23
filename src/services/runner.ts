@@ -161,6 +161,25 @@ export const runnerApi = {
       throw err
     }
   },
+
+  /**
+   * Force-cancel a stuck run. Unlike regular cancel (which sets a flag and waits),
+   * force-cancel immediately clears the global runner state and persists the run
+   * as cancelled. Use when agents are stuck in "spawning" or the run is stuck
+   * with all tasks already completed.
+   */
+  forceCancelRun: async (planId: string): Promise<void> => {
+    try {
+      await api.post<void>(`/plans/${planId}/run/force-cancel`)
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 404) {
+          throw new Error('No active run to force-cancel')
+        }
+      }
+      throw err
+    }
+  },
 }
 
 // ---------------------------------------------------------------------------
