@@ -64,7 +64,7 @@ export function WaveAgentCard({
   return (
     <div
       className={`
-        rounded-lg border transition-all duration-200 flex flex-col
+        rounded-lg border transition-all duration-200 flex flex-col overflow-hidden
         ${isSelected
           ? 'border-indigo-500/40 bg-indigo-500/[0.06] shadow-[0_0_12px_rgba(99,102,241,0.1)]'
           : 'border-border-subtle bg-white/[0.04] hover:bg-white/[0.06] hover:border-border-default'
@@ -96,12 +96,12 @@ export function WaveAgentCard({
       </div>
 
       {/* ── Footer: explicit action buttons with labels ── */}
-      <div className="flex items-center gap-2 px-4 pt-2 pb-3 border-t border-white/[0.04]">
+      <div className="flex flex-wrap items-center gap-2 px-4 pt-2 pb-3 border-t border-white/[0.04]">
         {agent.session_id && (
           <button
             onClick={() => onToggleConversation(agent.session_id!, agent.task_title)}
             className={`
-              flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium
+              flex-1 min-w-0 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium
               transition-colors cursor-pointer
               ${isSelected
                 ? 'bg-indigo-500/20 text-indigo-300'
@@ -109,8 +109,8 @@ export function WaveAgentCard({
               }
             `}
           >
-            {isSelected ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-            {isSelected ? 'Hide conversation' : 'View conversation'}
+            {isSelected ? <EyeOff className="w-3.5 h-3.5 shrink-0" /> : <Eye className="w-3.5 h-3.5 shrink-0" />}
+            <span className="truncate">{isSelected ? 'Hide conversation' : 'View conversation'}</span>
             {isLive && !isSelected && (
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
             )}
@@ -119,19 +119,19 @@ export function WaveAgentCard({
         {agent.status === 'failed' && onRetryTask && (
           <button
             onClick={() => onRetryTask(agent.task_id, agent.task_title)}
-            className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors cursor-pointer"
+            className="min-w-0 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors cursor-pointer"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Retry task
+            <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Retry</span>
           </button>
         )}
         {execution && (
           <button
             onClick={() => setDetailOpen(!detailOpen)}
-            className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-gray-500 bg-white/[0.06] hover:bg-white/[0.1] hover:text-gray-300 transition-colors cursor-pointer"
+            className="min-w-0 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-gray-500 bg-white/[0.06] hover:bg-white/[0.1] hover:text-gray-300 transition-colors cursor-pointer"
           >
-            {detailOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <List className="w-3.5 h-3.5" />}
-            {detailOpen ? 'Hide details' : 'View details'}
+            {detailOpen ? <ChevronUp className="w-3.5 h-3.5 shrink-0" /> : <List className="w-3.5 h-3.5 shrink-0" />}
+            <span className="truncate">{detailOpen ? 'Hide details' : 'Details'}</span>
           </button>
         )}
       </div>
