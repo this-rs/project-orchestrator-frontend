@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
 import {
@@ -91,88 +91,7 @@ function IntelTabFallback({
   )
 }
 
-// ─── Health Badge with Popover ──────────────────────────────────────────────
-
-function HealthBadgeWithAlerts({
-  healthScore,
-  intelligence,
-}: {
-  healthScore: number
-  intelligence: ReturnType<typeof useIntelligenceData>
-}) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  // Close on outside click
-  useEffect(() => {
-    if (!open) return
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
-
-  const color =
-    healthScore >= 0.7
-      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-      : healthScore >= 0.4
-        ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
-        : 'bg-red-500/20 text-red-400 border-red-500/40'
-
-  // Collect alerts
-  const s = intelligence.summary
-  const alerts: { label: string; color: string }[] = []
-  if (s) {
-    if (s.knowledge.stale_count > 0)
-      alerts.push({ label: `${s.knowledge.stale_count} stale notes`, color: 'text-amber-400' })
-    if (s.neural.dead_notes_count > 0)
-      alerts.push({ label: `${s.neural.dead_notes_count} dead notes`, color: 'text-slate-400' })
-    if (s.code.orphans > 5)
-      alerts.push({ label: `${s.code.orphans} orphan files`, color: 'text-amber-400' })
-  }
-  if (intelligence.health?.risk_assessment?.critical_count && intelligence.health.risk_assessment.critical_count > 0)
-    alerts.push({
-      label: `${intelligence.health.risk_assessment.critical_count} critical risk files`,
-      color: 'text-red-400',
-    })
-  if (intelligence.health && intelligence.health.god_function_count > 0)
-    alerts.push({
-      label: `${intelligence.health.god_function_count} god functions`,
-      color: 'text-orange-400',
-    })
-
-  return (
-    <div className="relative" ref={ref}>
-      <MetricTooltip term="health_score">
-        <button
-          onClick={() => setOpen(!open)}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors ${color}`}
-        >
-          {Math.round(healthScore * 100)}%
-          {alerts.length > 0 && (
-            <AlertTriangle size={12} className="text-amber-400" />
-          )}
-        </button>
-      </MetricTooltip>
-
-      {open && alerts.length > 0 && (
-        <div className="absolute right-0 top-full mt-2 z-50 w-72 bg-slate-900 border border-white/10 rounded-lg shadow-xl p-3 space-y-1.5">
-          <div className="text-[11px] font-medium text-slate-400 mb-1">Attention Needed</div>
-          {alerts.map((a) => (
-            <div
-              key={a.label}
-              className={`flex items-center gap-2 text-[11px] ${a.color}`}
-            >
-              <AlertTriangle size={10} />
-              {a.label}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
+// ─── Health Badge removed (score % was not actionable) ──────────────────────
 
 // ─── Quick Links to Dedicated Pages ─────────────────────────────────────────
 
@@ -331,12 +250,7 @@ export function ProjectDetailPage() {
       <PageHeader
         title={project.name}
         description={project.description}
-        status={intelReady ? (
-          <HealthBadgeWithAlerts
-            healthScore={intelligence.healthScore}
-            intelligence={intelligence}
-          />
-        ) : undefined}
+        status={undefined}
         overflowActions={[
           {
             label: 'Rename',
