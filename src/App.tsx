@@ -39,6 +39,7 @@ import {
   ProtocolDetailPage,
   RfcDetailPage,
   AdminPage,
+  McpFederationPage,
   NeuralRoutingPage,
   SharingPage,
   RunnerDashboard,
@@ -195,6 +196,7 @@ function App() {
                         <Route path="triggers" element={<TriggerDashboardPage />} />
                         <Route path="sharing" element={<SharingPage />} />
                         <Route path="neural-routing" element={<NeuralRoutingPage />} />
+                        <Route path="mcp-federation" element={<McpFederationPage />} />
                         <Route path="particles" element={<ParticlesShowcasePage />} />
                         <Route path="admin" element={<AdminPage />} />
                         <Route path="*" element={<NotFoundPage embedded />} />

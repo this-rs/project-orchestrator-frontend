@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Menu, Home, Flag, Box, ClipboardList, FileText, Scale, Code, Brain, Users, Workflow, ChevronLeft, ChevronRight, MessageCircle, Settings, Activity, ScrollText } from 'lucide-react'
+import { Menu, Home, Flag, Box, ClipboardList, FileText, Scale, Code, Brain, Users, Workflow, ChevronLeft, ChevronRight, MessageCircle, Settings, Activity, ScrollText, Plug } from 'lucide-react'
 import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, activeWorkspaceAtom, workspaceRefreshAtom } from '@/atoms'
 import { ToastContainer, Branding } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
@@ -63,6 +63,7 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
     {
       label: 'System',
       items: [
+        { name: 'MCP Federation', href: workspacePath(wsSlug, '/mcp-federation'), icon: Plug },
         { name: 'Admin', href: workspacePath(wsSlug, '/admin'), icon: Settings },
       ],
     },
@@ -384,6 +385,7 @@ function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceNa
       pipelines: 'Pipelines',
       sharing: 'Sharing',
       'neural-routing': 'Neural Routing',
+      'mcp-federation': 'MCP Federation',
       admin: 'Admin',
       runner: 'Runner',
     }

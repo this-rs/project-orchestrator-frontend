@@ -25,6 +25,18 @@ export { rfcApi } from './rfcApi'
 export { sharingApi } from './sharing'
 export { triggersApi } from './triggers'
 export type { EventTrigger, TriggerStats } from './triggers'
+export { mcpFederationApi } from './mcpFederation'
+export type {
+  McpTransportType,
+  ConnectionStatus,
+  CircuitState,
+  InferredCategory,
+  McpServerSummary,
+  ServerStats,
+  McpDiscoveredTool,
+  ConnectServerRequest,
+  ActionResponse as McpActionResponse,
+} from './mcpFederation'
 export { neuralRoutingApi } from './neuralRouting'
 export type { NeuralRoutingStatus, NeuralRoutingConfig } from './neuralRouting'
 export { EventBusClient, getEventBus } from './eventBus'
