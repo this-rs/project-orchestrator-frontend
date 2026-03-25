@@ -23,9 +23,22 @@ export function CollapsibleSection({
 
   return (
     <Card>
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-white/[0.02] transition-colors"
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={(e) => {
+          // Only toggle if the click target is NOT inside headerRight
+          if (!(e.target as HTMLElement).closest('[data-header-right]')) {
+            setOpen(!open)
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setOpen(!open)
+          }
+        }}
+        className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-white/[0.02] transition-colors cursor-pointer"
       >
         <ChevronRight
           className={`w-4 h-4 text-gray-500 transition-transform duration-150 shrink-0 ${open ? 'rotate-90' : ''}`}
@@ -38,11 +51,11 @@ export function CollapsibleSection({
           )}
         </div>
         {headerRight && (
-          <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+          <div className="shrink-0" data-header-right>
             {headerRight}
           </div>
         )}
-      </button>
+      </div>
       {open && (
         <CardContent className="pt-4 pb-5 px-5 border-t border-white/[0.06]">
           {children}

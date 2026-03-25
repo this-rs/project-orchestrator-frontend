@@ -302,7 +302,8 @@ function ServerDetailPanel({ server, onClose }: { server: McpServerSummary; onCl
     setLoadingTools(true)
     try {
       const res = await mcpFederationApi.listServerTools(server.id)
-      setTools(res.tools)
+      // API returns either a raw array or { tools: [...] }
+      setTools(Array.isArray(res) ? res : res.tools ?? [])
     } catch {
       toast.error('Failed to load tools')
     } finally {
