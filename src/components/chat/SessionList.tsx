@@ -12,7 +12,7 @@ import type {
   SpawnedBy,
 } from '@/types'
 import { Select, PulseIndicator } from '@/components/ui'
-import { Folder, Trash2, Search, X, Loader2, ChevronRight, MessageCircle, Play, GitBranch, ChevronDown, Clock } from 'lucide-react'
+import { Folder, Trash2, Search, X, Loader2, ChevronRight, MessageCircle, Play, GitBranch, ChevronDown, Clock, Pencil } from 'lucide-react'
 
 interface SessionListProps {
   activeSessionId?: string | null
@@ -212,6 +212,11 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedProject, setSelectedProject] = useState<string>('')
 
+  // Inline rename state
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState('')
+  const editInputRef = useRef<HTMLInputElement>(null)
+
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
@@ -360,6 +365,39 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
     setSessions((prev) => prev.filter((s) => s.id !== sessionId))
   }
 
+  const handleStartRename = (e: React.MouseEvent, session: ChatSession) => {
+    e.stopPropagation()
+    setEditingSessionId(session.id)
+    setEditingTitle(session.title || `Session ${session.id.slice(0, 8)}`)
+    // Focus after React renders the input
+    requestAnimationFrame(() => editInputRef.current?.select())
+  }
+
+  const handleCommitRename = async () => {
+    if (!editingSessionId) return
+    const trimmed = editingTitle.trim()
+    if (trimmed) {
+      try {
+        await chatApi.renameSession(editingSessionId, trimmed)
+        setSessions((prev) =>
+          prev.map((s) => s.id === editingSessionId ? { ...s, title: trimmed } : s)
+        )
+      } catch {
+        // Revert silently
+      }
+    }
+    setEditingSessionId(null)
+  }
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleCommitRename()
+    } else if (e.key === 'Escape') {
+      setEditingSessionId(null)
+    }
+  }
+
   const handleClearSearch = () => {
     setSearchQuery('')
     setDebouncedQuery('')
@@ -422,16 +460,32 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
             {streamingSessions.has(session.id) && (
               <PulseIndicator variant="active" size={8} />
             )}
-            <span className={`text-sm truncate ${isActive ? 'text-gray-200 font-medium' : 'text-gray-300'}`}>
-              {title}
-            </span>
-            {session.permission_mode && (
+            {editingSessionId === session.id ? (
+              <input
+                ref={editInputRef}
+                value={editingTitle}
+                onChange={(e) => setEditingTitle(e.target.value)}
+                onBlur={handleCommitRename}
+                onKeyDown={handleRenameKeyDown}
+                onClick={(e) => e.stopPropagation()}
+                className="text-sm bg-white/[0.06] border border-indigo-500/40 rounded px-1.5 py-0.5 text-gray-200 focus:outline-none w-full min-w-0"
+                autoFocus
+              />
+            ) : (
+              <span
+                className={`text-sm truncate ${isActive ? 'text-gray-200 font-medium' : 'text-gray-300'}`}
+                onDoubleClick={(e) => handleStartRename(e, session)}
+              >
+                {title}
+              </span>
+            )}
+            {session.permission_mode && editingSessionId !== session.id && (
               <span
                 className={`shrink-0 w-1.5 h-1.5 rounded-full ${MODE_DOT_COLORS[session.permission_mode] ?? 'bg-gray-400'}`}
                 title={session.permission_mode}
               />
             )}
-            {session.spawned_by && (
+            {session.spawned_by && editingSessionId !== session.id && (
               <SpawnedBadge spawnedBy={session.spawned_by} />
             )}
           </div>
@@ -500,14 +554,23 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
           </div>
         </div>
 
-        {/* Delete button */}
-        <button
-          onClick={(e) => handleDelete(e, session.id)}
-          className="shrink-0 p-1 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
-          title="Delete session"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
+        {/* Action buttons */}
+        <div className="shrink-0 flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+          <button
+            onClick={(e) => handleStartRename(e, session)}
+            className="p-1 text-gray-600 hover:text-indigo-400 transition-colors"
+            title="Rename"
+          >
+            <Pencil className="w-3 h-3" />
+          </button>
+          <button
+            onClick={(e) => handleDelete(e, session.id)}
+            className="p-1 text-gray-600 hover:text-red-400 transition-colors"
+            title="Delete"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </div>
       </div>
     )
   }

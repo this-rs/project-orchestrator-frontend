@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useSetAtom } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom, chatDraftInputAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom, chatDraftInputAtom, chatDraftsMapAtom } from '@/atoms'
 import { chatApi, ChatWebSocket } from '@/services'
 import type { ChatMessage, ChatEvent, PermissionMode } from '@/types'
 import { historyEventsToMessages, nextBlockId, nextMessageId, getParentToolUseId, withParent, withCreatedAt } from '@/utils/chatAssembly'
@@ -35,6 +35,9 @@ export function useChat() {
   const _setAutoApprovedTools = useSetAtom(chatAutoApprovedToolsAtom)
   const _setSessionModel = useSetAtom(chatSessionModelAtom)
   const setDraftInput = useSetAtom(chatDraftInputAtom)
+  const [draftsMap, setDraftsMap] = useAtom(chatDraftsMapAtom)
+  const draftsMapRef = useRef(draftsMap)
+  draftsMapRef.current = draftsMap
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const wsRef = useRef<ChatWebSocket | null>(null)
@@ -1131,6 +1134,15 @@ export function useChat() {
   // ========================================================================
 
   const sendMessage = useCallback(async (text: string, options?: SendMessageOptions) => {
+    // Clear draft for this session after sending
+    const draftKey = sessionId ?? '__new__'
+    setDraftsMap((prev) => {
+      if (!(draftKey in prev)) return prev
+      const next = { ...prev }
+      delete next[draftKey]
+      return next
+    })
+
     // Add user message to UI immediately (optimistic).
     // Also dismiss any pending result_max_turns block so the orange banner disappears.
     setMessages((prev) => {
@@ -1198,7 +1210,7 @@ export function useChat() {
       setIsStreaming(true)
       ws.sendUserMessage(text)
     }
-  }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride])
+  }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride, setDraftsMap])
 
   /**
    * Send "Continue" after max_turns — adds a discreet inline indicator instead of a user bubble.
@@ -1298,7 +1310,24 @@ export function useChat() {
     // Don't set isStreaming=false here — wait for the 'result' event
   }, [sessionId, getWs])
 
+  /** Save current draft to the per-session map, then load draft for target session */
+  const swapDraft = useCallback((fromKey: string, toKey: string) => {
+    // Read the current input value from the atom via a DOM shortcut
+    // (atoms are sync in jotai, but we use the ref for the map)
+    const input = (document.querySelector('textarea[placeholder="Send a message..."]') as HTMLTextAreaElement)?.value ?? ''
+    setDraftsMap((prev) => {
+      const next = { ...prev }
+      if (input.trim()) { next[fromKey] = input } else { delete next[fromKey] }
+      return next
+    })
+    setDraftInput(draftsMapRef.current[toKey] ?? '')
+  }, [setDraftsMap, setDraftInput])
+
   const newSession = useCallback(() => {
+    // Save draft from current session before switching
+    const fromKey = sessionId ?? '__new__'
+    swapDraft(fromKey, '__new__')
+
     const ws = getWs()
     ws.disconnect()
     setSessionId(null)
@@ -1318,8 +1347,7 @@ export function useChat() {
     setPermissionOverride(null)
     setSessionModel(null)
     setAutoContinue(false)
-    setDraftInput('')
-  }, [getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride, setSessionModel, setAutoContinue, setDraftInput])
+  }, [getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride, setSessionModel, setAutoContinue, swapDraft, sessionId])
 
   const changePermissionMode = useCallback((mode: PermissionMode) => {
     if (!sessionId) return
@@ -1341,6 +1369,10 @@ export function useChat() {
     // Guard: if already on this session, do nothing (avoid WS disconnect/reconnect loop)
     if (sid === sessionId) return
 
+    // Save draft from current session, restore draft for target session
+    const fromKey = sessionId ?? '__new__'
+    swapDraft(fromKey, sid)
+
     // Store target timestamp (Unix seconds) for the auto-connect useEffect to pick up
     targetTimestampRef.current = targetTimestamp ?? null
 
@@ -1354,7 +1386,6 @@ export function useChat() {
     setHasOlderMessages(false)
     setHasNewerMessages(false)
     setHasLiveActivity(false)
-    setDraftInput('')
     paginationRef.current = { offset: 0, tailOffset: 0, totalCount: 0 }
 
     // Fetch session metadata (cwd, project, permission mode) for display in header

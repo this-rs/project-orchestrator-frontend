@@ -46,6 +46,9 @@ export const chatAutoContinueAtom = atom<boolean>(false)
 /** Draft text in the chat input textarea (survives layout switches & settings overlay) */
 export const chatDraftInputAtom = atom<string>('')
 
+/** Per-session draft persistence in localStorage. Key = sessionId (or '__new__' for new conversations) */
+export const chatDraftsMapAtom = atomWithStorage<Record<string, string>>('chat-drafts', {})
+
 /** Selected project for new conversations (survives layout switches & new-session) */
 export const chatSelectedProjectAtom = atom<Project | null>(null)
 

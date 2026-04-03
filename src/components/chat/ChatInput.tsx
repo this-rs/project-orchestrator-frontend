@@ -73,6 +73,18 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     resize()
   }, [value, resize])
 
+  // --- Auto-focus textarea on session switch, cursor at end ---
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      const el = textareaRef.current
+      if (!el) return
+      el.focus()
+      // Place cursor at end of restored draft
+      const len = el.value.length
+      el.setSelectionRange(len, len)
+    })
+  }, [sessionId])
+
   // Prefill textarea when a quick action is triggered
   useEffect(() => {
     if (!prefill) return

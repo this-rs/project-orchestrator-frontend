@@ -49,6 +49,9 @@ export const chatApi = {
   deleteSession: (sessionId: string) =>
     api.delete(`/chat/sessions/${sessionId}`),
 
+  renameSession: (sessionId: string, title: string) =>
+    api.patch<ChatSession>(`/chat/sessions/${sessionId}`, { title }),
+
   getMessages: (sessionId: string, params: GetMessagesParams = {}) =>
     api.get<MessageHistoryResponse>(`/chat/sessions/${sessionId}/messages${buildQuery(params)}`),
 
