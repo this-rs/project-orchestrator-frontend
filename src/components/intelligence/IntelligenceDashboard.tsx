@@ -435,15 +435,17 @@ export function useIntelligenceData(projectSlug: string): IntelligenceData {
     [],
   )
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (signal?: AbortSignal) => {
     if (!projectSlug) return
     setError(null)
     try {
       const [summaryData, healthData, projectData] = await Promise.allSettled([
-        intelligenceApi.getSummary(projectSlug),
-        codeApi.getHealth({ project_slug: projectSlug }),
-        projectsApi.get(projectSlug),
+        intelligenceApi.getSummary(projectSlug, signal),
+        codeApi.getHealth({ project_slug: projectSlug }, signal),
+        projectsApi.get(projectSlug, signal),
       ])
+
+      if (signal?.aborted) return
 
       if (summaryData.status === 'fulfilled') setSummary(summaryData.value)
       else throw new Error(summaryData.reason?.message ?? 'Failed to load intelligence data')
@@ -451,18 +453,23 @@ export function useIntelligenceData(projectSlug: string): IntelligenceData {
       if (healthData.status === 'fulfilled') setHealth(healthData.value)
       if (projectData.status === 'fulfilled') setProject(projectData.value)
     } catch (err) {
+      if (signal?.aborted) return
       setError(err instanceof Error ? err.message : 'Failed to load intelligence data')
     }
   }, [projectSlug, setSummary])
 
   useEffect(() => {
+    const controller = new AbortController()
     setLoading(true)
-    fetchAll().finally(() => setLoading(false))
+    fetchAll(controller.signal).finally(() => {
+      if (!controller.signal.aborted) setLoading(false)
+    })
+    return () => controller.abort()
   }, [fetchAll])
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)
-    await fetchAll()
+    await fetchAll() // No signal — user-initiated, should not be cancelled
     setRefreshing(false)
   }, [fetchAll])
 

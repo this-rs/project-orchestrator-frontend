@@ -41,8 +41,8 @@ export const projectsApi = {
   listPlans: (projectSlug: string, params: { status?: string; limit?: number; offset?: number } = {}) =>
     api.get<PaginatedResponse<Plan>>(`/plans${buildQuery({ ...params, project_slug: projectSlug })}`),
 
-  getRoadmap: (projectId: string) =>
-    api.get<ProjectRoadmap>(`/projects/${projectId}/roadmap`),
+  getRoadmap: (projectId: string, signal?: AbortSignal) =>
+    api.get<ProjectRoadmap>(`/projects/${projectId}/roadmap`, signal),
 
   // Milestones
   listMilestones: (projectId: string, params: { status?: string; limit?: number; offset?: number } = {}) =>

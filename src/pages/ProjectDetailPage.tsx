@@ -151,33 +151,38 @@ export function ProjectDetailPage() {
   // Intelligence data
   const intelligence = useIntelligenceData(slug ?? '')
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (signal?: AbortSignal) => {
     if (!slug) return
     setError(null)
     const isInitialLoad = !project
     if (isInitialLoad) setLoading(true)
     try {
-      const projectData = await projectsApi.get(slug)
+      const projectData = await projectsApi.get(slug, signal)
+      if (signal?.aborted) return
       setProject(projectData)
       setSuggestedProjectId(projectData.id)
 
       try {
-        const roadmapData = await projectsApi.getRoadmap(projectData.id)
+        const roadmapData = await projectsApi.getRoadmap(projectData.id, signal)
+        if (signal?.aborted) return
         setRoadmap(roadmapData)
       } catch {
-        // Roadmap might not be available
+        // Roadmap might not be available (or aborted)
       }
     } catch (err) {
+      if (signal?.aborted) return
       console.error('Failed to fetch project:', err)
       setError('Failed to load project')
     } finally {
-      if (isInitialLoad) setLoading(false)
+      if (!signal?.aborted && isInitialLoad) setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- project is a data object (would cause loop); setSuggestedProjectId is a stable Jotai setter
   }, [slug, projectRefresh, planRefresh, milestoneRefresh, taskRefresh])
 
   useEffect(() => {
-    fetchData()
+    const controller = new AbortController()
+    fetchData(controller.signal)
+    return () => controller.abort()
   }, [fetchData])
 
   const handleSync = async () => {
