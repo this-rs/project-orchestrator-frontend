@@ -492,6 +492,9 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
   }
 
   const handleRenameKeyDown = (e: React.KeyboardEvent) => {
+    // Stop ALL key events from bubbling to the parent div's onKeyDown
+    // which intercepts Space (navigate) and Enter (navigate).
+    e.stopPropagation()
     if (e.key === 'Enter') {
       e.preventDefault()
       handleCommitRename()
