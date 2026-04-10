@@ -63,12 +63,11 @@ function configureHttpProxy(proxy: HttpProxy.Server, label: string) {
     res.on('close', () => {
       if (!res.writableFinished) {
         proxyRes.destroy()
-        // Also destroy the underlying socket to ensure the connection is
-        // fully released back to the pool (proxyRes.destroy alone may only
-        // stop reading without closing the TCP socket).
-        if (proxyRes.socket && !proxyRes.socket.destroyed) {
-          proxyRes.socket.destroy()
-        }
+        // NOTE: Do NOT destroy proxyRes.socket here. The socket belongs to
+        // http-proxy's keep-alive connection pool. Destroying it corrupts the
+        // pool and causes subsequent requests on the same proxy rule (e.g.
+        // /auth) to hang indefinitely. proxyRes.destroy() is sufficient to
+        // stop reading the upstream response and free the stream.
       }
     })
   })
