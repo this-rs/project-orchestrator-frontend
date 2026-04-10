@@ -17,10 +17,8 @@ export function WorkspaceRouteGuard() {
   const setActiveSlug = useSetAtom(activeWorkspaceSlugAtom)
   const workspaces = useAtomValue(workspacesAtom)
 
-  // Sync URL slug → atom (URL is always source of truth)
-  // useLayoutEffect ensures the atom is updated BEFORE paint,
-  // so all atom consumers (ChatPanel, SessionList, ProjectSelect)
-  // see the new slug in the same render cycle as URL-param readers.
+  // Sync URL slug → atom for redirect memory only (RootRedirect, LegacyRedirect, SettingsPage).
+  // All workspace-scoped components use useWorkspaceSlug() / useWorkspace() from the URL directly.
   useLayoutEffect(() => {
     if (slug) {
       setActiveSlug(slug)

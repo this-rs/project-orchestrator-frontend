@@ -2,12 +2,12 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Menu, Home, Flag, Box, ClipboardList, FileText, Scale, Code, Brain, Users, Workflow, ChevronLeft, ChevronRight, MessageCircle, Settings, Activity, ScrollText, Plug } from 'lucide-react'
-import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, activeWorkspaceAtom, workspaceRefreshAtom } from '@/atoms'
+import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, workspaceRefreshAtom } from '@/atoms'
 import { ToastContainer, Branding } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher'
-import { useMediaQuery, useCrudEventRefresh, useDragRegion, useWindowFullscreen, useViewTransition } from '@/hooks'
+import { useMediaQuery, useCrudEventRefresh, useDragRegion, useWindowFullscreen, useViewTransition, useWorkspace } from '@/hooks'
 import type { NavDirection } from '@/hooks'
 import { isTauri } from '@/services/env'
 import { workspacesApi } from '@/services/workspaces'
@@ -176,7 +176,7 @@ export function MainLayout() {
   const wsStatus = useAtomValue(eventBusStatusAtom)
   const isWindowFullscreen = useWindowFullscreen()
   const setWorkspaces = useSetAtom(workspacesAtom)
-  const activeWorkspace = useAtomValue(activeWorkspaceAtom)
+  const activeWorkspace = useWorkspace()
   const wsRefresh = useAtomValue(workspaceRefreshAtom)
 
   // Show extra top padding on Tauri desktop (non-fullscreen) to clear native traffic lights

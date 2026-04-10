@@ -8,9 +8,10 @@ export const workspacesAtom = atom<Workspace[]>([])
 export const workspacesLoadingAtom = atom<boolean>(false)
 
 /**
- * Active workspace slug — persisted in localStorage.
- * This is the single source of truth for which workspace the user is viewing.
- * The URL (/workspace/:slug) takes priority and syncs this atom.
+ * Last-visited workspace slug — persisted in localStorage.
+ * Used ONLY for redirect memory (RootRedirect, LegacyRedirect, SettingsPage back button).
+ * NOT the source of truth — workspace-scoped components use useWorkspaceSlug() / useWorkspace()
+ * which derive the slug from the URL (/workspace/:slug).
  */
 export const activeWorkspaceSlugAtom = atomWithStorage<string | null>(
   'po-active-workspace',
@@ -18,8 +19,8 @@ export const activeWorkspaceSlugAtom = atomWithStorage<string | null>(
 )
 
 /**
- * Derived: the full Workspace object for the active slug.
- * Returns null if no workspace is selected or the slug doesn't match any loaded workspace.
+ * @deprecated Use useWorkspace() hook instead — derives workspace from URL.
+ * Kept only for edge cases outside workspace routes (e.g. workspace selector page).
  */
 export const activeWorkspaceAtom = atom<Workspace | null>((get) => {
   const slug = get(activeWorkspaceSlugAtom)

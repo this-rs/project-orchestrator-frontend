@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { chatSuggestedProjectIdAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, activeWorkspaceSlugAtom, activeWorkspaceAtom, projectRefreshAtom } from '@/atoms'
+import { chatSuggestedProjectIdAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, projectRefreshAtom } from '@/atoms'
 import { Select } from '@/components/ui'
 import { workspacesApi } from '@/services'
+import { useWorkspaceSlug, useWorkspace } from '@/hooks'
 import type { Project } from '@/types'
 import { Archive } from 'lucide-react'
 
@@ -16,8 +17,8 @@ export function ProjectSelect() {
   const suggestedId = useAtomValue(chatSuggestedProjectIdAtom)
   const [selectedProject, setSelectedProject] = useAtom(chatSelectedProjectAtom)
   const [allProjectsMode, setAllProjectsMode] = useAtom(chatAllProjectsModeAtom)
-  const activeWsSlug = useAtomValue(activeWorkspaceSlugAtom)
-  const activeWorkspace = useAtomValue(activeWorkspaceAtom)
+  const activeWsSlug = useWorkspaceSlug()
+  const activeWorkspace = useWorkspace()
   const setHasProjects = useSetAtom(chatWorkspaceHasProjectsAtom)
   const projectRefresh = useAtomValue(projectRefreshAtom)
   const [projects, setProjects] = useState<Project[]>([])

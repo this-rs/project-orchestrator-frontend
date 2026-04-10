@@ -1,6 +1,6 @@
 import { useAtom } from 'jotai'
-import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, activeWorkspaceSlugAtom } from '@/atoms'
-import { useChat, useDetachedRuns, useWindowFullscreen } from '@/hooks'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom } from '@/atoms'
+import { useChat, useDetachedRuns, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { chatApi } from '@/services/chat'
 import { Plus, X, Menu, Settings, Minimize2, Maximize2, Loader2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check } from 'lucide-react'
 import { ChatMessages } from './ChatMessages'
@@ -45,7 +45,7 @@ export function ChatPanel() {
   const selectedProject = useAtomValue(chatSelectedProjectAtom)
   const allProjectsMode = useAtomValue(chatAllProjectsModeAtom)
   const workspaceHasProjects = useAtomValue(chatWorkspaceHasProjectsAtom)
-  const activeWsSlug = useAtomValue(activeWorkspaceSlugAtom)
+  const activeWsSlug = useWorkspaceSlug()
   const [isDragging, setIsDragging] = useState(false)
   const [sessionTitle, setSessionTitle] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)

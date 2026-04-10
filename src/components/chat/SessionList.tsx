@@ -1,8 +1,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
-import { chatSessionRefreshAtom, activeWorkspaceSlugAtom, showSpawnedSessionsAtom } from '@/atoms'
+import { chatSessionRefreshAtom, showSpawnedSessionsAtom } from '@/atoms'
 import { chatApi, getEventBus, workspacesApi } from '@/services'
-import { useActiveRunTracker, useDetachedRuns } from '@/hooks'
+import { useActiveRunTracker, useDetachedRuns, useWorkspaceSlug } from '@/hooks'
 import type {
   ChatSession,
   ChatLinkedPlan,
@@ -258,8 +258,8 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
     return () => { off() }
   }, [])
 
-  // Active workspace from global atom
-  const activeWsSlug = useAtomValue(activeWorkspaceSlugAtom)
+  // Active workspace from URL
+  const activeWsSlug = useWorkspaceSlug()
 
   // Show/hide spawned sessions toggle
   const [showSpawned, setShowSpawned] = useAtom(showSpawnedSessionsAtom)

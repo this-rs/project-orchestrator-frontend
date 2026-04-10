@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { useAtomValue, useSetAtom } from 'jotai'
+import { useSetAtom } from 'jotai'
 import { motion, AnimatePresence } from 'motion/react'
-import { activeWorkspaceAtom, projectRefreshAtom } from '@/atoms'
+import { projectRefreshAtom } from '@/atoms'
 import { projectsApi } from '@/services'
 import { workspacesApi } from '@/services/workspaces'
 import type { EditProjectFormData } from '@/components/forms/EditProjectForm'
 import { Card, CardContent, Button, EmptyState, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, SkeletonCard, ErrorState } from '@/components/ui'
-import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useWorkspaceSlug } from '@/hooks'
+import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useWorkspaceSlug, useWorkspace } from '@/hooks'
 import { CreateProjectForm, EditProjectForm } from '@/components/forms'
 import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
 import type { Project } from '@/types'
@@ -19,7 +19,7 @@ export function ProjectsPage() {
   const toast = useToast()
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const wsSlug = useWorkspaceSlug()
-  const activeWorkspace = useAtomValue(activeWorkspaceAtom)
+  const activeWorkspace = useWorkspace()
   const bumpProjectRefresh = useSetAtom(projectRefreshAtom)
   const reducedMotion = useReducedMotion()
   const [projects, setProjects] = useState<Project[]>([])

@@ -2,10 +2,10 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useAtomValue } from 'jotai'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
-import { milestoneRefreshAtom, workspaceRefreshAtom, activeWorkspaceAtom } from '@/atoms'
+import { milestoneRefreshAtom, workspaceRefreshAtom } from '@/atoms'
 import { Card, EmptyState, Badge, ProgressBar, InteractiveMilestoneStatusBadge, ViewToggle, Select, ConfirmDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, SkeletonCard, ErrorState } from '@/components/ui'
 import { workspacesApi, projectsApi } from '@/services'
-import { useViewMode, useConfirmDialog, useToast, useMultiSelect, useWorkspaceSlug, useViewTransition } from '@/hooks'
+import { useViewMode, useConfirmDialog, useToast, useMultiSelect, useWorkspaceSlug, useViewTransition, useWorkspace } from '@/hooks'
 import { UniversalKanban, createMilestoneKanbanConfig } from '@/components/kanban'
 import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
 import type { MilestoneWithProgress } from '@/components/kanban'
@@ -29,7 +29,7 @@ export function MilestonesPage() {
   const confirmDialog = useConfirmDialog()
   const toast = useToast()
   const wsSlug = useWorkspaceSlug()
-  const activeWorkspace = useAtomValue(activeWorkspaceAtom)
+  const activeWorkspace = useWorkspace()
   const reducedMotion = useReducedMotion()
 
   // Filters

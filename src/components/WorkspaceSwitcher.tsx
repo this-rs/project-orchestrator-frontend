@@ -3,9 +3,10 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { ChevronDown, Plus, Menu } from 'lucide-react'
-import { workspacesAtom, activeWorkspaceAtom } from '@/atoms'
+import { workspacesAtom } from '@/atoms'
 import { workspacePath } from '@/utils/paths'
 import { workspacesApi } from '@/services'
+import { useWorkspace } from '@/hooks'
 
 /**
  * Combined logo + workspace selector in the sidebar header.
@@ -16,7 +17,7 @@ export function WorkspaceSwitcher({ collapsed, trafficLightPad }: { collapsed: b
   const navigate = useNavigate()
   const workspaces = useAtomValue(workspacesAtom)
   const setWorkspaces = useSetAtom(workspacesAtom)
-  const activeWorkspace = useAtomValue(activeWorkspaceAtom)
+  const activeWorkspace = useWorkspace()
   const [open, setOpen] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')

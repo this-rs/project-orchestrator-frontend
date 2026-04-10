@@ -1,6 +1,9 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
+import { useAtomValue } from 'jotai'
+import { workspacesAtom } from '@/atoms'
 import { workspacePath } from '@/utils/paths'
+import type { Workspace } from '@/types'
 
 /**
  * Returns the active workspace slug from the URL (/workspace/:slug/...).
@@ -16,6 +19,22 @@ export function useWorkspaceSlug(): string {
     )
   }
   return slug
+}
+
+/**
+ * Returns the full Workspace object for the current URL slug.
+ * Derives everything from the URL — no global singleton atom.
+ * Must be used inside a route with a :slug param (under WorkspaceRouteGuard).
+ *
+ * @returns Workspace object, or null if workspaces haven't loaded yet
+ */
+export function useWorkspace(): Workspace | null {
+  const slug = useWorkspaceSlug()
+  const workspaces = useAtomValue(workspacesAtom)
+  return useMemo(
+    () => workspaces.find((w) => w.slug === slug) ?? null,
+    [workspaces, slug],
+  )
 }
 
 /**
