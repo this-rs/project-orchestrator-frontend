@@ -355,7 +355,7 @@ export function WorkspaceDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (signal: AbortSignal) => {
     if (!slug) return
     setError(null)
     // Only show loading spinner on initial load, not on WS-triggered refreshes
@@ -365,7 +365,10 @@ export function WorkspaceDetailPage() {
       const overviewData =
         (await workspacesApi.getOverview(
           slug,
+          signal,
         )) as unknown as WorkspaceOverviewResponse
+
+      if (signal.aborted) return
 
       setWorkspace(overviewData.workspace)
       setProjects(overviewData.projects || [])
@@ -378,25 +381,29 @@ export function WorkspaceDetailPage() {
       const milestonesWithProgress = await Promise.all(
         milestoneItems.map(async (m) => {
           try {
-            const progress = await workspacesApi.getMilestoneProgress(m.id)
+            const progress = await workspacesApi.getMilestoneProgress(m.id, signal)
             return { ...m, progress }
           } catch {
             return { ...m, progress: undefined }
           }
         }),
       )
+      if (signal.aborted) return
       setMilestones(milestonesWithProgress)
     } catch (err) {
+      if (signal.aborted) return
       console.error('Failed to fetch workspace:', err)
       setError('Failed to load workspace')
     } finally {
-      if (isInitialLoad) setLoading(false)
+      if (!signal.aborted && isInitialLoad) setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- workspace is a data object (would cause infinite loop)
   }, [slug, workspaceRefresh, projectRefresh, milestoneRefresh, taskRefresh])
 
   useEffect(() => {
-    fetchData()
+    const controller = new AbortController()
+    fetchData(controller.signal)
+    return () => controller.abort()
   }, [fetchData])
 
   const milestoneForm = CreateMilestoneForm({
@@ -457,7 +464,7 @@ export function WorkspaceDetailPage() {
       <ErrorState
         title="Failed to load"
         description={error ?? 'Workspace data unavailable'}
-        onRetry={fetchData}
+        onRetry={() => fetchData(new AbortController().signal)}
       />
     )
 

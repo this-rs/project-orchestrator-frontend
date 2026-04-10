@@ -762,12 +762,13 @@ export default function WorkspaceLearningTimeline({ embedded, workspaceSlug }: W
   )
 
   // ── Fetch all data (workspace-wide) ─────────────────────────────────
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (signal: AbortSignal) => {
     if (!workspaceSlug) return
     setError(null)
     try {
       // Get workspace projects
-      const overview = await workspacesApi.getOverview(workspaceSlug) as unknown as { projects: Project[] }
+      const overview = await workspacesApi.getOverview(workspaceSlug, signal) as unknown as { projects: Project[] }
+      if (signal.aborted) return
       const wsProjects = overview.projects || []
       setProjects(wsProjects)
 
@@ -859,6 +860,8 @@ export default function WorkspaceLearningTimeline({ embedded, workspaceSlug }: W
       const skills = skillsRes.status === 'fulfilled' ? skillsRes.value : []
       const runs = runsRes.status === 'fulfilled' ? runsRes.value : []
 
+      if (signal.aborted) return
+
       const allEvents = buildEvents(notes, decisions, skills, runs)
       setEvents(allEvents)
 
@@ -869,19 +872,28 @@ export default function WorkspaceLearningTimeline({ embedded, workspaceSlug }: W
         setDateRange({ start: minTs - padding, end: maxTs + padding })
       }
     } catch (err) {
+      if (signal.aborted) return
       setError(err instanceof Error ? err.message : 'Failed to load workspace timeline data')
     }
   }, [workspaceSlug, buildEvents])
 
   useEffect(() => {
+    const controller = new AbortController()
     setLoading(true)
-    fetchData().finally(() => setLoading(false))
+    fetchData(controller.signal).finally(() => {
+      if (!controller.signal.aborted) setLoading(false)
+    })
+    return () => controller.abort()
   }, [fetchData])
 
+  const refreshControllerRef = useRef<AbortController | null>(null)
   const handleRefresh = useCallback(async () => {
+    refreshControllerRef.current?.abort()
+    const controller = new AbortController()
+    refreshControllerRef.current = controller
     setRefreshing(true)
-    await fetchData()
-    setRefreshing(false)
+    await fetchData(controller.signal)
+    if (!controller.signal.aborted) setRefreshing(false)
   }, [fetchData])
 
   // ── Filtered events ─────────────────────────────────────────────────

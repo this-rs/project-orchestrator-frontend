@@ -37,8 +37,8 @@ export const workspacesApi = {
 
   delete: (slug: string) => api.delete(`/workspaces/${slug}`),
 
-  getOverview: (slug: string) =>
-    api.get<WorkspaceOverview>(`/workspaces/${slug}/overview`),
+  getOverview: (slug: string, signal?: AbortSignal) =>
+    api.get<WorkspaceOverview>(`/workspaces/${slug}/overview`, signal),
 
   // Projects in workspace (backend returns full Project objects as raw array)
   listProjects: (slug: string) =>
@@ -76,8 +76,8 @@ export const workspacesApi = {
   removeTaskFromMilestone: (milestoneId: string, taskId: string) =>
     api.delete(`/workspace-milestones/${milestoneId}/tasks/${taskId}`),
 
-  getMilestoneProgress: (id: string) =>
-    api.get<MilestoneProgress>(`/workspace-milestones/${id}/progress`),
+  getMilestoneProgress: (id: string, signal?: AbortSignal) =>
+    api.get<MilestoneProgress>(`/workspace-milestones/${id}/progress`, signal),
 
   linkPlanToMilestone: (milestoneId: string, planId: string) =>
     api.post<{ linked: boolean }>(`/workspace-milestones/${milestoneId}/plans`, { plan_id: planId }),

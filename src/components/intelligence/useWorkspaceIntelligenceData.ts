@@ -83,21 +83,27 @@ export function useWorkspaceIntelligenceData(workspaceSlug: string): WorkspaceIn
     [],
   )
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (signal?: AbortSignal) => {
     if (!workspaceSlug) return
     setError(null)
     try {
-      const wsData = await intelligenceApi.getWorkspaceSummary(workspaceSlug)
+      const wsData = await intelligenceApi.getWorkspaceSummary(workspaceSlug, signal)
+      if (signal?.aborted) return
       setSummary(wsData.aggregated)
       setPerProject(wsData.per_project)
     } catch (err) {
+      if (signal?.aborted) return
       setError(err instanceof Error ? err.message : 'Failed to load workspace intelligence data')
     }
   }, [workspaceSlug, setSummary])
 
   useEffect(() => {
+    const controller = new AbortController()
     setLoading(true)
-    fetchAll().finally(() => setLoading(false))
+    fetchAll(controller.signal).finally(() => {
+      if (!controller.signal.aborted) setLoading(false)
+    })
+    return () => controller.abort()
   }, [fetchAll])
 
   const handleRefresh = useCallback(async () => {
