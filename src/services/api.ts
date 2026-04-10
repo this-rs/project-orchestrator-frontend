@@ -64,6 +64,13 @@ async function request<T>(
   options: RequestInit = {},
   _isRetry = false,
 ): Promise<T> {
+  // Fast-path: bail immediately if already aborted (e.g. navigation happened
+  // while a previous request was still being set up). This avoids queueing
+  // a fetch that would just be cancelled, freeing up browser connection slots.
+  if (options.signal?.aborted) {
+    throw new DOMException('The operation was aborted.', 'AbortError')
+  }
+
   const url = `${getApiBase()}${endpoint}`
 
   // Build headers with fresh auth token injection
@@ -75,6 +82,12 @@ async function request<T>(
   const token = await getValidToken()
   if (token) {
     headers['Authorization'] = `Bearer ${token}`
+  }
+
+  // Re-check abort after async token retrieval (navigation may have
+  // happened while waiting for a token refresh lock).
+  if (options.signal?.aborted) {
+    throw new DOMException('The operation was aborted.', 'AbortError')
   }
 
   // Preserve any AbortSignal passed via options

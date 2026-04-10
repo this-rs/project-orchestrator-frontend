@@ -24,8 +24,8 @@ interface ListParams {
 
 export const workspacesApi = {
   // Workspaces
-  list: (params: ListParams = {}) =>
-    api.get<PaginatedResponse<Workspace>>(`/workspaces${buildQuery(params)}`),
+  list: (params: ListParams = {}, signal?: AbortSignal) =>
+    api.get<PaginatedResponse<Workspace>>(`/workspaces${buildQuery(params)}`, signal),
 
   get: (slug: string) => api.get<Workspace>(`/workspaces/${slug}`),
 
@@ -41,8 +41,8 @@ export const workspacesApi = {
     api.get<WorkspaceOverview>(`/workspaces/${slug}/overview`, signal),
 
   // Projects in workspace (backend returns full Project objects as raw array)
-  listProjects: (slug: string) =>
-    api.get<Project[]>(`/workspaces/${slug}/projects`),
+  listProjects: (slug: string, signal?: AbortSignal) =>
+    api.get<Project[]>(`/workspaces/${slug}/projects`, signal),
 
   addProject: (slug: string, projectId: string) =>
     api.post(`/workspaces/${slug}/projects`, { project_id: projectId }),

@@ -21,10 +21,15 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
   // Load projects for the workspace (for sidebar sub-items)
   useEffect(() => {
     if (!wsSlug) return
+    const controller = new AbortController()
     workspacesApi
-      .listProjects(wsSlug)
+      .listProjects(wsSlug, controller.signal)
       .then((data) => setProjects(data))
-      .catch(() => setProjects([]))
+      .catch((err) => {
+        if (err?.name === 'AbortError') return
+        setProjects([])
+      })
+    return () => controller.abort()
   }, [wsSlug])
 
   const navGroups = useMemo(() => [
@@ -185,10 +190,14 @@ export function MainLayout() {
   // Load workspaces list (for the switcher and route guard)
   // Re-fetches when wsRefresh bumps (CRUD event via WebSocket)
   useEffect(() => {
+    const controller = new AbortController()
     workspacesApi
-      .list({ limit: 100, sort_by: 'name', sort_order: 'asc' })
+      .list({ limit: 100, sort_by: 'name', sort_order: 'asc' }, controller.signal)
       .then((data) => setWorkspaces(data.items || []))
-      .catch(() => {})
+      .catch((err) => {
+        if (err?.name === 'AbortError') return
+      })
+    return () => controller.abort()
   }, [setWorkspaces, wsRefresh])
 
   // Connect to WebSocket CRUD event bus and auto-refresh pages
