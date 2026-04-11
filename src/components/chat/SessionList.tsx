@@ -16,7 +16,7 @@ import type {
 } from '@/types'
 import { Select, PulseIndicator } from '@/components/ui'
 import { workspacePath } from '@/utils/paths'
-import { Folder, Trash2, Search, X, Loader2, ChevronRight, MessageCircle, Play, GitBranch, ChevronDown, Clock, Pencil, ClipboardList, ScrollText, ListChecks } from 'lucide-react'
+import { Folder, Trash2, Search, X, Loader2, ChevronRight, MessageCircle, Play, GitBranch, ChevronDown, Clock, Pencil, ClipboardList, ScrollText, ListChecks, Eye } from 'lucide-react'
 
 interface SessionListProps {
   activeSessionId?: string | null
@@ -99,8 +99,10 @@ function SpawnedBadge({ spawnedBy }: { spawnedBy: SpawnedBy }) {
 }
 
 // ============================================================================
-// Linked entity badges (plan / task / RFC)
+// Linked entity badges (plan / task / RFC) — compact + detailed modes
 // ============================================================================
+
+const COMPACT_THRESHOLD = 3 // total linked entities to trigger compact mode
 
 function PlanBadge({ plan, wsSlug }: { plan: ChatLinkedPlan; wsSlug: string }) {
   return (
@@ -110,7 +112,7 @@ function PlanBadge({ plan, wsSlug }: { plan: ChatLinkedPlan; wsSlug: string }) {
       rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()}
       title={`Plan: ${plan.title} (${plan.source})`}
-      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors shrink-0 max-w-[120px]"
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors shrink-0 max-w-[180px]"
     >
       <ClipboardList className="w-2.5 h-2.5 shrink-0" />
       <span className="truncate">{plan.title}</span>
@@ -126,7 +128,7 @@ function RfcBadge({ rfc, wsSlug }: { rfc: ChatLinkedRfc; wsSlug: string }) {
       rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()}
       title={`RFC: ${rfc.title}`}
-      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-purple-500/15 text-purple-400 hover:bg-purple-500/25 transition-colors shrink-0 max-w-[120px]"
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-purple-500/15 text-purple-400 hover:bg-purple-500/25 transition-colors shrink-0 max-w-[180px]"
     >
       <ScrollText className="w-2.5 h-2.5 shrink-0" />
       <span className="truncate">{rfc.title}</span>
@@ -142,11 +144,127 @@ function TaskBadge({ task, wsSlug }: { task: ChatLinkedTask; wsSlug: string }) {
       rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()}
       title={`Task: ${task.title} (${task.source})`}
-      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-amber-500/10 text-amber-400/80 hover:bg-amber-500/20 transition-colors shrink-0 max-w-[120px]"
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-amber-500/10 text-amber-400/80 hover:bg-amber-500/20 transition-colors shrink-0 max-w-[180px]"
     >
       <ListChecks className="w-2.5 h-2.5 shrink-0" />
       <span className="truncate">{task.title}</span>
     </a>
+  )
+}
+
+/** Compact counter pill — shows emoji + count in the entity's color */
+function CountPill({ icon: Icon, count, color }: { icon: typeof ClipboardList; count: number; color: 'blue' | 'purple' | 'amber' }) {
+  const styles = {
+    blue:   'bg-blue-500/15 text-blue-400',
+    purple: 'bg-purple-500/15 text-purple-400',
+    amber:  'bg-amber-500/10 text-amber-400/80',
+  }
+  return (
+    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-semibold tabular-nums ${styles[color]}`}>
+      <Icon className="w-2.5 h-2.5" />
+      {count}
+    </span>
+  )
+}
+
+/** Smart linked-entities display: compact counters when crowded, inline badges when few.
+ *  Also renders the CWD path inline on the same row when provided. */
+function LinkedEntitiesSummary({
+  plans, rfcs, tasks, wsSlug, cwd,
+}: {
+  plans?: ChatLinkedPlan[]
+  rfcs?: ChatLinkedRfc[]
+  tasks?: ChatLinkedTask[]
+  wsSlug: string
+  cwd?: string | null
+}) {
+  const [expanded, setExpanded] = useState(false)
+
+  const planCount = plans?.length ?? 0
+  const rfcCount  = rfcs?.length ?? 0
+  const taskCount = tasks?.length ?? 0
+  const total = planCount + rfcCount + taskCount
+
+  const cwdElement = cwd ? (
+    <span className="inline-flex items-center gap-0.5 min-w-0 shrink">
+      <Folder className="w-2.5 h-2.5 text-gray-600 shrink-0" />
+      <span className="text-[10px] text-gray-600 truncate">{shortenPath(cwd)}</span>
+    </span>
+  ) : null
+
+  // Nothing linked → just show CWD if present
+  if (total === 0) {
+    return cwdElement ? <div className="flex items-center gap-1 mt-0.5 min-w-0">{cwdElement}</div> : null
+  }
+
+  // Few entities → show inline badges + CWD on one line
+  if (total <= COMPACT_THRESHOLD) {
+    return (
+      <div className="flex flex-wrap items-center gap-1 mt-1 min-w-0">
+        {cwdElement}
+        {cwdElement && total > 0 && <span className="text-[10px] text-gray-700 shrink-0">&middot;</span>}
+        {plans?.map((p) => <PlanBadge key={p.id} plan={p} wsSlug={wsSlug} />)}
+        {rfcs?.map((r) => <RfcBadge key={r.id} rfc={r} wsSlug={wsSlug} />)}
+        {tasks?.map((t) => <TaskBadge key={t.id} task={t} wsSlug={wsSlug} />)}
+      </div>
+    )
+  }
+
+  // Many entities → CWD + compact counter pills + "voir plus" on one row
+  return (
+    <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+      {/* Compact summary row */}
+      <div className="flex items-center gap-1 min-w-0">
+        {cwdElement}
+        {cwdElement && <span className="text-[10px] text-gray-700 shrink-0">&middot;</span>}
+        {planCount > 0 && <CountPill icon={ClipboardList} count={planCount} color="blue" />}
+        {rfcCount > 0  && <CountPill icon={ScrollText} count={rfcCount} color="purple" />}
+        {taskCount > 0 && <CountPill icon={ListChecks} count={taskCount} color="amber" />}
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-white/[0.06] text-gray-400 hover:bg-white/[0.10] hover:text-gray-300 transition-colors ml-0.5 shrink-0"
+        >
+          <Eye className="w-2.5 h-2.5" />
+          {expanded ? 'masquer' : 'voir plus'}
+        </button>
+      </div>
+
+      {/* Expanded structured detail view */}
+      {expanded && (
+        <div className="mt-1.5 rounded-md border border-white/[0.08] bg-white/[0.03] p-2 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+          {planCount > 0 && (
+            <div>
+              <div className="text-[9px] text-blue-400/60 font-medium uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                <ClipboardList className="w-2.5 h-2.5" /> Plans
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {plans!.map((p) => <PlanBadge key={p.id} plan={p} wsSlug={wsSlug} />)}
+              </div>
+            </div>
+          )}
+          {rfcCount > 0 && (
+            <div>
+              <div className="text-[9px] text-purple-400/60 font-medium uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                <ScrollText className="w-2.5 h-2.5" /> RFCs
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {rfcs!.map((r) => <RfcBadge key={r.id} rfc={r} wsSlug={wsSlug} />)}
+              </div>
+            </div>
+          )}
+          {taskCount > 0 && (
+            <div>
+              <div className="text-[9px] text-amber-400/60 font-medium uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                <ListChecks className="w-2.5 h-2.5" /> Tasks
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {tasks!.map((t) => <TaskBadge key={t.id} task={t} wsSlug={wsSlug} />)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -611,30 +729,23 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
           {/* Expandable children indicator */}
           <ChildrenIndicator sessionId={session.id} onSelect={onSelect} />
 
-          {/* Linked plans / tasks / RFCs badges */}
-          {activeWsSlug && (session.linked_plans?.length || session.linked_tasks?.length || session.linked_rfcs?.length) ? (
-            <div className="flex flex-wrap items-center gap-1 mt-1">
-              {session.linked_plans?.map((p) => (
-                <PlanBadge key={p.id} plan={p} wsSlug={activeWsSlug} />
-              ))}
-              {session.linked_rfcs?.map((r) => (
-                <RfcBadge key={r.id} rfc={r} wsSlug={activeWsSlug} />
-              ))}
-              {session.linked_tasks?.map((t) => (
-                <TaskBadge key={t.id} task={t} wsSlug={activeWsSlug} />
-              ))}
-            </div>
-          ) : null}
-
-          {/* CWD */}
-          {session.cwd && (
+          {/* CWD + Linked plans / tasks / RFCs — compact or detailed */}
+          {activeWsSlug ? (
+            <LinkedEntitiesSummary
+              plans={session.linked_plans}
+              rfcs={session.linked_rfcs}
+              tasks={session.linked_tasks}
+              wsSlug={activeWsSlug}
+              cwd={session.cwd}
+            />
+          ) : session.cwd ? (
             <div className="flex items-center gap-1 mt-0.5 min-w-0">
               <Folder className="w-2.5 h-2.5 text-gray-600 shrink-0" />
               <span className="text-[10px] text-gray-600 truncate">
                 {shortenPath(session.cwd)}
               </span>
             </div>
-          )}
+          ) : null}
 
           {/* Metadata row */}
           <div className="flex items-center gap-1.5 mt-1 flex-wrap overflow-hidden">
