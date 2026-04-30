@@ -66,10 +66,20 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
         // Re-enable so the user can retry once the cap window clears.
         // 6s ≈ 10 retries spread over the 60s cap window.
         setTimeout(() => setStopRequested(false), 6000)
+      } else if (result.killed_pids.length === 0) {
+        // Backend says no descendants were found to kill (agent may
+        // already have finished the tool, or the CLI doesn't expose
+        // a child_pid this turn). Re-enable so the user can retry
+        // — leaving "stopping…" forever would be a UX trap.
+        setTimeout(() => setStopRequested(false), 2000)
+      } else {
+        // Best case: SIGINT sent. The cancelled ToolResult should
+        // arrive on the broadcast within ~500 ms and flip
+        // isLoading→false, hiding the chip. Safety timeout in case
+        // the tool ignores SIGINT (e.g. `trap "" INT`) or the
+        // ToolResult never arrives.
+        setTimeout(() => setStopRequested(false), 5000)
       }
-      // Otherwise stays disabled — the cancelled ToolResult arriving
-      // on the broadcast will switch isLoading→false and the button
-      // will disappear naturally.
     } catch {
       // Network/404 — re-enable after a beat so the user can retry.
       setTimeout(() => setStopRequested(false), 2000)
