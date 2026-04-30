@@ -1,6 +1,7 @@
 import { api, buildQuery } from './api'
 import type {
   AgentExecution,
+  CancelToolsResult,
   ChatConfig,
   ChatSession,
   CliInstallResult,
@@ -84,6 +85,20 @@ export const chatApi = {
   /** Interrupt a running session (used to stop detached runs) */
   interruptSession: (sessionId: string) =>
     api.post(`/chat/sessions/${sessionId}/interrupt`, {}),
+
+  /**
+   * Cancel the currently-running tool subprocess(es) of a session WITHOUT
+   * ending the LLM turn (plan 28e9afe3). Sends SIGINT to descendants only;
+   * the agent receives a tool_result with `is_error:true` and continues.
+   *
+   * Distinct from `interruptSession` which terminates the entire turn.
+   *
+   * Returns 200 with `CancelToolsResult { cli_pid, killed_pids, capped }`.
+   * `capped:true` means the per-session rate limit (10/60s) was hit; the
+   * caller should display a "slow down" toast and retry later.
+   */
+  cancelTools: (sessionId: string) =>
+    api.post<CancelToolsResult>(`/chat/sessions/${sessionId}/cancel-tools`, {}),
 
   // PATH detection
   detectPath: () =>

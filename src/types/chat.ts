@@ -282,6 +282,17 @@ export type ChatEvent =
   | { type: 'system_hint'; content: string }
   | { type: 'retrying'; attempt: number; max_attempts: number; delay_ms: number; error_message: string }
   | { type: 'viz_block'; viz_type: string; data: Record<string, unknown>; interactive?: boolean; fallback_text: string; title?: string; max_height?: number }
+  | { type: 'background_output'; source: string; content: string; received_at: string; correlation_id?: string }
+  | { type: 'session_error'; reason: string; message: string; received_at: string }
+  | { type: 'tools_cancelled'; cli_pid?: number; killed_count: number; requested_by: string }
+
+/** Result returned by POST /api/chat/sessions/:id/cancel-tools (T2/T3 of plan 28e9afe3). */
+export interface CancelToolsResult {
+  cli_pid: number | null
+  killed_pids: number[]
+  /** True when the per-session rate cap (10/60s) was hit — no SIGINT sent. */
+  capped: boolean
+}
 
 // ============================================================================
 // CLIENT MESSAGES

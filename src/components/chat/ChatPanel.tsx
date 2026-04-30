@@ -4,6 +4,7 @@ import { useChat, useDetachedRuns, useWindowFullscreen, useWorkspaceSlug } from 
 import { chatApi } from '@/services/chat'
 import { Plus, X, Menu, Settings, Minimize2, Maximize2, Loader2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check } from 'lucide-react'
 import { ChatMessages } from './ChatMessages'
+import { ChatSessionProvider } from './ChatSessionContext'
 import { ChatInput, type PrefillPayload } from './ChatInput'
 import { CompactionBanner } from './CompactionBanner'
 import { DetachedRunsPanel } from './DetachedRunsPanel'
@@ -514,6 +515,7 @@ export function ChatPanel() {
 
   // --- PANEL LAYOUT (non-fullscreen): toggle-based session list ---
   return (
+    <ChatSessionProvider sessionId={chat.sessionId ?? null}>
     <div
       ref={panelRef}
       className={`fixed z-30 bg-surface-raised border-l border-border-subtle flex flex-col ${isDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isOpen ? 'translate-x-0' : 'translate-x-full'} top-0 right-0 bottom-0 w-full`}
@@ -717,6 +719,7 @@ export function ChatPanel() {
         </>
       )}
     </div>
+    </ChatSessionProvider>
   )
 }
 

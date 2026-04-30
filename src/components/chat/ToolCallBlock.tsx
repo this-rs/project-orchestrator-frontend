@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import type { ContentBlock } from '@/types'
+import { chatApi } from '@/services'
 import { ToolContent, getToolSummary, getToolIcon } from './tools'
 import { useElapsedMs, formatDurationShort } from './useElapsedMs'
-import { ChevronRight } from 'lucide-react'
+import { useChatSessionId } from './ChatSessionContext'
+import { ChevronRight, Square } from 'lucide-react'
 
 const MCP_PREFIX = 'mcp__project-orchestrator__'
 
@@ -29,6 +31,8 @@ interface ToolCallBlockProps {
 
 export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
   const [expanded, setExpanded] = useState(false)
+  const [stopRequested, setStopRequested] = useState(false)
+  const sessionId = useChatSessionId()
   const toolName = block.metadata?.tool_name as string || block.content
   const toolInput = (block.metadata?.tool_input as Record<string, unknown>) ?? {}
   const isError = resultBlock?.metadata?.is_error as boolean | undefined
@@ -44,6 +48,33 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
 
   const isMcp = toolName.startsWith(MCP_PREFIX) || typeof toolInput.action === 'string'
   const badgeColor = isMcp ? getMcpBadgeColor(toolName, toolInput) : null
+
+  // Plan 28e9afe3 — Stop button visible only on running tools (no
+  // result yet, not already cancelled). Clicking calls
+  // POST /api/chat/sessions/{id}/cancel-tools which sends SIGINT to
+  // the CLI's descendant process(es). The agent receives a cancelled
+  // tool_result and continues its turn (does NOT end it).
+  const canStop = isLoading && !isCancelled && sessionId !== null && !stopRequested
+  const handleStop = async (e: React.MouseEvent) => {
+    // Don't toggle the expansion when clicking the Stop chip.
+    e.stopPropagation()
+    if (!sessionId) return
+    setStopRequested(true)
+    try {
+      const result = await chatApi.cancelTools(sessionId)
+      if (result.capped) {
+        // Re-enable so the user can retry once the cap window clears.
+        // 6s ≈ 10 retries spread over the 60s cap window.
+        setTimeout(() => setStopRequested(false), 6000)
+      }
+      // Otherwise stays disabled — the cancelled ToolResult arriving
+      // on the broadcast will switch isLoading→false and the button
+      // will disappear naturally.
+    } catch {
+      // Network/404 — re-enable after a beat so the user can retry.
+      setTimeout(() => setStopRequested(false), 2000)
+    }
+  }
 
   return (
     <div className="my-2 rounded-lg bg-white/[0.04] border border-white/[0.06] overflow-hidden">
@@ -71,6 +102,29 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
             {formatDurationShort(durationMs)}
           </span>
         ) : null}
+        {canStop && (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={handleStop}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                handleStop(e as unknown as React.MouseEvent)
+              }
+            }}
+            title="Stop this tool (sends SIGINT to the running subprocess; the agent's turn continues)"
+            className="ml-2 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono text-red-300 bg-red-500/10 hover:bg-red-500/20 transition-colors shrink-0"
+          >
+            <Square className="w-2.5 h-2.5" />
+            stop
+          </span>
+        )}
+        {stopRequested && isLoading && !isCancelled && (
+          <span className="ml-2 text-[10px] font-mono text-amber-300 shrink-0">
+            stopping…
+          </span>
+        )}
       </button>
 
       {expanded && (
