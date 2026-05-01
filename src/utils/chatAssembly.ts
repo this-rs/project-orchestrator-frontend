@@ -466,6 +466,51 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
         break
       }
 
+      case 'background_output': {
+        // Plan 5985a7c4 (F6): if this tick carries a correlation_id
+        // matching a previously-emitted Monitor / Bash bg tool_use
+        // block, append it to that block's `child_outputs` metadata —
+        // MonitorCard will render the events nested under their
+        // parent. Without a match the event is dropped for now;
+        // F10 (orphan tolerance) will buffer + fall back later.
+        const correlationId = (evt as { correlation_id?: string }).correlation_id
+        if (correlationId) {
+          let attached = false
+          for (let mi = messages.length - 1; mi >= 0 && !attached; mi--) {
+            const msg = messages[mi]
+            for (let bi = 0; bi < msg.blocks.length && !attached; bi++) {
+              const block = msg.blocks[bi]
+              if (
+                block.type === 'tool_use' &&
+                block.metadata?.tool_call_id === correlationId
+              ) {
+                const existing =
+                  (block.metadata?.child_outputs as
+                    | Array<{ source: string; content: string; received_at: string }>
+                    | undefined) ?? []
+                msg.blocks[bi] = {
+                  ...block,
+                  metadata: {
+                    ...block.metadata,
+                    child_outputs: [
+                      ...existing,
+                      {
+                        source: evt.source,
+                        content: evt.content,
+                        received_at: evt.received_at,
+                      },
+                    ],
+                  },
+                }
+                attached = true
+              }
+            }
+          }
+        }
+        lastEventWasMaxTurns = false
+        break
+      }
+
       default:
         // Unknown event type — skip
         lastEventWasMaxTurns = false
