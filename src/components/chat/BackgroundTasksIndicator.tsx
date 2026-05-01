@@ -31,11 +31,34 @@
  * toolbar compact and dovetails with the existing Mode/Model pill
  * styling. We can split later if heuristics prove otherwise.
  */
-import { useId, useRef, useState, type CSSProperties } from 'react'
-import { Eye, Square, Terminal, AlertTriangle, Loader2 } from 'lucide-react'
+import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
+import { Eye, Square, Terminal, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react'
 import { useBackgroundTasks } from '@/hooks/useBackgroundTasks'
 import type { BackgroundTaskInfo, BackgroundTaskKind } from '@/types'
 import { useElapsedMs, formatDurationShort } from './useElapsedMs'
+
+/**
+ * Transient feedback shown briefly in the popover after a Stop click,
+ * driven by `CancelTaskResult.killed_pids` from the V2 backend (plan
+ * `fc35b25e`, T4):
+ *
+ * - `success` — `killed_pids.length > 0`: the backend SIGINT'd at least
+ *   one PID, kill confirmed end-to-end.
+ * - `fallback` — `killed_pids.length === 0` and not capped: the V2
+ *   claim race kicked in and no PID was stored at cancel time. The
+ *   map-side cancel still happened (T12 grace + V1 broadcast), but the
+ *   subprocess MAY still be alive. Surfaces a hint to use the global
+ *   Stop if the orphan tick keeps coming.
+ *
+ * The cap path is handled separately via `error` (red toast). This
+ * feedback channel is for non-cap outcomes only.
+ */
+type CancelFeedback =
+  | { kind: 'success'; killedCount: number }
+  | { kind: 'fallback' }
+
+/** Duration the transient feedback stays visible after a Stop click. */
+const FEEDBACK_TTL_MS = 2500
 
 const KIND_ICONS: Record<BackgroundTaskKind, typeof Eye> = {
   monitor: Eye,
@@ -49,11 +72,11 @@ const KIND_LABELS: Record<BackgroundTaskKind, { singular: string; plural: string
 
 interface TaskRowProps {
   task: BackgroundTaskInfo
-  busy: boolean
+  cancelling: boolean
   onStop: () => void
 }
 
-function TaskRow({ task, busy, onStop }: TaskRowProps) {
+function TaskRow({ task, cancelling, onStop }: TaskRowProps) {
   const Icon = KIND_ICONS[task.kind]
   // The duration tracker only "lives" while the entry is alive (no
   // pending-removal-at exposed on the wire). Backend strips that
@@ -62,14 +85,30 @@ function TaskRow({ task, busy, onStop }: TaskRowProps) {
   const elapsed = elapsedMs != null ? formatDurationShort(elapsedMs) : '—'
 
   return (
-    <div className="px-3 py-2 flex items-start gap-2 hover:bg-white/[0.04] transition-colors">
-      <Icon size={14} className="mt-0.5 text-emerald-400/80 shrink-0" />
+    <div
+      className={
+        'px-3 py-2 flex items-start gap-2 transition-colors ' +
+        (cancelling
+          ? 'bg-amber-500/[0.04] opacity-70'
+          : 'hover:bg-white/[0.04]')
+      }
+    >
+      <Icon
+        size={14}
+        className={
+          'mt-0.5 shrink-0 ' +
+          (cancelling ? 'text-amber-400/70' : 'text-emerald-400/80')
+        }
+      />
       <div className="min-w-0 flex-1">
         <div className="text-[12px] text-gray-200 truncate" title={task.description}>
           {task.description || '(no description)'}
         </div>
         <div className="text-[10px] text-gray-500 mt-0.5">
           {KIND_LABELS[task.kind].singular} • {elapsed}
+          {cancelling && (
+            <span className="ml-1.5 text-amber-300/80">• stopping…</span>
+          )}
         </div>
       </div>
       <button
@@ -77,10 +116,10 @@ function TaskRow({ task, busy, onStop }: TaskRowProps) {
         onClick={(e) => {
           e.preventDefault()
           e.stopPropagation()
-          onStop()
+          if (!cancelling) onStop()
         }}
-        disabled={busy}
-        title={busy ? 'Stopping…' : 'Stop this task'}
+        disabled={cancelling}
+        title={cancelling ? 'Stopping…' : 'Stop this task'}
         aria-label={`Stop ${task.description}`}
         className={
           'shrink-0 inline-flex items-center justify-center w-6 h-6 rounded ' +
@@ -88,7 +127,7 @@ function TaskRow({ task, busy, onStop }: TaskRowProps) {
           'disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
         }
       >
-        {busy ? <Loader2 size={12} className="animate-spin" /> : <Square size={12} />}
+        {cancelling ? <Loader2 size={12} className="animate-spin" /> : <Square size={12} />}
       </button>
     </div>
   )
@@ -100,8 +139,65 @@ export function BackgroundTasksIndicator() {
   const popoverRef = useRef<HTMLDivElement>(null)
   const popoverId = useId()
   const anchorName = `--bg-tasks-anchor-${popoverId.replace(/[:.]/g, '-')}`
-  const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(() => new Set())
+  // `cancellingIds` is sticky: once the user clicks Stop, the row
+  // shows "stopping…" until the entry actually leaves the snapshot
+  // (which happens after the backend's 5s grace period — see plan
+  // 754a1379 T12). Without sticky state, the spinner would flash for
+  // the network round-trip (~50ms) and the user would think the
+  // click did nothing during the grace window.
+  const [cancellingIds, setCancellingIds] = useState<ReadonlySet<string>>(() => new Set())
   const [error, setError] = useState<string | null>(null)
+  // Transient confirmation surfaced after a successful Stop click.
+  // Cleared automatically after `FEEDBACK_TTL_MS`. See `CancelFeedback`
+  // doc-comment for the V2 (plan fc35b25e, T8) wire mapping.
+  const [feedback, setFeedback] = useState<CancelFeedback | null>(null)
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Drop ids from `cancellingIds` once the entry actually disappears
+  // from the snapshot — that's our cue that the backend's grace
+  // period elapsed and the entry was purged. Avoids a stale "stopping"
+  // state if a different entry replaces it later.
+  useEffect(() => {
+    setCancellingIds((prev) => {
+      if (prev.size === 0) return prev
+      const ids = new Set(tasks.map((t) => t.id))
+      let changed = false
+      const next = new Set(prev)
+      for (const id of prev) {
+        if (!ids.has(id)) {
+          next.delete(id)
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [tasks])
+
+  // Clear any pending feedback timer when the component unmounts so
+  // the setState doesn't fire on a torn-down tree.
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current != null) {
+        clearTimeout(feedbackTimerRef.current)
+      }
+    }
+  }, [])
+
+  /**
+   * Show a transient feedback message and auto-clear after
+   * `FEEDBACK_TTL_MS`. Replaces any previous feedback (the latest
+   * Stop click wins).
+   */
+  const flashFeedback = (next: CancelFeedback) => {
+    if (feedbackTimerRef.current != null) {
+      clearTimeout(feedbackTimerRef.current)
+    }
+    setFeedback(next)
+    feedbackTimerRef.current = setTimeout(() => {
+      setFeedback(null)
+      feedbackTimerRef.current = null
+    }, FEEDBACK_TTL_MS)
+  }
 
   // Visibility constraint: the toolbar stays clean when nothing is
   // running. As soon as a Monitor / Bash bg appears in the snapshot,
@@ -120,7 +216,12 @@ export function BackgroundTasksIndicator() {
 
   const handleStop = async (taskId: string) => {
     setError(null)
-    setBusyIds((prev) => {
+    // Optimistic: immediately mark as cancelling so the row shows
+    // "stopping…" without waiting for the network or the backend's
+    // grace period. The flag clears when the entry leaves the
+    // snapshot (see the useEffect above).
+    setCancellingIds((prev) => {
+      if (prev.has(taskId)) return prev
       const next = new Set(prev)
       next.add(taskId)
       return next
@@ -128,17 +229,46 @@ export function BackgroundTasksIndicator() {
     try {
       const result = await cancelTask(taskId)
       if (result.capped) {
+        // Cap hit — the click was refused, so we should NOT keep the
+        // "stopping…" indicator. Drop the id back out and surface the
+        // toast.
+        setCancellingIds((prev) => {
+          const next = new Set(prev)
+          next.delete(taskId)
+          return next
+        })
         setError('Cancelling too fast — try again in a moment.')
+      } else if (result.killed_pids.length > 0) {
+        // V2 happy path (plan fc35b25e, T4): backend SIGINT'd the
+        // subtree. Briefly confirm the kill so the user knows their
+        // click had a real effect (vs the V1-era cosmetic-only cancel).
+        flashFeedback({
+          kind: 'success',
+          killedCount: result.killed_pids.length,
+        })
+      } else {
+        // V2 fallback path: backend accepted the cancel but had no
+        // pid stored (claim race or subprocess crashed before pgrep
+        // saw it). Map-side cancel still happened, so we keep the
+        // sticky "stopping…", but warn the user that the orphan
+        // subprocess might survive — they can fall back to the
+        // global Stop if it keeps emitting ticks.
+        flashFeedback({ kind: 'fallback' })
       }
     } catch {
-      setError('Failed to cancel task — try the global Stop instead.')
-    } finally {
-      setBusyIds((prev) => {
+      // Network / backend error — same: drop the id and surface the
+      // error.
+      setCancellingIds((prev) => {
         const next = new Set(prev)
         next.delete(taskId)
         return next
       })
+      setError('Failed to cancel task — try the global Stop instead.')
     }
+    // No `finally` reset: on success, the id stays in `cancellingIds`
+    // until the entry disappears from `tasks` (driven by the useEffect
+    // above), giving the user continuous "stopping…" feedback during
+    // the backend's grace period.
   }
 
   return (
@@ -197,10 +327,34 @@ export function BackgroundTasksIndicator() {
           <TaskRow
             key={task.id}
             task={task}
-            busy={busyIds.has(task.id)}
+            cancelling={cancellingIds.has(task.id)}
             onStop={() => void handleStop(task.id)}
           />
         ))}
+        {feedback?.kind === 'success' && (
+          <div
+            role="status"
+            className="px-3 py-2 flex items-start gap-2 border-t border-white/10 text-[11px] text-emerald-300"
+          >
+            <CheckCircle2 size={12} className="mt-0.5 shrink-0" />
+            <span>
+              Stopped {feedback.killedCount} subprocess
+              {feedback.killedCount === 1 ? '' : 'es'}.
+            </span>
+          </div>
+        )}
+        {feedback?.kind === 'fallback' && (
+          <div
+            role="status"
+            className="px-3 py-2 flex items-start gap-2 border-t border-white/10 text-[11px] text-amber-300"
+          >
+            <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+            <span>
+              Cancel registered, but the subprocess PID wasn&apos;t known
+              — if ticks keep arriving, use the global Stop button.
+            </span>
+          </div>
+        )}
         {error && (
           <div className="px-3 py-2 flex items-start gap-2 border-t border-white/10 text-[11px] text-amber-300">
             <AlertTriangle size={12} className="mt-0.5 shrink-0" />
