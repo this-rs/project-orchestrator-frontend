@@ -1,6 +1,6 @@
 import { atom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
-import type { ChatPanelMode, PermissionConfig, PermissionMode, Project, WsConnectionStatus } from '@/types'
+import type { BackgroundTaskInfo, ChatPanelMode, PermissionConfig, PermissionMode, Project, WsConnectionStatus } from '@/types'
 
 /** Hint set by pages that know which project the user is looking at */
 export const chatSuggestedProjectIdAtom = atom<string | null>(null)
@@ -66,3 +66,23 @@ export const chatPermissionInteractiveAtom = atom((get) => {
   const config = get(chatPermissionConfigAtom)
   return config !== null && config.mode !== 'bypassPermissions'
 })
+
+/**
+ * Background subprocesses currently tracked for the active chat session.
+ * Plan 5985a7c4 (F2). The atom holds the **full snapshot** received on
+ * the most recent `ChatEvent::active_tasks_update` (the backend always
+ * carries the full list, never deltas — see backend plan 754a1379 T4).
+ *
+ * Lifecycle:
+ * - Reset to `[]` on session switch / disconnect (chat is "empty" until
+ *   either the next ActiveTasksUpdate arrives or F7's REST snapshot
+ *   hydration completes).
+ * - Updated by `useChat`'s WS dispatch on every `active_tasks_update`.
+ * - Read by `useBackgroundTasks` for the toolbar pill (F3) and per-task
+ *   popover; also by F6's grouping logic (matches `correlation_id` of
+ *   `background_output` events to a task by id).
+ *
+ * Semantics: order is whatever the backend sent — the UI sorts as it
+ * sees fit (typically by `started_at` ascending).
+ */
+export const chatBackgroundTasksAtom = atom<BackgroundTaskInfo[]>([])

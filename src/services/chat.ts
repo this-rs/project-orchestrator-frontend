@@ -1,6 +1,8 @@
 import { api, buildQuery } from './api'
 import type {
   AgentExecution,
+  BackgroundTaskInfo,
+  CancelTaskResult,
   CancelToolsResult,
   ChatConfig,
   ChatSession,
@@ -99,6 +101,43 @@ export const chatApi = {
    */
   cancelTools: (sessionId: string) =>
     api.post<CancelToolsResult>(`/chat/sessions/${sessionId}/cancel-tools`, {}),
+
+  /**
+   * Snapshot the background subprocesses currently tracked for a session
+   * (T6 of plan 754a1379 — backend). The frontend hits this on WS
+   * connect/reconnect to re-hydrate the toolbar pill before the next
+   * `ChatEvent::active_tasks_update` lands.
+   *
+   * Returns 200 with `{ tasks: BackgroundTaskInfo[] }`. Empty array is
+   * legitimate (no background subprocesses tracked, or session is
+   * unknown locally — the backend treats both the same).
+   */
+  getBackgroundTasks: (sessionId: string) =>
+    api.get<{ tasks: BackgroundTaskInfo[] }>(
+      `/chat/sessions/${sessionId}/background-tasks`,
+    ),
+
+  /**
+   * Cancel a single tracked background task by `tool_use_id`
+   * (T7+T8 of plan 754a1379 — backend). The granular companion to
+   * `cancelTools` — targets one Monitor / Bash bg instead of nuking
+   * every descendant.
+   *
+   * Returns 200 with `CancelTaskResult { task_id, killed_pids,
+   * capped }`. **In V1 `killed_pids` is always empty** — the backend
+   * cancel path is map-side only (entry marked for removal +
+   * broadcast); the underlying subprocess keeps running until the
+   * global Stop is hit or the session ends. Cf backend gotcha note
+   * 33f7431e.
+   *
+   * `capped: true` means the per-session rate limit (30/5min) was
+   * hit; the caller should display a "slow down" toast.
+   */
+  cancelTask: (sessionId: string, taskId: string) =>
+    api.post<CancelTaskResult>(
+      `/chat/sessions/${sessionId}/cancel-task/${encodeURIComponent(taskId)}`,
+      {},
+    ),
 
   // PATH detection
   detectPath: () =>

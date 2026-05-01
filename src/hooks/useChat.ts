@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useSetAtom } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom, chatDraftInputAtom, chatDraftsMapAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom, chatDraftInputAtom, chatDraftsMapAtom, chatBackgroundTasksAtom } from '@/atoms'
 import { chatApi, ChatWebSocket } from '@/services'
 import type { ChatMessage, ChatEvent, PermissionMode } from '@/types'
 import { historyEventsToMessages, nextBlockId, nextMessageId, getParentToolUseId, withParent, withCreatedAt } from '@/utils/chatAssembly'
@@ -118,6 +118,14 @@ export function useChat() {
 
   // Auto-continue: atom is now synced from backend events (not local-only)
   const setAutoContinue = useSetAtom(chatAutoContinueAtom)
+  /**
+   * Background-tasks snapshot setter — fed by `active_tasks_update`
+   * WS events. Plan 5985a7c4 (F2). The atom is also reset to `[]` on
+   * session switch / disconnect so a new chat starts with an empty
+   * toolbar pill until the next snapshot arrives (or F7's REST
+   * snapshot hydration fills it earlier).
+   */
+  const setBackgroundTasks = useSetAtom(chatBackgroundTasksAtom)
 
   // Debounce ref for sendContinue (prevents double-sends on manual Continue button)
   const continueDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -762,6 +770,16 @@ export function useChat() {
           break
         }
 
+        case 'active_tasks_update': {
+          // Plan 5985a7c4 (F2): full snapshot of background subprocesses
+          // currently tracked for this session. Backend always sends the
+          // full list (never deltas) — we replace the atom value
+          // wholesale. Empty array is legitimate (no tracked tasks) and
+          // is exactly what the toolbar pill consumes to render nothing.
+          setBackgroundTasks(event.tasks)
+          break
+        }
+
         default:
           // Unknown event type — ignore gracefully
           break
@@ -770,7 +788,7 @@ export function useChat() {
       return updated
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- tracked setters are stable (useCallback with stable deps)
-  }, [setIsStreaming, setPermissionOverride, setSessionModel, setAutoContinue, setIsCompacting])
+  }, [setIsStreaming, setPermissionOverride, setSessionModel, setAutoContinue, setIsCompacting, setBackgroundTasks])
 
   // ========================================================================
   // Setup WS callbacks
@@ -831,6 +849,10 @@ export function useChat() {
     setIsLoadingHistory(true)
     setIsReplaying(true)
     setMessages([])
+    // Plan 5985a7c4 (F2): clear the toolbar pill on session switch /
+    // reconnect — F7 will refill from the REST snapshot, otherwise
+    // the next active_tasks_update will repopulate it.
+    setBackgroundTasks([])
     paginationRef.current = { offset: 0, tailOffset: 0, totalCount: 0 }
     setHasOlderMessages(false)
 
@@ -1334,6 +1356,7 @@ export function useChat() {
     setIsStreaming(false)
     setIsReplaying(false)
     setMessages([])
+    setBackgroundTasks([])
     setSessionMeta(null)
     setHasOlderMessages(false)
     setHasNewerMessages(false)
