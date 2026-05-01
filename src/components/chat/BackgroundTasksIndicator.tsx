@@ -31,7 +31,7 @@
  * toolbar compact and dovetails with the existing Mode/Model pill
  * styling. We can split later if heuristics prove otherwise.
  */
-import { useId, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import { Eye, Square, Terminal, AlertTriangle, Loader2 } from 'lucide-react'
 import { useBackgroundTasks } from '@/hooks/useBackgroundTasks'
 import type { BackgroundTaskInfo, BackgroundTaskKind } from '@/types'
@@ -49,11 +49,11 @@ const KIND_LABELS: Record<BackgroundTaskKind, { singular: string; plural: string
 
 interface TaskRowProps {
   task: BackgroundTaskInfo
-  busy: boolean
+  cancelling: boolean
   onStop: () => void
 }
 
-function TaskRow({ task, busy, onStop }: TaskRowProps) {
+function TaskRow({ task, cancelling, onStop }: TaskRowProps) {
   const Icon = KIND_ICONS[task.kind]
   // The duration tracker only "lives" while the entry is alive (no
   // pending-removal-at exposed on the wire). Backend strips that
@@ -62,14 +62,30 @@ function TaskRow({ task, busy, onStop }: TaskRowProps) {
   const elapsed = elapsedMs != null ? formatDurationShort(elapsedMs) : '—'
 
   return (
-    <div className="px-3 py-2 flex items-start gap-2 hover:bg-white/[0.04] transition-colors">
-      <Icon size={14} className="mt-0.5 text-emerald-400/80 shrink-0" />
+    <div
+      className={
+        'px-3 py-2 flex items-start gap-2 transition-colors ' +
+        (cancelling
+          ? 'bg-amber-500/[0.04] opacity-70'
+          : 'hover:bg-white/[0.04]')
+      }
+    >
+      <Icon
+        size={14}
+        className={
+          'mt-0.5 shrink-0 ' +
+          (cancelling ? 'text-amber-400/70' : 'text-emerald-400/80')
+        }
+      />
       <div className="min-w-0 flex-1">
         <div className="text-[12px] text-gray-200 truncate" title={task.description}>
           {task.description || '(no description)'}
         </div>
         <div className="text-[10px] text-gray-500 mt-0.5">
           {KIND_LABELS[task.kind].singular} • {elapsed}
+          {cancelling && (
+            <span className="ml-1.5 text-amber-300/80">• stopping…</span>
+          )}
         </div>
       </div>
       <button
@@ -77,10 +93,10 @@ function TaskRow({ task, busy, onStop }: TaskRowProps) {
         onClick={(e) => {
           e.preventDefault()
           e.stopPropagation()
-          onStop()
+          if (!cancelling) onStop()
         }}
-        disabled={busy}
-        title={busy ? 'Stopping…' : 'Stop this task'}
+        disabled={cancelling}
+        title={cancelling ? 'Stopping…' : 'Stop this task'}
         aria-label={`Stop ${task.description}`}
         className={
           'shrink-0 inline-flex items-center justify-center w-6 h-6 rounded ' +
@@ -88,7 +104,7 @@ function TaskRow({ task, busy, onStop }: TaskRowProps) {
           'disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
         }
       >
-        {busy ? <Loader2 size={12} className="animate-spin" /> : <Square size={12} />}
+        {cancelling ? <Loader2 size={12} className="animate-spin" /> : <Square size={12} />}
       </button>
     </div>
   )
@@ -100,8 +116,34 @@ export function BackgroundTasksIndicator() {
   const popoverRef = useRef<HTMLDivElement>(null)
   const popoverId = useId()
   const anchorName = `--bg-tasks-anchor-${popoverId.replace(/[:.]/g, '-')}`
-  const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(() => new Set())
+  // `cancellingIds` is sticky: once the user clicks Stop, the row
+  // shows "stopping…" until the entry actually leaves the snapshot
+  // (which happens after the backend's 5s grace period — see plan
+  // 754a1379 T12). Without sticky state, the spinner would flash for
+  // the network round-trip (~50ms) and the user would think the
+  // click did nothing during the grace window.
+  const [cancellingIds, setCancellingIds] = useState<ReadonlySet<string>>(() => new Set())
   const [error, setError] = useState<string | null>(null)
+
+  // Drop ids from `cancellingIds` once the entry actually disappears
+  // from the snapshot — that's our cue that the backend's grace
+  // period elapsed and the entry was purged. Avoids a stale "stopping"
+  // state if a different entry replaces it later.
+  useEffect(() => {
+    setCancellingIds((prev) => {
+      if (prev.size === 0) return prev
+      const ids = new Set(tasks.map((t) => t.id))
+      let changed = false
+      const next = new Set(prev)
+      for (const id of prev) {
+        if (!ids.has(id)) {
+          next.delete(id)
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [tasks])
 
   // Visibility constraint: the toolbar stays clean when nothing is
   // running. As soon as a Monitor / Bash bg appears in the snapshot,
@@ -120,7 +162,12 @@ export function BackgroundTasksIndicator() {
 
   const handleStop = async (taskId: string) => {
     setError(null)
-    setBusyIds((prev) => {
+    // Optimistic: immediately mark as cancelling so the row shows
+    // "stopping…" without waiting for the network or the backend's
+    // grace period. The flag clears when the entry leaves the
+    // snapshot (see the useEffect above).
+    setCancellingIds((prev) => {
+      if (prev.has(taskId)) return prev
       const next = new Set(prev)
       next.add(taskId)
       return next
@@ -128,17 +175,30 @@ export function BackgroundTasksIndicator() {
     try {
       const result = await cancelTask(taskId)
       if (result.capped) {
+        // Cap hit — the click was refused, so we should NOT keep the
+        // "stopping…" indicator. Drop the id back out and surface the
+        // toast.
+        setCancellingIds((prev) => {
+          const next = new Set(prev)
+          next.delete(taskId)
+          return next
+        })
         setError('Cancelling too fast — try again in a moment.')
       }
     } catch {
-      setError('Failed to cancel task — try the global Stop instead.')
-    } finally {
-      setBusyIds((prev) => {
+      // Network / backend error — same: drop the id and surface the
+      // error.
+      setCancellingIds((prev) => {
         const next = new Set(prev)
         next.delete(taskId)
         return next
       })
+      setError('Failed to cancel task — try the global Stop instead.')
     }
+    // No `finally` reset: on success, the id stays in `cancellingIds`
+    // until the entry disappears from `tasks` (driven by the useEffect
+    // above), giving the user continuous "stopping…" feedback during
+    // the backend's grace period.
   }
 
   return (
@@ -197,7 +257,7 @@ export function BackgroundTasksIndicator() {
           <TaskRow
             key={task.id}
             task={task}
-            busy={busyIds.has(task.id)}
+            cancelling={cancellingIds.has(task.id)}
             onStop={() => void handleStop(task.id)}
           />
         ))}
