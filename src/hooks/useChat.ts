@@ -868,6 +868,38 @@ export function useChat() {
     // streaming_status) instantly — the user sees the live stream right away.
     ws.connect(sessionId, Number.MAX_SAFE_INTEGER)
 
+    // Plan 5985a7c4 (F7): hydrate the toolbar pill from the REST
+    // snapshot in parallel with the WS connect, so a fresh chat session
+    // doesn't show a blank toolbar while waiting for the next live
+    // `active_tasks_update` (Monitors with sparse output may emit only
+    // every few minutes — without this fetch the user could think
+    // their session forgot the running task on every page refresh).
+    //
+    // Race with WS: if a live `active_tasks_update` arrives before the
+    // REST resolves, that one wins and we'd overwrite it here. To
+    // avoid the flicker, we only apply the REST snapshot when the
+    // atom is still empty (the WS hasn't said anything yet). Subsequent
+    // WS updates are authoritative.
+    chatApi
+      .getBackgroundTasks(sessionId)
+      .then((response) => {
+        if (cancelled) return
+        // Use atomic-read: only apply if no live update has populated
+        // the atom yet. Reading via Jotai's getter would require a
+        // store handle — instead we rely on `setBackgroundTasks` being
+        // an updater that can inspect the current value.
+        setBackgroundTasks((current) =>
+          current.length === 0 ? response.tasks : current,
+        )
+      })
+      .catch((err) => {
+        // Snapshot is best-effort. The WS event flow remains the
+        // source of truth — if hydration fails, the toolbar stays
+        // empty until the next live update.
+        // eslint-disable-next-line no-console
+        console.warn('[useChat] background-tasks snapshot fetch failed', err)
+      })
+
     // Capture and clear targetTimestamp so it's only used once
     const targetTimestamp = targetTimestampRef.current
     targetTimestampRef.current = null
