@@ -151,4 +151,94 @@ describe('<BackgroundTasksIndicator />', () => {
       expect(screen.getByText(/failed to cancel task/i)).toBeInTheDocument()
     })
   })
+
+  // ====================================================================
+  // T8 of plan fc35b25e — V2 kill confirmation feedback
+  // ====================================================================
+
+  it('flashes a success confirmation when killed_pids is non-empty (V2 happy path)', async () => {
+    const store = createStore()
+    store.set(chatSessionIdAtom, 'sess-v2-ok')
+    store.set(chatBackgroundTasksAtom, [monitor('toolu_M1', 'tail log')])
+    vi.mocked(chatApi.cancelTask).mockResolvedValueOnce({
+      task_id: 'toolu_M1',
+      killed_pids: [12345, 12346],
+      capped: false,
+    })
+
+    render(<BackgroundTasksIndicator />, { wrapper: withStore(store) })
+    fireEvent.click(screen.getByRole('button', { name: /^Stop tail log/, hidden: true }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/stopped 2 subprocesses/i)).toBeInTheDocument()
+    })
+    // Should NOT surface the fallback warning at the same time.
+    expect(screen.queryByText(/subprocess pid wasn['’]t known/i)).not.toBeInTheDocument()
+  })
+
+  it('uses singular wording when killed_pids has exactly 1 entry', async () => {
+    const store = createStore()
+    store.set(chatSessionIdAtom, 'sess-v2-1')
+    store.set(chatBackgroundTasksAtom, [monitor('toolu_M1', 'tail log')])
+    vi.mocked(chatApi.cancelTask).mockResolvedValueOnce({
+      task_id: 'toolu_M1',
+      killed_pids: [12345],
+      capped: false,
+    })
+
+    render(<BackgroundTasksIndicator />, { wrapper: withStore(store) })
+    fireEvent.click(screen.getByRole('button', { name: /^Stop tail log/, hidden: true }))
+
+    await waitFor(() => {
+      // Match "1 subprocess." but not "1 subprocesses." — assert the
+      // grammar gates on count===1.
+      const message = screen.getByText(/stopped 1 subprocess\./i)
+      expect(message).toBeInTheDocument()
+    })
+  })
+
+  it('flashes a fallback warning when killed_pids is empty (V2 claim race)', async () => {
+    const store = createStore()
+    store.set(chatSessionIdAtom, 'sess-v2-fallback')
+    store.set(chatBackgroundTasksAtom, [monitor('toolu_M1', 'tail log')])
+    vi.mocked(chatApi.cancelTask).mockResolvedValueOnce({
+      task_id: 'toolu_M1',
+      killed_pids: [],
+      capped: false,
+    })
+
+    render(<BackgroundTasksIndicator />, { wrapper: withStore(store) })
+    fireEvent.click(screen.getByRole('button', { name: /^Stop tail log/, hidden: true }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/subprocess pid wasn['’]t known/i),
+      ).toBeInTheDocument()
+    })
+    // The success confirmation must NOT appear in the fallback case.
+    expect(screen.queryByText(/^Stopped \d+ subprocess/i)).not.toBeInTheDocument()
+  })
+
+  it('does not flash success/fallback when capped:true (cap path owns the message)', async () => {
+    const store = createStore()
+    store.set(chatSessionIdAtom, 'sess-v2-cap')
+    store.set(chatBackgroundTasksAtom, [monitor('toolu_M1', 'tail log')])
+    vi.mocked(chatApi.cancelTask).mockResolvedValueOnce({
+      task_id: 'toolu_M1',
+      killed_pids: [],
+      capped: true,
+    })
+
+    render(<BackgroundTasksIndicator />, { wrapper: withStore(store) })
+    fireEvent.click(screen.getByRole('button', { name: /^Stop tail log/, hidden: true }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/cancelling too fast/i)).toBeInTheDocument()
+    })
+    // Neither V2 feedback variant should appear when the cap won.
+    expect(screen.queryByText(/^Stopped \d+ subprocess/i)).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/subprocess pid wasn['’]t known/i),
+    ).not.toBeInTheDocument()
+  })
 })

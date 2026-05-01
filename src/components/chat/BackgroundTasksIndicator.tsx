@@ -32,10 +32,33 @@
  * styling. We can split later if heuristics prove otherwise.
  */
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
-import { Eye, Square, Terminal, AlertTriangle, Loader2 } from 'lucide-react'
+import { Eye, Square, Terminal, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react'
 import { useBackgroundTasks } from '@/hooks/useBackgroundTasks'
 import type { BackgroundTaskInfo, BackgroundTaskKind } from '@/types'
 import { useElapsedMs, formatDurationShort } from './useElapsedMs'
+
+/**
+ * Transient feedback shown briefly in the popover after a Stop click,
+ * driven by `CancelTaskResult.killed_pids` from the V2 backend (plan
+ * `fc35b25e`, T4):
+ *
+ * - `success` — `killed_pids.length > 0`: the backend SIGINT'd at least
+ *   one PID, kill confirmed end-to-end.
+ * - `fallback` — `killed_pids.length === 0` and not capped: the V2
+ *   claim race kicked in and no PID was stored at cancel time. The
+ *   map-side cancel still happened (T12 grace + V1 broadcast), but the
+ *   subprocess MAY still be alive. Surfaces a hint to use the global
+ *   Stop if the orphan tick keeps coming.
+ *
+ * The cap path is handled separately via `error` (red toast). This
+ * feedback channel is for non-cap outcomes only.
+ */
+type CancelFeedback =
+  | { kind: 'success'; killedCount: number }
+  | { kind: 'fallback' }
+
+/** Duration the transient feedback stays visible after a Stop click. */
+const FEEDBACK_TTL_MS = 2500
 
 const KIND_ICONS: Record<BackgroundTaskKind, typeof Eye> = {
   monitor: Eye,
@@ -124,6 +147,11 @@ export function BackgroundTasksIndicator() {
   // click did nothing during the grace window.
   const [cancellingIds, setCancellingIds] = useState<ReadonlySet<string>>(() => new Set())
   const [error, setError] = useState<string | null>(null)
+  // Transient confirmation surfaced after a successful Stop click.
+  // Cleared automatically after `FEEDBACK_TTL_MS`. See `CancelFeedback`
+  // doc-comment for the V2 (plan fc35b25e, T8) wire mapping.
+  const [feedback, setFeedback] = useState<CancelFeedback | null>(null)
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Drop ids from `cancellingIds` once the entry actually disappears
   // from the snapshot — that's our cue that the backend's grace
@@ -144,6 +172,32 @@ export function BackgroundTasksIndicator() {
       return changed ? next : prev
     })
   }, [tasks])
+
+  // Clear any pending feedback timer when the component unmounts so
+  // the setState doesn't fire on a torn-down tree.
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current != null) {
+        clearTimeout(feedbackTimerRef.current)
+      }
+    }
+  }, [])
+
+  /**
+   * Show a transient feedback message and auto-clear after
+   * `FEEDBACK_TTL_MS`. Replaces any previous feedback (the latest
+   * Stop click wins).
+   */
+  const flashFeedback = (next: CancelFeedback) => {
+    if (feedbackTimerRef.current != null) {
+      clearTimeout(feedbackTimerRef.current)
+    }
+    setFeedback(next)
+    feedbackTimerRef.current = setTimeout(() => {
+      setFeedback(null)
+      feedbackTimerRef.current = null
+    }, FEEDBACK_TTL_MS)
+  }
 
   // Visibility constraint: the toolbar stays clean when nothing is
   // running. As soon as a Monitor / Bash bg appears in the snapshot,
@@ -184,6 +238,22 @@ export function BackgroundTasksIndicator() {
           return next
         })
         setError('Cancelling too fast — try again in a moment.')
+      } else if (result.killed_pids.length > 0) {
+        // V2 happy path (plan fc35b25e, T4): backend SIGINT'd the
+        // subtree. Briefly confirm the kill so the user knows their
+        // click had a real effect (vs the V1-era cosmetic-only cancel).
+        flashFeedback({
+          kind: 'success',
+          killedCount: result.killed_pids.length,
+        })
+      } else {
+        // V2 fallback path: backend accepted the cancel but had no
+        // pid stored (claim race or subprocess crashed before pgrep
+        // saw it). Map-side cancel still happened, so we keep the
+        // sticky "stopping…", but warn the user that the orphan
+        // subprocess might survive — they can fall back to the
+        // global Stop if it keeps emitting ticks.
+        flashFeedback({ kind: 'fallback' })
       }
     } catch {
       // Network / backend error — same: drop the id and surface the
@@ -261,6 +331,30 @@ export function BackgroundTasksIndicator() {
             onStop={() => void handleStop(task.id)}
           />
         ))}
+        {feedback?.kind === 'success' && (
+          <div
+            role="status"
+            className="px-3 py-2 flex items-start gap-2 border-t border-white/10 text-[11px] text-emerald-300"
+          >
+            <CheckCircle2 size={12} className="mt-0.5 shrink-0" />
+            <span>
+              Stopped {feedback.killedCount} subprocess
+              {feedback.killedCount === 1 ? '' : 'es'}.
+            </span>
+          </div>
+        )}
+        {feedback?.kind === 'fallback' && (
+          <div
+            role="status"
+            className="px-3 py-2 flex items-start gap-2 border-t border-white/10 text-[11px] text-amber-300"
+          >
+            <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+            <span>
+              Cancel registered, but the subprocess PID wasn&apos;t known
+              — if ticks keep arriving, use the global Stop button.
+            </span>
+          </div>
+        )}
         {error && (
           <div className="px-3 py-2 flex items-start gap-2 border-t border-white/10 text-[11px] text-amber-300">
             <AlertTriangle size={12} className="mt-0.5 shrink-0" />
