@@ -5,6 +5,7 @@ import { AVAILABLE_MODELS, DEFAULT_MODEL_ID, getModelShortLabel, getModelDotColo
 import { chatApi } from '@/services/chat'
 import type { PermissionMode } from '@/types'
 import { ChevronDown, Loader2, Square, ArrowRight } from 'lucide-react'
+import { BackgroundTasksIndicator } from './BackgroundTasksIndicator'
 
 const MODE_LABELS: Record<PermissionMode, string> = {
   bypassPermissions: 'Bypass',
@@ -275,22 +276,30 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
           </div>
         </div>
 
-        {/* Auto-continue toggle — pushed to the right */}
-        <div className="flex items-center gap-1.5 ml-auto">
-          <span className={`text-[10px] ${autoContinue ? 'text-gray-400' : 'text-gray-500'} transition-colors`}>Auto-continue</span>
-          <button
-            onClick={() => onChangeAutoContinue?.(!autoContinue)}
-            className={`relative w-7 h-3.5 rounded-full transition-colors duration-200 ${
-              autoContinue ? 'bg-emerald-500/70' : 'bg-gray-600/50'
-            }`}
-            title={autoContinue ? 'Auto-continue enabled' : 'Auto-continue disabled'}
-          >
-            <span
-              className={`absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform duration-200 ${
-                autoContinue ? 'translate-x-3' : 'translate-x-0'
+        {/* Background tasks indicator (Monitor + Bash bg) — pushed to the
+            right alongside Auto-continue. Plan 5985a7c4 (F4). The
+            component renders `null` when no tasks are tracked, so the
+            toolbar stays compact when there's no background activity. */}
+        <div className="ml-auto flex items-center gap-3">
+          <BackgroundTasksIndicator />
+
+          {/* Auto-continue toggle */}
+          <div className="flex items-center gap-1.5">
+            <span className={`text-[10px] ${autoContinue ? 'text-gray-400' : 'text-gray-500'} transition-colors`}>Auto-continue</span>
+            <button
+              onClick={() => onChangeAutoContinue?.(!autoContinue)}
+              className={`relative w-7 h-3.5 rounded-full transition-colors duration-200 ${
+                autoContinue ? 'bg-emerald-500/70' : 'bg-gray-600/50'
               }`}
-            />
-          </button>
+              title={autoContinue ? 'Auto-continue enabled' : 'Auto-continue disabled'}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform duration-200 ${
+                  autoContinue ? 'translate-x-3' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
         </div>
       </div>
 

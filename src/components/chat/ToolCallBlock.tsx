@@ -46,6 +46,18 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
   const summary = getToolSummary(toolName, toolInput)
   const headerText = summary || toolName
 
+  // Plan 5985a7c4 (F5+F6): when this tool_use is a Monitor / Bash bg
+  // (long-running subprocess), every BackgroundOutput event whose
+  // `correlation_id` matches our `tool_call_id` is appended by
+  // `chatAssembly.ts` to `block.metadata.child_outputs`. Render them
+  // as a sticky sub-list below the header so users can see live
+  // activity without expanding the tool details.
+  const childOutputs =
+    (block.metadata?.child_outputs as
+      | Array<{ source: string; content: string; received_at: string }>
+      | undefined) ?? []
+  const hasChildOutputs = childOutputs.length > 0
+
   const isMcp = toolName.startsWith(MCP_PREFIX) || typeof toolInput.action === 'string'
   const badgeColor = isMcp ? getMcpBadgeColor(toolName, toolInput) : null
 
@@ -137,6 +149,38 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
             isLoading={isLoading}
           />
         </div>
+      )}
+
+      {/* Live child outputs (Monitor / Bash bg events grouped here by
+          correlation_id — F5+F6 of plan 5985a7c4). Always visible
+          when present so the user sees ticks roll in without having
+          to expand the tool. */}
+      {hasChildOutputs && (
+        <ul
+          className="mx-3 mb-2 mt-1 max-h-40 overflow-y-auto rounded border border-white/[0.04] bg-white/[0.02] divide-y divide-white/[0.04]"
+          aria-label={`${childOutputs.length} live event${childOutputs.length > 1 ? 's' : ''} from ${toolName}`}
+        >
+          {childOutputs.map((out, i) => {
+            const localTime = new Date(out.received_at).toLocaleTimeString(undefined, {
+              hour12: false,
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            })
+            return (
+              <li
+                key={`${out.received_at}-${i}`}
+                className="px-2 py-1 flex gap-2 text-[10px] font-mono"
+              >
+                <span className="text-gray-600 shrink-0">{localTime}</span>
+                <span className="text-emerald-400/80 shrink-0">{out.source}</span>
+                <span className="text-gray-300 truncate" title={out.content}>
+                  {out.content}
+                </span>
+              </li>
+            )
+          })}
+        </ul>
       )}
     </div>
   )

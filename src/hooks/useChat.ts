@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useSetAtom } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom, chatDraftInputAtom, chatDraftsMapAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom, chatDraftInputAtom, chatDraftsMapAtom, chatBackgroundTasksAtom } from '@/atoms'
 import { chatApi, ChatWebSocket } from '@/services'
 import type { ChatMessage, ChatEvent, PermissionMode } from '@/types'
 import { historyEventsToMessages, nextBlockId, nextMessageId, getParentToolUseId, withParent, withCreatedAt } from '@/utils/chatAssembly'
@@ -73,6 +73,27 @@ export function useChat() {
   // The auto-connect useEffect sets it to false before starting REST,
   // then back to true after setMessages(history) + replaying buffered events.
   const historyLoadedRef = useRef(true)
+  /**
+   * F10 of plan 5985a7c4 — buffer for `background_output` events whose
+   * `correlation_id` doesn't match any tool_use block yet at dispatch
+   * time. Typically happens after a backend lazy-recovery (T13 of
+   * plan 754a1379): the toolbar pill repopulates from
+   * `active_tasks_update` but the corresponding tool_use block isn't
+   * in the message list (it pre-dates the restart). The map is keyed
+   * by correlation_id; entries are drained when a matching tool_use
+   * arrives within 2s, otherwise dropped silently on the next dispatch
+   * after `expiresAt`. The toolbar pill remains visible regardless —
+   * users still see that the background task exists.
+   */
+  const orphanBackgroundOutputRef = useRef<
+    Map<
+      string,
+      {
+        events: Array<{ source: string; content: string; received_at: string }>
+        expiresAt: number
+      }
+    >
+  >(new Map())
   const pendingEventsRef = useRef<Array<ChatEvent & { seq?: number; replaying?: boolean }>>([])
 
   // Lazily create the ChatWebSocket singleton per hook instance
@@ -118,6 +139,14 @@ export function useChat() {
 
   // Auto-continue: atom is now synced from backend events (not local-only)
   const setAutoContinue = useSetAtom(chatAutoContinueAtom)
+  /**
+   * Background-tasks snapshot setter — fed by `active_tasks_update`
+   * WS events. Plan 5985a7c4 (F2). The atom is also reset to `[]` on
+   * session switch / disconnect so a new chat starts with an empty
+   * toolbar pill until the next snapshot arrives (or F7's REST
+   * snapshot hydration fills it earlier).
+   */
+  const setBackgroundTasks = useSetAtom(chatBackgroundTasksAtom)
 
   // Debounce ref for sendContinue (prevents double-sends on manual Continue button)
   const continueDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -380,15 +409,44 @@ export function useChat() {
               }
             }
           } else {
+            // F10 — drain any orphan background_output ticks buffered
+            // for this tool_use_id, attaching them to the freshly-
+            // created tool_use block. We also opportunistically prune
+            // expired entries from the buffer (passed `expiresAt`).
+            let initialChildOutputs: Array<{
+              source: string
+              content: string
+              received_at: string
+            }> = []
+            const buf = orphanBackgroundOutputRef.current
+            const now = Date.now()
+            const orphanEntry = buf.get(toolId)
+            if (orphanEntry && orphanEntry.expiresAt >= now) {
+              initialChildOutputs = orphanEntry.events
+              buf.delete(toolId)
+            }
+            for (const [key, entry] of buf) {
+              if (entry.expiresAt < now) buf.delete(key)
+            }
+
             lastMsg.blocks.push({
               id: nextBlockId(),
               type: 'tool_use',
               content: toolName,
-              metadata: withCreatedAt(withParent({
-                tool_call_id: toolId,
-                tool_name: toolName,
-                tool_input: toolInput,
-              }, tuParent), tuTs),
+              metadata: withCreatedAt(
+                withParent(
+                  {
+                    tool_call_id: toolId,
+                    tool_name: toolName,
+                    tool_input: toolInput,
+                    ...(initialChildOutputs.length > 0
+                      ? { child_outputs: initialChildOutputs }
+                      : {}),
+                  },
+                  tuParent,
+                ),
+                tuTs,
+              ),
             })
           }
           break
@@ -762,6 +820,87 @@ export function useChat() {
           break
         }
 
+        case 'active_tasks_update': {
+          // Plan 5985a7c4 (F2): full snapshot of background subprocesses
+          // currently tracked for this session. Backend always sends the
+          // full list (never deltas) — we replace the atom value
+          // wholesale. Empty array is legitimate (no tracked tasks) and
+          // is exactly what the toolbar pill consumes to render nothing.
+          setBackgroundTasks(event.tasks)
+          break
+        }
+
+        case 'background_output': {
+          // Plan 5985a7c4 (F6 live + F10 orphan tolerance).
+          //
+          // Live mirror of chatAssembly's grouping logic — attach a tick
+          // to its parent tool_use block by `correlation_id ↔
+          // tool_call_id` so MonitorCard / ToolCallBlock renders it
+          // under the right card. F10 covers the case where the tick
+          // arrives before its parent tool_use block exists in the
+          // message list (typically across a server restart that
+          // triggered the backend's lazy recovery): the orphan is
+          // buffered for 2s; if a matching tool_use materialises within
+          // the window, we drain the buffer and attach. Otherwise the
+          // tick is silently dropped (the toolbar pill from
+          // active_tasks_update still shows the user that the task
+          // exists — just without timeline events).
+          const correlationId = event.correlation_id
+          if (!correlationId) {
+            // No correlation_id → no parent linkage possible. Drop.
+            break
+          }
+          let attached = false
+          for (let mi = updated.length - 1; mi >= 0 && !attached; mi--) {
+            const msg = updated[mi]
+            for (let bi = 0; bi < msg.blocks.length && !attached; bi++) {
+              const block = msg.blocks[bi]
+              if (
+                block.type === 'tool_use' &&
+                block.metadata?.tool_call_id === correlationId
+              ) {
+                const existing =
+                  (block.metadata?.child_outputs as
+                    | Array<{ source: string; content: string; received_at: string }>
+                    | undefined) ?? []
+                msg.blocks[bi] = {
+                  ...block,
+                  metadata: {
+                    ...block.metadata,
+                    child_outputs: [
+                      ...existing,
+                      {
+                        source: event.source,
+                        content: event.content,
+                        received_at: event.received_at,
+                      },
+                    ],
+                  },
+                }
+                attached = true
+              }
+            }
+          }
+          if (!attached) {
+            // F10 — buffer the orphan for up to 2s in case the parent
+            // tool_use arrives shortly. The buffer is keyed by
+            // correlation_id; subsequent tool_use of that id will drain
+            // it (see the tool_use case below — also F10).
+            const buf = orphanBackgroundOutputRef.current
+            const entry = buf.get(correlationId) ?? {
+              events: [],
+              expiresAt: Date.now() + 2000,
+            }
+            entry.events.push({
+              source: event.source,
+              content: event.content,
+              received_at: event.received_at,
+            })
+            buf.set(correlationId, entry)
+          }
+          break
+        }
+
         default:
           // Unknown event type — ignore gracefully
           break
@@ -770,7 +909,7 @@ export function useChat() {
       return updated
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- tracked setters are stable (useCallback with stable deps)
-  }, [setIsStreaming, setPermissionOverride, setSessionModel, setAutoContinue, setIsCompacting])
+  }, [setIsStreaming, setPermissionOverride, setSessionModel, setAutoContinue, setIsCompacting, setBackgroundTasks])
 
   // ========================================================================
   // Setup WS callbacks
@@ -831,6 +970,10 @@ export function useChat() {
     setIsLoadingHistory(true)
     setIsReplaying(true)
     setMessages([])
+    // Plan 5985a7c4 (F2): clear the toolbar pill on session switch /
+    // reconnect — F7 will refill from the REST snapshot, otherwise
+    // the next active_tasks_update will repopulate it.
+    setBackgroundTasks([])
     paginationRef.current = { offset: 0, tailOffset: 0, totalCount: 0 }
     setHasOlderMessages(false)
 
@@ -845,6 +988,38 @@ export function useChat() {
     // The WS delivers the mid-stream snapshot (partial_text, streaming_events,
     // streaming_status) instantly — the user sees the live stream right away.
     ws.connect(sessionId, Number.MAX_SAFE_INTEGER)
+
+    // Plan 5985a7c4 (F7): hydrate the toolbar pill from the REST
+    // snapshot in parallel with the WS connect, so a fresh chat session
+    // doesn't show a blank toolbar while waiting for the next live
+    // `active_tasks_update` (Monitors with sparse output may emit only
+    // every few minutes — without this fetch the user could think
+    // their session forgot the running task on every page refresh).
+    //
+    // Race with WS: if a live `active_tasks_update` arrives before the
+    // REST resolves, that one wins and we'd overwrite it here. To
+    // avoid the flicker, we only apply the REST snapshot when the
+    // atom is still empty (the WS hasn't said anything yet). Subsequent
+    // WS updates are authoritative.
+    chatApi
+      .getBackgroundTasks(sessionId)
+      .then((response) => {
+        if (cancelled) return
+        // Use atomic-read: only apply if no live update has populated
+        // the atom yet. Reading via Jotai's getter would require a
+        // store handle — instead we rely on `setBackgroundTasks` being
+        // an updater that can inspect the current value.
+        setBackgroundTasks((current) =>
+          current.length === 0 ? response.tasks : current,
+        )
+      })
+      .catch((err) => {
+        // Snapshot is best-effort. The WS event flow remains the
+        // source of truth — if hydration fails, the toolbar stays
+        // empty until the next live update.
+        // eslint-disable-next-line no-console
+        console.warn('[useChat] background-tasks snapshot fetch failed', err)
+      })
 
     // Capture and clear targetTimestamp so it's only used once
     const targetTimestamp = targetTimestampRef.current
@@ -1334,6 +1509,7 @@ export function useChat() {
     setIsStreaming(false)
     setIsReplaying(false)
     setMessages([])
+    setBackgroundTasks([])
     setSessionMeta(null)
     setHasOlderMessages(false)
     setHasNewerMessages(false)
