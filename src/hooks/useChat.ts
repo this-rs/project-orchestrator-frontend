@@ -73,6 +73,27 @@ export function useChat() {
   // The auto-connect useEffect sets it to false before starting REST,
   // then back to true after setMessages(history) + replaying buffered events.
   const historyLoadedRef = useRef(true)
+  /**
+   * F10 of plan 5985a7c4 — buffer for `background_output` events whose
+   * `correlation_id` doesn't match any tool_use block yet at dispatch
+   * time. Typically happens after a backend lazy-recovery (T13 of
+   * plan 754a1379): the toolbar pill repopulates from
+   * `active_tasks_update` but the corresponding tool_use block isn't
+   * in the message list (it pre-dates the restart). The map is keyed
+   * by correlation_id; entries are drained when a matching tool_use
+   * arrives within 2s, otherwise dropped silently on the next dispatch
+   * after `expiresAt`. The toolbar pill remains visible regardless —
+   * users still see that the background task exists.
+   */
+  const orphanBackgroundOutputRef = useRef<
+    Map<
+      string,
+      {
+        events: Array<{ source: string; content: string; received_at: string }>
+        expiresAt: number
+      }
+    >
+  >(new Map())
   const pendingEventsRef = useRef<Array<ChatEvent & { seq?: number; replaying?: boolean }>>([])
 
   // Lazily create the ChatWebSocket singleton per hook instance
@@ -388,15 +409,44 @@ export function useChat() {
               }
             }
           } else {
+            // F10 — drain any orphan background_output ticks buffered
+            // for this tool_use_id, attaching them to the freshly-
+            // created tool_use block. We also opportunistically prune
+            // expired entries from the buffer (passed `expiresAt`).
+            let initialChildOutputs: Array<{
+              source: string
+              content: string
+              received_at: string
+            }> = []
+            const buf = orphanBackgroundOutputRef.current
+            const now = Date.now()
+            const orphanEntry = buf.get(toolId)
+            if (orphanEntry && orphanEntry.expiresAt >= now) {
+              initialChildOutputs = orphanEntry.events
+              buf.delete(toolId)
+            }
+            for (const [key, entry] of buf) {
+              if (entry.expiresAt < now) buf.delete(key)
+            }
+
             lastMsg.blocks.push({
               id: nextBlockId(),
               type: 'tool_use',
               content: toolName,
-              metadata: withCreatedAt(withParent({
-                tool_call_id: toolId,
-                tool_name: toolName,
-                tool_input: toolInput,
-              }, tuParent), tuTs),
+              metadata: withCreatedAt(
+                withParent(
+                  {
+                    tool_call_id: toolId,
+                    tool_name: toolName,
+                    tool_input: toolInput,
+                    ...(initialChildOutputs.length > 0
+                      ? { child_outputs: initialChildOutputs }
+                      : {}),
+                  },
+                  tuParent,
+                ),
+                tuTs,
+              ),
             })
           }
           break
@@ -777,6 +827,77 @@ export function useChat() {
           // wholesale. Empty array is legitimate (no tracked tasks) and
           // is exactly what the toolbar pill consumes to render nothing.
           setBackgroundTasks(event.tasks)
+          break
+        }
+
+        case 'background_output': {
+          // Plan 5985a7c4 (F6 live + F10 orphan tolerance).
+          //
+          // Live mirror of chatAssembly's grouping logic — attach a tick
+          // to its parent tool_use block by `correlation_id ↔
+          // tool_call_id` so MonitorCard / ToolCallBlock renders it
+          // under the right card. F10 covers the case where the tick
+          // arrives before its parent tool_use block exists in the
+          // message list (typically across a server restart that
+          // triggered the backend's lazy recovery): the orphan is
+          // buffered for 2s; if a matching tool_use materialises within
+          // the window, we drain the buffer and attach. Otherwise the
+          // tick is silently dropped (the toolbar pill from
+          // active_tasks_update still shows the user that the task
+          // exists — just without timeline events).
+          const correlationId = event.correlation_id
+          if (!correlationId) {
+            // No correlation_id → no parent linkage possible. Drop.
+            break
+          }
+          let attached = false
+          for (let mi = updated.length - 1; mi >= 0 && !attached; mi--) {
+            const msg = updated[mi]
+            for (let bi = 0; bi < msg.blocks.length && !attached; bi++) {
+              const block = msg.blocks[bi]
+              if (
+                block.type === 'tool_use' &&
+                block.metadata?.tool_call_id === correlationId
+              ) {
+                const existing =
+                  (block.metadata?.child_outputs as
+                    | Array<{ source: string; content: string; received_at: string }>
+                    | undefined) ?? []
+                msg.blocks[bi] = {
+                  ...block,
+                  metadata: {
+                    ...block.metadata,
+                    child_outputs: [
+                      ...existing,
+                      {
+                        source: event.source,
+                        content: event.content,
+                        received_at: event.received_at,
+                      },
+                    ],
+                  },
+                }
+                attached = true
+              }
+            }
+          }
+          if (!attached) {
+            // F10 — buffer the orphan for up to 2s in case the parent
+            // tool_use arrives shortly. The buffer is keyed by
+            // correlation_id; subsequent tool_use of that id will drain
+            // it (see the tool_use case below — also F10).
+            const buf = orphanBackgroundOutputRef.current
+            const entry = buf.get(correlationId) ?? {
+              events: [],
+              expiresAt: Date.now() + 2000,
+            }
+            entry.events.push({
+              source: event.source,
+              content: event.content,
+              received_at: event.received_at,
+            })
+            buf.set(correlationId, entry)
+          }
           break
         }
 
