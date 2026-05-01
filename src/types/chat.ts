@@ -285,12 +285,111 @@ export type ChatEvent =
   | { type: 'background_output'; source: string; content: string; received_at: string; correlation_id?: string }
   | { type: 'session_error'; reason: string; message: string; received_at: string }
   | { type: 'tools_cancelled'; cli_pid?: number; killed_count: number; requested_by: string }
+  | { type: 'active_tasks_update'; tasks: BackgroundTaskInfo[] }
 
 /** Result returned by POST /api/chat/sessions/:id/cancel-tools (T2/T3 of plan 28e9afe3). */
 export interface CancelToolsResult {
   cli_pid: number | null
   killed_pids: number[]
   /** True when the per-session rate cap (10/60s) was hit — no SIGINT sent. */
+  capped: boolean
+}
+
+// ============================================================================
+// BACKGROUND TASKS — Plan 754a1379 (backend) + plan 5985a7c4 (frontend UX)
+// ============================================================================
+
+/**
+ * Kind of background subprocess being tracked. Mirrors the backend
+ * `BackgroundTaskKind` enum (`src/chat/types.rs`). The wire format
+ * uses snake_case discriminator strings.
+ *
+ * Currently we track tools that spawn long-living subprocesses surviving
+ * across multiple turns:
+ * - `monitor` — `Monitor` tool (one stdout line = one event, never
+ *   completes on its own).
+ * - `bash_background` — `Bash` tool invoked with `run_in_background: true`
+ *   (BashOutput events as stdout chunks land).
+ */
+export type BackgroundTaskKind = 'monitor' | 'bash_background'
+
+/**
+ * Snapshot of a single background subprocess attached to a chat session.
+ * Carried by `ChatEvent::active_tasks_update` and the REST endpoint
+ * `GET /api/chat/sessions/:id/background-tasks`.
+ *
+ * ## Identity (3-name aliasing — see backend pattern note 626ddbf5)
+ *
+ * `id` is the SDK Claude Code `tool_use_id` of the originating
+ * `Monitor` / `Bash` invocation — i.e. the same value that surfaces on
+ * `ChatEvent.background_output.correlation_id` for every event emitted
+ * by this subprocess. Three names, one value:
+ *
+ * - `parent_tool_use_id` (SDK Message payload)
+ * - `correlation_id` (background_output ChatEvent)
+ * - `id` (this interface, used as map key on the frontend)
+ *
+ * This intentional alias is what lets us group `background_output`
+ * events under their parent MonitorCard with a single hashmap lookup.
+ *
+ * ## Recovery (`(recovered after restart)`)
+ *
+ * After a server restart, recovered tasks have a synthetic description
+ * ("(recovered after restart)") because the original was lost. The UI
+ * should still render them normally — they're cancellable like any
+ * other entry.
+ */
+export interface BackgroundTaskInfo {
+  /** SDK tool_use ID — same value as `correlation_id` on related `background_output` events. Map key. */
+  id: string
+  /** What kind of subprocess this is. */
+  kind: BackgroundTaskKind
+  /**
+   * Human-readable description (typically the `description` argument
+   * the agent passed to the tool). After a server restart, recovered
+   * entries carry the placeholder `(recovered after restart)`.
+   */
+  description: string
+  /** ISO-8601 timestamp at which the OOB listener first observed this task. */
+  started_at: string
+  /**
+   * Last time the backend observed activity (most recent matching
+   * `background_output` tick). Used by the UI to show "Active for Xm"
+   * and by the backend's idle-death detector (entries silent for
+   * >30 min are reaped).
+   */
+  last_seen_at: string
+  /**
+   * PID of the root subprocess. **Always `null` in V1** — V1 does
+   * not perform PID discovery (cf backend gotcha note 33f7431e). The
+   * field is on the wire format for forward compatibility with the
+   * eventual PID-aware cancel.
+   */
+  pid?: number | null
+  /**
+   * SDK `parent_tool_use_id` of the invoking turn. Typically equal to
+   * `id`, but kept distinct for the recovery case where the original
+   * tool_use is no longer known.
+   */
+  parent_tool_use_id?: string | null
+}
+
+/**
+ * Result returned by `POST /api/chat/sessions/:id/cancel-task/:task_id`
+ * (T7+T8 of plan 754a1379). The frontend uses it to update the
+ * cancelled task's UI state and surface rate-cap hits gracefully.
+ *
+ * In V1 `killed_pids` is always empty — the backend cancel path is
+ * map-side only (entry marked for removal + broadcast); the
+ * underlying subprocess keeps running until the global Stop is hit
+ * or the session ends. Cf backend gotcha note 33f7431e.
+ */
+export interface CancelTaskResult {
+  /** `tool_use_id` of the task that was cancelled — echoed back. */
+  task_id: string
+  /** PIDs that received SIGINT. **Always empty in V1** (no PID-targeted kill yet). */
+  killed_pids: number[]
+  /** True when the per-session rate cap (30/5min) was hit — no map mutation, no broadcast. */
   capped: boolean
 }
 
