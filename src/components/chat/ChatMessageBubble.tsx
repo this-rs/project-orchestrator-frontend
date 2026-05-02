@@ -18,6 +18,8 @@ import { SystemInitBlock } from './SystemInitBlock'
 import { ContinueIndicatorBlock } from './ContinueIndicatorBlock'
 import { RetryIndicatorBlock } from './RetryIndicatorBlock'
 import { VizBlockRenderer } from './viz'
+import { CopyMarkdownButton } from './CopyMarkdownButton'
+import { messageBodyToMarkdown } from '@/utils/chatExport'
 
 /**
  * Markdown link component: uses ExternalLink which renders differently
@@ -167,9 +169,19 @@ export function ChatMessageBubble({ message, isStreaming, onRespondPermission, o
         <div className="max-w-[85%] px-3 py-2 rounded-xl bg-indigo-600/20 text-sm text-gray-200 whitespace-pre-wrap break-words overflow-hidden">
           {message.blocks[0]?.content}
         </div>
-        {message.timestamp && (
-          <span className="text-[10px] text-gray-600 mt-0.5 mr-1">{formatTime(message.timestamp)}</span>
-        )}
+        {/* Footer: copy button · timestamp */}
+        <div className="flex items-center gap-1 mt-0.5 mr-1 text-[10px] text-gray-600">
+          <CopyMarkdownButton
+            getMarkdown={() => messageBodyToMarkdown(message)}
+            title="Copy message as markdown"
+          />
+          {message.timestamp && (
+            <>
+              <span>·</span>
+              <span>{formatTime(message.timestamp)}</span>
+            </>
+          )}
+        </div>
       </div>
     )
   }
@@ -353,10 +365,19 @@ export function ChatMessageBubble({ message, isStreaming, onRespondPermission, o
             <span>Thinking...</span>
           </div>
         )}
-        {/* Turn summary: timestamp · duration · cost */}
-        {!isStreaming && (message.timestamp || message.duration_ms || message.cost_usd) && (
+        {/* Turn summary: copy button · timestamp · duration · cost */}
+        {!isStreaming && message.blocks.length > 0 && (
           <div className="flex items-center justify-end gap-1 mt-1 text-[10px] text-gray-600">
-            {message.timestamp && <span>{formatTime(message.timestamp)}</span>}
+            <CopyMarkdownButton
+              getMarkdown={() => messageBodyToMarkdown(message)}
+              title="Copy reply as markdown"
+            />
+            {message.timestamp && (
+              <>
+                <span>·</span>
+                <span>{formatTime(message.timestamp)}</span>
+              </>
+            )}
             {message.duration_ms != null && (
               <>
                 <span>·</span>

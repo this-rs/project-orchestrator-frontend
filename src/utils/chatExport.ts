@@ -93,6 +93,22 @@ function messageToMarkdown(msg: ChatMessage, index: number): string {
 }
 
 /**
+ * Serialize a single message to markdown without the role/index header.
+ *
+ * Intended for the per-message "Copy as Markdown" button — the user already
+ * sees who wrote the message in the UI, so the heading would be redundant
+ * when pasting elsewhere. Empty blocks (UI-only indicators) are filtered out.
+ *
+ * For full debug exports with headers + metadata, use `messagesToMarkdown`.
+ */
+export function messageBodyToMarkdown(msg: ChatMessage): string {
+  return msg.blocks
+    .map(blockToMarkdown)
+    .filter(Boolean)
+    .join('\n\n')
+}
+
+/**
  * Serialize an array of ChatMessages to a full markdown document.
  * Designed for debugging — includes all tool calls, errors, etc.
  */
