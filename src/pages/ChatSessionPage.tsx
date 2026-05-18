@@ -8,13 +8,16 @@
  * ChatMessageBubble component as the main chat.
  */
 
-import { useEffect, useRef } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useEffect, useRef, useCallback } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowDown } from 'lucide-react'
 import { useConversationWs } from '@/hooks/runner'
+import { useDetachedRuns, useWorkspaceSlug } from '@/hooks'
 import { ChatMessageBubble } from '@/components/chat/ChatMessageBubble'
+import { AgenticModePill } from '@/components/chat/AgenticModePill'
+import { AgenticModeBanner } from '@/components/chat/AgenticModeBanner'
 import { WsStatusIndicator } from '@/components/runner/WsStatusIndicator'
-import { useWorkspaceSlug } from '@/hooks'
+import { chatApi } from '@/services/chat'
 import { workspacePath } from '@/utils/paths'
 
 // No-op handlers for read-only mode
@@ -23,10 +26,21 @@ const noopPermission = () => {}
 
 export default function ChatSessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
+  const navigate = useNavigate()
   const wsSlug = useWorkspaceSlug()
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const { messages, status: wsStatus } = useConversationWs(sessionId ?? '')
+  // Agentic mode surfaces: detached runs spawned by this session.
+  const detachedRuns = useDetachedRuns(sessionId ?? null)
+
+  const handleViewRun = useCallback((childSessionId: string) => {
+    navigate(workspacePath(wsSlug, `/chat/${childSessionId}`))
+  }, [navigate, wsSlug])
+  const handleStopRun = useCallback((childSessionId: string) => {
+    // Best-effort interrupt — fire-and-forget; UI will update via WebSocket events.
+    chatApi.interruptSession(childSessionId).catch(() => {})
+  }, [])
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -73,7 +87,19 @@ export default function ChatSessionPage() {
             </span>
           </div>
         </div>
+        {/* Agentic mode pill — surfaces background-run state for this session */}
+        <AgenticModePill
+          runs={detachedRuns.runs}
+          hasActiveRuns={detachedRuns.hasActiveRuns}
+        />
       </div>
+
+      {/* Agentic mode banner — rich live grid of streaming sub-agents */}
+      <AgenticModeBanner
+        runs={detachedRuns.runs}
+        onViewRun={handleViewRun}
+        onStopRun={handleStopRun}
+      />
 
       {/* Messages */}
       <div
