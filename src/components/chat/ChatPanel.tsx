@@ -9,6 +9,7 @@ import { ChatInput, type PrefillPayload } from './ChatInput'
 import { CompactionBanner } from './CompactionBanner'
 import { DetachedRunsPanel } from './DetachedRunsPanel'
 import { AgenticModeBanner } from './AgenticModeBanner'
+import { AgenticModePill } from './AgenticModePill'
 import { SessionList } from './SessionList'
 import { ProjectSelect } from './ProjectSelect'
 import { PermissionSettingsPanel } from './PermissionSettingsPanel'
@@ -413,6 +414,16 @@ export function ChatPanel() {
             </div>
           </div>
 
+          {/* Agentic mode pill — always-visible status (idle/ready/running/completed) */}
+          {!isNewConversation && (
+            <div className="flex items-center gap-2 px-4 py-1.5 border-b border-white/[0.04] bg-white/[0.01]">
+              <AgenticModePill
+                runs={detachedRuns.runs}
+                hasActiveRuns={detachedRuns.hasActiveRuns}
+              />
+            </div>
+          )}
+
           {/* Back to parent button — shown when session is spawned */}
           {parentSessionId && (
             <button
@@ -628,6 +639,16 @@ export function ChatPanel() {
           </button>
         </div>
       </div>
+
+      {/* Agentic mode pill — always-visible status (idle/ready/running/completed) */}
+      {!isNewConversation && (
+        <div className="flex items-center gap-2 px-4 py-1.5 border-b border-white/[0.04] bg-white/[0.01]">
+          <AgenticModePill
+            runs={detachedRuns.runs}
+            hasActiveRuns={detachedRuns.hasActiveRuns}
+          />
+        </div>
+      )}
 
       {/* Back to parent button — shown when session is spawned */}
       {parentSessionId && (
