@@ -48,6 +48,7 @@ import {
   IntelligencePage,
 
   ParticlesShowcasePage,
+  ActivityHub,
   NotFoundPage,
   SettingsPage,
   SetupWizard,
@@ -192,6 +193,7 @@ function App() {
                         <Route path="projects/:projectSlug/intelligence/graph" element={<IntelligenceGraphPage />} />
                         <Route path="projects/:projectSlug/intelligence/vector-space" element={<VectorSpaceExplorer />} />
                         <Route path="chat/:sessionId" element={<ChatSessionPage />} />
+                        <Route path="activity" element={<ActivityHub />} />
                         <Route path="pipelines" element={<PipelineDashboardPage />} />
                         <Route path="triggers" element={<TriggerDashboardPage />} />
                         <Route path="sharing" element={<SharingPage />} />
