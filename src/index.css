@@ -171,6 +171,20 @@ p, .description-text { text-wrap: pretty; }
   .pulse-ring { animation: none; opacity: 0; }
 }
 
+/* ─── ActivityHub click-to-jump pulse ─────────────────────────────── */
+.activity-jump-pulse {
+  animation: activity-jump-pulse 1s ease-out 1;
+  border-radius: 0.5rem;
+}
+@keyframes activity-jump-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.75); }
+  60%  { box-shadow: 0 0 0 14px rgba(99, 102, 241, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .activity-jump-pulse { animation: none; }
+}
+
 /* ─── Task drawer slide-in ────────────────────────────────────────── */
 .animate-slide-in-right {
   animation: slide-in-right 200ms ease-out both;

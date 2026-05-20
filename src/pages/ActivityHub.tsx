@@ -21,12 +21,14 @@
  *   the user knows whether they're seeing a stale snapshot or live deltas.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { useSearchParams } from 'react-router-dom'
-import { Activity as ActivityIcon, RefreshCw, AlertCircle } from 'lucide-react'
+import { Activity as ActivityIcon, RefreshCw, AlertCircle, Sparkles } from 'lucide-react'
 import {
   activityFiltersAtom,
+  highlightedRunIdAtom,
+  particleOverlayEnabledAtom,
   selectedEntityTypesAtom,
   selectedProjectIdAtom,
   selectedStatusesAtom,
@@ -36,7 +38,13 @@ import {
   type ActivityStatusFilter,
 } from '@/atoms'
 import { Button, EmptyState, PageShell, Spinner } from '@/components/ui'
-import { ActivitySidebar, RunCard, type RunCardItem } from '@/components/activity'
+import {
+  ActivityLog,
+  ActivityParticleOverlay,
+  ActivitySidebar,
+  RunCard,
+  type RunCardItem,
+} from '@/components/activity'
 import { useActivityStream } from '@/hooks/useActivityStream'
 import type { RunState } from '@/hooks/useActivityStream'
 import type { ChatSessionSummary, PlanRunSummary, ProtocolRunSummary } from '@/types'
@@ -225,7 +233,35 @@ export function ActivityHub() {
   const statusFilter = useAtomValue(selectedStatusesAtom)
   const range = useAtomValue(timeRangeAtom)
 
-  const { snapshot, runs, status, error, resync } = useActivityStream(filters)
+  const { snapshot, runs, events, status, error, resync } = useActivityStream(filters)
+
+  // ── Click-to-jump from ActivityLog → matching RunCard ────────────────────
+  // The log line publishes a run_id; we resolve the card via `data-run-id` on
+  // the wrapper, scroll it into view, and apply a 1s pulse class.
+  const gridRef = useRef<HTMLDivElement>(null)
+  const [highlightedRunId, setHighlightedRunId] = useAtom(highlightedRunIdAtom)
+  const [particleEnabled, setParticleEnabled] = useAtom(particleOverlayEnabledAtom)
+  const handleJumpToRun = useCallback(
+    (runId: string) => {
+      const grid = gridRef.current
+      if (!grid) return
+      const escaped = runId.replace(/["\\]/g, '\\$&')
+      const card = grid.querySelector<HTMLElement>(`[data-run-id="${escaped}"]`)
+      if (!card) return
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      // Remove any leftover pulse before re-applying — restart animation.
+      card.classList.remove('activity-jump-pulse')
+      // Force a reflow so the class re-addition restarts the animation.
+      void card.offsetWidth
+      card.classList.add('activity-jump-pulse')
+      setHighlightedRunId(runId)
+      window.setTimeout(() => {
+        card.classList.remove('activity-jump-pulse')
+        setHighlightedRunId((prev) => (prev === runId ? null : prev))
+      }, 1100)
+    },
+    [setHighlightedRunId],
+  )
 
   // Trigger a re-evaluation of the cutoff every minute so the time-range
   // filter doesn't silently drift on long-running sessions.
@@ -270,6 +306,17 @@ export function ActivityHub() {
       actions={
         <div className="flex items-center gap-2">
           <StreamStatusBadge status={status} error={error} />
+          <Button
+            variant="ghost"
+            onClick={() => setParticleEnabled(!particleEnabled)}
+            aria-pressed={particleEnabled}
+            title={particleEnabled ? 'Disable particle overlay' : 'Enable particle overlay'}
+          >
+            <Sparkles
+              className={`w-4 h-4 mr-1.5 ${particleEnabled ? 'text-indigo-300' : 'text-gray-500'}`}
+            />
+            Particles
+          </Button>
           <Button
             variant="ghost"
             onClick={() => {
@@ -337,21 +384,41 @@ export function ActivityHub() {
               icon={<ActivityIcon className="w-8 h-8 text-gray-500" />}
             />
           ) : (
-            <div
-              className="grid gap-3"
-              style={{
-                gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-              }}
-            >
-              {items.map((item) => {
-                const key =
-                  item.type === 'chat'
-                    ? `chat:${item.session.id}`
-                    : `${item.type}:${item.run.run_id}`
-                return <RunCard key={key} item={item} />
-              })}
+            <div className="relative">
+              <div
+                ref={gridRef}
+                className="grid gap-3 relative"
+                style={{
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                }}
+              >
+                {items.map((item) => {
+                  const id =
+                    item.type === 'chat'
+                      ? item.session.id
+                      : item.run.run_id
+                  const key =
+                    item.type === 'chat' ? `chat:${id}` : `${item.type}:${id}`
+                  return (
+                    <div key={key} data-run-id={id} className="min-w-0">
+                      <RunCard item={item} />
+                    </div>
+                  )
+                })}
+                <ActivityParticleOverlay events={events} gridRef={gridRef} />
+              </div>
             </div>
           )}
+
+          {/* Bottom panel — central activity log (terminal-style, ANSI-aware). */}
+          <div className="mt-4">
+            <ActivityLog
+              events={events}
+              onJumpToRun={handleJumpToRun}
+              highlightedRunId={highlightedRunId}
+              height={260}
+            />
+          </div>
         </section>
       </div>
     </PageShell>

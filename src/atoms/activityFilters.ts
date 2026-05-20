@@ -107,6 +107,60 @@ export const activitySidebarCollapsedAtom = atomWithStorage<boolean>(
 )
 
 // ---------------------------------------------------------------------------
+// ActivityLog + Particle overlay atoms
+// ---------------------------------------------------------------------------
+
+/** Severity levels surfaced by the central activity log row. */
+export type ActivityLogSeverity = 'debug' | 'info' | 'warn' | 'error' | 'success'
+
+export const ALL_LOG_SEVERITIES: ActivityLogSeverity[] = [
+  'debug',
+  'info',
+  'warn',
+  'error',
+  'success',
+]
+
+/**
+ * Severities visible in the central activity log. Empty = all visible.
+ * Persisted so users keep their "errors only" preference across reloads.
+ */
+export const logSeverityFilterAtom = atomWithStorage<ActivityLogSeverity[]>(
+  'activity:log:severities',
+  [],
+)
+
+/**
+ * Free-text search applied to the activity log (case-insensitive substring).
+ * Volatile — not persisted, since searches are usually session-scoped.
+ */
+export const logSearchAtom = atom<string>('')
+
+/**
+ * Whether the activity log auto-scrolls to follow new events. Persisted.
+ */
+export const logAutoScrollAtom = atomWithStorage<boolean>(
+  'activity:log:autoScroll',
+  true,
+)
+
+/**
+ * Master toggle for the particle overlay. Persisted in localStorage so the
+ * user's "particles off" preference survives reloads (e.g. perf-constrained
+ * environments).
+ */
+export const particleOverlayEnabledAtom = atomWithStorage<boolean>(
+  'activity:overlay:particlesEnabled',
+  true,
+)
+
+/**
+ * Optional run_id to highlight in the activity log (pulse / scroll-into-view).
+ * Volatile — set by click-to-jump, cleared after the pulse animation.
+ */
+export const highlightedRunIdAtom = atom<string | null>(null)
+
+// ---------------------------------------------------------------------------
 // Derived atom — `ActivityFilters` payload for the stream hook
 // ---------------------------------------------------------------------------
 
