@@ -3,6 +3,7 @@ import { useAtom, useAtomValue } from 'jotai'
 import { chatDraftInputAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom } from '@/atoms'
 import { AVAILABLE_MODELS, DEFAULT_MODEL_ID, getModelShortLabel, getModelDotColor } from '@/constants/models'
 import { chatApi } from '@/services/chat'
+import { useIsMobile } from '@/hooks'
 import type { PermissionMode } from '@/types'
 import { ChevronDown, Loader2, Square, ArrowRight } from 'lucide-react'
 import { BackgroundTasksIndicator } from './BackgroundTasksIndicator'
@@ -47,6 +48,7 @@ interface ChatInputProps {
 
 export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionId, onChangePermissionMode, onChangeModel, onChangeAutoContinue, prefill }: ChatInputProps) {
   const [value, setValue] = useAtom(chatDraftInputAtom)
+  const isMobile = useIsMobile()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [modeOverride, setModeOverride] = useAtom(chatSessionPermissionOverrideAtom)
   const [serverConfig, setServerConfig] = useAtom(chatPermissionConfigAtom)
@@ -152,6 +154,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // On mobile, the on-screen keyboard's return key must insert a real newline —
+    // sending is done via the dedicated send button. Let the keypress fall through
+    // to the textarea's default behavior (newline) instead of submitting.
+    if (isMobile) return
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
@@ -311,6 +317,9 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
           onKeyDown={handleKeyDown}
           disabled={disabled}
           rows={1}
+          // On mobile the return key inserts a newline (sending is via the button);
+          // on desktop it submits, so hint the soft keyboard accordingly.
+          enterKeyHint={isMobile ? 'enter' : 'send'}
           placeholder="Send a message..."
           className="flex-1 resize-none bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/40 disabled:opacity-50"
         />
