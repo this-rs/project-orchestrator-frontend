@@ -18,13 +18,35 @@ import type { GateResultsResponse, ProgressScoreResponse } from '@/types/chat'
 
 export type AgentStatus = 'spawning' | 'running' | 'verifying' | 'completed' | 'failed'
 
+/**
+ * Live OS-level metrics for an agent's subprocess.
+ * Populated by `snapshot_with_resources()` on the backend — requires the
+ * ChatManager wire-in step (set_pid after spawn). Until that wire-in is done,
+ * this field is omitted by the backend (skip_serializing_if = "is_none").
+ */
+export interface ActiveAgentResources {
+  pid: number
+  /** Resident set size in MB. */
+  rss_mb: number
+  /** CPU usage % averaged over the last sysinfo refresh interval. */
+  cpu_pct: number
+  /** OS process status: "Run", "Sleep", "Zombie", ... */
+  status: string
+  /** OS thread count for the subprocess. */
+  threads: number
+}
+
 export interface ActiveAgentSnapshot {
   task_id: string
   task_title: string
   session_id: string | null
+  /** OS pid of the Claude Code subprocess (when the backend has set_pid). */
+  pid?: number | null
   elapsed_secs: number
   cost_usd: number
   status: AgentStatus
+  /** Live OS metrics — only present when the backend returns them. */
+  resources?: ActiveAgentResources | null
 }
 
 /**

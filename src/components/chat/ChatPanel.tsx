@@ -8,6 +8,8 @@ import { ChatSessionProvider } from './ChatSessionContext'
 import { ChatInput, type PrefillPayload } from './ChatInput'
 import { CompactionBanner } from './CompactionBanner'
 import { DetachedRunsPanel } from './DetachedRunsPanel'
+import { AgenticModeBanner } from './AgenticModeBanner'
+import { AgenticModePill } from './AgenticModePill'
 import { SessionList } from './SessionList'
 import { ProjectSelect } from './ProjectSelect'
 import { PermissionSettingsPanel } from './PermissionSettingsPanel'
@@ -374,6 +376,13 @@ export function ChatPanel() {
                   <TreePine className="w-4 h-4" />
                 </button>
               )}
+              {/* Agentic mode icon-button — self-hides when idle */}
+              {!isNewConversation && (
+                <AgenticModePill
+                  runs={detachedRuns.runs}
+                  hasActiveRuns={detachedRuns.hasActiveRuns}
+                />
+              )}
               {/* Permission settings gear icon */}
               <button
                 onClick={() => { setShowSettings(!showSettings); setShowAgentTree(false) }}
@@ -457,7 +466,13 @@ export function ChatPanel() {
             <div className="flex flex-1 min-h-0">
               {/* Main conversation column */}
               <div className="flex flex-col flex-1 min-w-0">
-                {/* Detached runs panel — fullscreen layout */}
+                {/* Agentic mode banner — prominent strip while at least one run streams */}
+                <AgenticModeBanner
+                  runs={detachedRuns.runs}
+                  onViewRun={handleViewRun}
+                  onStopRun={handleStopRun}
+                />
+                {/* Detached runs panel — fullscreen layout (collapsible historical view) */}
                 {detachedRuns.runs.length > 0 && (
                   <DetachedRunsPanel
                     runs={detachedRuns.runs}
@@ -584,6 +599,13 @@ export function ChatPanel() {
               <TreePine className="w-4 h-4" />
             </button>
           )}
+          {/* Agentic mode icon-button — self-hides when idle */}
+          {!isNewConversation && (
+            <AgenticModePill
+              runs={detachedRuns.runs}
+              hasActiveRuns={detachedRuns.hasActiveRuns}
+            />
+          )}
           {/* Permission settings gear icon */}
           <button
             onClick={() => { setShowSettings(!showSettings); setShowSessions(false); setShowAgentTree(false) }}
@@ -675,7 +697,13 @@ export function ChatPanel() {
         <NoProjectsPlaceholder wsSlug={activeWsSlug} />
       ) : (
         <>
-          {/* Detached runs panel — panel/sidebar layout */}
+          {/* Agentic mode banner — prominent strip while at least one run streams */}
+          <AgenticModeBanner
+            runs={detachedRuns.runs}
+            onViewRun={handleViewRun}
+            onStopRun={handleStopRun}
+          />
+          {/* Detached runs panel — panel/sidebar layout (collapsible historical view) */}
           {detachedRuns.runs.length > 0 && (
             <DetachedRunsPanel
               runs={detachedRuns.runs}

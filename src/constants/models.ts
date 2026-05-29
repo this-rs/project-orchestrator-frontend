@@ -24,18 +24,25 @@ export interface ModelDefinition {
  */
 export const AVAILABLE_MODELS: readonly ModelDefinition[] = [
   {
+    id: 'claude-opus-4-8',
+    shortLabel: 'Opus 4.8',
+    fullLabel: 'Claude Opus 4.8',
+    dotColor: 'bg-violet-500',
+    description: 'Most intelligent — complex reasoning',
+  },
+  {
     id: 'claude-opus-4-7',
     shortLabel: 'Opus 4.7',
     fullLabel: 'Claude Opus 4.7',
     dotColor: 'bg-violet-400',
-    description: 'Most intelligent — complex reasoning',
+    description: 'Previous Opus — complex reasoning',
   },
   {
     id: 'claude-opus-4-6',
     shortLabel: 'Opus 4.6',
     fullLabel: 'Claude Opus 4.6',
     dotColor: 'bg-violet-300',
-    description: 'Previous Opus — complex reasoning',
+    description: 'Older Opus — complex reasoning',
   },
   {
     id: 'claude-sonnet-4-6',
