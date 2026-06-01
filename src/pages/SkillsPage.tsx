@@ -193,10 +193,18 @@ export function SkillsPage() {
   const openImport = () => importDialog.open({ title: 'Import Skill', size: 'md', submitLabel: 'Import' })
 
   const handleDetectSkills = async () => {
-    if (!activeProjectId) return
+    // In the workspace-wide view `activeProjectId` is undefined; fall back to the
+    // first project (same resolution as the note-count / readiness check above),
+    // so the "Run detection" button is never a silent no-op. Only bail — with
+    // feedback — when there is genuinely no project to detect against.
+    const pid = activeProjectId ?? projects[0]?.id
+    if (!pid) {
+      toast.error('No project available to run skill detection')
+      return
+    }
     setDetecting(true)
     try {
-      const result = await adminApi.detectSkills(activeProjectId)
+      const result = await adminApi.detectSkills(pid)
       if (result.status === 'InsufficientData') {
         toast.error(result.message || 'Not enough data for skill detection')
       } else {
