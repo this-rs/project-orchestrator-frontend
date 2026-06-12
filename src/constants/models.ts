@@ -24,6 +24,13 @@ export interface ModelDefinition {
  */
 export const AVAILABLE_MODELS: readonly ModelDefinition[] = [
   {
+    id: 'claude-fable-5',
+    shortLabel: 'Fable 5',
+    fullLabel: 'Claude Fable 5',
+    dotColor: 'bg-rose-500',
+    description: 'Most capable — demanding reasoning & long-horizon agentic work',
+  },
+  {
     id: 'claude-opus-4-8',
     shortLabel: 'Opus 4.8',
     fullLabel: 'Claude Opus 4.8',
