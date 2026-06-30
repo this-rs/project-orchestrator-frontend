@@ -24,7 +24,9 @@ describe('communitiesToEmbeddings', () => {
       { id: '2', label: 'API', size: 18, key_files: ['c.ts'] },
       { id: '3', label: '', size: 5, key_files: [] },
     ],
-    total_files: 47,
+    // Matches the 3 assigned key_files above so this fixture has no orphans —
+    // orphan-cluster behavior is covered by its own dedicated test below.
+    total_files: 3,
     community_count: 3,
   };
 
@@ -36,11 +38,30 @@ describe('communitiesToEmbeddings', () => {
       label: 'Core',
       count: 24,
       color: '#22d3ee',
+      files: [
+        { path: 'a.ts', language: 'TypeScript', isHotspot: false },
+        { path: 'b.ts', language: 'TypeScript', isHotspot: false },
+      ],
     });
     expect(result.clusters[1]).toEqual({
       label: 'API',
       count: 18,
       color: '#a78bfa',
+      files: [{ path: 'c.ts', language: 'TypeScript', isHotspot: false }],
+    });
+  });
+
+  it('appends an Orphans cluster when total_files exceeds assigned members', () => {
+    const withOrphans: CodeCommunities = { ...mockCommunities, total_files: 47 };
+    const result = communitiesToEmbeddings(withOrphans);
+
+    expect(result.clusters).toHaveLength(4);
+    expect(result.clusters[3]).toEqual({
+      label: 'Orphans',
+      count: 44,
+      color: '#64748b',
+      files: [],
+      isOrphan: true,
     });
   });
 
@@ -89,10 +110,12 @@ describe('impactToAttention', () => {
     expect(result.relevantTokens[0]).toEqual({
       label: 'engine.ts',
       score: 1,
+      metadata: { filePath: 'src/core/engine.ts', impactScore: 1, isDirect: true },
     });
     expect(result.relevantTokens[1]).toEqual({
       label: 'pool.ts',
       score: 0.95,
+      metadata: { filePath: 'src/core/pool.ts', impactScore: 0.95, isDirect: true },
     });
   });
 
@@ -101,10 +124,12 @@ describe('impactToAttention', () => {
     expect(result.relevantTokens[2]).toEqual({
       label: 'app.ts',
       score: 0.5,
+      metadata: { filePath: 'src/ui/app.ts', impactScore: 0.5, isDirect: false },
     });
     expect(result.relevantTokens[3]).toEqual({
       label: 'page.ts',
       score: 0.48,
+      metadata: { filePath: 'src/ui/page.ts', impactScore: 0.48, isDirect: false },
     });
   });
 
