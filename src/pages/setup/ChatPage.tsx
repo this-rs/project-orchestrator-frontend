@@ -5,7 +5,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar'
 import { setupConfigAtom, chatValidAtom, trayNavigationAtom, type McpSetupStatus } from '@/atoms/setup'
 import { isTauri } from '@/services/env'
 import { useToast } from '@/hooks'
-import { AVAILABLE_MODELS } from '@/constants/models'
+import { modelCatalogAtom } from '@/atoms'
 import type { CliVersionStatus } from '@/types'
 
 /** Format bytes into a human-readable string (KB, MB, GB). */
@@ -43,6 +43,7 @@ export function ChatPage() {
   const [config, setConfig] = useAtom(setupConfigAtom)
   const setChatValid = useSetAtom(chatValidAtom)
   const isTrayNavigation = useAtomValue(trayNavigationAtom)
+  const availableModels = useAtomValue(modelCatalogAtom)
   const [detectingPath, setDetectingPath] = useState(false)
   const [cliStatus, setCliStatus] = useState<CliVersionStatus | null>(null)
   const [checkingCli, setCheckingCli] = useState(false)
@@ -393,7 +394,7 @@ export function ChatPage() {
         <div>
           <label className="mb-3 block text-xs font-medium text-gray-400">Default Model</label>
           <div className="grid gap-3 sm:grid-cols-3">
-            {AVAILABLE_MODELS.map((m) => (
+            {availableModels.map((m) => (
               <button
                 key={m.id}
                 onClick={() => update({ chatModel: m.id })}
