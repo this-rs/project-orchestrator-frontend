@@ -48,16 +48,22 @@ export function AuthCallbackPage() {
   useEffect(() => {
     if (!code) return
 
-    // StrictMode (dev) runs this effect twice on mount. Without this guard,
-    // both invocations would POST the same single-use `code` — the second
-    // request always fails with `invalid_grant` once the first has consumed
-    // the code, and the `cancelled` flag below only decides which of the two
-    // *results* gets applied to state, not whether the second request fires
-    // at all. Skip entirely on the second invocation instead.
+    // StrictMode (dev) runs this effect twice on mount: setup, cleanup,
+    // setup again — synchronously, before the fetch below can resolve.
+    // `exchangeStarted` ensures the single-use `code` is only ever POSTed
+    // once across that synthetic cycle (a second POST always fails with
+    // `invalid_grant` once the first has consumed the code).
+    //
+    // Deliberately NOT using a `cancelled`-on-cleanup flag to gate applying
+    // the result: this page's sole job is to consume one code and redirect,
+    // and StrictMode's synthetic cleanup runs on the *first* (real)
+    // invocation while the guard above skips the second — so a `cancelled`
+    // flag closed over the first invocation would be flipped `true` by that
+    // synthetic cleanup and silently swallow the real result once the fetch
+    // resolves, leaving the user stuck on "Signing you in...". See the
+    // regression test in `__tests__/AuthCallbackPage.test.tsx`.
     if (exchangeStarted.current) return
     exchangeStarted.current = true
-
-    let cancelled = false
 
     // Try generic OIDC first, fall back to legacy Google only if OIDC is not configured (403)
     authApi
@@ -69,20 +75,14 @@ export function AuthCallbackPage() {
         throw oidcErr
       })
       .then(({ token, user }) => {
-        if (cancelled) return
         setAuthToken(token) // Module-level cache for api.ts Bearer header
         setToken(token)
         setUser(user)
         navigate('/', { replace: true })
       })
       .catch((e) => {
-        if (cancelled) return
         setExchangeError(e instanceof Error ? e.message : 'Authentication failed')
       })
-
-    return () => {
-      cancelled = true
-    }
   }, [code, navigate, setToken, setUser])
 
   if (error) {
