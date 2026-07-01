@@ -1,4 +1,5 @@
 import { api, buildQuery } from './api'
+import type { ModelDefinition } from '@/constants/models'
 import type {
   AgentExecution,
   BackgroundTaskInfo,
@@ -79,6 +80,15 @@ export const chatApi = {
 
   updateChatConfig: (patch: Partial<ChatConfig>) =>
     api.patch<ChatConfig>('/chat/config', patch),
+
+  /**
+   * Live Claude model catalog for the model selector — merges Anthropic's
+   * Models API with local curation, cached server-side (stale-while-revalidate).
+   * Falls back to a small static list when the backend has no Anthropic API
+   * key configured, so this never errors.
+   */
+  getModelCatalog: () =>
+    api.get<ModelDefinition[]>('/chat/models'),
 
   /** Get child sessions (detached) of a parent session, with streaming status */
   getSessionChildren: (sessionId: string) =>
