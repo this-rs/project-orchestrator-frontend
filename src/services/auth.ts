@@ -227,10 +227,22 @@ export const authApi = {
       method: 'POST',
     }),
 
-  /** POST /auth/logout — Revoke refresh token and clear cookie */
+  /**
+   * POST /auth/logout — Revoke refresh token and clear cookie.
+   *
+   * `keepalive: true` so the browser finishes sending this request even if a
+   * navigation (e.g. forceLogout()'s `window.location.href = '/login'`
+   * fallback, or React Router's replace) fires immediately after — without
+   * it, a same-tick navigation can abort the in-flight fetch before the
+   * server's Set-Cookie (clearing the refresh_token cookie) is ever
+   * received, leaving the stale/revoked cookie in the browser. The next
+   * boot then retries /auth/refresh with that same dead cookie, 401s,
+   * calls forceLogout() again, and the cycle repeats indefinitely.
+   */
   logout: () =>
     authRequest<void>('/logout', {
       method: 'POST',
+      keepalive: true,
     }).catch(() => {
       // Best-effort — logout should not fail the UI flow
     }),
