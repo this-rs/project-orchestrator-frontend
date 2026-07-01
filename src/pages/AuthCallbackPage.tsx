@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
 import { authTokenAtom, currentUserAtom } from '@/atoms'
@@ -22,6 +22,12 @@ export function AuthCallbackPage() {
   const setToken = useSetAtom(authTokenAtom)
   const setUser = useSetAtom(currentUserAtom)
   const [exchangeError, setExchangeError] = useState<string | null>(null)
+  // Guards against StrictMode's dev-only double-invoke of the exchange effect
+  // below. The OAuth `code` is single-use: firing the exchange twice sends
+  // two requests to the same provider, the first consumes the code, and the
+  // second comes back `invalid_grant` — which, without this guard, is the
+  // request whose result actually lands in state (see effect comment).
+  const exchangeStarted = useRef(false)
 
   // Remove the dark overlay injected by LoginPage before SSO redirect
   useEffect(() => {
@@ -41,6 +47,15 @@ export function AuthCallbackPage() {
 
   useEffect(() => {
     if (!code) return
+
+    // StrictMode (dev) runs this effect twice on mount. Without this guard,
+    // both invocations would POST the same single-use `code` — the second
+    // request always fails with `invalid_grant` once the first has consumed
+    // the code, and the `cancelled` flag below only decides which of the two
+    // *results* gets applied to state, not whether the second request fires
+    // at all. Skip entirely on the second invocation instead.
+    if (exchangeStarted.current) return
+    exchangeStarted.current = true
 
     let cancelled = false
 
