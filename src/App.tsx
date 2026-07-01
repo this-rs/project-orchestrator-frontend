@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
-import { Provider, useAtomValue } from 'jotai'
+import { Provider, useAtomValue, useSetAtom } from 'jotai'
 import { MainLayout } from '@/layouts'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { SetupGuard } from '@/components/SetupGuard'
@@ -9,7 +9,7 @@ import { UpdateBanner } from '@/components/UpdateBanner'
 import { WebUpdateBanner } from '@/components/ui/WebUpdateBanner'
 import { useTrayNavigation } from '@/hooks'
 import { isTauri } from '@/services/env'
-import { activeWorkspaceSlugAtom } from '@/atoms'
+import { activeWorkspaceSlugAtom, modelCatalogAtom, fetchModelCatalog, isAuthenticatedAtom } from '@/atoms'
 import { workspacePath } from '@/utils/paths'
 import {
   LoginPage,
@@ -71,6 +71,26 @@ function TrayNavigationCapture() {
 }
 
 /**
+ * Kicks off the live Claude model catalog fetch on app load and again
+ * whenever auth transitions to authenticated (see `atoms/modelCatalog.ts`).
+ * The second trigger matters because `/chat/models` is an authenticated
+ * route — the boot-time attempt 401s during the pre-login setup wizard, so
+ * without this the catalog would stay on the static fallback for the rest
+ * of the session even after logging in (client-side routing, no reload).
+ * Must render inside <Provider> so `useSetAtom` has jotai context. Renders
+ * nothing — the model selector already has a static fallback while this
+ * resolves.
+ */
+function ModelCatalogLoader() {
+  const setModels = useSetAtom(modelCatalogAtom)
+  const isAuthenticated = useAtomValue(isAuthenticatedAtom)
+  useEffect(() => {
+    fetchModelCatalog(setModels)
+  }, [setModels, isAuthenticated])
+  return null
+}
+
+/**
  * Redirects `/` to the last used workspace or to the workspace selector.
  * Reads the persisted slug from localStorage via activeWorkspaceSlugAtom.
  */
@@ -127,6 +147,7 @@ function App() {
 
   return (
     <Provider>
+      <ModelCatalogLoader />
       <BrowserRouter>
         <div className="tauri-window flex h-dvh flex-col overflow-hidden">
           {/* <AmbientBackground /> */}

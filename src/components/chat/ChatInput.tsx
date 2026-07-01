@@ -1,7 +1,7 @@
 import { memo, useState, useRef, useCallback, useEffect } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
-import { chatDraftInputAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom } from '@/atoms'
-import { AVAILABLE_MODELS, DEFAULT_MODEL_ID, getModelShortLabel, getModelDotColor } from '@/constants/models'
+import { chatDraftInputAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom, modelCatalogAtom } from '@/atoms'
+import { DEFAULT_MODEL_ID, getModelShortLabel, getModelDotColor } from '@/constants/models'
 import { chatApi } from '@/services/chat'
 import { useIsMobile } from '@/hooks'
 import type { PermissionMode } from '@/types'
@@ -54,6 +54,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
   const [serverConfig, setServerConfig] = useAtom(chatPermissionConfigAtom)
   const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
   const autoContinue = useAtomValue(chatAutoContinueAtom)
+  const availableModels = useAtomValue(modelCatalogAtom)
   const [showModeDropdown, setShowModeDropdown] = useState(false)
   const [showModelDropdown, setShowModelDropdown] = useState(false)
   const [modeJustChanged, setModeJustChanged] = useState(false)
@@ -261,7 +262,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
             </button>
             {showModelDropdown && (
               <div className="absolute bottom-full left-0 mb-1 z-20 w-52 bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl py-1">
-                {AVAILABLE_MODELS.map((opt) => {
+                {availableModels.map((opt) => {
                   const isActive = effectiveModel === opt.id
                   return (
                     <button

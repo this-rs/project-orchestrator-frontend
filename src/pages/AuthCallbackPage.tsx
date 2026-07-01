@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
 import { authTokenAtom, currentUserAtom } from '@/atoms'
@@ -22,6 +22,12 @@ export function AuthCallbackPage() {
   const setToken = useSetAtom(authTokenAtom)
   const setUser = useSetAtom(currentUserAtom)
   const [exchangeError, setExchangeError] = useState<string | null>(null)
+  // Guards against StrictMode's dev-only double-invoke of the exchange effect
+  // below. The OAuth `code` is single-use: firing the exchange twice sends
+  // two requests to the same provider, the first consumes the code, and the
+  // second comes back `invalid_grant` — which, without this guard, is the
+  // request whose result actually lands in state (see effect comment).
+  const exchangeStarted = useRef(false)
 
   // Remove the dark overlay injected by LoginPage before SSO redirect
   useEffect(() => {
@@ -42,7 +48,22 @@ export function AuthCallbackPage() {
   useEffect(() => {
     if (!code) return
 
-    let cancelled = false
+    // StrictMode (dev) runs this effect twice on mount: setup, cleanup,
+    // setup again — synchronously, before the fetch below can resolve.
+    // `exchangeStarted` ensures the single-use `code` is only ever POSTed
+    // once across that synthetic cycle (a second POST always fails with
+    // `invalid_grant` once the first has consumed the code).
+    //
+    // Deliberately NOT using a `cancelled`-on-cleanup flag to gate applying
+    // the result: this page's sole job is to consume one code and redirect,
+    // and StrictMode's synthetic cleanup runs on the *first* (real)
+    // invocation while the guard above skips the second — so a `cancelled`
+    // flag closed over the first invocation would be flipped `true` by that
+    // synthetic cleanup and silently swallow the real result once the fetch
+    // resolves, leaving the user stuck on "Signing you in...". See the
+    // regression test in `__tests__/AuthCallbackPage.test.tsx`.
+    if (exchangeStarted.current) return
+    exchangeStarted.current = true
 
     // Try generic OIDC first, fall back to legacy Google only if OIDC is not configured (403)
     authApi
@@ -54,20 +75,14 @@ export function AuthCallbackPage() {
         throw oidcErr
       })
       .then(({ token, user }) => {
-        if (cancelled) return
         setAuthToken(token) // Module-level cache for api.ts Bearer header
         setToken(token)
         setUser(user)
         navigate('/', { replace: true })
       })
       .catch((e) => {
-        if (cancelled) return
         setExchangeError(e instanceof Error ? e.message : 'Authentication failed')
       })
-
-    return () => {
-      cancelled = true
-    }
   }, [code, navigate, setToken, setUser])
 
   if (error) {

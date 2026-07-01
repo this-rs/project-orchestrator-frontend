@@ -31,14 +31,27 @@ import { isTauri, getAuthBase, getBackendPort } from './env'
  * - **Tauri desktop**: sends `http://localhost:{port}` so the backend can
  *   construct a dynamic redirect_uri that matches the webview origin.
  *   (The webview navigates to http://localhost:{port} for same-origin cookies.)
- * - **Browser**: sends nothing — the backend falls back to the static
- *   `redirect_uri` from the OIDC config (e.g. https://ffs.dev/auth/callback).
- *   Using `window.location.origin` in the browser would produce a localhost URI
- *   that is not registered with the OAuth provider.
+ * - **Browser**: sends `window.location.origin` — the actual host the user is
+ *   browsing from (e.g. `https://dev.ffs.dev`). This lets a single backend
+ *   config serve multiple frontend origins (prod domain, dev subdomain,
+ *   different port, ...) without hardcoding one "the" origin.
+ *
+ *   The backend validates this against `allowed_origins()` (`server.public_url`
+ *   / `auth.frontend_url` / `auth.additional_origins`) before using it — an
+ *   origin that isn't allow-listed is rejected with 400, it never silently
+ *   falls through to the static default. Add the origin to
+ *   `auth.additional_origins` in config.yaml (and register the matching
+ *   `{origin}/auth/callback` with the OAuth provider) to enable a new host.
+ *
+ *   Previously this returned `null` for browsers, meaning every non-Tauri
+ *   login always used the single static `redirect_uri` from config — fine
+ *   for a single-origin deployment, but any browser origin other than that
+ *   one static value would get bounced to it after OAuth, landing on the
+ *   wrong host with no session cookie for the origin the user started from.
  */
 function getOAuthOrigin(): string | null {
-  if (!isTauri) return null
-  return `http://localhost:${getBackendPort()}`
+  if (isTauri) return `http://localhost:${getBackendPort()}`
+  return window.location.origin
 }
 
 /**
