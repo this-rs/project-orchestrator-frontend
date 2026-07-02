@@ -113,7 +113,17 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
   // ── Cleanup cached Three.js resources on unmount ────────────────────────
   useEffect(() => {
+    const nodeObjectCache = nodeObjectCacheRef.current
     return () => {
+      // Dispose per-node owned material clones (memoized node objects)
+      for (const entry of nodeObjectCache.values()) {
+        for (const sprite of getNodeSprites(entry.obj)) {
+          if ((sprite as unknown as { _ownsMaterial?: boolean })._ownsMaterial) {
+            (sprite.material as THREE.SpriteMaterial | undefined)?.dispose()
+          }
+        }
+      }
+      nodeObjectCache.clear()
       disposeNodeCaches()
       // Dispose community hulls if any
       if (communityHullsRef.current) {
@@ -403,10 +413,51 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     </div>`
   }, [])
 
-  // ── Node 3D object ──────────────────────────────────────────────────────
-  const nodeThreeObject = useCallback((node: Graph3DNode) => {
-    return createNodeObject(node)
+  // ── Node 3D object — memoized by node.id ────────────────────────────────
+  // react-force-graph re-requests node objects whenever graphData changes;
+  // without memoization every update re-creates all Groups + sprites (at 500
+  // nodes: ~50K allocations during layout settling). Entries are invalidated
+  // only when the visual key (quality/label/status/energy/progress) changes.
+  const nodeObjectCacheRef = useRef<Map<string, { key: string; obj: THREE.Object3D }>>(new Map())
+
+  const disposeCachedNodeObject = useCallback((obj: THREE.Object3D) => {
+    // Dispose per-node OWNED material clones. Texture maps are cache-shared
+    // (nodeObjects.ts caches) and are disposed globally by disposeNodeCaches().
+    for (const sprite of getNodeSprites(obj)) {
+      if ((sprite as unknown as { _ownsMaterial?: boolean })._ownsMaterial) {
+        (sprite.material as THREE.SpriteMaterial | undefined)?.dispose()
+      }
+    }
   }, [])
+
+  const nodeThreeObject = useCallback((node: Graph3DNode) => {
+    const d = node.data as Record<string, unknown>
+    const energy = (d.energy as number) ?? 0
+    const status = (d.status as string) ?? ''
+    const progressKey = `${d.completed_step_count ?? d.completed_task_count ?? ''}/${d.step_count ?? d.task_count ?? ''}`
+    const key = `${getNodeQuality()}:${node.label}:${status}:${Math.round(energy * 10)}:${progressKey}`
+
+    const cache = nodeObjectCacheRef.current
+    const hit = cache.get(node.id)
+    if (hit && hit.key === key) return hit.obj
+    if (hit) disposeCachedNodeObject(hit.obj)
+
+    const obj = createNodeObject(node)
+    cache.set(node.id, { key, obj })
+    return obj
+  }, [disposeCachedNodeObject])
+
+  // Prune cache entries for nodes that left the graph
+  useEffect(() => {
+    const ids = new Set(graphData.nodes.map((n) => n.id))
+    const cache = nodeObjectCacheRef.current
+    for (const [id, entry] of cache) {
+      if (!ids.has(id)) {
+        disposeCachedNodeObject(entry.obj)
+        cache.delete(id)
+      }
+    }
+  }, [graphData.nodes, disposeCachedNodeObject])
 
   // ── Highlight colors ─────────────────────────────────────────────────────
   const HIGHLIGHT_COLOR_HOVER = '#F59E0B'   // amber-500

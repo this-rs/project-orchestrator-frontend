@@ -360,8 +360,10 @@ function createRingLabelSprite(
   color: string,
   energy: number,
   subtitle?: string,
-  progress?: NodeProgress,
-  status?: string,
+  /** When true, the solid ring circle is NOT drawn \u2014 the progress overlay
+   *  sprite renders the track + fill arc in its place (original behavior:
+   *  progress nodes replace the ring with a track). */
+  hasProgressOverlay = false,
 ): THREE.Sprite {
   const q = _currentConfig
   const maxLen = q.maxLabelLen
@@ -370,13 +372,12 @@ function createRingLabelSprite(
   const displaySub = (q.showSubtitle && subtitle)
     ? (subtitle.length > maxSubLen ? subtitle.slice(0, maxSubLen - 1) + '\u2026' : subtitle)
     : undefined
-  const effectiveProgress = q.showProgress ? progress : undefined
-  const effectiveWorking = q.showWorkingBadge && status === 'in_progress'
+  // Energy bucket (3 bounded variants) \u2014 kept in the key because it drives the
+  // DRAWN ring width/alpha. Progress arc + working badge are NOT part of this
+  // texture anymore (see createProgressOverlaySprite) \u2014 they used to fan the
+  // cache by progressBucket(21) \u00d7 working(2) per label.
   const opacityBucket = energy > 0.7 ? 'bright' : energy > 0.3 ? 'mid' : 'dim'
-  const progressRatio = effectiveProgress && effectiveProgress.total > 0 ? effectiveProgress.completed / effectiveProgress.total : -1
-  const progressBucket = progressRatio >= 0 ? Math.round(progressRatio * 20) / 20 : -1 // 5% steps
-  const isWorking = effectiveWorking
-  const cacheKey = `${_currentQuality}:${displayText}:${displaySub ?? ''}:${color}:${opacityBucket}:${progressBucket}:${isWorking ? 'w' : ''}`
+  const cacheKey = `${_currentQuality}:${displayText}:${displaySub ?? ''}:${color}:${opacityBucket}:${hasProgressOverlay ? 'p' : ''}`
 
   let texture = ringLabelTextureCache.get(cacheKey)
   if (!texture) {
@@ -393,80 +394,14 @@ function createRingLabelSprite(
     const ringWidth = (opacityBucket === 'bright' ? 6 : opacityBucket === 'mid' ? 5 : 3) * scale
     const ringAlpha = opacityBucket === 'bright' ? 0.9 : opacityBucket === 'mid' ? 0.65 : 0.4
 
-    // ── Draw ring border ──
-    if (progressRatio >= 0) {
-      // Progress mode: background track (dim) + progress fill arc
-      const progressArcWidth = ringWidth + 4 * scale
-      const startAngle = -Math.PI / 2 // 12 o'clock
-
-      // Background track — full circle, dim
-      ctx.beginPath()
-      ctx.arc(cx, cy, ringRadius, 0, Math.PI * 2)
-      ctx.strokeStyle = color
-      ctx.globalAlpha = 0.15
-      ctx.lineWidth = progressArcWidth
-      ctx.stroke()
-      ctx.globalAlpha = 1.0
-
-      // Progress fill — partial arc, bright
-      if (progressRatio > 0) {
-        const endAngle = startAngle + (Math.PI * 2 * progressRatio)
-        const progressColor = progressRatio >= 1.0
-          ? '#22c55e' // green-500 — fully complete
-          : isWorking
-            ? '#818cf8' // indigo-400 — in progress
-            : color      // default entity color
-        ctx.beginPath()
-        ctx.arc(cx, cy, ringRadius, startAngle, endAngle)
-        ctx.strokeStyle = progressColor
-        ctx.globalAlpha = 0.9
-        ctx.lineWidth = progressArcWidth
-        ctx.lineCap = 'round'
-        ctx.stroke()
-        ctx.lineCap = 'butt'
-        ctx.globalAlpha = 1.0
-      }
-    } else {
-      // Standard ring — no progress
+    // ── Draw ring border (skipped when the progress overlay replaces it) ──
+    if (!hasProgressOverlay) {
       ctx.beginPath()
       ctx.arc(cx, cy, ringRadius, 0, Math.PI * 2)
       ctx.strokeStyle = color
       ctx.globalAlpha = ringAlpha
       ctx.lineWidth = ringWidth
       ctx.stroke()
-      ctx.globalAlpha = 1.0
-    }
-
-    // ── Working indicator badge (top-right of ring) ──
-    if (isWorking) {
-      const badgeAngle = -Math.PI / 4 // 1:30 position
-      const bx = cx + ringRadius * Math.cos(badgeAngle)
-      const by = cy + ringRadius * Math.sin(badgeAngle)
-      const badgeR = 14 * scale
-
-      // Pulsing dot background
-      ctx.beginPath()
-      ctx.arc(bx, by, badgeR + 4, 0, Math.PI * 2)
-      ctx.fillStyle = '#818cf8'
-      ctx.globalAlpha = 0.25
-      ctx.fill()
-      ctx.globalAlpha = 1.0
-
-      // Solid dot
-      ctx.beginPath()
-      ctx.arc(bx, by, badgeR, 0, Math.PI * 2)
-      ctx.fillStyle = '#818cf8'
-      ctx.globalAlpha = 0.9
-      ctx.fill()
-      ctx.globalAlpha = 1.0
-
-      // Gear icon ⚙ inside the badge
-      ctx.font = `${badgeR * 1.4}px Inter, system-ui, sans-serif`
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillStyle = '#ffffff'
-      ctx.globalAlpha = 0.95
-      ctx.fillText('⚙', bx, by + 1)
       ctx.globalAlpha = 1.0
     }
 
@@ -516,6 +451,122 @@ function createRingLabelSprite(
 
   const sprite = new THREE.Sprite(material)
   // Scale proportional to ring — energy gives a subtle breathing effect
+  const spriteSize = (22 + energy * 4) * _currentConfig.ringScale
+  sprite.scale.set(spriteSize, spriteSize, 1)
+  return sprite
+}
+
+// ── Progress overlay sprite (track + fill arc + working badge) ───────────────
+// Extracted from the ring/label canvas so progress changes swap a SMALL shared
+// texture instead of re-baking a full ring/label canvas per progressBucket.
+// Cache bounded by (color × 21 progress buckets × working flag) — only entities
+// with progress (task/plan/milestone) hit this, so ~126 small 256px textures max.
+
+const progressTextureCache = new Map<string, THREE.CanvasTexture>()
+
+function createProgressOverlaySprite(
+  color: string,
+  energy: number,
+  progress: NodeProgress | undefined,
+  isWorking: boolean,
+): THREE.Sprite | null {
+  const ratio = progress && progress.total > 0 ? progress.completed / progress.total : -1
+  const bucket = ratio >= 0 ? Math.round(Math.min(1, ratio) * 20) / 20 : -1 // 5% steps
+  if (bucket < 0 && !isWorking) return null
+
+  const cacheKey = `${color}:${bucket}:${isWorking ? 'w' : ''}`
+  let texture = progressTextureCache.get(cacheKey)
+  if (!texture) {
+    const size = 256
+    const canvas = document.createElement('canvas')
+    canvas.width = size
+    canvas.height = size
+    const ctx = canvas.getContext('2d')!
+
+    const cx = size / 2
+    const cy = size / 2
+    const scale = size / 512
+    const ringRadius = size * 0.36
+    const progressArcWidth = 10 * scale // ringWidth(6) + 4, full-quality proportions
+    const startAngle = -Math.PI / 2 // 12 o'clock
+
+    if (bucket >= 0) {
+      // Background track — full circle, dim
+      ctx.beginPath()
+      ctx.arc(cx, cy, ringRadius, 0, Math.PI * 2)
+      ctx.strokeStyle = color
+      ctx.globalAlpha = 0.15
+      ctx.lineWidth = progressArcWidth
+      ctx.stroke()
+      ctx.globalAlpha = 1.0
+
+      // Progress fill — partial arc, bright
+      if (bucket > 0) {
+        const endAngle = startAngle + Math.PI * 2 * bucket
+        const progressColor = bucket >= 1.0
+          ? '#22c55e' // green-500 — fully complete
+          : isWorking
+            ? '#818cf8' // indigo-400 — in progress
+            : color      // default entity color
+        ctx.beginPath()
+        ctx.arc(cx, cy, ringRadius, startAngle, endAngle)
+        ctx.strokeStyle = progressColor
+        ctx.globalAlpha = 0.9
+        ctx.lineWidth = progressArcWidth
+        ctx.lineCap = 'round'
+        ctx.stroke()
+        ctx.lineCap = 'butt'
+        ctx.globalAlpha = 1.0
+      }
+    }
+
+    // ── Working indicator badge (top-right of ring) ──
+    if (isWorking) {
+      const badgeAngle = -Math.PI / 4 // 1:30 position
+      const bx = cx + ringRadius * Math.cos(badgeAngle)
+      const by = cy + ringRadius * Math.sin(badgeAngle)
+      const badgeR = 14 * scale
+
+      // Pulsing dot background
+      ctx.beginPath()
+      ctx.arc(bx, by, badgeR + 4, 0, Math.PI * 2)
+      ctx.fillStyle = '#818cf8'
+      ctx.globalAlpha = 0.25
+      ctx.fill()
+      ctx.globalAlpha = 1.0
+
+      // Solid dot
+      ctx.beginPath()
+      ctx.arc(bx, by, badgeR, 0, Math.PI * 2)
+      ctx.fillStyle = '#818cf8'
+      ctx.globalAlpha = 0.9
+      ctx.fill()
+      ctx.globalAlpha = 1.0
+
+      // Gear icon ⚙ inside the badge
+      ctx.font = `${badgeR * 1.4}px Inter, system-ui, sans-serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillStyle = '#ffffff'
+      ctx.globalAlpha = 0.95
+      ctx.fillText('⚙', bx, by + 1)
+      ctx.globalAlpha = 1.0
+    }
+
+    texture = new THREE.CanvasTexture(canvas)
+    progressTextureCache.set(cacheKey, texture)
+  }
+
+  // Fresh material per sprite (texture shared) — already owned, no clone needed
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    opacity: 1.0,
+    depthWrite: false,
+  })
+  const sprite = new THREE.Sprite(material)
+  ;(sprite as unknown as { _ownsMaterial?: boolean })._ownsMaterial = true
+  // Same world size as the ring sprite so radii align exactly
   const spriteSize = (22 + energy * 4) * _currentConfig.ringScale
   sprite.scale.set(spriteSize, spriteSize, 1)
   return sprite
@@ -879,11 +930,21 @@ export function createNodeObject(node: Graph3DNode): THREE.Object3D {
     spriteChildren.push(glow)
   }
 
-  // 2. Ring + circular label + progress arc + working badge
-  const ringLabel = createRingLabelSprite(node.label, color, energy, subtitle, progress, status)
+  // 2. Ring + circular label (+ separate progress/working overlay sprite)
+  const isWorking = q.showWorkingBadge && status === 'in_progress'
+  const hasProgress = !!(progress && progress.total > 0)
+  const ringLabel = createRingLabelSprite(node.label, color, energy, subtitle, hasProgress)
   ownMaterial(ringLabel)
   group.add(ringLabel)
   spriteChildren.push(ringLabel)
+
+  // 2b. Progress arc / working badge overlay — small shared texture, swapped
+  //     cheaply when progress changes (ring/label texture stays stable)
+  const progressOverlay = createProgressOverlaySprite(color, energy, hasProgress ? progress : undefined, isWorking)
+  if (progressOverlay) {
+    group.add(progressOverlay)
+    spriteChildren.push(progressOverlay)
+  }
 
   // 3. Central emoji — THE primary visual element (on top), status-aware
   const emojiSprite = createEmojiSprite(entityType, energy, status)
@@ -923,6 +984,8 @@ export function disposeNodeCaches(): void {
   glowTextureCache.clear()
   glowMaterialCache.forEach((mat) => mat.dispose())
   glowMaterialCache.clear()
+  progressTextureCache.forEach((tex) => tex.dispose())
+  progressTextureCache.clear()
   if (hitboxTexture) { hitboxTexture.dispose(); hitboxTexture = null }
   if (hitboxMaterial) { hitboxMaterial.dispose(); hitboxMaterial = null }
 }
