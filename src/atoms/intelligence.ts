@@ -196,6 +196,12 @@ export const coChangeThresholdAtom = atom<number>(1)
 /** Community hulls toggle — show/hide convex hull overlays in 3D view */
 export const showCommunityHullsAtom = atom<boolean>(true)
 
+/** Tissue altitude (0→1) — elevates the mental-fabric edges (SYNAPSE /
+ *  CO_CHANGED / AFFECTS) as Bezier arcs ABOVE the structural code plane,
+ *  and desaturates the structural substrate proportionally.
+ *  0 = flat (exact legacy rendering). */
+export const tissueAltitudeAtom = atom<number>(0.6)
+
 /** Graph brightness (0→1) — controls ambient light intensity + background luminance */
 export const graphBrightnessAtom = atom<number>(0.5)
 

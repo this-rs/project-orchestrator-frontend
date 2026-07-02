@@ -2,7 +2,7 @@ import { memo } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import type { IntelligenceLayer, VisibilityMode } from '@/types/intelligence'
 import { LAYERS, LAYER_ORDER, VISIBILITY_PRESETS } from '@/constants/intelligence'
-import { energyHeatmapAtom, touchesHeatmapAtom, coChangeThresholdAtom, loadingLayersAtom, showCommunityHullsAtom, visibilityModeAtom, showAllEdgesAtom, hiddenEdgeCountAtom } from '@/atoms/intelligence'
+import { energyHeatmapAtom, touchesHeatmapAtom, coChangeThresholdAtom, loadingLayersAtom, showCommunityHullsAtom, visibilityModeAtom, showAllEdgesAtom, hiddenEdgeCountAtom, tissueAltitudeAtom } from '@/atoms/intelligence'
 import { activationSearchOpenAtom } from './SpreadingActivation'
 import {
   Eye,
@@ -22,6 +22,7 @@ import {
   Hexagon,
   X,
   LayoutGrid,
+  Waves,
 } from 'lucide-react'
 import { PROJECT_COLORS } from '@/constants/intelligence'
 
@@ -74,6 +75,7 @@ function LayerControlsComponent({
   const [touchesEnabled, setTouchesEnabled] = useAtom(touchesHeatmapAtom)
   const [coChangeThreshold, setCoChangeThreshold] = useAtom(coChangeThresholdAtom)
   const [communityHulls, setCommunityHulls] = useAtom(showCommunityHullsAtom)
+  const [tissueAltitude, setTissueAltitude] = useAtom(tissueAltitudeAtom)
   const setSearchOpen = useSetAtom(activationSearchOpenAtom)
   const loadingLayers = useAtomValue(loadingLayersAtom)
   const activeMode = useAtomValue(visibilityModeAtom)
@@ -306,6 +308,36 @@ function LayerControlsComponent({
                 <span>1</span>
                 <span>10</span>
                 <span>20</span>
+              </div>
+            </div>
+          )}
+
+          {/* Tissue altitude — elevate fabric arcs above the code substrate */}
+          {visibleLayers.has('fabric') && (
+            <div className="flex flex-col gap-1 rounded-lg bg-slate-900/90 backdrop-blur-sm border border-slate-700 p-2">
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <Waves size={12} className="text-cyan-300" />
+                <span className="font-medium">Tissue</span>
+                <span className="ml-auto text-[10px] text-slate-500">
+                  {tissueAltitude <= 0 ? 'flat' : `${Math.round(tissueAltitude * 100)}%`}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={Math.round(tissueAltitude * 100)}
+                onChange={(e) => setTissueAltitude(Number(e.target.value) / 100)}
+                className="w-full h-1 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                style={{
+                  background: `linear-gradient(to right, #22D3EE ${tissueAltitude * 100}%, #334155 ${tissueAltitude * 100}%)`,
+                }}
+                title="Elevate the mental tissue (SYNAPSE / CO_CHANGED / AFFECTS arcs) above the code plane — 0 = flat legacy rendering"
+              />
+              <div className="flex justify-between text-[9px] text-slate-600">
+                <span>flat</span>
+                <span>projected</span>
               </div>
             </div>
           )}

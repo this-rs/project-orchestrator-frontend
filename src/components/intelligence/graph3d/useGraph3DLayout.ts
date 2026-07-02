@@ -150,7 +150,8 @@ const LINK_WIDTHS: Record<string, number> = {
 
 const LAYER_Z_OFFSET: Record<string, number> = {
   code: 0,
-  fabric: 0,     // same z-plane as code (structural)
+  fabric: 0,     // fabric NODES share the code plane — fabric EDGES elevate as
+                 // Bezier arcs via tissueAltitudeAtom (see IntelligenceGraph3D)
   knowledge: 80,
   neural: 120,
   skills: 160,

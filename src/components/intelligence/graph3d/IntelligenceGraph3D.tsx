@@ -27,6 +27,7 @@ import {
   highlightedGroupAtom,
   dimmedEntityTypesAtom,
   graphBrightnessAtom,
+  tissueAltitudeAtom,
 } from '@/atoms/intelligence'
 import { activationStateAtom } from '../SpreadingActivation'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
@@ -73,6 +74,19 @@ function churnToColor3(churn: number): THREE.Color {
   }
 }
 
+// ── Mental tissue vs structural substrate ─────────────────────────────────────
+// The Knowledge Fabric edges are the "mental tissue" projected OVER the code:
+// they render as Bezier arcs elevating above the structural plane (height ∝
+// weight × tissueAltitude), while structural edges stay flat and desaturate.
+//
+// three-forcegraph curve convention: with linkCurveRotation = -π/2, the
+// quadratic Bezier control point (vLine×ẑ rotated around the link axis) points
+// toward +Z for ANY non-vertical link — the layer-stacking "up" axis here.
+
+const TISSUE_RELATIONS = new Set(['SYNAPSE', 'CO_CHANGED', 'CO_CHANGED_TRANSITIVE', 'AFFECTS'])
+const SUBSTRATE_RELATIONS = new Set(['IMPORTS', 'CALLS', 'EXTENDS', 'IMPLEMENTS', 'TOUCHES'])
+const TISSUE_CURVE_ROTATION = -Math.PI / 2
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface IntelligenceGraph3DProps {
@@ -105,6 +119,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const highlightedGroup = useAtomValue(highlightedGroupAtom)
   const dimmedEntityTypes = useAtomValue(dimmedEntityTypesAtom)
   const brightness = useAtomValue(graphBrightnessAtom)
+  const tissueAltitude = useAtomValue(tissueAltitudeAtom)
 
   const { transformToGraph3D, savePositions } = useGraph3DLayout()
 
@@ -531,8 +546,15 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       return INTER_COMMUNITY_COLOR
     }
 
+    // Tissue mode: desaturate the structural substrate proportionally to the
+    // altitude so the elevated fabric arcs read as the luminous layer.
+    // At altitude 0 this branch is skipped → exact legacy colors.
+    if (tissueAltitude > 0 && SUBSTRATE_RELATIONS.has(link.relationType)) {
+      return `rgba(148, 163, 184, ${(0.30 * (1 - 0.65 * tissueAltitude)).toFixed(3)})`
+    }
+
     return link.color
-  }, [hoveredNodeId, selectedNodeId, hasAnyHighlight, activation, showCommunityHulls, highlightedGroup])
+  }, [hoveredNodeId, selectedNodeId, hasAnyHighlight, activation, showCommunityHulls, highlightedGroup, tissueAltitude])
 
   const linkWidth = useCallback((link: Graph3DLink) => {
     const sourceId = typeof link.source === 'object' ? (link.source as Graph3DNode).id : link.source
@@ -599,6 +621,15 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const linkParticleSpeed = useCallback((link: Graph3DLink) => {
     return link.particleSpeed
   }, [])
+
+  // ── Tissue arcs — fabric edges elevate above the structural plane ────────
+  // Curvature ∝ edge weight × tissue altitude. At altitude 0 → curvature 0 →
+  // three-forcegraph early-returns to a straight line (exact legacy render).
+  const linkCurvature = useCallback((link: Graph3DLink) => {
+    if (tissueAltitude <= 0 || !TISSUE_RELATIONS.has(link.relationType)) return 0
+    const weight = link.weight ?? 0.5
+    return tissueAltitude * (0.15 + weight * 0.5)
+  }, [tissueAltitude])
 
   const linkParticleColor = useCallback((link: Graph3DLink) => {
     // Emerald for activated edges (spreading activation)
@@ -1046,8 +1077,18 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // ── Quality-adaptive render settings ──────────────────────────────────
   const quality = getNodeQuality()
   const nodeResolution = quality === 'minimal' ? 6 : quality === 'low' ? 8 : 12
-  // Disable particles for large graphs (saves draw calls)
-  const enableParticles = quality !== 'minimal'
+
+  // Particle LOD — gradual degradation instead of a binary cut. The mental
+  // tissue's blood flow (SYNAPSE/AFFECTS particles) NEVER drops to zero, even
+  // at minimal quality (plan constraint: synapses stay alive at scale).
+  const effectiveLinkParticles = useCallback((link: Graph3DLink) => {
+    const base = linkParticles(link)
+    if (quality !== 'minimal') return base
+    const rt = link.relationType
+    if (rt === 'SYNAPSE' || rt === 'AFFECTS') return Math.max(1, Math.min(base, 2))
+    if (rt === 'CO_CHANGED' || rt === 'CO_CHANGED_TRANSITIVE' || rt === 'TRANSITION') return Math.min(base, 1)
+    return 0
+  }, [linkParticles, quality])
 
   return (
     <div ref={containerRef} className="absolute inset-0 overflow-hidden bg-[#0f172a]">
@@ -1068,7 +1109,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         linkColor={linkColor}
         linkWidth={linkWidth}
         linkOpacity={0.35}
-        linkDirectionalParticles={enableParticles ? linkParticles : 0}
+        // Mental tissue: fabric edges arc above the structural plane
+        linkCurvature={linkCurvature}
+        linkCurveRotation={TISSUE_CURVE_ROTATION}
+        linkDirectionalParticles={effectiveLinkParticles}
         linkDirectionalParticleSpeed={linkParticleSpeed}
         linkDirectionalParticleColor={linkParticleColor}
         linkDirectionalParticleWidth={1.0}
