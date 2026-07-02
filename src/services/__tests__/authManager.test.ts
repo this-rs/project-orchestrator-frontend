@@ -104,3 +104,59 @@ describe('forceLogout — redirect-loop guard', () => {
     expect(hrefSetter).not.toHaveBeenCalled()
   })
 })
+
+describe('initCrossTabSync — logout from another tab', () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  afterEach(() => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: originalLocation,
+    })
+  })
+
+  // BroadcastChannel delivers asynchronously; poll until the assertion target
+  // is satisfied or a short budget elapses.
+  async function waitUntil(cond: () => boolean, tries = 20) {
+    for (let i = 0; i < tries; i++) {
+      if (cond()) return
+      await new Promise((r) => setTimeout(r, 5))
+    }
+  }
+
+  it('navigates this tab to /login when another tab broadcasts logout', async () => {
+    setPathname('/workspace/foo/overview')
+    const { initCrossTabSync, setNavigate } = await import('../authManager')
+    const navigate = vi.fn()
+    setNavigate(navigate)
+    const cleanup = initCrossTabSync()
+
+    const poster = new BroadcastChannel('auth')
+    poster.postMessage({ type: 'logout' })
+    await waitUntil(() => navigate.mock.calls.length > 0)
+
+    expect(navigate).toHaveBeenCalledWith('/login')
+    poster.close()
+    cleanup()
+  })
+
+  it('does NOT navigate on /login when another tab broadcasts logout', async () => {
+    const hrefSetter = setPathname('/login')
+    const { initCrossTabSync, setNavigate } = await import('../authManager')
+    const navigate = vi.fn()
+    setNavigate(navigate)
+    const cleanup = initCrossTabSync()
+
+    const poster = new BroadcastChannel('auth')
+    poster.postMessage({ type: 'logout' })
+    // Give the handler a chance to (wrongly) fire before asserting absence.
+    await new Promise((r) => setTimeout(r, 30))
+
+    expect(navigate).not.toHaveBeenCalled()
+    expect(hrefSetter).not.toHaveBeenCalled()
+    poster.close()
+    cleanup()
+  })
+})
