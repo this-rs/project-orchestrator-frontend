@@ -28,6 +28,7 @@ import {
   dimmedEntityTypesAtom,
   graphBrightnessAtom,
   tissueAltitudeAtom,
+  selectedEdgeAtom,
 } from '@/atoms/intelligence'
 import { activationStateAtom } from '../SpreadingActivation'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
@@ -957,9 +958,35 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
     }
   }, [setHoveredNodeId])
 
+  // ── Edge provenance — "why this link?" ──────────────────────────────────
+  const setSelectedEdge = useSetAtom(selectedEdgeAtom)
+
+  const onLinkClick = useCallback((link: Graph3DLink) => {
+    const src = link.source as Graph3DNode | string
+    const tgt = link.target as Graph3DNode | string
+    const sourceId = typeof src === 'object' ? src.id : src
+    const targetId = typeof tgt === 'object' ? tgt.id : tgt
+    setSelectedEdge({
+      source: sourceId,
+      target: targetId,
+      sourceLabel: typeof src === 'object' ? src.label : sourceId,
+      targetLabel: typeof tgt === 'object' ? tgt.label : targetId,
+      relationType: link.relationType,
+      weight: link.weight,
+      count: link.count,
+    })
+  }, [setSelectedEdge])
+
+  const onLinkHover = useCallback((link: Graph3DLink | null) => {
+    if (containerRef.current && !hoveredNodeId) {
+      containerRef.current.style.cursor = link ? 'pointer' : 'default'
+    }
+  }, [hoveredNodeId])
+
   const onBackgroundClick = useCallback(() => {
     setSelectedNodeId(null)
-  }, [setSelectedNodeId])
+    setSelectedEdge(null)
+  }, [setSelectedNodeId, setSelectedEdge])
 
   // ── Keyboard: Esc to deselect ───────────────────────────────────────────
   useEffect(() => {
@@ -1127,6 +1154,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
         // Interactions
         onNodeClick={onNodeClick}
         onNodeHover={onNodeHover}
+        onLinkClick={onLinkClick}
+        onLinkHover={onLinkHover}
+        linkHoverPrecision={4}
         onNodeDragEnd={(node: Graph3DNode) => {
           // Pin position after drag
           node.fx = node.x

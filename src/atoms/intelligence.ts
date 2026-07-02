@@ -93,6 +93,18 @@ export const selectedNodeAtom = atom<IntelligenceNode | null>((get) => {
 /** Hovered node ID (for highlights) */
 export const hoveredNodeIdAtom = atom<string | null>(null)
 
+/** Selected edge — opens the EdgeProvenancePanel ("why this link?") */
+export interface SelectedEdgeInfo {
+  source: string
+  target: string
+  sourceLabel: string
+  targetLabel: string
+  relationType: string
+  weight?: number
+  count?: number
+}
+export const selectedEdgeAtom = atom<SelectedEdgeInfo | null>(null)
+
 /** Highlighted group of node IDs — dims everything outside the group.
  *  Used by FG chip hover, milestone hover, etc. */
 export const highlightedGroupAtom = atom<Set<string> | null>(null)
