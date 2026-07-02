@@ -284,6 +284,13 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
     setNodeQuality(graphData.nodes.length)
   }, [graphData.nodes.length])
 
+  // Current quality tier. Used as a dependency of nodeThreeObject so that a
+  // tier change produces a NEW accessor identity → react-force-graph re-creates
+  // EVERY node object (not just new ones). Without this, existing nodes kept
+  // sprites whose cached textures were disposed by the quality switch —
+  // the "missing emoji" bug.
+  const quality = getNodeQuality()
+
   // ── Control simulation based on relayout need ───────────────────────────
   // The ref methods (cooldownTicks, etc.) are only available after the
   // ForceGraph3D component has fully mounted. Guard with method existence check.
@@ -626,7 +633,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
     const energy = (d.energy as number) ?? 0
     const status = (d.status as string) ?? ''
     const progressKey = `${d.completed_step_count ?? d.completed_task_count ?? ''}/${d.step_count ?? d.task_count ?? ''}`
-    const key = `${getNodeQuality()}:${node.label}:${status}:${Math.round(energy * 10)}:${progressKey}`
+    const key = `${quality}:${node.label}:${status}:${Math.round(energy * 10)}:${progressKey}`
 
     const cache = nodeObjectCacheRef.current
     const hit = cache.get(node.id)
@@ -636,7 +643,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
     const obj = createNodeObject(node)
     cache.set(node.id, { key, obj })
     return obj
-  }, [disposeCachedNodeObject])
+  }, [disposeCachedNodeObject, quality])
 
   // Prune cache entries for nodes that left the graph
   useEffect(() => {
@@ -1290,7 +1297,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
   const hasDimensions = dimensions.width > 0 && dimensions.height > 0
 
   // ── Quality-adaptive render settings ──────────────────────────────────
-  const quality = getNodeQuality()
+  // (quality is computed near the top, right after setNodeQuality)
   const nodeResolution = quality === 'minimal' ? 6 : quality === 'low' ? 8 : 12
 
   // Particle LOD — gradual degradation instead of a binary cut. The mental

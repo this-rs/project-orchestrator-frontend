@@ -20,12 +20,8 @@
 // ============================================================================
 
 import * as THREE from 'three'
-import SpriteText from 'three-spritetext'
 import { ENTITY_COLORS } from '@/constants/intelligence'
 import type { Graph3DNode } from './useGraph3DLayout'
-
-// SpriteText extends Sprite extends Object3D — has .position
-type SpriteTextInstance = SpriteText & THREE.Object3D
 
 // ── Sprite children cache (perf) ──────────────────────────────────────────────
 // Per-effect code (heatmap, highlight, dimming, activation) used to call
@@ -101,6 +97,45 @@ const QUALITY_CONFIGS: Record<QualityLevel, QualityConfig> = {
 let _currentQuality: QualityLevel = 'full'
 let _currentConfig: QualityConfig = QUALITY_CONFIGS.full
 
+// ── Deferred texture disposal ────────────────────────────────────────────────
+// GOTCHA (fixed): disposing caches immediately on quality change destroyed
+// textures still referenced by LIVE sprites — react-force-graph only creates
+// objects for NEW nodes, so existing nodes kept sprites with dead textures
+// (blank rings, missing emojis). Instead, caches are RETIRED (references moved
+// aside, maps cleared) and disposed a few seconds later, after the consumer
+// forced a full node-object recreation at the new quality.
+
+let _retiredDisposables: { dispose(): void }[] = []
+let _retireFlushTimer: ReturnType<typeof setTimeout> | null = null
+
+function retireNodeCaches(): void {
+  const retire = <T extends { dispose(): void }>(m: Map<string, T>) => {
+    m.forEach((v) => _retiredDisposables.push(v))
+    m.clear()
+  }
+  retire(ringLabelTextureCache)
+  retire(ringLabelMaterialCache)
+  retire(dotTextureCache)
+  retire(dotMaterialCache)
+  retire(emojiTextureCache)
+  retire(emojiMaterialCache)
+  retire(glowTextureCache)
+  retire(glowMaterialCache)
+  retire(progressTextureCache)
+
+  if (_retireFlushTimer) clearTimeout(_retireFlushTimer)
+  _retireFlushTimer = setTimeout(() => flushRetiredCaches(), 5000)
+}
+
+/** Dispose retired GPU resources (safe: replacement objects exist by now) */
+export function flushRetiredCaches(): void {
+  for (const d of _retiredDisposables) {
+    try { d.dispose() } catch { /* already disposed */ }
+  }
+  _retiredDisposables = []
+  if (_retireFlushTimer) { clearTimeout(_retireFlushTimer); _retireFlushTimer = null }
+}
+
 /** Call before rendering a batch of nodes to set quality based on count */
 export function setNodeQuality(nodeCount: number): void {
   const prev = _currentQuality
@@ -110,9 +145,10 @@ export function setNodeQuality(nodeCount: number): void {
   else _currentQuality = 'minimal'
   _currentConfig = QUALITY_CONFIGS[_currentQuality]
 
-  // If quality downgraded, clear caches to free GPU memory (old hi-res textures)
+  // Quality changed → retire caches (deferred dispose) so live sprites keep
+  // valid textures until the consumer recreates every node object
   if (prev !== _currentQuality) {
-    disposeNodeCaches()
+    retireNodeCaches()
   }
 }
 
@@ -624,20 +660,30 @@ function createGlowSprite(color: string, energy: number): THREE.Sprite {
 const emojiTextureCache = new Map<string, THREE.CanvasTexture>()
 const emojiMaterialCache = new Map<string, THREE.SpriteMaterial>()
 
+/**
+ * Shared-canvas emoji sprite — the ONLY emoji rendering path for ALL quality
+ * levels (previously full/medium used per-node SpriteText, which both fanned
+ * textures O(N) and could intermittently fail to render the glyph).
+ * Hi-res 128px canvas at full/medium, 64px at low/minimal. Textures shared
+ * per (emoji, energyBucket, resolution) — O(~80) textures max.
+ */
 function createSharedEmojiSprite(entityType: string, energy: number, status?: string): THREE.Sprite {
   const emoji = getStatusEmoji(entityType, status)
   const energyBucket = energy > 0.7 ? 'hi' : energy > 0.3 ? 'mid' : 'lo'
-  const cacheKey = `${emoji}:${energyBucket}`
+  const hiRes = _currentQuality === 'full' || _currentQuality === 'medium'
+  const size = hiRes ? 128 : 64
+  const cacheKey = `${emoji}:${energyBucket}:${size}`
 
   let texture = emojiTextureCache.get(cacheKey)
   if (!texture) {
-    const size = 64
     const canvas = document.createElement('canvas')
     canvas.width = size
     canvas.height = size
     const ctx = canvas.getContext('2d')!
 
-    ctx.font = `${size * 0.7}px serif`
+    // Explicit emoji font stack — 'serif' alone can miss the color-emoji
+    // fallback on some platforms, leaving the glyph blank
+    ctx.font = `${size * 0.7}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText(emoji, size / 2, size / 2)
@@ -662,20 +708,9 @@ function createSharedEmojiSprite(entityType: string, energy: number, status?: st
   return sprite
 }
 
-function createEmojiSprite(entityType: string, energy: number, status?: string): SpriteText | THREE.Sprite {
-  // For low/minimal quality: use shared texture (O(~40) textures instead of O(N))
-  if (_currentQuality === 'low' || _currentQuality === 'minimal') {
-    return createSharedEmojiSprite(entityType, energy, status)
-  }
-
-  // For full/medium: use SpriteText (richer rendering, acceptable at low node counts)
-  const emoji = getStatusEmoji(entityType, status)
-  const sprite = new SpriteText(emoji) as SpriteTextInstance
-  sprite.textHeight = 8 + energy * 4  // 8 at rest → 12 at max energy
-  sprite.backgroundColor = 'transparent'
-  sprite.padding = [0, 0]
-  sprite.position.set(0, 0, 0) // dead center
-  return sprite
+function createEmojiSprite(entityType: string, energy: number, status?: string): THREE.Sprite {
+  // Single rendering path for every quality level — emojis MUST always show
+  return createSharedEmojiSprite(entityType, energy, status)
 }
 
 // ── Invisible hitbox sprite (enlarges clickable area) ─────────────────────────
@@ -946,21 +981,12 @@ export function createNodeObject(node: Graph3DNode): THREE.Object3D {
     spriteChildren.push(progressOverlay)
   }
 
-  // 3. Central emoji — THE primary visual element (on top), status-aware
+  // 3. Central emoji — THE primary visual element (on top), status-aware.
+  //    Single shared-canvas path for all qualities (emoji must ALWAYS render).
   const emojiSprite = createEmojiSprite(entityType, energy, status)
-  // Apply quality-based emoji scaling (only for SpriteText in full/medium)
-  if (_currentQuality === 'full' || _currentQuality === 'medium') {
-    if (q.emojiScale !== 1.0) {
-      (emojiSprite as SpriteTextInstance).textHeight = (emojiSprite as SpriteTextInstance).textHeight * q.emojiScale
-    }
-    // SpriteText creates its own per-instance material — already owned, don't clone
-    // (SpriteText manages its material/texture internally; replacing it would break updates)
-    ;(emojiSprite as unknown as { _ownsMaterial?: boolean })._ownsMaterial = true
-  } else {
-    ownMaterial(emojiSprite as THREE.Sprite)
-  }
+  ownMaterial(emojiSprite)
   group.add(emojiSprite)
-  spriteChildren.push(emojiSprite as unknown as THREE.Sprite)
+  spriteChildren.push(emojiSprite)
 
   return group
 }
@@ -988,4 +1014,6 @@ export function disposeNodeCaches(): void {
   progressTextureCache.clear()
   if (hitboxTexture) { hitboxTexture.dispose(); hitboxTexture = null }
   if (hitboxMaterial) { hitboxMaterial.dispose(); hitboxMaterial = null }
+  // Also flush any resources retired by a quality change
+  flushRetiredCaches()
 }
