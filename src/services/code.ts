@@ -150,6 +150,19 @@ export const codeApi = {
   getRiskAssessment: (params: { project_slug: string; limit?: number }) =>
     api.get<RiskAssessmentResponse>(`/code/risk-assessment${buildQuery(params)}`),
 
+  // Link prediction — plausible missing links (5-signal scoring:
+  // Jaccard, co-change, proximity, Adamic-Adar, structural DNA)
+  predictLinks: (data: { project_slug: string; top_n?: number; min_plausibility?: number }) =>
+    api.post<{
+      predictions: {
+        source: string
+        target: string
+        plausibility: number
+        suggested_relation: string
+        signals: [string, number][]
+      }[]
+    }>('/code/predict-links', data),
+
   // ── Heritage Navigation ───────────────────────────────────────────────
 
   getClassHierarchy: (params: { type_name: string; max_depth?: number }) =>

@@ -32,6 +32,9 @@ import {
   tissueAltitudeAtom,
   selectedEdgeAtom,
   showEnergyTerrainAtom,
+  focusInvisibleCouplingsAtom,
+  predictedLinksAtom,
+  showPredictedLinksAtom,
 } from '@/atoms/intelligence'
 import { activationStateAtom } from '../SpreadingActivation'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
@@ -127,6 +130,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
   const brightness = useAtomValue(graphBrightnessAtom)
   const tissueAltitude = useAtomValue(tissueAltitudeAtom)
   const showEnergyTerrain = useAtomValue(showEnergyTerrainAtom)
+  const focusInvisibleCouplings = useAtomValue(focusInvisibleCouplingsAtom)
+  const predictedLinks = useAtomValue(predictedLinksAtom)
+  const showPredictedLinks = useAtomValue(showPredictedLinksAtom)
 
   const { transformToGraph3D, savePositions } = useGraph3DLayout()
 
@@ -425,6 +431,84 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
     }
   }, [])
 
+  // ── Ghost links — predicted missing relations (dashed violet lines) ─────
+  const ghostLinksRef = useRef<THREE.Group | null>(null)
+
+  const disposeGhostLinks = useCallback((scene?: THREE.Scene) => {
+    const group = ghostLinksRef.current
+    if (!group) return
+    scene?.remove(group)
+    group.traverse((o) => {
+      if (o instanceof THREE.Line) {
+        o.geometry.dispose()
+        ;(o.material as THREE.Material).dispose()
+      }
+    })
+    ghostLinksRef.current = null
+  }, [])
+
+  const rebuildGhostLinks = useCallback(() => {
+    try {
+      const fg = graphRef.current
+      if (!fg || typeof fg.scene !== 'function') return
+      const scene = fg.scene()
+      if (!scene) return
+
+      disposeGhostLinks(scene)
+      if (!showPredictedLinks || predictedLinks.length === 0 || graphData.nodes.length === 0) return
+
+      // Best-effort endpoint matching: predictions carry file paths, graph
+      // node ids may be `file:<path>`, `<path>` or carry data.path
+      const byKey = new Map<string, Graph3DNode>()
+      for (const n of graphData.nodes) {
+        byKey.set(n.id, n)
+        const p = (n.data.path as string) ?? ''
+        if (p) byKey.set(p, n)
+        const colonIdx = n.id.indexOf(':')
+        if (colonIdx > 0) byKey.set(n.id.slice(colonIdx + 1), n)
+      }
+
+      const group = new THREE.Group()
+      group.name = 'predictedLinks'
+      for (const pred of predictedLinks) {
+        const a = byKey.get(pred.source)
+        const b = byKey.get(pred.target)
+        if (!a || !b) continue
+        const geo = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(a.x, a.y, a.z),
+          new THREE.Vector3(b.x, b.y, b.z),
+        ])
+        const mat = new THREE.LineDashedMaterial({
+          color: 0xc4b5fd, // violet-300 — "not yet real"
+          transparent: true,
+          opacity: 0.25 + pred.plausibility * 0.5,
+          dashSize: 4,
+          gapSize: 3,
+          depthWrite: false,
+        })
+        const line = new THREE.Line(geo, mat)
+        line.computeLineDistances() // REQUIRED for LineDashedMaterial
+        group.add(line)
+      }
+      if (group.children.length > 0) {
+        scene.add(group)
+        ghostLinksRef.current = group
+      }
+    } catch (err) {
+      console.warn('[IntelligenceGraph3D] ghost links error:', err)
+    }
+  }, [showPredictedLinks, predictedLinks, graphData.nodes, disposeGhostLinks])
+
+  // Rebuild ghosts on toggle / data change, cleanup on unmount
+  useEffect(() => {
+    const timer = setTimeout(() => rebuildGhostLinks(), 150)
+    return () => clearTimeout(timer)
+  }, [rebuildGhostLinks])
+
+  useEffect(() => {
+    return () => disposeGhostLinks()
+  }, [disposeGhostLinks])
+
   // ── Auto-zoom: fit graph on first load ──────────────────────────────────
   const hasAutoZoomedRef = useRef(false)
 
@@ -446,6 +530,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
       }
       // Refresh the energy terrain with settled positions (signature-guarded)
       rebuildEnergyTerrain()
+      // Reposition ghost links on settled positions
+      rebuildGhostLinks()
 
       // Auto-zoom to fit all nodes on first layout completion
       if (!hasAutoZoomedRef.current) {
@@ -459,7 +545,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
         }
       }
     }
-  }, [graphData.nodes, savePositions, rebuildCommunityHulls, rebuildEnergyTerrain])
+  }, [graphData.nodes, savePositions, rebuildCommunityHulls, rebuildEnergyTerrain, rebuildGhostLinks])
 
   // Cleanup hulls on unmount
   useEffect(() => {
@@ -589,6 +675,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
       return 'rgba(107, 114, 128, 0.05)'
     }
 
+    // Invisible-coupling lens: dim everything except the hidden couplings
+    if (focusInvisibleCouplings) {
+      return link.isInvisibleCoupling ? '#FBBF24' : 'rgba(107, 114, 128, 0.04)'
+    }
+
     // Hover (amber) AND selection (cyan) coexist — hover takes visual priority on shared edges
     if (hasAnyHighlight) {
       const isHoverConnected = hoveredNodeId
@@ -618,6 +709,12 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
       return INTER_COMMUNITY_COLOR
     }
 
+    // Invisible couplings stand out by DEFAULT — a coupling no static code
+    // view can show (co-changed files with zero structural relationship)
+    if (link.isInvisibleCoupling) {
+      return 'rgba(251, 191, 36, 0.85)' // amber-400, near-opaque
+    }
+
     // Tissue mode: desaturate the structural substrate proportionally to the
     // altitude so the elevated fabric arcs read as the luminous layer.
     // At altitude 0 this branch is skipped → exact legacy colors.
@@ -626,7 +723,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
     }
 
     return link.color
-  }, [hoveredNodeId, selectedNodeId, hasAnyHighlight, activation, showCommunityHulls, highlightedGroup, tissueAltitude])
+  }, [hoveredNodeId, selectedNodeId, hasAnyHighlight, activation, showCommunityHulls, highlightedGroup, tissueAltitude, focusInvisibleCouplings])
 
   const linkWidth = useCallback((link: Graph3DLink) => {
     const sourceId = typeof link.source === 'object' ? (link.source as Graph3DNode).id : link.source
@@ -644,6 +741,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
         return link.width * energyFactor * 2.5
       }
       return link.width * 0.15
+    }
+
+    // Invisible-coupling lens: emphasize hidden couplings, fade everything else
+    if (focusInvisibleCouplings) {
+      return link.isInvisibleCoupling ? link.width * energyFactor * 2.2 : link.width * 0.08
     }
 
     if (hasAnyHighlight) {
@@ -669,8 +771,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
       return link.width * energyFactor * 1.5
     }
 
-    return link.width * energyFactor
-  }, [hoveredNodeId, selectedNodeId, hasAnyHighlight, activation, showCommunityHulls, highlightedGroup])
+    // Invisible couplings slightly thicker by default
+    return link.width * energyFactor * (link.isInvisibleCoupling ? 1.8 : 1)
+  }, [hoveredNodeId, selectedNodeId, hasAnyHighlight, activation, showCommunityHulls, highlightedGroup, focusInvisibleCouplings])
 
   const linkParticles = useCallback((link: Graph3DLink) => {
     // Boost particles on activated synapse edges
@@ -686,6 +789,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
     // Inter-community edges get flowing particles to show cross-boundary communication
     if (showCommunityHulls && link.isInterCommunity) {
       return 3
+    }
+    // Invisible couplings always flow — they carry the hidden signal
+    if (link.isInvisibleCoupling) {
+      return Math.max(link.particles, 2)
     }
     return link.particles
   }, [activation, showCommunityHulls])

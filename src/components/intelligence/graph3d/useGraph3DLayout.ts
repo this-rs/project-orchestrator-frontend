@@ -10,6 +10,7 @@
 
 import { useCallback, useRef } from 'react'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
+import { detectInvisibleCouplings, pairKey } from './invisibleCouplings'
 
 // ── Seeded PRNG (Mulberry32) ──────────────────────────────────────────────────
 // Deterministic random number generator — same seed always produces same sequence
@@ -71,6 +72,9 @@ export interface Graph3DLink {
   particleSpeed: number
   /** true when source and target belong to different communities */
   isInterCommunity: boolean
+  /** true for CO_CHANGED edges with NO direct structural edge between the
+   *  endpoints — coupling invisible to any static code view */
+  isInvisibleCoupling?: boolean
   /** community IDs of source/target (for coloring inter-community edges) */
   sourceCommunityId?: number
   targetCommunityId?: number
@@ -250,6 +254,16 @@ export function useGraph3DLayout() {
 
     // Build 3D links
     const nodeIdSet = currentIds
+
+    // Invisible couplings: CO_CHANGED pairs with no direct structural edge
+    const invisiblePairs = detectInvisibleCouplings(
+      edges.map((e) => ({
+        source: e.source,
+        target: e.target,
+        relationType: (e.data?.relationType as string) ?? 'IMPORTS',
+      })),
+    )
+
     const graph3dLinks: Graph3DLink[] = edges
       .filter((e) => nodeIdSet.has(e.source) && nodeIdSet.has(e.target))
       .map((edge) => {
@@ -273,6 +287,9 @@ export function useGraph3DLayout() {
           isInterCommunity,
           sourceCommunityId: srcCommunity,
           targetCommunityId: tgtCommunity,
+          isInvisibleCoupling:
+            (relationType === 'CO_CHANGED' || relationType === 'CO_CHANGED_TRANSITIVE') &&
+            invisiblePairs.has(pairKey(edge.source, edge.target)),
         }
       })
 

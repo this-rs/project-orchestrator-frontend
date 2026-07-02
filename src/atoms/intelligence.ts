@@ -218,6 +218,24 @@ export const tissueAltitudeAtom = atom<number>(0.6)
  *  tissue arcs (hidden when tissue altitude is 0). Default off (additive). */
 export const showEnergyTerrainAtom = atom<boolean>(false)
 
+// ── Insight lenses ──────────────────────────────────────────────────────
+
+/** Focus lens: dim everything except invisible couplings (CO_CHANGED pairs
+ *  with NO structural edge — relations no static code view can show) */
+export const focusInvisibleCouplingsAtom = atom<boolean>(false)
+
+/** Predicted missing links from the 5-signal link-prediction engine */
+export interface PredictedLink {
+  source: string
+  target: string
+  plausibility: number
+  suggested_relation: string
+}
+export const predictedLinksAtom = atom<PredictedLink[]>([])
+
+/** Show predicted links as dashed ghost edges */
+export const showPredictedLinksAtom = atom<boolean>(false)
+
 /** Graph brightness (0→1) — controls ambient light intensity + background luminance */
 export const graphBrightnessAtom = atom<number>(0.5)
 

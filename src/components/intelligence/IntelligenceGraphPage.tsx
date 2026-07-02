@@ -14,6 +14,7 @@ import { LiveIndicator } from './LiveIndicator'
 import { ReplayTimeline } from './ReplayTimeline'
 import { SpreadingActivation, activationSearchOpenAtom, useNodeActivation } from './SpreadingActivation'
 import { EdgeProvenancePanel } from './EdgeProvenancePanel'
+import { InsightsChip } from './InsightsChip'
 import { GraphLoadingProgress } from './GraphLoadingProgress'
 import { ENTITY_COLORS } from '@/constants/intelligence'
 import {
@@ -195,6 +196,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
       {/* Spreading Activation search overlay (top-center) */}
       <SpreadingActivation projectSlug={projectSlug} />
       <EdgeProvenancePanel />
+      <InsightsChip projectSlug={projectSlug} edges={edges} />
 
       {/* ── Canvas: 3D ───────────────────────────────────────────────── */}
       <Graph3DErrorBoundary context="Intelligence Graph">
