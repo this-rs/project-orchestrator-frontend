@@ -13,6 +13,7 @@ import * as THREE from 'three'
 
 import { useGraph3DLayout, type Graph3DNode, type Graph3DLink } from './useGraph3DLayout'
 import { useActivationSync } from './useActivationSync'
+import { useObservatoryCamera } from './useObservatoryCamera'
 import { createNodeObject, disposeNodeCaches, setNodeQuality, getNodeQuality, getNodeSprites } from './nodeObjects'
 import { buildCommunityHulls, disposeCommunityHulls, computeHullSignature, type CommunityHullGroup } from './CommunityHulls3D'
 import { buildEnergyTerrain, disposeEnergyTerrain, computeTerrainSignature } from './EnergyTerrain3D'
@@ -779,6 +780,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
   // ── Spreading Activation — live 3D visual updates (extracted hook) ───
   const activationPhase = activation.phase
   useActivationSync(graphRef, graphData.nodes)
+
+  // ── Observatory mode — optional auto-camera following active clusters ──
+  // Off by default (observatoryAutoCameraAtom); user drag interrupts it.
+  useObservatoryCamera(graphRef, containerRef, graphData.nodes)
 
   // ── Heatmap overlays — energy (notes) & churn (files) ────────────────────
   const heatmapDirtyRef = useRef<Map<AnySpriteChild, SpriteOriginal>>(new Map())

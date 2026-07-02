@@ -80,7 +80,7 @@ function restoreSprite(sprite: AnySpriteChild, orig: SpriteOriginal): void {
 //   2. Suffix match:       node.id ends with `:${activationId}`
 //   3. entityId fallback:  node.entityId === activationId
 
-function nodeMatchesActivation(
+export function nodeMatchesActivation(
   node: ActivationSyncNode,
   activatedIds: Set<string>,
 ): boolean {

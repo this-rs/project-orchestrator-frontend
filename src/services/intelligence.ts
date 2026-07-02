@@ -13,7 +13,7 @@ import type {
   SimulateRequest,
   SimulateResponse,
 } from '@/types/intelligence'
-import type { PaginatedResponse } from '@/types'
+import type { PaginatedResponse, GraphEvent } from '@/types'
 
 // ============================================================================
 // INTELLIGENCE GRAPH — API Service
@@ -140,4 +140,83 @@ export const intelligenceApi = {
       `/workspaces/${workspaceSlug}/intelligence/summary`,
       signal,
     ),
+}
+
+// ============================================================================
+// GRAPH EVENTS — historical event stream for temporal replay
+// ============================================================================
+
+/** Query params for the graph events endpoint */
+export interface GraphEventsQuery {
+  /** RFC3339 — only events at/after this instant */
+  since?: string
+  /** RFC3339 — only events at/before this instant */
+  until?: string
+  /** Event type filter (e.g. ['node_created', 'edge_created', 'reinforcement']) */
+  types?: string[]
+  /** Opaque pagination cursor (hex) from a previous page's next_cursor */
+  cursor?: string
+  /** Page size — backend default 500, max 2000 */
+  limit?: number
+}
+
+/** One page of historical graph events (chronologically ascending) */
+export interface GraphEventsPage {
+  events: GraphEvent[]
+  next_cursor: string | null
+}
+
+/**
+ * Fetch one page of historical graph events for temporal replay.
+ * GET /api/projects/:slug/graph/events?since&until&types&limit&cursor
+ *
+ * NOTE: the endpoint may not be deployed yet (backend branch
+ * feat/graph-events-endpoint) — callers must handle 404 (ApiError.status).
+ */
+export function fetchGraphEvents(
+  projectSlug: string,
+  params: GraphEventsQuery = {},
+  signal?: AbortSignal,
+): Promise<GraphEventsPage> {
+  const query = buildQuery({
+    since: params.since,
+    until: params.until,
+    types: params.types?.join(','),
+    cursor: params.cursor,
+    limit: params.limit,
+  })
+  return api.get<GraphEventsPage>(
+    `/projects/${projectSlug}/graph/events${query}`,
+    signal,
+  )
+}
+
+/**
+ * Cursor-iteration helper — yields pages until the backend reports no
+ * next_cursor. Defensive termination: stops on empty pages, repeated
+ * cursors, or after `maxPages` (guards against a buggy/looping backend).
+ */
+export async function* iterateGraphEvents(
+  projectSlug: string,
+  params: Omit<GraphEventsQuery, 'cursor'> = {},
+  options: { maxPages?: number; signal?: AbortSignal } = {},
+): AsyncGenerator<GraphEventsPage, void, unknown> {
+  const maxPages = options.maxPages ?? 200
+  const seenCursors = new Set<string>()
+  let cursor: string | undefined
+
+  for (let page = 0; page < maxPages; page++) {
+    const result = await fetchGraphEvents(
+      projectSlug,
+      { ...params, cursor },
+      options.signal,
+    )
+    yield result
+
+    const next = result.next_cursor
+    // Terminate: no cursor, empty page, or cursor loop
+    if (!next || result.events.length === 0 || seenCursors.has(next)) return
+    seenCursors.add(next)
+    cursor = next
+  }
 }

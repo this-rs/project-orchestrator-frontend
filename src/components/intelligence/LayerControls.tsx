@@ -2,7 +2,7 @@ import { memo } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import type { IntelligenceLayer, VisibilityMode } from '@/types/intelligence'
 import { LAYERS, LAYER_ORDER, VISIBILITY_PRESETS } from '@/constants/intelligence'
-import { energyHeatmapAtom, touchesHeatmapAtom, coChangeThresholdAtom, loadingLayersAtom, showCommunityHullsAtom, visibilityModeAtom, showAllEdgesAtom, hiddenEdgeCountAtom, tissueAltitudeAtom, showEnergyTerrainAtom } from '@/atoms/intelligence'
+import { energyHeatmapAtom, touchesHeatmapAtom, coChangeThresholdAtom, loadingLayersAtom, showCommunityHullsAtom, visibilityModeAtom, showAllEdgesAtom, hiddenEdgeCountAtom, tissueAltitudeAtom, showEnergyTerrainAtom, replayActiveAtom, observatoryAutoCameraAtom } from '@/atoms/intelligence'
 import { activationSearchOpenAtom } from './SpreadingActivation'
 import {
   Eye,
@@ -24,6 +24,8 @@ import {
   LayoutGrid,
   Waves,
   Mountain,
+  History,
+  Video,
 } from 'lucide-react'
 import { PROJECT_COLORS } from '@/constants/intelligence'
 
@@ -58,6 +60,9 @@ interface LayerControlsProps {
   onClearProjectFilters?: () => void
   /** Hover a project slug to highlight its nodes in the 3D graph */
   onHoverProject?: (slug: string | null) => void
+  /** Toggle temporal replay — when provided, the Replay + observatory
+   *  auto-camera buttons are shown in the presets bar */
+  onToggleReplay?: () => void
 }
 
 function LayerControlsComponent({
@@ -71,6 +76,7 @@ function LayerControlsComponent({
   onToggleProjectFilter,
   onClearProjectFilters,
   onHoverProject,
+  onToggleReplay,
 }: LayerControlsProps) {
   const [heatmapEnabled, setHeatmapEnabled] = useAtom(energyHeatmapAtom)
   const [touchesEnabled, setTouchesEnabled] = useAtom(touchesHeatmapAtom)
@@ -83,6 +89,9 @@ function LayerControlsComponent({
   const activeMode = useAtomValue(visibilityModeAtom)
   const [showAllEdges, setShowAllEdges] = useAtom(showAllEdgesAtom)
   const hiddenEdgeCount = useAtomValue(hiddenEdgeCountAtom)
+  // Derived boolean — avoids 10Hz re-renders from replayStateAtom.currentTime
+  const replayActive = useAtomValue(replayActiveAtom)
+  const [autoCamera, setAutoCamera] = useAtom(observatoryAutoCameraAtom)
 
   const hasFilters = activeProjectFilters ? activeProjectFilters.size > 0 : false
 
@@ -136,6 +145,39 @@ function LayerControlsComponent({
           {showAllEdges ? <Eye size={12} /> : <EyeOff size={12} />}
           {showAllEdges ? 'All Edges' : `Edges${hiddenEdgeCount > 0 ? ` (${hiddenEdgeCount})` : ''}`}
         </button>
+        {/* ── Temporal replay + observatory auto-camera ───────────────── */}
+        {onToggleReplay && (
+          <>
+            <div className="w-px h-5 bg-slate-700/60 mx-0.5 self-center" />
+            <button
+              onClick={onToggleReplay}
+              className={`flex items-center gap-1 rounded-md px-2 py-1.5 text-[10px] font-medium transition-colors ${
+                replayActive
+                  ? 'bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/40'
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+              }`}
+              title={replayActive
+                ? 'Exit temporal replay and restore the live graph'
+                : 'Temporal replay — watch the graph form itself'}
+            >
+              <History size={12} />
+              Replay
+            </button>
+            <button
+              onClick={() => setAutoCamera(!autoCamera)}
+              className={`flex items-center gap-1 rounded-md px-2 py-1.5 text-[10px] font-medium transition-colors ${
+                autoCamera
+                  ? 'bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-500/40'
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+              }`}
+              title={autoCamera
+                ? 'Observatory auto-camera on — camera follows live activation clusters (drag to interrupt)'
+                : 'Observatory auto-camera — ease the camera toward active clusters when the graph thinks'}
+            >
+              <Video size={12} />
+            </button>
+          </>
+        )}
       </div>
 
       {/* ── View buttons — workspace project views ───── */}

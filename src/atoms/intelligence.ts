@@ -250,3 +250,47 @@ export const searchFilteredNodesAtom = atom<IntelligenceNode[]>((get) => {
 /** Toggle between 2D (ReactFlow) and 3D (ForceGraph3D) views */
 export type GraphViewMode = '2d' | '3d'
 export const graphViewModeAtom = atom<GraphViewMode>('3d')
+
+// ── Temporal replay — "watch the graph form itself" ─────────────────────
+
+/** Playback speed multiplier (virtual time = wall time × speed) */
+export type ReplaySpeed = 1 | 10 | 100
+
+export const REPLAY_SPEEDS: ReplaySpeed[] = [1, 10, 100]
+
+export interface ReplayState {
+  /** Replay session is active (live WS graph events are suppressed) */
+  active: boolean
+  /** Historical events are currently being streamed */
+  playing: boolean
+  /** Time-compression factor ×1 / ×10 / ×100 */
+  speed: ReplaySpeed
+  /** Current virtual time (ms epoch) */
+  currentTime: number
+  /** First event timestamp (ms epoch) — 0 until loaded */
+  startTime: number
+  /** Replay horizon (ms epoch, usually "now" at replay start) */
+  endTime: number
+}
+
+export const initialReplayState: ReplayState = {
+  active: false,
+  playing: false,
+  speed: 10,
+  currentTime: 0,
+  startTime: 0,
+  endTime: 0,
+}
+
+/** Full replay state — updated ~10Hz during playback (scrubber UI only) */
+export const replayStateAtom = atom<ReplayState>(initialReplayState)
+
+/** Derived boolean — subscribe to this (not replayStateAtom) when you only
+ *  need to know whether replay is active, to avoid 10Hz re-renders. */
+export const replayActiveAtom = atom<boolean>((get) => get(replayStateAtom).active)
+
+// ── Observatory mode ─────────────────────────────────────────────────────
+
+/** Auto-camera: ease the camera toward the active cluster when live
+ *  activation events flow. Off by default; user drag interrupts it. */
+export const observatoryAutoCameraAtom = atom<boolean>(false)

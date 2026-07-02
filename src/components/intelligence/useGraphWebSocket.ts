@@ -1,200 +1,24 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { useSetAtom, useAtomValue } from 'jotai'
-import { intelligenceNodesAtom, intelligenceEdgesAtom } from '@/atoms/intelligence'
+import { intelligenceNodesAtom, intelligenceEdgesAtom, replayActiveAtom } from '@/atoms/intelligence'
 import { projectSlugToIdAtom } from '@/atoms/projects'
 import { getEventBus } from '@/services/eventBus'
 import type { GraphEvent as BackendGraphEvent } from '@/types'
-import type { IntelligenceNode, IntelligenceEdge, IntelligenceRelationType } from '@/types/intelligence'
-import { EDGE_STYLES } from '@/constants/intelligence'
 import { activationStateAtom, type ActivationState } from './SpreadingActivation'
-
-// ============================================================================
-// FRONTEND GRAPH EVENT TYPES (mapped from backend GraphEvent)
-// ============================================================================
-
-interface GraphNodeCreated {
-  type: 'graph.node_created'
-  node: { id: string; type: string; label: string; layer: string; attributes?: Record<string, unknown> }
-  parent_id?: string
-}
-
-interface GraphNodeUpdated {
-  type: 'graph.node_updated'
-  node_id: string
-  attributes: Record<string, unknown>
-}
-
-interface GraphEdgeCreated {
-  type: 'graph.edge_created'
-  edge: { source: string; target: string; type: string; layer: string; attributes?: Record<string, unknown> }
-}
-
-interface GraphEdgeRemoved {
-  type: 'graph.edge_removed'
-  source: string
-  target: string
-  edge_type: string
-}
-
-interface GraphReinforcement {
-  type: 'graph.reinforcement'
-  source: string
-  target: string
-  new_weight: number
-}
-
-interface GraphActivationDelta {
-  direct_ids: string[]
-  propagated: Array<{ id: string; via: string; score: number }>
-  scores: Record<string, number>
-  active_edges: string[]
-  query: string
-  /** Streaming phase: "direct", "propagating", "done", or absent for legacy single-event */
-  phase?: 'direct' | 'propagating' | 'done'
-}
-
-interface GraphActivation {
-  type: 'graph.activation'
-  layer: string
-  delta: GraphActivationDelta
-  activated_ids?: string[]
-  scores?: Record<string, number>
-}
-
-interface GraphCommunityChanged {
-  type: 'graph.community_changed'
-  node_ids: string[]
-  community_id: number
-  community_label?: string
-}
-
-type FrontendGraphEvent =
-  | GraphNodeCreated
-  | GraphNodeUpdated
-  | GraphEdgeCreated
-  | GraphEdgeRemoved
-  | GraphReinforcement
-  | GraphActivation
-  | GraphCommunityChanged
-
-// ============================================================================
-// BACKEND → FRONTEND EVENT MAPPING
-// ============================================================================
-
-/**
- * Map a backend GraphEvent (flat structure with `type: "node_created"`)
- * to the frontend GraphEvent (enriched structure with `type: "graph.node_created"`).
- *
- * The backend sends flat events with node_id, target_id, edge_type, delta fields.
- * The frontend expects structured events with nested objects (node, edge, etc.).
- */
-function mapBackendEvent(raw: BackendGraphEvent): FrontendGraphEvent | null {
-  const delta = raw.delta as Record<string, unknown> | null
-
-  switch (raw.type) {
-    case 'node_created': {
-      return {
-        type: 'graph.node_created',
-        node: {
-          id: raw.node_id ?? '',
-          type: (delta?.entity_type as string) ?? raw.layer,
-          label: (delta?.label as string) ?? (delta?.note_type as string) ?? raw.node_id ?? '',
-          layer: raw.layer,
-          attributes: delta as Record<string, unknown> | undefined,
-        },
-      }
-    }
-
-    case 'node_updated': {
-      return {
-        type: 'graph.node_updated',
-        node_id: raw.node_id ?? '',
-        attributes: (delta as Record<string, unknown>) ?? {},
-      }
-    }
-
-    case 'edge_created': {
-      return {
-        type: 'graph.edge_created',
-        edge: {
-          source: raw.node_id ?? '',
-          target: raw.target_id ?? '',
-          type: raw.edge_type ?? 'UNKNOWN',
-          layer: raw.layer,
-          attributes: delta as Record<string, unknown> | undefined,
-        },
-      }
-    }
-
-    case 'edge_removed': {
-      return {
-        type: 'graph.edge_removed',
-        source: raw.node_id ?? '',
-        target: raw.target_id ?? '',
-        edge_type: raw.edge_type ?? '',
-      }
-    }
-
-    case 'reinforcement': {
-      return {
-        type: 'graph.reinforcement',
-        source: raw.node_id ?? '',
-        target: raw.target_id ?? '',
-        new_weight: (delta?.energy_delta as number) ?? 0,
-      }
-    }
-
-    case 'activation': {
-      // activation_result sends the full payload in delta
-      const d = delta as GraphActivationDelta | null
-      if (!d) return null
-      return {
-        type: 'graph.activation',
-        layer: raw.layer,
-        delta: d,
-      }
-    }
-
-    case 'community_changed': {
-      return {
-        type: 'graph.community_changed',
-        node_ids: (delta?.member_ids as string[]) ?? [],
-        community_id: (delta?.community_id as number) ?? 0,
-        community_label: delta?.community_label as string | undefined,
-      }
-    }
-
-    default:
-      return null
-  }
-}
-
-// ============================================================================
-// rAF BUFFER — batch multiple events into a single React update
-// ============================================================================
-
-type PendingUpdate = {
-  addNodes: IntelligenceNode[]
-  updateNodes: Map<string, Record<string, unknown>>
-  addEdges: IntelligenceEdge[]
-  removeEdgeKeys: Set<string>
-}
-
-function emptyPending(): PendingUpdate {
-  return {
-    addNodes: [],
-    updateNodes: new Map(),
-    addEdges: [],
-    removeEdgeKeys: new Set(),
-  }
-}
-
-function makeEdgeKey(source: string, target: string, type: string): string {
-  return `${source}:${target}:${type}`
-}
+import {
+  createGraphEventApplier,
+  mapBackendEvent,
+  type FrontendGraphEvent,
+} from './graphEventApplier'
 
 // ============================================================================
 // HOOK
+// ============================================================================
+//
+// Event mapping + structural application (node/edge CRUD, reinforcement,
+// community) live in graphEventApplier.ts — shared with useGraphReplay.
+// This hook adds: EventBus subscription, project filtering, activation
+// animation orchestration, and replay suppression.
 // ============================================================================
 
 export interface GraphWsState {
@@ -202,6 +26,8 @@ export interface GraphWsState {
   connected: boolean
   /** Timestamp of last received event (for Live pulse) */
   lastEventAt: number | null
+  /** Timestamp of last activation/reinforcement event (for "thinking" pulse) */
+  lastNeuralEventAt: number | null
 }
 
 /**
@@ -211,6 +37,10 @@ export interface GraphWsState {
  * Events are received via the shared `/ws/events` WebSocket connection
  * (managed by EventBusClient) and buffered via requestAnimationFrame
  * to avoid excessive re-renders.
+ *
+ * While a temporal replay is active (replayStateAtom.active), live graph
+ * events are suppressed entirely so historical and live streams never
+ * interleave. The graph is refetched when replay exits.
  */
 export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState {
   const setNodes = useSetAtom(intelligenceNodesAtom)
@@ -218,76 +48,29 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
   const setActivation = useSetAtom(activationStateAtom)
   const activationPhase = useAtomValue(activationStateAtom).phase
   const slugToId = useAtomValue(projectSlugToIdAtom)
+  // Derived boolean — only re-renders on active flip, not on 10Hz scrubber updates
+  const replayActive = useAtomValue(replayActiveAtom)
   const [connected, setConnected] = useState(false)
   const [lastEventAt, setLastEventAt] = useState<number | null>(null)
+  const [lastNeuralEventAt, setLastNeuralEventAt] = useState<number | null>(null)
 
-  const pendingRef = useRef<PendingUpdate>(emptyPending())
-  const rafRef = useRef<number | null>(null)
   const mountedRef = useRef(true)
   const activationTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
   // Track current activation phase in a ref so the memoized callback sees latest value
   const activationPhaseRef = useRef<ActivationState['phase']>('idle')
   activationPhaseRef.current = activationPhase
+  // Replay suppression guard — checked inside the EventBus callback
+  const replayActiveRef = useRef(replayActive)
+  useEffect(() => {
+    replayActiveRef.current = replayActive
+  }, [replayActive])
 
-  // Flush buffered updates in a single React state update
-  const flush = useCallback(() => {
-    const pending = pendingRef.current
-    pendingRef.current = emptyPending()
-    rafRef.current = null
-
-    const hasNodeAdds = pending.addNodes.length > 0
-    const hasNodeUpdates = pending.updateNodes.size > 0
-    const hasEdgeAdds = pending.addEdges.length > 0
-    const hasEdgeRemoves = pending.removeEdgeKeys.size > 0
-
-    if (hasNodeAdds || hasNodeUpdates) {
-      setNodes((prev) => {
-        let next = prev
-        if (hasNodeAdds) {
-          // Avoid duplicates
-          const existingIds = new Set(prev.map((n) => n.id))
-          const newNodes = pending.addNodes.filter((n) => !existingIds.has(n.id))
-          if (newNodes.length > 0) {
-            next = [...next, ...newNodes]
-          }
-        }
-        if (hasNodeUpdates) {
-          next = next.map((node) => {
-            const updates = pending.updateNodes.get(node.id)
-            if (!updates) return node
-            return {
-              ...node,
-              data: { ...node.data, ...updates } as IntelligenceNode['data'],
-            }
-          })
-        }
-        return next
-      })
-    }
-
-    if (hasEdgeAdds || hasEdgeRemoves) {
-      setEdges((prev) => {
-        let next = prev
-        if (hasEdgeRemoves) {
-          next = next.filter((e) => {
-            const relType = (e.data as { relationType?: string })?.relationType ?? ''
-            return !pending.removeEdgeKeys.has(makeEdgeKey(e.source, e.target, relType))
-          })
-        }
-        if (hasEdgeAdds) {
-          next = [...next, ...pending.addEdges]
-        }
-        return next
-      })
-    }
-  }, [setNodes, setEdges])
-
-  // Schedule a flush on next animation frame (batching)
-  const scheduleFlush = useCallback(() => {
-    if (rafRef.current === null) {
-      rafRef.current = requestAnimationFrame(flush)
-    }
-  }, [flush])
+  // Shared structural-event applier (rAF-buffered flush pipeline)
+  const applier = useMemo(
+    () => createGraphEventApplier({ setNodes, setEdges }),
+    [setNodes, setEdges],
+  )
+  useEffect(() => () => applier.dispose(), [applier])
 
   // Process a single mapped frontend graph event
   const handleEvent = useCallback(
@@ -295,310 +78,170 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
       if (!mountedRef.current) return
       setLastEventAt(Date.now())
 
-      switch (event.type) {
-        case 'graph.node_created': {
-          const n = event.node
-          const newNode: IntelligenceNode = {
-            id: n.id,
-            type: n.type,
-            position: { x: Math.random() * 400, y: Math.random() * 400 },
-            data: {
-              label: n.label,
-              entityType: n.type as IntelligenceNode['data']['entityType'],
-              layer: n.layer as IntelligenceNode['data']['layer'],
-              entityId: n.id,
-              ...(n.attributes ?? {}),
-              // Animation hint: fly-in for new nodes
-              _wsAnimation: 'fly-in',
-              _wsAnimKey: Date.now(),
-            } as IntelligenceNode['data'],
-          }
-          pendingRef.current.addNodes.push(newNode)
-          scheduleFlush()
-          break
-        }
+      // Observatory "thinking" signal — neural activity (activation/reinforcement)
+      if (event.type === 'graph.activation' || event.type === 'graph.reinforcement') {
+        setLastNeuralEventAt(Date.now())
+      }
 
-        case 'graph.node_updated': {
-          // Animation hint: flash for updated nodes
-          pendingRef.current.updateNodes.set(event.node_id, {
-            ...event.attributes,
-            _wsAnimation: 'flash',
-            _wsAnimKey: Date.now(),
-          })
-          scheduleFlush()
-          break
-        }
+      // Structural events → shared applier (node/edge CRUD, reinforcement, community)
+      if (event.type !== 'graph.activation') {
+        applier.apply(event)
+        return
+      }
 
-        case 'graph.edge_created': {
-          const e = event.edge
-          const relationType = e.type as IntelligenceRelationType
-          const style = EDGE_STYLES[relationType] ?? { color: '#6B7280', strokeWidth: 1 }
-          const edgeType = relationType === 'SYNAPSE' ? 'synapse'
-            : relationType === 'CO_CHANGED' ? 'co_changed'
-            : relationType === 'CO_CHANGED_TRANSITIVE' ? 'co_changed'
-            : relationType === 'AFFECTS' ? 'affects'
-            : 'default'
-          const attrs = e.attributes ?? {}
+      // ── Activation events — drive the SpreadingActivation animation ──
+      // If a local animation is already in progress (triggered by REST in
+      // SpreadingActivation.tsx), skip the WS echo to avoid interrupting
+      // the staggered animation. Only apply when phase is 'idle' or 'done'.
+      const currentPhase = activationPhaseRef.current
+      if (currentPhase === 'searching' || currentPhase === 'direct' || currentPhase === 'propagating') {
+        return
+      }
 
-          const newEdge: IntelligenceEdge = {
-            id: `e-${e.source}-${e.target}-ws-${Date.now()}`,
-            source: e.source,
-            target: e.target,
-            type: edgeType,
-            animated: style.animated ?? false,
-            ...(edgeType === 'default' ? {
-              style: {
-                stroke: style.color,
-                strokeWidth: style.strokeWidth,
-                strokeDasharray: style.strokeDasharray,
-              },
-            } : {}),
-            data: {
-              relationType,
-              layer: e.layer,
-              weight: (attrs.weight as number) ?? undefined,
-              confidence: (attrs.confidence as number) ?? undefined,
-              count: (attrs.co_change_count as number) ?? (attrs.count as number) ?? undefined,
-              // Animation hint: draw-in for new edges
-              _wsAnimation: 'draw-in',
-              _wsAnimKey: Date.now(),
-            } as IntelligenceEdge['data'],
-          }
-          pendingRef.current.addEdges.push(newEdge)
-          scheduleFlush()
-          break
-        }
+      const delta = event.delta
+      if (!delta) return
 
-        case 'graph.edge_removed': {
-          // Animation: mark edges with fade-out, then remove after delay
-          const removeKey = makeEdgeKey(event.source, event.target, event.edge_type)
-          setEdges((prev) =>
-            prev.map((e) => {
-              const relType = (e.data as { relationType?: string })?.relationType ?? ''
-              if (makeEdgeKey(e.source, e.target, relType) === removeKey) {
-                return {
-                  ...e,
-                  data: {
-                    ...e.data!,
-                    _wsAnimation: 'fade-out',
-                    _wsAnimKey: Date.now(),
-                  } as IntelligenceEdge['data'],
-                }
-              }
-              return e
-            }),
-          )
-          // Actually remove after fade-out animation completes
-          setTimeout(() => {
-            if (!mountedRef.current) return
-            setEdges((prev) =>
-              prev.filter((e) => {
-                const relType = (e.data as { relationType?: string })?.relationType ?? ''
-                return makeEdgeKey(e.source, e.target, relType) !== removeKey
-              }),
-            )
-          }, 400)
-          break
-        }
+      // ── Streamed phased events (backend sends phase field) ──
+      if (delta.phase) {
+        switch (delta.phase) {
+          case 'direct': {
+            // Phase 1: Light up direct matches immediately
+            // Clear any previous WS-driven animation timers
+            activationTimersRef.current.forEach(clearTimeout)
+            activationTimersRef.current = []
 
-        case 'graph.reinforcement': {
-          // Animation: pulse synapse edge + update weight
-          setEdges((prev) =>
-            prev.map((e) => {
-              if (e.source === event.source && e.target === event.target) {
-                const relType = (e.data as { relationType?: string })?.relationType
-                if (relType === 'SYNAPSE') {
-                  return {
-                    ...e,
-                    data: {
-                      ...e.data!,
-                      weight: event.new_weight,
-                      _wsAnimation: 'pulse',
-                      _wsAnimKey: Date.now(),
-                    } as IntelligenceEdge['data'],
-                  }
-                }
-              }
-              return e
-            }),
-          )
-          break
-        }
-
-        case 'graph.activation': {
-          // If a local animation is already in progress (triggered by REST in
-          // SpreadingActivation.tsx), skip the WS echo to avoid interrupting
-          // the staggered animation. Only apply when phase is 'idle' or 'done'.
-          const currentPhase = activationPhaseRef.current
-          if (currentPhase === 'searching' || currentPhase === 'direct' || currentPhase === 'propagating') {
-            break
-          }
-
-          const delta = event.delta
-          if (!delta) break
-
-          // ── Streamed phased events (backend sends phase field) ──
-          if (delta.phase) {
-            switch (delta.phase) {
-              case 'direct': {
-                // Phase 1: Light up direct matches immediately
-                // Clear any previous WS-driven animation timers
-                activationTimersRef.current.forEach(clearTimeout)
-                activationTimersRef.current = []
-
-                const directIds = new Set(delta.direct_ids)
-                const scores = new Map<string, number>()
-                for (const [id, score] of Object.entries(delta.scores)) {
-                  scores.set(id, score)
-                }
-
-                setActivation({
-                  directIds,
-                  propagatedIds: new Set(),
-                  scores,
-                  activeEdges: new Set(),
-                  phase: 'direct',
-                })
-                break
-              }
-
-              case 'propagating': {
-                // Phase 2: MERGE propagated notes into existing state
-                setActivation((prev: ActivationState) => {
-                  const mergedPropagated = new Set(prev.propagatedIds)
-                  for (const p of delta.propagated) {
-                    mergedPropagated.add(p.id)
-                  }
-
-                  const mergedScores = new Map(prev.scores)
-                  for (const [id, score] of Object.entries(delta.scores)) {
-                    mergedScores.set(id, score)
-                  }
-
-                  const mergedEdges = new Set(prev.activeEdges)
-                  for (const edgeKey of delta.active_edges) {
-                    mergedEdges.add(edgeKey)
-                  }
-
-                  return {
-                    ...prev,
-                    propagatedIds: mergedPropagated,
-                    scores: mergedScores,
-                    activeEdges: mergedEdges,
-                    phase: 'propagating',
-                  }
-                })
-                break
-              }
-
-              case 'done': {
-                // Phase 3: Signal completion
-                setActivation((prev: ActivationState) => ({
-                  ...prev,
-                  phase: 'done' as const,
-                }))
-                break
-              }
+            const directIds = new Set(delta.direct_ids)
+            const scores = new Map<string, number>()
+            for (const [id, score] of Object.entries(delta.scores)) {
+              scores.set(id, score)
             }
+
+            setActivation({
+              directIds,
+              propagatedIds: new Set(),
+              scores,
+              activeEdges: new Set(),
+              phase: 'direct',
+            })
             break
           }
 
-          // ── Legacy single-event fallback (no phase field) ──
-          // Clear any previous WS-driven animation timers
-          activationTimersRef.current.forEach(clearTimeout)
-          activationTimersRef.current = []
+          case 'propagating': {
+            // Phase 2: MERGE propagated notes into existing state
+            setActivation((prev: ActivationState) => {
+              const mergedPropagated = new Set(prev.propagatedIds)
+              for (const p of delta.propagated) {
+                mergedPropagated.add(p.id)
+              }
 
-          // Phase 1 (immediate): Light up direct matches
-          const directIds = new Set(delta.direct_ids)
-          const initialScores = new Map<string, number>()
-          for (const id of delta.direct_ids) {
-            if (delta.scores[id] !== undefined) {
-              initialScores.set(id, delta.scores[id])
+              const mergedScores = new Map(prev.scores)
+              for (const [id, score] of Object.entries(delta.scores)) {
+                mergedScores.set(id, score)
+              }
+
+              const mergedEdges = new Set(prev.activeEdges)
+              for (const edgeKey of delta.active_edges) {
+                mergedEdges.add(edgeKey)
+              }
+
+              return {
+                ...prev,
+                propagatedIds: mergedPropagated,
+                scores: mergedScores,
+                activeEdges: mergedEdges,
+                phase: 'propagating',
+              }
+            })
+            break
+          }
+
+          case 'done': {
+            // Phase 3: Signal completion
+            setActivation((prev: ActivationState) => ({
+              ...prev,
+              phase: 'done' as const,
+            }))
+            break
+          }
+        }
+        return
+      }
+
+      // ── Legacy single-event fallback (no phase field) ──
+      // Clear any previous WS-driven animation timers
+      activationTimersRef.current.forEach(clearTimeout)
+      activationTimersRef.current = []
+
+      // Phase 1 (immediate): Light up direct matches
+      const directIds = new Set(delta.direct_ids)
+      const initialScores = new Map<string, number>()
+      for (const id of delta.direct_ids) {
+        if (delta.scores[id] !== undefined) {
+          initialScores.set(id, delta.scores[id])
+        }
+      }
+
+      setActivation({
+        directIds,
+        propagatedIds: new Set(),
+        scores: initialScores,
+        activeEdges: new Set(),
+        phase: 'direct',
+      })
+
+      // Phase 2 (staggered): Propagate along synapses in waves
+      const sorted = [...delta.propagated].sort((a, b) => b.score - a.score)
+      const batchSize = Math.max(1, Math.ceil(sorted.length / 5))
+      const delayPerBatch = 200
+
+      let accumulated = new Set<string>()
+      const allScores = new Map(initialScores)
+
+      for (let i = 0; i < sorted.length; i += batchSize) {
+        const batch = sorted.slice(i, i + batchSize)
+        const delay = 400 + (i / batchSize) * delayPerBatch
+
+        const timeout = setTimeout(() => {
+          if (!mountedRef.current) return
+
+          batch.forEach((r) => {
+            accumulated.add(r.id)
+            allScores.set(r.id, r.score)
+          })
+
+          // Build active edges from the delta
+          const allActivated = new Set([...directIds, ...accumulated])
+          const activeEdges = new Set<string>()
+          for (const edgeKey of delta.active_edges) {
+            const [src, tgt] = edgeKey.split('-')
+            if (src && tgt && allActivated.has(src) && allActivated.has(tgt)) {
+              activeEdges.add(edgeKey)
             }
           }
 
           setActivation({
             directIds,
-            propagatedIds: new Set(),
-            scores: initialScores,
-            activeEdges: new Set(),
-            phase: 'direct',
+            propagatedIds: new Set(accumulated),
+            scores: new Map(allScores),
+            activeEdges,
+            phase: i + batchSize >= sorted.length ? 'done' : 'propagating',
           })
+          accumulated = new Set(accumulated)
+        }, delay)
 
-          // Phase 2 (staggered): Propagate along synapses in waves
-          const sorted = [...delta.propagated].sort((a, b) => b.score - a.score)
-          const batchSize = Math.max(1, Math.ceil(sorted.length / 5))
-          const delayPerBatch = 200
+        activationTimersRef.current.push(timeout)
+      }
 
-          let accumulated = new Set<string>()
-          const allScores = new Map(initialScores)
-
-          for (let i = 0; i < sorted.length; i += batchSize) {
-            const batch = sorted.slice(i, i + batchSize)
-            const delay = 400 + (i / batchSize) * delayPerBatch
-
-            const timeout = setTimeout(() => {
-              if (!mountedRef.current) return
-
-              batch.forEach((r) => {
-                accumulated.add(r.id)
-                allScores.set(r.id, r.score)
-              })
-
-              // Build active edges from the delta
-              const allActivated = new Set([...directIds, ...accumulated])
-              const activeEdges = new Set<string>()
-              for (const edgeKey of delta.active_edges) {
-                const [src, tgt] = edgeKey.split('-')
-                if (src && tgt && allActivated.has(src) && allActivated.has(tgt)) {
-                  activeEdges.add(edgeKey)
-                }
-              }
-
-              setActivation({
-                directIds,
-                propagatedIds: new Set(accumulated),
-                scores: new Map(allScores),
-                activeEdges,
-                phase: i + batchSize >= sorted.length ? 'done' : 'propagating',
-              })
-              accumulated = new Set(accumulated)
-            }, delay)
-
-            activationTimersRef.current.push(timeout)
-          }
-
-          // If no propagated results, transition to done after direct phase
-          if (sorted.length === 0) {
-            const timeout = setTimeout(() => {
-              if (!mountedRef.current) return
-              setActivation((prev: ActivationState) => ({ ...prev, phase: 'done' as const }))
-            }, 400)
-            activationTimersRef.current.push(timeout)
-          }
-          break
-        }
-
-        case 'graph.community_changed': {
-          // Batch update community attributes on affected nodes + re-color animation
-          const animKey = Date.now()
-          for (const nodeId of event.node_ids) {
-            const attrs: Record<string, unknown> = {
-              communityId: event.community_id,
-              _wsAnimation: 'community',
-              _wsAnimKey: animKey,
-            }
-            if (event.community_label) {
-              attrs.communityLabel = event.community_label
-            }
-            pendingRef.current.updateNodes.set(nodeId, attrs)
-          }
-          scheduleFlush()
-          break
-        }
+      // If no propagated results, transition to done after direct phase
+      if (sorted.length === 0) {
+        const timeout = setTimeout(() => {
+          if (!mountedRef.current) return
+          setActivation((prev: ActivationState) => ({ ...prev, phase: 'done' as const }))
+        }, 400)
+        activationTimersRef.current.push(timeout)
       }
     },
-    [scheduleFlush, setEdges, setActivation],
+    [applier, setActivation],
   )
 
   // Subscribe to EventBus graph events (replaces direct WS connection)
@@ -623,6 +266,10 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
     // Subscribe to graph events, filter by project, map and dispatch
     const unsubGraph = eventBus.onGraph((raw: BackendGraphEvent) => {
       if (!mountedRef.current) return
+      // Temporal replay active — suppress ALL live graph events so the
+      // historical stream never interleaves with live mutations. The live
+      // graph is restored (refetched) when replay exits.
+      if (replayActiveRef.current) return
       // Filter by project_id (skip events from other projects)
       if (projectId && raw.project_id !== projectId) return
       const mapped = mapBackendEvent(raw)
@@ -635,11 +282,10 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
       mountedRef.current = false
       unsubStatus()
       unsubGraph()
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
       activationTimersRef.current.forEach(clearTimeout)
       activationTimersRef.current = []
     }
   }, [projectSlug, slugToId, handleEvent])
 
-  return { connected, lastEventAt }
+  return { connected, lastEventAt, lastNeuralEventAt }
 }

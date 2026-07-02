@@ -6,9 +6,12 @@ import { Maximize, Minimize, PanelRightClose, PanelRightOpen, Search, Sun } from
 
 import { useIntelligenceGraph } from './useIntelligenceGraph'
 import { useGraphWebSocket } from './useGraphWebSocket'
+import { useGraphReplay } from './useGraphReplay'
 import { useProtocolRunEvents } from './useProtocolRunEvents'
 import { NodeInspector } from './NodeInspector'
 import { LayerControls } from './LayerControls'
+import { LiveIndicator } from './LiveIndicator'
+import { ReplayTimeline } from './ReplayTimeline'
 import { SpreadingActivation, activationSearchOpenAtom, useNodeActivation } from './SpreadingActivation'
 import { EdgeProvenancePanel } from './EdgeProvenancePanel'
 import { GraphLoadingProgress } from './GraphLoadingProgress'
@@ -19,6 +22,7 @@ import {
   selectedNodeIdAtom,
   legendHoveredTypeAtom,
   graphBrightnessAtom,
+  replayActiveAtom,
 } from '@/atoms/intelligence'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -91,9 +95,14 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   } = useIntelligenceGraph(projectSlug)
 
   // Real-time WebSocket updates
-  useGraphWebSocket(projectSlug)
+  const { connected, lastEventAt, lastNeuralEventAt } = useGraphWebSocket(projectSlug)
   // Protocol run events — update runStatus overlay on ProtocolNodes
   useProtocolRunEvents()
+
+  // Temporal replay — "watch the graph form itself". While active, live WS
+  // graph events are suppressed; on exit the live graph is refetched.
+  const replayControls = useGraphReplay(projectSlug, { onRestore: fetchGraph })
+  const replayActive = useAtomValue(replayActiveAtom)
 
   // Alt-click on a node → spreading activation from it ("what wakes up?")
   const { activateFromNode } = useNodeActivation(projectSlug)
@@ -138,8 +147,10 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   // Determine overlay states — use allNodes (raw API data) instead of layouted nodes
   // because in 3D mode the dagre worker doesn't run, so local `nodes` stays empty.
   const hasData = allNodes.length > 0
-  const showError = !!error && !hasData
-  const showEmpty = !loading && !error && !hasData
+  const showError = !!error && !hasData && !replayActive
+  // During replay the graph intentionally starts empty (it rebuilds
+  // chronologically) — don't show the empty-state overlay
+  const showEmpty = !loading && !error && !hasData && !replayActive
 
   // ── Graph content (shared between inline and fullscreen portal) ──────────
   const graphContent = (
@@ -163,7 +174,23 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
         onApplyPreset={applyPreset}
         customMode={showCustomPanel}
         onToggleCustom={() => setShowCustomPanel((v) => !v)}
+        onToggleReplay={replayControls.toggle}
       />
+
+      {/* Live / Thinking indicator (top-right) — hidden during replay
+          (live WS graph events are suppressed while replaying) */}
+      {!replayActive && (
+        <div className="absolute top-3 right-3 z-40">
+          <LiveIndicator
+            connected={connected}
+            lastEventAt={lastEventAt}
+            lastNeuralEventAt={lastNeuralEventAt}
+          />
+        </div>
+      )}
+
+      {/* Temporal replay scrubber (bottom-center overlay) */}
+      {replayActive && <ReplayTimeline controls={replayControls} />}
 
       {/* Spreading Activation search overlay (top-center) */}
       <SpreadingActivation projectSlug={projectSlug} />
@@ -289,8 +316,9 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
         <Branding variant="inline" className="pl-1" />
       </div>
 
-      {/* Keyboard shortcut hint (bottom-center) — prominent CTA, hidden when search is open */}
-      {!searchOpen && <button
+      {/* Keyboard shortcut hint (bottom-center) — prominent CTA, hidden when
+          search is open or the replay scrubber occupies the bottom-center */}
+      {!searchOpen && !replayActive && <button
         onClick={() => setSearchOpen(true)}
         className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 px-4 py-2 rounded-full bg-slate-800/90 backdrop-blur-sm border border-slate-600/80 text-slate-300 hover:text-cyan-300 hover:border-cyan-500/50 hover:bg-slate-800 hover:shadow-lg hover:shadow-cyan-500/10 transition-all duration-200 group cursor-pointer"
       >
