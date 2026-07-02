@@ -31,6 +31,13 @@ export const AVAILABLE_MODELS: readonly ModelDefinition[] = [
     description: 'Most capable — demanding reasoning & long-horizon agentic work',
   },
   {
+    id: 'claude-fable-5',
+    shortLabel: 'Fable 5',
+    fullLabel: 'Claude Fable 5',
+    dotColor: 'bg-rose-400',
+    description: 'Previous generation — superseded by Sonnet 5',
+  },
+  {
     id: 'claude-opus-4-8',
     shortLabel: 'Opus 4.8',
     fullLabel: 'Claude Opus 4.8',
