@@ -94,6 +94,8 @@ interface IntelligenceGraph3DProps {
   edges: IntelligenceEdge[]
   /** Callback when a node is double-clicked (fractal drill-down) */
   onNodeDoubleClick?: (nodeId: string) => void
+  /** Callback when a node is alt-clicked (spreading activation from node) */
+  onNodeAltClick?: (node: Graph3DNode) => void
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -101,7 +103,7 @@ interface IntelligenceGraph3DProps {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type GraphRef = any // ForceGraph3D ref methods are dynamically extended
 
-export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }: IntelligenceGraph3DProps) {
+export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, onNodeAltClick }: IntelligenceGraph3DProps) {
   const graphRef = useRef<GraphRef>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
@@ -915,7 +917,13 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const lastClickRef = useRef<{ nodeId: string; time: number } | null>(null)
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const onNodeClick = useCallback((node: Graph3DNode) => {
+  const onNodeClick = useCallback((node: Graph3DNode, event?: MouseEvent) => {
+    // Alt-click → spreading activation from this node ("what wakes up?")
+    if (event?.altKey && onNodeAltClick) {
+      onNodeAltClick(node)
+      return
+    }
+
     const now = Date.now()
     const last = lastClickRef.current
 
@@ -939,7 +947,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       clickTimerRef.current = null
       setSelectedNodeId(node.id === selectedNodeId ? null : node.id)
     }, 350)
-  }, [selectedNodeId, setSelectedNodeId, onNodeDoubleClick])
+  }, [selectedNodeId, setSelectedNodeId, onNodeDoubleClick, onNodeAltClick])
 
   const onNodeHover = useCallback((node: Graph3DNode | null) => {
     setHoveredNodeId(node?.id ?? null)

@@ -23,7 +23,7 @@ export interface ActivationState {
   phase: 'idle' | 'searching' | 'direct' | 'propagating' | 'done'
 }
 
-const emptyActivation: ActivationState = {
+export const emptyActivation: ActivationState = {
   directIds: new Set(),
   propagatedIds: new Set(),
   scores: new Map(),
@@ -35,6 +35,202 @@ export const activationStateAtom = atom<ActivationState>(emptyActivation)
 
 /** Whether the search overlay is open */
 export const activationSearchOpenAtom = atom<boolean>(false)
+
+// ============================================================================
+// SHARED ACTIVATION SEQUENCE — staggered wave animation
+// ============================================================================
+// Used by BOTH the search overlay (query-triggered) and useNodeActivation
+// (alt-click on a node). Phase 1 lights direct matches immediately; phase 2
+// batches propagated results into 5 waves, 200ms apart.
+
+/** Minimal result shape consumed by the animation (NeuronSearchResult-compatible) */
+export interface ActivationItem {
+  id: string
+  activation_score: number
+  source: { type: string; via?: string }
+}
+
+export function runActivationSequence(
+  items: ActivationItem[],
+  setActivation: (a: ActivationState) => void,
+  animationRef: { current: ReturnType<typeof setTimeout>[] },
+): void {
+  const direct = items.filter((r) => r.source.type === 'direct')
+  const propagated = items.filter((r) => r.source.type === 'propagated')
+
+  // Phase 1: Light up direct matches (cyan) — immediate
+  const directIds = new Set(direct.map((r) => r.id))
+  const scores = new Map<string, number>()
+  direct.forEach((r) => scores.set(r.id, r.activation_score))
+
+  setActivation({
+    directIds,
+    propagatedIds: new Set(),
+    scores,
+    activeEdges: new Set(),
+    phase: 'direct',
+  })
+
+  // Phase 2: Propagate along synapses — staggered animation
+  const sorted = [...propagated].sort((a, b) => b.activation_score - a.activation_score)
+  const batchSize = Math.max(1, Math.ceil(sorted.length / 5)) // 5 waves
+  const delayPerBatch = 200 // ms between waves
+
+  let accumulated = new Set<string>()
+  const allScores = new Map(scores)
+
+  for (let i = 0; i < sorted.length; i += batchSize) {
+    const batch = sorted.slice(i, i + batchSize)
+    const delay = 400 + (i / batchSize) * delayPerBatch // 400ms initial delay after direct
+
+    const timeout = setTimeout(() => {
+      batch.forEach((r) => {
+        accumulated.add(r.id)
+        allScores.set(r.id, r.activation_score)
+      })
+
+      // Build active edges: synapse edges between any two activated nodes
+      const allActivated = new Set([...directIds, ...accumulated])
+      const activeEdges = new Set<string>()
+      items.forEach((r) => {
+        if (r.source.via && allActivated.has(r.source.via) && allActivated.has(r.id)) {
+          activeEdges.add(`${r.source.via}-${r.id}`)
+        }
+      })
+
+      setActivation({
+        directIds,
+        propagatedIds: new Set(accumulated),
+        scores: new Map(allScores),
+        activeEdges,
+        phase: i + batchSize >= sorted.length ? 'done' : 'propagating',
+      })
+      // Clone accumulated for next iteration closure
+      accumulated = new Set(accumulated)
+    }, delay)
+
+    animationRef.current.push(timeout)
+  }
+
+  // If no propagated results, mark as done after direct phase
+  if (propagated.length === 0) {
+    const timeout = setTimeout(() => {
+      setActivation({
+        directIds,
+        propagatedIds: new Set(),
+        scores,
+        activeEdges: new Set(),
+        phase: 'done',
+      })
+    }, 400)
+    animationRef.current.push(timeout)
+  }
+}
+
+// ============================================================================
+// NODE-TRIGGERED ACTIVATION — "if I think about this node, what wakes up?"
+// ============================================================================
+// Alt-click on ANY graph node triggers a spreading-activation wave from it:
+//   - code entities (file/function/…) → propagated notes via the Knowledge
+//     Fabric (LINKED_TO direct, IMPORTS/CO_CHANGED/AFFECTS propagation)
+//   - other nodes (notes, tasks, …) → neuron search seeded with the label
+// Reuses the exact same staggered animation + activation atom as the search.
+
+const CODE_ENTITY_TYPES = new Set(['file', 'function', 'struct', 'trait', 'enum'])
+
+export function useNodeActivation(projectSlug?: string) {
+  const setActivation = useSetAtom(activationStateAtom)
+  const [visibleLayers, setVisibleLayers] = useAtom(visibleLayersAtom)
+  const animationRef = useRef<ReturnType<typeof setTimeout>[]>([])
+  const savedLayersRef = useRef<Set<IntelligenceLayer> | null>(null)
+
+  const clearNodeActivation = useCallback(() => {
+    animationRef.current.forEach(clearTimeout)
+    animationRef.current = []
+    setActivation(emptyActivation)
+    if (savedLayersRef.current) {
+      setVisibleLayers(savedLayersRef.current)
+      savedLayersRef.current = null
+    }
+  }, [setActivation, setVisibleLayers])
+
+  // Escape clears a node-triggered activation (same UX as the search overlay)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') clearNodeActivation()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [clearNodeActivation])
+
+  // Cleanup pending waves on unmount
+  useEffect(() => {
+    const ref = animationRef
+    return () => {
+      ref.current.forEach(clearTimeout)
+    }
+  }, [])
+
+  const activateFromNode = useCallback(async (nodeId: string, label: string) => {
+    animationRef.current.forEach(clearTimeout)
+    animationRef.current = []
+
+    // Auto-enable knowledge + neural layers (restored on clear)
+    if (!savedLayersRef.current) {
+      savedLayersRef.current = new Set(visibleLayers)
+    }
+    setVisibleLayers((prev) => {
+      const next = new Set(prev)
+      next.add('knowledge')
+      next.add('neural')
+      return next
+    })
+
+    setActivation({ ...emptyActivation, phase: 'searching' })
+
+    try {
+      const colonIdx = nodeId.indexOf(':')
+      const entityType = colonIdx > 0 ? nodeId.slice(0, colonIdx) : ''
+      const entityId = colonIdx > 0 ? nodeId.slice(colonIdx + 1) : nodeId
+
+      let items: ActivationItem[] = []
+      if (CODE_ENTITY_TYPES.has(entityType)) {
+        // Knowledge Fabric propagation from a code entity
+        const res = await notesApi.getPropagatedNotes({
+          entity_type: entityType,
+          entity_id: entityId,
+          max_depth: 3,
+        })
+        items = res.items.map((n) => ({
+          id: n.id,
+          activation_score: Math.min(1, Math.max(0, n.relevance_score ?? 0)),
+          source: {
+            type: (n.distance ?? 1) <= 0 || n.relation_type === 'LINKED_TO' ? 'direct' : 'propagated',
+          },
+        }))
+      } else {
+        // Fallback: neuron search seeded with the node label
+        const res = await notesApi.searchNeurons({
+          query: label,
+          project_slug: projectSlug,
+          max_results: 30,
+          max_hops: 3,
+        })
+        items = res.results
+      }
+
+      if (items.length === 0) {
+        setActivation(emptyActivation)
+        return
+      }
+      runActivationSequence(items, setActivation, animationRef)
+    } catch {
+      setActivation(emptyActivation)
+    }
+  }, [projectSlug, visibleLayers, setVisibleLayers, setActivation])
+
+  return { activateFromNode, clearNodeActivation }
+}
 
 // ============================================================================
 // SEARCH OVERLAY COMPONENT
@@ -123,71 +319,8 @@ function SpreadingActivationComponent({ projectSlug }: SpreadingActivationProps)
         return
       }
 
-      const direct = results.filter((r) => r.source.type === 'direct')
-      const propagated = results.filter((r) => r.source.type === 'propagated')
-
-      // Phase 1: Light up direct matches (cyan) — immediate
-      const directIds = new Set(direct.map((r) => r.id))
-      const scores = new Map<string, number>()
-      direct.forEach((r) => scores.set(r.id, r.activation_score))
-
-      setActivation({
-        directIds,
-        propagatedIds: new Set(),
-        scores,
-        activeEdges: new Set(),
-        phase: 'direct',
-      })
-
-      // Phase 2: Propagate along synapses — staggered animation
-      // Group propagated by hop distance (estimated from activation_score)
-      const sorted = [...propagated].sort((a, b) => b.activation_score - a.activation_score)
-      const batchSize = Math.max(1, Math.ceil(sorted.length / 5)) // 5 waves
-      const delayPerBatch = 200 // ms between waves
-
-      let accumulated = new Set<string>()
-      const allScores = new Map(scores)
-
-      for (let i = 0; i < sorted.length; i += batchSize) {
-        const batch = sorted.slice(i, i + batchSize)
-        const delay = 400 + (i / batchSize) * delayPerBatch // 400ms initial delay after direct
-
-        const timeout = setTimeout(() => {
-          batch.forEach((r) => {
-            accumulated.add(r.id)
-            allScores.set(r.id, r.activation_score)
-          })
-
-          // Build active edges: synapse edges between any two activated nodes
-          const allActivated = new Set([...directIds, ...accumulated])
-          const activeEdges = new Set<string>()
-          results.forEach((r) => {
-            if (r.source.via && allActivated.has(r.source.via) && allActivated.has(r.id)) {
-              activeEdges.add(`${r.source.via}-${r.id}`)
-            }
-          })
-
-          setActivation({
-            directIds,
-            propagatedIds: new Set(accumulated),
-            scores: new Map(allScores),
-            activeEdges,
-            phase: i + batchSize >= sorted.length ? 'done' : 'propagating',
-          })
-          // Clone accumulated for next iteration closure
-          accumulated = new Set(accumulated)
-        }, delay)
-
-        animationRef.current.push(timeout)
-      }
-
-      // If no propagated results, mark as done after direct phase
-      if (propagated.length === 0) {
-        const timeout = setTimeout(() => {
-          setActivation((prev) => ({ ...prev, phase: 'done' }))
-        }, 400)
-        animationRef.current.push(timeout)
-      }
+      // Shared staggered animation (also used by useNodeActivation)
+      runActivationSequence(results, setActivation, animationRef)
     } catch {
       setActivation(emptyActivation)
     } finally {

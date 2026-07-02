@@ -9,7 +9,7 @@ import { useGraphWebSocket } from './useGraphWebSocket'
 import { useProtocolRunEvents } from './useProtocolRunEvents'
 import { NodeInspector } from './NodeInspector'
 import { LayerControls } from './LayerControls'
-import { SpreadingActivation, activationSearchOpenAtom } from './SpreadingActivation'
+import { SpreadingActivation, activationSearchOpenAtom, useNodeActivation } from './SpreadingActivation'
 import { GraphLoadingProgress } from './GraphLoadingProgress'
 import { ENTITY_COLORS } from '@/constants/intelligence'
 import {
@@ -94,6 +94,12 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   // Protocol run events — update runStatus overlay on ProtocolNodes
   useProtocolRunEvents()
 
+  // Alt-click on a node → spreading activation from it ("what wakes up?")
+  const { activateFromNode } = useNodeActivation(projectSlug)
+  const handleNodeAltClick = useCallback((node: { id: string; label: string }) => {
+    void activateFromNode(node.id, node.label)
+  }, [activateFromNode])
+
   // Graph-level fullscreen (fills the app window, NOT OS fullscreen)
   const containerRef = useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -171,7 +177,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
             </div>
           </div>
         }>
-          <IntelligenceGraph3D nodes={layoutedNodes} edges={edges} />
+          <IntelligenceGraph3D nodes={layoutedNodes} edges={edges} onNodeAltClick={handleNodeAltClick} />
         </Suspense>
       </Graph3DErrorBoundary>
 
