@@ -27,6 +27,45 @@ import type { Graph3DNode } from './useGraph3DLayout'
 // SpriteText extends Sprite extends Object3D — has .position
 type SpriteTextInstance = SpriteText & THREE.Object3D
 
+// ── Sprite children cache (perf) ──────────────────────────────────────────────
+// Per-effect code (heatmap, highlight, dimming, activation) used to call
+// obj.traverse() per node per effect — O(nodes × sprites × effects) traversals.
+// Instead, createNodeObject() records its mutable sprites in __spriteChildren
+// and pre-clones their (cache-shared) materials ONCE at creation, so effects can
+// iterate directly and mutate opacity/color without lazy material cloning.
+//
+// The invisible hitbox sprite is deliberately EXCLUDED: its texture alpha is
+// ~0.01, so mutating its opacity has no visible effect — skipping it saves ~25%
+// of sprite mutations per effect.
+
+/** THREE.Group returned by createNodeObject, with cached mutable sprites */
+export interface NodeGroup extends THREE.Group {
+  __spriteChildren: THREE.Sprite[]
+}
+
+/**
+ * Get the mutable sprites of a node object WITHOUT traversing the hierarchy.
+ * Falls back to traverse-collection for objects not created by createNodeObject.
+ */
+export function getNodeSprites(obj: THREE.Object3D): THREE.Sprite[] {
+  const cached = (obj as Partial<NodeGroup>).__spriteChildren
+  if (cached) return cached
+  const sprites: THREE.Sprite[] = []
+  obj.traverse((child) => {
+    if (child instanceof THREE.Sprite && child.material) sprites.push(child)
+  })
+  return sprites
+}
+
+/**
+ * Give the sprite its own material clone (textures stay shared via `map`).
+ * Marks `_ownsMaterial` so effect-level ensureOwnedMaterial() never re-clones.
+ */
+function ownMaterial(sprite: THREE.Sprite): void {
+  sprite.material = (sprite.material as THREE.SpriteMaterial).clone()
+  ;(sprite as unknown as { _ownsMaterial?: boolean })._ownsMaterial = true
+}
+
 // ── Dynamic LOD — quality scaling based on node count ────────────────────────
 // Prevents GPU memory exhaustion on large graphs.
 // Each 512px canvas = ~1MB VRAM. 1000 unique textures = ~1GB → WebGL context lost.
@@ -796,7 +835,9 @@ function getNodeProgress(node: Graph3DNode): NodeProgress | undefined {
 }
 
 export function createNodeObject(node: Graph3DNode): THREE.Object3D {
-  const group = new THREE.Group()
+  const group = new THREE.Group() as NodeGroup
+  const spriteChildren: THREE.Sprite[] = []
+  group.__spriteChildren = spriteChildren
   const q = _currentConfig
 
   const entityType = node.entityType
@@ -804,18 +845,23 @@ export function createNodeObject(node: Graph3DNode): THREE.Object3D {
   const energy = (node.data.energy as number) ?? 0
   const status = node.data.status as string | undefined
 
-  // 0. Invisible hitbox — ensures the node is easy to click/hover
+  // 0. Invisible hitbox — ensures the node is easy to click/hover.
+  //    NOT added to __spriteChildren: mutating it is invisible (texture alpha ~0.01).
   const hitbox = createHitboxSprite()
   group.add(hitbox)
 
   // ── MINIMAL mode: dot + shared emoji only (~55 GPU textures max) ──
   if (_currentQuality === 'minimal') {
     const dot = createDotSprite(color, energy)
+    ownMaterial(dot)
     group.add(dot)
+    spriteChildren.push(dot)
 
     // Shared emoji sprite — O(~40) textures total, not O(N)
-    const emojiSprite = createEmojiSprite(entityType, energy, status)
+    const emojiSprite = createEmojiSprite(entityType, energy, status) as THREE.Sprite
+    ownMaterial(emojiSprite)
     group.add(emojiSprite)
+    spriteChildren.push(emojiSprite)
 
     return group
   }
@@ -828,12 +874,16 @@ export function createNodeObject(node: Graph3DNode): THREE.Object3D {
   // 1. Glow halo (behind everything) — only for high quality + energy > 0.4
   if (q.showGlow && energy > 0.4) {
     const glow = createGlowSprite(color, energy)
+    ownMaterial(glow)
     group.add(glow)
+    spriteChildren.push(glow)
   }
 
   // 2. Ring + circular label + progress arc + working badge
   const ringLabel = createRingLabelSprite(node.label, color, energy, subtitle, progress, status)
+  ownMaterial(ringLabel)
   group.add(ringLabel)
+  spriteChildren.push(ringLabel)
 
   // 3. Central emoji — THE primary visual element (on top), status-aware
   const emojiSprite = createEmojiSprite(entityType, energy, status)
@@ -842,8 +892,14 @@ export function createNodeObject(node: Graph3DNode): THREE.Object3D {
     if (q.emojiScale !== 1.0) {
       (emojiSprite as SpriteTextInstance).textHeight = (emojiSprite as SpriteTextInstance).textHeight * q.emojiScale
     }
+    // SpriteText creates its own per-instance material — already owned, don't clone
+    // (SpriteText manages its material/texture internally; replacing it would break updates)
+    ;(emojiSprite as unknown as { _ownsMaterial?: boolean })._ownsMaterial = true
+  } else {
+    ownMaterial(emojiSprite as THREE.Sprite)
   }
   group.add(emojiSprite)
+  spriteChildren.push(emojiSprite as unknown as THREE.Sprite)
 
   return group
 }

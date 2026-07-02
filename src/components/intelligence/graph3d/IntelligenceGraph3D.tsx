@@ -13,7 +13,7 @@ import * as THREE from 'three'
 
 import { useGraph3DLayout, type Graph3DNode, type Graph3DLink } from './useGraph3DLayout'
 import { useActivationSync } from './useActivationSync'
-import { createNodeObject, disposeNodeCaches, setNodeQuality, getNodeQuality } from './nodeObjects'
+import { createNodeObject, disposeNodeCaches, setNodeQuality, getNodeQuality, getNodeSprites } from './nodeObjects'
 import { buildCommunityHulls, disposeCommunityHulls, type CommunityHullGroup } from './CommunityHulls3D'
 import { ENTITY_COLORS } from '@/constants/intelligence'
 import {
@@ -572,10 +572,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   interface SpriteOriginal { opacity: number; color: string }
 
   /**
-   * Ensure a sprite owns its material (not shared via a cache).
-   * Clones the material on first call — subsequent calls return the owned clone.
-   * This prevents cross-node contamination when modifying opacity on cached materials
-   * (dot sprites, hitbox sprites, and glow sprites share SpriteMaterial instances).
+   * Return the sprite's owned material. Materials are pre-cloned at node
+   * creation (nodeObjects.ts ownMaterial), so this is a passthrough in
+   * practice — the lazy clone below is only a safety net for sprites that
+   * were NOT created by createNodeObject.
    */
   function ensureOwnedMaterial(sprite: AnySpriteChild): THREE.SpriteMaterial {
     if (!(sprite as unknown as { _ownsMaterial?: boolean })._ownsMaterial) {
@@ -598,13 +598,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   }
 
   function setNodeOpacityAll(obj: THREE.Object3D, opacity: number): void {
-    obj.traverse((child) => {
-      if (child instanceof THREE.Sprite && child.material) {
-        const mat = ensureOwnedMaterial(child)
-        mat.opacity = opacity
-        mat.needsUpdate = true
-      }
-    })
+    for (const child of getNodeSprites(obj)) {
+      const mat = ensureOwnedMaterial(child)
+      mat.opacity = opacity
+      mat.needsUpdate = true
+    }
   }
 
   // ── Spreading Activation — live 3D visual updates (extracted hook) ───
@@ -645,38 +643,32 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       if (energyHeatmap && isNote) {
         const energy = Math.min(1, Math.max(0, (node.data.energy as number) ?? 0))
         const heatColor = energyToColor3(energy)
-        obj.traverse((child) => {
-          if (child instanceof THREE.Sprite && child.material) {
-            if (!hDirty.has(child)) { hDirty.set(child, saveSprite(child)) }
-            const mat = ensureOwnedMaterial(child)
-            mat.color = heatColor
-            mat.opacity = 0.6 + energy * 0.4
-            mat.needsUpdate = true
-          }
-        })
+        for (const child of getNodeSprites(obj)) {
+          if (!hDirty.has(child)) { hDirty.set(child, saveSprite(child)) }
+          const mat = ensureOwnedMaterial(child)
+          mat.color = heatColor
+          mat.opacity = 0.6 + energy * 0.4
+          mat.needsUpdate = true
+        }
       } else if (touchesHeatmap && isFile) {
         const attrs = node.data.attributes as Record<string, unknown> | undefined
         const churn = Math.min(1, Math.max(0, (attrs?.churnScore as number) ?? (node.data.churnScore as number) ?? 0))
         if (churn <= 0) continue
         const heatColor = churnToColor3(churn)
-        obj.traverse((child) => {
-          if (child instanceof THREE.Sprite && child.material) {
-            if (!hDirty.has(child)) { hDirty.set(child, saveSprite(child)) }
-            const mat = ensureOwnedMaterial(child)
-            mat.color = heatColor
-            mat.opacity = 0.6 + churn * 0.4
-            mat.needsUpdate = true
-          }
-        })
+        for (const child of getNodeSprites(obj)) {
+          if (!hDirty.has(child)) { hDirty.set(child, saveSprite(child)) }
+          const mat = ensureOwnedMaterial(child)
+          mat.color = heatColor
+          mat.opacity = 0.6 + churn * 0.4
+          mat.needsUpdate = true
+        }
       } else if (isAnyHeatmap && !isNote && !isFile) {
-        obj.traverse((child) => {
-          if (child instanceof THREE.Sprite && child.material) {
-            if (!hDirty.has(child)) { hDirty.set(child, saveSprite(child)) }
-            const mat = ensureOwnedMaterial(child)
-            mat.opacity = 0.15
-            mat.needsUpdate = true
-          }
-        })
+        for (const child of getNodeSprites(obj)) {
+          if (!hDirty.has(child)) { hDirty.set(child, saveSprite(child)) }
+          const mat = ensureOwnedMaterial(child)
+          mat.opacity = 0.15
+          mat.needsUpdate = true
+        }
       }
     }
   }, [energyHeatmap, touchesHeatmap, graphData.nodes, activationPhase])
@@ -723,13 +715,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       }
       // mode === 'none' → defaults (1.0 / 1.0) = reset
 
-      obj.traverse((child) => {
-        if (child instanceof THREE.Sprite && child.material) {
-          const mat = ensureOwnedMaterial(child)
-          mat.opacity = targetOpacity
-          mat.needsUpdate = true
-        }
-      })
+      for (const child of getNodeSprites(obj)) {
+        const mat = ensureOwnedMaterial(child)
+        mat.opacity = targetOpacity
+        mat.needsUpdate = true
+      }
 
       if (targetScale !== 1.0 || mode === 'none') {
         obj.scale.setScalar(targetScale)
@@ -775,14 +765,12 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       const isDimmed = dimmedEntityTypes.has(node.entityType)
       if (!isDimmed) continue
 
-      obj.traverse((child) => {
-        if (child instanceof THREE.Sprite && child.material) {
-          if (!dDirty.has(child)) { dDirty.set(child, saveSprite(child)) }
-          const mat = ensureOwnedMaterial(child)
-          mat.opacity = 0.25
-          mat.needsUpdate = true
-        }
-      })
+      for (const child of getNodeSprites(obj)) {
+        if (!dDirty.has(child)) { dDirty.set(child, saveSprite(child)) }
+        const mat = ensureOwnedMaterial(child)
+        mat.opacity = 0.25
+        mat.needsUpdate = true
+      }
 
       if (!dScaled.has(obj)) { dScaled.set(obj, obj.scale.clone()) }
       obj.scale.setScalar(0.5)

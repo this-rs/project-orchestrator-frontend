@@ -16,6 +16,7 @@ import { useAtomValue } from 'jotai'
 import * as THREE from 'three'
 
 import { activationStateAtom } from '../SpreadingActivation'
+import { getNodeSprites } from './nodeObjects'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -47,6 +48,8 @@ interface SpriteOriginal { opacity: number; color: string }
 
 // ── Helpers (pure functions — no component state) ─────────────────────────────
 
+// Materials are pre-owned at node creation (nodeObjects.ts ownMaterial) — the
+// lazy clone below is only a safety net for sprites from other node factories.
 function ensureOwnedMaterial(sprite: AnySpriteChild): THREE.SpriteMaterial {
   if (!(sprite as unknown as { _ownsMaterial?: boolean })._ownsMaterial) {
     sprite.material = (sprite.material as THREE.SpriteMaterial).clone()
@@ -185,14 +188,12 @@ export function useActivationSync(
 
       // ── Sprite opacity updates ──
       const targetOpacity = isDirect ? 1.0 : isPropagated ? 0.85 : 0.12
-      obj.traverse((child) => {
-        if (child instanceof THREE.Sprite && child.material) {
-          if (!dirty.sprites.has(child)) { dirty.sprites.set(child, saveSprite(child)) }
-          const mat = ensureOwnedMaterial(child)
-          mat.opacity = targetOpacity
-          mat.needsUpdate = true
-        }
-      })
+      for (const child of getNodeSprites(obj)) {
+        if (!dirty.sprites.has(child)) { dirty.sprites.set(child, saveSprite(child)) }
+        const mat = ensureOwnedMaterial(child)
+        mat.opacity = targetOpacity
+        mat.needsUpdate = true
+      }
     }
 
     dirty.nodeStates = newNodeStates
