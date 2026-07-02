@@ -2,7 +2,7 @@ import { memo } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import type { IntelligenceLayer, VisibilityMode } from '@/types/intelligence'
 import { LAYERS, LAYER_ORDER, VISIBILITY_PRESETS } from '@/constants/intelligence'
-import { energyHeatmapAtom, touchesHeatmapAtom, coChangeThresholdAtom, loadingLayersAtom, showCommunityHullsAtom, visibilityModeAtom, showAllEdgesAtom, hiddenEdgeCountAtom, tissueAltitudeAtom } from '@/atoms/intelligence'
+import { energyHeatmapAtom, touchesHeatmapAtom, coChangeThresholdAtom, loadingLayersAtom, showCommunityHullsAtom, visibilityModeAtom, showAllEdgesAtom, hiddenEdgeCountAtom, tissueAltitudeAtom, showEnergyTerrainAtom } from '@/atoms/intelligence'
 import { activationSearchOpenAtom } from './SpreadingActivation'
 import {
   Eye,
@@ -23,6 +23,7 @@ import {
   X,
   LayoutGrid,
   Waves,
+  Mountain,
 } from 'lucide-react'
 import { PROJECT_COLORS } from '@/constants/intelligence'
 
@@ -76,6 +77,7 @@ function LayerControlsComponent({
   const [coChangeThreshold, setCoChangeThreshold] = useAtom(coChangeThresholdAtom)
   const [communityHulls, setCommunityHulls] = useAtom(showCommunityHullsAtom)
   const [tissueAltitude, setTissueAltitude] = useAtom(tissueAltitudeAtom)
+  const [energyTerrain, setEnergyTerrain] = useAtom(showEnergyTerrainAtom)
   const setSearchOpen = useSetAtom(activationSearchOpenAtom)
   const loadingLayers = useAtomValue(loadingLayersAtom)
   const activeMode = useAtomValue(visibilityModeAtom)
@@ -339,6 +341,24 @@ function LayerControlsComponent({
                 <span>flat</span>
                 <span>projected</span>
               </div>
+              {/* Energy terrain toggle — membrane above the tissue arcs */}
+              <button
+                onClick={() => setEnergyTerrain(!energyTerrain)}
+                disabled={tissueAltitude <= 0}
+                className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors mt-1 ${
+                  tissueAltitude <= 0
+                    ? 'text-slate-700 cursor-not-allowed'
+                    : energyTerrain
+                      ? 'text-cyan-300 bg-cyan-950/40'
+                      : 'text-slate-500 hover:text-slate-400'
+                }`}
+                title={tissueAltitude <= 0
+                  ? 'Raise the tissue altitude to enable the energy terrain'
+                  : 'Translucent cognitive-density membrane above the tissue (note/skill energy)'}
+              >
+                <Mountain size={12} className={energyTerrain && tissueAltitude > 0 ? 'text-cyan-400' : ''} />
+                <span className="font-medium">Energy Terrain</span>
+              </button>
             </div>
           )}
         </>

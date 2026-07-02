@@ -214,6 +214,10 @@ export const showCommunityHullsAtom = atom<boolean>(true)
  *  0 = flat (exact legacy rendering). */
 export const tissueAltitudeAtom = atom<number>(0.6)
 
+/** Energy terrain toggle — translucent cognitive-density membrane above the
+ *  tissue arcs (hidden when tissue altitude is 0). Default off (additive). */
+export const showEnergyTerrainAtom = atom<boolean>(false)
+
 /** Graph brightness (0→1) — controls ambient light intensity + background luminance */
 export const graphBrightnessAtom = atom<number>(0.5)
 

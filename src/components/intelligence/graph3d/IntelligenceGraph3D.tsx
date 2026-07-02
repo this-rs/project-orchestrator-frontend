@@ -15,6 +15,7 @@ import { useGraph3DLayout, type Graph3DNode, type Graph3DLink } from './useGraph
 import { useActivationSync } from './useActivationSync'
 import { createNodeObject, disposeNodeCaches, setNodeQuality, getNodeQuality, getNodeSprites } from './nodeObjects'
 import { buildCommunityHulls, disposeCommunityHulls, computeHullSignature, type CommunityHullGroup } from './CommunityHulls3D'
+import { buildEnergyTerrain, disposeEnergyTerrain, computeTerrainSignature } from './EnergyTerrain3D'
 import { ENTITY_COLORS } from '@/constants/intelligence'
 import {
   selectedNodeIdAtom,
@@ -29,6 +30,7 @@ import {
   graphBrightnessAtom,
   tissueAltitudeAtom,
   selectedEdgeAtom,
+  showEnergyTerrainAtom,
 } from '@/atoms/intelligence'
 import { activationStateAtom } from '../SpreadingActivation'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
@@ -123,6 +125,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
   const dimmedEntityTypes = useAtomValue(dimmedEntityTypesAtom)
   const brightness = useAtomValue(graphBrightnessAtom)
   const tissueAltitude = useAtomValue(tissueAltitudeAtom)
+  const showEnergyTerrain = useAtomValue(showEnergyTerrainAtom)
 
   const { transformToGraph3D, savePositions } = useGraph3DLayout()
 
@@ -358,6 +361,69 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
     return () => clearTimeout(timer)
   }, [showCommunityHulls, rebuildCommunityHulls])
 
+  // ── Energy terrain — cognitive-density membrane above the tissue ────────
+  const energyTerrainRef = useRef<THREE.Mesh | null>(null)
+  const terrainSignatureRef = useRef<string | null>(null)
+  const lastTerrainBuildRef = useRef(0)
+
+  const rebuildEnergyTerrain = useCallback((force = false) => {
+    try {
+      const fg = graphRef.current
+      if (!fg || typeof fg.scene !== 'function') return
+      const scene = fg.scene()
+      if (!scene) return
+
+      const enabled = showEnergyTerrain && tissueAltitude > 0 && graphData.nodes.length > 0
+      if (!enabled) {
+        if (energyTerrainRef.current) {
+          scene.remove(energyTerrainRef.current)
+          disposeEnergyTerrain(energyTerrainRef.current)
+          energyTerrainRef.current = null
+        }
+        terrainSignatureRef.current = null
+        return
+      }
+
+      // Throttle energy-driven rebuilds (WS reinforcement bursts) to 1 per 2s
+      const now = Date.now()
+      if (!force && now - lastTerrainBuildRef.current < 2000) return
+
+      // Skip when sources + positions + altitude are unchanged
+      const signature = computeTerrainSignature(graphData.nodes, tissueAltitude)
+      if (energyTerrainRef.current && signature === terrainSignatureRef.current) return
+
+      if (energyTerrainRef.current) {
+        scene.remove(energyTerrainRef.current)
+        disposeEnergyTerrain(energyTerrainRef.current)
+        energyTerrainRef.current = null
+      }
+
+      const mesh = buildEnergyTerrain(graphData.nodes, tissueAltitude)
+      if (mesh) {
+        scene.add(mesh)
+        energyTerrainRef.current = mesh
+      }
+      terrainSignatureRef.current = signature
+      lastTerrainBuildRef.current = now
+    } catch (err) {
+      console.warn('[IntelligenceGraph3D] energy terrain error:', err)
+    }
+  }, [showEnergyTerrain, tissueAltitude, graphData.nodes])
+
+  // Rebuild on toggle / altitude change (forced — direct user action)
+  useEffect(() => {
+    const timer = setTimeout(() => rebuildEnergyTerrain(true), 120)
+    return () => clearTimeout(timer)
+  }, [showEnergyTerrain, tissueAltitude, rebuildEnergyTerrain])
+
+  // Cleanup terrain on unmount
+  useEffect(() => {
+    return () => {
+      disposeEnergyTerrain(energyTerrainRef.current)
+      energyTerrainRef.current = null
+    }
+  }, [])
+
   // ── Auto-zoom: fit graph on first load ──────────────────────────────────
   const hasAutoZoomedRef = useRef(false)
 
@@ -377,6 +443,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
         hullNeedsRebuildRef.current = false
         rebuildCommunityHulls()
       }
+      // Refresh the energy terrain with settled positions (signature-guarded)
+      rebuildEnergyTerrain()
 
       // Auto-zoom to fit all nodes on first layout completion
       if (!hasAutoZoomedRef.current) {
@@ -390,7 +458,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick, o
         }
       }
     }
-  }, [graphData.nodes, savePositions, rebuildCommunityHulls])
+  }, [graphData.nodes, savePositions, rebuildCommunityHulls, rebuildEnergyTerrain])
 
   // Cleanup hulls on unmount
   useEffect(() => {
