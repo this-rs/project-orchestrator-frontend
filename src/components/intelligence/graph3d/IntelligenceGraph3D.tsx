@@ -90,7 +90,7 @@ function churnToColor3(churn: number): THREE.Color {
 // quadratic Bezier control point (vLine×ẑ rotated around the link axis) points
 // toward +Z for ANY non-vertical link — the layer-stacking "up" axis here.
 
-const TISSUE_RELATIONS = new Set(['SYNAPSE', 'CO_CHANGED', 'CO_CHANGED_TRANSITIVE', 'AFFECTS'])
+const TISSUE_RELATIONS = new Set(['SYNAPSE', 'CO_CHANGED', 'CO_CHANGED_TRANSITIVE', 'AFFECTS', 'DISCUSSED'])
 const SUBSTRATE_RELATIONS = new Set(['IMPORTS', 'CALLS', 'EXTENDS', 'IMPLEMENTS', 'TOUCHES'])
 const TISSUE_CURVE_ROTATION = -Math.PI / 2
 

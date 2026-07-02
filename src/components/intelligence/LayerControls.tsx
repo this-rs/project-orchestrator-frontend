@@ -26,6 +26,7 @@ import {
   Mountain,
   History,
   Video,
+  MessageCircle,
 } from 'lucide-react'
 import { PROJECT_COLORS } from '@/constants/intelligence'
 
@@ -37,6 +38,7 @@ const presetIcons: Record<string, typeof Layers> = {
   Zap,
   Layers,
   Workflow,
+  MessageCircle,
 }
 
 export interface ProjectMeta {

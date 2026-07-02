@@ -233,6 +233,13 @@ export const VISIBILITY_PRESETS: VisibilityPreset[] = [
     icon: 'Workflow',
   },
   {
+    id: 'conversations',
+    label: 'Sessions',
+    description: 'Comment les conversations se branchent sur le code (DISCUSSED)',
+    layers: ['code', 'chat', 'fabric'],
+    icon: 'MessageCircle',
+  },
+  {
     id: 'full_stack',
     label: 'Full',
     description: 'Toutes les couches',

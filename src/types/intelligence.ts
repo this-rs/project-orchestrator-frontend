@@ -264,6 +264,7 @@ export type VisibilityMode =
   | 'full_stack'
   | 'impact_mode'
   | 'skill_focus'
+  | 'conversations'
   | 'custom'
 
 export interface VisibilityPreset {

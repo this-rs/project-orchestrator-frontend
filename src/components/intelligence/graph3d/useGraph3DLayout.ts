@@ -92,6 +92,7 @@ const LINK_PARTICLES: Record<string, { particles: number; speed: number }> = {
   CALLS: { particles: 1, speed: 0.003 },
   IMPORTS: { particles: 0, speed: 0 },
   AFFECTS: { particles: 2, speed: 0.003 },
+  DISCUSSED: { particles: 1, speed: 0.0025 }, // conversations flow into the code
   TRANSITION: { particles: 2, speed: 0.005 },
   HAS_STATE: { particles: 0, speed: 0 },
   INCLUDES_ENTITY: { particles: 0, speed: 0 },
@@ -106,7 +107,7 @@ const LINK_COLORS: Record<string, string> = {
   CO_CHANGED: 'rgba(254, 215, 170, 0.30)',
   CO_CHANGED_TRANSITIVE: 'rgba(253, 186, 116, 0.25)',
   AFFECTS: 'rgba(168, 85, 247, 0.50)',
-  DISCUSSED: 'rgba(209, 213, 219, 0.25)',
+  DISCUSSED: 'rgba(129, 140, 248, 0.60)', // indigo-400 — sessions wiring into code
   LINKED_TO: 'rgba(156, 163, 175, 0.25)',
   SYNAPSE: 'rgba(34, 211, 238, 0.50)',
   HAS_MEMBER: 'rgba(249, 168, 212, 0.30)',
@@ -144,7 +145,7 @@ const LINK_WIDTHS: Record<string, number> = {
   HAS_CONSTRAINT: 0.5,
   HAS_DECISION: 0.6,
   HAS_FEATURE_GRAPH: 0.6,
-  DISCUSSED: 0.4,
+  DISCUSSED: 0.7,
   DEPENDS_ON: 0.7,
   CONTAINS: 0.5,
 }
@@ -160,6 +161,7 @@ const LAYER_Z_OFFSET: Record<string, number> = {
   neural: 120,
   skills: 160,
   behavioral: 200, // protocols & FSM states above skills
+  chat: 100,       // sessions float above the code — DISCUSSED arcs dive onto files
   pm: -80,
 }
 
