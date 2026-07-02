@@ -31,6 +31,24 @@ type JotaiSetters = {
 let _navigate: NavigateFn | null = null
 let _jotai: JotaiSetters | null = null
 
+/** Public login route — the single destination of every logout path. */
+const LOGIN_PATH = '/login'
+
+/**
+ * True when the browser is already sitting on the login page.
+ *
+ * Critical for breaking redirect loops: `/login` is a public route where
+ * `ProtectedRoute` never mounts, so `_navigate` is never injected there and
+ * `forceLogout()` would fall back to `window.location.href = '/login'` — a
+ * FULL PAGE RELOAD. If any background request (e.g. the always-mounted model
+ * catalog loader) keeps 401ing with no valid session, that reload fires on
+ * every boot and the page reloads forever. Guarding logout navigation on this
+ * check makes `forceLogout()` a no-op once we're on `/login`.
+ */
+function isOnLoginRoute(): boolean {
+  return typeof window !== 'undefined' && window.location.pathname === LOGIN_PATH
+}
+
 /** Inject React Router navigate (called from ProtectedRoute on mount) */
 export function setNavigate(fn: NavigateFn): void {
   _navigate = fn
@@ -208,6 +226,14 @@ let _isLoggingOut = false
  */
 export function forceLogout(): void {
   if (_isLoggingOut) return
+
+  // Already on /login → there is nothing to log out from, and navigating or
+  // hard-reloading here would create an infinite redirect loop: on the public
+  // /login route `_navigate` is null (ProtectedRoute never mounts), so the
+  // fallback below would `window.location.href = '/login'` on every stray 401
+  // from a background request, reloading the page forever. Short-circuit.
+  if (isOnLoginRoute()) return
+
   _isLoggingOut = true
 
   try {
@@ -283,10 +309,14 @@ export function initCrossTabSync(): () => void {
           } catch {
             // ignore
           }
-          if (_navigate) {
-            _navigate('/login')
-          } else {
-            window.location.href = '/login'
+          // Skip navigation when already on /login (see forceLogout): a hard
+          // reload here would loop when a background request keeps 401ing.
+          if (!isOnLoginRoute()) {
+            if (_navigate) {
+              _navigate('/login')
+            } else {
+              window.location.href = '/login'
+            }
           }
         } finally {
           _isLoggingOut = false

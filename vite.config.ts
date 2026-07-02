@@ -117,6 +117,25 @@ export default defineConfig({
         },
         configure: (proxy) => configureHttpProxy(proxy, 'auth'),
       },
+      // Remote MCP transport + OAuth 2.1 Authorization Server + discovery
+      // metadata — all served by the backend. Required so Claude clients
+      // (claude.ai connectors, Claude Code CLI) reaching this host through
+      // the dev reverse proxy (e.g. dev.ffs.dev → :3000) can use MCP.
+      '/mcp': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        configure: (proxy) => configureHttpProxy(proxy, 'mcp'),
+      },
+      '/oauth': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        configure: (proxy) => configureHttpProxy(proxy, 'oauth'),
+      },
+      '/.well-known': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        configure: (proxy) => configureHttpProxy(proxy, 'well-known'),
+      },
       '/ws': {
         target: 'http://localhost:8080',
         changeOrigin: true,
