@@ -229,7 +229,7 @@ export function PersonaDetailPage() {
       ])
       setPersona(p)
       setSubgraph(sg)
-    } catch (e) {
+    } catch {
       toast.error('Failed to load persona')
     } finally {
       setLoading(false)

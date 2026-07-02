@@ -1,7 +1,7 @@
 /**
  * Force tests — verify each force's physics behavior.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { ParticlePool } from '../ParticlePool';
 import {
   AttractorForce,

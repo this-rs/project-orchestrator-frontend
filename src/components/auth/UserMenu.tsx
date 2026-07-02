@@ -69,7 +69,11 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
     return () => document.removeEventListener('keydown', handleKey)
   }, [open])
 
-  // Hide in no-auth mode
+  const navigate = useNavigate()
+  const location = useLocation()
+  const setSettingsReturnUrl = useSetAtom(settingsReturnUrlAtom)
+
+  // Hide in no-auth mode (early returns must come AFTER all hook calls)
   if (authMode === 'none') return null
 
   if (!user) return null
@@ -80,10 +84,6 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
     .join('')
     .slice(0, 2)
     .toUpperCase()
-
-  const navigate = useNavigate()
-  const location = useLocation()
-  const setSettingsReturnUrl = useSetAtom(settingsReturnUrlAtom)
 
   const handleLogout = () => {
     forceLogout()
