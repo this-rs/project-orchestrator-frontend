@@ -33,3 +33,6 @@ dist-ssr
 .fastembed_cache/
 
 /vite.config.ts
+
+# Coverage output
+coverage/

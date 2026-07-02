@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same PR branch.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history for patch coverage)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (blocking on errors)
+        run: npm run lint
+
+      - name: Typecheck + build
+        run: npm run build
+
+      - name: Test + coverage
+        run: npx vitest run --coverage
+
+      - name: Patch coverage gate
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.sha }}
+          PATCH_COVERAGE_THRESHOLD: '80'
+        run: node scripts/check-patch-coverage.mjs
