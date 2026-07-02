@@ -17,6 +17,7 @@ import * as THREE from 'three'
 
 import { activationStateAtom } from '../SpreadingActivation'
 import { getNodeSprites } from './nodeObjects'
+import { computeClusterBounds, cameraPositionForCluster } from './clusterBounds'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -214,40 +215,11 @@ export function useActivationSync(
     const allActivated = new Set([...activation.directIds, ...activation.propagatedIds])
     if (allActivated.size === 0) return
 
-    // Compute centroid of activated nodes
-    let cx = 0, cy = 0, cz = 0, count = 0
-    const positions: { x: number; y: number; z: number }[] = []
+    // Shared centroid/radius implementation (clusterBounds.ts)
+    const bounds = computeClusterBounds(nodes, (n) => nodeMatchesActivation(n, allActivated))
+    if (!bounds) return
 
-    for (const node of nodes) {
-      if (!nodeMatchesActivation(node, allActivated)) continue
-      const x = node.x ?? 0
-      const y = node.y ?? 0
-      const z = node.z ?? 0
-      cx += x; cy += y; cz += z; count++
-      positions.push({ x, y, z })
-    }
-
-    if (count === 0) return
-    cx /= count; cy /= count; cz /= count
-
-    // Compute radius of the activated cluster
-    let maxDist = 0
-    for (const p of positions) {
-      const d = Math.sqrt((p.x - cx) ** 2 + (p.y - cy) ** 2 + (p.z - cz) ** 2)
-      if (d > maxDist) maxDist = d
-    }
-
-    // Position camera at a distance proportional to cluster radius
-    const dist = Math.max(maxDist * 2.5, 120)
-    const angle = Math.atan2(cy, cx)
-    const camX = cx + dist * Math.cos(angle + 0.3)
-    const camY = cy + dist * 0.4
-    const camZ = cz + dist * Math.sin(angle + 0.3)
-
-    fg.cameraPosition(
-      { x: camX, y: camY, z: camZ },
-      { x: cx, y: cy, z: cz },
-      1200,
-    )
+    const { position, lookAt } = cameraPositionForCluster(bounds)
+    fg.cameraPosition(position, lookAt, 1200)
   }, [activationPhase, activation.directIds, activation.propagatedIds, nodes, graphRef])
 }

@@ -116,6 +116,38 @@ export interface CommunityHullGroup {
   hulls: CommunityHull[]
 }
 
+// ── Hull signature (skip needless re-triangulation) ─────────────────────────
+// Order-independent hash of community membership + quantized node positions.
+// Engine stops where nothing moved beyond ~2 world units produce the same
+// signature, letting the caller skip the O(N log N) fan triangulation.
+
+function stringHash(s: string): number {
+  let h = 5381
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) + h + s.charCodeAt(i)) | 0
+  }
+  return h
+}
+
+export function computeHullSignature(nodes: Graph3DNode[]): string {
+  let hash = 0
+  let count = 0
+  for (const node of nodes) {
+    if (node.communityId == null) continue
+    const px = Math.round((node.x ?? 0) / 2)
+    const py = Math.round((node.y ?? 0) / 2)
+    const pz = Math.round((node.z ?? 0) / 2)
+    const h =
+      ((node.communityId * 31 + stringHash(node.id)) ^
+        (px * 73856093) ^
+        (py * 19349663) ^
+        (pz * 83492791)) | 0
+    hash = (hash + h) | 0
+    count++
+  }
+  return `${count}:${hash}`
+}
+
 // ── Build community hulls from positioned Graph3D nodes ─────────────────────
 
 export function buildCommunityHulls(
