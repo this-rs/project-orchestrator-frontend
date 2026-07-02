@@ -34,19 +34,33 @@ let _jotai: JotaiSetters | null = null
 /** Public login route — the single destination of every logout path. */
 const LOGIN_PATH = '/login'
 
+/** OAuth/OIDC callback route — consumes the single-use `?code=` param. */
+const AUTH_CALLBACK_PATH = '/auth/callback'
+
 /**
- * True when the browser is already sitting on the login page.
+ * True when the browser is sitting on a public auth route where logout
+ * navigation must be suppressed.
  *
- * Critical for breaking redirect loops: `/login` is a public route where
- * `ProtectedRoute` never mounts, so `_navigate` is never injected there and
- * `forceLogout()` would fall back to `window.location.href = '/login'` — a
- * FULL PAGE RELOAD. If any background request (e.g. the always-mounted model
- * catalog loader) keeps 401ing with no valid session, that reload fires on
- * every boot and the page reloads forever. Guarding logout navigation on this
- * check makes `forceLogout()` a no-op once we're on `/login`.
+ * - `/login`: public route where `ProtectedRoute` never mounts, so `_navigate`
+ *   is never injected and `forceLogout()` would fall back to
+ *   `window.location.href = '/login'` — a FULL PAGE RELOAD. If any background
+ *   request (e.g. the always-mounted model catalog loader) keeps 401ing with
+ *   no valid session, that reload fires on every boot and the page reloads
+ *   forever.
+ *
+ * - `/auth/callback`: the SSO code exchange is in flight while background
+ *   requests still 401 (no token yet, no cookie yet). A logout navigation
+ *   here ABORTS the pending exchange (hard redirect cancels the fetch and the
+ *   server-side handler), but the single-use OAuth `code` has already been
+ *   consumed at the provider — every retry then fails with `invalid_grant`
+ *   and the user bounces back to login forever. The callback page renders its
+ *   own error UI on real failures; never navigate away from under it.
  */
-function isOnLoginRoute(): boolean {
-  return typeof window !== 'undefined' && window.location.pathname === LOGIN_PATH
+function isOnAuthExemptRoute(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    (window.location.pathname === LOGIN_PATH || window.location.pathname === AUTH_CALLBACK_PATH)
+  )
 }
 
 /** Inject React Router navigate (called from ProtectedRoute on mount) */
@@ -227,12 +241,11 @@ let _isLoggingOut = false
 export function forceLogout(): void {
   if (_isLoggingOut) return
 
-  // Already on /login → there is nothing to log out from, and navigating or
-  // hard-reloading here would create an infinite redirect loop: on the public
-  // /login route `_navigate` is null (ProtectedRoute never mounts), so the
-  // fallback below would `window.location.href = '/login'` on every stray 401
-  // from a background request, reloading the page forever. Short-circuit.
-  if (isOnLoginRoute()) return
+  // On /login or /auth/callback → there is nothing to log out from, and
+  // navigating (or hard-reloading) would either loop the login page forever
+  // or abort an in-flight SSO code exchange whose single-use code is already
+  // spent (see isOnAuthExemptRoute). Short-circuit.
+  if (isOnAuthExemptRoute()) return
 
   _isLoggingOut = true
 
@@ -309,9 +322,10 @@ export function initCrossTabSync(): () => void {
           } catch {
             // ignore
           }
-          // Skip navigation when already on /login (see forceLogout): a hard
-          // reload here would loop when a background request keeps 401ing.
-          if (!isOnLoginRoute()) {
+          // Skip navigation on /login and /auth/callback (see forceLogout):
+          // a hard reload would loop the login page or abort an in-flight
+          // SSO code exchange.
+          if (!isOnAuthExemptRoute()) {
             if (_navigate) {
               _navigate('/login')
             } else {

@@ -68,6 +68,21 @@ describe('forceLogout — redirect-loop guard', () => {
     expect(hrefSetter).not.toHaveBeenCalled()
   })
 
+  it('does NOT navigate or hard-reload during an SSO exchange on /auth/callback', async () => {
+    // Regression: background requests 401 while the single-use OAuth code is
+    // being exchanged; a logout navigation here aborts the exchange and the
+    // consumed code makes every retry fail (invalid_grant) — login loop.
+    const hrefSetter = setPathname('/auth/callback')
+    const { forceLogout, setNavigate } = await import('../authManager')
+    const navigate = vi.fn()
+    setNavigate(navigate)
+
+    forceLogout()
+
+    expect(hrefSetter).not.toHaveBeenCalled()
+    expect(navigate).not.toHaveBeenCalled()
+  })
+
   it('hard-reloads to /login when elsewhere and no navigate is injected', async () => {
     const hrefSetter = setPathname('/workspace/foo/overview')
     const { forceLogout } = await import('../authManager')
