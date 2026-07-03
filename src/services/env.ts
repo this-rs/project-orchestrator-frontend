@@ -72,6 +72,28 @@ function backendOrigin(): string {
   return isTauri ? `http://localhost:${_backendPort}` : ''
 }
 
+/**
+ * Timeout for boot-critical fetches (ms).
+ *
+ * SetupGuard and ProtectedRoute gate the whole app behind a spinner while
+ * awaiting these requests. Without a timeout, a stalled request on a flaky
+ * mobile network leaves the spinner up FOREVER (no error state, no retry).
+ * With it, the promise settles, the guards fall through their catch paths,
+ * and the app either proceeds (assume-configured) or redirects to /login.
+ */
+const BOOT_FETCH_TIMEOUT_MS = 15_000
+
+/**
+ * AbortSignal that fires after BOOT_FETCH_TIMEOUT_MS, or undefined when
+ * AbortSignal.timeout is unavailable (very old WebViews) — fetch then behaves
+ * exactly as before. Create ONE PER ATTEMPT (a signal cannot be reused).
+ */
+export function bootTimeoutSignal(): AbortSignal | undefined {
+  return typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal
+    ? AbortSignal.timeout(BOOT_FETCH_TIMEOUT_MS)
+    : undefined
+}
+
 /** Base URL for REST API endpoints (/api/...). */
 export function getApiBase(): string {
   return `${backendOrigin()}/api`
@@ -112,7 +134,9 @@ export async function fetchSetupStatus(): Promise<boolean | null> {
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      const resp = await fetch(`${getApiBase()}/setup-status`)
+      const resp = await fetch(`${getApiBase()}/setup-status`, {
+        signal: bootTimeoutSignal(),
+      })
       if (!resp.ok) return null
       const data: { configured: boolean } = await resp.json()
       return data.configured

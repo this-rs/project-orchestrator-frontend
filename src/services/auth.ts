@@ -23,7 +23,7 @@ import type {
   RegisterRequest,
 } from '@/types'
 
-import { isTauri, getAuthBase, getBackendPort } from './env'
+import { isTauri, getAuthBase, getBackendPort, bootTimeoutSignal } from './env'
 
 /**
  * Build the origin query parameter for OAuth redirect_uri construction.
@@ -97,11 +97,16 @@ const AUTH_STARTUP_RETRY_DELAYS = [300, 600, 1200, 2000]
 let _authBackendReachable = !isTauri
 
 async function authFetchWithRetry(url: string, init: RequestInit): Promise<Response> {
-  if (_authBackendReachable) return fetch(url, init)
+  // Boot-critical requests get a timeout so ProtectedRoute's spinner can never
+  // hang forever on a stalled connection (flaky mobile networks). A fresh
+  // signal is created per attempt — signals are single-use.
+  if (_authBackendReachable) {
+    return fetch(url, { ...init, signal: init.signal ?? bootTimeoutSignal() })
+  }
   let lastError: unknown
   for (let attempt = 0; attempt <= AUTH_STARTUP_RETRY_MAX; attempt++) {
     try {
-      const resp = await fetch(url, init)
+      const resp = await fetch(url, { ...init, signal: init.signal ?? bootTimeoutSignal() })
       _authBackendReachable = true
       return resp
     } catch (err) {

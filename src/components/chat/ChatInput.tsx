@@ -66,6 +66,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
   const effectiveMode = modeOverride ?? serverConfig?.mode ?? 'default'
   const effectiveModel = sessionModel ?? serverConfig?.default_model ?? DEFAULT_MODEL_ID
 
+  /** Full re-measure: reset then fit (needed to let the box SHRINK). */
   const resize = useCallback(() => {
     const el = textareaRef.current
     if (!el) return
@@ -73,8 +74,32 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     el.style.height = Math.min(el.scrollHeight, 150) + 'px'
   }, [])
 
+  // Auto-resize the textarea to fit content (capped at 150px).
+  //
+  // Perf: the naive pattern (style write `height:auto` then `scrollHeight`
+  // read) forces a synchronous double reflow on EVERY keystroke — measurable
+  // typing lag on mobile where layout is expensive. Typing forward can only
+  // GROW the box, so the hot path does a clean-layout read (cheap, cached)
+  // and only writes when the content actually overflows. The full reset
+  // re-measure (which can shrink the box) only runs on deletions — much
+  // rarer than insertions while typing.
+  const lastValueLenRef = useRef(0)
   useEffect(() => {
-    resize()
+    const el = textareaRef.current
+    if (!el) return
+    const grewOrSame = value.length >= lastValueLenRef.current
+    lastValueLenRef.current = value.length
+
+    if (grewOrSame) {
+      // Insertion fast path: read on clean layout, write only on overflow.
+      if (el.scrollHeight > el.clientHeight) {
+        const next = `${Math.min(el.scrollHeight, 150)}px`
+        if (el.style.height !== next) el.style.height = next
+      }
+    } else {
+      // Deletion: allow the box to shrink via a full re-measure.
+      resize()
+    }
   }, [value, resize])
 
   // --- Auto-focus textarea on session switch, cursor at end ---
