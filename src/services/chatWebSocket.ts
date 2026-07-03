@@ -51,6 +51,10 @@ export class ChatWebSocket {
   private onStatusChange: ChatWsStatusCallback | null = null
   private onReplayComplete: ChatWsReplayCompleteCallback | null = null
 
+  /** Timestamp when the page went hidden (visibility-based zombie detection). */
+  private hiddenAt: number | null = null
+  private visibilityListenerAttached = false
+
   get status(): WsConnectionStatus {
     return this._status
   }
@@ -99,6 +103,7 @@ export class ChatWebSocket {
     this._lastEventSeq = lastEventSeq
     this.shouldReconnect = true
     this._isReplaying = true
+    this.attachVisibilityListener()
 
     this.setStatus('connecting')
     await this.openSocket(sessionId, lastEventSeq)
@@ -163,9 +168,17 @@ export class ChatWebSocket {
               return
             }
 
-            // Handle events_lagged hint (client missed events)
+            // Handle events_lagged (client missed events — server's broadcast
+            // buffer overflowed, typically after mobile suspension).
+            //
+            // The skipped events are gone from the live stream FOREVER — if the
+            // assistant's whole response was in the gap, the UI would sit on
+            // "…" while other devices (whose receivers didn't lag) stream fine.
+            // Recovery: force-reconnect with _lastEventSeq — the server replays
+            // the gap from its event log (Phase 1 replay) and the UI catches up.
             if (data.type === 'events_lagged') {
-              console.warn(`Chat WS: lagged, ${data.skipped} events skipped`)
+              console.warn(`Chat WS: lagged, ${data.skipped} events skipped — resyncing via replay`)
+              this.forceReconnect('events_lagged')
               return
             }
 
@@ -238,6 +251,8 @@ export class ChatWebSocket {
     this.shouldReconnect = false
     this._isReplaying = false
     this.authenticated = false
+    this.detachVisibilityListener()
+    this.hiddenAt = null
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null
@@ -261,15 +276,31 @@ export class ChatWebSocket {
   }
 
   /**
-   * Send a message over the WebSocket
+   * Send a message over the WebSocket.
+   *
+   * Returns false when the socket is unusable — and, crucially, TRIGGERS a
+   * reconnect instead of failing silently. Before this, a send on a dead
+   * socket left the UI stuck on the typing indicator forever: the caller
+   * ignored the false return, no reconnect was ever scheduled (no close event
+   * fires on an already-dead socket), and the session never resynced.
+   * Callers can queue the message and retry after `onReplayComplete`.
    */
   send(message: WsChatClientMessage) {
     if (!this.ws || this.ws.readyState !== ReadyState.OPEN) {
-      console.warn('Chat WS: cannot send, not connected')
+      console.warn('Chat WS: cannot send, not connected — forcing reconnect')
+      this.forceReconnect('send on dead socket')
       return false
     }
-    this.ws.send(JSON.stringify(message))
-    return true
+    try {
+      this.ws.send(JSON.stringify(message))
+      return true
+    } catch (err) {
+      // Some WebViews throw on send over a half-open socket instead of
+      // reporting a non-OPEN readyState.
+      console.warn('Chat WS: send threw — forcing reconnect', err)
+      this.forceReconnect('send threw')
+      return false
+    }
   }
 
   /**
@@ -328,6 +359,91 @@ export class ChatWebSocket {
   private setStatus(status: WsConnectionStatus) {
     this._status = status
     this.onStatusChange?.(status)
+  }
+
+  /**
+   * Discard the current socket (possibly half-open) and reconnect IMMEDIATELY
+   * with `_lastEventSeq` so the server replays every missed event.
+   *
+   * This is the recovery primitive for the three "stuck on typing indicator"
+   * holes: `events_lagged` (server skipped events), send on a dead socket,
+   * and returning from mobile background with a zombie connection. In all
+   * three cases the socket never fires `onclose`, so the regular
+   * reconnect-on-close path never runs — we have to force it.
+   */
+  private forceReconnect(reason: string) {
+    if (!this._sessionId || !this.shouldReconnect) return
+    // Already in the middle of establishing a fresh connection — let it finish.
+    if (this.ws?.readyState === ReadyState.CONNECTING) return
+
+    console.warn(`Chat WS: force reconnect (${reason})`)
+
+    if (this.ws) {
+      // Strip handlers BEFORE closing so the zombie's close event can't
+      // double-schedule a backoff reconnect on top of the immediate one.
+      this.ws.onmessage = null
+      this.ws.onclose = null
+      this.ws.onerror = null
+      try {
+        this.ws.close()
+      } catch {
+        // Socket already dead — exactly why we're here.
+      }
+      this.ws = null
+    }
+
+    this.authenticated = false
+    this._isReplaying = true
+    this.setStatus('reconnecting')
+    // Immediate reconnect; on failure openSocket falls back to the
+    // exponential-backoff scheduleReconnect path.
+    void this.openSocket(this._sessionId, this._lastEventSeq)
+  }
+
+  /**
+   * Visibility-based zombie detection (mobile).
+   *
+   * iOS/Android suspend the page in background: the socket dies on the wire
+   * WITHOUT any close event — JS still sees `readyState === OPEN`. The
+   * server's 30s protocol pings are invisible to browser JS, so nothing on
+   * the client ever notices. On return to foreground, reconnect when the
+   * socket is observably dead OR when we were hidden long enough (> the
+   * server ping interval) for the connection to have been reaped. Replay
+   * makes a spurious reconnect cheap — a missed one costs the whole stream.
+   */
+  private readonly handleVisibilityChange = () => {
+    if (typeof document === 'undefined') return
+
+    if (document.visibilityState === 'hidden') {
+      this.hiddenAt = Date.now()
+      return
+    }
+
+    const hiddenForMs = this.hiddenAt !== null ? Date.now() - this.hiddenAt : 0
+    this.hiddenAt = null
+
+    if (!this._sessionId || !this.shouldReconnect) return
+
+    const socketDead = !this.ws || this.ws.readyState !== ReadyState.OPEN
+    const likelyZombie = hiddenForMs > 45_000 // > server ping interval (30s)
+
+    if (socketDead || likelyZombie) {
+      this.forceReconnect(
+        socketDead ? 'visible with dead socket' : `visible after ${Math.round(hiddenForMs / 1000)}s hidden`,
+      )
+    }
+  }
+
+  private attachVisibilityListener() {
+    if (this.visibilityListenerAttached || typeof document === 'undefined') return
+    document.addEventListener('visibilitychange', this.handleVisibilityChange)
+    this.visibilityListenerAttached = true
+  }
+
+  private detachVisibilityListener() {
+    if (!this.visibilityListenerAttached || typeof document === 'undefined') return
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange)
+    this.visibilityListenerAttached = false
   }
 
   private scheduleReconnect() {
