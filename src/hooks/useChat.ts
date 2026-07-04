@@ -96,6 +96,13 @@ export function useChat() {
   >(new Map())
   const pendingEventsRef = useRef<Array<ChatEvent & { seq?: number; replaying?: boolean }>>([])
 
+  // Outbox for user messages that failed to send on a dead socket.
+  // ChatWebSocket.send() now force-reconnects in that case; the queued text is
+  // flushed in onReplayComplete, once the reconnected session is consistent.
+  // Without this, the optimistic bubble showed but the message never left the
+  // device — stuck typing indicator, response visible only on other devices.
+  const pendingSendRef = useRef<string[]>([])
+
   // Lazily create the ChatWebSocket singleton per hook instance
   const getWs = useCallback(() => {
     if (!wsRef.current) {
@@ -932,6 +939,21 @@ export function useChat() {
       onReplayComplete: () => {
         setIsReplaying(false)
         setIsLoadingHistory(false)
+        // Flush messages that failed on a dead socket (their failure triggered
+        // this very reconnect). The replay just brought us up to date, so
+        // sending now preserves ordering.
+        if (pendingSendRef.current.length > 0) {
+          const pending = pendingSendRef.current
+          pendingSendRef.current = []
+          for (const text of pending) {
+            if (ws.sendUserMessage(text)) {
+              setIsStreaming(true)
+            } else {
+              // Still dead — requeue; the next replay-complete retries.
+              pendingSendRef.current.push(text)
+            }
+          }
+        }
       },
     })
   }, [getWs, handleEvent, setWsStatus, setIsReplaying, setIsStreaming, setIsCompacting])
@@ -1383,7 +1405,11 @@ export function useChat() {
       // Follow-up message — send via WS
       const ws = getWs()
       setIsStreaming(true)
-      ws.sendUserMessage(text)
+      if (!ws.sendUserMessage(text)) {
+        // Dead socket: send() already forced a reconnect. Queue the text —
+        // onReplayComplete flushes it once the session is consistent again.
+        pendingSendRef.current.push(text)
+      }
     }
   }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride, setDraftsMap])
 

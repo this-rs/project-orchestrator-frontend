@@ -8,7 +8,7 @@
  * Run with: npx vitest run src/services/chatWebSocket.test.ts
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ChatWebSocket } from './chatWebSocket'
 import type { WsConnectionStatus } from '@/types'
 
@@ -221,5 +221,119 @@ describe('ChatWebSocket — session_dormant vs session_closed ordering', () => {
     expect(events).toHaveLength(2)
     expect(events[0].type).toBe('stream_delta')
     expect(events[1].type).toBe('stream_delta')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Stream-resume fixes — stuck typing indicator ("…") recovery
+// ---------------------------------------------------------------------------
+
+describe('ChatWebSocket — stream resume (stuck “…” recovery)', () => {
+  let ws: ChatWebSocket
+  let mock: ReturnType<typeof mockCreateWebSocket>
+  let statusHistory: WsConnectionStatus[]
+
+  /** Let the async forceReconnect → openSocket chain settle. */
+  const flushAsync = () => new Promise((r) => setTimeout(r, 0))
+
+  beforeEach(async () => {
+    vi.resetModules()
+    mock = mockCreateWebSocket()
+
+    const mod = await import('./chatWebSocket')
+    ws = new mod.ChatWebSocket()
+
+    statusHistory = []
+    ws.setCallbacks({
+      onStatusChange: (status) => statusHistory.push(status),
+    })
+
+    await ws.connect('test-session-id', 0)
+    mock.triggerOpen()
+    mock.serverSend({ type: 'auth_ok' })
+    expect(ws.status).toBe('connected')
+  })
+
+  // Detach document listeners between tests — statusHistory is a shared `let`
+  // binding, so a lingering instance from a previous test would push into the
+  // CURRENT test's array on visibilitychange dispatches.
+  afterEach(() => {
+    ws.disconnect()
+  })
+
+  it('events_lagged forces an immediate reconnect (replay fills the gap)', async () => {
+    mock.serverSend({ type: 'seq-tracker', seq: 42 }) // establish lastEventSeq
+    mock.serverSend({ type: 'events_lagged', skipped: 7 })
+    await flushAsync()
+
+    // The lagged socket is discarded and a fresh connection is opened.
+    expect(mock.mockWs.close).toHaveBeenCalled()
+    expect(statusHistory).toContain('reconnecting')
+    // Reconnect resumes from the last seen seq so the server replays the gap.
+    expect(ws.lastEventSeq).toBe(42)
+
+    // Fresh socket completes the handshake → connected again.
+    mock.triggerOpen()
+    mock.serverSend({ type: 'auth_ok' })
+    expect(ws.status).toBe('connected')
+  })
+
+  it('send on a dead socket returns false and forces a reconnect', async () => {
+    mock.mockWs.readyState = 3 // CLOSED on the wire, no close event ever fired
+
+    const ok = ws.sendUserMessage('hello?')
+    await flushAsync()
+
+    expect(ok).toBe(false)
+    expect(statusHistory).toContain('reconnecting')
+  })
+
+  it('send that throws (half-open WebView socket) returns false and reconnects', async () => {
+    mock.mockWs.send.mockImplementationOnce(() => {
+      throw new Error('socket is dead')
+    })
+
+    const ok = ws.sendUserMessage('hello?')
+    await flushAsync()
+
+    expect(ok).toBe(false)
+    expect(statusHistory).toContain('reconnecting')
+  })
+
+  it('returning to foreground with a dead socket reconnects (mobile zombie)', async () => {
+    // Go to background…
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+    document.dispatchEvent(new Event('visibilitychange'))
+
+    // …the socket dies silently while hidden (no close event)…
+    mock.mockWs.readyState = 3
+
+    // …and we come back to the foreground.
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    document.dispatchEvent(new Event('visibilitychange'))
+    await flushAsync()
+
+    expect(statusHistory).toContain('reconnecting')
+
+    // Fresh handshake completes.
+    mock.triggerOpen()
+    mock.serverSend({ type: 'auth_ok' })
+    expect(ws.status).toBe('connected')
+  })
+
+  it('disconnect() detaches the visibility listener (no reconnect after explicit close)', async () => {
+    ws.disconnect()
+    // Bind a fresh, local history AFTER disconnect so only THIS instance's
+    // post-disconnect activity is observed.
+    const localHistory: WsConnectionStatus[] = []
+    ws.setCallbacks({ onStatusChange: (status) => localHistory.push(status) })
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+    document.dispatchEvent(new Event('visibilitychange'))
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    document.dispatchEvent(new Event('visibilitychange'))
+    await flushAsync()
+
+    expect(localHistory).not.toContain('reconnecting')
   })
 })
