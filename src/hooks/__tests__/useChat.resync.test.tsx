@@ -200,6 +200,47 @@ describe('useChat (regression: reconnect snapshot must not duplicate the in-flig
     expect(texts[0].content).toBe('Hello v2')
   })
 
+  it('deduplicates snapshot events against blocks already rendered (mid-stream JOIN, no reconnect)', async () => {
+    const { result, ws } = await setupConnectedChat()
+
+    // Simulate the state after a mid-stream join: part of the current turn is
+    // already rendered (via REST history in the real flow — here via live
+    // events, which produces identical blocks). NO 'reconnecting' status ever
+    // fires, so the truncate-and-rebuild path is NOT armed: only the
+    // content/id dedup can prevent duplicates.
+    act(() => {
+      ws.callbacks.onEvent({ type: 'stream_delta', text: 'Hello world' })
+      ws.callbacks.onEvent({ type: 'tool_use', tool: 'Bash', id: 't1', input: {} })
+    })
+
+    // The server's Phase 1.5b snapshot replays the CURRENT STREAM FROM ITS
+    // START (replaying, seq 0) — including what we already have, plus the tail.
+    act(() => {
+      ws.callbacks.onEvent({
+        type: 'assistant_text',
+        data: { content: 'Hello world' },
+        seq: 0,
+        replaying: true,
+      })
+      ws.callbacks.onEvent({ type: 'tool_use', data: { tool: 'Bash', id: 't1', input: {} }, seq: 0, replaying: true })
+      ws.callbacks.onEvent({
+        type: 'partial_text',
+        content: ' — la suite',
+        seq: 0,
+        replaying: true,
+      })
+      ws.callbacks.onReplayComplete()
+    })
+
+    // The already-rendered part appears ONCE; the tail is appended.
+    const texts = textBlocks(result)
+    expect(texts.map((b) => b.content)).toEqual(['Hello world', ' — la suite'])
+    const toolBlocks = result.current.messages
+      .flatMap((m) => m.blocks)
+      .filter((b) => b.type === 'tool_use')
+    expect(toolBlocks).toHaveLength(1)
+  })
+
   it('does NOT truncate when the reconnect replay has no snapshot (stream ended in the gap) — Phase 1 prefix replaces the half-streamed segment', async () => {
     const { result, ws } = await setupConnectedChat()
 

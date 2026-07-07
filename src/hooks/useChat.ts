@@ -188,9 +188,19 @@ export function useChat() {
     // EXCEPTION: streaming_status and partial_text are processed immediately
     // because they provide the instant visual feedback the user expects
     // (seeing the live stream + interrupt button without waiting for REST).
-    if (!historyLoadedRef.current && event.type !== 'streaming_status' && event.type !== 'partial_text') {
-      pendingEventsRef.current.push(event)
-      return
+    if (!historyLoadedRef.current && event.type !== 'streaming_status') {
+      if (event.type === 'partial_text') {
+        // Process NOW for instant visual feedback (user sees the live stream
+        // without waiting for REST), but ALSO buffer a copy: the upcoming
+        // setMessages(history) wipes the immediately-rendered block, and the
+        // partial text (unflushed tail of the stream) is NOT in the persisted
+        // history — without the buffered replay it would be lost until the
+        // next structured event.
+        pendingEventsRef.current.push(event)
+      } else {
+        pendingEventsRef.current.push(event)
+        return
+      }
     }
 
     // Not-at-tail buffering: when in centered pagination mode (user scrolled to
@@ -398,6 +408,20 @@ export function useChat() {
             const text = data?.content ?? content ?? ''
             if (text) {
               const atParent = getParentToolUseId(event)
+              // Mid-stream join dedup: this exact segment may already be in
+              // the message via REST history (persisted segments of the
+              // in-progress turn) — the snapshot replays the stream from its
+              // START, so blind-appending would duplicate it.
+              if (
+                lastMsg.blocks.some(
+                  (b) =>
+                    b.type === 'text' &&
+                    b.content === text &&
+                    b.metadata?.parent_tool_use_id === atParent,
+                )
+              ) {
+                break
+              }
               // Partial-segment dedup: if the connection died mid-segment, the
               // deltas already rendered a PREFIX of this replayed segment. The
               // Phase 1 replay then delivers the full persisted segment — a
@@ -430,6 +454,20 @@ export function useChat() {
             ? ((event as { data?: { content?: string } }).data?.content ?? (event as { content: string }).content)
             : (event as { content: string }).content
           const thinkParent = getParentToolUseId(event)
+          // Mid-stream join dedup (see assistant_text case): skip a replayed
+          // thinking block already present via REST history.
+          if (
+            event.replaying &&
+            content &&
+            lastMsg.blocks.some(
+              (b) =>
+                b.type === 'thinking' &&
+                b.content === content &&
+                b.metadata?.parent_tool_use_id === thinkParent,
+            )
+          ) {
+            break
+          }
           const lastBlock = lastMsg.blocks[lastMsg.blocks.length - 1]
           if (!event.replaying && lastBlock && lastBlock.type === 'thinking' && lastBlock.metadata?.parent_tool_use_id === thinkParent) {
             lastMsg.blocks[lastMsg.blocks.length - 1] = {
@@ -456,6 +494,18 @@ export function useChat() {
           const toolInput = (data as { input?: Record<string, unknown> }).input ?? {}
           const tuParent = getParentToolUseId(event)
           const tuTs = new Date().toISOString()
+
+          // Mid-stream join dedup: the WS snapshot replays the current stream
+          // from its START, but the REST history already contains the events
+          // persisted so far — the same tool_use would be appended twice.
+          // tool_call_id is unique → skip if the block already exists.
+          if (
+            event.replaying &&
+            toolId &&
+            lastMsg.blocks.some((b) => b.type === 'tool_use' && b.metadata?.tool_call_id === toolId)
+          ) {
+            break
+          }
 
           if (toolName === 'AskUserQuestion') {
             const questions = (toolInput as { questions?: unknown[] })?.questions
@@ -559,6 +609,16 @@ export function useChat() {
           const resultStr = typeof resultVal === 'string' ? resultVal : JSON.stringify(resultVal)
           const toolCallId = (data as { id?: string }).id
           const trParent = getParentToolUseId(event)
+
+          // Mid-stream join dedup (see tool_use case): skip if this result
+          // was already loaded via REST history.
+          if (
+            event.replaying &&
+            toolCallId &&
+            lastMsg.blocks.some((b) => b.type === 'tool_result' && b.metadata?.tool_call_id === toolCallId)
+          ) {
+            break
+          }
           // Calculate tool duration from matching tool_use block
           let trDurationMs: number | undefined
           if (toolCallId) {
@@ -702,6 +762,22 @@ export function useChat() {
             ? ((event as { data?: { content?: string } }).data?.content ?? (event as { content: string }).content)
             : (event as { content: string }).content
           const ptParent = getParentToolUseId(event)
+          // Dedup: partial_text is processed immediately on arrival AND
+          // buffered for replay after the REST history lands (the immediate
+          // render gets wiped by setMessages(history)). If the history load
+          // was skipped (empty session) both applications would land — skip
+          // when the exact content is already the trailing text block.
+          if (
+            content &&
+            lastMsg.blocks.some(
+              (b) =>
+                b.type === 'text' &&
+                b.content === content &&
+                b.metadata?.parent_tool_use_id === ptParent,
+            )
+          ) {
+            break
+          }
           if (content) {
             lastMsg.blocks.push({
               id: nextBlockId(),
