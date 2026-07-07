@@ -96,6 +96,26 @@ export function useChat() {
   >(new Map())
   const pendingEventsRef = useRef<Array<ChatEvent & { seq?: number; replaying?: boolean }>>([])
 
+  // ------------------------------------------------------------------------
+  // Reconnect snapshot reconciliation.
+  //
+  // On ANY reconnect mid-stream, the server's Phase 1.5b snapshot re-sends the
+  // ENTIRE current stream (all structured events since stream start, with
+  // `replaying: true, seq: 0`, plus a cumulative `partial_text`). handleEvent
+  // used to blind-append those on top of the live content already rendered →
+  // the whole in-flight turn appeared TWICE after a zombie-socket resync.
+  //
+  // Fix: track which block ids belong to the current in-flight stream
+  // (`currentStreamBlockIdsRef`, cleared on `result` and session switch). When
+  // a reconnect happens (`resyncPendingRef`, set on 'reconnecting' status) and
+  // the FIRST snapshot event arrives (replaying && seq 0 — Phase 1 replay of
+  // persisted events always carries seq > 0), drop those blocks and let the
+  // snapshot rebuild the turn from scratch. This is idempotent AND recovers
+  // content missed while the socket was dead (the snapshot is complete).
+  // ------------------------------------------------------------------------
+  const resyncPendingRef = useRef(false)
+  const currentStreamBlockIdsRef = useRef<Set<string>>(new Set())
+
   // Outbox for user messages that failed to send on a dead socket.
   // ChatWebSocket.send() now force-reconnects in that case; the queued text is
   // flushed in onReplayComplete, once the reconnected session is consistent.
@@ -184,6 +204,29 @@ export function useChat() {
       return
     }
 
+    // Reconnect reconciliation: first snapshot event (replaying, seq 0) after a
+    // reconnect → truncate the current stream's already-rendered blocks so the
+    // snapshot can rebuild the turn without duplication. Phase 1 replay events
+    // (persisted, seq > 0) must NOT truncate: when the stream ENDED while the
+    // socket was dead there is no snapshot, and the live-rendered part of the
+    // turn would be lost with nothing to rebuild it.
+    if (
+      resyncPendingRef.current &&
+      event.replaying &&
+      !(typeof event.seq === 'number' && event.seq > 0)
+    ) {
+      resyncPendingRef.current = false
+      const staleIds = currentStreamBlockIdsRef.current
+      currentStreamBlockIdsRef.current = new Set()
+      if (staleIds.size > 0) {
+        setMessages((prev) =>
+          prev
+            .map((m) => ({ ...m, blocks: m.blocks.filter((b) => !staleIds.has(b.id)) }))
+            .filter((m) => m.blocks.length > 0),
+        )
+      }
+    }
+
     // Auto-approve: if this is a live permission_request and the tool was remembered,
     // auto-respond Allow via WS and show the block as already-approved.
     if (event.type === 'permission_request' && !event.replaying) {
@@ -208,8 +251,11 @@ export function useChat() {
             updated[updated.length - 1] = lastMsg
           }
           const apParent = getParentToolUseId(event)
+          const apBlockId = nextBlockId()
+          // Part of the in-flight stream — must be truncated+rebuilt on resync
+          currentStreamBlockIdsRef.current.add(apBlockId)
           lastMsg.blocks.push({
-            id: nextBlockId(),
+            id: apBlockId,
             type: 'permission_request',
             content: `Tool "${toolName}" wants to execute`,
             metadata: withParent({
@@ -352,12 +398,28 @@ export function useChat() {
             const text = data?.content ?? content ?? ''
             if (text) {
               const atParent = getParentToolUseId(event)
-              lastMsg.blocks.push({
-                id: nextBlockId(),
-                type: 'text',
-                content: text,
-                metadata: withParent(undefined, atParent),
-              })
+              // Partial-segment dedup: if the connection died mid-segment, the
+              // deltas already rendered a PREFIX of this replayed segment. The
+              // Phase 1 replay then delivers the full persisted segment — a
+              // blind append would show "half text" + "full text". Detect the
+              // prefix and replace the half-streamed block instead.
+              const lastBlock = lastMsg.blocks[lastMsg.blocks.length - 1]
+              if (
+                lastBlock &&
+                lastBlock.type === 'text' &&
+                lastBlock.metadata?.parent_tool_use_id === atParent &&
+                currentStreamBlockIdsRef.current.has(lastBlock.id) &&
+                text.startsWith(lastBlock.content)
+              ) {
+                lastMsg.blocks[lastMsg.blocks.length - 1] = { ...lastBlock, content: text }
+              } else {
+                lastMsg.blocks.push({
+                  id: nextBlockId(),
+                  type: 'text',
+                  content: text,
+                  metadata: withParent(undefined, atParent),
+                })
+              }
             }
           }
           // During live: ignore (content already received via stream_delta)
@@ -913,6 +975,41 @@ export function useChat() {
           break
       }
 
+      // ------------------------------------------------------------------
+      // Current-stream block tracking (reconnect reconciliation).
+      // `result` ends the turn → clear. Any other event: record the blocks it
+      // added to (or extended in) the trailing assistant message. Replayed
+      // snapshot events are tracked too, so a SECOND reconnect truncates the
+      // rebuilt turn just as cleanly (idempotent across reconnects). Phase 1
+      // replay of older completed turns self-cleans: their replayed `result`
+      // clears the set right after (events arrive chronologically).
+      // ------------------------------------------------------------------
+      if (event.type === 'result') {
+        currentStreamBlockIdsRef.current = new Set()
+      } else {
+        const prevLast = prev[prev.length - 1]
+        const prevIds = new Set(
+          (prevLast?.role === 'assistant' ? prevLast.blocks : []).map((b) => b.id),
+        )
+        const nowLast = updated[updated.length - 1]
+        if (nowLast?.role === 'assistant') {
+          for (const b of nowLast.blocks) {
+            if (!prevIds.has(b.id)) currentStreamBlockIdsRef.current.add(b.id)
+          }
+          // stream_delta/thinking EXTEND the trailing block (same id) — track
+          // it too: a snapshot-created block later extended live holds mixed
+          // content and must be truncated+rebuilt on the next reconnect.
+          if (
+            event.type === 'stream_delta' ||
+            event.type === 'thinking' ||
+            event.type === 'partial_text'
+          ) {
+            const lb = nowLast.blocks[nowLast.blocks.length - 1]
+            if (lb) currentStreamBlockIdsRef.current.add(lb.id)
+          }
+        }
+      }
+
       return updated
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- tracked setters are stable (useCallback with stable deps)
@@ -934,9 +1031,19 @@ export function useChat() {
         if (status === 'reconnecting') {
           setIsStreaming(false)
           setIsCompacting(false)
+          // Arm snapshot reconciliation: the upcoming replay may re-send the
+          // whole current stream (Phase 1.5b snapshot) — the already-rendered
+          // blocks must be truncated when it arrives. Only relevant once
+          // history is loaded (initial-connect retries have nothing rendered).
+          if (historyLoadedRef.current) {
+            resyncPendingRef.current = true
+          }
         }
       },
       onReplayComplete: () => {
+        // No snapshot arrived during this replay (stream not active) — disarm
+        // so a later unrelated replay can't truncate anything.
+        resyncPendingRef.current = false
         setIsReplaying(false)
         setIsLoadingHistory(false)
         // Flush messages that failed on a dead socket (their failure triggered
@@ -1003,6 +1110,10 @@ export function useChat() {
     // will be queued in pendingEventsRef and replayed after setMessages().
     historyLoadedRef.current = false
     pendingEventsRef.current = []
+    // Reset reconnect-reconciliation state: block ids from the previous
+    // session must never be truncated out of the new session's messages.
+    resyncPendingRef.current = false
+    currentStreamBlockIdsRef.current = new Set()
 
     // Phase 1: Connect WS IMMEDIATELY for live streaming (parallel with REST).
     // This eliminates the latency of the old sequential approach where
