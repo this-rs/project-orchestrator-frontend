@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { useAtom, useSetAtom } from 'jotai'
+import { useAtom, useSetAtom, useStore } from 'jotai'
 import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom, chatDraftInputAtom, chatDraftsMapAtom, chatBackgroundTasksAtom } from '@/atoms'
 import { chatApi, ChatWebSocket } from '@/services'
 import type { ChatMessage, ChatEvent, PermissionMode } from '@/types'
@@ -34,6 +34,12 @@ export function useChat() {
   const _setPermissionOverride = useSetAtom(chatSessionPermissionOverrideAtom)
   const _setAutoApprovedTools = useSetAtom(chatAutoApprovedToolsAtom)
   const _setSessionModel = useSetAtom(chatSessionModelAtom)
+  // Live Jotai store — lets callbacks read the CURRENT atom value at call time
+  // instead of relying on `*Ref.current`, which only tracks writes made through
+  // this hook's wrapper setters. ChatInput writes chatSessionModelAtom /
+  // chatSessionPermissionOverrideAtom DIRECTLY (its own useAtom setter), so the
+  // refs stay stale for new-conversation selections. See sendMessage below.
+  const store = useStore()
   const setDraftInput = useSetAtom(chatDraftInputAtom)
   const [draftsMap, setDraftsMap] = useAtom(chatDraftsMapAtom)
   const draftsMapRef = useRef(draftsMap)
@@ -1384,8 +1390,8 @@ export function useChat() {
           cwd: options!.cwd,
           project_slug: options?.projectSlug,
           workspace_slug: options?.workspaceSlug,
-          permission_mode: options?.permissionMode ?? permissionOverrideRef.current ?? undefined,
-          model: options?.model ?? sessionModelRef.current ?? undefined,
+          permission_mode: options?.permissionMode ?? store.get(chatSessionPermissionOverrideAtom) ?? undefined,
+          model: options?.model ?? store.get(chatSessionModelAtom) ?? undefined,
         })
         // Signal that the upcoming sessionId change is from a first send,
         // so the auto-connect useEffect should NOT reset messages.
@@ -1396,7 +1402,7 @@ export function useChat() {
           setSessionMeta({ cwd: options.cwd, projectSlug: options.projectSlug, workspaceSlug: options.workspaceSlug })
         }
         // Reset override after use
-        if (permissionOverrideRef.current) setPermissionOverride(null)
+        if (store.get(chatSessionPermissionOverrideAtom)) setPermissionOverride(null)
       } finally {
         setIsSending(false)
       }
@@ -1411,7 +1417,7 @@ export function useChat() {
         pendingSendRef.current.push(text)
       }
     }
-  }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride, setDraftsMap])
+  }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride, setDraftsMap, store])
 
   /**
    * Send "Continue" after max_turns — adds a discreet inline indicator instead of a user bubble.
