@@ -119,8 +119,18 @@ export function ProtectedRoute() {
   }, [needsBootRefresh, setToken])
 
   // Phase 3: Validate token when auth is required — fetch /auth/me
+  //
+  // Intentionally NOT gated on `bootRefreshDone`. `me()` already requires
+  // `isAuthenticated` (a token in memory), so it can never fire without one.
+  // Gating on `bootRefreshDone` used to strand the spinner forever in this race:
+  // a background request (e.g. the always-mounted model catalog loader) calls
+  // getValidToken() on reload, which refreshes via the HttpOnly cookie and sets
+  // the token atom → `isAuthenticated` flips true BEFORE Phase 2 evaluates. That
+  // makes `needsBootRefresh` false, so Phase 2 never runs and `bootRefreshDone`
+  // stays false — leaving us authenticated (token) but with no user and no way
+  // to ever fetch one. Whenever a token exists, always validate it here.
   useEffect(() => {
-    if (!providersLoaded || !bootRefreshDone || authMode === 'none' || !isAuthenticated || user) {
+    if (!providersLoaded || authMode === 'none' || !isAuthenticated || user) {
       return
     }
 
@@ -134,7 +144,7 @@ export function ProtectedRoute() {
         setAuthError(true)
         forceLogout()
       })
-  }, [providersLoaded, bootRefreshDone, authMode, isAuthenticated, user, setUser])
+  }, [providersLoaded, authMode, isAuthenticated, user, setUser])
 
   // Derive loading: waiting for providers OR boot refresh OR user validation
   // authError short-circuits loading to prevent infinite spinner

@@ -16,6 +16,14 @@ export const workspacesLoadingAtom = atom<boolean>(false)
 export const activeWorkspaceSlugAtom = atomWithStorage<string | null>(
   'po-active-workspace',
   null,
+  undefined,
+  // Read localStorage SYNCHRONOUSLY on first render. Without this, the first
+  // read returns the initial value (null) and only hydrates after mount —
+  // RootRedirect then races its <Navigate> against the hydration: it can
+  // bounce to /workspace-selector (or the wrong workspace via the selector's
+  // single-workspace auto-redirect) even though a valid last-visited slug was
+  // stored. Symptom: "last selected workspace" memory erratically ignored.
+  { getOnInit: true },
 )
 
 /**
