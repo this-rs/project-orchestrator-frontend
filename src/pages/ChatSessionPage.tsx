@@ -66,7 +66,9 @@ export default function ChatSessionPage() {
   }
 
   return (
-    <div className="relative flex flex-col h-[calc(100vh-4rem)] -mx-4 md:-mx-6">
+    // dvh, not vh: on mobile, 100vh is the LARGE viewport (URL bar extended)
+    // and overflows the visible area — dvh tracks the dynamic viewport.
+    <div className="relative flex flex-col h-[calc(100dvh-4rem)] -mx-4 md:-mx-6">
       {/* Header — full bleed via negative margins to counter MainLayout px-4/px-6 */}
       <div className="flex items-center gap-3 px-6 py-3 border-b border-white/10 bg-slate-900/80 backdrop-blur-sm shrink-0">
         <Link

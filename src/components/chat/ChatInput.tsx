@@ -223,7 +223,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
   }
 
   return (
-    <div className="border-t border-white/[0.06] px-3 pt-0.5 pb-2 flex flex-col gap-1">
+    // pb: with viewport-fit=cover, keep the input clear of the home
+    // indicator on notched devices (inset collapses to 0 when the
+    // keyboard is open, so no double padding).
+    <div className="border-t border-white/[0.06] px-3 pt-0.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex flex-col gap-1">
       {/* Per-session mode & model selectors */}
       <div className="flex items-center gap-3">
         {/* Permission mode selector */}
