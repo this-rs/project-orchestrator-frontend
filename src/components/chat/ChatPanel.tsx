@@ -78,11 +78,17 @@ export function ChatPanel() {
   // Mobile soft-keyboard compensation: the panel is `position: fixed` and
   // sized against the LAYOUT viewport, which iOS does not shrink when the
   // keyboard opens — the input bar then floats above dead space. When the
-  // visual viewport is keyboard-shrunk, pin the panel's height to it.
+  // visual viewport is keyboard-shrunk, pin the panel's height to it AND
+  // follow the pan (iOS/iPadOS shifts the visual viewport by offsetTop to
+  // reveal the focused field — height alone leaves the gap at the bottom).
+  // `top`, not `transform`: the open/close animation lives in Tailwind
+  // translate-x-* classes and an inline transform would override it.
   // `undefined` (desktop, keyboard closed, Android with
   // interactive-widget=resizes-content) keeps the pure-CSS layout.
-  const keyboardHeight = useVisualViewportHeight(isOpen)
-  const keyboardStyle = keyboardHeight !== undefined ? { height: keyboardHeight, bottom: 'auto' as const } : undefined
+  const keyboardBox = useVisualViewportHeight(isOpen)
+  const keyboardStyle = keyboardBox !== undefined
+    ? { height: keyboardBox.height, top: keyboardBox.offsetTop, bottom: 'auto' as const }
+    : undefined
 
   // Detect mobile viewport
   useEffect(() => {
