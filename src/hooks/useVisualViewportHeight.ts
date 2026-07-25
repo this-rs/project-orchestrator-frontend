@@ -2,17 +2,20 @@ import { useEffect, useState } from 'react'
 
 /** Geometry of the keyboard-shrunk visual viewport. */
 export interface VisualViewportBox {
-  /** Visible height in px (visualViewport.height). */
-  height: number
   /**
-   * Vertical offset of the visual viewport inside the LAYOUT viewport
-   * (visualViewport.offsetTop). iOS/iPadOS PANS the visual viewport to
-   * reveal the focused field: compensating only the height leaves a
-   * top-anchored fixed panel pinned to layout-top while the visible window
-   * slides down — the gap reappears at the bottom. Fixed panels must follow
-   * with `top: offsetTop`.
+   * Height (px) the fixed panel should take, measured from the TOP of the
+   * layout viewport: visualViewport.offsetTop + visualViewport.height.
+   *
+   * Rationale: iOS pans the visual viewport (offsetTop) to reveal the
+   * focused field, and FIGHTING that pan is a losing game — countering it
+   * with scrollTo() stutters, chasing it with `top:` drifts (both were
+   * tried and reverted). Instead the panel passively COVERS the whole
+   * range [0, offsetTop + height]: its bottom edge then coincides with the
+   * top of the keyboard wherever the pan settles, with no scroll
+   * manipulation at all. The area above offsetTop is simply offscreen
+   * panel content.
    */
-  offsetTop: number
+  height: number
 }
 
 /** True when the currently focused element takes text input. */
@@ -28,32 +31,26 @@ function isEditableFocused(): boolean {
 }
 
 /**
- * Geometry of the visible viewport while the on-screen keyboard is open —
- * `undefined` whenever no compensation is needed.
+ * Panel height while the on-screen keyboard is open — `undefined` whenever
+ * no compensation is needed (callers keep their pure-CSS layout).
  *
- * Why: on iOS/iPadOS (EVERY browser there is WebKit — Chrome included, so
+ * Why: on iOS/iPadOS (every browser there is WebKit — Chrome included, so
  * the meta-tag `interactive-widget=resizes-content` is ignored), the LAYOUT
  * viewport never shrinks for the keyboard: only the *visual* viewport
- * shrinks and pans. A `position: fixed; top-0 bottom-0` container
- * (ChatPanel) keeps its full pre-keyboard height, leaving dead space
- * between the input bar and the keyboard. `dvh` does not account for the
- * keyboard either. The only reliable signal is `window.visualViewport`.
+ * shrinks and pans. A `position: fixed; top-0 bottom-0` container keeps its
+ * full pre-keyboard height, leaving dead space between its bottom-anchored
+ * input bar and the keyboard.
  *
- * Reliability measures (WebKit event delivery is historically flaky, and
- * iPad keyboards vary — floating, split, Stage Manager):
- * - listeners on visualViewport resize+scroll AND window resize;
- * - a 300ms polling interval as the safety net while enabled;
- * - the keyboard threshold drops from max(100px, 15%) to 50px whenever an
- *   editable element has focus — a large gap without focus is browser UI,
- *   a modest gap WITH focus is a keyboard.
+ * Guards against stale pinning (a shrunk panel with the keyboard closed):
+ * - compensation requires BOTH an editable element focused AND a
+ *   significant viewport gap — no focus, no pinning, period;
+ * - events (vv resize/scroll, window resize, focusin/out) plus a 300ms
+ *   polling safety net (WebKit event delivery is flaky) converge the state
+ *   quickly in both directions.
  *
  * Android Chrome (Blink) honors `interactive-widget=resizes-content`: its
- * layout viewport resizes, the gap stays ≈ 0 and this hook remains inert
- * (no double compensation). Desktop/Tauri: inert (no vv shrink).
- *
- * NOTE for consumers: apply offsetTop via the `top` style, NOT `transform`
- * — ChatPanel's open/close animation lives in Tailwind `translate-x-*`
- * classes and an inline transform would override them.
+ * layout viewport resizes, the gap stays ≈ 0 and this hook remains inert.
+ * Desktop/Tauri: inert.
  */
 export function useVisualViewportHeight(enabled: boolean = true): VisualViewportBox | undefined {
   const [box, setBox] = useState<VisualViewportBox | undefined>(undefined)
@@ -69,24 +66,11 @@ export function useVisualViewportHeight(enabled: boolean = true): VisualViewport
     const update = () => {
       const layoutHeight = window.innerHeight
       const gap = layoutHeight - vv.height
-      const threshold = isEditableFocused()
-        ? 50
-        : Math.max(100, layoutHeight * 0.15)
-      if (gap > threshold) {
-        // iOS scrolls/pans the page to reveal the focused field — but our
-        // shrunk panel already keeps it visible, so that scroll only
-        // misaligns the fixed panel (the moving vv.offsetTop symptom).
-        // Undo it: pin the document back to 0 while the keyboard is open.
-        const docEl = document.scrollingElement
-        if (window.scrollY > 0 || (docEl && docEl.scrollTop > 0)) {
-          window.scrollTo(0, 0)
-          if (docEl) docEl.scrollTop = 0
-        }
-        setBox((prev) =>
-          prev && prev.height === vv.height && prev.offsetTop === vv.offsetTop
-            ? prev
-            : { height: vv.height, offsetTop: vv.offsetTop },
-        )
+      // Keyboard = editable focused AND a meaningful shrink. Without focus
+      // there is no keyboard — never pin (prevents a stuck short panel).
+      if (isEditableFocused() && gap > 100) {
+        const height = Math.round(vv.offsetTop + vv.height)
+        setBox((prev) => (prev && prev.height === height ? prev : { height }))
       } else {
         setBox(undefined)
       }
@@ -94,8 +78,6 @@ export function useVisualViewportHeight(enabled: boolean = true): VisualViewport
 
     update()
     vv.addEventListener('resize', update)
-    // scroll fires when iOS pans the visual viewport over the layout one
-    // (focus scroll) — offsetTop must track it or the panel drifts.
     vv.addEventListener('scroll', update)
     window.addEventListener('resize', update)
     document.addEventListener('focusin', update)
