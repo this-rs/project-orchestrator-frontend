@@ -15,29 +15,41 @@ export interface VisualViewportBox {
   offsetTop: number
 }
 
+/** True when the currently focused element takes text input. */
+function isEditableFocused(): boolean {
+  const el = document.activeElement
+  if (!el) return false
+  const tag = el.tagName
+  return (
+    tag === 'TEXTAREA' ||
+    tag === 'INPUT' ||
+    (el as HTMLElement).isContentEditable === true
+  )
+}
+
 /**
  * Geometry of the visible viewport while the on-screen keyboard is open —
  * `undefined` whenever no compensation is needed.
  *
- * Why: iOS Safari/WKWebView never shrinks the LAYOUT viewport when the
- * keyboard opens — only the *visual* viewport shrinks (and PANS, see
- * offsetTop). A `position: fixed; top-0 bottom-0` container (ChatPanel)
- * keeps its full pre-keyboard height, so its bottom-anchored input bar ends
- * up hidden behind the keyboard with dead space around it. `dvh` units do
- * NOT account for the keyboard either. The only reliable signal is
- * `window.visualViewport`.
+ * Why: on iOS/iPadOS (EVERY browser there is WebKit — Chrome included, so
+ * the meta-tag `interactive-widget=resizes-content` is ignored), the LAYOUT
+ * viewport never shrinks for the keyboard: only the *visual* viewport
+ * shrinks and pans. A `position: fixed; top-0 bottom-0` container
+ * (ChatPanel) keeps its full pre-keyboard height, leaving dead space
+ * between the input bar and the keyboard. `dvh` does not account for the
+ * keyboard either. The only reliable signal is `window.visualViewport`.
  *
- * Android Chrome is handled declaratively via
- * `interactive-widget=resizes-content` in the viewport meta tag; with it,
- * the layout viewport resizes and the ratio guard below keeps this hook
- * inert (no double compensation).
+ * Reliability measures (WebKit event delivery is historically flaky, and
+ * iPad keyboards vary — floating, split, Stage Manager):
+ * - listeners on visualViewport resize+scroll AND window resize;
+ * - a 300ms polling interval as the safety net while enabled;
+ * - the keyboard threshold drops from max(100px, 15%) to 50px whenever an
+ *   editable element has focus — a large gap without focus is browser UI,
+ *   a modest gap WITH focus is a keyboard.
  *
- * Behavior:
- * - returns `undefined` when the API is missing (SSR, old browsers, Tauri
- *   desktop) or when the visual viewport ≈ layout viewport (no keyboard) —
- *   callers then keep their pure-CSS layout;
- * - returns `{ height, offsetTop }` only when the visual viewport is
- *   meaningfully smaller than the layout viewport (keyboard open).
+ * Android Chrome (Blink) honors `interactive-widget=resizes-content`: its
+ * layout viewport resizes, the gap stays ≈ 0 and this hook remains inert
+ * (no double compensation). Desktop/Tauri: inert (no vv shrink).
  *
  * NOTE for consumers: apply offsetTop via the `top` style, NOT `transform`
  * — ChatPanel's open/close animation lives in Tailwind `translate-x-*`
@@ -55,12 +67,12 @@ export function useVisualViewportHeight(enabled: boolean = true): VisualViewport
     if (!vv) return
 
     const update = () => {
-      // Keyboard heuristic: visual viewport at least 100px / 15% smaller
-      // than the layout viewport. Plain URL-bar retraction stays well under
-      // this threshold; soft keyboards are 250-450px tall (iPhone & iPad).
       const layoutHeight = window.innerHeight
       const gap = layoutHeight - vv.height
-      if (gap > Math.max(100, layoutHeight * 0.15)) {
+      const threshold = isEditableFocused()
+        ? 50
+        : Math.max(100, layoutHeight * 0.15)
+      if (gap > threshold) {
         setBox((prev) =>
           prev && prev.height === vv.height && prev.offsetTop === vv.offsetTop
             ? prev
@@ -76,9 +88,19 @@ export function useVisualViewportHeight(enabled: boolean = true): VisualViewport
     // scroll fires when iOS pans the visual viewport over the layout one
     // (focus scroll) — offsetTop must track it or the panel drifts.
     vv.addEventListener('scroll', update)
+    window.addEventListener('resize', update)
+    document.addEventListener('focusin', update)
+    document.addEventListener('focusout', update)
+    // Safety net: WebKit does not always deliver vv events around keyboard
+    // show/hide. 300ms while the chat is open is negligible.
+    const interval = window.setInterval(update, 300)
     return () => {
       vv.removeEventListener('resize', update)
       vv.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+      document.removeEventListener('focusin', update)
+      document.removeEventListener('focusout', update)
+      window.clearInterval(interval)
     }
   }, [enabled])
 
