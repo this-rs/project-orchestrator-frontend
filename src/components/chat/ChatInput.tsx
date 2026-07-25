@@ -349,6 +349,13 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
           // On mobile the return key inserts a newline (sending is via the button);
           // on desktop it submits, so hint the soft keyboard accordingly.
           enterKeyHint={isMobile ? 'enter' : 'send'}
+          // Keep iOS/iPadOS from heuristically treating this as a login
+          // field (AutoFill/password bar above the keyboard). A bare
+          // textarea with no autocomplete hint can get misclassified by
+          // iCloud Keychain / password managers.
+          autoComplete="off"
+          data-1p-ignore="true"
+          data-lpignore="true"
           placeholder="Send a message..."
           className="flex-1 resize-none bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/40 disabled:opacity-50"
         />

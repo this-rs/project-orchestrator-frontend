@@ -28,6 +28,41 @@ const MOBILE_BREAKPOINT = 768
 const NOOP = () => {}
 
 /** Small dot indicator for WebSocket status */
+/**
+ * DIAGNOSTIC ONLY — live visual-viewport readout, enabled with `?vvdebug`
+ * in the URL. Two things it settles from a real device:
+ * 1. whether the device is even running this bundle (no badge → old build);
+ * 2. what visualViewport actually reports when the keyboard opens
+ *    (height/offsetTop vs innerHeight → is the compensation firing, and
+ *    with the right numbers).
+ */
+function VvDebugBadge({ compensating }: { compensating: boolean }) {
+  const [, forceTick] = useState(0)
+  useEffect(() => {
+    const vv = window.visualViewport
+    const tick = () => forceTick((n) => n + 1)
+    const interval = setInterval(tick, 500)
+    vv?.addEventListener('resize', tick)
+    vv?.addEventListener('scroll', tick)
+    return () => {
+      clearInterval(interval)
+      vv?.removeEventListener('resize', tick)
+      vv?.removeEventListener('scroll', tick)
+    }
+  }, [])
+  const vv = window.visualViewport
+  return (
+    <div className="fixed left-2 top-2 z-[100] rounded bg-black/80 px-2 py-1 font-mono text-[10px] leading-tight text-lime-300 pointer-events-none">
+      <div>build: vv-fix-3 (3bf289f+)</div>
+      <div>innerH: {window.innerHeight}</div>
+      <div>vv.h: {vv ? Math.round(vv.height) : 'N/A'}</div>
+      <div>vv.top: {vv ? Math.round(vv.offsetTop) : 'N/A'}</div>
+      <div>gap: {vv ? Math.round(window.innerHeight - vv.height) : 'N/A'}</div>
+      <div>compensating: {compensating ? 'YES' : 'no'}</div>
+    </div>
+  )
+}
+
 function WsStatusDot({ status }: { status: string }) {
   if (status === 'connected') {
     return <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" title="Connected" />
@@ -89,6 +124,8 @@ export function ChatPanel() {
   const keyboardStyle = keyboardBox !== undefined
     ? { height: keyboardBox.height, top: keyboardBox.offsetTop, bottom: 'auto' as const }
     : undefined
+  // Diagnostic overlay, opt-in via ?vvdebug — see VvDebugBadge.
+  const vvDebug = typeof window !== 'undefined' && window.location.search.includes('vvdebug')
 
   // Detect mobile viewport
   useEffect(() => {
@@ -273,6 +310,7 @@ export function ChatPanel() {
         className={`fixed inset-0 z-30 bg-surface-raised flex ${isDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
         style={keyboardStyle}
       >
+        {vvDebug && <VvDebugBadge compensating={keyboardBox !== undefined} />}
         {/* Left sidebar — hidden on mobile, permanent on desktop */}
         {/* Desktop: static sidebar */}
         <div className="hidden md:flex w-72 shrink-0 border-r border-white/[0.06] flex-col">
@@ -552,6 +590,7 @@ export function ChatPanel() {
       className={`fixed z-30 bg-surface-raised border-l border-border-subtle flex flex-col ${isDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isOpen ? 'translate-x-0' : 'translate-x-full'} top-0 right-0 bottom-0 w-full`}
       style={{ maxWidth: isMobile ? undefined : panelWidth, ...keyboardStyle }}
     >
+      {vvDebug && <VvDebugBadge compensating={keyboardBox !== undefined} />}
       {/* Resize handle — hidden on mobile (panel takes full width) */}
       <div
         onMouseDown={handleMouseDown}
