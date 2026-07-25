@@ -16,6 +16,7 @@ import { PermissionSettingsPanel } from './PermissionSettingsPanel'
 import { SessionBreadcrumb } from './SessionBreadcrumb'
 import { DiscussionTreeView } from '@/components/discussions/DiscussionTreeView'
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { messagesToMarkdown } from '@/utils/chatExport'
 import { useSetAtom, useAtomValue } from 'jotai'
 import { Link } from 'react-router-dom'
@@ -29,13 +30,36 @@ const NOOP = () => {}
 
 /** Small dot indicator for WebSocket status */
 /**
- * DIAGNOSTIC ONLY — live visual-viewport readout, enabled with `?vvdebug`
- * in the URL. Two things it settles from a real device:
- * 1. whether the device is even running this bundle (no badge → old build);
- * 2. what visualViewport actually reports when the keyboard opens
- *    (height/offsetTop vs innerHeight → is the compensation firing, and
- *    with the right numbers).
+ * DIAGNOSTIC ONLY — live visual-viewport readout.
+ *
+ * Enabling: visit any URL containing `?vvdebug` ONCE — the flag is captured
+ * at MODULE LOAD (before the SPA router strips the query string on its boot
+ * redirect, which is why the render-time check never saw it) and persisted
+ * in localStorage. Disable with `?vvdebug=off`.
+ *
+ * Rendered through a PORTAL to document.body: the chat panel carries
+ * Tailwind translate-x-* classes, and a `position: fixed` element inside a
+ * transformed ancestor is positioned relative to THAT ancestor — offscreen
+ * when the panel is closed (translate-x-full).
  */
+const VV_DEBUG_KEY = 'po.vvdebug'
+const vvDebugEnabled = (() => {
+  try {
+    const search = window.location.search + window.location.hash
+    if (search.includes('vvdebug=off')) {
+      localStorage.removeItem(VV_DEBUG_KEY)
+      return false
+    }
+    if (search.includes('vvdebug')) {
+      localStorage.setItem(VV_DEBUG_KEY, '1')
+      return true
+    }
+    return localStorage.getItem(VV_DEBUG_KEY) === '1'
+  } catch {
+    return false
+  }
+})()
+
 function VvDebugBadge({ compensating }: { compensating: boolean }) {
   const [, forceTick] = useState(0)
   useEffect(() => {
@@ -51,15 +75,17 @@ function VvDebugBadge({ compensating }: { compensating: boolean }) {
     }
   }, [])
   const vv = window.visualViewport
-  return (
+  return createPortal(
     <div className="fixed left-2 top-2 z-[100] rounded bg-black/80 px-2 py-1 font-mono text-[10px] leading-tight text-lime-300 pointer-events-none">
-      <div>build: vv-fix-3 (3bf289f+)</div>
+      <div>build: vv-fix-4 (4bcf914+)</div>
       <div>innerH: {window.innerHeight}</div>
       <div>vv.h: {vv ? Math.round(vv.height) : 'N/A'}</div>
       <div>vv.top: {vv ? Math.round(vv.offsetTop) : 'N/A'}</div>
       <div>gap: {vv ? Math.round(window.innerHeight - vv.height) : 'N/A'}</div>
+      <div>scrollY: {Math.round(window.scrollY)} / docEl: {Math.round(document.scrollingElement?.scrollTop ?? -1)}</div>
       <div>compensating: {compensating ? 'YES' : 'no'}</div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -124,8 +150,9 @@ export function ChatPanel() {
   const keyboardStyle = keyboardBox !== undefined
     ? { height: keyboardBox.height, top: keyboardBox.offsetTop, bottom: 'auto' as const }
     : undefined
-  // Diagnostic overlay, opt-in via ?vvdebug — see VvDebugBadge.
-  const vvDebug = typeof window !== 'undefined' && window.location.search.includes('vvdebug')
+  // Diagnostic overlay — sticky flag captured at module load (the SPA boot
+  // redirect strips the query string before render-time checks can see it).
+  const vvDebug = vvDebugEnabled
 
   // Detect mobile viewport
   useEffect(() => {
