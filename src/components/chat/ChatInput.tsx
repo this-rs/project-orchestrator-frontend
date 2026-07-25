@@ -107,7 +107,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     requestAnimationFrame(() => {
       const el = textareaRef.current
       if (!el) return
-      el.focus()
+      // preventScroll: on iOS the default focus behavior scrolls/pans the
+      // page to reveal the field — the visual-viewport compensation already
+      // does, and the extra pan misaligns the fixed panel.
+      el.focus({ preventScroll: true })
       // Place cursor at end of restored draft
       const len = el.value.length
       el.setSelectionRange(len, len)
@@ -123,7 +126,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     requestAnimationFrame(() => {
       const el = textareaRef.current
       if (!el) return
-      el.focus()
+      // preventScroll: on iOS the default focus behavior scrolls/pans the
+      // page to reveal the field — the visual-viewport compensation already
+      // does, and the extra pan misaligns the fixed panel.
+      el.focus({ preventScroll: true })
       const cursorPos = typeof prefill.cursorOffset === 'number'
         ? prefill.text.length - prefill.cursorOffset
         : prefill.text.length

@@ -73,6 +73,15 @@ export function useVisualViewportHeight(enabled: boolean = true): VisualViewport
         ? 50
         : Math.max(100, layoutHeight * 0.15)
       if (gap > threshold) {
+        // iOS scrolls/pans the page to reveal the focused field — but our
+        // shrunk panel already keeps it visible, so that scroll only
+        // misaligns the fixed panel (the moving vv.offsetTop symptom).
+        // Undo it: pin the document back to 0 while the keyboard is open.
+        const docEl = document.scrollingElement
+        if (window.scrollY > 0 || (docEl && docEl.scrollTop > 0)) {
+          window.scrollTo(0, 0)
+          if (docEl) docEl.scrollTop = 0
+        }
         setBox((prev) =>
           prev && prev.height === vv.height && prev.offsetTop === vv.offsetTop
             ? prev
