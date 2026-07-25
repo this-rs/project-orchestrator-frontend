@@ -8,6 +8,43 @@ import { historyEventsToMessages, nextBlockId, nextMessageId, getParentToolUseId
 /** Number of messages to load per page via REST */
 const PAGE_SIZE = 50
 
+/**
+ * Decide how to apply a REPLAYED text segment (assistant_text / partial_text /
+ * thinking) against what is already rendered — without ever destroying content.
+ *
+ * The server replays the current stream from its start on every connect while
+ * streaming, so the same text can reach us two ways: already rendered live via
+ * stream_delta (which CONCATENATES consecutive segments into a single block),
+ * or already loaded from REST history on a mid-stream join. Live deltas merging
+ * segments is why plain equality is not enough — the rendered block is often a
+ * SUPERSET of the replayed segment.
+ *
+ * - 'skip'    → the segment is already covered by what's rendered
+ * - 'replace' → the rendered block is a strict PREFIX of the segment (the
+ *               connection died mid-segment): grow it to the full text
+ * - 'append'  → genuinely new content
+ *
+ * Never returns anything that removes rendered content.
+ */
+function reconcileReplayedText(
+  blocks: ReadonlyArray<{ type: string; content: string; metadata?: Record<string, unknown> }>,
+  type: 'text' | 'thinking',
+  text: string,
+  parent: string | undefined,
+): { action: 'skip' } | { action: 'replace'; index: number } | { action: 'append' } {
+  if (!text) return { action: 'skip' }
+
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    const b = blocks[i]
+    if (b.type !== type || b.metadata?.parent_tool_use_id !== parent) continue
+    // Already rendered verbatim, or merged into a larger block by live deltas.
+    if (b.content === text || b.content.includes(text)) return { action: 'skip' }
+    // Half-streamed segment: the rendered block is a prefix of the full one.
+    if (b.content && text.startsWith(b.content)) return { action: 'replace', index: i }
+  }
+  return { action: 'append' }
+}
+
 export interface SendMessageOptions {
   cwd: string
   projectSlug?: string
@@ -97,24 +134,25 @@ export function useChat() {
   const pendingEventsRef = useRef<Array<ChatEvent & { seq?: number; replaying?: boolean }>>([])
 
   // ------------------------------------------------------------------------
-  // Reconnect snapshot reconciliation.
+  // Replay reconciliation — APPEND-ONLY, NEVER DESTRUCTIVE.
   //
-  // On ANY reconnect mid-stream, the server's Phase 1.5b snapshot re-sends the
-  // ENTIRE current stream (all structured events since stream start, with
-  // `replaying: true, seq: 0`, plus a cumulative `partial_text`). handleEvent
-  // used to blind-append those on top of the live content already rendered →
-  // the whole in-flight turn appeared TWICE after a zombie-socket resync.
+  // The server re-sends the ENTIRE current stream on every connect while a
+  // stream is active (Phase 1.5b snapshot: all structured events since stream
+  // start with `replaying: true, seq: 0`, plus a cumulative `partial_text`).
+  // This happens both on reconnects AND on fresh mid-stream joins, where the
+  // REST history ALREADY contains the turn's persisted events. Blind-appending
+  // duplicates the turn.
   //
-  // Fix: track which block ids belong to the current in-flight stream
-  // (`currentStreamBlockIdsRef`, cleared on `result` and session switch). When
-  // a reconnect happens (`resyncPendingRef`, set on 'reconnecting' status) and
-  // the FIRST snapshot event arrives (replaying && seq 0 — Phase 1 replay of
-  // persisted events always carries seq > 0), drop those blocks and let the
-  // snapshot rebuild the turn from scratch. This is idempotent AND recovers
-  // content missed while the socket was dead (the snapshot is complete).
+  // An earlier attempt tracked "blocks of the current stream" and DELETED them
+  // when a snapshot arrived, betting the snapshot would rebuild them. That bet
+  // is unsafe: if the snapshot doesn't cover those blocks (turn whose `result`
+  // never arrived, stream that ended between the reconnect trigger and the
+  // handshake, a snapshot for a DIFFERENT turn), the content was erased for
+  // good — responses vanishing from the UI.
+  //
+  // The rule now: replayed events may only be SKIPPED or GROWN, never removed.
+  // See `reconcileReplayedText` and the id-based dedup in tool_use/tool_result.
   // ------------------------------------------------------------------------
-  const resyncPendingRef = useRef(false)
-  const currentStreamBlockIdsRef = useRef<Set<string>>(new Set())
 
   // Outbox for user messages that failed to send on a dead socket.
   // ChatWebSocket.send() now force-reconnects in that case; the queued text is
@@ -214,29 +252,6 @@ export function useChat() {
       return
     }
 
-    // Reconnect reconciliation: first snapshot event (replaying, seq 0) after a
-    // reconnect → truncate the current stream's already-rendered blocks so the
-    // snapshot can rebuild the turn without duplication. Phase 1 replay events
-    // (persisted, seq > 0) must NOT truncate: when the stream ENDED while the
-    // socket was dead there is no snapshot, and the live-rendered part of the
-    // turn would be lost with nothing to rebuild it.
-    if (
-      resyncPendingRef.current &&
-      event.replaying &&
-      !(typeof event.seq === 'number' && event.seq > 0)
-    ) {
-      resyncPendingRef.current = false
-      const staleIds = currentStreamBlockIdsRef.current
-      currentStreamBlockIdsRef.current = new Set()
-      if (staleIds.size > 0) {
-        setMessages((prev) =>
-          prev
-            .map((m) => ({ ...m, blocks: m.blocks.filter((b) => !staleIds.has(b.id)) }))
-            .filter((m) => m.blocks.length > 0),
-        )
-      }
-    }
-
     // Auto-approve: if this is a live permission_request and the tool was remembered,
     // auto-respond Allow via WS and show the block as already-approved.
     if (event.type === 'permission_request' && !event.replaying) {
@@ -261,11 +276,8 @@ export function useChat() {
             updated[updated.length - 1] = lastMsg
           }
           const apParent = getParentToolUseId(event)
-          const apBlockId = nextBlockId()
-          // Part of the in-flight stream — must be truncated+rebuilt on resync
-          currentStreamBlockIdsRef.current.add(apBlockId)
           lastMsg.blocks.push({
-            id: apBlockId,
+            id: nextBlockId(),
             type: 'permission_request',
             content: `Tool "${toolName}" wants to execute`,
             metadata: withParent({
@@ -408,34 +420,12 @@ export function useChat() {
             const text = data?.content ?? content ?? ''
             if (text) {
               const atParent = getParentToolUseId(event)
-              // Mid-stream join dedup: this exact segment may already be in
-              // the message via REST history (persisted segments of the
-              // in-progress turn) — the snapshot replays the stream from its
-              // START, so blind-appending would duplicate it.
-              if (
-                lastMsg.blocks.some(
-                  (b) =>
-                    b.type === 'text' &&
-                    b.content === text &&
-                    b.metadata?.parent_tool_use_id === atParent,
-                )
-              ) {
-                break
-              }
-              // Partial-segment dedup: if the connection died mid-segment, the
-              // deltas already rendered a PREFIX of this replayed segment. The
-              // Phase 1 replay then delivers the full persisted segment — a
-              // blind append would show "half text" + "full text". Detect the
-              // prefix and replace the half-streamed block instead.
-              const lastBlock = lastMsg.blocks[lastMsg.blocks.length - 1]
-              if (
-                lastBlock &&
-                lastBlock.type === 'text' &&
-                lastBlock.metadata?.parent_tool_use_id === atParent &&
-                currentStreamBlockIdsRef.current.has(lastBlock.id) &&
-                text.startsWith(lastBlock.content)
-              ) {
-                lastMsg.blocks[lastMsg.blocks.length - 1] = { ...lastBlock, content: text }
+              // Append-only reconciliation against what's already rendered
+              // (live deltas and/or REST history on a mid-stream join).
+              const r = reconcileReplayedText(lastMsg.blocks, 'text', text, atParent)
+              if (r.action === 'skip') break
+              if (r.action === 'replace') {
+                lastMsg.blocks[r.index] = { ...lastMsg.blocks[r.index], content: text }
               } else {
                 lastMsg.blocks.push({
                   id: nextBlockId(),
@@ -454,19 +444,14 @@ export function useChat() {
             ? ((event as { data?: { content?: string } }).data?.content ?? (event as { content: string }).content)
             : (event as { content: string }).content
           const thinkParent = getParentToolUseId(event)
-          // Mid-stream join dedup (see assistant_text case): skip a replayed
-          // thinking block already present via REST history.
-          if (
-            event.replaying &&
-            content &&
-            lastMsg.blocks.some(
-              (b) =>
-                b.type === 'thinking' &&
-                b.content === content &&
-                b.metadata?.parent_tool_use_id === thinkParent,
-            )
-          ) {
-            break
+          // Replayed thinking: reconcile append-only against what's rendered.
+          if (event.replaying && content) {
+            const r = reconcileReplayedText(lastMsg.blocks, 'thinking', content, thinkParent)
+            if (r.action === 'skip') break
+            if (r.action === 'replace') {
+              lastMsg.blocks[r.index] = { ...lastMsg.blocks[r.index], content }
+              break
+            }
           }
           const lastBlock = lastMsg.blocks[lastMsg.blocks.length - 1]
           if (!event.replaying && lastBlock && lastBlock.type === 'thinking' && lastBlock.metadata?.parent_tool_use_id === thinkParent) {
@@ -762,21 +747,19 @@ export function useChat() {
             ? ((event as { data?: { content?: string } }).data?.content ?? (event as { content: string }).content)
             : (event as { content: string }).content
           const ptParent = getParentToolUseId(event)
-          // Dedup: partial_text is processed immediately on arrival AND
-          // buffered for replay after the REST history lands (the immediate
-          // render gets wiped by setMessages(history)). If the history load
-          // was skipped (empty session) both applications would land — skip
-          // when the exact content is already the trailing text block.
-          if (
-            content &&
-            lastMsg.blocks.some(
-              (b) =>
-                b.type === 'text' &&
-                b.content === content &&
-                b.metadata?.parent_tool_use_id === ptParent,
-            )
-          ) {
-            break
+          // partial_text is the cumulative unflushed tail of the stream. It is
+          // processed immediately on arrival AND buffered for replay after the
+          // REST history lands (the immediate render gets wiped by
+          // setMessages(history)), so it can legitimately arrive twice — and
+          // successive snapshots deliver growing supersets of it. Reconcile
+          // append-only: skip when covered, grow when it extends what we show.
+          if (content) {
+            const r = reconcileReplayedText(lastMsg.blocks, 'text', content, ptParent)
+            if (r.action === 'skip') break
+            if (r.action === 'replace') {
+              lastMsg.blocks[r.index] = { ...lastMsg.blocks[r.index], content }
+              break
+            }
           }
           if (content) {
             lastMsg.blocks.push({
@@ -1051,41 +1034,6 @@ export function useChat() {
           break
       }
 
-      // ------------------------------------------------------------------
-      // Current-stream block tracking (reconnect reconciliation).
-      // `result` ends the turn → clear. Any other event: record the blocks it
-      // added to (or extended in) the trailing assistant message. Replayed
-      // snapshot events are tracked too, so a SECOND reconnect truncates the
-      // rebuilt turn just as cleanly (idempotent across reconnects). Phase 1
-      // replay of older completed turns self-cleans: their replayed `result`
-      // clears the set right after (events arrive chronologically).
-      // ------------------------------------------------------------------
-      if (event.type === 'result') {
-        currentStreamBlockIdsRef.current = new Set()
-      } else {
-        const prevLast = prev[prev.length - 1]
-        const prevIds = new Set(
-          (prevLast?.role === 'assistant' ? prevLast.blocks : []).map((b) => b.id),
-        )
-        const nowLast = updated[updated.length - 1]
-        if (nowLast?.role === 'assistant') {
-          for (const b of nowLast.blocks) {
-            if (!prevIds.has(b.id)) currentStreamBlockIdsRef.current.add(b.id)
-          }
-          // stream_delta/thinking EXTEND the trailing block (same id) — track
-          // it too: a snapshot-created block later extended live holds mixed
-          // content and must be truncated+rebuilt on the next reconnect.
-          if (
-            event.type === 'stream_delta' ||
-            event.type === 'thinking' ||
-            event.type === 'partial_text'
-          ) {
-            const lb = nowLast.blocks[nowLast.blocks.length - 1]
-            if (lb) currentStreamBlockIdsRef.current.add(lb.id)
-          }
-        }
-      }
-
       return updated
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- tracked setters are stable (useCallback with stable deps)
@@ -1107,19 +1055,9 @@ export function useChat() {
         if (status === 'reconnecting') {
           setIsStreaming(false)
           setIsCompacting(false)
-          // Arm snapshot reconciliation: the upcoming replay may re-send the
-          // whole current stream (Phase 1.5b snapshot) — the already-rendered
-          // blocks must be truncated when it arrives. Only relevant once
-          // history is loaded (initial-connect retries have nothing rendered).
-          if (historyLoadedRef.current) {
-            resyncPendingRef.current = true
-          }
         }
       },
       onReplayComplete: () => {
-        // No snapshot arrived during this replay (stream not active) — disarm
-        // so a later unrelated replay can't truncate anything.
-        resyncPendingRef.current = false
         setIsReplaying(false)
         setIsLoadingHistory(false)
         // Flush messages that failed on a dead socket (their failure triggered
@@ -1186,10 +1124,6 @@ export function useChat() {
     // will be queued in pendingEventsRef and replayed after setMessages().
     historyLoadedRef.current = false
     pendingEventsRef.current = []
-    // Reset reconnect-reconciliation state: block ids from the previous
-    // session must never be truncated out of the new session's messages.
-    resyncPendingRef.current = false
-    currentStreamBlockIdsRef.current = new Set()
 
     // Phase 1: Connect WS IMMEDIATELY for live streaming (parallel with REST).
     // This eliminates the latency of the old sequential approach where

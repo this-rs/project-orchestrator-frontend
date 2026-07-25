@@ -173,31 +173,56 @@ describe('useChat (regression: reconnect snapshot must not duplicate the in-flig
     expect(toolBlocks).toHaveLength(1)
   })
 
-  it('is idempotent across TWO consecutive reconnects (snapshot-rebuilt blocks are truncated again)', async () => {
+  it('is idempotent across TWO consecutive reconnects (cumulative snapshots grow the block, never duplicate it)', async () => {
     const { result, ws } = await setupConnectedChat()
 
     act(() => {
       ws.callbacks.onEvent({ type: 'stream_delta', text: 'Hello' })
     })
 
-    for (let i = 0; i < 2; i++) {
+    // partial_text is the server's CUMULATIVE unflushed buffer: each snapshot
+    // is a superset of the previous one (that is what the backend actually
+    // sends — see get_streaming_snapshot).
+    const snapshots = ['Hello world', 'Hello world, and more']
+    for (const content of snapshots) {
       act(() => {
         ws.callbacks.onStatusChange('reconnecting')
       })
       act(() => {
-        ws.callbacks.onEvent({
-          type: 'partial_text',
-          content: `Hello v${i + 1}`,
-          seq: 0,
-          replaying: true,
-        })
+        ws.callbacks.onEvent({ type: 'partial_text', content, seq: 0, replaying: true })
         ws.callbacks.onReplayComplete()
       })
     }
 
+    // One block that GREW to the latest snapshot — no duplication, no loss.
     const texts = textBlocks(result)
     expect(texts).toHaveLength(1)
-    expect(texts[0].content).toBe('Hello v2')
+    expect(texts[0].content).toBe('Hello world, and more')
+  })
+
+  it('NEVER deletes already-rendered content when a snapshot does not cover it (regression: vanishing responses)', async () => {
+    const { result, ws } = await setupConnectedChat()
+
+    // A completed-looking turn whose `result` never arrived (interrupt,
+    // backend restart, dormant session...).
+    act(() => {
+      ws.callbacks.onEvent({ type: 'stream_delta', text: 'Réponse précédente importante' })
+    })
+
+    // Later, a reconnect happens and the server sends a snapshot for a
+    // DIFFERENT/NEW stream that does not contain the previous turn.
+    act(() => {
+      ws.callbacks.onStatusChange('reconnecting')
+    })
+    act(() => {
+      ws.callbacks.onEvent({ type: 'partial_text', content: 'Nouveau tour', seq: 0, replaying: true })
+      ws.callbacks.onReplayComplete()
+    })
+
+    // The load-bearing assertion: the earlier response is STILL displayed.
+    const contents = textBlocks(result).map((b) => b.content)
+    expect(contents).toContain('Réponse précédente importante')
+    expect(contents).toContain('Nouveau tour')
   })
 
   it('deduplicates snapshot events against blocks already rendered (mid-stream JOIN, no reconnect)', async () => {
