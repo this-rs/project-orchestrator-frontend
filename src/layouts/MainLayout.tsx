@@ -7,7 +7,7 @@ import { ToastContainer, Branding } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher'
-import { useMediaQuery, useCrudEventRefresh, useDragRegion, useWindowFullscreen, useViewTransition, useWorkspace } from '@/hooks'
+import { useMediaQuery, useCrudEventRefresh, useModelCatalogEvents, useDragRegion, useWindowFullscreen, useViewTransition, useWorkspace } from '@/hooks'
 import type { NavDirection } from '@/hooks'
 import { isTauri } from '@/services/env'
 import { workspacesApi } from '@/services/workspaces'
@@ -202,6 +202,7 @@ export function MainLayout() {
 
   // Connect to WebSocket CRUD event bus and auto-refresh pages
   useCrudEventRefresh()
+  useModelCatalogEvents()
 
   // Enable native window dragging on the header bar (Tauri desktop)
   const onDragMouseDown = useDragRegion()
