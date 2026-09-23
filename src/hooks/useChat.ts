@@ -218,6 +218,8 @@ export function useChat() {
   // Without this, the optimistic bubble showed but the message never left the
   // device — stuck typing indicator, response visible only on other devices.
   const pendingSendRef = useRef<string[]>([])
+  /** Invalidates an in-flight REST resync (newer resync or session switch). */
+  const resyncGenRef = useRef(0)
 
   // Lazily create the ChatWebSocket singleton per hook instance
   const getWs = useCallback(() => {
@@ -1138,6 +1140,84 @@ export function useChat() {
   }, [setIsStreaming, setPermissionOverride, setSessionModel, setAutoContinue, setIsCompacting, setBackgroundTasks])
 
   // ========================================================================
+  // REST resync — after a reconnect that the server cannot replay
+  // ========================================================================
+  /**
+   * Rebuild the conversation tail from REST.
+   *
+   * The server only replays persisted events to a client that sends a real
+   * `last_event`. This hook connects with Number.MAX_SAFE_INTEGER ("history
+   * comes from REST") and live events carry `seq: 0`, so the socket's
+   * lastEventSeq never became real: EVERY reconnect — tab back from the
+   * background, zombie socket, network switch, events_lagged — asked the
+   * server to replay nothing, and whatever happened while the socket was down
+   * never reached the screen. The only way out was switching conversations,
+   * which reloads from REST. This performs that reload automatically, driven
+   * by ChatWebSocket's `onResync` — also on the first connection of a
+   * brand-new session, whose stream starts server-side before the socket
+   * subscribes.
+   *
+   * Same mechanics as opening a conversation: live events are buffered
+   * (historyLoadedRef = false) until the history is in place, then replayed
+   * through handleEvent, whose snapshot-vs-history dedup already covers them.
+   * Unlike opening, the current messages stay on screen while REST loads.
+   */
+  const resyncFromRest = useCallback((sid: string) => {
+    // Browsing an older window (search result): the tail is not on screen,
+    // live events are parked in pendingTailEventsRef, and loadNewerMessages
+    // reloads the tail from REST when the user scrolls back to it.
+    if (!isAtTailRef.current) return
+    // A history load is already running (conversation opening, or a resync
+    // for a previous reconnect) and will bring the tail itself.
+    if (!historyLoadedRef.current) return
+
+    const gen = ++resyncGenRef.current
+    historyLoadedRef.current = false
+    pendingEventsRef.current = []
+
+    chatApi
+      .getMessages(sid, { limit: 1, offset: 0 })
+      .then(async (meta) => {
+        const total = meta.total_count
+        const loadOffset = Math.max(0, total - PAGE_SIZE)
+        const data =
+          total === 0
+            ? { messages: [], total_count: 0 }
+            : await chatApi.getMessages(sid, { limit: PAGE_SIZE, offset: loadOffset })
+        if (gen !== resyncGenRef.current) return
+
+        setMessages(historyEventsToMessages(data.messages))
+        paginationRef.current = {
+          offset: loadOffset,
+          tailOffset: loadOffset + data.messages.length,
+          totalCount: data.total_count,
+        }
+        setHasOlderMessages(loadOffset > 0)
+        setHasNewerMessages(false)
+        isAtTailRef.current = true
+
+        // A finished turn at the end of the persisted history means nothing
+        // is streaming: clears an optimistic typing indicator whose `result`
+        // was missed. A stream that starts later announces itself with a
+        // live streaming_status.
+        const last = data.messages[data.messages.length - 1] as { type?: string } | undefined
+        if (last?.type === 'result') setIsStreaming(false)
+      })
+      .catch(() => {
+        // Keep what is on screen; the next reconnect retries.
+      })
+      .finally(() => {
+        if (gen !== resyncGenRef.current) return
+        historyLoadedRef.current = true
+        const pending = pendingEventsRef.current
+        pendingEventsRef.current = []
+        for (const evt of pending) {
+          handleEvent(evt)
+        }
+      })
+  }, [handleEvent, setIsStreaming])
+
+  // ========================================================================
   // Setup WS callbacks
   // ========================================================================
   useEffect(() => {
@@ -1154,6 +1234,10 @@ export function useChat() {
           setIsStreaming(false)
           setIsCompacting(false)
         }
+      },
+      onResync: () => {
+        const sid = ws.sessionId
+        if (sid) resyncFromRest(sid)
       },
       onReplayComplete: () => {
         setIsReplaying(false)
@@ -1175,7 +1259,7 @@ export function useChat() {
         }
       },
     })
-  }, [getWs, handleEvent, setWsStatus, setIsReplaying, setIsStreaming, setIsCompacting])
+  }, [getWs, handleEvent, resyncFromRest, setWsStatus, setIsReplaying, setIsStreaming, setIsCompacting])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -1191,6 +1275,7 @@ export function useChat() {
     if (!sessionId) return
 
     const ws = getWs()
+    resyncGenRef.current++
 
     // First-send path: the user just sent the first message of a new conversation.
     // The optimistic user message is already in `messages` — do NOT reset it.
@@ -1199,7 +1284,9 @@ export function useChat() {
       isFirstSendRef.current = false
       paginationRef.current = { offset: 0, tailOffset: 0, totalCount: 0 }
       setHasOlderMessages(false)
-      ws.connect(sessionId, Number.MAX_SAFE_INTEGER)
+      // The server started streaming when the session was created, before
+      // this socket subscribes: resync from REST once it is authenticated.
+      ws.connect(sessionId, Number.MAX_SAFE_INTEGER, { resync: true })
       return
     }
 
