@@ -9,7 +9,7 @@ import { UpdateBanner } from '@/components/UpdateBanner'
 import { WebUpdateBanner } from '@/components/ui/WebUpdateBanner'
 import { useTrayNavigation } from '@/hooks'
 import { isTauri } from '@/services/env'
-import { activeWorkspaceSlugAtom, modelCatalogAtom, fetchModelCatalog, isAuthenticatedAtom } from '@/atoms'
+import { activeWorkspaceSlugAtom, modelCatalogAtom, modelCatalogLoadedAtom, fetchModelCatalog } from '@/atoms'
 import { workspacePath } from '@/utils/paths'
 import {
   LoginPage,
@@ -71,22 +71,24 @@ function TrayNavigationCapture() {
 }
 
 /**
- * Kicks off the live Claude model catalog fetch on app load and again
- * whenever auth transitions to authenticated (see `atoms/modelCatalog.ts`).
- * The second trigger matters because `/chat/models` is an authenticated
- * route — the boot-time attempt 401s during the pre-login setup wizard, so
- * without this the catalog would stay on the static fallback for the rest
- * of the session even after logging in (client-side routing, no reload).
+ * Kicks off the live Claude model catalog fetch on app load
+ * (see `atoms/modelCatalog.ts`).
+ *
+ * A single boot-time fetch is enough: `/api/chat/models` is a PUBLIC route,
+ * so the pre-login setup wizard gets the real catalog too. It used to be
+ * authenticated, which made the boot attempt 401 on the wizard and pinned the
+ * selector to a hardcoded fallback — hence the second, auth-triggered fetch
+ * that used to live here.
+ *
  * Must render inside <Provider> so `useSetAtom` has jotai context. Renders
- * nothing — the model selector already has a static fallback while this
- * resolves.
+ * nothing; consumers show a loading state until the catalog resolves.
  */
 function ModelCatalogLoader() {
   const setModels = useSetAtom(modelCatalogAtom)
-  const isAuthenticated = useAtomValue(isAuthenticatedAtom)
+  const setLoaded = useSetAtom(modelCatalogLoadedAtom)
   useEffect(() => {
-    fetchModelCatalog(setModels)
-  }, [setModels, isAuthenticated])
+    fetchModelCatalog(setModels, setLoaded)
+  }, [setModels, setLoaded])
   return null
 }
 

@@ -19,8 +19,31 @@ export type EntityType =
   | 'note'
   | 'chat_session'
   | 'protocol_run'
+  | 'alert'
+  | 'persona'
+  | 'skill'
+  | 'protocol'
+  | 'runner'
+  | 'episode'
+  | 'analysis_profile'
+  | 'feature_graph'
+  | 'learning'
+  | 'lifecycle_hook'
+  | 'topology_rule'
+  | 'trigger'
 
-export type CrudAction = 'created' | 'updated' | 'deleted' | 'linked' | 'unlinked' | 'progress'
+export type CrudAction =
+  | 'created'
+  | 'updated'
+  | 'deleted'
+  | 'linked'
+  | 'unlinked'
+  | 'progress'
+  | 'synced'
+  | 'status_changed'
+  | 'collected'
+  | 'patterns_detected'
+  | 'feedback_patterns_detected'
 
 export interface CrudEvent {
   entity_type: EntityType

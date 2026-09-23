@@ -1,156 +1,199 @@
 // ============================================================================
-// Model definitions — single source of truth for all LLM model references
+// Model presentation layer
+//
+// The catalog itself is NOT defined here. It is served by the backend
+// (`GET /api/chat/models`, see backend/src/chat/model_catalog.rs) and held in
+// `modelCatalogAtom`. This module only turns a backend-supplied model into
+// pixels: colors, grouping, and label fallbacks.
+//
+// Why colors live here and not in the API payload: Tailwind v4 runs with no
+// config and no safelist, so a utility class is only emitted when it appears
+// verbatim in a scanned source file. A class arriving over the wire from a
+// Rust file would be purged from the production bundle — silently, with no
+// build error and no failing test. Every class below is therefore a literal.
 // ============================================================================
 
-/** Definition of a selectable model in the UI */
+export type ModelFamily = 'opus' | 'fable' | 'sonnet' | 'haiku' | 'mythos' | 'other'
+export type ModelTier = 'current' | 'legacy'
+
+/** A selectable model, as served by the backend catalog. */
 export interface ModelDefinition {
-  /** Official Anthropic API model ID (e.g. "claude-sonnet-4-6") */
+  /** Official Anthropic API model ID (e.g. "claude-sonnet-5") */
   id: string
-  /** Short display label for compact UI (e.g. "Sonnet 4.6") */
+  /** Model family, lowercase */
+  family: ModelFamily
+  /** Version as displayed, e.g. "5.5". May be empty. */
+  version: string
+  /** Whether the model is in the active lineup or kept for compatibility */
+  tier: ModelTier
+  /** Short display label for compact UI (e.g. "Sonnet 5") */
   shortLabel: string
-  /** Full marketing name (e.g. "Claude Sonnet 4.6") */
+  /** Full marketing name (e.g. "Claude Sonnet 5") */
   fullLabel: string
-  /** Tailwind dot color class (e.g. "bg-blue-400") */
-  dotColor: string
-  /** One-line description for selection cards */
+  /** One-line description for selection cards (may be empty when uncurated) */
   description: string
 }
 
 /**
- * Available models for selection in the UI.
+ * Last-resort default model ID.
  *
- * To add a new model, add an entry here — all UI components (ChatInput,
- * ChatPage, ModelChangedBlock, etc.) will pick it up automatically.
+ * Only reached when the backend advertises no `default_model`
+ * (see `ChatInput`: `sessionModel ?? serverConfig?.default_model ?? DEFAULT_MODEL_ID`).
+ * Keep in sync with `ChatConfig::default_model` in backend/src/chat/config.rs.
  */
-export const AVAILABLE_MODELS: readonly ModelDefinition[] = [
-  {
-    id: 'claude-opus-5',
-    shortLabel: 'Opus 5',
-    fullLabel: 'Claude Opus 5',
-    dotColor: 'bg-violet-500',
-    description: 'Latest flagship — most advanced reasoning & agentic work',
-  },
-  {
-    id: 'claude-sonnet-5',
-    shortLabel: 'Sonnet 5',
-    fullLabel: 'Claude Sonnet 5',
-    dotColor: 'bg-rose-500',
-    description: 'Most capable — demanding reasoning & long-horizon agentic work',
-  },
-  {
-    id: 'claude-fable-5',
-    shortLabel: 'Fable 5',
-    fullLabel: 'Claude Fable 5',
-    dotColor: 'bg-rose-400',
-    description: 'Previous generation — superseded by Sonnet 5',
-  },
-  {
-    id: 'claude-opus-4-8',
-    shortLabel: 'Opus 4.8',
-    fullLabel: 'Claude Opus 4.8',
-    dotColor: 'bg-violet-500',
-    description: 'Most intelligent — complex reasoning',
-  },
-  {
-    id: 'claude-opus-4-7',
-    shortLabel: 'Opus 4.7',
-    fullLabel: 'Claude Opus 4.7',
-    dotColor: 'bg-violet-400',
-    description: 'Previous Opus — complex reasoning',
-  },
-  {
-    id: 'claude-opus-4-6',
-    shortLabel: 'Opus 4.6',
-    fullLabel: 'Claude Opus 4.6',
-    dotColor: 'bg-violet-300',
-    description: 'Older Opus — complex reasoning',
-  },
-  {
-    id: 'claude-sonnet-4-6',
-    shortLabel: 'Sonnet 4.6',
-    fullLabel: 'Claude Sonnet 4.6',
-    dotColor: 'bg-blue-400',
-    description: 'Fast & capable — best for most tasks',
-  },
-  {
-    id: 'claude-haiku-4-5',
-    shortLabel: 'Haiku 4.5',
-    fullLabel: 'Claude Haiku 4.5',
-    dotColor: 'bg-emerald-400',
-    description: 'Fastest — lightweight tasks',
-  },
-] as const
-
-/** Default model ID used when no override is set */
-export const DEFAULT_MODEL_ID = 'claude-sonnet-4-6'
+export const DEFAULT_MODEL_ID = 'claude-sonnet-5'
 
 // ============================================================================
-// Lookup helpers — graceful fallback for unknown model IDs
+// Family presentation
 // ============================================================================
 
-/** Lookup map for O(1) access */
-const modelById = new Map(AVAILABLE_MODELS.map((m) => [m.id, m]))
+const FAMILIES: readonly ModelFamily[] = ['opus', 'fable', 'sonnet', 'haiku', 'mythos', 'other']
+
+/** Display order of family groups in the selector. */
+export const FAMILY_ORDER: readonly ModelFamily[] = FAMILIES
+
+export const FAMILY_LABEL: Record<ModelFamily, string> = {
+  opus: 'Opus',
+  fable: 'Fable',
+  sonnet: 'Sonnet',
+  haiku: 'Haiku',
+  mythos: 'Mythos',
+  other: 'Other',
+}
 
 /**
- * Extract a human-readable short label from a model ID.
+ * Family → Tailwind dot color.
  *
- * For known models, returns the curated shortLabel (e.g. "Sonnet 4.6").
- * For unknown models, parses the ID to produce a sensible fallback
- * (e.g. "claude-foo-bar-7" → "Foo Bar 7").
+ * Every value MUST be a literal class string (see the module header).
+ * Never build one by interpolation.
+ */
+const FAMILY_DOT_COLOR: Record<ModelFamily, string> = {
+  opus: 'bg-violet-500',
+  fable: 'bg-rose-500',
+  sonnet: 'bg-blue-500',
+  haiku: 'bg-emerald-400',
+  mythos: 'bg-amber-500',
+  other: 'bg-slate-400',
+}
+
+/** Narrow an arbitrary backend string to a known family. */
+export function asModelFamily(value: string | undefined): ModelFamily {
+  return FAMILIES.includes(value as ModelFamily) ? (value as ModelFamily) : 'other'
+}
+
+/** Tailwind dot color for a family. */
+export function getFamilyDotColor(family: string | undefined): string {
+  return FAMILY_DOT_COLOR[asModelFamily(family)]
+}
+
+// ============================================================================
+// Fallbacks for a bare model ID
+//
+// Used where only an ID is available and the catalog entry is not at hand —
+// e.g. a model recorded on an old chat session that no longer exists in the
+// live catalog. These mirror `derive_family_version` / `compose_short_label`
+// in backend/src/chat/model_catalog.rs.
+// ============================================================================
+
+/** `"claude-opus-5-5"` → `"opus"`; unknown families → `"other"`. */
+export function parseModelFamily(modelId: string): ModelFamily {
+  const parts = modelId.replace(/^claude-/, '').split('-')
+  return asModelFamily(FAMILIES.find((f) => parts.some((p) => p.toLowerCase() === f)))
+}
+
+/**
+ * `"claude-opus-5-5"` → `"Opus 5.5"`.
+ *
+ * Trailing numeric segments are joined with dots; anything before them is
+ * capitalized. Produces the same label the backend curates for every current
+ * model ID, so it stays correct without carrying a copy of the catalog.
  */
 export function getModelShortLabel(modelId: string): string {
-  const known = modelById.get(modelId)
-  if (known) return known.shortLabel
+  const parts = modelId.replace(/^claude-/, '').split('-')
 
-  // Fallback: parse model ID into readable label
-  // "claude-sonnet-4-5" → "Sonnet 4 5" → "Sonnet 4.5"
-  const withoutPrefix = modelId.replace(/^claude-/, '')
-  // Split by hyphens, capitalize first letter of each segment
-  const parts = withoutPrefix.split('-')
-
-  // Heuristic: group trailing numeric segments with dots (e.g. "4-6" → "4.6")
-  const textParts: string[] = []
   const numParts: string[] = []
-  let inNumbers = false
-  for (const part of parts) {
-    if (/^\d+$/.test(part)) {
-      inNumbers = true
-      numParts.push(part)
-    } else {
-      if (inNumbers) {
-        textParts.push(numParts.join('.'))
-        numParts.length = 0
-        inNumbers = false
-      }
-      textParts.push(part.charAt(0).toUpperCase() + part.slice(1))
-    }
-  }
-  if (numParts.length > 0) {
-    textParts.push(numParts.join('.'))
+  for (let i = parts.length - 1; i >= 0; i--) {
+    if (/^\d+$/.test(parts[i])) numParts.unshift(parts[i])
+    else break
   }
 
-  return textParts.join(' ') || modelId
+  const textParts = parts
+    .slice(0, parts.length - numParts.length)
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+
+  const label = [...textParts, numParts.join('.')].filter(Boolean).join(' ')
+  return label || modelId
 }
 
-/**
- * Get the Tailwind dot color class for a model.
- *
- * Known models return their curated color. Unknown models get a
- * family-based heuristic (opus=violet, haiku=emerald, default=blue).
- */
+/** Tailwind dot color inferred from a bare model ID. */
 export function getModelDotColor(modelId: string): string {
-  const known = modelById.get(modelId)
-  if (known) return known.dotColor
+  return FAMILY_DOT_COLOR[parseModelFamily(modelId)]
+}
 
-  // Family-based fallback
-  if (modelId.includes('opus')) return 'bg-violet-400'
-  if (modelId.includes('haiku')) return 'bg-emerald-400'
-  return 'bg-blue-400' // sonnet / default
+// ============================================================================
+// Grouping
+// ============================================================================
+
+export interface ModelFamilyGroup {
+  family: ModelFamily
+  label: string
+  dotColor: string
+  models: ModelDefinition[]
 }
 
 /**
- * Get the description for a model (empty string for unknown models).
+ * Group a catalog into family sections, in `FAMILY_ORDER`, preserving the
+ * backend's ordering within each family (current lineup before legacy).
+ * Empty families are omitted.
  */
-export function getModelDescription(modelId: string): string {
-  return modelById.get(modelId)?.description ?? ''
+export function groupModelsByFamily(models: readonly ModelDefinition[]): ModelFamilyGroup[] {
+  return FAMILY_ORDER.map((family) => ({
+    family,
+    label: FAMILY_LABEL[family],
+    dotColor: FAMILY_DOT_COLOR[family],
+    models: models.filter((m) => asModelFamily(m.family) === family),
+  })).filter((g) => g.models.length > 0)
+}
+
+// ============================================================================
+// Versions within a family
+// ============================================================================
+
+/**
+ * Compare two display versions numerically, segment by segment:
+ * "4.10" > "4.9", "5" < "5.5". Non-numeric segments compare as 0.
+ */
+export function compareVersions(a: string, b: string): number {
+  const pa = a.split('.').map((n) => Number.parseInt(n, 10) || 0)
+  const pb = b.split('.').map((n) => Number.parseInt(n, 10) || 0)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0)
+    if (diff !== 0) return diff
+  }
+  return 0
+}
+
+/** A family's models ordered oldest → newest, the natural direction of a slider. */
+export function sortByVersionAscending(models: readonly ModelDefinition[]): ModelDefinition[] {
+  return [...models].sort((a, b) => compareVersions(a.version, b.version))
+}
+
+/**
+ * Which version a family's slider should show when the picker opens.
+ *
+ * The active model if it belongs to this family; otherwise the family's
+ * current-lineup model (the one Anthropic recommends), falling back to the
+ * newest version when the family has no current model at all.
+ */
+export function defaultModelForFamily(
+  models: readonly ModelDefinition[],
+  activeModelId: string,
+): ModelDefinition | undefined {
+  if (models.length === 0) return undefined
+  const active = models.find((m) => m.id === activeModelId)
+  if (active) return active
+  const ascending = sortByVersionAscending(models)
+  const current = ascending.filter((m) => m.tier === 'current')
+  const pool = current.length > 0 ? current : ascending
+  return pool[pool.length - 1]
 }

@@ -1,12 +1,13 @@
-import { memo, useState, useRef, useCallback, useEffect } from 'react'
+import { memo, useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
-import { chatDraftInputAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom, modelCatalogAtom } from '@/atoms'
-import { DEFAULT_MODEL_ID, getModelShortLabel, getModelDotColor } from '@/constants/models'
+import { chatDraftInputAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom, modelCatalogAtom, modelCatalogLoadedAtom } from '@/atoms'
+import { DEFAULT_MODEL_ID, getModelShortLabel, getModelDotColor, groupModelsByFamily } from '@/constants/models'
 import { chatApi } from '@/services/chat'
 import { useIsMobile } from '@/hooks'
 import type { PermissionMode } from '@/types'
 import { ChevronDown, Loader2, Square, ArrowRight } from 'lucide-react'
 import { BackgroundTasksIndicator } from './BackgroundTasksIndicator'
+import { ModelFamilyPicker, type ModelSelectOptions } from './ModelFamilyPicker'
 
 const MODE_LABELS: Record<PermissionMode, string> = {
   bypassPermissions: 'Bypass',
@@ -55,6 +56,8 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
   const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
   const autoContinue = useAtomValue(chatAutoContinueAtom)
   const availableModels = useAtomValue(modelCatalogAtom)
+  const catalogLoaded = useAtomValue(modelCatalogLoadedAtom)
+  const modelGroups = useMemo(() => groupModelsByFamily(availableModels), [availableModels])
   const [showModeDropdown, setShowModeDropdown] = useState(false)
   const [showModelDropdown, setShowModelDropdown] = useState(false)
   const [modeJustChanged, setModeJustChanged] = useState(false)
@@ -214,7 +217,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     setTimeout(() => setModeJustChanged(false), 1000)
   }
 
-  const handleSelectModel = (modelId: string) => {
+  const handleSelectModel = (modelId: string, { close }: ModelSelectOptions = { close: true }) => {
     if (sessionId && onChangeModel) {
       // Active session — send WS message for mid-session model change
       onChangeModel(modelId)
@@ -222,7 +225,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
       // No session yet — set atom directly (used at session creation)
       setSessionModel(modelId)
     }
-    setShowModelDropdown(false)
+    if (close) setShowModelDropdown(false)
     // Visual feedback: brief highlight
     setModelJustChanged(true)
     setTimeout(() => setModelJustChanged(false), 1000)
@@ -233,8 +236,9 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     // indicator on notched devices (inset collapses to 0 when the
     // keyboard is open, so no double padding).
     <div className="border-t border-white/[0.06] px-3 pt-0.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex flex-col gap-1">
-      {/* Per-session mode & model selectors */}
-      <div className="flex items-center gap-3">
+      {/* Per-session mode & model selectors. `relative` makes this row the
+          model picker's containing block on mobile (see below). */}
+      <div className="relative flex items-center gap-3">
         {/* Permission mode selector */}
         <div className="flex items-center gap-1.5" ref={dropdownRef}>
           <span className="text-[10px] text-gray-500">Mode:</span>
@@ -281,7 +285,11 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
         {/* Model selector — always visible (new conversation + active session) */}
         <div className="flex items-center gap-1.5" ref={modelDropdownRef}>
           <span className="text-[10px] text-gray-500">Model:</span>
-          <div className="relative">
+          {/* Positioned only from `sm` up. Below that the picker's containing
+              block is the whole toolbar row, so it spans the input's width
+              instead of hanging off a button that sits mid-row — anchored to
+              the button, a phone-width screen pushed it off the right edge. */}
+          <div className="sm:relative">
             <button
               onClick={() => { setShowModelDropdown(!showModelDropdown); setShowModeDropdown(false) }}
               className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border text-gray-300 hover:bg-white/[0.06] transition-all duration-300 ${
@@ -295,23 +303,16 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
               <ChevronDown className="w-2.5 h-2.5 text-gray-500" />
             </button>
             {showModelDropdown && (
-              <div className="absolute bottom-full left-0 mb-1 z-20 w-52 bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl py-1">
-                {availableModels.map((opt) => {
-                  const isActive = effectiveModel === opt.id
-                  return (
-                    <button
-                      key={opt.id}
-                      onClick={() => handleSelectModel(opt.id)}
-                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${
-                        isActive ? 'text-gray-100 bg-white/[0.04]' : 'text-gray-400 hover:bg-white/[0.04] hover:text-gray-200'
-                      }`}
-                    >
-                      <span className={`w-1.5 h-1.5 rounded-full ${opt.dotColor}`} />
-                      <span>{opt.shortLabel}</span>
-                      <span className="text-[9px] text-gray-600 ml-auto font-mono">{opt.id.replace('claude-', '').slice(0, 15)}</span>
-                    </button>
-                  )
-                })}
+              <div
+                data-testid="model-picker-popover"
+                className="absolute bottom-full left-0 right-0 sm:right-auto sm:w-64 mb-1 z-20 max-h-[min(18rem,45dvh)] overflow-y-auto overscroll-contain bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl"
+              >
+                <ModelFamilyPicker
+                  groups={modelGroups}
+                  activeModelId={effectiveModel}
+                  loaded={catalogLoaded}
+                  onSelect={handleSelectModel}
+                />
               </div>
             )}
           </div>

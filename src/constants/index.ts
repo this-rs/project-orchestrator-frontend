@@ -1,8 +1,15 @@
 export {
-  AVAILABLE_MODELS,
   DEFAULT_MODEL_ID,
+  FAMILY_ORDER,
+  FAMILY_LABEL,
+  asModelFamily,
+  getFamilyDotColor,
+  parseModelFamily,
   getModelShortLabel,
   getModelDotColor,
-  getModelDescription,
+  groupModelsByFamily,
+  compareVersions,
+  sortByVersionAscending,
+  defaultModelForFamily,
 } from './models'
-export type { ModelDefinition } from './models'
+export type { ModelDefinition, ModelFamily, ModelTier, ModelFamilyGroup } from './models'
