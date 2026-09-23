@@ -16,7 +16,6 @@ import { PermissionSettingsPanel } from './PermissionSettingsPanel'
 import { SessionBreadcrumb } from './SessionBreadcrumb'
 import { DiscussionTreeView } from '@/components/discussions/DiscussionTreeView'
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { createPortal } from 'react-dom'
 import { messagesToMarkdown } from '@/utils/chatExport'
 import { useSetAtom, useAtomValue } from 'jotai'
 import { Link } from 'react-router-dom'
@@ -29,66 +28,6 @@ const MOBILE_BREAKPOINT = 768
 const NOOP = () => {}
 
 /** Small dot indicator for WebSocket status */
-/**
- * DIAGNOSTIC ONLY — live visual-viewport readout.
- *
- * Enabling: visit any URL containing `?vvdebug` ONCE — the flag is captured
- * at MODULE LOAD (before the SPA router strips the query string on its boot
- * redirect, which is why the render-time check never saw it) and persisted
- * in localStorage. Disable with `?vvdebug=off`.
- *
- * Rendered through a PORTAL to document.body: the chat panel carries
- * Tailwind translate-x-* classes, and a `position: fixed` element inside a
- * transformed ancestor is positioned relative to THAT ancestor — offscreen
- * when the panel is closed (translate-x-full).
- */
-const VV_DEBUG_KEY = 'po.vvdebug'
-const vvDebugEnabled = (() => {
-  try {
-    const search = window.location.search + window.location.hash
-    if (search.includes('vvdebug=off')) {
-      localStorage.removeItem(VV_DEBUG_KEY)
-      return false
-    }
-    if (search.includes('vvdebug')) {
-      localStorage.setItem(VV_DEBUG_KEY, '1')
-      return true
-    }
-    return localStorage.getItem(VV_DEBUG_KEY) === '1'
-  } catch {
-    return false
-  }
-})()
-
-function VvDebugBadge({ compensating }: { compensating: boolean }) {
-  const [, forceTick] = useState(0)
-  useEffect(() => {
-    const vv = window.visualViewport
-    const tick = () => forceTick((n) => n + 1)
-    const interval = setInterval(tick, 500)
-    vv?.addEventListener('resize', tick)
-    vv?.addEventListener('scroll', tick)
-    return () => {
-      clearInterval(interval)
-      vv?.removeEventListener('resize', tick)
-      vv?.removeEventListener('scroll', tick)
-    }
-  }, [])
-  const vv = window.visualViewport
-  return createPortal(
-    <div className="fixed left-2 top-2 z-[100] rounded bg-black/80 px-2 py-1 font-mono text-[10px] leading-tight text-lime-300 pointer-events-none">
-      <div>build: vv-fix-4 (4bcf914+)</div>
-      <div>innerH: {window.innerHeight}</div>
-      <div>vv.h: {vv ? Math.round(vv.height) : 'N/A'}</div>
-      <div>vv.top: {vv ? Math.round(vv.offsetTop) : 'N/A'}</div>
-      <div>gap: {vv ? Math.round(window.innerHeight - vv.height) : 'N/A'}</div>
-      <div>scrollY: {Math.round(window.scrollY)} / docEl: {Math.round(document.scrollingElement?.scrollTop ?? -1)}</div>
-      <div>compensating: {compensating ? 'YES' : 'no'}</div>
-    </div>,
-    document.body,
-  )
-}
-
 function WsStatusDot({ status }: { status: string }) {
   if (status === 'connected') {
     return <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" title="Connected" />
@@ -149,9 +88,6 @@ export function ChatPanel() {
   const keyboardStyle = keyboardBox !== undefined
     ? { height: keyboardBox.height, bottom: 'auto' as const }
     : undefined
-  // Diagnostic overlay — sticky flag captured at module load (the SPA boot
-  // redirect strips the query string before render-time checks can see it).
-  const vvDebug = vvDebugEnabled
 
   // Detect mobile viewport
   useEffect(() => {
@@ -336,7 +272,6 @@ export function ChatPanel() {
         className={`fixed inset-0 z-30 bg-surface-raised flex ${isDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
         style={keyboardStyle}
       >
-        {vvDebug && <VvDebugBadge compensating={keyboardBox !== undefined} />}
         {/* Left sidebar — hidden on mobile, permanent on desktop */}
         {/* Desktop: static sidebar */}
         <div className="hidden md:flex w-72 shrink-0 border-r border-white/[0.06] flex-col">
@@ -616,7 +551,6 @@ export function ChatPanel() {
       className={`fixed z-30 bg-surface-raised border-l border-border-subtle flex flex-col ${isDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isOpen ? 'translate-x-0' : 'translate-x-full'} top-0 right-0 bottom-0 w-full`}
       style={{ maxWidth: isMobile ? undefined : panelWidth, ...keyboardStyle }}
     >
-      {vvDebug && <VvDebugBadge compensating={keyboardBox !== undefined} />}
       {/* Resize handle — hidden on mobile (panel takes full width) */}
       <div
         onMouseDown={handleMouseDown}
