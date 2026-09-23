@@ -171,6 +171,29 @@ export const ChatMessages = memo(function ChatMessages({
     }
   }, [messages, isReplaying, scrollToTurn])
 
+  // Keep the view pinned to the bottom when the CONTAINER resizes — the
+  // mobile keyboard shrinks the panel (visual-viewport compensation in
+  // ChatPanel). A height change keeps scrollTop, so the TOP of the visible
+  // content stays fixed and the latest messages slide out below: the user
+  // suddenly sees older messages ("le chat remonte"). If they were near the
+  // bottom before the resize, glue them back to it.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    let prevHeight = el.clientHeight
+    const ro = new ResizeObserver(() => {
+      const h = el.clientHeight
+      if (h !== prevHeight) {
+        prevHeight = h
+        if (shouldAutoScrollRef.current && scrollToTurn === null) {
+          el.scrollTop = el.scrollHeight
+        }
+      }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [scrollToTurn])
+
   // Scroll to target message when replay completes
   useEffect(() => {
     if (isReplaying || scrollToTurn === null || messages.length === 0) return

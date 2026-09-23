@@ -295,4 +295,74 @@ describe('useChat (regression: reconnect snapshot must not duplicate the in-flig
     expect(texts).toHaveLength(1)
     expect(texts[0].content).toBe('Hello world, complete.')
   })
+
+  it('reconciles across a message boundary — snapshot of a stream spanning a queued user message does not restack turn 1', async () => {
+    const { result, ws } = await setupConnectedChat()
+
+    // One CLI stream spanning TWO assistant messages: a queued mid-stream
+    // user send creates the [A1, U2, A2] structure. The snapshot replays
+    // since STREAM start — turn-1 events included. Before the fix, the
+    // reconciliation only scanned the LAST message (A2), never matched the
+    // turn-1 content living in A1, and re-appended it into A2 on EVERY
+    // reconnect: "le même contenu plusieurs fois, sans dedup".
+    act(() => {
+      ws.callbacks.onEvent({ type: 'stream_delta', text: 'Turn one text' })
+      ws.callbacks.onEvent({ type: 'tool_use', tool: 'Bash', id: 't1', input: {} })
+      ws.callbacks.onEvent({ type: 'user_message', content: 'Question 2' })
+      ws.callbacks.onEvent({ type: 'stream_delta', text: 'Turn two' })
+    })
+
+    // Two reconnects, each replaying the full snapshot since stream start.
+    for (let i = 0; i < 2; i++) {
+      act(() => {
+        ws.callbacks.onStatusChange('reconnecting')
+      })
+      act(() => {
+        ws.callbacks.onEvent({ type: 'assistant_text', data: { content: 'Turn one text' }, seq: 0, replaying: true })
+        ws.callbacks.onEvent({ type: 'tool_use', data: { tool: 'Bash', id: 't1', input: {} }, seq: 0, replaying: true })
+        ws.callbacks.onEvent({ type: 'user_message', data: { content: 'Question 2' }, seq: 0, replaying: true })
+        ws.callbacks.onEvent({ type: 'partial_text', content: 'Turn two', seq: 0, replaying: true })
+        ws.callbacks.onReplayComplete()
+      })
+    }
+
+    const texts = textBlocks(result).map((b) => b.content)
+    expect(texts.filter((t) => t.includes('Turn one text'))).toHaveLength(1)
+    expect(texts.filter((t) => t.includes('Turn two'))).toHaveLength(1)
+    const toolBlocks = result.current.messages.flatMap((m) => m.blocks).filter((b) => b.type === 'tool_use')
+    expect(toolBlocks).toHaveLength(1)
+    const userMsgs = result.current.messages.filter((m) => m.role === 'user')
+    expect(userMsgs).toHaveLength(1)
+  })
+
+  it('deduplicates a replayed permission_request across reconnects while the request is pending', async () => {
+    const { result, ws } = await setupConnectedChat()
+
+    // Live permission request, still unanswered.
+    act(() => {
+      ws.callbacks.onEvent({ type: 'permission_request', tool: 'Bash', id: 'perm-1', input: {} })
+    })
+
+    // Every reconnect during a pending permission re-sends it via the
+    // snapshot. Before the fix there was NO replay dedup on this event type.
+    for (let i = 0; i < 2; i++) {
+      act(() => {
+        ws.callbacks.onStatusChange('reconnecting')
+      })
+      act(() => {
+        ws.callbacks.onEvent({
+          type: 'permission_request',
+          data: { tool: 'Bash', id: 'perm-1', input: {} },
+          seq: 0,
+          replaying: true,
+        })
+        ws.callbacks.onReplayComplete()
+      })
+    }
+
+    const permBlocks = result.current.messages
+      .flatMap((m) => m.blocks)
+      .filter((b) => b.type === 'permission_request')
+    expect(permBlocks).toHaveLength(1)
+  })
 })

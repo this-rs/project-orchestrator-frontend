@@ -107,7 +107,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     requestAnimationFrame(() => {
       const el = textareaRef.current
       if (!el) return
-      el.focus()
+      // preventScroll: on iOS the default focus behavior scrolls/pans the
+      // page to reveal the field — the visual-viewport compensation already
+      // does, and the extra pan misaligns the fixed panel.
+      el.focus({ preventScroll: true })
       // Place cursor at end of restored draft
       const len = el.value.length
       el.setSelectionRange(len, len)
@@ -123,7 +126,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     requestAnimationFrame(() => {
       const el = textareaRef.current
       if (!el) return
-      el.focus()
+      // preventScroll: on iOS the default focus behavior scrolls/pans the
+      // page to reveal the field — the visual-viewport compensation already
+      // does, and the extra pan misaligns the fixed panel.
+      el.focus({ preventScroll: true })
       const cursorPos = typeof prefill.cursorOffset === 'number'
         ? prefill.text.length - prefill.cursorOffset
         : prefill.text.length
@@ -223,7 +229,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
   }
 
   return (
-    <div className="border-t border-white/[0.06] px-3 pt-0.5 pb-2 flex flex-col gap-1">
+    // pb: with viewport-fit=cover, keep the input clear of the home
+    // indicator on notched devices (inset collapses to 0 when the
+    // keyboard is open, so no double padding).
+    <div className="border-t border-white/[0.06] px-3 pt-0.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex flex-col gap-1">
       {/* Per-session mode & model selectors */}
       <div className="flex items-center gap-3">
         {/* Permission mode selector */}
@@ -346,6 +355,13 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
           // On mobile the return key inserts a newline (sending is via the button);
           // on desktop it submits, so hint the soft keyboard accordingly.
           enterKeyHint={isMobile ? 'enter' : 'send'}
+          // Keep iOS/iPadOS from heuristically treating this as a login
+          // field (AutoFill/password bar above the keyboard). A bare
+          // textarea with no autocomplete hint can get misclassified by
+          // iCloud Keychain / password managers.
+          autoComplete="off"
+          data-1p-ignore="true"
+          data-lpignore="true"
           placeholder="Send a message..."
           className="flex-1 resize-none bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/40 disabled:opacity-50"
         />

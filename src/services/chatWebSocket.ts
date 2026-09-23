@@ -48,6 +48,22 @@ export type ChatWsReplayCompleteCallback = () => void
 
 export class ChatWebSocket {
   private ws: IWebSocket | null = null
+  /**
+   * Generation token guarding the async openSocket() pipeline.
+   *
+   * openSocket awaits fetchWsTicket() then createWebSocket(); a disconnect()
+   * or a newer open attempt during that window CANNOT cancel the in-flight
+   * one. Without this token the stale attempt resolves later, reassigns
+   * `this.ws` with LIVE handlers bound to the OLD session, and connect()'s
+   * early-return then adopts it — `_sessionId` says B while the socket
+   * streams A. That is the "I receive another conversation's text" bug.
+   *
+   * Every open attempt captures `++this.generation`; the token is
+   * re-checked after each await and inside every socket callback. A stale
+   * attempt closes its socket and walks away. disconnect() also bumps the
+   * token so in-flight attempts die even when no new attempt follows.
+   */
+  private generation = 0
   private _lastEventSeq: number = 0
   private reconnectAttempts: number = 0
   private reconnectDelay: number = MIN_RECONNECT_DELAY
@@ -118,12 +134,21 @@ export class ChatWebSocket {
    * or via a one-time ?ticket= query param (Tauri/WKWebView fallback).
    */
   async connect(sessionId: string, lastEventSeq: number = 0) {
-    // Close existing connection if switching sessions
-    if (this.ws && this._sessionId !== sessionId) {
+    // Close existing connection if switching sessions. Also covers the
+    // in-flight case (this.ws still null while openSocket awaits the
+    // ticket): disconnect() bumps the generation, killing that attempt.
+    if (this._sessionId !== null && this._sessionId !== sessionId) {
       this.disconnect()
     }
 
-    if (this.ws?.readyState === ReadyState.OPEN || this.ws?.readyState === ReadyState.CONNECTING) {
+    // Reuse the current socket ONLY when it demonstrably serves this very
+    // session. The generation guard in openSocket prevents stale sockets
+    // from ever landing in this.ws, but keeping the session check explicit
+    // makes the invariant local and future-proof.
+    if (
+      this._sessionId === sessionId &&
+      (this.ws?.readyState === ReadyState.OPEN || this.ws?.readyState === ReadyState.CONNECTING)
+    ) {
       return
     }
 
@@ -141,6 +166,10 @@ export class ChatWebSocket {
   }
 
   private async openSocket(sessionId: string, lastEventSeq: number) {
+    // New open attempt — invalidate every older in-flight attempt and every
+    // callback still bound to a previous socket. See `generation` docs.
+    const gen = ++this.generation
+
     // Reset streaming knowledge for the new connection: the mid-stream
     // snapshot will re-send streaming_status(true) if a stream is actually
     // active. Without this reset, a stream that ENDED while we were zombied
@@ -154,6 +183,11 @@ export class ChatWebSocket {
     // on WebSocket upgrade requests. In browsers the cookie is still sent
     // and takes priority server-side; the ticket is just a fallback.
     const ticket = await fetchWsTicket()
+
+    // A disconnect() or a newer attempt happened while we were fetching the
+    // ticket — this attempt is stale, walk away before opening anything.
+    if (gen !== this.generation) return
+
     const params = new URLSearchParams({ last_event: String(lastEventSeq) })
     if (ticket) params.set('ticket', ticket)
     const url = wsUrl(`/ws/chat/${sessionId}?${params.toString()}`)
@@ -165,8 +199,9 @@ export class ChatWebSocket {
       // so we can't send from the callback. Instead we defer to after assignment.
       let readySent = false
 
-      this.ws = await createWebSocket(url, {
+      const socket = await createWebSocket(url, {
         onopen: () => {
+          if (gen !== this.generation) return
           this.reconnectDelay = MIN_RECONNECT_DELAY
           this.reconnectAttempts = 0
           // In browser mode, this.ws is already assigned (createWebSocket returned
@@ -180,6 +215,13 @@ export class ChatWebSocket {
         },
 
         onmessage: (event: MessageEvent) => {
+          // Stale socket (superseded by a newer connection or an explicit
+          // disconnect): its frames belong to a previous generation —
+          // possibly a DIFFERENT session. Never let them reach callbacks.
+          if (gen !== this.generation) return
+          // Defense in depth: even within a live generation, drop frames if
+          // the manager has moved on to another session.
+          if (this._sessionId !== sessionId) return
           try {
             const data = JSON.parse(event.data as string)
 
@@ -265,6 +307,10 @@ export class ChatWebSocket {
         },
 
         onclose: () => {
+          // A stale socket's close must not null out `this.ws` (it may now
+          // hold the NEW generation's socket) nor schedule a reconnect for a
+          // session we already left.
+          if (gen !== this.generation) return
           this.ws = null
           this._isReplaying = false
           this.authenticated = false
@@ -281,12 +327,30 @@ export class ChatWebSocket {
         },
       })
 
+      // Superseded while the socket was opening (Tauri connect is async;
+      // browser can still hit this via microtask ordering): close the
+      // orphan and leave `this.ws` alone — it belongs to the newer attempt.
+      if (gen !== this.generation) {
+        socket.onmessage = null
+        socket.onclose = null
+        socket.onerror = null
+        try {
+          socket.close()
+        } catch {
+          // Best effort — the socket may never have finished opening.
+        }
+        return
+      }
+
+      this.ws = socket
+
       // In Tauri mode, onopen fired during init() when this.ws was still null,
       // so "ready" wasn't sent yet. Send it now that this.ws is assigned.
       if (!readySent && this.ws && this.ws.readyState === ReadyState.OPEN) {
         this.ws.send('"ready"')
       }
     } catch {
+      if (gen !== this.generation) return
       this.scheduleReconnect()
     }
   }
@@ -295,6 +359,10 @@ export class ChatWebSocket {
    * Disconnect from the WebSocket
    */
   disconnect() {
+    // Kill any in-flight openSocket() attempt (awaiting the ticket or the
+    // socket): its post-await generation checks will fail and it will
+    // discard its socket instead of resurrecting the old session.
+    this.generation++
     this.shouldReconnect = false
     this.gaveUp = false
     this._isReplaying = false

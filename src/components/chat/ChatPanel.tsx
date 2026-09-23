@@ -1,6 +1,6 @@
 import { useAtom } from 'jotai'
 import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom } from '@/atoms'
-import { useChat, useDetachedRuns, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
+import { useChat, useDetachedRuns, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { chatApi } from '@/services/chat'
 import { Plus, X, Menu, Settings, Minimize2, Maximize2, Loader2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check } from 'lucide-react'
 import { ChatMessages } from './ChatMessages'
@@ -74,6 +74,20 @@ export function ChatPanel() {
 
   // Show extra top padding on Tauri desktop (non-fullscreen) to clear native traffic lights
   const trafficLightPad = isTauri && !isWindowFullscreen
+
+  // Mobile soft-keyboard compensation: the panel is `position: fixed` and
+  // sized against the LAYOUT viewport, which iOS does not shrink when the
+  // keyboard opens — the input bar then floats above dead space. The hook
+  // returns a PASSIVE height covering [0, visualViewport bottom]: the
+  // panel's bottom edge lands on the keyboard top wherever iOS pans the
+  // visual viewport, with NO scroll manipulation and no moving `top`
+  // (scroll-fighting variants stuttered — reverted). `undefined` (desktop,
+  // keyboard closed, Android with interactive-widget=resizes-content)
+  // keeps the pure-CSS layout.
+  const keyboardBox = useVisualViewportHeight(isOpen)
+  const keyboardStyle = keyboardBox !== undefined
+    ? { height: keyboardBox.height, bottom: 'auto' as const }
+    : undefined
 
   // Detect mobile viewport
   useEffect(() => {
@@ -256,6 +270,7 @@ export function ChatPanel() {
       <div
         ref={panelRef}
         className={`fixed inset-0 z-30 bg-surface-raised flex ${isDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        style={keyboardStyle}
       >
         {/* Left sidebar — hidden on mobile, permanent on desktop */}
         {/* Desktop: static sidebar */}
@@ -534,7 +549,7 @@ export function ChatPanel() {
     <div
       ref={panelRef}
       className={`fixed z-30 bg-surface-raised border-l border-border-subtle flex flex-col ${isDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isOpen ? 'translate-x-0' : 'translate-x-full'} top-0 right-0 bottom-0 w-full`}
-      style={{ maxWidth: isMobile ? undefined : panelWidth }}
+      style={{ maxWidth: isMobile ? undefined : panelWidth, ...keyboardStyle }}
     >
       {/* Resize handle — hidden on mobile (panel takes full width) */}
       <div

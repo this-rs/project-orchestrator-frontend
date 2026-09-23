@@ -27,22 +27,74 @@ const PAGE_SIZE = 50
  * Never returns anything that removes rendered content.
  */
 function reconcileReplayedText(
-  blocks: ReadonlyArray<{ type: string; content: string; metadata?: Record<string, unknown> }>,
+  window: ReadonlyArray<StreamWindowEntry>,
   type: 'text' | 'thinking',
   text: string,
   parent: string | undefined,
-): { action: 'skip' } | { action: 'replace'; index: number } | { action: 'append' } {
+): { action: 'skip' } | { action: 'replace'; mi: number; bi: number } | { action: 'append' } {
   if (!text) return { action: 'skip' }
 
-  for (let i = blocks.length - 1; i >= 0; i--) {
-    const b = blocks[i]
+  for (let i = window.length - 1; i >= 0; i--) {
+    const { block: b, mi, bi } = window[i]
     if (b.type !== type || b.metadata?.parent_tool_use_id !== parent) continue
     // Already rendered verbatim, or merged into a larger block by live deltas.
     if (b.content === text || b.content.includes(text)) return { action: 'skip' }
     // Half-streamed segment: the rendered block is a prefix of the full one.
-    if (b.content && text.startsWith(b.content)) return { action: 'replace', index: i }
+    if (b.content && text.startsWith(b.content)) return { action: 'replace', mi, bi }
   }
   return { action: 'append' }
+}
+
+/** One rendered block plus its (message index, block index) coordinates. */
+interface StreamWindowEntry {
+  mi: number
+  bi: number
+  block: { type: string; content: string; metadata?: Record<string, unknown> }
+}
+
+/**
+ * Collect the blocks of the CURRENT STREAM as a reconciliation window.
+ *
+ * The Phase 1.5b snapshot replays the stream from its START, and one stream
+ * can span SEVERAL messages: queued mid-stream sends insert user bubbles,
+ * after which handleEvent opens a fresh assistant message. Reconciling
+ * against only the last message therefore compares the replayed turn-1
+ * content with an empty/partial turn-2 message and re-appends everything —
+ * the "same content stacked several times" bug.
+ *
+ * Window = every assistant block after the last COMPLETED turn. A completed
+ * turn is detected by the result metrics stamped on the assistant message
+ * (`duration_ms` / `cost_usd` — set by the live `result` event); the last
+ * message never acts as a boundary so a snapshot racing a just-finished
+ * stream still reconciles against it. User messages are skipped but do NOT
+ * stop the scan. Capped at the trailing 30 messages as a safety bound.
+ */
+function currentStreamWindow(messages: ReadonlyArray<ChatMessage>): StreamWindowEntry[] {
+  let start = Math.max(0, messages.length - 30)
+  for (let mi = messages.length - 2; mi >= start; mi--) {
+    const msg = messages[mi]
+    if (msg.role === 'assistant' && (msg.duration_ms != null || msg.cost_usd != null)) {
+      start = mi + 1
+      break
+    }
+  }
+  const entries: StreamWindowEntry[] = []
+  for (let mi = start; mi < messages.length; mi++) {
+    const msg = messages[mi]
+    if (msg.role !== 'assistant') continue
+    for (let bi = 0; bi < msg.blocks.length; bi++) {
+      entries.push({ mi, bi, block: msg.blocks[bi] })
+    }
+  }
+  return entries
+}
+
+/** True when any block in the current stream window matches the predicate. */
+function streamWindowHas(
+  window: ReadonlyArray<StreamWindowEntry>,
+  predicate: (block: StreamWindowEntry['block']) => boolean,
+): boolean {
+  return window.some((entry) => predicate(entry.block))
 }
 
 export interface SendMessageOptions {
@@ -382,12 +434,40 @@ export function useChat() {
     setMessages((prev) => {
       const updated = [...prev]
       let lastMsg = updated[updated.length - 1]
+      // Track whether THIS event forced a fresh assistant boundary — if the
+      // window-based reconciliation then skips the event as already
+      // rendered, the empty boundary message is popped before returning.
+      let createdBoundary = false
       if (!lastMsg || lastMsg.role !== 'assistant') {
         lastMsg = { id: nextMessageId(), role: 'assistant', blocks: [], timestamp: new Date() }
         updated.push(lastMsg)
+        createdBoundary = true
       } else {
         lastMsg = { ...lastMsg, blocks: [...lastMsg.blocks] }
         updated[updated.length - 1] = lastMsg
+      }
+
+      // Reconciliation window: the whole current stream, not just lastMsg.
+      // See currentStreamWindow — a stream can span several messages.
+      const streamWindow = currentStreamWindow(updated)
+
+      /** Grow a half-streamed block anywhere in the window (immutably). */
+      const replaceWindowBlock = (mi: number, bi: number, content: string) => {
+        const msg = updated[mi]
+        const blocks = [...msg.blocks]
+        blocks[bi] = { ...blocks[bi], content }
+        updated[mi] = { ...msg, blocks }
+      }
+
+      /** Drop the empty assistant message we just created, if it stayed empty. */
+      const finalize = (result: typeof updated) => {
+        if (createdBoundary) {
+          const tail = result[result.length - 1]
+          if (tail && tail.role === 'assistant' && tail.blocks.length === 0) {
+            return result.slice(0, -1)
+          }
+        }
+        return result
       }
 
       switch (event.type) {
@@ -420,12 +500,12 @@ export function useChat() {
             const text = data?.content ?? content ?? ''
             if (text) {
               const atParent = getParentToolUseId(event)
-              // Append-only reconciliation against what's already rendered
+              // Append-only reconciliation against the whole current stream
               // (live deltas and/or REST history on a mid-stream join).
-              const r = reconcileReplayedText(lastMsg.blocks, 'text', text, atParent)
+              const r = reconcileReplayedText(streamWindow, 'text', text, atParent)
               if (r.action === 'skip') break
               if (r.action === 'replace') {
-                lastMsg.blocks[r.index] = { ...lastMsg.blocks[r.index], content: text }
+                replaceWindowBlock(r.mi, r.bi, text)
               } else {
                 lastMsg.blocks.push({
                   id: nextBlockId(),
@@ -446,10 +526,10 @@ export function useChat() {
           const thinkParent = getParentToolUseId(event)
           // Replayed thinking: reconcile append-only against what's rendered.
           if (event.replaying && content) {
-            const r = reconcileReplayedText(lastMsg.blocks, 'thinking', content, thinkParent)
+            const r = reconcileReplayedText(streamWindow, 'thinking', content, thinkParent)
             if (r.action === 'skip') break
             if (r.action === 'replace') {
-              lastMsg.blocks[r.index] = { ...lastMsg.blocks[r.index], content }
+              replaceWindowBlock(r.mi, r.bi, content)
               break
             }
           }
@@ -487,7 +567,7 @@ export function useChat() {
           if (
             event.replaying &&
             toolId &&
-            lastMsg.blocks.some((b) => b.type === 'tool_use' && b.metadata?.tool_call_id === toolId)
+            streamWindowHas(streamWindow, (b) => b.type === 'tool_use' && b.metadata?.tool_call_id === toolId)
           ) {
             break
           }
@@ -497,7 +577,8 @@ export function useChat() {
             if (questions && questions.length > 0) {
               // Dedup: skip if an ask_user_question block with same tool_call_id already exists
               // (created via the control channel ask_user_question event)
-              const isDupe = toolId && lastMsg.blocks.some(
+              const isDupe = toolId && streamWindowHas(
+                streamWindow,
                 (b) => b.type === 'ask_user_question' && b.metadata?.tool_call_id === toolId,
               )
               if (!isDupe) {
@@ -600,7 +681,7 @@ export function useChat() {
           if (
             event.replaying &&
             toolCallId &&
-            lastMsg.blocks.some((b) => b.type === 'tool_result' && b.metadata?.tool_call_id === toolCallId)
+            streamWindowHas(streamWindow, (b) => b.type === 'tool_result' && b.metadata?.tool_call_id === toolCallId)
           ) {
             break
           }
@@ -651,6 +732,17 @@ export function useChat() {
           const data = event.replaying
             ? (event as { data?: Record<string, unknown> }).data ?? event
             : event
+          // Replay dedup (previously missing): every reconnect during a
+          // pending permission re-sends the request via the snapshot —
+          // without this check the permission block stacked up each time.
+          const prId = (data as { id?: string }).id
+          if (
+            event.replaying &&
+            prId &&
+            streamWindowHas(streamWindow, (b) => b.type === 'permission_request' && b.metadata?.tool_call_id === prId)
+          ) {
+            break
+          }
           const prParent = getParentToolUseId(event)
           lastMsg.blocks.push({
             id: nextBlockId(),
@@ -754,10 +846,10 @@ export function useChat() {
           // successive snapshots deliver growing supersets of it. Reconcile
           // append-only: skip when covered, grow when it extends what we show.
           if (content) {
-            const r = reconcileReplayedText(lastMsg.blocks, 'text', content, ptParent)
+            const r = reconcileReplayedText(streamWindow, 'text', content, ptParent)
             if (r.action === 'skip') break
             if (r.action === 'replace') {
-              lastMsg.blocks[r.index] = { ...lastMsg.blocks[r.index], content }
+              replaceWindowBlock(r.mi, r.bi, content)
               break
             }
           }
@@ -1034,7 +1126,7 @@ export function useChat() {
           break
       }
 
-      return updated
+      return finalize(updated)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- tracked setters are stable (useCallback with stable deps)
   }, [setIsStreaming, setPermissionOverride, setSessionModel, setAutoContinue, setIsCompacting, setBackgroundTasks])
