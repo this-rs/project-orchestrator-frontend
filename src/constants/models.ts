@@ -24,6 +24,13 @@ export interface ModelDefinition {
  */
 export const AVAILABLE_MODELS: readonly ModelDefinition[] = [
   {
+    id: 'claude-opus-5',
+    shortLabel: 'Opus 5',
+    fullLabel: 'Claude Opus 5',
+    dotColor: 'bg-violet-500',
+    description: 'Latest flagship — most advanced reasoning & agentic work',
+  },
+  {
     id: 'claude-sonnet-5',
     shortLabel: 'Sonnet 5',
     fullLabel: 'Claude Sonnet 5',
