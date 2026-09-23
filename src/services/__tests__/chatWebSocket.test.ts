@@ -229,3 +229,83 @@ describe('ChatWebSocket generation token', () => {
     expect(sockets[0].close).not.toHaveBeenCalled()
   })
 })
+
+// ---------------------------------------------------------------------------
+// onResync — reconnects the server cannot replay
+// ---------------------------------------------------------------------------
+//
+// useChat connects with last_event = MAX_SAFE_INTEGER (history comes from
+// REST) and live frames carry seq 0, so on a reconnect the server replays
+// NOTHING. Before onResync, everything emitted while the socket was down
+// (tab in background, zombie socket, events_lagged) was silently lost until
+// the user switched conversations.
+
+describe('ChatWebSocket onResync', () => {
+  /** Connect, authenticate, then force a reconnect via events_lagged. */
+  async function connectThenReconnect(lastEventSeq: number, options?: { resync?: boolean }) {
+    const ws = new ChatWebSocket()
+    const order: string[] = []
+    ws.setCallbacks({
+      onResync: () => order.push('resync'),
+      onEvent: (e) => order.push(`event:${e.type}`),
+    })
+    const { sockets, open } = deferSockets(2)
+
+    const connecting = ws.connect('session-a', lastEventSeq, options)
+    await flush()
+    open(0)
+    await connecting
+    sockets[0].receive({ type: 'auth_ok' })
+    const afterFirstAuth = [...order]
+
+    sockets[0].receive({ type: 'events_lagged', skipped: 12 })
+    await flush()
+    open(1)
+    await flush()
+    order.length = 0
+    sockets[1].receive({ type: 'auth_ok' })
+    sockets[1].receive({ type: 'stream_delta', text: 'x', seq: 0 })
+    return { ws, sockets, open, order, afterFirstAuth }
+  }
+
+  it('fires on a reconnect in skip-replay mode, before any further frame', async () => {
+    const { order, afterFirstAuth } = await connectThenReconnect(Number.MAX_SAFE_INTEGER)
+    expect(afterFirstAuth).toEqual([])
+    expect(order).toEqual(['resync', 'event:stream_delta'])
+  })
+
+  it('does not fire when the server can replay from a real seq', async () => {
+    const { order } = await connectThenReconnect(42)
+    expect(order).toEqual(['event:stream_delta'])
+  })
+
+  it('fires on the first auth when requested, exactly once', async () => {
+    const { order, afterFirstAuth } = await connectThenReconnect(Number.MAX_SAFE_INTEGER, { resync: true })
+    expect(afterFirstAuth).toEqual(['resync'])
+    // The reconnect still resyncs (skip mode) — once, not twice.
+    expect(order).toEqual(['resync', 'event:stream_delta'])
+  })
+
+  it('treats the first connection after disconnect() as a fresh open, not a reconnect', async () => {
+    const ws = new ChatWebSocket()
+    const onResync = vi.fn()
+    ws.setCallbacks({ onResync })
+    const { sockets, open } = deferSockets(2)
+
+    const a = ws.connect('session-a', Number.MAX_SAFE_INTEGER)
+    await flush()
+    open(0)
+    await a
+    sockets[0].receive({ type: 'auth_ok' })
+
+    ws.disconnect()
+    const b = ws.connect('session-b', Number.MAX_SAFE_INTEGER)
+    await flush()
+    open(1)
+    await b
+    sockets[1].receive({ type: 'auth_ok' })
+
+    // The caller loads REST itself when opening a session: no resync.
+    expect(onResync).not.toHaveBeenCalled()
+  })
+})

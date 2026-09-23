@@ -42,9 +42,27 @@ const MAX_RECONNECT_ATTEMPTS = 10
 const STALL_TIMEOUT_MS = 60_000
 const STALL_CHECK_INTERVAL_MS = 20_000
 
+/**
+ * `last_event` values at or above this mean "do not replay — history comes
+ * from REST" (mirrors SKIP_REPLAY_THRESHOLD in the backend ws_chat_handler).
+ * The main chat connects with Number.MAX_SAFE_INTEGER.
+ */
+export const SKIP_REPLAY_THRESHOLD = 1_000_000_000_000
+
 export type ChatWsEventCallback = (event: ChatEvent & { seq?: number; replaying?: boolean }) => void
 export type ChatWsStatusCallback = (status: WsConnectionStatus) => void
 export type ChatWsReplayCompleteCallback = () => void
+export type ChatWsResyncCallback = () => void
+
+export interface ChatWsConnectOptions {
+  /**
+   * Fire `onResync` once this connection is authenticated, even though it is
+   * not a reconnect. For a brand-new session: the server starts streaming as
+   * soon as the session is created, BEFORE this socket subscribes, and a
+   * skip-replay connection would never see what it missed.
+   */
+  resync?: boolean
+}
 
 export class ChatWebSocket {
   private ws: IWebSocket | null = null
@@ -77,6 +95,16 @@ export class ChatWebSocket {
   private onEvent: ChatWsEventCallback | null = null
   private onStatusChange: ChatWsStatusCallback | null = null
   private onReplayComplete: ChatWsReplayCompleteCallback | null = null
+  private onResync: ChatWsResyncCallback | null = null
+
+  /**
+   * True once a socket for the CURRENT session has been authenticated: the
+   * next `auth_ok` for that session is therefore a reconnect. Reset when the
+   * session changes (disconnect()).
+   */
+  private authedForSession = false
+  /** One-shot request from connect({ resync: true }). */
+  private resyncOnNextAuth = false
 
   /** Timestamp when the page went hidden (visibility-based zombie detection). */
   private hiddenAt: number | null = null
@@ -122,10 +150,20 @@ export class ChatWebSocket {
     onEvent?: ChatWsEventCallback
     onStatusChange?: ChatWsStatusCallback
     onReplayComplete?: ChatWsReplayCompleteCallback
+    /**
+     * The client may have missed events the server will NOT replay: a
+     * reconnect of a skip-replay connection (see `SKIP_REPLAY_THRESHOLD`), or
+     * a first connection opened with `{ resync: true }`. Called synchronously
+     * on `auth_ok`, BEFORE any further frame of that socket is delivered, so
+     * the handler can start buffering before the mid-stream snapshot arrives.
+     * The handler is expected to reload the conversation tail from REST.
+     */
+    onResync?: ChatWsResyncCallback
   }) {
     if (callbacks.onEvent) this.onEvent = callbacks.onEvent
     if (callbacks.onStatusChange) this.onStatusChange = callbacks.onStatusChange
     if (callbacks.onReplayComplete) this.onReplayComplete = callbacks.onReplayComplete
+    if (callbacks.onResync) this.onResync = callbacks.onResync
   }
 
   /**
@@ -133,7 +171,7 @@ export class ChatWebSocket {
    * Auth is handled pre-upgrade: either via HttpOnly cookie (browsers)
    * or via a one-time ?ticket= query param (Tauri/WKWebView fallback).
    */
-  async connect(sessionId: string, lastEventSeq: number = 0) {
+  async connect(sessionId: string, lastEventSeq: number = 0, options: ChatWsConnectOptions = {}) {
     // Close existing connection if switching sessions. Also covers the
     // in-flight case (this.ws still null while openSocket awaits the
     // ticket): disconnect() bumps the generation, killing that attempt.
@@ -154,6 +192,7 @@ export class ChatWebSocket {
 
     this._sessionId = sessionId
     this._lastEventSeq = lastEventSeq
+    if (options.resync) this.resyncOnNextAuth = true
     this.shouldReconnect = true
     this.gaveUp = false
     this._isReplaying = true
@@ -237,7 +276,20 @@ export class ChatWebSocket {
             if (!this.authenticated) {
               if (data.type === 'auth_ok') {
                 this.authenticated = true
+                const isReconnect = this.authedForSession
+                this.authedForSession = true
                 this.setStatus('connected')
+                // A skip-replay connection gets NOTHING replayed on reconnect,
+                // and live events carry `seq: 0`, so `_lastEventSeq` never
+                // becomes a real sequence number: without this, whatever
+                // happened while the socket was down (tab in background,
+                // zombie socket, network switch, events_lagged) was lost
+                // until the user switched conversations.
+                const cannotReplay = this._lastEventSeq >= SKIP_REPLAY_THRESHOLD
+                if (this.resyncOnNextAuth || (isReconnect && cannotReplay)) {
+                  this.resyncOnNextAuth = false
+                  this.onResync?.()
+                }
                 return
               }
               if (data.type === 'auth_error') {
@@ -264,7 +316,8 @@ export class ChatWebSocket {
             // assistant's whole response was in the gap, the UI would sit on
             // "…" while other devices (whose receivers didn't lag) stream fine.
             // Recovery: force-reconnect with _lastEventSeq — the server replays
-            // the gap from its event log (Phase 1 replay) and the UI catches up.
+            // the gap from its event log (Phase 1 replay), or, in skip-replay
+            // mode (useChat), auth_ok fires onResync and the UI reloads from REST.
             if (data.type === 'events_lagged') {
               console.warn(`Chat WS: lagged, ${data.skipped} events skipped — resyncing via replay`)
               this.forceReconnect('events_lagged')
@@ -291,7 +344,7 @@ export class ChatWebSocket {
             // _lastEventSeq is above the skip-replay threshold, accept the first
             // real seq we see — then subsequent events update normally via >.
             if (typeof data.seq === 'number' && data.seq > 0) {
-              if (this._lastEventSeq >= 1_000_000_000_000 || data.seq > this._lastEventSeq) {
+              if (this._lastEventSeq >= SKIP_REPLAY_THRESHOLD || data.seq > this._lastEventSeq) {
                 this._lastEventSeq = data.seq
               }
             }
@@ -367,6 +420,8 @@ export class ChatWebSocket {
     this.gaveUp = false
     this._isReplaying = false
     this.authenticated = false
+    this.authedForSession = false
+    this.resyncOnNextAuth = false
     this.detachVisibilityListener()
     this.detachOnlineListener()
     this.stopStallWatchdog()
