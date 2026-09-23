@@ -8,6 +8,43 @@ import { historyEventsToMessages, nextBlockId, nextMessageId, getParentToolUseId
 /** Number of messages to load per page via REST */
 const PAGE_SIZE = 50
 
+/**
+ * Decide how to apply a REPLAYED text segment (assistant_text / partial_text /
+ * thinking) against what is already rendered — without ever destroying content.
+ *
+ * The server replays the current stream from its start on every connect while
+ * streaming, so the same text can reach us two ways: already rendered live via
+ * stream_delta (which CONCATENATES consecutive segments into a single block),
+ * or already loaded from REST history on a mid-stream join. Live deltas merging
+ * segments is why plain equality is not enough — the rendered block is often a
+ * SUPERSET of the replayed segment.
+ *
+ * - 'skip'    → the segment is already covered by what's rendered
+ * - 'replace' → the rendered block is a strict PREFIX of the segment (the
+ *               connection died mid-segment): grow it to the full text
+ * - 'append'  → genuinely new content
+ *
+ * Never returns anything that removes rendered content.
+ */
+function reconcileReplayedText(
+  blocks: ReadonlyArray<{ type: string; content: string; metadata?: Record<string, unknown> }>,
+  type: 'text' | 'thinking',
+  text: string,
+  parent: string | undefined,
+): { action: 'skip' } | { action: 'replace'; index: number } | { action: 'append' } {
+  if (!text) return { action: 'skip' }
+
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    const b = blocks[i]
+    if (b.type !== type || b.metadata?.parent_tool_use_id !== parent) continue
+    // Already rendered verbatim, or merged into a larger block by live deltas.
+    if (b.content === text || b.content.includes(text)) return { action: 'skip' }
+    // Half-streamed segment: the rendered block is a prefix of the full one.
+    if (b.content && text.startsWith(b.content)) return { action: 'replace', index: i }
+  }
+  return { action: 'append' }
+}
+
 export interface SendMessageOptions {
   cwd: string
   projectSlug?: string
@@ -96,6 +133,27 @@ export function useChat() {
   >(new Map())
   const pendingEventsRef = useRef<Array<ChatEvent & { seq?: number; replaying?: boolean }>>([])
 
+  // ------------------------------------------------------------------------
+  // Replay reconciliation — APPEND-ONLY, NEVER DESTRUCTIVE.
+  //
+  // The server re-sends the ENTIRE current stream on every connect while a
+  // stream is active (Phase 1.5b snapshot: all structured events since stream
+  // start with `replaying: true, seq: 0`, plus a cumulative `partial_text`).
+  // This happens both on reconnects AND on fresh mid-stream joins, where the
+  // REST history ALREADY contains the turn's persisted events. Blind-appending
+  // duplicates the turn.
+  //
+  // An earlier attempt tracked "blocks of the current stream" and DELETED them
+  // when a snapshot arrived, betting the snapshot would rebuild them. That bet
+  // is unsafe: if the snapshot doesn't cover those blocks (turn whose `result`
+  // never arrived, stream that ended between the reconnect trigger and the
+  // handshake, a snapshot for a DIFFERENT turn), the content was erased for
+  // good — responses vanishing from the UI.
+  //
+  // The rule now: replayed events may only be SKIPPED or GROWN, never removed.
+  // See `reconcileReplayedText` and the id-based dedup in tool_use/tool_result.
+  // ------------------------------------------------------------------------
+
   // Outbox for user messages that failed to send on a dead socket.
   // ChatWebSocket.send() now force-reconnects in that case; the queued text is
   // flushed in onReplayComplete, once the reconnected session is consistent.
@@ -168,9 +226,19 @@ export function useChat() {
     // EXCEPTION: streaming_status and partial_text are processed immediately
     // because they provide the instant visual feedback the user expects
     // (seeing the live stream + interrupt button without waiting for REST).
-    if (!historyLoadedRef.current && event.type !== 'streaming_status' && event.type !== 'partial_text') {
-      pendingEventsRef.current.push(event)
-      return
+    if (!historyLoadedRef.current && event.type !== 'streaming_status') {
+      if (event.type === 'partial_text') {
+        // Process NOW for instant visual feedback (user sees the live stream
+        // without waiting for REST), but ALSO buffer a copy: the upcoming
+        // setMessages(history) wipes the immediately-rendered block, and the
+        // partial text (unflushed tail of the stream) is NOT in the persisted
+        // history — without the buffered replay it would be lost until the
+        // next structured event.
+        pendingEventsRef.current.push(event)
+      } else {
+        pendingEventsRef.current.push(event)
+        return
+      }
     }
 
     // Not-at-tail buffering: when in centered pagination mode (user scrolled to
@@ -352,12 +420,20 @@ export function useChat() {
             const text = data?.content ?? content ?? ''
             if (text) {
               const atParent = getParentToolUseId(event)
-              lastMsg.blocks.push({
-                id: nextBlockId(),
-                type: 'text',
-                content: text,
-                metadata: withParent(undefined, atParent),
-              })
+              // Append-only reconciliation against what's already rendered
+              // (live deltas and/or REST history on a mid-stream join).
+              const r = reconcileReplayedText(lastMsg.blocks, 'text', text, atParent)
+              if (r.action === 'skip') break
+              if (r.action === 'replace') {
+                lastMsg.blocks[r.index] = { ...lastMsg.blocks[r.index], content: text }
+              } else {
+                lastMsg.blocks.push({
+                  id: nextBlockId(),
+                  type: 'text',
+                  content: text,
+                  metadata: withParent(undefined, atParent),
+                })
+              }
             }
           }
           // During live: ignore (content already received via stream_delta)
@@ -368,6 +444,15 @@ export function useChat() {
             ? ((event as { data?: { content?: string } }).data?.content ?? (event as { content: string }).content)
             : (event as { content: string }).content
           const thinkParent = getParentToolUseId(event)
+          // Replayed thinking: reconcile append-only against what's rendered.
+          if (event.replaying && content) {
+            const r = reconcileReplayedText(lastMsg.blocks, 'thinking', content, thinkParent)
+            if (r.action === 'skip') break
+            if (r.action === 'replace') {
+              lastMsg.blocks[r.index] = { ...lastMsg.blocks[r.index], content }
+              break
+            }
+          }
           const lastBlock = lastMsg.blocks[lastMsg.blocks.length - 1]
           if (!event.replaying && lastBlock && lastBlock.type === 'thinking' && lastBlock.metadata?.parent_tool_use_id === thinkParent) {
             lastMsg.blocks[lastMsg.blocks.length - 1] = {
@@ -394,6 +479,18 @@ export function useChat() {
           const toolInput = (data as { input?: Record<string, unknown> }).input ?? {}
           const tuParent = getParentToolUseId(event)
           const tuTs = new Date().toISOString()
+
+          // Mid-stream join dedup: the WS snapshot replays the current stream
+          // from its START, but the REST history already contains the events
+          // persisted so far — the same tool_use would be appended twice.
+          // tool_call_id is unique → skip if the block already exists.
+          if (
+            event.replaying &&
+            toolId &&
+            lastMsg.blocks.some((b) => b.type === 'tool_use' && b.metadata?.tool_call_id === toolId)
+          ) {
+            break
+          }
 
           if (toolName === 'AskUserQuestion') {
             const questions = (toolInput as { questions?: unknown[] })?.questions
@@ -497,6 +594,16 @@ export function useChat() {
           const resultStr = typeof resultVal === 'string' ? resultVal : JSON.stringify(resultVal)
           const toolCallId = (data as { id?: string }).id
           const trParent = getParentToolUseId(event)
+
+          // Mid-stream join dedup (see tool_use case): skip if this result
+          // was already loaded via REST history.
+          if (
+            event.replaying &&
+            toolCallId &&
+            lastMsg.blocks.some((b) => b.type === 'tool_result' && b.metadata?.tool_call_id === toolCallId)
+          ) {
+            break
+          }
           // Calculate tool duration from matching tool_use block
           let trDurationMs: number | undefined
           if (toolCallId) {
@@ -640,6 +747,20 @@ export function useChat() {
             ? ((event as { data?: { content?: string } }).data?.content ?? (event as { content: string }).content)
             : (event as { content: string }).content
           const ptParent = getParentToolUseId(event)
+          // partial_text is the cumulative unflushed tail of the stream. It is
+          // processed immediately on arrival AND buffered for replay after the
+          // REST history lands (the immediate render gets wiped by
+          // setMessages(history)), so it can legitimately arrive twice — and
+          // successive snapshots deliver growing supersets of it. Reconcile
+          // append-only: skip when covered, grow when it extends what we show.
+          if (content) {
+            const r = reconcileReplayedText(lastMsg.blocks, 'text', content, ptParent)
+            if (r.action === 'skip') break
+            if (r.action === 'replace') {
+              lastMsg.blocks[r.index] = { ...lastMsg.blocks[r.index], content }
+              break
+            }
+          }
           if (content) {
             lastMsg.blocks.push({
               id: nextBlockId(),

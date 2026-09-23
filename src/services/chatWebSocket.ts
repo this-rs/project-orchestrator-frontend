@@ -31,6 +31,17 @@ const MIN_RECONNECT_DELAY = 1000
 const MAX_RECONNECT_DELAY = 30000
 const MAX_RECONNECT_ATTEMPTS = 10
 
+/**
+ * Stall watchdog: while the server reports an active stream, we expect a
+ * steady flow of messages (deltas, tool events). If NOTHING arrives for this
+ * long, the socket is almost certainly a zombie (network switch, VPN flap,
+ * short sleep — none of which fire `onclose` or `visibilitychange`). Replay +
+ * client-side snapshot reconciliation make a spurious reconnect cheap; a
+ * missed one costs the rest of the stream (user has to reload the page).
+ */
+const STALL_TIMEOUT_MS = 60_000
+const STALL_CHECK_INTERVAL_MS = 20_000
+
 export type ChatWsEventCallback = (event: ChatEvent & { seq?: number; replaying?: boolean }) => void
 export type ChatWsStatusCallback = (status: WsConnectionStatus) => void
 export type ChatWsReplayCompleteCallback = () => void
@@ -54,6 +65,23 @@ export class ChatWebSocket {
   /** Timestamp when the page went hidden (visibility-based zombie detection). */
   private hiddenAt: number | null = null
   private visibilityListenerAttached = false
+
+  /**
+   * True when scheduleReconnect exhausted MAX_RECONNECT_ATTEMPTS. Unlike
+   * `shouldReconnect = false` (explicit disconnect), giving up is RECOVERABLE:
+   * the visibility/online handlers re-arm and retry. Before this flag, max
+   * attempts (~2-3 min of backoff, easily burned by a laptop sleep) silently
+   * killed the connection for good — chunks stopped arriving and only a full
+   * page reload could resurrect the stream.
+   */
+  private gaveUp = false
+
+  /** Timestamp of the last message received (stall watchdog). */
+  private lastMessageAt = 0
+  /** Server-reported streaming state (from streaming_status events). */
+  private serverStreaming = false
+  private stallTimer: ReturnType<typeof setInterval> | null = null
+  private onlineListenerAttached = false
 
   get status(): WsConnectionStatus {
     return this._status
@@ -102,14 +130,25 @@ export class ChatWebSocket {
     this._sessionId = sessionId
     this._lastEventSeq = lastEventSeq
     this.shouldReconnect = true
+    this.gaveUp = false
     this._isReplaying = true
     this.attachVisibilityListener()
+    this.attachOnlineListener()
+    this.startStallWatchdog()
 
     this.setStatus('connecting')
     await this.openSocket(sessionId, lastEventSeq)
   }
 
   private async openSocket(sessionId: string, lastEventSeq: number) {
+    // Reset streaming knowledge for the new connection: the mid-stream
+    // snapshot will re-send streaming_status(true) if a stream is actually
+    // active. Without this reset, a stream that ENDED while we were zombied
+    // would leave serverStreaming=true forever and the stall watchdog would
+    // force a reconnect every STALL_TIMEOUT on an idle session.
+    this.serverStreaming = false
+    this.lastMessageAt = Date.now()
+
     // Fetch a one-time WS ticket before connecting.
     // This works around WKWebView (Tauri) not sending HttpOnly cookies
     // on WebSocket upgrade requests. In browsers the cookie is still sent
@@ -143,6 +182,14 @@ export class ChatWebSocket {
         onmessage: (event: MessageEvent) => {
           try {
             const data = JSON.parse(event.data as string)
+
+            // Stall watchdog bookkeeping
+            this.lastMessageAt = Date.now()
+            if (data.type === 'streaming_status') {
+              this.serverStreaming = !!data.is_streaming
+            } else if (data.type === 'result' && !data.replaying) {
+              this.serverStreaming = false
+            }
 
             // Handle auth response (first message from server)
             if (!this.authenticated) {
@@ -249,9 +296,13 @@ export class ChatWebSocket {
    */
   disconnect() {
     this.shouldReconnect = false
+    this.gaveUp = false
     this._isReplaying = false
     this.authenticated = false
     this.detachVisibilityListener()
+    this.detachOnlineListener()
+    this.stopStallWatchdog()
+    this.serverStreaming = false
     this.hiddenAt = null
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
@@ -378,6 +429,15 @@ export class ChatWebSocket {
 
     console.warn(`Chat WS: force reconnect (${reason})`)
 
+    // Re-arm after exhausted backoff: a force-reconnect is always triggered by
+    // a concrete signal (visibility, online, send attempt), so the environment
+    // changed — start the backoff ladder from scratch.
+    if (this.gaveUp) {
+      this.gaveUp = false
+      this.reconnectAttempts = 0
+      this.reconnectDelay = MIN_RECONNECT_DELAY
+    }
+
     if (this.ws) {
       // Strip handlers BEFORE closing so the zombie's close event can't
       // double-schedule a backoff reconnect on top of the immediate one.
@@ -427,11 +487,34 @@ export class ChatWebSocket {
     const socketDead = !this.ws || this.ws.readyState !== ReadyState.OPEN
     const likelyZombie = hiddenForMs > 45_000 // > server ping interval (30s)
 
-    if (socketDead || likelyZombie) {
+    if (this.gaveUp || socketDead || likelyZombie) {
       this.forceReconnect(
-        socketDead ? 'visible with dead socket' : `visible after ${Math.round(hiddenForMs / 1000)}s hidden`,
+        this.gaveUp
+          ? 'visible after giving up'
+          : socketDead
+            ? 'visible with dead socket'
+            : `visible after ${Math.round(hiddenForMs / 1000)}s hidden`,
       )
     }
+  }
+
+  /**
+   * Network came back (window `online` event). Fires when the OS regains
+   * connectivity — wifi switch, VPN reconnect, wake from short sleep — cases
+   * where the socket dies on the wire with NO close event and NO
+   * visibilitychange (tab stayed visible the whole time). Without this, the
+   * stream silently stops and only a page reload recovers it.
+   */
+  private readonly handleOnline = () => {
+    if (!this._sessionId || !this.shouldReconnect) return
+
+    const socketDead = this.gaveUp || !this.ws || this.ws.readyState !== ReadyState.OPEN
+    if (socketDead) {
+      this.forceReconnect('network back online with dead socket')
+    }
+    // Socket claims OPEN after an offline period → almost certainly a zombie,
+    // but let the stall watchdog / server events arbitrate instead of tearing
+    // down a possibly-healthy connection on every network blip.
   }
 
   private attachVisibilityListener() {
@@ -446,14 +529,61 @@ export class ChatWebSocket {
     this.visibilityListenerAttached = false
   }
 
+  private attachOnlineListener() {
+    if (this.onlineListenerAttached || typeof window === 'undefined') return
+    window.addEventListener('online', this.handleOnline)
+    this.onlineListenerAttached = true
+  }
+
+  private detachOnlineListener() {
+    if (!this.onlineListenerAttached || typeof window === 'undefined') return
+    window.removeEventListener('online', this.handleOnline)
+    this.onlineListenerAttached = false
+  }
+
+  /**
+   * Stall watchdog: detects zombie sockets while a stream is active and the
+   * tab stays visible (no visibilitychange, no close event, no online event —
+   * e.g. a mid-stream router hiccup). If the server says it's streaming but
+   * NOTHING has arrived for STALL_TIMEOUT_MS, force a resync. Reconnect +
+   * snapshot reconciliation is idempotent, so a false positive (very long
+   * silent tool run) costs one cheap replay, while a true positive saves the
+   * stream from being stuck until a manual page reload.
+   */
+  private startStallWatchdog() {
+    if (this.stallTimer) return
+    this.stallTimer = setInterval(() => {
+      if (!this._sessionId || !this.shouldReconnect || this.gaveUp) return
+      if (!this.serverStreaming) return
+      if (this.ws?.readyState !== ReadyState.OPEN) return // reconnect already in flight
+      if (Date.now() - this.lastMessageAt > STALL_TIMEOUT_MS) {
+        this.forceReconnect(
+          `stream stalled (no events for ${Math.round((Date.now() - this.lastMessageAt) / 1000)}s)`,
+        )
+      }
+    }, STALL_CHECK_INTERVAL_MS)
+  }
+
+  private stopStallWatchdog() {
+    if (this.stallTimer) {
+      clearInterval(this.stallTimer)
+      this.stallTimer = null
+    }
+  }
+
   private scheduleReconnect() {
     if (this.reconnectTimer) return
 
     this.reconnectAttempts++
     if (this.reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
-      console.error('Chat WS: max reconnect attempts reached')
+      // Do NOT set shouldReconnect = false: that flag means "explicitly
+      // disconnected" and permanently disables every recovery path (visibility,
+      // online, watchdog, send-on-dead-socket). Giving up after a long offline
+      // stretch must stay recoverable — mark gaveUp and let the visibility/
+      // online handlers re-arm when the environment changes.
+      console.error('Chat WS: max reconnect attempts reached — will retry on visibility/network change')
+      this.gaveUp = true
       this.setStatus('disconnected')
-      this.shouldReconnect = false
       return
     }
 

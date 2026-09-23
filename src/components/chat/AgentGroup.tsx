@@ -2,9 +2,7 @@ import { useState, useMemo } from 'react'
 import type { ContentBlock } from '@/types'
 import { ToolCallBlock } from './ToolCallBlock'
 import { ThinkingBlock } from './ThinkingBlock'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import rehypeHighlight from 'rehype-highlight'
+import { MarkdownText } from './MarkdownText'
 import { ChevronRight } from 'lucide-react'
 
 // ============================================================================
@@ -157,9 +155,7 @@ export function AgentGroup({ parentBlock, childBlocks, allBlocks, isStreaming }:
           {/* Text blocks (agent output) */}
           {childTextBlocks.map((block) => (
             <div key={block.id} className="chat-markdown prose prose-invert prose-sm max-w-none break-words overflow-x-auto text-gray-300/90 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
-                {block.content}
-              </ReactMarkdown>
+              <MarkdownText content={block.content} />
             </div>
           ))}
 

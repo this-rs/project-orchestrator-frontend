@@ -1,9 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import rehypeHighlight from 'rehype-highlight'
+import { memo } from 'react'
 import type { ChatMessage, ContentBlock } from '@/types'
-import { ExternalLink } from '@/components/ui/ExternalLink'
+import { MarkdownText } from './MarkdownText'
 import { ThinkingBlock } from './ThinkingBlock'
 import { ToolCallGroup } from './ToolCallGroup'
 import { AgentGroup } from './AgentGroup'
@@ -20,19 +18,6 @@ import { RetryIndicatorBlock } from './RetryIndicatorBlock'
 import { VizBlockRenderer } from './viz'
 import { CopyMarkdownButton } from './CopyMarkdownButton'
 import { messageBodyToMarkdown } from '@/utils/chatExport'
-
-/**
- * Markdown link component: uses ExternalLink which renders differently
- * in Tauri (no href, onClick only) vs browser (normal <a>).
- */
-const markdownComponents = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  a: ({ href, children, ...props }: any) => (
-    <ExternalLink href={href} {...props}>
-      {children}
-    </ExternalLink>
-  ),
-}
 
 // ============================================================================
 // Agent grouping types & utilities
@@ -162,7 +147,15 @@ interface ChatMessageBubbleProps {
   onContinue?: () => void
 }
 
-export function ChatMessageBubble({ message, isStreaming, onRespondPermission, onRespondInput, onContinue }: ChatMessageBubbleProps) {
+/**
+ * Memoized: `handleEvent` in useChat clones ONLY the message it touches (the
+ * trailing assistant message during streaming) — every other message keeps
+ * reference identity across events. With memo, a stream_delta re-renders one
+ * bubble instead of the whole conversation. The callback props are stable
+ * (useCallback in useChat/ChatPanel) and `isStreaming` is already scoped by
+ * ChatMessages to the last assistant bubble only.
+ */
+export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isStreaming, onRespondPermission, onRespondInput, onContinue }: ChatMessageBubbleProps) {
   if (message.role === 'user') {
     return (
       <div className="flex flex-col items-end mb-4">
@@ -225,9 +218,7 @@ export function ChatMessageBubble({ message, isStreaming, onRespondPermission, o
               if (!block.content && block.metadata) return null
               return (
                 <div key={block.id} className="chat-markdown prose prose-invert prose-sm max-w-none break-words overflow-x-auto [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={markdownComponents}>
-                    {block.content}
-                  </ReactMarkdown>
+                  <MarkdownText content={block.content} />
                 </div>
               )
             }
@@ -395,4 +386,4 @@ export function ChatMessageBubble({ message, isStreaming, onRespondPermission, o
       </div>
     </div>
   )
-}
+})
