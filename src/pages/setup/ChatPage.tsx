@@ -5,7 +5,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar'
 import { setupConfigAtom, chatValidAtom, trayNavigationAtom, type McpSetupStatus } from '@/atoms/setup'
 import { isTauri } from '@/services/env'
 import { useToast } from '@/hooks'
-import { modelCatalogAtom } from '@/atoms'
+import { modelCatalogAtom, modelCatalogLoadedAtom } from '@/atoms'
 import type { CliVersionStatus } from '@/types'
 
 /** Format bytes into a human-readable string (KB, MB, GB). */
@@ -44,6 +44,7 @@ export function ChatPage() {
   const setChatValid = useSetAtom(chatValidAtom)
   const isTrayNavigation = useAtomValue(trayNavigationAtom)
   const availableModels = useAtomValue(modelCatalogAtom)
+  const catalogLoaded = useAtomValue(modelCatalogLoadedAtom)
   const [detectingPath, setDetectingPath] = useState(false)
   const [cliStatus, setCliStatus] = useState<CliVersionStatus | null>(null)
   const [checkingCli, setCheckingCli] = useState(false)
@@ -393,6 +394,13 @@ export function ChatPage() {
       <div className="space-y-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
         <div>
           <label className="mb-3 block text-xs font-medium text-gray-400">Default Model</label>
+          {availableModels.length === 0 && (
+            <p className="text-xs text-gray-500">
+              {catalogLoaded
+                ? 'No models available \u2014 check the backend connection.'
+                : 'Loading models\u2026'}
+            </p>
+          )}
           <div className="grid gap-3 sm:grid-cols-3">
             {availableModels.map((m) => (
               <button
@@ -415,6 +423,9 @@ export function ChatPage() {
                   )}
                 </div>
                 <span className="text-xs text-gray-500">{m.description}</span>
+                {m.tier === 'legacy' && (
+                  <span className="text-[9px] uppercase tracking-wide text-gray-600">legacy</span>
+                )}
               </button>
             ))}
           </div>

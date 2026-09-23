@@ -1,36 +1,41 @@
 import { atom } from 'jotai'
-import { AVAILABLE_MODELS, type ModelDefinition } from '@/constants/models'
+import type { ModelDefinition } from '@/constants/models'
 import { chatApi } from '@/services'
 
 /**
- * Live Claude model catalog — initialized with the static fallback list and
- * refreshed once per app load from the backend (`GET /chat/models`), which
- * itself merges Anthropic's Models API with local curation and caches
- * server-side for hours. See `fetchModelCatalog` below and
- * `backend/src/chat/model_catalog.rs`.
+ * Live Claude model catalog — the single source of truth for which models are
+ * selectable. Served by the backend (`GET /chat/models`), which merges
+ * Anthropic's Models API with local curation and caches server-side for
+ * hours. See `backend/src/chat/model_catalog.rs`.
  *
- * Components should read this atom instead of importing `AVAILABLE_MODELS`
- * directly, so new/renamed models show up without a frontend release.
+ * Starts EMPTY on purpose. There is deliberately no hardcoded frontend copy of
+ * the catalog any more: a second curated list is a second thing to keep in
+ * sync, and the two had already drifted. Consumers must handle the empty state
+ * (see `modelCatalogLoadedAtom`) rather than assume a seed.
  */
-export const modelCatalogAtom = atom<ModelDefinition[]>([...AVAILABLE_MODELS])
+export const modelCatalogAtom = atom<ModelDefinition[]>([])
 
 /**
- * Guards against overlapping calls only (not "already tried once") — the
- * fetch is meant to be retried after a failed attempt. In particular,
- * `/chat/models` is an authenticated route: during the setup wizard
- * (pre-login) it 401s and we silently keep the static fallback, then
- * `ModelCatalogLoader` retries once auth succeeds — see App.tsx.
+ * Whether a catalog fetch has settled (successfully or not). Lets the UI tell
+ * "still loading" apart from "loaded, and genuinely empty".
+ */
+export const modelCatalogLoadedAtom = atom(false)
+
+/**
+ * Guards against overlapping calls only (not "already tried once") — the fetch
+ * is meant to be retried after a failed attempt.
  */
 let fetchInFlight = false
 
 /**
  * Fetch the live model catalog and update `modelCatalogAtom`. Safe to call
- * repeatedly (e.g. on app boot and again after login) — concurrent calls
- * are deduped, but a prior failure does not block a later retry. Silently
- * keeps the current (static or last-known) catalog on any error — offline,
- * unauthenticated, no Anthropic key configured, etc. — never throws.
+ * repeatedly — concurrent calls are deduped, but a prior failure does not
+ * block a later retry. Never throws.
  */
-export function fetchModelCatalog(set: (models: ModelDefinition[]) => void) {
+export function fetchModelCatalog(
+  set: (models: ModelDefinition[]) => void,
+  setLoaded?: (loaded: boolean) => void,
+) {
   if (fetchInFlight) return
   fetchInFlight = true
 
@@ -42,11 +47,12 @@ export function fetchModelCatalog(set: (models: ModelDefinition[]) => void) {
       }
     })
     .catch(() => {
-      // Backend unreachable, unauthenticated, or no Anthropic key
-      // configured — keep whatever is already in the atom. Not worth
-      // surfacing to the user; the model selector still works.
+      // Backend unreachable, or no Anthropic key configured. The route is
+      // public, so this is a genuine outage rather than an auth problem, and
+      // there is nothing useful to tell the user here.
     })
     .finally(() => {
       fetchInFlight = false
+      setLoaded?.(true)
     })
 }
