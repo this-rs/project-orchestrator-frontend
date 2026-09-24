@@ -10,13 +10,47 @@ import type {
   ChatLinkedTask,
   CrudEvent,
   MessageSearchResult,
-  PermissionMode,
   Project,
-  SpawnedBy,
 } from '@/types'
 import { Select, PulseIndicator } from '@/components/ui'
 import { workspacePath } from '@/utils/paths'
-import { Folder, Trash2, Search, X, Loader2, ChevronRight, MessageCircle, Play, GitBranch, ChevronDown, Clock, Pencil, ClipboardList, ScrollText, ListChecks, Eye } from 'lucide-react'
+import {
+  Box,
+  ChevronDown,
+  ChevronRight,
+  ClipboardList,
+  Folder,
+  GitBranch,
+  Hexagon,
+  ListChecks,
+  Loader2,
+  MessageCircle,
+  MoreHorizontal,
+  Pencil,
+  Play,
+  ScrollText,
+  Search,
+  SlidersHorizontal,
+  Trash2,
+  X,
+} from 'lucide-react'
+import {
+  countActiveFilters,
+  formatAbsolute,
+  formatCost,
+  formatDuration,
+  formatMessageCount,
+  formatRelativeShort,
+  groupSessionsByDate,
+  permissionModeMeta,
+  pluralize,
+  sessionDisplayTitle,
+  sessionPreview,
+  sessionScope,
+  shortModelName,
+  shortenPath,
+  spawnLabel,
+} from './sessionListUtils'
 
 interface SessionListProps {
   activeSessionId?: string | null
@@ -28,240 +62,135 @@ interface SessionListProps {
 
 const SESSION_PAGE_SIZE = 30
 
-const MODE_DOT_COLORS: Record<PermissionMode, string> = {
-  bypassPermissions: 'bg-emerald-400',
-  acceptEdits: 'bg-blue-400',
-  default: 'bg-amber-400',
-  plan: 'bg-gray-400',
-}
+/** Shared typography for every secondary line — one size, one muted colour. */
+const META = 'text-[11px] leading-4 text-gray-500'
 
-/** Shorten an absolute path by replacing the home directory with ~ */
-function shortenPath(path: string): string {
-  if (path.startsWith('~/')) return path
-  return path.replace(/^\/(?:Users|home)\/[^/]+\//, '~/')
+/** Middle-dot separator between metadata items (decorative). */
+function Sep() {
+  return <span aria-hidden="true" className="text-gray-700 px-1">·</span>
 }
 
 // ============================================================================
-// Date grouping helpers
-// ============================================================================
-
-type DateGroup = 'Today' | 'Yesterday' | 'This week' | 'This month' | 'Older'
-
-function getDateGroup(dateStr: string): DateGroup {
-  const date = new Date(dateStr)
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-  const weekAgo = new Date(today)
-  weekAgo.setDate(weekAgo.getDate() - 7)
-  const monthAgo = new Date(today)
-  monthAgo.setDate(monthAgo.getDate() - 30)
-
-  if (date >= today) return 'Today'
-  if (date >= yesterday) return 'Yesterday'
-  if (date >= weekAgo) return 'This week'
-  if (date >= monthAgo) return 'This month'
-  return 'Older'
-}
-
-function groupSessionsByDate(sessions: ChatSession[]): { group: DateGroup; sessions: ChatSession[] }[] {
-  const groups = new Map<DateGroup, ChatSession[]>()
-  const order: DateGroup[] = ['Today', 'Yesterday', 'This week', 'This month', 'Older']
-
-  for (const session of sessions) {
-    const group = getDateGroup(session.updated_at)
-    if (!groups.has(group)) groups.set(group, [])
-    groups.get(group)!.push(session)
-  }
-
-  return order.filter((g) => groups.has(g)).map((g) => ({ group: g, sessions: groups.get(g)! }))
-}
-
-// ============================================================================
-// Spawned badge colors by spawn type
-// ============================================================================
-
-const SPAWN_TYPE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
-  runner: { bg: 'bg-blue-500/15', text: 'text-blue-400', label: 'runner' },
-  conversation: { bg: 'bg-violet-500/15', text: 'text-violet-400', label: 'spawned' },
-  delegation: { bg: 'bg-amber-500/15', text: 'text-amber-400', label: 'delegated' },
-}
-
-function SpawnedBadge({ spawnedBy }: { spawnedBy: SpawnedBy }) {
-  const style = SPAWN_TYPE_STYLES[spawnedBy.type] || SPAWN_TYPE_STYLES.conversation
-  return (
-    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-medium ${style.bg} ${style.text} shrink-0`}>
-      <GitBranch className="w-2.5 h-2.5" />
-      {style.label}
-    </span>
-  )
-}
-
-// ============================================================================
-// Linked entity badges (plan / task / RFC) — compact + detailed modes
+// Linked entities (plan / task / RFC) — plain links with a coloured icon
 // ============================================================================
 
 const COMPACT_THRESHOLD = 3 // total linked entities to trigger compact mode
 
-function PlanBadge({ plan, wsSlug }: { plan: ChatLinkedPlan; wsSlug: string }) {
+type LinkedKind = 'plan' | 'rfc' | 'task'
+
+const LINK_META: Record<LinkedKind, { icon: typeof ClipboardList; color: string; label: string; path: string }> = {
+  plan: { icon: ClipboardList, color: 'text-blue-400', label: 'Plan', path: 'plans' },
+  rfc: { icon: ScrollText, color: 'text-purple-400', label: 'RFC', path: 'notes' },
+  task: { icon: ListChecks, color: 'text-amber-400/80', label: 'Task', path: 'tasks' },
+}
+
+function EntityLink({ kind, id, title, source, wsSlug }: { kind: LinkedKind; id: string; title: string; source?: string; wsSlug: string }) {
+  const meta = LINK_META[kind]
+  const Icon = meta.icon
   return (
     <a
-      href={workspacePath(wsSlug, `/plans/${plan.id}`)}
+      href={workspacePath(wsSlug, `/${meta.path}/${id}`)}
       target="_blank"
       rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()}
-      title={`Plan: ${plan.title} (${plan.source})`}
-      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors shrink-0 max-w-[180px]"
+      onKeyDown={(e) => e.stopPropagation()}
+      title={`${meta.label}: ${title}${source ? ` (${source})` : ''}`}
+      aria-label={`${meta.label}: ${title}`}
+      className="inline-flex items-center gap-1 min-w-0 max-w-[14rem] rounded text-gray-400 hover:text-gray-200 hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60"
     >
-      <ClipboardList className="w-2.5 h-2.5 shrink-0" />
-      <span className="truncate">{plan.title}</span>
+      <Icon className={`w-3 h-3 shrink-0 ${meta.color}`} aria-hidden="true" />
+      <span className="truncate">{title}</span>
     </a>
   )
 }
 
-function RfcBadge({ rfc, wsSlug }: { rfc: ChatLinkedRfc; wsSlug: string }) {
+function CountChip({ kind, count }: { kind: LinkedKind; count: number }) {
+  const meta = LINK_META[kind]
+  const Icon = meta.icon
   return (
-    <a
-      href={workspacePath(wsSlug, `/notes/${rfc.id}`)}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={(e) => e.stopPropagation()}
-      title={`RFC: ${rfc.title}`}
-      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-purple-500/15 text-purple-400 hover:bg-purple-500/25 transition-colors shrink-0 max-w-[180px]"
-    >
-      <ScrollText className="w-2.5 h-2.5 shrink-0" />
-      <span className="truncate">{rfc.title}</span>
-    </a>
-  )
-}
-
-function TaskBadge({ task, wsSlug }: { task: ChatLinkedTask; wsSlug: string }) {
-  return (
-    <a
-      href={workspacePath(wsSlug, `/tasks/${task.id}`)}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={(e) => e.stopPropagation()}
-      title={`Task: ${task.title} (${task.source})`}
-      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-amber-500/10 text-amber-400/80 hover:bg-amber-500/20 transition-colors shrink-0 max-w-[180px]"
-    >
-      <ListChecks className="w-2.5 h-2.5 shrink-0" />
-      <span className="truncate">{task.title}</span>
-    </a>
-  )
-}
-
-/** Compact counter pill — shows emoji + count in the entity's color */
-function CountPill({ icon: Icon, count, color }: { icon: typeof ClipboardList; count: number; color: 'blue' | 'purple' | 'amber' }) {
-  const styles = {
-    blue:   'bg-blue-500/15 text-blue-400',
-    purple: 'bg-purple-500/15 text-purple-400',
-    amber:  'bg-amber-500/10 text-amber-400/80',
-  }
-  return (
-    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-semibold tabular-nums ${styles[color]}`}>
-      <Icon className="w-2.5 h-2.5" />
+    <span className="inline-flex items-center gap-0.5 tabular-nums text-gray-400" aria-label={pluralize(count, meta.label)}>
+      <Icon className={`w-3 h-3 ${meta.color}`} aria-hidden="true" />
       {count}
     </span>
   )
 }
 
-/** Smart linked-entities display: compact counters when crowded, inline badges when few.
- *  Also renders the CWD path inline on the same row when provided. */
-function LinkedEntitiesSummary({
+/**
+ * Context line: working directory + linked plans/RFCs/tasks.
+ * Few entities → inline links. Many → per-kind counters + "more" toggle
+ * revealing the full, grouped list.
+ */
+function ContextLine({
   plans, rfcs, tasks, wsSlug, cwd,
 }: {
   plans?: ChatLinkedPlan[]
   rfcs?: ChatLinkedRfc[]
   tasks?: ChatLinkedTask[]
-  wsSlug: string
+  wsSlug: string | null
   cwd?: string | null
 }) {
   const [expanded, setExpanded] = useState(false)
 
-  const planCount = plans?.length ?? 0
-  const rfcCount  = rfcs?.length ?? 0
-  const taskCount = tasks?.length ?? 0
-  const total = planCount + rfcCount + taskCount
+  // Without an active workspace we cannot build entity URLs (same as before).
+  const planList = wsSlug ? plans ?? [] : []
+  const rfcList = wsSlug ? rfcs ?? [] : []
+  const taskList = wsSlug ? tasks ?? [] : []
+  const total = planList.length + rfcList.length + taskList.length
 
-  const cwdElement = cwd ? (
-    <span className="inline-flex items-center gap-0.5 min-w-0 shrink">
-      <Folder className="w-2.5 h-2.5 text-gray-600 shrink-0" />
-      <span className="text-[10px] text-gray-600 truncate">{shortenPath(cwd)}</span>
+  if (!cwd && total === 0) return null
+
+  const cwdEl = cwd ? (
+    <span className="inline-flex items-center gap-1 min-w-0 shrink text-gray-600" title={cwd}>
+      <Folder className="w-3 h-3 shrink-0" aria-hidden="true" />
+      <span className="truncate">{shortenPath(cwd)}</span>
     </span>
   ) : null
 
-  // Nothing linked → just show CWD if present
-  if (total === 0) {
-    return cwdElement ? <div className="flex items-center gap-1 mt-0.5 min-w-0">{cwdElement}</div> : null
-  }
+  const compact = total > COMPACT_THRESHOLD
 
-  // Few entities → show inline badges + CWD on one line
-  if (total <= COMPACT_THRESHOLD) {
-    return (
-      <div className="flex flex-wrap items-center gap-1 mt-1 min-w-0">
-        {cwdElement}
-        {cwdElement && total > 0 && <span className="text-[10px] text-gray-700 shrink-0">&middot;</span>}
-        {plans?.map((p) => <PlanBadge key={p.id} plan={p} wsSlug={wsSlug} />)}
-        {rfcs?.map((r) => <RfcBadge key={r.id} rfc={r} wsSlug={wsSlug} />)}
-        {tasks?.map((t) => <TaskBadge key={t.id} task={t} wsSlug={wsSlug} />)}
-      </div>
-    )
-  }
-
-  // Many entities → CWD + compact counter pills + "voir plus" on one row
   return (
-    <div className="mt-1" onClick={(e) => e.stopPropagation()}>
-      {/* Compact summary row */}
-      <div className="flex items-center gap-1 min-w-0">
-        {cwdElement}
-        {cwdElement && <span className="text-[10px] text-gray-700 shrink-0">&middot;</span>}
-        {planCount > 0 && <CountPill icon={ClipboardList} count={planCount} color="blue" />}
-        {rfcCount > 0  && <CountPill icon={ScrollText} count={rfcCount} color="purple" />}
-        {taskCount > 0 && <CountPill icon={ListChecks} count={taskCount} color="amber" />}
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-white/[0.06] text-gray-400 hover:bg-white/[0.10] hover:text-gray-300 transition-colors ml-0.5 shrink-0"
-        >
-          <Eye className="w-2.5 h-2.5" />
-          {expanded ? 'masquer' : 'voir plus'}
-        </button>
+    <div className={`${META} mt-1 min-w-0`}>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
+        {cwdEl}
+        {!compact && (
+          <>
+            {planList.map((p) => <EntityLink key={p.id} kind="plan" id={p.id} title={p.title} source={p.source} wsSlug={wsSlug!} />)}
+            {rfcList.map((r) => <EntityLink key={r.id} kind="rfc" id={r.id} title={r.title} wsSlug={wsSlug!} />)}
+            {taskList.map((t) => <EntityLink key={t.id} kind="task" id={t.id} title={t.title} source={t.source} wsSlug={wsSlug!} />)}
+          </>
+        )}
+        {compact && (
+          <span className="inline-flex items-center gap-2 shrink-0">
+            {planList.length > 0 && <CountChip kind="plan" count={planList.length} />}
+            {rfcList.length > 0 && <CountChip kind="rfc" count={rfcList.length} />}
+            {taskList.length > 0 && <CountChip kind="task" count={taskList.length} />}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v) }}
+              onKeyDown={(e) => e.stopPropagation()}
+              aria-expanded={expanded}
+              className="px-1 -mx-1 rounded text-indigo-400/80 hover:text-indigo-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60"
+            >
+              {expanded ? 'less' : 'more'}
+            </button>
+          </span>
+        )}
       </div>
 
-      {/* Expanded structured detail view */}
-      {expanded && (
-        <div className="mt-1.5 rounded-md border border-white/[0.08] bg-white/[0.03] p-2 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
-          {planCount > 0 && (
-            <div>
-              <div className="text-[9px] text-blue-400/60 font-medium uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                <ClipboardList className="w-2.5 h-2.5" /> Plans
+      {compact && expanded && (
+        <div className="mt-1.5 pl-2 border-l border-white/[0.06] space-y-1">
+          {(['plan', 'rfc', 'task'] as const).map((kind) => {
+            const items: { id: string; title: string; source?: string }[] =
+              kind === 'plan' ? planList : kind === 'rfc' ? rfcList : taskList
+            if (items.length === 0) return null
+            return (
+              <div key={kind} className="flex flex-col gap-0.5 min-w-0">
+                {items.map((it) => (
+                  <EntityLink key={it.id} kind={kind} id={it.id} title={it.title} source={it.source} wsSlug={wsSlug!} />
+                ))}
               </div>
-              <div className="flex flex-wrap gap-1">
-                {plans!.map((p) => <PlanBadge key={p.id} plan={p} wsSlug={wsSlug} />)}
-              </div>
-            </div>
-          )}
-          {rfcCount > 0 && (
-            <div>
-              <div className="text-[9px] text-purple-400/60 font-medium uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                <ScrollText className="w-2.5 h-2.5" /> RFCs
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {rfcs!.map((r) => <RfcBadge key={r.id} rfc={r} wsSlug={wsSlug} />)}
-              </div>
-            </div>
-          )}
-          {taskCount > 0 && (
-            <div>
-              <div className="text-[9px] text-amber-400/60 font-medium uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                <ListChecks className="w-2.5 h-2.5" /> Tasks
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {tasks!.map((t) => <TaskBadge key={t.id} task={t} wsSlug={wsSlug} />)}
-              </div>
-            </div>
-          )}
+            )
+          })}
         </div>
       )}
     </div>
@@ -269,58 +198,51 @@ function LinkedEntitiesSummary({
 }
 
 // ============================================================================
-// Expandable children indicator
+// Expandable children (detached runs spawned by this session)
 // ============================================================================
-
-function formatDuration(startedAt: string): string {
-  const start = new Date(startedAt).getTime()
-  const now = new Date().getTime()
-  const diffMs = now - start
-  const diffMins = Math.floor(diffMs / 60000)
-  if (diffMins < 1) return '<1m'
-  if (diffMins < 60) return `${diffMins}m`
-  const diffHours = Math.floor(diffMins / 60)
-  return `${diffHours}h ${diffMins % 60}m`
-}
 
 function ChildrenIndicator({ sessionId, onSelect }: { sessionId: string; onSelect: (id: string, turnIndex?: number, title?: string) => void }) {
   const { runs, isLoading } = useDetachedRuns(sessionId)
   const [expanded, setExpanded] = useState(false)
 
   if (isLoading || runs.length === 0) return null
+  const anyStreaming = runs.some((r) => r.isStreaming)
 
   return (
-    <div className="mt-0.5">
+    <div className={`${META} mt-1`}>
       <button
+        type="button"
         onClick={(e) => { e.stopPropagation(); setExpanded(!expanded) }}
-        className="flex items-center gap-1 text-[10px] text-amber-400/80 hover:text-amber-300 transition-colors"
+        onKeyDown={(e) => e.stopPropagation()}
+        aria-expanded={expanded}
+        className="inline-flex items-center gap-1 rounded text-amber-400/80 hover:text-amber-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60"
       >
-        <ChevronDown className={`w-2.5 h-2.5 transition-transform ${expanded ? '' : '-rotate-90'}`} />
-        <PulseIndicator variant="pending" size={6} />
+        <ChevronDown className={`w-3 h-3 transition-transform ${expanded ? '' : '-rotate-90'}`} aria-hidden="true" />
+        {anyStreaming ? <PulseIndicator variant="pending" size={6} /> : <GitBranch className="w-3 h-3" aria-hidden="true" />}
         <span>{runs.length} child{runs.length > 1 ? 'ren' : ''}</span>
       </button>
 
       {expanded && (
-        <div className="ml-2 mt-1 border-l border-white/[0.06] pl-2 space-y-0.5">
+        <ul className="mt-1 ml-1.5 border-l border-white/[0.06] pl-2">
           {runs.map((run) => (
-            <button
-              key={run.sessionId}
-              onClick={(e) => { e.stopPropagation(); onSelect(run.sessionId, undefined, run.title) }}
-              className="w-full text-left flex items-center gap-1.5 py-0.5 hover:bg-white/[0.04] rounded px-1 transition-colors group/child"
-            >
-              {run.isStreaming ? (
-                <PulseIndicator variant="active" size={6} />
-              ) : (
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-600 shrink-0" />
-              )}
-              <span className="text-[10px] text-gray-400 truncate flex-1">{run.title}</span>
-              <span className="flex items-center gap-0.5 text-[9px] text-gray-600 shrink-0">
-                <Clock className="w-2.5 h-2.5" />
-                {formatDuration(run.startedAt)}
-              </span>
-            </button>
+            <li key={run.sessionId}>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onSelect(run.sessionId, undefined, run.title) }}
+                onKeyDown={(e) => e.stopPropagation()}
+                className="w-full text-left flex items-center gap-1.5 py-1 px-1 rounded hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60"
+              >
+                {run.isStreaming ? (
+                  <PulseIndicator variant="active" size={6} />
+                ) : (
+                  <span className="w-1.5 h-1.5 rounded-full bg-gray-600 shrink-0" aria-hidden="true" />
+                )}
+                <span className="text-gray-400 truncate flex-1">{run.title}</span>
+                <span className="text-gray-600 tabular-nums shrink-0">{formatDuration(run.startedAt)}</span>
+              </button>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   )
@@ -579,16 +501,29 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
 
   const groupedSessions = useMemo(() => groupSessionsByDate(filteredSessions), [filteredSessions])
 
-  const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
-    e.stopPropagation()
+  // Filters panel (collapsed by default unless a filter is already active)
+  const activeFilterCount = countActiveFilters({ project: selectedProject, planOrRfc: selectedPlanOrRfc, showSpawned })
+  const [filtersOpen, setFiltersOpen] = useState(() => activeFilterCount > 0)
+
+  // Per-row inline actions menu (rename / delete) — always reachable by tap, no hover needed
+  const [menuSessionId, setMenuSessionId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+
+  const closeMenu = () => {
+    setMenuSessionId(null)
+    setConfirmDeleteId(null)
+  }
+
+  const handleDelete = async (sessionId: string) => {
+    closeMenu()
     await chatApi.deleteSession(sessionId)
     setSessions((prev) => prev.filter((s) => s.id !== sessionId))
   }
 
-  const handleStartRename = (e: React.MouseEvent, session: ChatSession) => {
-    e.stopPropagation()
+  const handleStartRename = (session: ChatSession) => {
+    closeMenu()
     setEditingSessionId(session.id)
-    setEditingTitle(session.title || `Session ${session.id.slice(0, 8)}`)
+    setEditingTitle(sessionDisplayTitle(session))
     // Focus after React renders the input
     requestAnimationFrame(() => editInputRef.current?.select())
   }
@@ -610,7 +545,7 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
   }
 
   const handleRenameKeyDown = (e: React.KeyboardEvent) => {
-    // Stop ALL key events from bubbling to the parent div's onKeyDown
+    // Stop ALL key events from bubbling to the row's onKeyDown
     // which intercepts Space (navigate) and Enter (navigate).
     e.stopPropagation()
     if (e.key === 'Enter') {
@@ -628,181 +563,230 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
     searchInputRef.current?.focus()
   }
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    if (diffMins < 1) return 'just now'
-    if (diffMins < 60) return `${diffMins}m ago`
-    const diffHours = Math.floor(diffMins / 60)
-    if (diffHours < 24) return `${diffHours}h ago`
-    const diffDays = Math.floor(diffHours / 24)
-    return `${diffDays}d ago`
+  const handleClearFilters = () => {
+    setSelectedProject('')
+    setSelectedPlanOrRfc('')
+    setShowSpawned(true)
   }
 
-  const formatTimestamp = (ts: number) => {
-    const date = new Date(ts * 1000)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    if (diffMins < 1) return 'just now'
-    if (diffMins < 60) return `${diffMins}m ago`
-    const diffHours = Math.floor(diffMins / 60)
-    if (diffHours < 24) return `${diffHours}h ago`
-    const diffDays = Math.floor(diffHours / 24)
-    return `${diffDays}d ago`
-  }
+  const activeFilterLabels: string[] = []
+  if (selectedProject) activeFilterLabels.push(projects.find((p) => p.slug === selectedProject)?.name ?? selectedProject)
+  if (selectedPlanOrRfc) activeFilterLabels.push(planRfcOptions.find((o) => o.value === selectedPlanOrRfc)?.label ?? selectedPlanOrRfc)
+  if (!showSpawned) activeFilterLabels.push('spawned hidden')
 
-  const formatCost = (cost?: number) => {
-    if (!cost) return null
-    return `$${cost.toFixed(2)}`
-  }
+  const stopKeys = (e: React.KeyboardEvent) => e.stopPropagation()
 
-  // Render a single session card
-  const renderSessionCard = (session: ChatSession) => {
+  // Render a single session row
+  const renderSessionRow = (session: ChatSession) => {
     const isActive = session.id === activeSessionId
-    const title = session.title || `Session ${session.id.slice(0, 8)}`
+    const isStreaming = streamingSessions.has(session.id)
+    const isEditing = editingSessionId === session.id
+    const isMenuOpen = menuSessionId === session.id
+    const title = sessionDisplayTitle(session)
+    const preview = sessionPreview(session)
+    const scope = sessionScope(session)
+    const mode = permissionModeMeta(session.permission_mode)
+    const cost = formatCost(session.total_cost_usd)
+    const spawn = session.spawned_by ? spawnLabel(session.spawned_by) : null
+    const activate = () => { closeMenu(); if (isActive) { onClose() } else { onSelect(session.id, undefined, title) } }
 
     return (
-      <div
-        key={session.id}
-        role="button"
-        tabIndex={0}
-        onClick={() => isActive ? onClose() : onSelect(session.id, undefined, title)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (isActive) { onClose() } else { onSelect(session.id, undefined, title) } } }}
-        className={`w-full text-left px-3 py-2.5 transition-all group flex items-start gap-2 cursor-pointer ${
-          isActive
-            ? 'bg-indigo-500/[0.08] border-l-2 border-indigo-500 pl-2.5'
-            : 'hover:bg-white/[0.04] border-l-2 border-transparent'
-        }`}
-      >
-        <div className="flex-1 min-w-0">
-          {/* Title + streaming indicator + mode dot + spawned badge */}
-          <div className="flex items-center gap-1.5">
-            {streamingSessions.has(session.id) && (
-              <PulseIndicator variant="active" size={8} />
-            )}
-            {editingSessionId === session.id ? (
-              <input
-                ref={editInputRef}
-                value={editingTitle}
-                onChange={(e) => setEditingTitle(e.target.value)}
-                onBlur={handleCommitRename}
-                onKeyDown={handleRenameKeyDown}
-                onClick={(e) => e.stopPropagation()}
-                className="text-sm bg-white/[0.06] border border-indigo-500/40 rounded px-1.5 py-0.5 text-gray-200 focus:outline-none w-full min-w-0"
-                autoFocus
-              />
-            ) : (
-              <span
-                className={`text-sm truncate ${isActive ? 'text-gray-200 font-medium' : 'text-gray-300'}`}
-                onDoubleClick={(e) => handleStartRename(e, session)}
-              >
-                {title}
-              </span>
-            )}
-            {session.permission_mode && editingSessionId !== session.id && (
-              <span
-                className={`shrink-0 w-1.5 h-1.5 rounded-full ${MODE_DOT_COLORS[session.permission_mode] ?? 'bg-gray-400'}`}
-                title={session.permission_mode}
-              />
-            )}
-            {session.spawned_by && editingSessionId !== session.id && (
-              <SpawnedBadge spawnedBy={session.spawned_by} />
-            )}
-          </div>
-
-          {/* Preview or streaming label */}
-          {streamingSessions.has(session.id) ? (
-            <div className="text-[10px] text-emerald-400/70 mt-0.5">
-              Working...
+      <li key={session.id}>
+        <div
+          role="button"
+          tabIndex={0}
+          aria-current={isActive ? 'true' : undefined}
+          aria-label={title}
+          onClick={activate}
+          onKeyDown={(e) => {
+            // Only react to keys aimed at the row itself, not at nested controls
+            if (e.target !== e.currentTarget) return
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate() }
+            else if (e.key === 'F2') { e.preventDefault(); handleStartRename(session) }
+          }}
+          className={`relative flex items-start gap-1 pl-3 pr-1.5 py-2.5 cursor-pointer transition-colors outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-indigo-500/60 ${
+            isActive
+              ? 'bg-indigo-500/[0.08] shadow-[inset_2px_0_0_var(--color-indigo-500)]'
+              : 'hover:bg-white/[0.03]'
+          }`}
+        >
+          <div className="flex-1 min-w-0">
+            {/* Line 1 — title (primary) + live dot + date (right, tabular) */}
+            <div className="flex items-center gap-2 min-h-5">
+              {isStreaming && <PulseIndicator variant="active" size={7} />}
+              {isEditing ? (
+                <input
+                  ref={editInputRef}
+                  value={editingTitle}
+                  onChange={(e) => setEditingTitle(e.target.value)}
+                  onBlur={handleCommitRename}
+                  onKeyDown={handleRenameKeyDown}
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label="Conversation title"
+                  className="text-sm bg-white/[0.06] border border-indigo-500/40 rounded px-1.5 py-0.5 text-gray-200 focus:outline-none w-full min-w-0"
+                  autoFocus
+                />
+              ) : (
+                <span
+                  className={`flex-1 min-w-0 text-sm truncate ${isActive ? 'text-gray-100 font-medium' : 'text-gray-200'}`}
+                  onDoubleClick={(e) => { e.stopPropagation(); handleStartRename(session) }}
+                >
+                  {title}
+                </span>
+              )}
+              {!isEditing && (
+                <time
+                  dateTime={session.updated_at}
+                  title={formatAbsolute(session.updated_at)}
+                  className="shrink-0 text-[11px] tabular-nums text-gray-500"
+                >
+                  {formatRelativeShort(session.updated_at)}
+                </time>
+              )}
             </div>
-          ) : (
-            session.preview && session.preview !== session.title && (
-              <div className="text-xs text-gray-500 truncate mt-0.5">
-                {session.preview}
-              </div>
-            )
-          )}
 
-          {/* Expandable children indicator */}
-          <ChildrenIndicator sessionId={session.id} onSelect={onSelect} />
+            {/* Line 2 — preview, or live status */}
+            {isStreaming ? (
+              <div className="text-xs leading-4 text-emerald-400/80 mt-0.5">Working…</div>
+            ) : preview ? (
+              <div className="text-xs leading-4 text-gray-500 truncate mt-0.5">{preview}</div>
+            ) : null}
 
-          {/* CWD + Linked plans / tasks / RFCs — compact or detailed */}
-          {activeWsSlug ? (
-            <LinkedEntitiesSummary
+            {/* Line 3 — metadata: scope · msgs · mode+model · cost · origin */}
+            <div className={`${META} mt-1 flex flex-wrap items-center min-w-0`}>
+              {scope && (
+                <span
+                  className={`inline-flex items-center gap-1 min-w-0 max-w-[45%] ${scope.kind === 'workspace' ? 'text-purple-400/80' : 'text-indigo-400/80'}`}
+                  aria-label={`${scope.kind === 'workspace' ? 'Workspace' : 'Project'} ${scope.slug}`}
+                >
+                  {scope.kind === 'workspace'
+                    ? <Hexagon className="w-3 h-3 shrink-0" aria-hidden="true" />
+                    : <Box className="w-3 h-3 shrink-0" aria-hidden="true" />}
+                  <span className="truncate">{scope.slug}</span>
+                </span>
+              )}
+              {scope && <Sep />}
+              <span className="tabular-nums whitespace-nowrap">{formatMessageCount(session.message_count)}</span>
+              {session.model && (
+                <>
+                  <Sep />
+                  <span className="inline-flex items-center gap-1 min-w-0" title={session.model}>
+                    {mode && (
+                      <span
+                        role="img"
+                        aria-label={mode.label}
+                        title={mode.label}
+                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${mode.dot}`}
+                      />
+                    )}
+                    <span className="truncate max-w-[9rem]">{shortModelName(session.model)}</span>
+                  </span>
+                </>
+              )}
+              {!session.model && mode && (
+                <>
+                  <Sep />
+                  <span role="img" aria-label={mode.label} title={mode.label} className={`w-1.5 h-1.5 rounded-full shrink-0 ${mode.dot}`} />
+                </>
+              )}
+              {cost && (
+                <>
+                  <Sep />
+                  <span className="tabular-nums whitespace-nowrap">{cost}</span>
+                </>
+              )}
+              {spawn && (
+                <>
+                  <Sep />
+                  <span className={`inline-flex items-center gap-0.5 whitespace-nowrap ${spawn.text}`}>
+                    <GitBranch className="w-3 h-3" aria-hidden="true" />
+                    {spawn.label}
+                  </span>
+                </>
+              )}
+            </div>
+
+            {/* Line 4 (optional) — cwd + linked plans / RFCs / tasks */}
+            <ContextLine
               plans={session.linked_plans}
               rfcs={session.linked_rfcs}
               tasks={session.linked_tasks}
-              wsSlug={activeWsSlug}
+              wsSlug={activeWsSlug ?? null}
               cwd={session.cwd}
             />
-          ) : session.cwd ? (
-            <div className="flex items-center gap-1 mt-0.5 min-w-0">
-              <Folder className="w-2.5 h-2.5 text-gray-600 shrink-0" />
-              <span className="text-[10px] text-gray-600 truncate">
-                {shortenPath(session.cwd)}
-              </span>
-            </div>
-          ) : null}
 
-          {/* Metadata row */}
-          <div className="flex items-center gap-1.5 mt-1 flex-wrap overflow-hidden">
-            <span className="text-[10px] text-gray-600 shrink-0">
-              {formatDate(session.updated_at)}
-            </span>
-            <span className="text-[10px] text-gray-700 shrink-0">&middot;</span>
-            <span className="text-[10px] text-gray-600 shrink-0">
-              {session.message_count} msgs
-            </span>
-            {session.model && (
-              <>
-                <span className="text-[10px] text-gray-700 shrink-0">&middot;</span>
-                <span className="text-[10px] text-gray-600 truncate max-w-[80px]">
-                  {session.model}
-                </span>
-              </>
-            )}
-            {formatCost(session.total_cost_usd) && (
-              <>
-                <span className="text-[10px] text-gray-700 shrink-0">&middot;</span>
-                <span className="text-[10px] text-gray-600 shrink-0">
-                  {formatCost(session.total_cost_usd)}
-                </span>
-              </>
-            )}
-            {session.workspace_slug && (
-              <span className="text-[10px] bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded-full ml-auto truncate max-w-[100px]">
-                ⬡ {session.workspace_slug}
-              </span>
-            )}
-            {!session.workspace_slug && session.project_slug && (
-              <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded-full ml-auto truncate max-w-[100px]">
-                {session.project_slug}
-              </span>
+            {/* Child sessions (detached runs) */}
+            <ChildrenIndicator sessionId={session.id} onSelect={onSelect} />
+
+            {/* Inline actions — revealed by the ⋯ button, touch friendly */}
+            {isMenuOpen && (
+              <div
+                className="mt-2 flex items-center gap-1.5"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Escape') closeMenu() }}
+              >
+                {confirmDeleteId === session.id ? (
+                  <>
+                    <span className="text-xs text-gray-400 mr-auto">Delete this conversation?</span>
+                    <button
+                      type="button"
+                      onClick={closeMenu}
+                      className="px-2.5 py-1.5 rounded-md text-xs text-gray-300 bg-white/[0.05] hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(session.id)}
+                      className="px-2.5 py-1.5 rounded-md text-xs font-medium text-red-300 bg-red-500/15 hover:bg-red-500/25 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/60"
+                      autoFocus
+                    >
+                      Delete
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleStartRename(session)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-gray-300 bg-white/[0.05] hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60"
+                    >
+                      <Pencil className="w-3 h-3" aria-hidden="true" />
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteId(session.id)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-red-400 bg-white/[0.05] hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/60"
+                    >
+                      <Trash2 className="w-3 h-3" aria-hidden="true" />
+                      Delete
+                    </button>
+                  </>
+                )}
+              </div>
             )}
           </div>
-        </div>
 
-        {/* Action buttons */}
-        <div className="shrink-0 flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+          {/* Row actions trigger — always visible (touch), muted until hovered/focused */}
           <button
-            onClick={(e) => handleStartRename(e, session)}
-            className="p-1 text-gray-600 hover:text-indigo-400 transition-colors"
-            title="Rename"
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              if (isMenuOpen) closeMenu()
+              else { setConfirmDeleteId(null); setMenuSessionId(session.id) }
+            }}
+            onKeyDown={stopKeys}
+            aria-label={`Actions for ${title}`}
+            aria-expanded={isMenuOpen}
+            className={`shrink-0 -my-1.5 w-8 h-8 inline-flex items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60 ${
+              isMenuOpen ? 'text-gray-200 bg-white/[0.06]' : 'text-gray-600 hover:text-gray-300 hover:bg-white/[0.05]'
+            }`}
           >
-            <Pencil className="w-3 h-3" />
-          </button>
-          <button
-            onClick={(e) => handleDelete(e, session.id)}
-            className="p-1 text-gray-600 hover:text-red-400 transition-colors"
-            title="Delete"
-          >
-            <Trash2 className="w-3 h-3" />
+            <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
-      </div>
+      </li>
     )
   }
 
@@ -823,78 +807,127 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
         </div>
       )}
 
-      {/* Search + Filters */}
-      <div className="px-3 py-2 border-b border-white/[0.06] space-y-1.5">
-        {/* Search input */}
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500" />
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search conversations..."
-            className="w-full pl-7 pr-7 py-1.5 text-xs bg-white/[0.03] border border-white/[0.06] rounded-md text-gray-300 placeholder-gray-600 focus:outline-none focus:border-indigo-500/40 focus:bg-white/[0.05] transition-colors"
-          />
-          {searchQuery && (
-            <button
-              onClick={handleClearSearch}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          )}
-        </div>
-
-        {/* Project filter (scoped to active workspace) */}
-        {projects.length > 0 && (
-          <Select
-            value={selectedProject}
-            onChange={setSelectedProject}
-            options={[
-              { value: '', label: 'All projects' },
-              ...projects.map((p) => ({ value: p.slug, label: p.name })),
-            ]}
-            placeholder="All projects"
-            icon={<Folder className="w-3 h-3" />}
-          />
-        )}
-
-        {/* Plan / RFC filter (populated from workspace-level sessions) */}
-        {planRfcOptions.length > 0 && (
-          <Select
-            value={selectedPlanOrRfc}
-            onChange={setSelectedPlanOrRfc}
-            options={[
-              { value: '', label: 'All plans & RFCs' },
-              ...planRfcOptions,
-            ]}
-            placeholder="All plans & RFCs"
-            icon={<ClipboardList className="w-3 h-3" />}
-          />
-        )}
-
-        {/* Show spawned sessions toggle */}
-        <label className="flex items-center gap-2 cursor-pointer select-none py-0.5">
+      {/* Search + filters */}
+      <div className="px-3 py-2 border-b border-white/[0.06]">
+        <div className="flex items-center gap-1.5">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" aria-hidden="true" />
+            <input
+              ref={searchInputRef}
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search conversations..."
+              aria-label="Search conversations"
+              className="w-full pl-8 pr-8 py-2 text-sm bg-white/[0.03] border border-white/[0.06] rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/40 focus:bg-white/[0.05] transition-colors [&::-webkit-search-cancel-button]:hidden"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                aria-label="Clear search"
+                className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 inline-flex items-center justify-center rounded text-gray-500 hover:text-gray-300 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
           <button
-            role="switch"
-            aria-checked={showSpawned}
-            onClick={() => setShowSpawned(!showSpawned)}
-            className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${
-              showSpawned ? 'bg-indigo-500/60' : 'bg-white/[0.08]'
+            type="button"
+            onClick={() => setFiltersOpen((v) => !v)}
+            aria-expanded={filtersOpen}
+            aria-label={activeFilterCount > 0 ? `Filters (${activeFilterCount} active)` : 'Filters'}
+            className={`relative shrink-0 w-9 h-9 inline-flex items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60 ${
+              filtersOpen || activeFilterCount > 0
+                ? 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300'
+                : 'border-white/[0.06] bg-white/[0.03] text-gray-400 hover:text-gray-200'
             }`}
           >
-            <span
-              className={`inline-block h-2.5 w-2.5 rounded-full bg-white transition-transform ${
-                showSpawned ? 'translate-x-3.5' : 'translate-x-0.5'
-              }`}
-            />
+            <SlidersHorizontal className="w-4 h-4" aria-hidden="true" />
+            {activeFilterCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-indigo-500 text-[10px] leading-4 font-semibold text-white tabular-nums">
+                {activeFilterCount}
+              </span>
+            )}
           </button>
-          <span className="text-[10px] text-gray-500 flex items-center gap-1">
-            <GitBranch className="w-2.5 h-2.5" />
-            Show spawned
-          </span>
-        </label>
+        </div>
+
+        {filtersOpen && (
+          <div className="mt-2 space-y-1.5">
+            {/* Project filter (scoped to active workspace) */}
+            {projects.length > 0 && (
+              <Select
+                value={selectedProject}
+                onChange={setSelectedProject}
+                options={[
+                  { value: '', label: 'All projects' },
+                  ...projects.map((p) => ({ value: p.slug, label: p.name })),
+                ]}
+                placeholder="All projects"
+                icon={<Folder className="w-3 h-3" />}
+              />
+            )}
+
+            {/* Plan / RFC filter (populated from workspace-level sessions) */}
+            {planRfcOptions.length > 0 && (
+              <Select
+                value={selectedPlanOrRfc}
+                onChange={setSelectedPlanOrRfc}
+                options={[
+                  { value: '', label: 'All plans & RFCs' },
+                  ...planRfcOptions,
+                ]}
+                placeholder="All plans & RFCs"
+                icon={<ClipboardList className="w-3 h-3" />}
+              />
+            )}
+
+            {/* Show spawned sessions toggle */}
+            <div className="flex items-center justify-between gap-2 py-1">
+              <span id="session-list-show-spawned" className="text-xs text-gray-400 flex items-center gap-1.5">
+                <GitBranch className="w-3 h-3" aria-hidden="true" />
+                Show spawned sessions
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={showSpawned}
+                aria-labelledby="session-list-show-spawned"
+                onClick={() => setShowSpawned(!showSpawned)}
+                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60 ${
+                  showSpawned ? 'bg-indigo-500/60' : 'bg-white/[0.08]'
+                }`}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+                    showSpawned ? 'translate-x-[18px]' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Active filters summary — visible even when the panel is collapsed */}
+        {activeFilterLabels.length > 0 && (
+          <div className={`${META} mt-1.5 flex items-center gap-2 min-w-0`}>
+            <span className="truncate min-w-0">
+              {activeFilterLabels.map((label, i) => (
+                <span key={label}>
+                  {i > 0 && <Sep />}
+                  <span className="text-gray-400">{label}</span>
+                </span>
+              ))}
+            </span>
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              className="ml-auto shrink-0 rounded px-1 text-indigo-400/80 hover:text-indigo-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60"
+            >
+              Clear
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Content area: session list or search results */}
@@ -912,80 +945,77 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
               No results for &ldquo;{debouncedQuery}&rdquo;
             </div>
           ) : (
-            <div className="py-1">
-              <div className="px-4 py-1.5 text-[10px] text-gray-600 uppercase tracking-wider">
-                {searchResults.length} session{searchResults.length !== 1 ? 's' : ''} found
-              </div>
-              {searchResults.map((result) => (
-                <div
-                  key={result.session_id || result.conversation_id}
-                  className="border-b border-white/[0.03] last:border-b-0"
-                >
-                  {/* Session header */}
-                  <button
-                    onClick={() => onSelect(result.session_id, undefined, result.session_title)}
-                    className="w-full text-left px-4 py-2 hover:bg-white/[0.04] transition-colors"
-                  >
-                    <div className="text-sm text-gray-300 truncate">
-                      {result.session_title || `Session ${result.session_id.slice(0, 8)}`}
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="text-[10px] text-gray-600">
-                        {result.hits.length} match{result.hits.length !== 1 ? 'es' : ''}
-                      </span>
-                      {result.workspace_slug && (
-                        <span className="text-[10px] bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded-full">
-                          ⬡ {result.workspace_slug}
-                        </span>
-                      )}
-                      {!result.workspace_slug && result.project_slug && (
-                        <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded-full">
-                          {result.project_slug}
-                        </span>
-                      )}
-                    </div>
-                  </button>
-
-                  {/* Message hits */}
-                  {result.hits.slice(0, 3).map((hit) => (
-                    <button
-                      key={hit.message_id}
-                      onClick={() => onSelect(result.session_id, hit.turn_index, result.session_title, { snippet: hit.content_snippet, createdAt: hit.created_at, role: hit.role })}
-                      className="w-full text-left px-4 pl-7 py-1.5 hover:bg-indigo-500/[0.06] transition-colors group"
-                    >
-                      <div className="flex items-start gap-2">
-                        <span
-                          className={`shrink-0 text-[9px] mt-0.5 px-1 py-0.5 rounded font-medium ${
-                            hit.role === 'user'
-                              ? 'bg-blue-500/10 text-blue-400'
-                              : 'bg-emerald-500/10 text-emerald-400'
-                          }`}
-                        >
-                          {hit.role === 'user' ? 'U' : 'A'}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs text-gray-400 line-clamp-2">
-                            {hit.content_snippet}
-                          </div>
-                          <span className="text-[10px] text-gray-600 mt-0.5">
-                            {formatTimestamp(hit.created_at)}
-                          </span>
+            <div className="pb-2">
+              <h3 className="px-3 pt-3 pb-1 text-[11px] font-medium text-gray-500">
+                {pluralize(searchResults.length, 'session')} found
+              </h3>
+              <ul>
+                {searchResults.map((result) => {
+                  const resultTitle = result.session_title || `Session ${result.session_id.slice(0, 8)}`
+                  const resultScope = sessionScope(result)
+                  return (
+                    <li key={result.session_id || result.conversation_id} className="py-1">
+                      {/* Session header */}
+                      <button
+                        type="button"
+                        onClick={() => onSelect(result.session_id, undefined, result.session_title)}
+                        className="w-full text-left px-3 py-1.5 hover:bg-white/[0.03] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-indigo-500/60"
+                      >
+                        <div className="text-sm text-gray-200 truncate">{resultTitle}</div>
+                        <div className={`${META} mt-0.5 flex items-center min-w-0`}>
+                          <span className="tabular-nums whitespace-nowrap">{pluralize(result.hits.length, 'match', 'matches')}</span>
+                          {resultScope && (
+                            <>
+                              <Sep />
+                              <span className={`inline-flex items-center gap-1 min-w-0 ${resultScope.kind === 'workspace' ? 'text-purple-400/80' : 'text-indigo-400/80'}`}>
+                                {resultScope.kind === 'workspace'
+                                  ? <Hexagon className="w-3 h-3 shrink-0" aria-hidden="true" />
+                                  : <Box className="w-3 h-3 shrink-0" aria-hidden="true" />}
+                                <span className="truncate">{resultScope.slug}</span>
+                              </span>
+                            </>
+                          )}
                         </div>
-                        {/* Arrow indicator */}
-                        <ChevronRight className="w-3 h-3 text-gray-700 group-hover:text-indigo-400 shrink-0 mt-1 transition-colors" />
-                      </div>
-                    </button>
-                  ))}
-                  {result.hits.length > 3 && (
-                    <button
-                      onClick={() => onSelect(result.session_id, undefined, result.session_title)}
-                      className="w-full text-left px-4 pl-7 py-1 text-[10px] text-gray-600 hover:text-gray-400 transition-colors"
-                    >
-                      +{result.hits.length - 3} more match{result.hits.length - 3 !== 1 ? 'es' : ''}...
-                    </button>
-                  )}
-                </div>
-              ))}
+                      </button>
+
+                      {/* Message hits */}
+                      {result.hits.slice(0, 3).map((hit) => (
+                        <button
+                          type="button"
+                          key={hit.message_id}
+                          onClick={() => onSelect(result.session_id, hit.turn_index, result.session_title, { snippet: hit.content_snippet, createdAt: hit.created_at, role: hit.role })}
+                          className="w-full text-left pl-6 pr-3 py-1.5 hover:bg-indigo-500/[0.05] transition-colors group focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-indigo-500/60"
+                        >
+                          <div className="flex items-start gap-2 border-l border-white/[0.06] pl-2.5">
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs text-gray-400 line-clamp-2">{hit.content_snippet}</div>
+                              <div className={`${META} mt-0.5`}>
+                                <span className={hit.role === 'user' ? 'text-blue-400/80' : 'text-emerald-400/80'}>
+                                  {hit.role === 'user' ? 'You' : 'Assistant'}
+                                </span>
+                                <Sep />
+                                <time className="tabular-nums" title={formatAbsolute(hit.created_at * 1000)}>
+                                  {formatRelativeShort(hit.created_at * 1000)}
+                                </time>
+                              </div>
+                            </div>
+                            <ChevronRight className="w-3.5 h-3.5 text-gray-700 group-hover:text-indigo-400 shrink-0 mt-0.5 transition-colors" aria-hidden="true" />
+                          </div>
+                        </button>
+                      ))}
+                      {result.hits.length > 3 && (
+                        <button
+                          type="button"
+                          onClick={() => onSelect(result.session_id, undefined, result.session_title)}
+                          className={`${META} w-full text-left pl-6 pr-3 py-1 hover:text-gray-300 transition-colors`}
+                        >
+                          <span className="pl-2.5">+{pluralize(result.hits.length - 3, 'more match', 'more matches')}…</span>
+                        </button>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
             </div>
           )
         ) : // Normal session list mode
@@ -1000,55 +1030,50 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
             No conversations yet
           </div>
         ) : (
-          <div className="py-1">
+          <div className="pb-2">
             {/* Active runs section — shown when detached runs exist */}
             {activeRuns.size > 0 && (
-              <div className="border-b border-white/[0.06] pb-2 mb-1">
-                <div className="px-4 pt-2 pb-1.5 flex items-center gap-2">
+              <section aria-label="Active runs" className="pb-1 border-b border-white/[0.06]">
+                <h3 className="px-3 pt-3 pb-1 flex items-center gap-2 text-[11px] font-medium text-amber-400/90">
                   <PulseIndicator variant="pending" size={6} />
-                  <span className="text-[10px] font-medium text-amber-400 uppercase tracking-wider">
-                    Active runs
-                  </span>
-                  <div className="flex-1 h-px bg-amber-400/10" />
-                  <span className="text-[10px] text-amber-400/60">
+                  Active runs
+                  <span className="ml-auto tabular-nums text-amber-400/60 font-normal">
                     {Array.from(activeRuns.values()).reduce((sum, info) => sum + info.runCount, 0)}
                   </span>
-                </div>
-                {Array.from(activeRuns.entries()).map(([parentId, info]) => {
-                  const parentSession = sessions.find(s => s.id === parentId)
-                  const parentTitle = parentSession?.title || `Session ${parentId.slice(0, 8)}`
-                  return (
-                    <button
-                      key={parentId}
-                      onClick={() => onSelect(parentId, undefined, parentTitle)}
-                      className="w-full text-left px-4 py-1.5 hover:bg-amber-500/[0.06] transition-colors flex items-center gap-2"
-                    >
-                      <Play className="w-3 h-3 text-amber-400/70 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <span className="text-xs text-gray-300 truncate block">{parentTitle}</span>
-                        <span className="text-[10px] text-amber-400/60">
-                          {info.runCount} run{info.runCount > 1 ? 's' : ''} in progress
-                        </span>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
+                </h3>
+                <ul>
+                  {Array.from(activeRuns.entries()).map(([parentId, info]) => {
+                    const parentSession = sessions.find(s => s.id === parentId)
+                    const parentTitle = parentSession?.title || `Session ${parentId.slice(0, 8)}`
+                    return (
+                      <li key={parentId}>
+                        <button
+                          type="button"
+                          onClick={() => onSelect(parentId, undefined, parentTitle)}
+                          className="w-full text-left px-3 py-2 hover:bg-amber-500/[0.05] transition-colors flex items-center gap-2 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-indigo-500/60"
+                        >
+                          <Play className="w-3 h-3 text-amber-400/70 shrink-0" aria-hidden="true" />
+                          <span className="flex-1 min-w-0 text-sm text-gray-200 truncate">{parentTitle}</span>
+                          <span className="shrink-0 text-[11px] tabular-nums text-amber-400/70">
+                            {pluralize(info.runCount, 'run')} in progress
+                          </span>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
             )}
 
             {groupedSessions.map(({ group, sessions: groupSessions }) => (
-              <div key={group}>
+              <section key={group} aria-label={group}>
                 {/* Date group header */}
-                <div className="px-4 pt-3 pb-1.5 flex items-center gap-2">
-                  <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">
-                    {group}
-                  </span>
-                  <div className="flex-1 h-px bg-white/[0.04]" />
-                  <span className="text-[10px] text-gray-600">{groupSessions.length}</span>
-                </div>
-
-                {groupSessions.map(renderSessionCard)}
-              </div>
+                <h3 className="px-3 pt-4 pb-1 flex items-baseline text-[11px] font-medium text-gray-500">
+                  {group}
+                  <span className="ml-auto tabular-nums font-normal text-gray-600">{groupSessions.length}</span>
+                </h3>
+                <ul>{groupSessions.map(renderSessionRow)}</ul>
+              </section>
             ))}
 
             {/* Infinite scroll sentinel + loading indicator */}
@@ -1057,10 +1082,10 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
                 {isLoadingMore ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-500" />
-                    <span className="ml-1.5 text-[10px] text-gray-600">Loading more...</span>
+                    <span className="ml-1.5 text-[11px] text-gray-600">Loading more...</span>
                   </>
                 ) : (
-                  <span className="text-[10px] text-gray-700">Scroll for more</span>
+                  <span className="text-[11px] text-gray-700">Scroll for more</span>
                 )}
               </div>
             )}
