@@ -723,7 +723,16 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
         pendingSend={deferredSend}
       />
 
-      <div className="flex items-end gap-2">
+      {/* One bar: the paperclip, the text and the action button share a
+          single bordered field, so attaching reads as part of composing the
+          message rather than as a separate control beside it. The border and
+          focus ring live on the wrapper (`focus-within`), the textarea itself
+          is transparent. */}
+      <div
+        className={`flex items-end gap-1 rounded-xl bg-white/[0.04] border border-white/[0.06] p-1 transition-colors focus-within:border-indigo-500/40 ${
+          disabled ? 'opacity-50' : ''
+        }`}
+      >
         <input
           ref={fileInputRef}
           type="file"
@@ -741,7 +750,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
           title="Attach a file"
           className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-200 hover:bg-white/[0.06] transition-colors disabled:opacity-30"
         >
-          <Paperclip className="w-3.5 h-3.5" />
+          <Paperclip className="w-4 h-4" />
         </button>
         <textarea
           ref={textareaRef}
@@ -762,7 +771,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
           data-1p-ignore="true"
           data-lpignore="true"
           placeholder="Send a message..."
-          className="flex-1 resize-none bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/40 disabled:opacity-50"
+          className="flex-1 min-w-0 resize-none bg-transparent border-0 px-1 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none"
         />
         {/* One slot for both affordances — see `deriveInputAction`. */}
         <button
