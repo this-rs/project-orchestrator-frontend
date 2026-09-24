@@ -2,6 +2,7 @@ import { atom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
 import type { BackgroundTaskInfo, ChatPanelMode, PermissionConfig, PermissionMode, Project, WsConnectionStatus } from '@/types'
 import type { QueuedMessage } from '@/components/chat/messageQueue'
+import type { Attachment } from '@/components/chat/attachmentState'
 
 /** Hint set by pages that know which project the user is looking at */
 export const chatSuggestedProjectIdAtom = atom<string | null>(null)
@@ -101,3 +102,32 @@ export const chatBackgroundTasksAtom = atom<BackgroundTaskInfo[]>([])
  * in session B.
  */
 export const chatMessageQueueAtom = atom<QueuedMessage[]>([])
+/**
+ * Files attached to the message currently being composed.
+ *
+ * Each entry is already being uploaded (or has finished, or failed) — see
+ * `components/chat/attachmentState.ts`, which owns every rule about their state.
+ * The atom holds only what the composer is carrying right now; documents that
+ * are already part of the conversation live server-side.
+ *
+ * In an atom rather than component state for the same reason as the draft
+ * text: `ChatInput` remounts when the panel switches between the side layout
+ * and fullscreen, and an upload in flight must survive that.
+ *
+ * Cleared on session switch, like the message queue: a screenshot attached for
+ * session A must never ride along with a message to session B. In-flight
+ * uploads are aborted at the same time (`ChatInput`).
+ */
+export const chatAttachmentsAtom = atom<Attachment[]>([])
+
+/**
+ * A send is being held until the attachments finish uploading
+ * (`ATTACHMENT_POLICY.deferSendWhileUploading`).
+ *
+ * In an atom, not component state, for a reason worth spelling out: if
+ * `ChatInput` remounts (layout switch) while a send is held, component state
+ * would forget the held send and the message would never leave.
+ *
+ * Cleared alongside `chatAttachmentsAtom` on session switch.
+ */
+export const chatAttachmentDeferredSendAtom = atom<boolean>(false)

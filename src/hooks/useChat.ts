@@ -217,7 +217,7 @@ export function useChat() {
   // flushed in onReplayComplete, once the reconnected session is consistent.
   // Without this, the optimistic bubble showed but the message never left the
   // device — stuck typing indicator, response visible only on other devices.
-  const pendingSendRef = useRef<string[]>([])
+  const pendingSendRef = useRef<{ text: string; attachments?: string[] }[]>([])
   /** Invalidates an in-flight REST resync (newer resync or session switch). */
   const resyncGenRef = useRef(0)
 
@@ -1248,12 +1248,12 @@ export function useChat() {
         if (pendingSendRef.current.length > 0) {
           const pending = pendingSendRef.current
           pendingSendRef.current = []
-          for (const text of pending) {
-            if (ws.sendUserMessage(text)) {
+          for (const entry of pending) {
+            if (ws.sendUserMessage(entry.text, entry.attachments)) {
               setIsStreaming(true)
             } else {
               // Still dead — requeue; the next replay-complete retries.
-              pendingSendRef.current.push(text)
+              pendingSendRef.current.push(entry)
             }
           }
         }
@@ -1636,7 +1636,16 @@ export function useChat() {
   // Actions
   // ========================================================================
 
-  const sendMessage = useCallback(async (text: string, options?: SendMessageOptions) => {
+  /**
+   * Send a user message, optionally carrying document ids.
+   *
+   * `attachments` are ids the documents API has already returned — the
+   * composer never hands over an id for an upload still in flight (see
+   * `components/chat/attachmentState.ts`). They travel in `ChatRequest.attachments`
+   * on session creation (the frozen API contract of plan 8b0fdd73) and as an
+   * `attachments` field on the `user_message` frame for follow-ups.
+   */
+  const sendMessage = useCallback(async (text: string, options?: SendMessageOptions, attachments?: string[]) => {
     // Clear draft for this session after sending
     const draftKey = sessionId ?? '__new__'
     setDraftsMap((prev) => {
@@ -1692,6 +1701,7 @@ export function useChat() {
           workspace_slug: options?.workspaceSlug,
           permission_mode: options?.permissionMode ?? store.get(chatSessionPermissionOverrideAtom) ?? undefined,
           model: options?.model ?? store.get(chatSessionModelAtom) ?? undefined,
+          attachments: attachments && attachments.length > 0 ? attachments : undefined,
         })
         // Signal that the upcoming sessionId change is from a first send,
         // so the auto-connect useEffect should NOT reset messages.
@@ -1711,10 +1721,12 @@ export function useChat() {
       // Follow-up message — send via WS
       const ws = getWs()
       setIsStreaming(true)
-      if (!ws.sendUserMessage(text)) {
+      if (!ws.sendUserMessage(text, attachments)) {
         // Dead socket: send() already forced a reconnect. Queue the text —
         // onReplayComplete flushes it once the session is consistent again.
-        pendingSendRef.current.push(text)
+        // The attachments travel with it: the documents are already stored
+        // server-side, so their ids stay valid across the reconnect.
+        pendingSendRef.current.push({ text, attachments })
       }
     }
   }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride, setDraftsMap, store])

@@ -1,14 +1,16 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { useAtom, useAtomValue } from 'jotai'
-import { chatDraftInputAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom, chatMessageQueueAtom, modelCatalogAtom, modelCatalogLoadedAtom } from '@/atoms'
+import { useAtom, useAtomValue, useStore } from 'jotai'
+import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom, chatMessageQueueAtom, modelCatalogAtom, modelCatalogLoadedAtom } from '@/atoms'
 import { DEFAULT_MODEL_ID, getModelShortLabel, getModelDotColor, groupModelsByFamily } from '@/constants/models'
 import { chatApi } from '@/services/chat'
+import { documentsApi } from '@/services/documents'
+import { ApiError } from '@/services/api'
 import { useIsMobile } from '@/hooks'
 import type { PermissionMode } from '@/types'
-import { ChevronDown, Loader2, Square, ArrowRight } from 'lucide-react'
+import { ChevronDown, Loader2, Paperclip, Square, ArrowRight } from 'lucide-react'
 import { BackgroundTasksIndicator } from './BackgroundTasksIndicator'
 import { ModelFamilyPicker, type ModelSelectOptions } from './ModelFamilyPicker'
-import { deriveInputAction, ACTION_LABELS } from './inputAction'
+import { deriveInputAction, describeAction } from './inputAction'
 import { MessageQueueBar } from './MessageQueueBar'
 import {
   QUEUE_POLICY,
@@ -19,6 +21,23 @@ import {
   prioritize,
   takeHead,
 } from './messageQueue'
+import { Attachments } from './Attachments'
+import {
+  addAttachment,
+  createAttachment,
+  decideSend,
+  describeUploadFailure,
+  filesFromClipboard,
+  readyDocumentIds,
+  removeAttachment,
+  resolveDeferred,
+  summarize,
+  updateAttachment,
+  withFailure,
+  withProgress,
+  withUploaded,
+  type Attachment,
+} from './attachmentState'
 
 const MODE_LABELS: Record<PermissionMode, string> = {
   bypassPermissions: 'Bypass',
@@ -42,7 +61,13 @@ export interface PrefillPayload {
 }
 
 interface ChatInputProps {
-  onSend: (text: string) => void
+  /**
+   * Dispatch a message.
+   *
+   * `attachmentIds` are document ids the server has already issued — never an
+   * id for an upload still in flight. `attachmentState.ts` is what guarantees it.
+   */
+  onSend: (text: string, attachmentIds?: string[]) => void
   onInterrupt: () => void
   isStreaming: boolean
   disabled?: boolean
@@ -79,6 +104,19 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
   const prevSessionIdRef = useRef(sessionId)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const modelDropdownRef = useRef<HTMLDivElement>(null)
+
+  // --- Attachments ---
+  const store = useStore()
+  const attachments = useAtomValue(chatAttachmentsAtom)
+  const deferredSend = useAtomValue(chatAttachmentDeferredSendAtom)
+  const selectedProject = useAtomValue(chatSelectedProjectAtom)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false)
+  // Depth counter, not a boolean: dragging over a child element fires
+  // dragleave on the parent, and a naive boolean makes the overlay flicker.
+  const dragDepthRef = useRef(0)
+  /** One AbortController per in-flight upload, so removing a chip cancels it. */
+  const uploadsRef = useRef(new Map<string, AbortController>())
 
   const effectiveMode = modeOverride ?? serverConfig?.mode ?? 'default'
   const effectiveModel = sessionModel ?? serverConfig?.default_model ?? DEFAULT_MODEL_ID
@@ -199,19 +237,264 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
       ? crypto.randomUUID()
       : `q-${Date.now()}-${Math.random().toString(36).slice(2)}`
 
+  // ── Attachments ───────────────────────────────────────────────────────
+  //
+  // Everything below reads the attachment list through `store.get` rather
+  // than the rendered `attachments` value. Uploads resolve out of order and
+  // several can settle in the same tick; a render-time snapshot captured in a
+  // closure would silently undo a sibling's transition.
+
+  /**
+   * Apply a transition to the attachment list and return the new list, so the
+   * caller can act on exactly what it wrote.
+   */
+  const mutateAttachments = useCallback(
+    (fn: (list: Attachment[]) => Attachment[]): Attachment[] => {
+      const next = fn(store.get(chatAttachmentsAtom))
+      store.set(chatAttachmentsAtom, next)
+      return next
+    },
+    [store],
+  )
+
+  /** Dispatch for real. Only ever called with a list where nothing is in flight. */
+  const dispatchSend = useCallback(
+    (text: string, list: Attachment[]) => {
+      onSend(text, readyDocumentIds(list))
+      setValue('')
+      store.set(chatAttachmentsAtom, [])
+      store.set(chatAttachmentDeferredSendAtom, false)
+      uploadsRef.current.clear()
+    },
+    [onSend, setValue, store],
+  )
+
+  /**
+   * Re-evaluate a held send. Called after every change to the list, from the
+   * handler that made the change — never from an effect, so a message can
+   * never be sent twice by a re-render.
+   */
+  const settleDeferredSend = useCallback(
+    (list: Attachment[]) => {
+      if (!store.get(chatAttachmentDeferredSendAtom)) return
+      const outcome = resolveDeferred(summarize(list))
+      if (outcome === 'wait') return
+      store.set(chatAttachmentDeferredSendAtom, false)
+      if (outcome !== 'dispatch') return // 'abort': the failure is on the chip
+      // The text is read now, not at click time: it stayed in the box and the
+      // user may have kept typing (or cleared it) while the upload ran.
+      const text = store.get(chatDraftInputAtom).trim()
+      if (text) dispatchSend(text, list)
+    },
+    [store, dispatchSend],
+  )
+
+  /**
+   * Add files and start uploading them immediately — the single most
+   * important behaviour here. Deferring the upload to send time would make
+   * every send that carries a file look like a hang.
+   */
+  const addFiles = useCallback(
+    (files: File[]) => {
+      for (const file of files) {
+        const localId =
+          typeof crypto !== 'undefined' && 'randomUUID' in crypto
+            ? crypto.randomUUID()
+            : `att-${Date.now()}-${Math.random().toString(36).slice(2)}`
+
+        const before = store.get(chatAttachmentsAtom)
+        const next = addAttachment(before, createAttachment(localId, file))
+        // At the cap `addAttachment` returns the list unchanged; stop rather
+        // than firing uploads for files that are not in the list.
+        if (next.length === before.length) break
+        store.set(chatAttachmentsAtom, next)
+
+        const controller = new AbortController()
+        uploadsRef.current.set(localId, controller)
+
+        documentsApi
+          .upload(file, {
+            projectId: selectedProject?.id,
+            sessionId: sessionId ?? undefined,
+            signal: controller.signal,
+            onProgress: (percent) =>
+              mutateAttachments((l) =>
+                updateAttachment(l, localId, (a) => withProgress(a, percent)),
+              ),
+          })
+          .then((doc) => {
+            uploadsRef.current.delete(localId)
+            settleDeferredSend(
+              mutateAttachments((l) =>
+                updateAttachment(l, localId, (a) => withUploaded(a, doc)),
+              ),
+            )
+          })
+          .catch((err: unknown) => {
+            uploadsRef.current.delete(localId)
+            // An abort means the chip is already gone (removed, or the session
+            // switched). Nothing to report on a row that no longer exists.
+            if (err instanceof DOMException && err.name === 'AbortError') return
+            const message =
+              err instanceof ApiError
+                ? describeUploadFailure(err.status, err.message)
+                : describeUploadFailure(0)
+            settleDeferredSend(
+              mutateAttachments((l) =>
+                updateAttachment(l, localId, (a) => withFailure(a, message)),
+              ),
+            )
+          })
+      }
+    },
+    [store, selectedProject, sessionId, mutateAttachments, settleDeferredSend],
+  )
+
+  const handleRemoveAttachment = useCallback(
+    (localId: string) => {
+      uploadsRef.current.get(localId)?.abort()
+      uploadsRef.current.delete(localId)
+      settleDeferredSend(mutateAttachments((l) => removeAttachment(l, localId)))
+    },
+    [mutateAttachments, settleDeferredSend],
+  )
+
+  /** Paperclip button → hidden file input. */
+  const handleFilesPicked = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      addFiles(Array.from(e.target.files ?? []))
+      // Reset so picking the same file twice in a row fires `change` again.
+      e.target.value = ''
+    },
+    [addFiles],
+  )
+
+  /**
+   * Paste — the way a screenshot actually gets attached, and the path most
+   * often left out. A paste carrying no file falls through untouched, so
+   * pasting text keeps working exactly as before.
+   */
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const files = filesFromClipboard(e.clipboardData?.items)
+      if (files.length === 0) return
+      e.preventDefault()
+      addFiles(files)
+    },
+    [addFiles],
+  )
+
+  // Drag & drop over the composer. `dataTransfer.types` is the only thing
+  // readable during a drag (the files themselves are not), so it is what
+  // decides whether this drag is ours — dragging selected text must not open
+  // a file drop zone.
+  const dragHasFiles = (dt: DataTransfer | null) =>
+    !!dt && Array.from(dt.types).includes('Files')
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    if (!dragHasFiles(e.dataTransfer)) return
+    dragDepthRef.current++
+    setIsDraggingFiles(true)
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (!dragHasFiles(e.dataTransfer)) return
+    // Without preventDefault the browser navigates to the dropped file.
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    if (!dragHasFiles(e.dataTransfer)) return
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+    if (dragDepthRef.current === 0) setIsDraggingFiles(false)
+  }, [])
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      if (!dragHasFiles(e.dataTransfer)) return
+      e.preventDefault()
+      dragDepthRef.current = 0
+      setIsDraggingFiles(false)
+      addFiles(Array.from(e.dataTransfer.files))
+    },
+    [addFiles],
+  )
+
+  // Drop the attachments when the session actually changes — a screenshot
+  // attached for session A must never ride along to session B. Compared
+  // against a ref rather than firing on mount, because ChatInput remounts when
+  // the panel switches layout and that must not wipe an upload in progress.
+  // Session change wipes BOTH the pending queue and the attachments, in one
+  // effect and against one ref.
+  //
+  // This was two effects before the merge, each comparing and then updating
+  // `prevSessionIdRef`. Whichever ran first would update the ref, and the
+  // second would see no change and clear nothing — a silent half-purge that
+  // compiles, renders, and leaks one session's state into the next. Splitting
+  // them again means reintroducing that bug.
+  //
+  // Compared against a ref rather than firing on mount: `ChatInput` remounts
+  // when the panel switches layout, and that must not wipe a pending queue or
+  // an upload in flight.
+  //
+  // In-flight requests are aborted — they carry the old session_id.
+  useEffect(() => {
+    if (prevSessionIdRef.current === sessionId) return
+    prevSessionIdRef.current = sessionId
+    for (const controller of uploadsRef.current.values()) controller.abort()
+    uploadsRef.current.clear()
+    store.set(chatAttachmentsAtom, [])
+    store.set(chatAttachmentDeferredSendAtom, false)
+    setQueue([])
+  }, [sessionId, store, setQueue])
+
   const handleSend = () => {
     const text = value.trim()
-    if (!text) return
-    // While streaming, hold the message here instead of dispatching. Sending
-    // mid-stream makes the backend interrupt the running generation
-    // (`chat/manager.rs`), which cut off the response the user was reading.
+    const list = store.get(chatAttachmentsAtom)
+
+    // ── Layer 1 — can this message exist at all? ───────────────────────
+    // Attachment readiness is a property of the message itself, so it is
+    // settled before anything about timing.
+    switch (decideSend({ hasText: text.length > 0, summary: summarize(list) })) {
+      case 'reject-empty':
+        return
+      case 'reject-failed':
+        // The failed chip already carries the server's message and its remove
+        // button; a second, transient error elsewhere would only add noise.
+        return
+      case 'defer':
+        store.set(chatAttachmentDeferredSendAtom, true)
+        return
+      case 'send':
+        break
+    }
+
+    // ── Layer 2 — when does it leave? ──────────────────────────────────
+    // Only a complete message may enter the queue. Queueing one whose upload
+    // is still running would flush it later with ids that never resolved —
+    // which is why layer 1 runs first and returns rather than falling through.
     if (shouldEnqueue({ isStreaming })) {
-      setQueue((q) => enqueue(q, text, newQueueId(), Date.now()))
+      setQueue((q) => enqueue(q, text, newQueueId(), Date.now(), readyDocumentIds(list)))
+      // The queued message took the attachments with it; the composer starts
+      // clean for the next one.
+      store.set(chatAttachmentsAtom, [])
     } else {
-      onSend(text)
+      dispatchSend(text, list)
     }
     setValue('')
   }
+
+  /**
+   * What the send button means right now — derived, never stored.
+   *
+   * Computed before `deriveInputAction` because the button reads it: the two
+   * concerns stack (see `inputAction.ts`), attachment readiness first.
+   */
+  const sendDecision = decideSend({
+    hasText: value.trim().length > 0,
+    summary: summarize(attachments),
+  })
 
   // Auto-flush: one message per finished turn, oldest first. Fires only on the
   // streaming true -> false edge, so a queue mutation cannot re-trigger it.
@@ -223,19 +506,11 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     const { taken, rest } = takeHead(queue)
     if (!taken) return
     setQueue(rest)
-    onSend(taken.text)
+    // The queued entry carries its own attachment ids: by now the composer
+    // holds the *next* message's attachments, so reading them here would send
+    // the wrong ones.
+    onSend(taken.text, taken.attachmentIds)
   }, [isStreaming, queue, onSend, setQueue])
-
-  // Drop the queue when the session actually changes — a message composed for
-  // session A must never land in session B. Compared against a ref rather than
-  // firing on mount, because ChatInput remounts when the panel switches layout
-  // and that must not wipe a pending queue.
-  useEffect(() => {
-    if (prevSessionIdRef.current !== sessionId) {
-      prevSessionIdRef.current = sessionId
-      setQueue([])
-    }
-  }, [sessionId, setQueue])
 
   const handleQueueEdit = useCallback(
     (id: string, text: string) => setQueue((q) => editInQueue(q, id, text)),
@@ -255,6 +530,8 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     isStreaming,
     isStopping,
     disabled: disabled ?? false,
+    sendDecision,
+    deferredSend,
   })
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -304,7 +581,24 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     // pb: with viewport-fit=cover, keep the input clear of the home
     // indicator on notched devices (inset collapses to 0 when the
     // keyboard is open, so no double padding).
-    <div className="relative border-t border-white/[0.06] px-3 pt-0.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex flex-col gap-1">
+    <div
+      className="relative border-t border-white/[0.06] px-3 pt-0.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex flex-col gap-1"
+      // The composer is the drop target rather than the whole panel: it is
+      // where the attachments then appear, so the drop lands where the result
+      // shows up instead of somewhere up in the transcript.
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {isDraggingFiles && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center rounded-lg border-2 border-dashed border-indigo-400/60 bg-[#14161a]/90 pointer-events-none">
+          <span className="flex items-center gap-1.5 text-xs text-indigo-300">
+            <Paperclip className="w-3.5 h-3.5" />
+            Drop to attach
+          </span>
+        </div>
+      )}
       <MessageQueueBar
         queue={queue}
         onEdit={handleQueueEdit}
@@ -420,12 +714,41 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
         </div>
       </div>
 
+      {/* Attachment thumbnails — directly above the textarea, part of the
+          message being composed (unlike the queue bar, which floats over the
+          conversation because those messages are not being composed any more). */}
+      <Attachments
+        attachments={attachments}
+        onRemove={handleRemoveAttachment}
+        pendingSend={deferredSend}
+      />
+
       <div className="flex items-end gap-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          onChange={handleFilesPicked}
+          className="hidden"
+          // No `accept`: the backend takes all formats and answers 415 for the
+          // ones it cannot read. A client-side allow-list would silently hide
+          // files the server would in fact have accepted.
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={disabled}
+          aria-label="Attach a file"
+          title="Attach a file"
+          className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-200 hover:bg-white/[0.06] transition-colors disabled:opacity-30"
+        >
+          <Paperclip className="w-3.5 h-3.5" />
+        </button>
         <textarea
           ref={textareaRef}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           disabled={disabled}
           rows={1}
           // On mobile the return key inserts a newline (sending is via the button);
@@ -444,9 +767,9 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
         {/* One slot for both affordances — see `deriveInputAction`. */}
         <button
           onClick={action === 'stop' ? handleStop : handleSend}
-          disabled={action === 'idle' || action === 'stopping'}
-          aria-label={ACTION_LABELS[action]}
-          title={ACTION_LABELS[action]}
+          disabled={action === 'idle' || action === 'stopping' || action === 'waiting'}
+          aria-label={describeAction(action, sendDecision)}
+          title={describeAction(action, sendDecision)}
           data-action={action}
           className={`shrink-0 w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
             action === 'stop'
@@ -456,7 +779,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
                 : 'bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 disabled:opacity-30'
           }`}
         >
-          {action === 'stopping' ? (
+          {/* `waiting` and `stopping` share the spinner: both mean "held,
+              not lost". They differ in what is being waited on, which the
+              title says. */}
+          {action === 'stopping' || action === 'waiting' ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
           ) : action === 'stop' ? (
             <Square className="w-3.5 h-3.5 fill-current" />
