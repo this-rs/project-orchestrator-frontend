@@ -37,3 +37,21 @@ export const inlineLink =
 
 /** Standard surface for a list / section container. */
 export const surface = 'rounded-xl border border-white/[0.06] bg-white/[0.02]'
+
+/**
+ * Glass material for FLOATING layers only (menus, popovers, sheets, sticky
+ * bars, toasts). Opaque fallback without backdrop-filter support and under
+ * `prefers-reduced-transparency`. Never on content — see DESIGN.md.
+ */
+export const glass = 'ui-glass'
+
+/** Entrance of a floating layer (menu, popover): short rise + fade. */
+export const popIn = 'ui-pop-in'
+
+/**
+ * Press feedback for tappable controls: an immediate, tiny scale-down that
+ * confirms the tap landed. Feedback motion — never longer than ~120ms.
+ */
+export const pressFeedback =
+  'transition-[transform,background-color,color] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100'
+

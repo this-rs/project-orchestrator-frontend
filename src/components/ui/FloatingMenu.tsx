@@ -106,7 +106,7 @@ export function FloatingMenu({ open, onClose, triggerRef, id, label, align = 'en
       aria-label={label}
       onKeyDown={onKeyDown}
       onClick={(e) => e.stopPropagation()}
-      className={`fixed z-[60] min-w-[168px] max-w-[calc(100vw-16px)] overflow-y-auto rounded-lg border border-white/[0.08] bg-surface-popover py-1 shadow-lg ${className}`}
+      className={`fixed z-[60] min-w-[168px] max-w-[calc(100vw-16px)] overflow-y-auto rounded-lg py-1 ui-glass ui-pop-in ${className}`}
       style={{ top: 0, left: 0 }}
     >
       {children}
