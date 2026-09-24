@@ -4,6 +4,8 @@ import type { LucideIcon } from 'lucide-react'
 import type { OverflowMenuAction } from './OverflowMenu'
 import { OverflowMenu } from './OverflowMenu'
 import { CollapsibleMarkdown } from './CollapsibleMarkdown'
+import { MetaLine } from './MetaLine'
+import { inlineLink } from './classes'
 
 export interface ParentLink {
   icon: LucideIcon
@@ -15,21 +17,43 @@ export interface ParentLink {
 interface PageHeaderProps {
   title: string
   description?: string
+  /** Status control / text — rendered first on the key-facts line (e.g. <StatusMenu/>). */
   status?: ReactNode
+  /** Key facts line items (joined with `·`): priority, dates, counts, owner… */
+  meta?: ReactNode[]
+  /** Legacy label/value pairs — rendered on the key-facts line as `label value`. */
   metadata?: { label: string; value: string | ReactNode }[]
+  /** Primary action(s): at most one primary <Button size="sm"/> + one secondary. */
   actions?: ReactNode
+  /** Secondary actions in the `⋯` menu (edit, delete with `confirm`…). */
   overflowActions?: OverflowMenuAction[]
+  /** Extra row under the key facts (tags, linked entities…). */
   children?: ReactNode
-  /** Clickable chips above the title linking to parent entities */
+  /** Parent entities, shown as a muted breadcrumb line above the title */
   parentLinks?: ParentLink[]
   /** view-transition-name for shared element morph (title ↔ card title) */
   viewTransitionName?: string
 }
 
+/**
+ * Detail-page header:
+ *
+ * ```
+ * ⌂ Project name  ›  ▤ Plan name                 (parents, muted links)
+ * Title that may wrap on two lines          [Action] [⋯]
+ * ● In progress · P8 · Updated 3h · 4 tasks      (key facts, MetaLine)
+ * description (collapsible markdown)
+ * children (tags…)
+ * ```
+ *
+ * On phones the `⋯` stays on the title line and the action buttons wrap
+ * under the title — nothing is squeezed or truncated.
+ */
 export function PageHeader({
   title,
   description,
   status,
+  meta,
   metadata,
   actions,
   overflowActions,
@@ -37,67 +61,58 @@ export function PageHeader({
   parentLinks,
   viewTransitionName,
 }: PageHeaderProps) {
+  const facts: ReactNode[] = [
+    status,
+    ...(meta ?? []),
+    ...(metadata ?? []).map((item) => (
+      <span key={`md-${item.label}`} className="inline-flex items-baseline gap-1 min-w-0">
+        <span className="text-gray-500">{item.label}</span>
+        <span className="text-gray-300 min-w-0 break-words">{item.value}</span>
+      </span>
+    )),
+  ]
+  const hasOverflow = overflowActions && overflowActions.some((a) => !a.hidden)
+
   return (
-    <div className="space-y-3">
-      {/* Line 1: Parent chips + Title (left) | Actions + Status + Overflow (right) */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          {parentLinks && parentLinks.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
-              {parentLinks.map((link) => {
-                const Icon = link.icon
-                return (
-                  <Link
-                    key={`${link.label}-${link.href}`}
-                    to={link.href}
-                    className="inline-flex items-center gap-1 bg-white/[0.06] border border-white/[0.08] rounded-full px-2 py-0.5 text-[11px] transition-colors hover:bg-white/[0.10] hover:border-white/[0.14]"
-                  >
-                    <Icon className="w-3 h-3 text-gray-500" />
-                    <span className="text-gray-500">{link.label}</span>
-                    <span className="text-gray-300 truncate max-w-[160px]">{link.name}</span>
-                  </Link>
-                )
-              })}
-            </div>
-          )}
+    <header className="space-y-2">
+      {parentLinks && parentLinks.length > 0 && (
+        <nav aria-label="Parent entities" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          {parentLinks.map((link) => {
+            const Icon = link.icon
+            return (
+              <Link
+                key={`${link.label}-${link.href}`}
+                to={link.href}
+                title={`${link.label}: ${link.name}`}
+                className={`inline-flex items-center gap-1 min-w-0 max-w-full py-1 ${inlineLink}`}
+              >
+                <Icon className="w-3 h-3 shrink-0 text-gray-500" aria-hidden="true" />
+                <span className="sr-only">{link.label}: </span>
+                <span className="truncate max-w-[14rem] sm:max-w-[20rem]">{link.name}</span>
+              </Link>
+            )
+          })}
+        </nav>
+      )}
+
+      <div className="flex items-start gap-2">
+        <div className="flex-1 min-w-0 flex flex-wrap items-start gap-x-3 gap-y-2">
           <h1
-            className="font-bold tracking-tight text-gray-100 truncate"
-            style={{ fontSize: 'var(--fluid-2xl)', ...(viewTransitionName ? { viewTransitionName } : undefined) }}
-          >{title}</h1>
+            className="min-w-0 flex-[1_1_16rem] text-xl md:text-2xl font-semibold tracking-tight text-gray-100 break-words"
+            style={viewTransitionName ? { viewTransitionName } : undefined}
+          >
+            {title}
+          </h1>
+          {actions && <div className="flex flex-wrap items-center gap-2 sm:ml-auto">{actions}</div>}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {actions}
-          {status}
-          {overflowActions && overflowActions.length > 0 && (
-            <OverflowMenu actions={overflowActions} />
-          )}
-        </div>
+        {hasOverflow && <OverflowMenu actions={overflowActions} label={`Actions for ${title}`} className="-mr-1.5" />}
       </div>
 
-      {/* Line 2: Description */}
-      {description && (
-        <CollapsibleMarkdown content={description} maxHeight={120} />
-      )}
+      <MetaLine size="sm" items={facts} />
 
-      {/* Line 3: Children (left) + Metadata pills (right) */}
-      {(children || (metadata && metadata.length > 0)) && (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          {children && <div className="flex items-center gap-2">{children}</div>}
-          {metadata && metadata.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              {metadata.map((item) => (
-                <span
-                  key={item.label}
-                  className="inline-flex items-center gap-1.5 bg-white/[0.05] rounded-full px-3 py-1 text-xs text-gray-400"
-                >
-                  <span className="text-gray-500">{item.label}</span>
-                  <span className="text-gray-300">{typeof item.value === 'string' ? item.value : item.value}</span>
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+      {description && <CollapsibleMarkdown content={description} maxHeight={120} />}
+
+      {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
+    </header>
   )
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useId, useCallback, type ReactNode, type CSSProperties } from 'react'
 import { ChevronDown, Check } from 'lucide-react'
+import { positionFloating, supportsAnchorPositioning } from './menuPosition'
 
 interface SelectOption {
   value: string
@@ -18,12 +19,10 @@ interface SelectProps {
   icon?: ReactNode
 }
 
-/**
- * Detect CSS Anchor Positioning support once at module level.
- * Tauri WebKit (macOS WKWebView) does not support it, so we need a JS fallback.
+/*
+ * CSS Anchor Positioning is missing on iOS Safari < 26 and Tauri WebKit
+ * (WKWebView) — see menuPosition.ts for the JS fallback.
  */
-const supportsAnchorPositioning =
-  typeof CSS !== 'undefined' && CSS.supports('position-area', 'block-end')
 
 export function Select({
   options,
@@ -75,12 +74,9 @@ export function Select({
     const menu = menuRef.current
     if (!trigger || !menu) return
 
-    const rect = trigger.getBoundingClientRect()
-    menu.style.position = 'fixed'
-    menu.style.left = `${rect.left}px`
-    menu.style.top = `${rect.bottom + 4}px`
-    menu.style.minWidth = `${rect.width}px`
     menu.style.width = 'max-content'
+    // Below the trigger, flipped above when needed, clamped to the viewport
+    positionFloating(trigger, menu, { align: 'start', matchWidth: true })
   }, [])
 
   const openMenu = () => {

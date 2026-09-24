@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useId, type CSSProperties } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { Spinner } from './Spinner'
+import { useFloatingFallback } from './useFloatingFallback'
 
 interface StatusSelectProps<T extends string> {
   status: T
@@ -35,6 +36,9 @@ export function StatusSelect<T extends string>({
     menu.addEventListener('toggle', handleToggle)
     return () => menu.removeEventListener('toggle', handleToggle)
   }, [])
+
+  // iOS Safari < 26 / WKWebView: no CSS anchor positioning → place in JS
+  useFloatingFallback(triggerRef, menuRef, isOpen, { align: 'start' })
 
   const openMenu = () => {
     try {

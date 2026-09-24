@@ -44,12 +44,13 @@ export { ToastContainer } from './Toast'
 export { OverflowMenu } from './OverflowMenu'
 export { SectionNav } from './SectionNav'
 export { PageHeader } from './PageHeader'
+export type { ParentLink } from './PageHeader'
 export { StatusSelect } from './StatusSelect'
-export { PageShell } from './PageShell'
+export { PageShell, PageContainer } from './PageShell'
 export type { OverflowMenuAction } from './OverflowMenu'
 export { SelectZone, SelectCheckbox } from './SelectCheckbox'
 export { BulkActionBar } from './BulkActionBar'
-export { Skeleton, SkeletonLine, SkeletonBadge, SkeletonCard } from './Skeleton'
+export { Skeleton, SkeletonLine, SkeletonBadge, SkeletonCard, EntityRowSkeleton, EntityListSkeleton } from './Skeleton'
 export { ErrorState } from './ErrorState'
 export { Tooltip } from './Tooltip'
 export { AnimatedCounter } from './AnimatedCounter'
@@ -66,3 +67,40 @@ export { TabLayout } from './TabLayout'
 export type { TabItem } from './TabLayout'
 export { CompactStatCard } from './CompactStatCard'
 export { WatcherToggle } from './WatcherToggle'
+
+// ── Design-system foundation (see DESIGN.md) ─────────────────────────────
+export { EntityRow, EntityList, ListGroup } from './EntityRow'
+export type { EntityRowProps } from './EntityRow'
+export { MetaLine, Sep, RelativeTime } from './MetaLine'
+export { StatusDot, StatusText, StatusMenu, PriorityText } from './Status'
+export {
+  STATUS_REGISTRY,
+  TONE_CLASSES,
+  getStatusMeta,
+  getStatusOptions,
+  getPriorityMeta,
+  guessTone,
+  humanizeStatus,
+} from './statusMeta'
+export type { StatusKind, StatusTone, StatusMeta, StatusValue } from './statusMeta'
+export { FilterBar } from './FilterBar'
+export { Switch } from './Switch'
+export { Section, Facts } from './Section'
+export {
+  formatRelativeShort,
+  formatAbsolute,
+  formatDay,
+  formatDurationMs,
+  formatElapsed,
+  formatCost,
+  formatCompactNumber,
+  pluralize,
+  getRecencyGroup,
+  groupByRecency,
+  groupBy,
+  RECENCY_GROUP_ORDER,
+} from './format'
+export type { RecencyGroup } from './format'
+export { focusRing, focusRingInset, hitArea, rowInteractive, metaText, textLink, inlineLink, surface } from './classes'
+export { computeMenuPosition, positionFloating, supportsAnchorPositioning } from './menuPosition'
+export { useFloatingFallback } from './useFloatingFallback'

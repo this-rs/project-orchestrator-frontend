@@ -42,3 +42,34 @@ export function SkeletonCard({ className = '', lines = 3 }: { className?: string
     </div>
   )
 }
+
+/** Placeholder matching an EntityRow (dot + title + meta line). */
+export function EntityRowSkeleton({ meta = true }: { meta?: boolean }) {
+  return (
+    <div className="flex items-start gap-2.5 px-3 py-2.5 md:px-4" aria-hidden="true">
+      <Skeleton className="mt-[7px] h-1.5 w-1.5 rounded-full" />
+      <div className="flex-1 min-w-0 space-y-2 py-0.5">
+        <div className="flex items-center gap-3">
+          <SkeletonLine width="55%" className="h-3.5" />
+          <Skeleton className="ml-auto h-3 w-8" />
+        </div>
+        {meta && <SkeletonLine width="35%" className="h-2.5" />}
+      </div>
+    </div>
+  )
+}
+
+/** Loading state for an EntityList: `rows` placeholder rows inside the same card surface. */
+export function EntityListSkeleton({ rows = 6, className = '' }: { rows?: number; className?: string }) {
+  return (
+    <div
+      role="status"
+      aria-label="Loading"
+      className={`rounded-xl border border-white/[0.06] bg-white/[0.02] divide-y divide-white/[0.05] overflow-hidden ${className}`}
+    >
+      {Array.from({ length: rows }).map((_, i) => (
+        <EntityRowSkeleton key={i} />
+      ))}
+    </div>
+  )
+}
