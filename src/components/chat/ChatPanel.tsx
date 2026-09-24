@@ -1,4 +1,5 @@
 import { useAtom } from 'jotai'
+import { useChatUrlSync } from '@/hooks/useChatUrlSync'
 import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom } from '@/atoms'
 import { useChat, useDetachedRuns, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { chatApi } from '@/services/chat'
@@ -56,6 +57,8 @@ export function ChatPanel() {
   const [showAgentTree, setShowAgentTree] = useState(false)
   const [copiedChat, setCopiedChat] = useState(false)
   const chat = useChat()
+  // Session + panel mode live in the URL, so a reload reopens the chat as it was.
+  useChatUrlSync({ sessionId: chat.sessionId, mode, setMode, loadSession: chat.loadSession })
   const detachedRuns = useDetachedRuns(chat.sessionId)
   const panelRef = useRef<HTMLDivElement>(null)
   const setScrollToTurn = useSetAtom(chatScrollToTurnAtom)
