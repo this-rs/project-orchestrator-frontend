@@ -8,6 +8,7 @@ import type { PermissionMode } from '@/types'
 import { ChevronDown, Loader2, Square, ArrowRight } from 'lucide-react'
 import { BackgroundTasksIndicator } from './BackgroundTasksIndicator'
 import { ModelFamilyPicker, type ModelSelectOptions } from './ModelFamilyPicker'
+import { deriveInputAction, ACTION_LABELS } from './inputAction'
 
 const MODE_LABELS: Record<PermissionMode, string> = {
   bypassPermissions: 'Bypass',
@@ -188,6 +189,13 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     setValue('')
   }
 
+  const action = deriveInputAction({
+    hasText: value.trim().length > 0,
+    isStreaming,
+    isStopping,
+    disabled: disabled ?? false,
+  })
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // On mobile, the on-screen keyboard's return key must insert a real newline —
     // sending is done via the dedicated send button. Let the keypress fall through
@@ -366,37 +374,28 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
           placeholder="Send a message..."
           className="flex-1 resize-none bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/40 disabled:opacity-50"
         />
-        {/* Stop button — slides in during streaming */}
-        <div
-          className={`shrink-0 overflow-hidden transition-all duration-200 ease-in-out ${
-            isStreaming ? 'w-8 opacity-100' : 'w-0 opacity-0'
+        {/* One slot for both affordances — see `deriveInputAction`. */}
+        <button
+          onClick={action === 'stop' ? handleStop : handleSend}
+          disabled={action === 'idle' || action === 'stopping'}
+          aria-label={ACTION_LABELS[action]}
+          title={ACTION_LABELS[action]}
+          data-action={action}
+          className={`shrink-0 w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
+            action === 'stop'
+              ? 'bg-red-600/20 text-red-400 hover:bg-red-600/30 active:bg-red-600/50 active:scale-95'
+              : action === 'stopping'
+                ? 'bg-red-600/30 text-red-300 cursor-wait'
+                : 'bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 disabled:opacity-30'
           }`}
         >
-          <button
-            onClick={handleStop}
-            disabled={isStopping}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
-              isStopping
-                ? 'bg-red-600/30 text-red-300 cursor-wait'
-                : 'bg-red-600/20 text-red-400 hover:bg-red-600/30 active:bg-red-600/50 active:scale-95'
-            }`}
-            title={isStopping ? 'Stopping...' : 'Stop generating'}
-          >
-            {isStopping ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Square className="w-3.5 h-3.5 fill-current" />
-            )}
-          </button>
-        </div>
-        {/* Send button — always visible */}
-        <button
-          onClick={handleSend}
-          disabled={disabled || !value.trim()}
-          className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 transition-colors disabled:opacity-30"
-          title="Send message"
-        >
-          <ArrowRight className="w-3.5 h-3.5" />
+          {action === 'stopping' ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : action === 'stop' ? (
+            <Square className="w-3.5 h-3.5 fill-current" />
+          ) : (
+            <ArrowRight className="w-3.5 h-3.5" />
+          )}
         </button>
       </div>
     </div>
