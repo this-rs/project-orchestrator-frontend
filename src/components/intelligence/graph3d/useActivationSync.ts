@@ -112,10 +112,15 @@ function getMatchingActivationId(
  *
  * @param graphRef  React ref to the ForceGraph3D instance
  * @param nodes     Current graph nodes (must have `__threeObj` attached by the renderer)
+ * @param wake      Optional render-loop wake-up. MUST be provided when the host
+ *                  component renders on demand: every mutation below is an
+ *                  imperative Three.js change that produces no React render, so
+ *                  without it the activation visuals would never be drawn.
  */
 export function useActivationSync(
   graphRef: React.RefObject<ActivationSyncGraphRef | undefined>,
   nodes: ActivationSyncNode[],
+  wake?: (ms?: number) => void,
 ): void {
   const activation = useAtomValue(activationStateAtom)
   const activationPhase = activation.phase
@@ -129,6 +134,10 @@ export function useActivationSync(
 
   // ── Imperative sprite/light sync ────────────────────────────────────────
   useEffect(() => {
+    // wake: adds/removes PointLights and rewrites sprite opacity on every node
+    // (both the activation and the deactivation path return early below).
+    wake?.()
+
     const fg = graphRef.current
     if (!fg || typeof fg.scene !== 'function') return
 
@@ -196,7 +205,7 @@ export function useActivationSync(
     }
 
     dirty.nodeStates = newNodeStates
-  }, [activationPhase, activation.directIds, activation.propagatedIds, activation.scores, nodes, graphRef])
+  }, [activationPhase, activation.directIds, activation.propagatedIds, activation.scores, nodes, graphRef, wake])
 
   // ── Camera zoom to activated cluster ────────────────────────────────────
   const prevActivationPhaseRef = useRef<string>('idle')
@@ -248,5 +257,8 @@ export function useActivationSync(
       { x: cx, y: cy, z: cz },
       1200,
     )
-  }, [activationPhase, activation.directIds, activation.propagatedIds, nodes, graphRef])
+    // wake: the camera tween is advanced by tweenGroup.update() inside the
+    // render loop — it needs every frame of its 1200 ms duration (+ margin).
+    wake?.(1700)
+  }, [activationPhase, activation.directIds, activation.propagatedIds, nodes, graphRef, wake])
 }
