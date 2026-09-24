@@ -100,23 +100,22 @@ function healthScoreLabel(score: number): string {
   return 'At Risk'
 }
 
-function CircularGauge({ score }: { score: number }) {
-  const size = 140
-  const strokeWidth = 9
+function CircularGauge({ score, size = 140, showLabel = true }: { score: number; size?: number; showLabel?: boolean }) {
+  const strokeWidth = size < 100 ? 7 : 9
   const radius = (size - strokeWidth) / 2
   const circumference = 2 * Math.PI * radius
   const color = healthScoreColor(score)
   const progress = (score / 100) * circumference
 
   return (
-    <div className="relative" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="transform -rotate-90">
+    <div className="relative shrink-0" style={{ width: size, height: size }} role="img" aria-label={`Health score ${score} of 100, ${healthScoreLabel(score)}`}>
+      <svg width={size} height={size} className="transform -rotate-90" aria-hidden="true">
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="#1e293b"
+          stroke="rgba(255,255,255,0.06)"
           strokeWidth={strokeWidth}
         />
         <circle
@@ -129,22 +128,14 @@ function CircularGauge({ score }: { score: number }) {
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={circumference - progress}
-          style={{
-            transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)',
-            filter: `drop-shadow(0 0 6px ${color}40)`,
-          }}
+          style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)' }}
         />
       </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span
-          className="text-2xl font-bold tabular-nums"
-          style={{ color }}
-        >
+      <div className="absolute inset-0 flex flex-col items-center justify-center" aria-hidden="true">
+        <span className={`${size < 100 ? 'text-xl' : 'text-2xl'} font-semibold tabular-nums`} style={{ color }}>
           {score}
         </span>
-        <span className="text-[10px] text-slate-500 uppercase tracking-wider mt-0.5">
-          {healthScoreLabel(score)}
-        </span>
+        {showLabel && <span className="text-[11px] text-gray-500 mt-0.5">{healthScoreLabel(score)}</span>}
       </div>
     </div>
   )
