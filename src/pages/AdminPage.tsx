@@ -2,14 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   FolderSync,
   Eye,
-  EyeOff,
-  Play,
   Square,
-  Search,
   Trash2,
-  Database,
   Sparkles,
-  AlertTriangle,
   RefreshCw,
   Wrench,
   Zap,
@@ -17,274 +12,26 @@ import {
   BarChart3,
   Activity,
   GitCommitHorizontal,
-  Loader2,
+  Play,
 } from 'lucide-react'
 import {
-  Badge,
   Button,
-  Select,
+  Facts,
   Input,
+  ListGroup,
+  PageContainer,
+  PageHeader,
+  RelativeTime,
+  Section,
+  Select,
+  StatusText,
+  Switch,
   ConfirmDialog,
-  PageShell,
-  CollapsibleSection,
 } from '@/components/ui'
+import { ActionRow, Notice, SettingRow, SettingsList } from '@/components/settings/SettingRow'
 import { adminApi, workspacesApi } from '@/services'
 import { useConfirmDialog, useToast, useWorkspaceSlug } from '@/hooks'
-import type {
-  BackfillJobStatus,
-  MeilisearchStats,
-  MaintenanceLevel,
-} from '@/types'
-
-
-// ============================================================================
-// ACTION ITEM — Row with icon, title, description and action button
-// ============================================================================
-
-interface ActionItemProps {
-  title: string
-  description: string
-  icon: React.ReactNode
-  buttonLabel?: string
-  buttonVariant?: 'primary' | 'secondary' | 'danger'
-  confirm?: {
-    title: string
-    description?: string
-    variant?: 'danger' | 'warning' | 'info'
-    confirmLabel?: string
-  }
-  onAction: () => Promise<string>
-  disabled?: boolean
-}
-
-function ActionItem({
-  title,
-  description,
-  icon,
-  buttonLabel = 'Run',
-  buttonVariant = 'secondary',
-  confirm,
-  onAction,
-  disabled,
-}: ActionItemProps) {
-  const [loading, setLoading] = useState(false)
-  const confirmDialog = useConfirmDialog()
-  const toast = useToast()
-
-  const run = async () => {
-    setLoading(true)
-    try {
-      const msg = await onAction()
-      toast.success(msg)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Action failed')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleClick = () => {
-    if (confirm) {
-      confirmDialog.open({
-        title: confirm.title,
-        description: confirm.description || `Are you sure you want to run "${title}"?`,
-        variant: confirm.variant || 'info',
-        confirmLabel: confirm.confirmLabel,
-        onConfirm: run,
-      })
-    } else {
-      run()
-    }
-  }
-
-  return (
-    <>
-      <div className="flex items-start gap-3 py-3 px-4 group">
-        <div className="shrink-0 w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center text-gray-500 group-hover:text-gray-400 transition-colors mt-0.5">
-          {icon}
-        </div>
-        <div className="flex-1 min-w-0 pt-0.5">
-          <h4 className="text-sm font-medium text-gray-200">{title}</h4>
-          <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{description}</p>
-        </div>
-        <Button
-          variant={buttonVariant}
-          size="sm"
-          onClick={handleClick}
-          disabled={disabled || loading}
-          className="shrink-0 mt-0.5"
-        >
-          {loading ? (
-            <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-          ) : null}
-          {buttonLabel}
-        </Button>
-      </div>
-      <ConfirmDialog {...confirmDialog.dialogProps} />
-    </>
-  )
-}
-
-/** Groups ActionItems visually with a shared border and dividers */
-function ActionGroup({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="divide-y divide-white/[0.04] rounded-lg border border-white/[0.06] bg-white/[0.01] overflow-hidden">
-      {children}
-    </div>
-  )
-}
-
-// ============================================================================
-// BACKFILL STATUS (with polling)
-// ============================================================================
-
-interface BackfillPanelProps {
-  title: string
-  description: string
-  getStatus: () => Promise<BackfillJobStatus>
-  onStart: () => Promise<unknown>
-  onCancel: () => Promise<unknown>
-}
-
-function BackfillPanel({ title, description, getStatus, onStart, onCancel }: BackfillPanelProps) {
-  const [status, setStatus] = useState<BackfillJobStatus | null>(null)
-  const [starting, setStarting] = useState(false)
-  const [cancelling, setCancelling] = useState(false)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const toast = useToast()
-
-  const fetchStatus = useCallback(async () => {
-    try {
-      const s = await getStatus()
-      setStatus(s)
-      return s
-    } catch {
-      return null
-    }
-  }, [getStatus])
-
-  // Initial fetch
-  useEffect(() => {
-    fetchStatus()
-  }, [fetchStatus])
-
-  // Polling when running
-  useEffect(() => {
-    if (status?.status === 'running') {
-      intervalRef.current = setInterval(fetchStatus, 3000)
-    } else if (intervalRef.current) {
-      clearInterval(intervalRef.current)
-      intervalRef.current = null
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-    }
-  }, [status?.status, fetchStatus])
-
-  const handleStart = async () => {
-    setStarting(true)
-    try {
-      await onStart()
-      toast.success(`${title} started`)
-      await fetchStatus()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to start')
-    } finally {
-      setStarting(false)
-    }
-  }
-
-  const handleCancel = async () => {
-    setCancelling(true)
-    try {
-      await onCancel()
-      toast.success(`${title} cancelled`)
-      await fetchStatus()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to cancel')
-    } finally {
-      setCancelling(false)
-    }
-  }
-
-  const isRunning = status?.status === 'running'
-  const progress = status?.progress
-
-  return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
-      <div className="flex items-center justify-between mb-1">
-        <h4 className="text-sm font-medium text-gray-300">{title}</h4>
-        <StatusBadge status={status?.status || 'idle'} />
-      </div>
-      <p className="text-xs text-gray-500 mb-3 leading-relaxed">{description}</p>
-
-      {isRunning && progress && (
-        <div className="mb-3">
-          <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-            <span>
-              {progress.current} / {progress.total}
-            </span>
-            <span>{progress.percentage.toFixed(1)}%</span>
-          </div>
-          <div className="w-full h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-            <div
-              className="h-full rounded-full bg-indigo-500 transition-all duration-300"
-              style={{ width: `${progress.percentage}%` }}
-            />
-          </div>
-        </div>
-      )}
-
-      {status?.error && (
-        <p className="text-xs text-red-400 mb-2">{status.error}</p>
-      )}
-
-      <div className="flex gap-2">
-        {isRunning ? (
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={handleCancel}
-            disabled={cancelling}
-          >
-            {cancelling ? (
-              <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <Square className="w-3.5 h-3.5 mr-1.5" />
-            )}
-            Cancel
-          </Button>
-        ) : (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleStart}
-            disabled={starting}
-          >
-            {starting ? (
-              <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <Play className="w-3.5 h-3.5 mr-1.5" />
-            )}
-            Start
-          </Button>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const config: Record<string, { variant: 'default' | 'info' | 'success' | 'warning' | 'error'; label: string }> = {
-    idle: { variant: 'default', label: 'Idle' },
-    running: { variant: 'info', label: 'Running' },
-    completed: { variant: 'success', label: 'Completed' },
-    failed: { variant: 'error', label: 'Failed' },
-    cancelled: { variant: 'warning', label: 'Cancelled' },
-  }
-  const c = config[status] || config.idle
-  return <Badge variant={c.variant}>{c.label}</Badge>
-}
+import type { BackfillJobStatus, MeilisearchStats, MaintenanceLevel } from '@/types'
 
 // ============================================================================
 // MAIN PAGE
@@ -293,7 +40,7 @@ function StatusBadge({ status }: { status: string }) {
 export function AdminPage() {
   const wsSlug = useWorkspaceSlug()
 
-  // Projects for scoping
+  // Projects for scoping the Knowledge Fabric actions
   const [projects, setProjects] = useState<{ id: string; name: string; slug: string }[]>([])
   const [selectedProject, setSelectedProject] = useState('')
 
@@ -309,47 +56,26 @@ export function AdminPage() {
       .catch(() => {})
   }, [wsSlug])
 
-  const projectOptions = projects.map((p) => ({ value: p.id, label: p.name }))
   const selectedProjectSlug = projects.find((p) => p.id === selectedProject)?.slug || ''
 
-  const projectRequired = !selectedProject
-
   return (
-    <PageShell
-      title="Administration"
-      description="System maintenance, sync, backfills and cleanup operations"
-      actions={
-        projects.length > 0 ? (
-          <Select
-            options={projectOptions}
-            value={selectedProject}
-            onChange={setSelectedProject}
-            className="w-full sm:w-52"
-          />
-        ) : undefined
-      }
-    >
-      <div className="space-y-3">
-        {/* ── Sync & Watchers ──────────────────────────────────── */}
-        <SyncWatchersSection />
+    <PageContainer width="narrow" className="space-y-6">
+      <PageHeader
+        title="Administration"
+        description="Maintenance du serveur : synchronisation du code, index de recherche, embeddings, analyses du graphe et nettoyage. Chaque action indique ce qu'elle fait et ce qu'elle coûte ; les actions destructives demandent confirmation."
+      />
 
-        {/* ── Search Engine ────────────────────────────────────── */}
-        <SearchEngineSection />
-
-        {/* ── Embeddings & Backfills ───────────────────────────── */}
-        <EmbeddingsSection />
-
-        {/* ── Knowledge Fabric ─────────────────────────────────── */}
-        <KnowledgeFabricSection
-          projectId={selectedProject}
-          projectSlug={selectedProjectSlug}
-          projectRequired={projectRequired}
-        />
-
-        {/* ── Cleanup ──────────────────────────────────────────── */}
-        <CleanupSection />
-      </div>
-    </PageShell>
+      <SyncWatchersSection />
+      <SearchEngineSection />
+      <EmbeddingsSection />
+      <KnowledgeFabricSection
+        projects={projects}
+        projectId={selectedProject}
+        projectSlug={selectedProjectSlug}
+        onProjectChange={setSelectedProject}
+      />
+      <CleanupSection />
+    </PageContainer>
   )
 }
 
@@ -373,8 +99,7 @@ function SyncWatchersSection() {
 
   const fetchWatchStatus = useCallback(async () => {
     try {
-      const s = await adminApi.getWatchStatus()
-      setWatchStatus(s)
+      setWatchStatus(await adminApi.getWatchStatus())
     } catch {
       setWatchStatus(null)
     }
@@ -407,66 +132,59 @@ function SyncWatchersSection() {
       .catch(() => {})
   }, [fetchWatchStatus])
 
-  /** All projects flattened (for unlinked path detection) */
   const allProjects = wsProjectGroups.flatMap((g) => g.projects)
 
   const isPathWatched = useCallback(
     (rootPath: string) =>
       watchStatus?.watched_paths.some(
-        (wp) =>
-          wp === rootPath ||
-          rootPath.startsWith(wp + '/') ||
-          wp.startsWith(rootPath + '/'),
+        (wp) => wp === rootPath || rootPath.startsWith(wp + '/') || wp.startsWith(rootPath + '/'),
       ) ?? false,
     [watchStatus],
   )
 
-  const handleToggleWatchPath = useCallback(
-    async (path: string, projectId: string | undefined, projectName: string | undefined, currentlyWatched: boolean) => {
-      setTogglingPaths((prev) => new Set(prev).add(path))
-      try {
-        if (currentlyWatched) {
-          if (projectId) {
-            await adminApi.stopWatch(projectId)
-            toast.success(`Watcher stopped for ${projectName}`)
-          } else {
-            await adminApi.stopWatch()
-            toast.success('Watcher stopped')
-          }
+  const handleToggleWatchPath = async (
+    path: string,
+    projectId: string | undefined,
+    projectName: string | undefined,
+    currentlyWatched: boolean,
+  ) => {
+    setTogglingPaths((prev) => new Set(prev).add(path))
+    try {
+      if (currentlyWatched) {
+        if (projectId) {
+          await adminApi.stopWatch(projectId)
+          toast.success(`Watcher stopped for ${projectName}`)
         } else {
-          await adminApi.startWatch({ path, project_id: projectId })
-          toast.success(`Watcher started for ${projectName ?? path}`)
+          await adminApi.stopWatch()
+          toast.success('Watcher stopped')
         }
-        fetchWatchStatus()
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Failed to toggle watcher')
-      } finally {
-        setTogglingPaths((prev) => {
-          const next = new Set(prev)
-          next.delete(path)
-          return next
-        })
+      } else {
+        await adminApi.startWatch({ path, project_id: projectId })
+        toast.success(`Watcher started for ${projectName ?? path}`)
       }
-    },
-    [fetchWatchStatus, toast],
-  )
+      fetchWatchStatus()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to toggle watcher')
+    } finally {
+      setTogglingPaths((prev) => {
+        const next = new Set(prev)
+        next.delete(path)
+        return next
+      })
+    }
+  }
 
   /** Watched paths not matching any known project */
-  const unlinkedPaths = watchStatus?.watched_paths.filter(
-    (wp) =>
-      !allProjects.some(
-        (p) =>
-          p.root_path === wp ||
-          wp.startsWith(p.root_path + '/') ||
-          p.root_path.startsWith(wp + '/'),
-      ),
-  ) ?? []
+  const unlinkedPaths =
+    watchStatus?.watched_paths.filter(
+      (wp) =>
+        !allProjects.some(
+          (p) => p.root_path === wp || wp.startsWith(p.root_path + '/') || p.root_path.startsWith(wp + '/'),
+        ),
+    ) ?? []
 
   const handleSync = async () => {
-    if (!syncPath.trim()) {
-      toast.error('Please enter a directory path')
-      return
-    }
+    if (!syncPath.trim()) return
     setSyncing(true)
     try {
       const res = await adminApi.syncDirectory({ path: syncPath.trim() })
@@ -480,10 +198,7 @@ function SyncWatchersSection() {
   }
 
   const handleStartWatch = async () => {
-    if (!syncPath.trim()) {
-      toast.error('Please enter a directory path')
-      return
-    }
+    if (!syncPath.trim()) return
     try {
       await adminApi.startWatch({ path: syncPath.trim() })
       toast.success(`Watcher started for ${syncPath.trim()}`)
@@ -494,12 +209,12 @@ function SyncWatchersSection() {
     }
   }
 
-  const handleStopWatch = () => {
+  const handleStopAll = () => {
     confirmDialog.open({
-      title: 'Stop All Watchers',
-      description: 'Stop all file watchers? You can restart them at any time.',
+      title: 'Stop all watchers',
+      description: 'Plus aucun projet ne sera resynchronisé automatiquement. Vous pourrez les relancer à tout moment.',
       variant: 'warning',
-      confirmLabel: 'Stop All',
+      confirmLabel: 'Stop all',
       onConfirm: async () => {
         await adminApi.stopWatch()
         toast.success('All watchers stopped')
@@ -511,163 +226,112 @@ function SyncWatchersSection() {
   const activeCount = watchStatus?.watched_paths.length ?? 0
 
   return (
-    <CollapsibleSection
-      title="Sync & Watchers"
-      icon={<FolderSync className="w-4 h-4" />}
-      description="Parse your codebase with Tree-sitter and monitor file changes automatically."
-      headerRight={
-        watchStatus && (
-          <Badge variant={watchStatus.running ? 'success' : 'default'}>
-            <span className="flex items-center gap-1.5">
-              {watchStatus.running ? (
-                <Activity className="w-3 h-3" />
-              ) : (
-                <EyeOff className="w-3 h-3" />
-              )}
-              {watchStatus.running
-                ? `Watching (${activeCount})`
-                : 'Inactive'}
-            </span>
-          </Badge>
-        )
+    <Section
+      title="Sync & watchers"
+      description="Un watcher surveille les fichiers d'un projet et met le graphe de code à jour à chaque modification."
+      action={
+        watchStatus?.running && activeCount > 0 ? (
+          <Button size="sm" variant="ghost" onClick={handleStopAll} className="text-red-300">
+            <Square className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
+            Stop all
+          </Button>
+        ) : undefined
       }
-      defaultOpen
     >
-      {/* Watchers grouped by workspace */}
-      {(wsProjectGroups.length > 0 || unlinkedPaths.length > 0) && (
-        <div className="mb-4 space-y-3">
-          <h4 className="text-xs uppercase tracking-wider text-gray-500 mb-2">Watchers</h4>
+      <div className="space-y-3">
+        {watchStatus && (
+          <p className="text-xs text-gray-500">
+            <StatusText
+              status={watchStatus.running ? 'running' : 'idle'}
+              kind="run"
+              label={watchStatus.running ? `Watching ${activeCount} path${activeCount === 1 ? '' : 's'}` : 'No watcher running'}
+            />
+          </p>
+        )}
 
-          {wsProjectGroups.map((group) => (
-            <div key={group.workspace.slug} className="space-y-1">
-              <div className="text-[11px] uppercase tracking-wider text-gray-500 font-medium px-1 mb-1">
-                {group.workspace.name}
-              </div>
-              {group.projects.map((project) => {
-                const isWatched = isPathWatched(project.root_path)
-                const isToggling = togglingPaths.has(project.root_path)
-                return (
-                  <div
-                    key={project.id}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.04] text-xs"
-                  >
-                    <button
-                      onClick={() => handleToggleWatchPath(project.root_path, project.id, project.name, isWatched)}
-                      disabled={isToggling}
-                      className={`p-1 rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                        isWatched
-                          ? 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10'
-                          : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.08]'
-                      }`}
-                      title={
-                        isWatched
-                          ? `Watcher active for ${project.name} — click to stop`
-                          : `Watcher inactive for ${project.name} — click to start`
+        {(wsProjectGroups.length > 0 || unlinkedPaths.length > 0) && (
+          <div>
+            {wsProjectGroups.map((group) => (
+              <ListGroup key={group.workspace.slug} title={group.workspace.name} count={group.projects.length}>
+                {group.projects.map((project) => {
+                  const watched = isPathWatched(project.root_path)
+                  return (
+                    <SettingRow
+                      key={project.id}
+                      label={project.name}
+                      description={
+                        <code className="block truncate font-mono text-[11px]" title={project.root_path}>
+                          {project.root_path}
+                        </code>
                       }
-                    >
-                      {isToggling ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : isWatched ? (
-                        <Eye className="w-3.5 h-3.5" />
-                      ) : (
-                        <EyeOff className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-                    <span className="text-gray-200 font-medium">{project.name}</span>
-                    <code className="text-gray-500 font-mono truncate ml-auto text-[11px]">{project.root_path}</code>
-                  </div>
-                )
-              })}
-            </div>
-          ))}
-
-          {/* Unlinked watched paths */}
-          {unlinkedPaths.length > 0 && (
-            <div className="space-y-1">
-              <div className="text-[11px] uppercase tracking-wider text-gray-500 font-medium px-1 mb-1">
-                Unlinked
-              </div>
-              {unlinkedPaths.map((path) => {
-                const isToggling = togglingPaths.has(path)
-                return (
-                  <div
+                      control={
+                        <Switch
+                          checked={watched}
+                          disabled={togglingPaths.has(project.root_path)}
+                          onChange={() => handleToggleWatchPath(project.root_path, project.id, project.name, watched)}
+                          ariaLabel={`Watch ${project.name}`}
+                        />
+                      }
+                    />
+                  )
+                })}
+              </ListGroup>
+            ))}
+            {unlinkedPaths.length > 0 && (
+              <ListGroup title="Unlinked paths" count={unlinkedPaths.length}>
+                {unlinkedPaths.map((path) => (
+                  <SettingRow
                     key={path}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.04] text-xs"
-                  >
-                    <button
-                      onClick={() => handleToggleWatchPath(path, undefined, undefined, true)}
-                      disabled={isToggling}
-                      className="p-1 rounded-md transition-all text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Watcher active — click to stop"
-                    >
-                      {isToggling ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Eye className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-                    <code className="text-gray-300 font-mono truncate">{path}</code>
-                    <Badge variant="default" className="ml-auto shrink-0">unlinked</Badge>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+                    label={
+                      <code className="block truncate font-mono text-xs" title={path}>
+                        {path}
+                      </code>
+                    }
+                    description="Dossier surveillé qui ne correspond à aucun projet connu."
+                    control={
+                      <Switch
+                        checked
+                        disabled={togglingPaths.has(path)}
+                        onChange={() => handleToggleWatchPath(path, undefined, undefined, true)}
+                        ariaLabel={`Watch ${path}`}
+                      />
+                    }
+                  />
+                ))}
+              </ListGroup>
+            )}
+          </div>
+        )}
 
-          {/* Global stop button */}
-          {watchStatus?.running && activeCount > 0 && (
-            <div className="pt-1">
-              <Button variant="danger" size="sm" onClick={handleStopWatch}>
-                <Square className="w-3.5 h-3.5 mr-1.5" />
-                Stop All Watchers
+        <SettingsList>
+          <SettingRow
+            label="Sync or watch a directory"
+            description="Sync : analyse unique de tout le code du dossier (Tree-sitter, de quelques secondes à quelques minutes). Watch : resynchronise ensuite automatiquement à chaque changement."
+          >
+            <div className="flex flex-wrap gap-2">
+              <div className="flex-[1_1_12rem] min-w-0">
+                <Input
+                  placeholder="/absolute/path/to/project"
+                  aria-label="Directory path"
+                  value={syncPath}
+                  onChange={(e) => setSyncPath(e.target.value)}
+                  className="text-base md:text-sm h-9 py-1.5"
+                />
+              </div>
+              <Button variant="secondary" size="sm" onClick={handleSync} loading={syncing} disabled={!syncPath.trim()}>
+                {!syncing && <FolderSync className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />}
+                Sync
+              </Button>
+              <Button variant="secondary" size="sm" onClick={handleStartWatch} disabled={!syncPath.trim()}>
+                <Eye className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
+                Watch
               </Button>
             </div>
-          )}
-        </div>
-      )}
-
-      {/* Manual sync / start watcher */}
-      <div className={activeCount > 0 || wsProjectGroups.length > 0 ? 'border-t border-white/[0.06] pt-4' : ''}>
-        <h4 className="text-xs uppercase tracking-wider text-gray-500 mb-2">Sync or Watch a Directory</h4>
-        <p className="text-xs text-gray-500 mb-3 leading-relaxed">
-          Enter an absolute path to a project directory. <strong className="text-gray-400">Sync</strong> performs a one-time
-          Tree-sitter parse of all source files. <strong className="text-gray-400">Watch</strong> starts a persistent file watcher
-          that automatically re-syncs on changes.
-        </p>
-        <div className="flex gap-2">
-          <Input
-            placeholder="/path/to/project"
-            value={syncPath}
-            onChange={(e) => setSyncPath(e.target.value)}
-            className="flex-1"
-          />
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleSync}
-            disabled={syncing || !syncPath.trim()}
-          >
-            {syncing ? (
-              <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <FolderSync className="w-3.5 h-3.5 mr-1.5" />
-            )}
-            Sync
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleStartWatch}
-            disabled={!syncPath.trim()}
-          >
-            <Eye className="w-3.5 h-3.5 mr-1.5" />
-            Watch
-          </Button>
-        </div>
+          </SettingRow>
+        </SettingsList>
       </div>
-
       <ConfirmDialog {...confirmDialog.dialogProps} />
-    </CollapsibleSection>
+    </Section>
   )
 }
 
@@ -686,39 +350,61 @@ function SearchEngineSection() {
   }, [])
 
   return (
-    <CollapsibleSection
-      title="Search Engine"
-      icon={<Search className="w-4 h-4" />}
-      description="Manage the Meilisearch full-text index used for semantic code search."
+    <Section
+      title="Search engine"
+      description="Index plein texte (Meilisearch) utilisé par la recherche de code."
+      collapsible
+      defaultOpen={false}
     >
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-        <StatBox label="Documents" value={stats?.code_documents?.toLocaleString() ?? '—'} />
-        <StatBox
-          label="Status"
-          value={stats?.is_indexing ? 'Indexing' : 'Ready'}
-          highlight={stats?.is_indexing}
+      <div className="space-y-3">
+        <Facts
+          items={[
+            {
+              label: 'Documents',
+              value: stats ? (
+                <span>
+                  <span className="tabular-nums">{stats.code_documents.toLocaleString()}</span>
+                  <span className="text-gray-500"> fichiers indexés</span>
+                </span>
+              ) : (
+                '—'
+              ),
+            },
+            {
+              label: 'Status',
+              value: stats ? (
+                <StatusText
+                  kind="run"
+                  status={stats.is_indexing ? 'running' : 'completed'}
+                  label={stats.is_indexing ? 'Indexing — résultats incomplets' : 'Ready'}
+                  pulse={stats.is_indexing}
+                />
+              ) : (
+                '—'
+              ),
+            },
+          ]}
         />
+        <SettingsList>
+          <ActionRow
+            label="Clean orphan documents"
+            description="Retire de l'index les documents dont le fichier n'existe plus dans le graphe."
+            cost="Quelques secondes · sans risque"
+            icon={<Trash2 />}
+            buttonLabel="Clean"
+            confirm={{
+              title: 'Clean orphan documents',
+              description: 'Supprime de Meilisearch les documents qui n’existent plus dans Neo4j. Sans risque.',
+              variant: 'info',
+            }}
+            onAction={async () => {
+              const res = await adminApi.deleteMeilisearchOrphans()
+              return res.message || 'Orphans cleaned'
+            }}
+          />
+        </SettingsList>
       </div>
-
-      <ActionGroup>
-        <ActionItem
-          title="Clean Orphan Documents"
-          description="Remove documents from the search index that no longer have a matching node in the Neo4j graph. Safe to run at any time."
-          icon={<Trash2 className="w-4 h-4" />}
-          buttonLabel="Clean"
-          confirm={{
-            title: 'Clean Orphan Documents',
-            description: 'Remove orphaned documents from Meilisearch that no longer exist in Neo4j. This is safe to run.',
-            variant: 'info',
-            confirmLabel: 'Clean',
-          }}
-          onAction={async () => {
-            const res = await adminApi.deleteMeilisearchOrphans()
-            return res.message || 'Orphans cleaned'
-          }}
-        />
-      </ActionGroup>
-    </CollapsibleSection>
+    </Section>
   )
 }
 
@@ -726,54 +412,170 @@ function SearchEngineSection() {
 // SECTION: EMBEDDINGS & BACKFILLS
 // ============================================================================
 
+interface BackfillRowProps {
+  label: string
+  description: string
+  cost: string
+  getStatus: () => Promise<BackfillJobStatus>
+  onStart: () => Promise<unknown>
+  onCancel: () => Promise<unknown>
+}
+
+/** Long-running backfill job: status, progress (polled every 3 s while running), start / cancel. */
+function BackfillRow({ label, description, cost, getStatus, onStart, onCancel }: BackfillRowProps) {
+  const [status, setStatus] = useState<BackfillJobStatus | null>(null)
+  const [busy, setBusy] = useState(false)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const toast = useToast()
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      setStatus(await getStatus())
+    } catch {
+      // keep last known status
+    }
+  }, [getStatus])
+
+  useEffect(() => {
+    fetchStatus()
+  }, [fetchStatus])
+
+  // Poll while running
+  useEffect(() => {
+    if (status?.status === 'running') {
+      intervalRef.current = setInterval(fetchStatus, 3000)
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+  }, [status?.status, fetchStatus])
+
+  const isRunning = status?.status === 'running'
+  const progress = status?.progress
+
+  const handle = async () => {
+    setBusy(true)
+    try {
+      if (isRunning) {
+        await onCancel()
+        toast.success(`${label} cancelled`)
+      } else {
+        await onStart()
+        toast.success(`${label} started`)
+      }
+      await fetchStatus()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : isRunning ? 'Failed to cancel' : 'Failed to start')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const state = status?.status ?? 'idle'
+
+  return (
+    <SettingRow
+      label={label}
+      description={description}
+      meta={[
+        <StatusText
+          key="s"
+          kind="run"
+          status={state === 'idle' ? 'pending' : state}
+          label={state === 'idle' ? 'Idle' : undefined}
+          pulse={isRunning}
+        />,
+        isRunning && progress ? (
+          <span key="p" className="tabular-nums">
+            {progress.current} / {progress.total} · {progress.percentage.toFixed(1)}%
+          </span>
+        ) : null,
+        !isRunning && status?.finished_at ? <RelativeTime key="f" date={status.finished_at} prefix="finished " /> : null,
+        cost,
+      ]}
+      control={
+        <Button
+          variant={isRunning ? 'danger' : 'secondary'}
+          size="sm"
+          onClick={handle}
+          loading={busy}
+          aria-label={`${isRunning ? 'Cancel' : 'Start'} — ${label}`}
+        >
+          {!busy && (isRunning ? <Square className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> : <Play className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />)}
+          {isRunning ? 'Cancel' : 'Start'}
+        </Button>
+      }
+    >
+      {(isRunning && progress) || status?.error ? (
+        <div className="space-y-1.5">
+          {isRunning && progress && (
+            <div
+              className="h-1 w-full rounded-full bg-white/[0.06] overflow-hidden"
+              role="progressbar"
+              aria-label={`${label} progress`}
+              aria-valuenow={Math.round(progress.percentage)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
+              {/* No width tween: live data updates in place (DESIGN.md › Mouvement) */}
+              <div className="h-full rounded-full bg-indigo-500" style={{ width: `${progress.percentage}%` }} />
+            </div>
+          )}
+          {status?.error && <p className="text-xs text-red-400 break-words">{status.error}</p>}
+        </div>
+      ) : null}
+    </SettingRow>
+  )
+}
+
 function EmbeddingsSection() {
   return (
-    <CollapsibleSection
-      title="Embeddings & Backfills"
-      icon={<Database className="w-4 h-4" />}
-      description="Generate vector embeddings for semantic search and backfill missing data relationships."
+    <Section
+      title="Embeddings & backfills"
+      description="Calcule les vecteurs qui alimentent la recherche sémantique et reconstruit les liens manquants."
+      collapsible
+      defaultOpen={false}
     >
-      <div className="space-y-4">
-        {/* Long-running backfill jobs with progress */}
-        <BackfillPanel
-          title="Note Embeddings"
-          description="Generate vector embeddings for notes that don't have them yet. Required for semantic search (search_semantic) to work."
+      <SettingsList>
+        <BackfillRow
+          label="Note embeddings"
+          description="Vectorise les notes qui n'en ont pas encore — indispensable à la recherche sémantique."
+          cost="Tâche de fond · minutes selon le volume"
           getStatus={adminApi.getBackfillEmbeddingsStatus}
           onStart={() => adminApi.startBackfillEmbeddings()}
           onCancel={() => adminApi.cancelBackfillEmbeddings()}
         />
-
-        <BackfillPanel
-          title="Synapse Backfill"
-          description="Create neural connections (synapses) between related notes based on embedding similarity. Powers the Knowledge Fabric propagation."
+        <BackfillRow
+          label="Synapse backfill"
+          description="Relie les notes proches par des synapses (similarité des embeddings) pour la propagation du savoir."
+          cost="Tâche de fond · minutes selon le volume"
           getStatus={adminApi.getBackfillSynapsesStatus}
           onStart={() => adminApi.startBackfillSynapses()}
           onCancel={() => adminApi.cancelBackfillSynapses()}
         />
-
-        {/* Quick actions */}
-        <ActionGroup>
-          <ActionItem
-            title="Decision Embeddings"
-            description="Generate vector embeddings for architectural decisions. Enables semantic search over decisions via search_semantic."
-            icon={<Zap className="w-4 h-4" />}
-            onAction={async () => {
-              const res = await adminApi.backfillDecisionEmbeddings()
-              return `Processed ${res.decisions_processed} decisions, created ${res.embeddings_created} embeddings`
-            }}
-          />
-          <ActionItem
-            title="Backfill Discussed"
-            description="Reconstruct DISCUSSED relationships from past chat sessions. Links files and functions to the conversations where they were analyzed."
-            icon={<Zap className="w-4 h-4" />}
-            onAction={async () => {
-              const res = await adminApi.backfillDiscussed()
-              return `Processed ${res.sessions_processed} sessions, found ${res.entities_found} entities, created ${res.relations_created} relations`
-            }}
-          />
-        </ActionGroup>
-      </div>
-    </CollapsibleSection>
+        <ActionRow
+          label="Decision embeddings"
+          description="Vectorise les décisions d'architecture pour les retrouver par recherche sémantique."
+          cost="Quelques secondes · sans risque"
+          icon={<Zap />}
+          onAction={async () => {
+            const res = await adminApi.backfillDecisionEmbeddings()
+            return `Processed ${res.decisions_processed} decisions, created ${res.embeddings_created} embeddings`
+          }}
+        />
+        <ActionRow
+          label="Backfill discussed"
+          description="Relie fichiers et fonctions aux conversations passées où ils ont été analysés."
+          cost="Secondes à minutes · sans risque"
+          icon={<Zap />}
+          onAction={async () => {
+            const res = await adminApi.backfillDiscussed()
+            return `Processed ${res.sessions_processed} sessions, found ${res.entities_found} entities, created ${res.relations_created} relations`
+          }}
+        />
+      </SettingsList>
+    </Section>
   )
 }
 
@@ -782,195 +584,195 @@ function EmbeddingsSection() {
 // ============================================================================
 
 interface KnowledgeFabricSectionProps {
+  projects: { id: string; name: string }[]
   projectId: string
   projectSlug: string
-  projectRequired: boolean
+  onProjectChange: (id: string) => void
 }
 
-function KnowledgeFabricSection({ projectId, projectSlug, projectRequired }: KnowledgeFabricSectionProps) {
-  const [maintenanceLevel, setMaintenanceLevel] = useState<MaintenanceLevel>('daily')
+const levelOptions = [
+  { value: 'hourly', label: 'Hourly' },
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'full', label: 'Full' },
+]
 
-  const levelOptions = [
-    { value: 'hourly', label: 'Hourly' },
-    { value: 'daily', label: 'Daily' },
-    { value: 'weekly', label: 'Weekly' },
-    { value: 'full', label: 'Full' },
-  ]
+function KnowledgeFabricSection({ projects, projectId, projectSlug, onProjectChange }: KnowledgeFabricSectionProps) {
+  const [maintenanceLevel, setMaintenanceLevel] = useState<MaintenanceLevel>('daily')
+  const projectRequired = !projectId
 
   return (
-    <CollapsibleSection
+    <Section
       title="Knowledge Fabric"
-      icon={<Brain className="w-4 h-4" />}
-      description="Graph analytics, neural maintenance and knowledge pipeline. Requires a project to be selected."
+      description="Analyses du graphe de connaissances (communautés, centralité, risques) et entretien des synapses."
+      collapsible
+      defaultOpen={false}
     >
-      {projectRequired && (
-        <div className="flex items-center gap-2 px-3 py-2.5 mb-4 rounded-lg bg-amber-500/[0.08] border border-amber-500/20">
-          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-          <p className="text-xs text-amber-300">
-            Select a project in the top-right dropdown to enable these actions.
-          </p>
-        </div>
-      )}
-
-      {/* Core pipeline actions */}
-      <h4 className="text-xs uppercase tracking-wider text-gray-500 mb-2">Pipeline</h4>
-      <ActionGroup>
-        <ActionItem
-          title="Bootstrap Knowledge Fabric"
-          description="Initialize the full pipeline from scratch: TOUCHES, embeddings, discussed relationships, fabric scores (communities, PageRank, betweenness), churn, knowledge density and risk assessment. May take several minutes."
-          icon={<Sparkles className="w-4 h-4" />}
-          buttonLabel="Bootstrap"
-          buttonVariant="primary"
-          disabled={projectRequired}
-          confirm={{
-            title: 'Bootstrap Knowledge Fabric',
-            description: 'This will run the complete Knowledge Fabric pipeline. It may take a few minutes depending on project size.',
-            variant: 'info',
-            confirmLabel: 'Bootstrap',
-          }}
-          onAction={async () => {
-            const res = await adminApi.bootstrapKnowledgeFabric({ project_id: projectId })
-            const ok = res.steps_completed.length
-            const fail = res.steps_failed.length
-            return `${ok} steps completed${fail > 0 ? `, ${fail} failed` : ''} in ${(res.total_time_ms / 1000).toFixed(1)}s`
-          }}
-        />
-
-        <ActionItem
-          title="Update Fabric Scores"
-          description="Recalculate all GDS metrics: community detection (Louvain), PageRank, betweenness centrality, churn scores, knowledge density and risk assessment."
-          icon={<BarChart3 className="w-4 h-4" />}
-          disabled={projectRequired}
-          confirm={{
-            title: 'Update Fabric Scores',
-            description: 'Recalculate all graph analytics scores. This is safe and typically takes a few seconds.',
-            variant: 'info',
-            confirmLabel: 'Update',
-          }}
-          onAction={async () => {
-            const res = await adminApi.updateFabricScores({ project_id: projectId })
-            return `Updated ${res.nodes_updated} nodes, ${res.communities} communities in ${(res.computation_ms / 1000).toFixed(1)}s`
-          }}
-        />
-
-        <ActionItem
-          title="Backfill Touches"
-          description="Reconstruct TOUCHES relationships by scanning the full git history. Creates Commit → File links with additions/deletions data."
-          icon={<GitCommitHorizontal className="w-4 h-4" />}
-          disabled={projectRequired || !projectSlug}
-          confirm={{
-            title: 'Backfill TOUCHES',
-            description: 'Scan the full git history to reconstruct Commit → File relationships. Duration depends on repository size.',
-            variant: 'info',
-            confirmLabel: 'Start',
-          }}
-          onAction={async () => {
-            const res = await adminApi.backfillTouches(projectSlug)
-            return `Parsed ${res.commits_parsed} commits, backfilled ${res.commits_backfilled}, created ${res.touches_created} touches`
-          }}
-        />
-      </ActionGroup>
-
-      {/* Skills & Hooks */}
-      <h4 className="text-xs uppercase tracking-wider text-gray-500 mt-5 mb-2">Skills & Hooks</h4>
-      <ActionGroup>
-        <ActionItem
-          title="Detect Skills"
-          description="Discover emergent knowledge clusters by analyzing note synapse patterns. Skills represent areas of expertise that emerge naturally from connected notes."
-          icon={<Brain className="w-4 h-4" />}
-          disabled={projectRequired}
-          onAction={async () => {
-            const res = await adminApi.detectSkills(projectId)
-            return `Detected ${res.skills_detected} skills (${res.skills_created} new, ${res.skills_updated} updated)`
-          }}
-        />
-
-        <ActionItem
-          title="Install Git Hooks"
-          description="Install a post-commit hook in the project repository. This automatically creates TOUCHES relationships on each commit for real-time tracking."
-          icon={<Wrench className="w-4 h-4" />}
-          buttonLabel="Install"
-          disabled={projectRequired}
-          confirm={{
-            title: 'Install Git Hooks',
-            description: 'This will add a post-commit hook to the project\'s .git/hooks directory. Existing hooks are preserved.',
-            variant: 'info',
-            confirmLabel: 'Install',
-          }}
-          onAction={async () => {
-            await adminApi.installHooks({ project_id: projectId })
-            return 'Git hooks installed'
-          }}
-        />
-      </ActionGroup>
-
-      {/* Skill Maintenance with level selector */}
-      <h4 className="text-xs uppercase tracking-wider text-gray-500 mt-5 mb-2">Skill Maintenance</h4>
-      <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-4">
-        <p className="text-xs text-gray-500 mb-3 leading-relaxed">
-          Run periodic maintenance: decay weak synapse weights, prune dead connections and detect new skills.
-          Intensity increases from <strong className="text-gray-400">Hourly</strong> (light) to <strong className="text-gray-400">Full</strong> (complete recalculation).
-        </p>
-        <div className="flex items-center gap-2">
-          <Select
-            options={levelOptions}
-            value={maintenanceLevel}
-            onChange={(v) => setMaintenanceLevel(v as MaintenanceLevel)}
-            className="w-32"
+      <div className="space-y-3">
+        <SettingsList>
+          <SettingRow
+            label="Project"
+            description="Les actions « pipeline » et « skills » ne s'appliquent qu'à ce projet."
+            control={
+              projects.length > 0 ? (
+                <Select
+                  options={projects.map((p) => ({ value: p.id, label: p.name }))}
+                  value={projectId}
+                  onChange={onProjectChange}
+                  className="w-44"
+                />
+              ) : (
+                <span className="text-xs text-gray-500">No project</span>
+              )
+            }
           />
-          <ActionItemInlineButton
-            label="Run Maintenance"
-            icon={<Activity className="w-3.5 h-3.5" />}
+        </SettingsList>
+        {projectRequired && <Notice tone="warning">Ajoutez un projet au workspace pour activer les actions liées à un projet.</Notice>}
+
+        <ListGroup title="Pipeline">
+          <ActionRow
+            label="Bootstrap Knowledge Fabric"
+            description="Construit tout le pipeline : liens git, embeddings, scores du graphe, churn, densité et risques."
+            cost="Plusieurs minutes · non destructif"
+            icon={<Sparkles />}
+            buttonLabel="Bootstrap"
+            buttonVariant="primary"
             disabled={projectRequired}
+            confirm={{
+              title: 'Bootstrap Knowledge Fabric',
+              description: 'Lance le pipeline complet. Peut prendre plusieurs minutes selon la taille du projet.',
+            }}
+            onAction={async () => {
+              const res = await adminApi.bootstrapKnowledgeFabric({ project_id: projectId })
+              const ok = res.steps_completed.length
+              const fail = res.steps_failed.length
+              return `${ok} steps completed${fail > 0 ? `, ${fail} failed` : ''} in ${(res.total_time_ms / 1000).toFixed(1)}s`
+            }}
+          />
+          <ActionRow
+            label="Update fabric scores"
+            description="Recalcule communautés (Louvain), PageRank, centralité, churn, densité et risques."
+            cost="Quelques secondes · sans risque"
+            icon={<BarChart3 />}
+            buttonLabel="Update"
+            disabled={projectRequired}
+            confirm={{
+              title: 'Update fabric scores',
+              description: 'Recalcule tous les scores d’analyse du graphe. Sans risque, quelques secondes en général.',
+            }}
+            onAction={async () => {
+              const res = await adminApi.updateFabricScores({ project_id: projectId })
+              return `Updated ${res.nodes_updated} nodes, ${res.communities} communities in ${(res.computation_ms / 1000).toFixed(1)}s`
+            }}
+          />
+          <ActionRow
+            label="Backfill touches"
+            description="Parcourt tout l'historique git pour relier chaque commit aux fichiers modifiés."
+            cost="Selon la taille du dépôt · non destructif"
+            icon={<GitCommitHorizontal />}
+            buttonLabel="Start"
+            disabled={projectRequired || !projectSlug}
+            confirm={{
+              title: 'Backfill TOUCHES',
+              description: 'Parcourt l’historique git complet pour reconstruire les liens Commit → Fichier. Durée selon la taille du dépôt.',
+            }}
+            onAction={async () => {
+              const res = await adminApi.backfillTouches(projectSlug)
+              return `Parsed ${res.commits_parsed} commits, backfilled ${res.commits_backfilled}, created ${res.touches_created} touches`
+            }}
+          />
+        </ListGroup>
+
+        <ListGroup title="Skills & hooks">
+          <ActionRow
+            label="Detect skills"
+            description="Repère les domaines d'expertise qui émergent des groupes de notes connectées."
+            cost="Quelques secondes · sans risque"
+            icon={<Brain />}
+            disabled={projectRequired}
+            onAction={async () => {
+              const res = await adminApi.detectSkills(projectId)
+              return `Detected ${res.skills_detected} skills (${res.skills_created} new, ${res.skills_updated} updated)`
+            }}
+          />
+          <ActionRow
+            label="Install git hooks"
+            description="Ajoute un hook post-commit pour relier chaque nouveau commit à ses fichiers en temps réel."
+            cost="Instantané · hooks existants conservés"
+            icon={<Wrench />}
+            buttonLabel="Install"
+            disabled={projectRequired}
+            confirm={{
+              title: 'Install git hooks',
+              description: 'Ajoute un hook post-commit dans .git/hooks du projet. Les hooks existants sont conservés.',
+            }}
+            onAction={async () => {
+              await adminApi.installHooks({ project_id: projectId })
+              return 'Git hooks installed'
+            }}
+          />
+          <ActionRow
+            label="Skill maintenance"
+            description="Affaiblit les synapses peu utilisées, supprime les liens morts et détecte de nouveaux skills. Hourly = léger, Full = recalcul complet."
+            cost="Secondes (Hourly) à minutes (Full)"
+            icon={<Activity />}
+            buttonLabel="Run"
+            disabled={projectRequired}
+            extra={
+              <Select
+                options={levelOptions}
+                value={maintenanceLevel}
+                onChange={(v) => setMaintenanceLevel(v as MaintenanceLevel)}
+                className="w-28"
+              />
+            }
             onAction={async () => {
               const res = await adminApi.skillMaintenance({ project_id: projectId, level: maintenanceLevel })
               return `${res.level} maintenance: ${res.synapses_decayed} decayed, ${res.synapses_pruned} pruned, ${res.skills_detected} skills in ${(res.elapsed_ms / 1000).toFixed(1)}s`
             }}
           />
-        </div>
-      </div>
+        </ListGroup>
 
-      {/* Neural maintenance */}
-      <h4 className="text-xs uppercase tracking-wider text-gray-500 mt-5 mb-2">Neural Maintenance</h4>
-      <ActionGroup>
-        <ActionItem
-          title="Update Staleness Scores"
-          description="Recalculate freshness scores for all notes based on their last update time. Stale notes surface in reviews."
-          icon={<RefreshCw className="w-4 h-4" />}
-          disabled={projectRequired}
-          onAction={async () => {
-            const res = await adminApi.updateStaleness()
-            return `Updated staleness for ${res.notes_updated} notes`
-          }}
-        />
-        <ActionItem
-          title="Update Energy Scores"
-          description="Recalculate neural energy levels for all notes using exponential decay. Notes lose energy over time unless reinforced by activity."
-          icon={<Zap className="w-4 h-4" />}
-          disabled={projectRequired}
-          onAction={async () => {
-            const res = await adminApi.updateEnergy()
-            return `Updated energy for ${res.notes_updated} notes (half-life: ${res.half_life_days}d)`
-          }}
-        />
-        <ActionItem
-          title="Decay Synapses"
-          description="Reduce all synapse weights by a small amount and prune connections that fall below threshold. This is normal neural maintenance that keeps the knowledge graph healthy."
-          icon={<Activity className="w-4 h-4" />}
-          disabled={projectRequired}
-          confirm={{
-            title: 'Decay Synapses',
-            description: 'Decay all synapse weights by 0.01 and prune those below 0.1. This is routine maintenance that cleans up weak connections.',
-            variant: 'info',
-            confirmLabel: 'Run Decay',
-          }}
-          onAction={async () => {
-            const res = await adminApi.decayNeurons()
-            return `Decayed ${res.synapses_decayed} synapses, pruned ${res.synapses_pruned}`
-          }}
-        />
-      </ActionGroup>
-    </CollapsibleSection>
+        {/* These three are global (no project parameter): never disabled. */}
+        <ListGroup title="Neural maintenance · all projects">
+          <ActionRow
+            label="Update staleness scores"
+            description="Recalcule la fraîcheur des notes selon leur dernière mise à jour ; les notes périmées remontent en revue."
+            cost="Quelques secondes · sans risque"
+            icon={<RefreshCw />}
+            onAction={async () => {
+              const res = await adminApi.updateStaleness()
+              return `Updated staleness for ${res.notes_updated} notes`
+            }}
+          />
+          <ActionRow
+            label="Update energy scores"
+            description="Fait décroître l'énergie des notes avec le temps, sauf si elles sont réutilisées."
+            cost="Quelques secondes · sans risque"
+            icon={<Zap />}
+            onAction={async () => {
+              const res = await adminApi.updateEnergy()
+              return `Updated energy for ${res.notes_updated} notes (half-life: ${res.half_life_days}d)`
+            }}
+          />
+          <ActionRow
+            label="Decay synapses"
+            description="Baisse tous les poids de synapse de 0,01 et supprime ceux sous 0,1 — entretien de routine."
+            cost="Quelques secondes · supprime les liens faibles"
+            icon={<Activity />}
+            buttonLabel="Run decay"
+            confirm={{
+              title: 'Decay synapses',
+              description: 'Baisse tous les poids de 0,01 et supprime les synapses sous 0,1. Entretien de routine.',
+            }}
+            onAction={async () => {
+              const res = await adminApi.decayNeurons()
+              return `Decayed ${res.synapses_decayed} synapses, pruned ${res.synapses_pruned}`
+            }}
+          />
+        </ListGroup>
+      </div>
+    </Section>
   )
 }
 
@@ -980,21 +782,23 @@ function KnowledgeFabricSection({ projectId, projectSlug, projectRequired }: Kno
 
 function CleanupSection() {
   return (
-    <CollapsibleSection
+    <Section
       title="Cleanup"
-      icon={<AlertTriangle className="w-4 h-4" />}
-      description="Remove stale or incorrect data from the graph. These operations are safe but irreversible."
+      description="Supprime des données fausses ou obsolètes du graphe. Irréversible : chaque action demande confirmation."
+      collapsible
+      defaultOpen={false}
     >
-      <ActionGroup>
-        <ActionItem
-          title="Cross-Project Calls"
-          description="Remove CALLS relationships between functions in different projects. These are usually false positives caused by name collisions across codebases."
-          icon={<Trash2 className="w-4 h-4" />}
+      <SettingsList>
+        <ActionRow
+          label="Cross-project calls"
+          description="Supprime les appels entre fonctions de projets différents — en général des homonymes mal résolus."
+          cost="Irréversible · secondes"
+          icon={<Trash2 />}
           buttonLabel="Clean"
           buttonVariant="danger"
           confirm={{
-            title: 'Cleanup Cross-Project Calls',
-            description: 'Delete CALLS relationships that span across different projects. These are usually false positives from name collisions.',
+            title: 'Cleanup cross-project calls',
+            description: 'Supprime les relations CALLS entre projets différents (faux positifs dus aux homonymes). Irréversible.',
             variant: 'danger',
             confirmLabel: 'Delete',
           }}
@@ -1003,16 +807,16 @@ function CleanupSection() {
             return `Deleted ${res.deleted_count} cross-project calls`
           }}
         />
-
-        <ActionItem
-          title="Builtin Calls"
-          description="Remove CALLS relationships to standard library or builtin functions that were incorrectly resolved during Tree-sitter parsing."
-          icon={<Trash2 className="w-4 h-4" />}
+        <ActionRow
+          label="Builtin calls"
+          description="Supprime les appels vers la bibliothèque standard mal résolus pendant l'analyse du code."
+          cost="Irréversible · secondes"
+          icon={<Trash2 />}
           buttonLabel="Clean"
           buttonVariant="danger"
           confirm={{
-            title: 'Cleanup Builtin Calls',
-            description: 'Delete CALLS relationships to builtin/standard library functions that were incorrectly resolved.',
+            title: 'Cleanup builtin calls',
+            description: 'Supprime les relations CALLS vers des fonctions standard/builtin mal résolues. Irréversible.',
             variant: 'danger',
             confirmLabel: 'Delete',
           }}
@@ -1021,33 +825,31 @@ function CleanupSection() {
             return `Deleted ${res.deleted_count} builtin calls`
           }}
         />
-
-        <ActionItem
-          title="Migrate Call Confidence"
-          description="Migrate CALLS relationships to the latest confidence scoring system. Updates the confidence metadata without deleting anything."
-          icon={<RefreshCw className="w-4 h-4" />}
+        <ActionRow
+          label="Migrate call confidence"
+          description="Passe les appels au nouveau calcul de confiance, sans rien supprimer."
+          cost="Secondes · non destructif"
+          icon={<RefreshCw />}
           buttonLabel="Migrate"
           confirm={{
-            title: 'Migrate Calls Confidence',
-            description: 'Update CALLS relationships to the new confidence scoring system. This is a non-destructive migration.',
-            variant: 'info',
-            confirmLabel: 'Migrate',
+            title: 'Migrate calls confidence',
+            description: 'Met à jour les relations CALLS vers le nouveau score de confiance. Non destructif.',
           }}
           onAction={async () => {
             const res = await adminApi.migrateCallsConfidence()
             return `Migrated ${res.updated_count} call relationships`
           }}
         />
-
-        <ActionItem
-          title="Cleanup Sync Data"
-          description="Remove orphaned file tracking metadata from the graph. Cleans up sync entries that no longer correspond to existing files."
-          icon={<Trash2 className="w-4 h-4" />}
+        <ActionRow
+          label="Cleanup sync data"
+          description="Supprime les métadonnées de suivi de fichiers qui ne correspondent plus à aucun fichier."
+          cost="Irréversible · secondes"
+          icon={<Trash2 />}
           buttonLabel="Clean"
           buttonVariant="danger"
           confirm={{
-            title: 'Cleanup Sync Data',
-            description: 'Remove stale sync metadata from the graph. This cleans up orphaned file tracking data.',
+            title: 'Cleanup sync data',
+            description: 'Supprime les métadonnées de synchronisation orphelines du graphe. Irréversible.',
             variant: 'danger',
             confirmLabel: 'Delete',
           }}
@@ -1056,69 +858,7 @@ function CleanupSection() {
             return res.message || `Deleted ${res.deleted_count} sync entries`
           }}
         />
-      </ActionGroup>
-    </CollapsibleSection>
-  )
-}
-
-// ============================================================================
-// HELPER: INLINE ACTION BUTTON (for use inside custom layouts)
-// ============================================================================
-
-function ActionItemInlineButton({
-  label,
-  icon,
-  onAction,
-  disabled,
-}: {
-  label: string
-  icon?: React.ReactNode
-  onAction: () => Promise<string>
-  disabled?: boolean
-}) {
-  const [loading, setLoading] = useState(false)
-  const toast = useToast()
-
-  const handleClick = async () => {
-    setLoading(true)
-    try {
-      const msg = await onAction()
-      toast.success(msg)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Action failed')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <Button
-      variant="secondary"
-      size="sm"
-      onClick={handleClick}
-      disabled={disabled || loading}
-    >
-      {loading ? (
-        <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-      ) : icon ? (
-        <span className="mr-1.5">{icon}</span>
-      ) : null}
-      {label}
-    </Button>
-  )
-}
-
-// ============================================================================
-// HELPER: STAT BOX
-// ============================================================================
-
-function StatBox({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <div className="px-3 py-2.5 rounded-lg bg-white/[0.04] border border-white/[0.06]">
-      <span className="text-[10px] uppercase tracking-wider text-gray-500 block mb-0.5">{label}</span>
-      <span className={`text-sm font-semibold ${highlight ? 'text-amber-400' : 'text-gray-200'}`}>
-        {value}
-      </span>
-    </div>
+      </SettingsList>
+    </Section>
   )
 }
