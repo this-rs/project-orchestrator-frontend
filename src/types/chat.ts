@@ -228,6 +228,12 @@ export interface CreateSessionRequest {
   permission_mode?: PermissionMode
   /** Additional directories to expose to Claude CLI (--add-dir) */
   add_dirs?: string[]
+  /**
+   * Document ids to attach to the first message (plan 8b0fdd73's API
+   * contract). Ids come from `POST /api/documents`, so they always exist
+   * server-side by the time this request is built.
+   */
+  attachments?: string[]
 }
 
 export interface CreateSessionResponse {
@@ -533,7 +539,10 @@ export type WsConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | '
 
 /** Messages sent from the client to the server over WebSocket */
 export type WsChatClientMessage =
-  | { type: 'user_message'; content: string }
+  // `attachments` (document ids) is omitted when there are none: the backend's
+  // `ClientMessage::UserMessage` gains the field in parallel with this, and an
+  // absent field deserializes identically on both versions.
+  | { type: 'user_message'; content: string; attachments?: string[] }
   | { type: 'interrupt' }
   | { type: 'permission_response'; id?: string; allow: boolean }
   | { type: 'input_response'; id?: string; content: string }
