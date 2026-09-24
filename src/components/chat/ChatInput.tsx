@@ -60,6 +60,14 @@ export interface PrefillPayload {
   cursorOffset?: number
 }
 
+
+/**
+ * Tallest the textarea grows before it scrolls. Was 150px (~6 lines); with the
+ * toolbar folded into the composer there is room for more, and a longer
+ * message is easier to review when it is all visible.
+ */
+const TEXTAREA_MAX_PX = 240
+
 interface ChatInputProps {
   /**
    * Dispatch a message.
@@ -126,10 +134,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     const el = textareaRef.current
     if (!el) return
     el.style.height = 'auto'
-    el.style.height = Math.min(el.scrollHeight, 150) + 'px'
+    el.style.height = Math.min(el.scrollHeight, TEXTAREA_MAX_PX) + 'px'
   }, [])
 
-  // Auto-resize the textarea to fit content (capped at 150px).
+  // Auto-resize the textarea to fit content (capped at TEXTAREA_MAX_PX).
   //
   // Perf: the naive pattern (style write `height:auto` then `scrollHeight`
   // read) forces a synchronous double reflow on EVERY keystroke — measurable
@@ -148,7 +156,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     if (grewOrSame) {
       // Insertion fast path: read on clean layout, write only on overflow.
       if (el.scrollHeight > el.clientHeight) {
-        const next = `${Math.min(el.scrollHeight, 150)}px`
+        const next = `${Math.min(el.scrollHeight, TEXTAREA_MAX_PX)}px`
         if (el.style.height !== next) el.style.height = next
       }
     } else {
@@ -605,115 +613,6 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
         onDelete={handleQueueDelete}
         onPrioritize={handleQueuePrioritize}
       />
-      {/* Per-session mode & model selectors. `relative` makes this row the
-          model picker's containing block on mobile (see below). */}
-      <div className="relative flex items-center gap-3">
-        {/* Permission mode selector */}
-        <div className="flex items-center gap-1.5" ref={dropdownRef}>
-          <span className="text-[10px] text-gray-500">Mode:</span>
-          <div className="relative">
-            <button
-              onClick={() => { setShowModeDropdown(!showModeDropdown); setShowModelDropdown(false) }}
-              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border text-gray-300 hover:bg-white/[0.06] transition-all duration-300 ${
-                modeJustChanged
-                  ? 'border-indigo-400/50 ring-1 ring-indigo-400/30'
-                  : 'border-white/[0.08]'
-              }`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${MODE_DOT_COLORS[effectiveMode]}`} />
-              <span>{MODE_LABELS[effectiveMode]}</span>
-              {modeOverride && !sessionId && (
-                <span className="text-[8px] text-indigo-400 ml-0.5">(override)</span>
-              )}
-              <ChevronDown className="w-2.5 h-2.5 text-gray-500" />
-            </button>
-            {showModeDropdown && (
-              <div className="absolute bottom-full left-0 mb-1 z-20 w-40 bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl py-1">
-                {(Object.keys(MODE_LABELS) as PermissionMode[]).map((mode) => {
-                  const isActive = effectiveMode === mode
-                  const isDefault = mode === serverConfig?.mode
-                  return (
-                    <button
-                      key={mode}
-                      onClick={() => handleSelectMode(mode)}
-                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${
-                        isActive ? 'text-gray-100 bg-white/[0.04]' : 'text-gray-400 hover:bg-white/[0.04] hover:text-gray-200'
-                      }`}
-                    >
-                      <span className={`w-1.5 h-1.5 rounded-full ${MODE_DOT_COLORS[mode]}`} />
-                      <span>{MODE_LABELS[mode]}</span>
-                      {isDefault && <span className="text-[9px] text-gray-600 ml-auto">default</span>}
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Model selector — always visible (new conversation + active session) */}
-        <div className="flex items-center gap-1.5" ref={modelDropdownRef}>
-          <span className="text-[10px] text-gray-500">Model:</span>
-          {/* Positioned only from `sm` up. Below that the picker's containing
-              block is the whole toolbar row, so it spans the input's width
-              instead of hanging off a button that sits mid-row — anchored to
-              the button, a phone-width screen pushed it off the right edge. */}
-          <div className="sm:relative">
-            <button
-              onClick={() => { setShowModelDropdown(!showModelDropdown); setShowModeDropdown(false) }}
-              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border text-gray-300 hover:bg-white/[0.06] transition-all duration-300 ${
-                modelJustChanged
-                  ? 'border-violet-400/50 ring-1 ring-violet-400/30'
-                  : 'border-white/[0.08]'
-              }`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${getModelDotColor(effectiveModel)}`} />
-              <span>{getModelShortLabel(effectiveModel)}</span>
-              <ChevronDown className="w-2.5 h-2.5 text-gray-500" />
-            </button>
-            {showModelDropdown && (
-              <div
-                data-testid="model-picker-popover"
-                className="absolute bottom-full left-0 right-0 sm:right-auto sm:w-64 mb-1 z-20 max-h-[min(18rem,45dvh)] overflow-y-auto overscroll-contain bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl"
-              >
-                <ModelFamilyPicker
-                  groups={modelGroups}
-                  activeModelId={effectiveModel}
-                  loaded={catalogLoaded}
-                  onSelect={handleSelectModel}
-                />
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Background tasks indicator (Monitor + Bash bg) — pushed to the
-            right alongside Auto-continue. Plan 5985a7c4 (F4). The
-            component renders `null` when no tasks are tracked, so the
-            toolbar stays compact when there's no background activity. */}
-        <div className="ml-auto flex items-center gap-3">
-          <BackgroundTasksIndicator />
-
-          {/* Auto-continue toggle */}
-          <div className="flex items-center gap-1.5">
-            <span className={`text-[10px] ${autoContinue ? 'text-gray-400' : 'text-gray-500'} transition-colors`}>Auto-continue</span>
-            <button
-              onClick={() => onChangeAutoContinue?.(!autoContinue)}
-              className={`relative w-7 h-3.5 rounded-full transition-colors duration-200 ${
-                autoContinue ? 'bg-emerald-500/70' : 'bg-gray-600/50'
-              }`}
-              title={autoContinue ? 'Auto-continue enabled' : 'Auto-continue disabled'}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform duration-200 ${
-                  autoContinue ? 'translate-x-3' : 'translate-x-0'
-                }`}
-              />
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* Attachment thumbnails — directly above the textarea, part of the
           message being composed (unlike the queue bar, which floats over the
           conversation because those messages are not being composed any more). */}
@@ -723,13 +622,14 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
         pendingSend={deferredSend}
       />
 
-      {/* One bar: the paperclip, the text and the action button share a
-          single bordered field, so attaching reads as part of composing the
-          message rather than as a separate control beside it. The border and
-          focus ring live on the wrapper (`focus-within`), the textarea itself
-          is transparent. */}
+      {/* The composer is ONE box: the text on top, and under it, inside the
+          same border, every control that shapes the message — attach, mode,
+          model, background tasks, auto-continue, send. It used to be a toolbar
+          row above plus a bar below; merging them saves a row of height and
+          keeps the eye on one place. The border and focus ring live on the
+          wrapper (`focus-within`), the textarea itself is transparent. */}
       <div
-        className={`flex items-end gap-1 rounded-xl bg-white/[0.04] border border-white/[0.06] p-1 transition-colors focus-within:border-indigo-500/40 ${
+        className={`flex flex-col rounded-xl bg-white/[0.04] border border-white/[0.06] p-1 transition-colors focus-within:border-indigo-500/40 ${
           disabled ? 'opacity-50' : ''
         }`}
       >
@@ -743,15 +643,6 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
           // ones it cannot read. A client-side allow-list would silently hide
           // files the server would in fact have accepted.
         />
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={disabled}
-          aria-label="Attach a file"
-          title="Attach a file"
-          className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-200 hover:bg-white/[0.06] transition-colors disabled:opacity-30"
-        >
-          <Paperclip className="w-4 h-4" />
-        </button>
         <textarea
           ref={textareaRef}
           value={value}
@@ -759,7 +650,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           disabled={disabled}
-          rows={1}
+          rows={2}
           // On mobile the return key inserts a newline (sending is via the button);
           // on desktop it submits, so hint the soft keyboard accordingly.
           enterKeyHint={isMobile ? 'enter' : 'send'}
@@ -771,34 +662,151 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
           data-1p-ignore="true"
           data-lpignore="true"
           placeholder="Send a message..."
-          className="flex-1 min-w-0 resize-none bg-transparent border-0 px-1 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none"
+          className="block w-full resize-none bg-transparent border-0 px-2 pt-1.5 pb-1 text-sm text-gray-200 placeholder-gray-600 focus:outline-none"
         />
-        {/* One slot for both affordances — see `deriveInputAction`. */}
-        <button
-          onClick={action === 'stop' ? handleStop : handleSend}
-          disabled={action === 'idle' || action === 'stopping' || action === 'waiting'}
-          aria-label={describeAction(action, sendDecision)}
-          title={describeAction(action, sendDecision)}
-          data-action={action}
-          className={`shrink-0 w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
-            action === 'stop'
-              ? 'bg-red-600/20 text-red-400 hover:bg-red-600/30 active:bg-red-600/50 active:scale-95'
-              : action === 'stopping'
-                ? 'bg-red-600/30 text-red-300 cursor-wait'
-                : 'bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 disabled:opacity-30'
-          }`}
-        >
-          {/* `waiting` and `stopping` share the spinner: both mean "held,
-              not lost". They differ in what is being waited on, which the
-              title says. */}
-          {action === 'stopping' || action === 'waiting' ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : action === 'stop' ? (
-            <Square className="w-3.5 h-3.5 fill-current" />
-          ) : (
-            <ArrowRight className="w-3.5 h-3.5" />
-          )}
-        </button>
+
+        {/* Controls row. `relative` makes it the model picker's containing
+            block on mobile, so the picker spans the composer's width. */}
+        <div className="relative flex items-center gap-1.5 pt-0.5">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={disabled}
+            aria-label="Attach a file"
+            title="Attach a file"
+            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-200 hover:bg-white/[0.06] transition-colors disabled:opacity-30"
+          >
+            <Paperclip className="w-4 h-4" />
+          </button>
+          {/* Permission mode selector */}
+          <div className="flex items-center gap-1.5" ref={dropdownRef}>
+            <div className="relative">
+              <button
+                onClick={() => { setShowModeDropdown(!showModeDropdown); setShowModelDropdown(false) }}
+                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border text-gray-300 hover:bg-white/[0.06] transition-all duration-300 ${
+                  modeJustChanged
+                    ? 'border-indigo-400/50 ring-1 ring-indigo-400/30'
+                    : 'border-white/[0.08]'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${MODE_DOT_COLORS[effectiveMode]}`} />
+                <span>{MODE_LABELS[effectiveMode]}</span>
+                {modeOverride && !sessionId && (
+                  <span className="text-[8px] text-indigo-400 ml-0.5">(override)</span>
+                )}
+                <ChevronDown className="w-2.5 h-2.5 text-gray-500" />
+              </button>
+              {showModeDropdown && (
+                <div className="absolute bottom-full left-0 mb-1 z-20 w-40 bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl py-1">
+                  {(Object.keys(MODE_LABELS) as PermissionMode[]).map((mode) => {
+                    const isActive = effectiveMode === mode
+                    const isDefault = mode === serverConfig?.mode
+                    return (
+                      <button
+                        key={mode}
+                        onClick={() => handleSelectMode(mode)}
+                        className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${
+                          isActive ? 'text-gray-100 bg-white/[0.04]' : 'text-gray-400 hover:bg-white/[0.04] hover:text-gray-200'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${MODE_DOT_COLORS[mode]}`} />
+                        <span>{MODE_LABELS[mode]}</span>
+                        {isDefault && <span className="text-[9px] text-gray-600 ml-auto">default</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Model selector — always visible (new conversation + active session) */}
+          <div className="flex items-center gap-1.5" ref={modelDropdownRef}>
+            {/* Positioned only from `sm` up. Below that the picker's containing
+                block is the whole toolbar row, so it spans the input's width
+                instead of hanging off a button that sits mid-row — anchored to
+                the button, a phone-width screen pushed it off the right edge. */}
+            <div className="sm:relative">
+              <button
+                onClick={() => { setShowModelDropdown(!showModelDropdown); setShowModeDropdown(false) }}
+                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border text-gray-300 hover:bg-white/[0.06] transition-all duration-300 ${
+                  modelJustChanged
+                    ? 'border-violet-400/50 ring-1 ring-violet-400/30'
+                    : 'border-white/[0.08]'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${getModelDotColor(effectiveModel)}`} />
+                <span>{getModelShortLabel(effectiveModel)}</span>
+                <ChevronDown className="w-2.5 h-2.5 text-gray-500" />
+              </button>
+              {showModelDropdown && (
+                <div
+                  data-testid="model-picker-popover"
+                  className="absolute bottom-full left-0 right-0 sm:right-auto sm:w-64 mb-1 z-20 max-h-[min(18rem,45dvh)] overflow-y-auto overscroll-contain bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl"
+                >
+                  <ModelFamilyPicker
+                    groups={modelGroups}
+                    activeModelId={effectiveModel}
+                    loaded={catalogLoaded}
+                    onSelect={handleSelectModel}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Background tasks indicator (Monitor + Bash bg) — pushed to the
+              right alongside Auto-continue. Plan 5985a7c4 (F4). The
+              component renders `null` when no tasks are tracked, so the
+              toolbar stays compact when there's no background activity. */}
+          <div className="ml-auto flex items-center gap-2">
+            <BackgroundTasksIndicator />
+
+            {/* Auto-continue toggle */}
+            <div className="flex items-center gap-1.5">
+              <span className={`hidden sm:inline text-[10px] ${autoContinue ? 'text-gray-400' : 'text-gray-500'} transition-colors`}>Auto</span>
+              <button
+                onClick={() => onChangeAutoContinue?.(!autoContinue)}
+                className={`relative w-7 h-3.5 rounded-full transition-colors duration-200 ${
+                  autoContinue ? 'bg-emerald-500/70' : 'bg-gray-600/50'
+                }`}
+                title={autoContinue ? 'Auto-continue enabled' : 'Auto-continue disabled'}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform duration-200 ${
+                    autoContinue ? 'translate-x-3' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* One slot for both affordances — see `deriveInputAction`. */}
+          <button
+            onClick={action === 'stop' ? handleStop : handleSend}
+            disabled={action === 'idle' || action === 'stopping' || action === 'waiting'}
+            aria-label={describeAction(action, sendDecision)}
+            title={describeAction(action, sendDecision)}
+            data-action={action}
+            className={`shrink-0 w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
+              action === 'stop'
+                ? 'bg-red-600/20 text-red-400 hover:bg-red-600/30 active:bg-red-600/50 active:scale-95'
+                : action === 'stopping'
+                  ? 'bg-red-600/30 text-red-300 cursor-wait'
+                  : 'bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 disabled:opacity-30'
+            }`}
+          >
+            {/* `waiting` and `stopping` share the spinner: both mean "held,
+                not lost". They differ in what is being waited on, which the
+                title says. */}
+            {action === 'stopping' || action === 'waiting' ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : action === 'stop' ? (
+              <Square className="w-3.5 h-3.5 fill-current" />
+            ) : (
+              <ArrowRight className="w-3.5 h-3.5" />
+            )}
+          </button>
+        </div>
       </div>
     </div>
   )
