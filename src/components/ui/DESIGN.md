@@ -214,3 +214,51 @@ Anatomy: **PageHeader → key facts line → sections**.
 - Filters/search in `PageShell.actions`.
 - Cards in cards, borders around every meta item, more than one accent colour.
 - `truncate` on the only line identifying an item.
+
+## Matière et mouvement
+
+The app is dark and dense; material and motion exist to make **hierarchy and
+cause-and-effect** readable, never to decorate.
+
+### Matière — when to use glass
+
+| Layer | Material | Why |
+|---|---|---|
+| Page, sections, rows, cards | **Opaque** surfaces (`surface`, `bg-surface-*`) | Text on blur loses contrast; large blurred areas are expensive to composite on a phone while scrolling. |
+| Floating layers: menus, popovers, dropdowns, sheets, sticky bars, toasts, the chat queue bar | **Glass** (`glass` → `.ui-glass`) | Says "this is above the page, the page is still there" — keeps context visible behind a transient layer. |
+| Modal dialogs | Opaque panel + dimmed (not blurred) backdrop | Focus on one task; blurring the whole viewport costs a full-screen blur for nothing. |
+
+Rules: one glass layer at a time (never glass on glass); blur radius fixed by
+the token (14px) — don't invent others; glass must stay readable with any
+content behind it (the class guarantees ≥ 78% opacity and a hairline border);
+`.ui-glass` falls back to opaque without `backdrop-filter` and under
+`prefers-reduced-transparency`.
+
+### Mouvement — three families, three timings
+
+| Family | Purpose | Timing | Examples | Tokens |
+|---|---|---|---|---|
+| **Feedback** (action) | Confirms the user's action landed | 100–160 ms, `ease-out`, starts instantly | press scale, toggle knob, checkbox, colour change on select | `pressFeedback`, `--motion-feedback` |
+| **Transition** (spatial) | Shows where something came from / went | 180–240 ms in (`--ease-out-soft`), ~150 ms out (`--ease-in-soft`) — exits faster than entrances | menu/popover open (`popIn`), sheet slide, expand/collapse, route change | `popIn`, `--motion-transition`, `--motion-exit` |
+| **Temporal** (time passing) | Represents a duration the user is waiting on | slow (≥ 1 s cycle), low amplitude | running status pulse, indeterminate progress, streaming caret | `StatusDot pulse` |
+
+Decision rule — before adding any animation ask: *what does it tell the
+user?* If the answer is "that their action worked" → feedback; "where this
+came from / where it went" → transition; "that something is still going on"
+→ temporal. If none → **no animation**.
+
+Never:
+- entrance/stagger animations on lists or on data that loads (layout shift,
+  and it replays on every refetch);
+- animation driven by live data at high frequency (streaming text, counters
+  updating many times a second) — update in place, no tween;
+- looping decorative motion; a temporal animation must **stop** when the
+  thing it represents stops (idle = still);
+- animating layout properties (`width`, `height`, `top`) — animate
+  `transform` and `opacity`;
+- durations above 300 ms for anything the user triggered.
+
+Accessibility: under `prefers-reduced-motion`, keep opacity changes (state
+must stay legible) and drop movement/scale — `popIn` and `pressFeedback`
+already do this.
+

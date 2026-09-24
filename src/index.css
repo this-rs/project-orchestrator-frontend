@@ -831,3 +831,61 @@ html.tauri * {
     animation-duration: 0s;
   }
 }
+
+/* ── Material & motion (see src/components/ui/DESIGN.md § Matière et mouvement) ──
+ *
+ * Glass is reserved for FLOATING layers (menus, popovers, sheets, sticky bars,
+ * toasts): it tells the user "this sits above the page and the page is still
+ * there". Content (rows, cards, sections) stays opaque — blur behind text hurts
+ * legibility and a large blurred area is one of the most expensive things to
+ * composite on a phone, especially while scrolling.
+ */
+.ui-glass {
+  background-color: var(--color-surface-popover);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.05),
+    0 8px 24px rgb(0 0 0 / 0.45);
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .ui-glass {
+    background-color: rgb(30 33 48 / 0.78);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    backdrop-filter: blur(14px) saturate(150%);
+  }
+}
+/* Users who ask for less transparency get the opaque surface. */
+@media (prefers-reduced-transparency: reduce) {
+  .ui-glass {
+    background-color: var(--color-surface-popover);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* Motion tokens. Three families, each with its own timing:
+ *   feedback  — confirms a user action (press, toggle): immediate, 100–160ms
+ *   transition — moves or reveals something in space (menu, sheet, expand):
+ *                180–240ms, ease-out in, ease-in out
+ *   temporal  — represents time passing the user waits on (progress, live,
+ *                streaming): slow, low amplitude, and it STOPS when idle
+ */
+:root {
+  --motion-feedback: 120ms;
+  --motion-transition: 200ms;
+  --motion-exit: 150ms;
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-soft: cubic-bezier(0.4, 0, 1, 1);
+}
+@keyframes ui-pop-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.ui-pop-in {
+  animation: ui-pop-in var(--motion-transition) var(--ease-out-soft) both;
+  transform-origin: top;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Keep the state change legible (opacity), drop the movement. */
+  @keyframes ui-pop-in { from { opacity: 0; } to { opacity: 1; } }
+}
