@@ -162,8 +162,16 @@ export const ChatMessages = memo(function ChatMessages({
     prevMessageCountRef.current = messages.length
   }, [messages])
 
-  // Auto-scroll to bottom when new content arrives (only when user is near bottom)
-  useEffect(() => {
+  // Auto-scroll to bottom when new content arrives (only when user is near bottom).
+  //
+  // MUST be a layout effect: every stream_delta commits taller content, and a
+  // passive useEffect runs in a separate task AFTER the browser may already
+  // have painted that commit. The frame then shows the new line hanging below
+  // the viewport, and the next frame snaps it up — the bottom of the chat
+  // jitters on each event (measured in Chromium, 4x CPU throttle: ~9% of the
+  // frames painted un-pinned during a stream). Pinning in the same commit, before
+  // paint, makes every painted frame already scrolled to the bottom.
+  useLayoutEffect(() => {
     if (!isReplaying && shouldAutoScrollRef.current && scrollRef.current) {
       // Don't auto-scroll to bottom if we have a scroll target pending
       if (scrollToTurn !== null) return
