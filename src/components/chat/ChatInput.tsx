@@ -18,6 +18,7 @@ import {
   enqueue,
   removeFromQueue,
   editInQueue,
+  takeById,
   prioritize,
   takeHead,
 } from './messageQueue'
@@ -278,6 +279,34 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
   )
 
   /**
+   * Layer 2 in one place: a complete message either leaves now or joins the
+   * queue, and every send path goes through here to decide.
+   *
+   * Both callers need it. `handleSend` is the obvious one; the held-send path
+   * (`settleDeferredSend`, for a message whose upload was still running when
+   * the user hit send) used to call `dispatchSend` directly and so slipped
+   * mid-stream sends past the queue entirely — a message with an attachment
+   * behaved differently from one without, which is not a distinction the user
+   * made.
+   */
+  const enqueueOrDispatch = useCallback(
+    (text: string, list: Attachment[]) => {
+      if (!shouldEnqueue({ isStreaming })) {
+        dispatchSend(text, list)
+        return
+      }
+      setQueue((q) => enqueue(q, text, newQueueId(), Date.now(), readyDocumentIds(list)))
+      // The queued message took the composer's contents with it — text,
+      // attachments and any held send: it starts clean for the next one.
+      setValue('')
+      store.set(chatAttachmentsAtom, [])
+      store.set(chatAttachmentDeferredSendAtom, false)
+      uploadsRef.current.clear()
+    },
+    [isStreaming, dispatchSend, setQueue, setValue, store],
+  )
+
+  /**
    * Re-evaluate a held send. Called after every change to the list, from the
    * handler that made the change — never from an effect, so a message can
    * never be sent twice by a re-render.
@@ -292,9 +321,9 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
       // The text is read now, not at click time: it stayed in the box and the
       // user may have kept typing (or cleared it) while the upload ran.
       const text = store.get(chatDraftInputAtom).trim()
-      if (text) dispatchSend(text, list)
+      if (text) enqueueOrDispatch(text, list)
     },
-    [store, dispatchSend],
+    [store, enqueueOrDispatch],
   )
 
   /**
@@ -482,15 +511,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     // Only a complete message may enter the queue. Queueing one whose upload
     // is still running would flush it later with ids that never resolved —
     // which is why layer 1 runs first and returns rather than falling through.
-    if (shouldEnqueue({ isStreaming })) {
-      setQueue((q) => enqueue(q, text, newQueueId(), Date.now(), readyDocumentIds(list)))
-      // The queued message took the attachments with it; the composer starts
-      // clean for the next one.
-      store.set(chatAttachmentsAtom, [])
-    } else {
-      dispatchSend(text, list)
-    }
-    setValue('')
+    enqueueOrDispatch(text, list)
   }
 
   /**
@@ -504,21 +525,49 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     summary: summarize(attachments),
   })
 
-  // Auto-flush: one message per finished turn, oldest first. Fires only on the
-  // streaming true -> false edge, so a queue mutation cannot re-trigger it.
+  // Auto-flush: one message per finished turn, oldest first.
+  //
+  // Expressed as an INVARIANT ("idle with a non-empty queue must not last"),
+  // not as an edge detector. It used to fire only on the streaming
+  // true -> false transition, which strands the queue for good whenever that
+  // single edge is missed — and it is missed every time `ChatInput` remounts
+  // (layout switch, Fast Refresh), because the comparison ref is then
+  // re-initialised to the current value and the transition has already
+  // happened. The message sat in the queue forever with nothing to say so.
+  // Asserting the invariant instead is self-healing: on the next render after
+  // any such miss, the queue drains.
+  //
+  // `flushArmedRef` is what keeps "one message per turn". It is armed when a
+  // response STARTS (and at mount, so a stranded queue heals) and disarmed by
+  // whatever sends — the auto-flush here, or a manual "send now" from a row.
+  // Arming on the rising edge rather than on `isStreaming === true` matters:
+  // a manual send interrupts the running response, so a `result` for the
+  // interrupted turn lands moments later. Re-arming on that stale `true` would
+  // let the interrupted turn's end flush a SECOND message, and both would race
+  // into the same turn.
+  //
+  // If a send never starts a stream (dead socket, disabled input) the latch
+  // stays closed and the rest of the queue waits for the next response rather
+  // than draining in one render pass.
+  const flushArmedRef = useRef(true)
   useEffect(() => {
-    const wasStreaming = prevStreamingRef.current
+    const responseStarted = isStreaming && !prevStreamingRef.current
     prevStreamingRef.current = isStreaming
+    if (responseStarted) flushArmedRef.current = true
+    if (isStreaming) return
     if (!QUEUE_POLICY.autoFlushOnIdle) return
-    if (!wasStreaming || isStreaming) return
+    // A disabled composer has no session to send to — hold, don't drop.
+    if (disabled) return
+    if (!flushArmedRef.current) return
     const { taken, rest } = takeHead(queue)
     if (!taken) return
+    flushArmedRef.current = false
     setQueue(rest)
     // The queued entry carries its own attachment ids: by now the composer
     // holds the *next* message's attachments, so reading them here would send
     // the wrong ones.
     onSend(taken.text, taken.attachmentIds)
-  }, [isStreaming, queue, onSend, setQueue])
+  }, [isStreaming, disabled, queue, onSend, setQueue])
 
   const handleQueueEdit = useCallback(
     (id: string, text: string) => setQueue((q) => editInQueue(q, id, text)),
@@ -531,6 +580,32 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
   const handleQueuePrioritize = useCallback(
     (id: string) => setQueue((q) => prioritize(q, id)),
     [setQueue],
+  )
+  /**
+   * Second click on a row already marked "next": send it right now.
+   *
+   * No `onInterrupt()` here — the backend already interrupts the running
+   * generation when a user message arrives mid-stream (`chat/manager.rs`:
+   * `interrupt_flag.store(true)` + an interrupt frame on the CLI's stdin).
+   * Interrupting from the client too would race that path for nothing.
+   *
+   * `takeById` removes and returns in one step, so what is dispatched is exactly
+   * what left the queue — a read-then-filter could send text a concurrent edit
+   * had already replaced.
+   *
+   * Disarms the auto-flush latch: this send IS the turn's message. Without
+   * that, the `result` of the response it interrupts would immediately flush a
+   * second message into the same turn.
+   */
+  const handleQueueSendNow = useCallback(
+    (id: string) => {
+      const { taken, rest } = takeById(store.get(chatMessageQueueAtom), id)
+      if (!taken) return
+      flushArmedRef.current = false
+      setQueue(rest)
+      onSend(taken.text, taken.attachmentIds)
+    },
+    [store, setQueue, onSend],
   )
 
   const action = deriveInputAction({
@@ -590,7 +665,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     // indicator on notched devices (inset collapses to 0 when the
     // keyboard is open, so no double padding).
     <div
-      className="relative border-t border-white/[0.06] px-3 pt-0.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex flex-col gap-1"
+      // No top border: the composer box already has its own outline, so a
+      // separator above it only drew a second, competing line. The gap between
+      // the transcript and that outline is the demarcation.
+      className="relative px-3 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex flex-col gap-1"
       // The composer is the drop target rather than the whole panel: it is
       // where the attachments then appear, so the drop lands where the result
       // shows up instead of somewhere up in the transcript.
@@ -612,6 +690,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
         onEdit={handleQueueEdit}
         onDelete={handleQueueDelete}
         onPrioritize={handleQueuePrioritize}
+        onSendNow={handleQueueSendNow}
       />
       {/* Attachment thumbnails — directly above the textarea, part of the
           message being composed (unlike the queue bar, which floats over the
