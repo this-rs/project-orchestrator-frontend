@@ -28,6 +28,15 @@ export interface QueuedMessage {
   /** Epoch ms, for display ("queued 12s ago") and stable ordering. */
   queuedAt: number
   /**
+   * Document ids already uploaded when this message was queued.
+   *
+   * Carried with the message rather than read from the composer at flush time:
+   * by then the user has moved on and the composer holds the *next* message's
+   * attachments. Uploaded documents outlive the chip, so these ids stay valid
+   * even after the chip is removed.
+   */
+  attachmentIds?: string[]
+  /**
    * The user asked for this one to go next. It sits at the head of the queue
    * and leaves on the next flush — it does not interrupt anything.
    */
@@ -85,10 +94,13 @@ export function enqueue(
   text: string,
   id: string,
   now: number,
+  attachmentIds?: string[],
 ): QueuedMessage[] {
   const trimmed = text.trim()
   if (!trimmed) return [...queue]
-  return [...queue, { id, text: trimmed, queuedAt: now }]
+  const entry: QueuedMessage = { id, text: trimmed, queuedAt: now }
+  if (attachmentIds && attachmentIds.length > 0) entry.attachmentIds = [...attachmentIds]
+  return [...queue, entry]
 }
 
 /** Drop one message by id. Unknown ids are a no-op, not an error. */

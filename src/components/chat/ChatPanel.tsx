@@ -1,4 +1,5 @@
 import { useAtom } from 'jotai'
+import { useChatUrlSync } from '@/hooks/useChatUrlSync'
 import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom } from '@/atoms'
 import { useChat, useDetachedRuns, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { chatApi } from '@/services/chat'
@@ -56,6 +57,8 @@ export function ChatPanel() {
   const [showAgentTree, setShowAgentTree] = useState(false)
   const [copiedChat, setCopiedChat] = useState(false)
   const chat = useChat()
+  // Session + panel mode live in the URL, so a reload reopens the chat as it was.
+  useChatUrlSync({ sessionId: chat.sessionId, mode, setMode, loadSession: chat.loadSession })
   const detachedRuns = useDetachedRuns(chat.sessionId)
   const panelRef = useRef<HTMLDivElement>(null)
   const setScrollToTurn = useSetAtom(chatScrollToTurnAtom)
@@ -145,10 +148,12 @@ export function ChatPanel() {
   // Requires at least one project in the workspace — allProjectsMode alone isn't enough
   const hasContext = workspaceHasProjects && (!!selectedProject || (allProjectsMode && !!activeWsSlug))
 
-  const handleSend = useCallback((text: string) => {
+  // `attachmentIds` are document ids the server has already issued — ChatInput
+  // holds the send until every upload has resolved (see `attachmentState.ts`).
+  const handleSend = useCallback((text: string, attachmentIds?: string[]) => {
     if (isNewConversation && !hasContext) return
     if (!isNewConversation) {
-      chat.sendMessage(text)
+      chat.sendMessage(text, undefined, attachmentIds)
       return
     }
     if (selectedProject) {
@@ -158,7 +163,7 @@ export function ChatPanel() {
         cwd: selectedProject.root_path,
         workspaceSlug: allProjectsMode ? (activeWsSlug || undefined) : undefined,
         projectSlug: allProjectsMode ? undefined : selectedProject.slug,
-      })
+      }, attachmentIds)
     }
   }, [isNewConversation, hasContext, selectedProject, allProjectsMode, activeWsSlug, chat.sendMessage])
 
