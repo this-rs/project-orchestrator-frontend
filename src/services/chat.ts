@@ -13,6 +13,8 @@ import type {
   CreateSessionResponse,
   DetachedSession,
   DetectPathResponse,
+  InterruptOutcome,
+  InterruptScope,
   PaginatedResponse,
   MessageHistoryResponse,
   MessageSearchResult,
@@ -94,9 +96,22 @@ export const chatApi = {
   getSessionChildren: (sessionId: string) =>
     api.get<DetachedSession[]>(`/chat/sessions/${sessionId}/children`),
 
-  /** Interrupt a running session (used to stop detached runs) */
-  interruptSession: (sessionId: string) =>
-    api.post(`/chat/sessions/${sessionId}/interrupt`, {}),
+  /**
+   * End the current turn of a session over REST — the transport-independent
+   * counterpart of the WebSocket `interrupt` frame.
+   *
+   * This is the path to use whenever the socket may be down, which is
+   * exactly when a user reaches for Stop: `ChatWebSocket.send()` returns
+   * `false` on a dead socket and the frame is lost. It is also the only
+   * way to stop a session this client holds no socket for — a detached
+   * run, a child session, an inline conversation.
+   *
+   * Read `delivered` on the result: `false` means nothing was stopped, and
+   * the caller should clear its "stopping" state instead of waiting for a
+   * `result` event that will never arrive.
+   */
+  interruptSession: (sessionId: string, scope: InterruptScope = 'turn_and_tools') =>
+    api.post<InterruptOutcome>(`/chat/sessions/${sessionId}/interrupt`, { scope }),
 
   /**
    * Cancel the currently-running tool subprocess(es) of a session WITHOUT

@@ -183,7 +183,16 @@ export function ChatPanel() {
   }, [chat.loadSession])
 
   const handleStopRun = useCallback((childSessionId: string) => {
-    chatApi.interruptSession(childSessionId).catch(() => { /* ignore */ })
+    // This used to swallow every failure, which hid the fact that the route
+    // it calls did not exist at all: the button was a no-op for months and
+    // said nothing. Failures are loud now.
+    chatApi.interruptSession(childSessionId)
+      .then((outcome) => {
+        if (!outcome?.delivered) {
+          console.warn('Stop run: nothing was interrupted', childSessionId, outcome)
+        }
+      })
+      .catch((err) => console.error('Stop run failed', childSessionId, err))
   }, [])
 
   const handleNewSession = useCallback(() => {

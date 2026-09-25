@@ -293,6 +293,33 @@ export type ChatEvent =
   | { type: 'tools_cancelled'; cli_pid?: number; killed_count: number; requested_by: string }
   | { type: 'active_tasks_update'; tasks: BackgroundTaskInfo[] }
 
+/**
+ * How far an interrupt reaches.
+ *
+ * - `turn_and_tools` (default) — end the turn and SIGINT every subprocess
+ *   the CLI is running. What the composer's Stop button wants.
+ * - `turn` — end the turn only, leaving background `Bash`/`Monitor`
+ *   subprocesses alive. Note that in-process `Task` sub-agents die either
+ *   way: they live inside the CLI, not beside it.
+ */
+export type InterruptScope = 'turn' | 'turn_and_tools'
+
+/** Result returned by POST /api/chat/sessions/:id/interrupt. */
+export interface InterruptOutcome {
+  /**
+   * True when a live turn was actually interrupted. False means nothing was
+   * stopped locally — read `routed` to tell "handed to another instance"
+   * from "went nowhere". The UI must clear its "Stopping…" state on false,
+   * or it spins forever waiting for a `result` event that never comes.
+   */
+  delivered: boolean
+  /** Where the interrupt went: `local`, `nats`, or `none`. */
+  routed: string
+  cli_pid: number | null
+  /** PIDs that received SIGINT. Always empty for scope `turn`. */
+  killed_pids: number[]
+}
+
 /** Result returned by POST /api/chat/sessions/:id/cancel-tools (T2/T3 of plan 28e9afe3). */
 export interface CancelToolsResult {
   cli_pid: number | null
