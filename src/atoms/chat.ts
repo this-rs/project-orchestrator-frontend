@@ -1,6 +1,7 @@
 import { atom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
 import type { BackgroundTaskInfo, ChatPanelMode, PermissionConfig, PermissionMode, Project, WsConnectionStatus } from '@/types'
+import type { QueuedMessage } from '@/components/chat/messageQueue'
 
 /** Hint set by pages that know which project the user is looking at */
 export const chatSuggestedProjectIdAtom = atom<string | null>(null)
@@ -86,3 +87,17 @@ export const chatPermissionInteractiveAtom = atom((get) => {
  * sees fit (typically by `started_at` ascending).
  */
 export const chatBackgroundTasksAtom = atom<BackgroundTaskInfo[]>([])
+
+/**
+ * Messages composed while the agent was still answering, held client-side.
+ *
+ * Empty in the normal case. A send while `chatStreamingAtom` is true appends
+ * here instead of dispatching, so the running response is no longer cut short
+ * (the backend interrupts the CLI on a mid-stream send — see
+ * `chat/manager.rs`). The queue drains one message per finished turn, and each
+ * row can be edited, dropped, or fired immediately from the UI.
+ *
+ * Cleared on session switch: a message composed for session A must never land
+ * in session B.
+ */
+export const chatMessageQueueAtom = atom<QueuedMessage[]>([])
