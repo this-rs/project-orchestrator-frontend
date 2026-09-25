@@ -145,8 +145,10 @@ describe('prioritize', () => {
   })
 
   it('does not dispatch — the queue keeps the same length', () => {
-    // The whole point of manualSendInterrupts: false. The message waits for the
-    // running response to finish instead of cutting it short.
+    // The first click never dispatches: the message waits for the running
+    // response to finish instead of cutting it short. Only a second click on an
+    // already-prioritized row sends immediately, and that path goes through
+    // `takeById`, not `prioritize`.
     const q = [msg('a', 'one'), msg('b', 'two')]
     expect(prioritize(q, 'b')).toHaveLength(2)
   })
@@ -176,7 +178,7 @@ describe('QUEUE_POLICY', () => {
     expect(QUEUE_POLICY).toEqual({
       autoFlushOnIdle: true,
       flushAll: false,
-      manualSendInterrupts: false,
+      manualSendInterrupts: 'second-click',
     })
   })
 })

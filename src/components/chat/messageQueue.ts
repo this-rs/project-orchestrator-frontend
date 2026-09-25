@@ -10,12 +10,13 @@
  * no way to say "wait, finish first".
  *
  * Holding the message here instead makes that a choice: it sits in a visible
- * queue you can edit, drop, or move to the front. Nothing here ever truncates a
- * running response — the explicit Stop button stays the only way to do that.
+ * queue you can edit, drop, move to the front, or — on a deliberate second
+ * click — send right now, which is the one path that still cuts the running
+ * response short. Nothing truncates anything by accident.
  *
  * ## Policy
  *
- * The two behavioural questions this feature raises are answered in one place,
+ * The behavioural questions this feature raises are answered in one place,
  * `QUEUE_POLICY`, rather than scattered through effects and handlers — they are
  * product decisions, not implementation details, and they are meant to be easy
  * to flip after using the thing for a day.
@@ -65,17 +66,23 @@ export const QUEUE_POLICY = {
   flushAll: false,
 
   /**
-   * The per-row send button does NOT interrupt the running generation.
+   * The per-row send button is TWO-STAGE, and only the second stage interrupts.
    *
-   * It moves the message to the head of the queue and marks it, so it leaves on
-   * the next flush. No response is ever truncated by this feature: the only way
-   * to cut a generation short stays the explicit Stop button.
+   *   1st click — the message moves to the head of the queue and is marked
+   *               `prioritized` ("next"). Nothing is truncated: it leaves when
+   *               the running response finishes.
+   *   2nd click — on a row already marked "next", the message is dispatched
+   *               immediately. The backend queues it and interrupts the running
+   *               generation (`chat/manager.rs`), so the current response is cut
+   *               short — which is the point: the user asked for it twice.
    *
-   * The cost is that "send" has no immediately visible effect beyond the row
-   * moving and changing state, which is why the row renders a distinct
-   * "next" treatment rather than just re-ordering silently.
+   * The first version had no second stage, which made "send" a button whose only
+   * visible effect was the row moving — indistinguishable from doing nothing
+   * when you wanted the message to go out *now*. Making urgency the second click
+   * keeps the safe default (never truncate by accident) and still gives a way
+   * out, without turning the row's primary action into a destructive one.
    */
-  manualSendInterrupts: false,
+  manualSendInterrupts: 'second-click',
 } as const
 
 /**
@@ -146,9 +153,11 @@ export function takeById(
 /**
  * Move a message to the head and mark it as the next to leave.
  *
- * This is what the per-row send button does. It deliberately does not dispatch:
- * with `manualSendInterrupts: false` the message waits for the running response
- * to finish, then leaves on the next flush. Unknown ids are a no-op.
+ * This is the FIRST click of the per-row send button. It deliberately does not
+ * dispatch: the message waits for the running response to finish, then leaves on
+ * the next flush. A second click on an already-prioritized row is what dispatches
+ * immediately (`takeById` + send, see `QUEUE_POLICY.manualSendInterrupts`).
+ * Unknown ids are a no-op.
  */
 export function prioritize(
   queue: readonly QueuedMessage[],

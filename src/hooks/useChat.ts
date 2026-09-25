@@ -1825,9 +1825,31 @@ export function useChat() {
   const interrupt = useCallback(async () => {
     if (!sessionId) return
     const ws = getWs()
-    ws.sendInterrupt()
-    // Don't set isStreaming=false here — wait for the 'result' event
-  }, [sessionId, getWs])
+
+    // `send()` returns false on a dead socket — and schedules a reconnect.
+    // That return used to be dropped here, which is how Stop became a
+    // no-op: the frame went nowhere, nothing reached the backend, and the
+    // composer had already latched "Stopping…" with no way back. Unlike a
+    // user message (queued in `pendingSendRef` and replayed), an interrupt
+    // is worthless late — so it falls back to REST rather than waiting for
+    // the socket to come back.
+    if (ws.sendInterrupt()) return
+
+    try {
+      const outcome = await chatApi.interruptSession(sessionId)
+      if (!outcome?.delivered) {
+        // Nothing was streaming server-side. Clear the local streaming flag
+        // so the button leaves its "Stopping…" state: no `result` event is
+        // coming to do it for us.
+        console.warn('Chat: interrupt reached the server but stopped nothing', outcome)
+        setIsStreaming(false)
+      }
+      // On success, leave isStreaming alone — wait for the 'result' event.
+    } catch (err) {
+      console.error('Chat: interrupt failed over both WebSocket and REST', err)
+      setIsStreaming(false)
+    }
+  }, [sessionId, getWs, setIsStreaming])
 
   /** Save current draft to the per-session map, then load draft for target session */
   const swapDraft = useCallback((fromKey: string, toKey: string) => {
