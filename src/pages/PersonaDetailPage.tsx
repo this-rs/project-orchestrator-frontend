@@ -1,592 +1,542 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
+import { Users, Box, Zap, Pencil, Trash2, X } from 'lucide-react'
+import { personasApi, skillsApi, notesApi, decisionsApi, protocolApi, workspacesApi } from '@/services'
 import {
-  Users, Zap, Brain, FileText, Scale, GitBranch, Code, Activity,
-  Settings, Trash2, Network,
-} from 'lucide-react'
-import {
-  ReactFlow,
-  Background,
-  Controls,
-  type Node,
-  type Edge,
-} from '@xyflow/react'
-import '@xyflow/react/dist/style.css'
-import { personasApi } from '@/services'
-import {
-  Card,
-  CardContent,
   Button,
-  Spinner,
-  PageShell,
+  CollapsibleMarkdown,
+  EmptyState,
+  EntityListSkeleton,
+  EntityRow,
+  ErrorState,
+  Facts,
+  FormDialog,
+  ListGroup,
+  PageContainer,
+  PageHeader,
+  RelativeTime,
+  Section,
+  SkeletonLine,
+  StatusMenu,
+  formatAbsolute,
+  formatCost,
+  formatDurationMs,
+  getStatusMeta,
+  pluralize,
 } from '@/components/ui'
-import { useToast } from '@/hooks'
-import type { Persona, PersonaSubgraph, PersonaSubgraphRelation } from '@/types'
+import type { ParentLink } from '@/components/ui'
+import {
+  ConceptNote,
+  MetricList,
+  PERSONA_HINTS,
+  cohesionLevel,
+  energyLevel,
+  pct,
+  ratioLevel,
+} from '@/components/registry'
+import { EditPersonaForm, type EditPersonaFormData } from '@/components/forms'
+import { useToast, useWorkspaceSlug } from '@/hooks'
+import { workspacePath } from '@/utils/paths'
+import type { Persona, PersonaOrigin, PersonaStatus, PersonaSubgraph, PersonaSubgraphRelation } from '@/types'
 
-// ── Tab type ─────────────────────────────────────────────────────────────
+// ── Relation kinds ──────────────────────────────────────────────────────
 
-type TabKey = 'subgraph' | 'relations' | 'history'
+type RelationKey = 'files' | 'functions' | 'notes' | 'decisions' | 'skills' | 'protocols' | 'parents' | 'children'
 
-// ── Helpers ─────────────────────────────────────────────────────────────
-
-function energyColor(energy: number): string {
-  if (energy >= 0.7) return 'bg-emerald-500'
-  if (energy >= 0.3) return 'bg-amber-500'
-  return 'bg-red-500'
+interface RelationKind {
+  key: RelationKey
+  label: string
+  /** Detail route of the target, if any (workspace-relative). */
+  route?: (id: string) => string
+  /** The target id is a code path (rendered mono, not resolved). */
+  code?: boolean
 }
 
-function cohesionColor(cohesion: number): string {
-  if (cohesion >= 0.7) return 'bg-indigo-500'
-  if (cohesion >= 0.4) return 'bg-indigo-400'
-  return 'bg-indigo-300/60'
+const RELATION_KINDS: RelationKind[] = [
+  { key: 'files', label: 'Files', code: true },
+  { key: 'functions', label: 'Functions', code: true },
+  { key: 'notes', label: 'Notes' },
+  { key: 'decisions', label: 'Decisions', route: (id) => `/decisions/${id}` },
+  { key: 'skills', label: 'Skills', route: (id) => `/skills/${id}` },
+  { key: 'protocols', label: 'Protocols', route: (id) => `/protocols/${id}` },
+  { key: 'parents', label: 'Extends (inherits from)', route: (id) => `/personas/${id}` },
+  { key: 'children', label: 'Extended by', route: (id) => `/personas/${id}` },
+]
+
+const ORIGIN_LABEL: Record<PersonaOrigin, string> = {
+  manual: 'Manual',
+  auto_build: 'Auto-built',
+  imported: 'Imported',
 }
 
-function MetricBar({ label, value, colorFn }: { label: string; value: number; colorFn: (v: number) => string }) {
-  return (
-    <div>
-      <div className="flex justify-between text-xs text-zinc-500 mb-1">
-        <span>{label}</span>
-        <span>{(value * 100).toFixed(0)}%</span>
-      </div>
-      <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all ${colorFn(value)}`}
-          style={{ width: `${value * 100}%` }}
-        />
-      </div>
-    </div>
-  )
-}
+/** Max targets resolved to a readable name per relation kind. */
+const RESOLVE_CAP = 50
 
-function RelationTable({
-  title,
-  icon: Icon,
-  relations,
-  onRemove,
-}: {
+interface Resolved {
   title: string
-  icon: React.ElementType
-  relations: PersonaSubgraphRelation[]
-  onRemove?: (entityId: string) => void
-}) {
-  if (relations.length === 0) {
-    return (
-      <div className="text-center py-8 text-zinc-600">
-        <Icon className="h-8 w-8 mx-auto mb-2 opacity-40" />
-        <p className="text-sm">No {title.toLowerCase()} linked</p>
-      </div>
-    )
-  }
-
-  return (
-    <div>
-      <h3 className="text-sm font-medium text-zinc-400 mb-2 flex items-center gap-1.5">
-        <Icon className="h-4 w-4" />
-        {title} ({relations.length})
-      </h3>
-      <div className="space-y-1">
-        {relations.map((rel) => (
-          <div
-            key={rel.entity_id}
-            className="flex items-center justify-between px-3 py-2 rounded-md bg-zinc-900/50 hover:bg-zinc-800/50 transition-colors text-sm"
-          >
-            <span className="truncate flex-1 font-mono text-xs">{rel.entity_id}</span>
-            <div className="flex items-center gap-2 ml-2 shrink-0">
-              <span className="text-xs text-zinc-500">w: {rel.weight.toFixed(2)}</span>
-              {onRemove && (
-                <button
-                  onClick={() => onRemove(rel.entity_id)}
-                  className="text-zinc-600 hover:text-red-400 transition-colors"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ── Subgraph visualization ──────────────────────────────────────────────
-
-/** Node color palette per entity type */
-const entityStyles: Record<string, { bg: string; border: string; text: string }> = {
-  persona:  { bg: '#581c87', border: '#a855f7', text: '#e9d5ff' },
-  file:     { bg: '#1e293b', border: '#64748b', text: '#cbd5e1' },
-  function: { bg: '#1e293b', border: '#94a3b8', text: '#e2e8f0' },
-  note:     { bg: '#422006', border: '#f59e0b', text: '#fef3c7' },
-  decision: { bg: '#1e1b4b', border: '#818cf8', text: '#e0e7ff' },
-  skill:    { bg: '#052e16', border: '#22c55e', text: '#bbf7d0' },
-  parent:   { bg: '#1c1917', border: '#78716c', text: '#d6d3d1' },
-  child:    { bg: '#1c1917', border: '#78716c', text: '#d6d3d1' },
-}
-
-function buildSubgraphFlow(persona: Persona, subgraph: PersonaSubgraph): { nodes: Node[]; edges: Edge[] } {
-  const nodes: Node[] = []
-  const edges: Edge[] = []
-
-  // Center persona node
-  nodes.push({
-    id: `persona-${persona.id}`,
-    position: { x: 0, y: 0 },
-    data: { label: persona.name },
-    style: {
-      background: entityStyles.persona.bg,
-      border: `2px solid ${entityStyles.persona.border}`,
-      color: entityStyles.persona.text,
-      borderRadius: '12px',
-      padding: '12px 20px',
-      fontWeight: 700,
-      fontSize: '14px',
-    },
-  })
-
-  const allGroups: { type: string; items: PersonaSubgraphRelation[] }[] = [
-    { type: 'file', items: subgraph.files ?? [] },
-    { type: 'function', items: subgraph.functions ?? [] },
-    { type: 'note', items: subgraph.notes ?? [] },
-    { type: 'decision', items: subgraph.decisions ?? [] },
-    { type: 'skill', items: subgraph.skills ?? [] },
-    { type: 'parent', items: subgraph.parents ?? [] },
-    { type: 'child', items: subgraph.children ?? [] },
-  ]
-
-  // Layout groups in a radial pattern around center
-  const nonEmpty = allGroups.filter((g) => g.items.length > 0)
-  const angleStep = (2 * Math.PI) / Math.max(nonEmpty.length, 1)
-
-  nonEmpty.forEach((group, gi) => {
-    const baseAngle = angleStep * gi - Math.PI / 2
-    const radius = 250
-    const itemAngleSpread = Math.min(0.6, (group.items.length - 1) * 0.15)
-
-    group.items.forEach((rel, ri) => {
-      const itemAngle = group.items.length === 1
-        ? baseAngle
-        : baseAngle - itemAngleSpread / 2 + (itemAngleSpread / (group.items.length - 1)) * ri
-
-      const x = Math.cos(itemAngle) * (radius + ri * 30)
-      const y = Math.sin(itemAngle) * (radius + ri * 30)
-
-      const nodeId = `${group.type}-${rel.entity_id}`
-      const style = entityStyles[group.type] || entityStyles.file
-      const shortLabel = rel.entity_id.length > 30
-        ? '...' + rel.entity_id.slice(-27)
-        : rel.entity_id
-
-      nodes.push({
-        id: nodeId,
-        position: { x, y },
-        data: { label: shortLabel },
-        style: {
-          background: style.bg,
-          border: `1.5px solid ${style.border}`,
-          color: style.text,
-          borderRadius: '8px',
-          padding: '6px 12px',
-          fontSize: '11px',
-          maxWidth: '180px',
-          whiteSpace: 'nowrap' as const,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        },
-      })
-
-      edges.push({
-        id: `e-${nodeId}`,
-        source: `persona-${persona.id}`,
-        target: nodeId,
-        style: { stroke: style.border, strokeWidth: Math.max(1, rel.weight * 3) },
-        label: rel.weight > 0 ? rel.weight.toFixed(1) : undefined,
-        labelStyle: { fontSize: 9, fill: '#71717a' },
-      })
-    })
-  })
-
-  return { nodes, edges }
+  /** Full text for expandable rows (notes). */
+  body?: string
+  sub?: string
 }
 
 // ── Main page ───────────────────────────────────────────────────────────
 
 export function PersonaDetailPage() {
   const { id: personaId } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const wsSlug = useWorkspaceSlug()
+  const toast = useToast()
+
   const [persona, setPersona] = useState<Persona | null>(null)
   const [subgraph, setSubgraph] = useState<PersonaSubgraph | null>(null)
+  const [project, setProject] = useState<{ name: string; slug: string } | null>(null)
+  const [resolved, setResolved] = useState<Record<string, Resolved>>({})
   const [loading, setLoading] = useState(true)
-  const [editing, setEditing] = useState(false)
-  const [editForm, setEditForm] = useState<Partial<Persona>>({})
-  const [tab, setTab] = useState<TabKey>('subgraph')
-  const toast = useToast()
+  const [failed, setFailed] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [activating, setActivating] = useState(false)
 
   const loadPersona = useCallback(async () => {
     if (!personaId) return
+    setFailed(false)
     try {
+      // The subgraph is optional: a failure there must not hide the persona
       const [p, sg] = await Promise.all([
         personasApi.get(personaId),
-        personasApi.getSubgraph(personaId),
+        personasApi.getSubgraph(personaId).catch(() => null),
       ])
       setPersona(p)
       setSubgraph(sg)
     } catch {
-      toast.error('Failed to load persona')
+      setFailed(true)
     } finally {
       setLoading(false)
     }
   }, [personaId])
 
-  useEffect(() => { loadPersona() }, [loadPersona])
+  useEffect(() => {
+    setLoading(true)
+    loadPersona()
+  }, [loadPersona])
 
-  // Build ReactFlow data from subgraph
-  const flowData = useMemo(() => {
-    if (!persona || !subgraph) return { nodes: [], edges: [] }
-    return buildSubgraphFlow(persona, subgraph)
-  }, [persona, subgraph])
-
-  const handleSave = async () => {
-    if (!personaId || !editForm) return
-    try {
-      const updated = await personasApi.update(personaId, {
-        name: editForm.name,
-        description: editForm.description,
-        complexity_default: editForm.complexity_default ?? undefined,
-        timeout_secs: editForm.timeout_secs ?? undefined,
-        max_cost_usd: editForm.max_cost_usd ?? undefined,
-        model_preference: editForm.model_preference ?? undefined,
+  // Parent project
+  const projectId = persona?.project_id
+  useEffect(() => {
+    if (!projectId || !wsSlug) return
+    workspacesApi
+      .listProjects(wsSlug)
+      .then((ps) => {
+        const p = ps.find((x) => x.id === projectId)
+        setProject(p ? { name: p.name, slug: p.slug } : null)
       })
-      setPersona(updated)
-      setEditing(false)
-      toast.success('Persona updated')
-    } catch {
-      toast.error('Failed to update persona')
+      .catch(() => {})
+  }, [projectId, wsSlug])
+
+  // Resolve relation targets (UUIDs) to readable names
+  useEffect(() => {
+    if (!subgraph) return
+    let cancelled = false
+    const jobs: Promise<[string, Resolved] | null>[] = []
+    const add = (rels: PersonaSubgraphRelation[] | undefined, fetch: (id: string) => Promise<Resolved>) => {
+      for (const r of (rels ?? []).slice(0, RESOLVE_CAP)) {
+        jobs.push(
+          fetch(r.entity_id)
+            .then((v): [string, Resolved] => [r.entity_id, v])
+            .catch(() => null),
+        )
+      }
     }
+    add(subgraph.skills, async (id) => {
+      const s = await skillsApi.get(id)
+      return { title: s.name, sub: getStatusMeta('skill', s.status).label }
+    })
+    add(subgraph.protocols, async (id) => ({ title: (await protocolApi.getProtocol(id)).name }))
+    add(subgraph.notes, async (id) => {
+      const n = await notesApi.get(id)
+      return { title: n.content, body: n.content, sub: n.note_type }
+    })
+    add(subgraph.decisions, async (id) => {
+      const d = await decisionsApi.get(id)
+      return { title: d.description, sub: d.chosen_option ? `Chosen: ${d.chosen_option}` : undefined }
+    })
+    const personaName = async (id: string) => ({ title: (await personasApi.get(id)).name })
+    add(subgraph.parents, personaName)
+    add(subgraph.children, personaName)
+
+    Promise.all(jobs).then((entries) => {
+      if (cancelled) return
+      setResolved(Object.fromEntries(entries.filter((e): e is [string, Resolved] => e !== null)))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [subgraph])
+
+  // ── Actions ───────────────────────────────────────────────────────────
+
+  const handleStatusChange = async (status: PersonaStatus) => {
+    if (!persona) return
+    try {
+      setPersona(await personasApi.update(persona.id, { status }))
+      toast.success(`Status changed to ${getStatusMeta('persona', status).label}`)
+    } catch {
+      toast.error('Failed to update status')
+    }
+  }
+
+  const handleSave = async (data: EditPersonaFormData) => {
+    if (!persona) return
+    // Errors are surfaced by FormDialog (toast, dialog stays open)
+    setPersona(await personasApi.update(persona.id, data))
+    toast.success('Persona updated')
   }
 
   const handleActivate = async () => {
-    if (!personaId) return
+    if (!persona) return
+    setActivating(true)
     try {
-      await personasApi.activate(personaId)
+      await personasApi.activate(persona.id)
       toast.success('Persona activated')
-      loadPersona()
+      await loadPersona()
     } catch {
       toast.error('Failed to activate persona')
+    } finally {
+      setActivating(false)
     }
   }
 
-  const handleRemoveFile = async (filePath: string) => {
-    if (!personaId) return
+  const handleDelete = async () => {
+    if (!persona) return
     try {
-      await personasApi.removeFile(personaId, filePath)
-      toast.success('File removed')
-      loadPersona()
+      await personasApi.delete(persona.id)
+      toast.success(`Persona “${persona.name}” deleted`)
+      navigate(workspacePath(wsSlug, '/personas'))
     } catch {
-      toast.error('Failed to remove file')
+      toast.error('Failed to delete persona')
     }
   }
 
-  const handleRemoveNote = async (noteId: string) => {
-    if (!personaId) return
+  const removers = useMemo((): Partial<Record<RelationKey, (id: string) => Promise<unknown>>> => {
+    if (!personaId) return {}
+    return {
+      files: (id) => personasApi.removeFile(personaId, id),
+      functions: (id) => personasApi.removeFunction(personaId, id),
+      notes: (id) => personasApi.removeNote(personaId, id),
+      decisions: (id) => personasApi.removeDecision(personaId, id),
+      skills: (id) => personasApi.removeSkill(personaId, id),
+      protocols: (id) => personasApi.removeProtocol(personaId, id),
+      parents: (id) => personasApi.removeExtends(personaId, id),
+    }
+  }, [personaId])
+
+  const handleRemove = async (kind: RelationKind, entityId: string) => {
+    const remove = removers[kind.key]
+    if (!remove) return
     try {
-      await personasApi.removeNote(personaId, noteId)
-      toast.success('Note removed')
-      loadPersona()
+      await remove(entityId)
+      setSubgraph((sg) => (sg ? { ...sg, [kind.key]: (sg[kind.key] ?? []).filter((r) => r.entity_id !== entityId) } : sg))
+      toast.success('Link removed')
     } catch {
-      toast.error('Failed to remove note')
+      toast.error('Failed to remove link')
     }
   }
 
-  const handleRemoveDecision = async (decisionId: string) => {
-    if (!personaId) return
-    try {
-      await personasApi.removeDecision(personaId, decisionId)
-      toast.success('Decision removed')
-      loadPersona()
-    } catch {
-      toast.error('Failed to remove decision')
-    }
-  }
+  // ── Render ────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner />
-      </div>
+      <PageContainer width="wide" className="space-y-6">
+        <div className="space-y-2">
+          <SkeletonLine width="30%" />
+          <SkeletonLine width="60%" />
+        </div>
+        <EntityListSkeleton rows={4} />
+      </PageContainer>
     )
   }
 
-  if (!persona) {
+  if (failed || !persona) {
     return (
-      <div className="text-center py-16 text-zinc-500">
-        <Users className="h-12 w-12 mx-auto mb-4 opacity-40" />
-        <p>Persona not found</p>
-      </div>
+      <PageContainer width="wide">
+        <ErrorState
+          icon={<Users className="w-8 h-8" />}
+          title="Persona not found"
+          description="The persona could not be loaded."
+          onRetry={loadPersona}
+        />
+      </PageContainer>
     )
   }
 
-  const tabs: { key: TabKey; label: string; icon: React.ElementType }[] = [
-    { key: 'subgraph', label: 'Subgraph', icon: Network },
-    { key: 'relations', label: 'Relations', icon: GitBranch },
-    { key: 'history', label: 'History', icon: Activity },
+  const parentLinks: ParentLink[] = [
+    { icon: Users, label: 'Personas', name: 'All personas', href: workspacePath(wsSlug, '/personas') },
+    ...(project && persona.project_id
+      ? [{ icon: Box, label: 'Project', name: project.name, href: workspacePath(wsSlug, `/projects/${project.slug}`) }]
+      : []),
   ]
 
+  const totalLinks = subgraph ? RELATION_KINDS.reduce((n, k) => n + (subgraph[k.key]?.length ?? 0), 0) : 0
+  const stats = subgraph?.stats
+
   return (
-    <PageShell
-      title={persona.name}
-      actions={
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={handleActivate}>
-            <Zap className="h-4 w-4 mr-1" />
+    <PageContainer width="wide" className="space-y-6">
+      <PageHeader
+        title={persona.name}
+        description={persona.description || undefined}
+        parentLinks={parentLinks}
+        status={<StatusMenu kind="persona" status={persona.status} onChange={handleStatusChange} />}
+        meta={[
+          ORIGIN_LABEL[persona.origin] ?? persona.origin,
+          persona.project_id ? null : 'global',
+          pluralize(persona.activation_count ?? 0, 'activation'),
+          persona.last_activated ? <RelativeTime key="la" date={persona.last_activated} prefix="used " /> : 'never used',
+        ]}
+        actions={
+          <Button size="sm" onClick={handleActivate} loading={activating}>
+            {!activating && <Zap className="w-4 h-4 mr-1.5" aria-hidden="true" />}
             Activate
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => {
-            setEditing(!editing)
-            setEditForm({
-              name: persona.name,
-              description: persona.description,
-              complexity_default: persona.complexity_default,
-              timeout_secs: persona.timeout_secs,
-              max_cost_usd: persona.max_cost_usd,
-              model_preference: persona.model_preference,
-            })
-          }}>
-            <Settings className="h-4 w-4 mr-1" />
-            {editing ? 'Cancel' : 'Edit'}
+        }
+        overflowActions={[
+          { label: 'Edit', icon: Pencil, onClick: () => setEditOpen(true) },
+          {
+            label: 'Delete',
+            icon: Trash2,
+            variant: 'danger',
+            onClick: handleDelete,
+            confirm: {
+              title: `Delete “${persona.name}”?`,
+              description: 'This removes the persona and all its relations. This action cannot be undone.',
+            },
+          },
+        ]}
+      />
+
+      <ConceptNote summary="Cette persona est un profil d’expert : un agent qui l’endosse reçoit en priorité le savoir listé dans « What it knows » et s’exécute avec les paramètres ci-dessous.">
+        <p>« Activate » la charge manuellement (compte comme une activation et ravive son énergie).</p>
+        <p>
+          Le <span className="text-gray-300">poids</span> d’un lien (0–100 %) indique à quel point ce savoir compte pour
+          elle ; il évolue avec l’usage. Retirer un lien ne supprime pas l’élément lui-même.
+        </p>
+      </ConceptNote>
+
+      {/* ── Vital signs ─────────────────────────────────────────── */}
+      <Section title="Vital signs" description="Ce que mesurent les indicateurs de cette persona.">
+        <MetricList
+          items={[
+            {
+              label: 'Energy',
+              value: pct(persona.energy),
+              level: energyLevel(persona.energy ?? 0),
+              ratio: persona.energy ?? 0,
+              hint: PERSONA_HINTS.energy,
+            },
+            {
+              label: 'Cohesion',
+              value: pct(persona.cohesion),
+              level: cohesionLevel(persona.cohesion ?? 0),
+              ratio: persona.cohesion ?? 0,
+              hint: PERSONA_HINTS.cohesion,
+            },
+            {
+              label: 'Success rate',
+              value: pct(persona.success_rate),
+              level: (persona.activation_count ?? 0) > 0 ? ratioLevel(persona.success_rate ?? 0) : undefined,
+              ratio: persona.success_rate ?? 0,
+              hint: PERSONA_HINTS.successRate,
+            },
+            { label: 'Activations', value: persona.activation_count ?? 0, hint: PERSONA_HINTS.activations },
+            {
+              label: 'Avg. duration',
+              value: persona.avg_duration_secs ? formatDurationMs(persona.avg_duration_secs * 1000) : '—',
+              hint: PERSONA_HINTS.avgDuration,
+            },
+            {
+              label: 'Coverage',
+              value: pct(stats?.coverage_score),
+              ratio: stats?.coverage_score ?? 0,
+              hint: PERSONA_HINTS.coverage,
+              hidden: !stats,
+            },
+            {
+              label: 'Freshness',
+              value: pct(stats?.freshness),
+              level: stats ? ratioLevel(stats.freshness) : undefined,
+              ratio: stats?.freshness ?? 0,
+              hint: PERSONA_HINTS.freshness,
+              hidden: !stats,
+            },
+            { label: 'Linked entities', value: stats?.total_entities ?? 0, hint: PERSONA_HINTS.entities, hidden: !stats },
+          ]}
+        />
+      </Section>
+
+      {/* ── Execution settings ──────────────────────────────────── */}
+      <Section
+        title="Execution settings"
+        description="Paramètres appliqués quand un agent exécute une tâche avec cette persona (vide = valeur par défaut du runner)."
+        action={
+          <Button variant="ghost" size="sm" onClick={() => setEditOpen(true)}>
+            <Pencil className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
+            Edit
           </Button>
-        </div>
+        }
+      >
+        <Facts
+          items={[
+            { label: 'Model', value: persona.model_preference || 'Default' },
+            { label: 'Complexity', value: persona.complexity_default || 'Automatic' },
+            { label: 'Timeout', value: persona.timeout_secs ? formatDurationMs(persona.timeout_secs * 1000) : 'Default' },
+            { label: 'Max cost', value: formatCost(persona.max_cost_usd) ?? 'No limit' },
+          ]}
+        />
+        {persona.system_prompt_override && (
+          <div className="mt-3">
+            <p className="mb-1 text-xs text-gray-500">System prompt override</p>
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-sm">
+              <CollapsibleMarkdown content={persona.system_prompt_override} />
+            </div>
+          </div>
+        )}
+      </Section>
+
+      {/* ── Knowledge ───────────────────────────────────────────── */}
+      <Section
+        title="What it knows"
+        count={subgraph ? totalLinks : undefined}
+        description="Fichiers, fonctions, notes, décisions, skills et protocoles reliés à cette persona, avec le poids de chaque lien."
+      >
+        {!subgraph ? (
+          <EmptyState size="sm" title="Relations unavailable" description="The persona subgraph could not be loaded." />
+        ) : totalLinks === 0 ? (
+          <EmptyState
+            size="sm"
+            title="Nothing linked yet"
+            description="Link files, notes or skills to this persona (MCP tools or auto-build) to give it knowledge."
+          />
+        ) : (
+          <div>
+            {RELATION_KINDS.map((kind) => {
+              const rels = subgraph[kind.key] ?? []
+              if (rels.length === 0) return null
+              return (
+                <ListGroup
+                  key={kind.key}
+                  title={kind.label}
+                  count={rels.length}
+                  collapsible={rels.length > 10}
+                  defaultOpen={rels.length <= 10}
+                >
+                  {rels.map((rel) => (
+                    <RelationRow
+                      key={rel.entity_id}
+                      kind={kind}
+                      rel={rel}
+                      resolved={resolved[rel.entity_id]}
+                      href={kind.route ? workspacePath(wsSlug, kind.route(rel.entity_id)) : undefined}
+                      onRemove={removers[kind.key] ? () => handleRemove(kind, rel.entity_id) : undefined}
+                    />
+                  ))}
+                </ListGroup>
+              )
+            })}
+          </div>
+        )}
+      </Section>
+
+      {/* ── Details ─────────────────────────────────────────────── */}
+      <Section title="Details">
+        <Facts
+          items={[
+            { label: 'Project', value: persona.project_id ? project?.name ?? persona.project_id : 'Global (whole workspace)' },
+            { label: 'Origin', value: ORIGIN_LABEL[persona.origin] ?? persona.origin },
+            { label: 'Created', value: formatAbsolute(persona.created_at) },
+            { label: 'Updated', value: persona.updated_at ? formatAbsolute(persona.updated_at) : null },
+            { label: 'Last used', value: persona.last_activated ? formatAbsolute(persona.last_activated) : 'Never' },
+            { label: 'ID', value: <span className="font-mono text-xs break-all">{persona.id}</span> },
+          ]}
+        />
+      </Section>
+
+      {/* ENTITY_GRAPH_SLOT entity_type="persona" entity_id={persona.id} */}
+
+      <EditPersonaDialog open={editOpen} persona={persona} onClose={() => setEditOpen(false)} onSubmit={handleSave} />
+    </PageContainer>
+  )
+}
+
+// ── Relation row ────────────────────────────────────────────────────────
+
+interface RelationRowProps {
+  kind: RelationKind
+  rel: PersonaSubgraphRelation
+  resolved?: Resolved
+  href?: string
+  onRemove?: () => Promise<void>
+}
+
+function RelationRow({ kind, rel, resolved, href, onRemove }: RelationRowProps) {
+  const [open, setOpen] = useState(false)
+  const expandable = Boolean(resolved?.body)
+  const title = kind.code ? (
+    <span className="font-mono text-[13px] break-all">{rel.entity_id}</span>
+  ) : (
+    resolved?.title ?? <span className="font-mono text-[13px] break-all text-gray-400">{rel.entity_id}</span>
+  )
+  const plainTitle = kind.code ? rel.entity_id : resolved?.title ?? rel.entity_id
+
+  return (
+    <EntityRow
+      title={title}
+      ariaLabel={expandable ? `${open ? 'Collapse' : 'Expand'} ${plainTitle.slice(0, 60)}` : plainTitle}
+      href={href}
+      onClick={!href && expandable ? () => setOpen((v) => !v) : undefined}
+      trailing={<span title="Link weight">{pct(rel.weight)}</span>}
+      meta={[resolved?.sub, rel.relation_type, `weight ${rel.weight.toFixed(2)}`]}
+      actions={
+        onRemove
+          ? [
+              {
+                label: 'Remove link',
+                icon: X,
+                variant: 'danger',
+                onClick: onRemove,
+                confirm: {
+                  title: 'Remove this link?',
+                  description: 'The persona forgets this element; the element itself is not deleted.',
+                  confirmLabel: 'Remove',
+                },
+              },
+            ]
+          : undefined
       }
     >
-      {/* Header metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardContent className="p-4">
-            <MetricBar label="Energy" value={persona.energy ?? 0} colorFn={energyColor} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <MetricBar label="Cohesion" value={persona.cohesion ?? 0} colorFn={cohesionColor} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 space-y-1">
-            <div className="text-xs text-zinc-500">Activations</div>
-            <div className="text-2xl font-bold">{persona.activation_count ?? 0}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 space-y-1">
-            <div className="text-xs text-zinc-500">Success Rate</div>
-            <div className="text-2xl font-bold">{((persona.success_rate ?? 0) * 100).toFixed(0)}%</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Description (read-only) */}
-      {!editing && persona.description && (
-        <Card className="mb-6">
-          <CardContent className="p-4">
-            <div className="text-xs text-zinc-500 mb-2">Description</div>
-            <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">{persona.description}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Edit panel */}
-      {editing && (
-        <Card className="mb-6 border-purple-500/30">
-          <CardContent className="p-4 space-y-3">
-            <h3 className="text-sm font-medium text-zinc-300">Edit Parameters</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-zinc-500">Name</label>
-                <input
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm"
-                  value={editForm.name || ''}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="text-xs text-zinc-500">Model Preference</label>
-                <input
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm"
-                  value={editForm.model_preference || ''}
-                  onChange={(e) => setEditForm({ ...editForm, model_preference: e.target.value })}
-                  placeholder="opus, sonnet, haiku..."
-                />
-              </div>
-              <div>
-                <label className="text-xs text-zinc-500">Timeout (secs)</label>
-                <input
-                  type="number"
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm"
-                  value={editForm.timeout_secs || ''}
-                  onChange={(e) => setEditForm({ ...editForm, timeout_secs: Number(e.target.value) })}
-                />
-              </div>
-              <div>
-                <label className="text-xs text-zinc-500">Max Cost (USD)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm"
-                  value={editForm.max_cost_usd || ''}
-                  onChange={(e) => setEditForm({ ...editForm, max_cost_usd: Number(e.target.value) })}
-                />
-              </div>
-            </div>
-            <div>
-              <label className="text-xs text-zinc-500">Description</label>
-              <textarea
-                className="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm h-20"
-                value={editForm.description || ''}
-                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-              />
-            </div>
-            <div className="flex justify-end">
-              <Button size="sm" onClick={handleSave}>Save</Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Tabs (manual state, matching project pattern) */}
-      <div className="flex gap-1 mb-4 border-b border-white/[0.06]">
-        {tabs.map(({ key, label, icon: TabIcon }) => (
-          <button
-            key={key}
-            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-              tab === key
-                ? 'border-indigo-500 text-white'
-                : 'border-transparent text-gray-400 hover:text-gray-200'
-            }`}
-            onClick={() => setTab(key)}
-          >
-            <TabIcon className="h-4 w-4" />
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Subgraph tab */}
-      {tab === 'subgraph' && subgraph && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-400">{(subgraph.files ?? []).length}</div>
-                <div className="text-xs text-zinc-500">Files</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-400">{(subgraph.notes ?? []).length}</div>
-                <div className="text-xs text-zinc-500">Notes</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-indigo-400">{(subgraph.decisions ?? []).length}</div>
-                <div className="text-xs text-zinc-500">Decisions</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-emerald-400">{(subgraph.skills ?? []).length}</div>
-                <div className="text-xs text-zinc-500">Skills</div>
-              </div>
-            </div>
-            <div className="text-sm text-zinc-500 mb-3">
-              Coverage: {((subgraph.stats?.coverage_score ?? 0) * 100).toFixed(0)}% |
-              Freshness: {((subgraph.stats?.freshness ?? 0) * 100).toFixed(0)}% |
-              Total entities: {subgraph.stats?.total_entities ?? 0}
-            </div>
-            {/* Force-directed subgraph visualization */}
-            {flowData.nodes.length > 1 ? (
-              <div className="h-[400px] bg-zinc-900/50 rounded-lg border border-zinc-800">
-                <ReactFlow
-                  nodes={flowData.nodes}
-                  edges={flowData.edges}
-                  fitView
-                  proOptions={{ hideAttribution: true }}
-                  minZoom={0.3}
-                  maxZoom={2}
-                  defaultEdgeOptions={{ animated: true }}
-                >
-                  <Background color="#27272a" gap={20} />
-                  <Controls
-                    showInteractive={false}
-                    className="!bg-zinc-800 !border-zinc-700 !shadow-lg [&>button]:!bg-zinc-800 [&>button]:!border-zinc-700 [&>button]:!text-zinc-300 [&>button:hover]:!bg-zinc-700"
-                  />
-                </ReactFlow>
-              </div>
-            ) : (
-              <div className="h-64 bg-zinc-900/50 rounded-lg flex items-center justify-center text-zinc-600 border border-zinc-800">
-                <div className="text-center">
-                  <Network className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                  <p className="text-sm">No entities to visualize</p>
-                  <p className="text-xs mt-1">Add files, notes, or skills to see the subgraph</p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Relations tab */}
-      {tab === 'relations' && (
-        <div className="space-y-6">
-          <RelationTable
-            title="Files"
-            icon={Code}
-            relations={subgraph?.files || []}
-            onRemove={handleRemoveFile}
-          />
-          <RelationTable
-            title="Functions"
-            icon={Code}
-            relations={subgraph?.functions || []}
-          />
-          <RelationTable
-            title="Notes"
-            icon={FileText}
-            relations={subgraph?.notes || []}
-            onRemove={handleRemoveNote}
-          />
-          <RelationTable
-            title="Decisions"
-            icon={Scale}
-            relations={subgraph?.decisions || []}
-
-            onRemove={handleRemoveDecision}
-          />
-          <RelationTable
-            title="Skills"
-            icon={Brain}
-            relations={subgraph?.skills || []}
-
-          />
-          <RelationTable
-            title="Parents (EXTENDS)"
-            icon={GitBranch}
-            relations={subgraph?.parents || []}
-          />
-          <RelationTable
-            title="Children"
-            icon={GitBranch}
-            relations={subgraph?.children || []}
-          />
+      {open && resolved?.body && (
+        <div className="rounded-lg bg-white/[0.03] px-3 py-2 text-sm">
+          <CollapsibleMarkdown content={resolved.body} />
         </div>
       )}
+    </EntityRow>
+  )
+}
 
-      {/* History tab */}
-      {tab === 'history' && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-center py-12 text-zinc-600">
-              <Activity className="h-8 w-8 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">Execution history</p>
-              <p className="text-xs mt-1">
-                Tasks executed with this persona will appear here once the runner has used it.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </PageShell>
+// ── Edit dialog ─────────────────────────────────────────────────────────
+
+function EditPersonaDialog({
+  open,
+  persona,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean
+  persona: Persona
+  onClose: () => void
+  onSubmit: (data: EditPersonaFormData) => Promise<void>
+}) {
+  const form = EditPersonaForm({ initial: persona, onSubmit })
+  return (
+    <FormDialog open={open} onClose={onClose} onSubmit={form.submit} title="Edit persona" submitLabel="Save" size="lg">
+      {form.fields}
+    </FormDialog>
   )
 }
