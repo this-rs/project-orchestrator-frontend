@@ -12,11 +12,11 @@ describe('ConceptNote', () => {
     )
     expect(screen.getByText('What is this?')).toBeTruthy()
     expect(screen.queryByText('Long explanation')).toBeNull()
-    const toggle = screen.getByRole('button', { name: 'En savoir plus' })
+    const toggle = screen.getByRole('button', { name: 'Learn more' })
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(toggle)
     expect(screen.getByText('Long explanation')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Réduire' }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Show less' }).getAttribute('aria-expanded')).toBe('true')
   })
 
   it('has no toggle without details', () => {
@@ -74,6 +74,6 @@ describe('TrustBadge', () => {
     render(<TrustScoreBar trustScore={0.5} trustLevel="medium" />)
     expect(screen.getByText('Medium trust')).toBeTruthy()
     expect(screen.getByText('50%')).toBeTruthy()
-    expect(screen.getByText(/Score de confiance/)).toBeTruthy()
+    expect(screen.getByText(/Trust score/)).toBeTruthy()
   })
 })

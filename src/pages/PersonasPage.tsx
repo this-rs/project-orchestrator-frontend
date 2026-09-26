@@ -228,19 +228,19 @@ export function PersonasPage() {
       }
     >
       <div className="space-y-3">
-        <ConceptNote summary="Une persona est un profil d’expert confié à un agent : elle définit les fichiers, notes, décisions et skills qu’il connaît, ainsi que ses paramètres d’exécution (modèle, budget, délai).">
+        <ConceptNote summary="A persona is an expert profile handed to an agent: it defines the files, notes, decisions and skills the agent knows, plus its execution settings (model, budget, timeout).">
           <p>
-            Quand une tâche touche des fichiers qu’une persona connaît, l’agent qui l’exécute reçoit ce savoir en priorité.
+            When a task touches files a persona knows, the agent running it receives that knowledge first.
           </p>
           <p>
-            Chaque lien a un <span className="text-gray-300">poids</span> qui se renforce quand la persona réussit et
-            s’affaiblit sinon. <span className="text-gray-300">Énergie</span> = vitalité récente,{' '}
-            <span className="text-gray-300">taux de réussite</span> = part des tâches réussies avec elle.
+            Each link has a <span className="text-gray-300">weight</span> that strengthens when the persona succeeds and
+            weakens otherwise. <span className="text-gray-300">Energy</span> = recent vitality,{' '}
+            <span className="text-gray-300">success rate</span> = share of tasks that succeeded with it.
           </p>
           <p>
-            Une persona peut être créée à la main, construite automatiquement depuis le code (point d’entrée, motif de
-            fichiers) ou émerger d’elle-même ; elle peut aussi hériter d’une autre (EXTENDS). Sans projet, elle est{' '}
-            <span className="text-gray-300">globale</span> et sert à tout le workspace.
+            A persona can be created by hand, built automatically from the code (entry point, file pattern) or emerge
+            on its own; it can also inherit from another one (EXTENDS). Without a project it is{' '}
+            <span className="text-gray-300">global</span> and serves the whole workspace.
           </p>
         </ConceptNote>
 

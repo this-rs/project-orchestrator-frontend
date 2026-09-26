@@ -229,7 +229,7 @@ describe('helpers', () => {
 
   it('visual helpers fall back gracefully', () => {
     expect(typeColor('nope')).toBe(FALLBACK_COLOR)
-    expect(typeLabel('decision')).toBe('Décision')
+    expect(typeLabel('decision')).toBe('Decision')
     expect(typeLabel('nope')).toBe('nope')
     expect(relLabel('LINKED_TO_TASK')).toBe('linked to task')
   })

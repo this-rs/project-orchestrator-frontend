@@ -250,24 +250,23 @@ export function EntityGraph({
           >
             <AlertTriangle size={14} aria-hidden />
             <span className="flex-1 min-w-[12rem]">
-              Impossible de charger le voisinage : {error.message}
+              Could not load the neighborhood: {error.message}
             </span>
             <button
               type="button"
               onClick={retry}
               className="h-8 px-3 rounded-md bg-red-500/20 hover:bg-red-500/30 text-red-100 font-medium"
             >
-              Réessayer
+              Retry
             </button>
           </div>
         )}
 
         {isEmpty && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center text-sm">
-            <p className="text-gray-300">Aucune relation à ce niveau de relief</p>
+            <p className="text-gray-300">No relation at this relief level</p>
             <p className="text-xs text-gray-500 max-w-xs">
-              Baissez le relief pour faire apparaître les liens faibles, ou augmentez la profondeur
-              pour aller plus loin.
+              Lower the relief to reveal weak links, or increase the depth to go further.
             </p>
             <div className="flex gap-2">
               {relief > 0 && (
@@ -276,7 +275,7 @@ export function EntityGraph({
                   onClick={() => setReliefNow(0)}
                   className="h-8 px-3 rounded-md bg-white/[0.06] hover:bg-white/[0.1] text-xs text-gray-200"
                 >
-                  Baisser le relief
+                  Lower the relief
                 </button>
               )}
               {depth < 3 && (
@@ -285,7 +284,7 @@ export function EntityGraph({
                   onClick={() => setDepth((depth + 1) as NeighborhoodDepth)}
                   className="h-8 px-3 rounded-md bg-white/[0.06] hover:bg-white/[0.1] text-xs text-gray-200"
                 >
-                  Aller à la profondeur {depth + 1}
+                  Go to depth {depth + 1}
                 </button>
               )}
             </div>
@@ -294,13 +293,13 @@ export function EntityGraph({
 
         {refreshing && (
           <span className="absolute top-2 right-3 text-[11px] text-gray-500" aria-live="polite">
-            Mise à jour…
+            Updating…
           </span>
         )}
 
         {shown?.truncated && !isEmpty && (
           <span className="absolute top-2 left-3 rounded bg-black/40 px-1.5 py-0.5 text-[11px] text-amber-200/80">
-            {shown.nodes.length} nœuds affichés sur {shown.stats.total_before_limit}
+            {shown.nodes.length} of {shown.stats.total_before_limit} nodes shown
           </span>
         )}
 
@@ -345,7 +344,7 @@ function GraphSkeleton() {
         ))}
         <circle cx={50} cy={50} r={4} fill="rgba(255,255,255,0.1)" />
       </svg>
-      <span className="sr-only">Chargement du voisinage…</span>
+      <span className="sr-only">Loading the neighborhood…</span>
     </div>
   )
 }

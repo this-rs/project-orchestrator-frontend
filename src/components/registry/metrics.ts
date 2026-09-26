@@ -36,33 +36,33 @@ export function ratioLevel(v: number): Level {
   return { label: 'Poor', tone: 'danger' }
 }
 
-// ── Plain-French explanations ───────────────────────────────────────────
+// ── Plain-language explanations ───────────────────────────────────────────
 
 export const SKILL_HINTS = {
-  energy: "Activité récente de ses notes : haute = sujet travaillé en ce moment, basse = sujet qui s'endort.",
-  cohesion: 'Solidité du groupe : fort = notes et décisions très liées entre elles, sujet bien délimité.',
-  hitRate: "Part des activations qui ont réellement servi à l'agent.",
-  activations: "Nombre de fois où le skill a été injecté dans le contexte d'un agent.",
-  coverage: 'Taille du groupe détecté dans le graphe de connaissances (nombre d’éléments).',
-  members: 'Notes et décisions qui composent ce skill — le savoir qu’il transmet.',
+  energy: 'Recent activity of its notes: high = topic being worked on right now, low = topic going quiet.',
+  cohesion: 'Strength of the group: high = notes and decisions tightly linked to each other, a well-delimited topic.',
+  hitRate: 'Share of activations that actually helped the agent.',
+  activations: "Number of times the skill was injected into an agent's context.",
+  coverage: 'Size of the group detected in the knowledge graph (number of elements).',
+  members: 'Notes and decisions that make up this skill — the knowledge it passes on.',
 } as const
 
 export const PERSONA_HINTS = {
-  energy: "Vitalité : renforcée quand ses tâches réussissent, diminue en cas d'échec ou d'inactivité.",
-  cohesion: 'À quel point ce qu’elle connaît forme un ensemble cohérent et relié.',
-  successRate: 'Part des tâches réussies quand un agent utilisait cette persona.',
-  activations: 'Nombre de fois où elle a été chargée pour exécuter une tâche.',
-  avgDuration: 'Durée moyenne d’une tâche exécutée avec elle.',
-  coverage: 'Part du projet couverte par ce qu’elle connaît.',
-  freshness: 'Récence moyenne de ses connaissances : bas = savoir à relire.',
-  entities: 'Nombre total de fichiers, notes, décisions, skills… auxquels elle est reliée.',
+  energy: 'Vitality: reinforced when its tasks succeed, drops on failure or inactivity.',
+  cohesion: 'How much what it knows forms a coherent, connected whole.',
+  successRate: 'Share of tasks that succeeded while an agent used this persona.',
+  activations: 'Number of times it was loaded to run a task.',
+  avgDuration: 'Average duration of a task run with it.',
+  coverage: 'Share of the project covered by what it knows.',
+  freshness: 'Average recency of its knowledge: low = knowledge to re-read.',
+  entities: 'Total number of files, notes, decisions, skills… it is linked to.',
 } as const
 
 export const TRIGGER_TYPES: Record<string, { label: string; hint: string }> = {
-  regex: { label: 'Regex', hint: 'Expression régulière testée sur le texte de la requête.' },
-  file_glob: { label: 'File glob', hint: 'S’active quand l’agent touche des fichiers correspondant au motif.' },
-  semantic: { label: 'Semantic', hint: 'S’active quand la requête parle du même sujet (proximité de sens).' },
-  mcp_action: { label: 'MCP action', hint: 'S’active sur un appel d’outil MCP précis (ex. note:create).' },
+  regex: { label: 'Regex', hint: 'Regular expression tested against the request text.' },
+  file_glob: { label: 'File glob', hint: 'Fires when the agent touches files matching the pattern.' },
+  semantic: { label: 'Semantic', hint: 'Fires when the request is about the same topic (semantic proximity).' },
+  mcp_action: { label: 'MCP action', hint: 'Fires on a specific MCP tool call (e.g. note:create).' },
 }
 
 /** `#a #b #c +2` for a meta line. */

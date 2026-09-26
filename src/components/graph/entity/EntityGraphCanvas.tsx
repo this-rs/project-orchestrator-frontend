@@ -56,7 +56,7 @@ const Rings = memo(function Rings({ layout }: { layout: RadialLayout }) {
             fontSize={9 * u}
             fill="rgba(255,255,255,0.28)"
           >
-            {ring.depth} saut{ring.depth > 1 ? 's' : ''}
+            {ring.depth} hop{ring.depth > 1 ? 's' : ''}
           </text>
         </g>
       ))}
@@ -132,7 +132,7 @@ const Nodes = memo(function Nodes({
             style={{ transform: `translate(${n.x}px, ${n.y}px)`, opacity }}
             role="button"
             tabIndex={0}
-            aria-label={`${typeLabel(n.type)} : ${n.label}`}
+            aria-label={`${typeLabel(n.type)}: ${n.label}`}
             aria-pressed={selected}
             data-node-id={n.id}
             onClick={(e) => {
@@ -240,7 +240,7 @@ export function EntityGraphCanvas({
       }`}
       style={{ touchAction: 'none', overflow: 'visible' }}
       role="group"
-      aria-label="Graphe du voisinage"
+      aria-label="Neighborhood graph"
       onClick={() => {
         if (!wasDrag()) onSelect(null)
       }}

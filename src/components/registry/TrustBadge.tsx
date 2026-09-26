@@ -21,9 +21,9 @@ function configFor(level: TrustLevel): TrustConfig {
   return trustConfigs[level] ?? trustConfigs.untrusted
 }
 
-/** Plain-French one-liner explaining the trust score (catalog / import wizard). */
+/** Plain-language one-liner explaining the trust score (catalog / import wizard). */
 const TRUST_HINT =
-  'Score de confiance calculé à partir de l’énergie, de la cohésion, des activations et du taux de réussite du skill dans son projet d’origine.'
+  'Trust score computed from the energy, cohesion, activations and success rate of the skill in its project of origin.'
 
 // ── Compact inline value (meta lines) ─────────────────────────────────────
 

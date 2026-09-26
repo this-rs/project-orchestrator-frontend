@@ -270,25 +270,25 @@ export function SkillsPage() {
       }
     >
       <div className="space-y-3">
-        <ConceptNote summary="Un skill est un domaine d’expertise : un groupe de notes et de décisions qui parlent du même sujet. Quand un agent travaille sur ce sujet, le skill lui injecte automatiquement ce savoir.">
+        <ConceptNote summary="A skill is a domain of expertise: a group of notes and decisions about the same topic. When an agent works on that topic, the skill injects that knowledge automatically.">
           <p>
-            <span className="text-gray-300">Détection.</span> Le système repère les groupes de notes fortement reliées
-            entre elles (au moins {MIN_NOTES_FOR_DETECTION} notes dans le projet). Vous pouvez aussi en créer à la main,
-            importer un fichier exporté, ou en reprendre un depuis le catalogue partagé.
+            <span className="text-gray-300">Detection.</span> The system spots groups of notes strongly linked to each
+            other (at least {MIN_NOTES_FOR_DETECTION} notes in the project). You can also create one by hand, import an
+            exported file, or pick one up from the shared catalog.
           </p>
           <p>
-            <span className="text-gray-300">Déclencheurs.</span> Chaque skill porte des motifs (regex, fichiers, sens,
-            outil MCP) : si la requête d’un agent y correspond, le skill s’active.
+            <span className="text-gray-300">Triggers.</span> Each skill carries patterns (regex, files, meaning, MCP
+            tool): when an agent's request matches one, the skill activates.
           </p>
           <p>
-            <span className="text-gray-300">Cycle de vie.</span> <Lifecycle status="emerging" /> vient d’apparaître ·{' '}
-            <Lifecycle status="active" /> utilisé · <Lifecycle status="imported" /> venu d’un autre projet, en période
-            d’essai · <Lifecycle status="dormant" /> plus sollicité depuis longtemps · <Lifecycle status="archived" />{' '}
-            retiré.
+            <span className="text-gray-300">Lifecycle.</span> <Lifecycle status="emerging" /> just appeared ·{' '}
+            <Lifecycle status="active" /> in use · <Lifecycle status="imported" /> came from another project, on
+            probation · <Lifecycle status="dormant" /> not called on for a long time · <Lifecycle status="archived" />{' '}
+            retired.
           </p>
           <p>
-            <span className="text-gray-300">Énergie</span> = activité récente, <span className="text-gray-300">cohésion</span>{' '}
-            = à quel point ses notes sont liées entre elles.
+            <span className="text-gray-300">Energy</span> = recent activity, <span className="text-gray-300">cohesion</span>{' '}
+            = how tightly its notes are linked to each other.
           </p>
         </ConceptNote>
 

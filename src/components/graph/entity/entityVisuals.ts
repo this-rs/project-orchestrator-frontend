@@ -65,17 +65,17 @@ export function typeIcon(type: string): LucideIcon {
 
 export const ENTITY_TYPE_LABELS: Record<string, string> = {
   note: 'Note',
-  decision: 'Décision',
-  task: 'Tâche',
+  decision: 'Decision',
+  task: 'Task',
   plan: 'Plan',
-  milestone: 'Jalon',
-  project: 'Projet',
-  file: 'Fichier',
-  function: 'Fonction',
+  milestone: 'Milestone',
+  project: 'Project',
+  file: 'File',
+  function: 'Function',
   struct: 'Struct',
   skill: 'Skill',
   persona: 'Persona',
-  protocol: 'Protocole',
+  protocol: 'Protocol',
   feature_graph: 'Feature graph',
   commit: 'Commit',
   chat_session: 'Conversation',
@@ -116,13 +116,13 @@ export interface LayerMeta {
 }
 
 export const LAYER_META: Record<NeighborhoodLayer, LayerMeta> = {
-  code: { label: 'Code', description: 'fichiers, fonctions, structs, commits', color: '#3B82F6' },
-  knowledge: { label: 'Savoir', description: 'notes, décisions, documents', color: '#F59E0B' },
-  planning: { label: 'Planning', description: 'projets, plans, tâches, jalons', color: '#10B981' },
-  neural: { label: 'Neural', description: 'synapses et skills émergents', color: '#06B6D4' },
+  code: { label: 'Code', description: 'files, functions, structs, commits', color: '#3B82F6' },
+  knowledge: { label: 'Knowledge', description: 'notes, decisions, documents', color: '#F59E0B' },
+  planning: { label: 'Planning', description: 'projects, plans, tasks, milestones', color: '#10B981' },
+  neural: { label: 'Neural', description: 'synapses and emerging skills', color: '#06B6D4' },
   behavioral: {
-    label: 'Comportement',
-    description: 'protocoles, personas, sessions',
+    label: 'Behavior',
+    description: 'protocols, personas, sessions',
     color: '#F97316',
   },
 }

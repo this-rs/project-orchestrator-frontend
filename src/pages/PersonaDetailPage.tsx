@@ -326,16 +326,16 @@ export function PersonaDetailPage() {
         ]}
       />
 
-      <ConceptNote summary="Cette persona est un profil d’expert : un agent qui l’endosse reçoit en priorité le savoir listé dans « What it knows » et s’exécute avec les paramètres ci-dessous.">
-        <p>« Activate » la charge manuellement (compte comme une activation et ravive son énergie).</p>
+      <ConceptNote summary="This persona is an expert profile: an agent that takes it on receives the knowledge listed under “What it knows” first and runs with the settings below.">
+        <p>“Activate” loads it manually (counts as an activation and revives its energy).</p>
         <p>
-          Le <span className="text-gray-300">poids</span> d’un lien (0–100 %) indique à quel point ce savoir compte pour
-          elle ; il évolue avec l’usage. Retirer un lien ne supprime pas l’élément lui-même.
+          The <span className="text-gray-300">weight</span> of a link (0–100%) says how much that knowledge matters to
+          it; it evolves with use. Removing a link does not delete the element itself.
         </p>
       </ConceptNote>
 
       {/* ── Vital signs ─────────────────────────────────────────── */}
-      <Section title="Vital signs" description="Ce que mesurent les indicateurs de cette persona.">
+      <Section title="Vital signs" description="What the indicators of this persona measure.">
         <MetricList
           items={[
             {
@@ -388,7 +388,7 @@ export function PersonaDetailPage() {
       {/* ── Execution settings ──────────────────────────────────── */}
       <Section
         title="Execution settings"
-        description="Paramètres appliqués quand un agent exécute une tâche avec cette persona (vide = valeur par défaut du runner)."
+        description="Settings applied when an agent runs a task with this persona (empty = runner default)."
         action={
           <Button variant="ghost" size="sm" onClick={() => setEditOpen(true)}>
             <Pencil className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
@@ -418,7 +418,7 @@ export function PersonaDetailPage() {
       <Section
         title="What it knows"
         count={subgraph ? totalLinks : undefined}
-        description="Fichiers, fonctions, notes, décisions, skills et protocoles reliés à cette persona, avec le poids de chaque lien."
+        description="Files, functions, notes, decisions, skills and protocols linked to this persona, with the weight of each link."
       >
         {!subgraph ? (
           <EmptyState size="sm" title="Relations unavailable" description="The persona subgraph could not be loaded." />

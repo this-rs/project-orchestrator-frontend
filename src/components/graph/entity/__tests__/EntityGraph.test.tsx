@@ -27,7 +27,7 @@ async function renderLoaded(props: Partial<Parameters<typeof EntityGraph>[0]> = 
   const utils = render(
     <EntityGraph entityType="note" entityId="n1" reliefDebounceMs={20} {...props} />
   )
-  await screen.findByRole('button', { name: 'Décision : Render on demand' })
+  await screen.findByRole('button', { name: 'Decision: Render on demand' })
   return utils
 }
 
@@ -35,11 +35,11 @@ describe('<EntityGraph />', () => {
   it('shows a static skeleton while loading, then the center and its two rings', async () => {
     render(<EntityGraph entityType="note" entityId="n1" />)
     expect(screen.getByTestId('entity-graph-skeleton')).toBeInTheDocument()
-    await screen.findByRole('button', { name: 'Note : Graph render budget' })
+    await screen.findByRole('button', { name: 'Note: Graph render budget' })
     expect(screen.queryByTestId('entity-graph-skeleton')).not.toBeInTheDocument()
     expect(document.querySelectorAll('[data-node-id]')).toHaveLength(9)
-    expect(screen.getByText('1 saut')).toBeInTheDocument()
-    expect(screen.getByText('2 sauts')).toBeInTheDocument()
+    expect(screen.getByText('1 hop')).toBeInTheDocument()
+    expect(screen.getByText('2 hops')).toBeInTheDocument()
     expect(lastParams()).toMatchObject({
       entityType: 'note',
       entityId: 'n1',
@@ -52,16 +52,16 @@ describe('<EntityGraph />', () => {
 
   it('shows the truncated notice and layer counts from stats', async () => {
     await renderLoaded()
-    expect(screen.getByText('9 nœuds affichés sur 27')).toBeInTheDocument()
-    const layers = screen.getByRole('group', { name: 'Couches' })
+    expect(screen.getByText('9 of 27 nodes shown')).toBeInTheDocument()
+    const layers = screen.getByRole('group', { name: 'Layers' })
     expect(within(layers).getByRole('button', { name: /Code/ })).toHaveTextContent('21')
   })
 
   it('depth, layers and (debounced) relief change the request params', async () => {
     await renderLoaded()
-    fireEvent.click(screen.getByRole('button', { name: 'Profondeur 3' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Depth 3' }))
     await waitFor(() => expect(lastParams().depth).toBe(3))
-    expect(screen.getByRole('button', { name: 'Profondeur 3' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Depth 3' })).toHaveAttribute(
       'aria-pressed',
       'true'
     )
@@ -81,8 +81,8 @@ describe('<EntityGraph />', () => {
 
     // reset restores everything — and the initial params are served from cache
     const beforeReset = get.mock.calls.length
-    fireEvent.click(screen.getByRole('button', { name: 'Réinitialiser la vue' }))
-    expect(screen.getByRole('button', { name: 'Profondeur 2' })).toHaveAttribute(
+    fireEvent.click(screen.getByRole('button', { name: 'Reset view' }))
+    expect(screen.getByRole('button', { name: 'Depth 2' })).toHaveAttribute(
       'aria-pressed',
       'true'
     )
@@ -90,7 +90,7 @@ describe('<EntityGraph />', () => {
     expect(slider).toHaveValue('0.2')
     await new Promise((r) => setTimeout(r, 60))
     expect(get.mock.calls.length).toBe(beforeReset)
-    expect(screen.getByText('9 nœuds affichés sur 27')).toBeInTheDocument()
+    expect(screen.getByText('9 of 27 nodes shown')).toBeInTheDocument()
   })
 
   it('never disables the last layer', async () => {
@@ -107,49 +107,49 @@ describe('<EntityGraph />', () => {
       onOpenNode,
       hrefForNode: (n) => (n.type === 'plan' ? `/workspace/ws/plans/${n.id}` : null),
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Plan : Mobile perf plan' }))
-    const card = screen.getByRole('dialog', { name: 'Détails : Mobile perf plan' })
-    expect(within(card).getByText(/à 2 sauts/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Plan: Mobile perf plan' }))
+    const card = screen.getByRole('dialog', { name: 'Details: Mobile perf plan' })
+    expect(within(card).getByText(/2 hops away/)).toBeInTheDocument()
     expect(within(card).getByText('linked to')).toBeInTheDocument()
     expect(within(card).getByText('has task')).toBeInTheDocument()
     expect(within(card).getByText('Stop 60 fps idle loop')).toBeInTheDocument()
 
-    const open = within(card).getByRole('link', { name: /Ouvrir/ })
+    const open = within(card).getByRole('link', { name: /Open/ })
     expect(open).toHaveAttribute('href', '/workspace/ws/plans/p1')
     fireEvent.click(open)
     expect(onOpenNode).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1', type: 'plan' }))
 
     // Node without a page but with onOpenNode → plain button
-    fireEvent.click(screen.getByRole('button', { name: 'Fichier : useRenderLoop.ts' }))
-    const fileCard = screen.getByRole('dialog', { name: 'Détails : useRenderLoop.ts' })
+    fireEvent.click(screen.getByRole('button', { name: 'File: useRenderLoop.ts' }))
+    const fileCard = screen.getByRole('dialog', { name: 'Details: useRenderLoop.ts' })
     expect(within(fileCard).getByText('src/components/intelligence')).toBeInTheDocument()
-    fireEvent.click(within(fileCard).getByRole('button', { name: /Ouvrir/ }))
+    fireEvent.click(within(fileCard).getByRole('button', { name: /Open/ }))
     expect(onOpenNode).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'f1' }))
 
     // Close
-    fireEvent.click(within(fileCard).getByRole('button', { name: 'Fermer' }))
+    fireEvent.click(within(fileCard).getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('selects by keyboard, toggles off, and background tap deselects', async () => {
     await renderLoaded()
-    const center = screen.getByRole('button', { name: 'Note : Graph render budget' })
+    const center = screen.getByRole('button', { name: 'Note: Graph render budget' })
     fireEvent.keyDown(center, { key: 'Enter' })
     const card = screen.getByRole('dialog')
-    expect(within(card).getByText(/entité courante/)).toBeInTheDocument()
-    expect(within(card).queryByText(/Ouvrir/)).not.toBeInTheDocument()
+    expect(within(card).getByText(/current entity/)).toBeInTheDocument()
+    expect(within(card).queryByText(/Open/)).not.toBeInTheDocument()
     fireEvent.click(center) // second tap toggles off
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tâche : Stop 60 fps idle loop' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Task: Stop 60 fps idle loop' }))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('group', { name: 'Graphe du voisinage' }))
+    fireEvent.click(screen.getByRole('group', { name: 'Neighborhood graph' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('hover (mouse) highlights neighbours without selecting', async () => {
     await renderLoaded()
-    const node = screen.getByRole('button', { name: 'Décision : Render on demand' })
+    const node = screen.getByRole('button', { name: 'Decision: Render on demand' })
     fireEvent.pointerEnter(node, { pointerType: 'mouse' })
     fireEvent.pointerLeave(node, { pointerType: 'mouse' })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -158,10 +158,10 @@ describe('<EntityGraph />', () => {
   it('shows the empty state with ways out', async () => {
     get.mockImplementation(async () => emptyNeighborhood())
     render(<EntityGraph entityType="note" entityId="n1" reliefDebounceMs={0} />)
-    expect(await screen.findByText('Aucune relation à ce niveau de relief')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Aller à la profondeur 3' }))
+    expect(await screen.findByText('No relation at this relief level')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Go to depth 3' }))
     await waitFor(() => expect(lastParams().depth).toBe(3))
-    fireEvent.click(await screen.findByRole('button', { name: 'Baisser le relief' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Lower the relief' }))
     await waitFor(() => expect(lastParams().minWeight).toBe(0))
   })
 
@@ -170,30 +170,30 @@ describe('<EntityGraph />', () => {
     render(<EntityGraph entityType="note" entityId="n1" />)
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('backend down')
-    fireEvent.click(within(alert).getByRole('button', { name: 'Réessayer' }))
-    await screen.findByRole('button', { name: 'Décision : Render on demand' })
+    fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }))
+    await screen.findByRole('button', { name: 'Decision: Render on demand' })
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('explains the view and lists the types on screen', async () => {
     await renderLoaded()
     expect(screen.queryByText(AGENT_SENTENCE)).not.toBeInTheDocument()
-    const legend = screen.getByRole('list', { name: 'Légende des types' })
-    expect(within(legend).getByText('Décision')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Comment lire ce graphe/ }))
+    const legend = screen.getByRole('list', { name: 'Type legend' })
+    expect(within(legend).getByText('Decision')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /How to read this graph/ }))
     expect(screen.getByText(AGENT_SENTENCE)).toBeInTheDocument()
-    expect(screen.getByText('Anneaux')).toBeInTheDocument()
+    expect(screen.getByText('Rings')).toBeInTheDocument()
     expect(screen.getByText('Relief', { selector: 'dt' })).toBeInTheDocument()
   })
 
   it('pan / zoom only touch the <g> transform — no re-layout, drags are not taps', async () => {
     await renderLoaded()
-    const svg = screen.getByRole('group', { name: 'Graphe du voisinage' })
+    const svg = screen.getByRole('group', { name: 'Neighborhood graph' })
     const g = svg.querySelector(':scope > g')!
-    const node = screen.getByRole('button', { name: 'Décision : Render on demand' })
+    const node = screen.getByRole('button', { name: 'Decision: Render on demand' })
     const before = node.getAttribute('style')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Zoomer' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }))
     await waitFor(() => expect(g.getAttribute('transform')).toMatch(/scale\(1\.3/))
 
     // drag: down → move far → up → the click that follows must not select
@@ -223,7 +223,7 @@ describe('<EntityGraph />', () => {
 
     expect(node.getAttribute('style')).toBe(before) // nodes never moved
 
-    fireEvent.click(screen.getByRole('button', { name: 'Réinitialiser la vue' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reset view' }))
     await waitFor(() => expect(g.getAttribute('transform')).toBeNull())
   })
 })

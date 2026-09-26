@@ -14,202 +14,202 @@ export const glossary: Record<string, GlossaryEntry> = {
   energy: {
     label: 'Energy',
     description:
-      "Niveau d'activité récente d'un élément. Plus l'énergie est haute, plus l'élément est activement travaillé.",
+      'Recent activity level of an element. The higher the energy, the more actively the element is being worked on.',
   },
   cohesion: {
-    label: 'Cohésion',
+    label: 'Cohesion',
     description:
-      'Mesure de la solidité interne d\'un module ou composant. Une cohésion élevée signifie que les éléments sont fortement liés entre eux.',
+      'Measure of the internal strength of a module or component. High cohesion means its elements are tightly linked to each other.',
   },
   synapse: {
     label: 'Synapse',
     description:
-      'Connexion entre deux éléments du projet (notes, tâches, fichiers). Représente une relation de dépendance ou de contexte.',
+      'Connection between two elements of the project (notes, tasks, files). Represents a dependency or context relation.',
   },
   scar: {
-    label: 'Cicatrice (Scar)',
+    label: 'Scar',
     description:
-      'Trace laissée par un problème passé. Aide à éviter de répéter les mêmes erreurs en signalant les zones fragiles.',
+      'Trace left by a past problem. Helps avoid repeating the same mistakes by flagging fragile areas.',
   },
   moat: {
-    label: 'Fossé (Moat)',
+    label: 'Moat',
     description:
-      "Barrière de protection autour d'un composant critique. Indique qu'il faut être prudent lors de modifications.",
+      'Protective barrier around a critical component. Signals that changes there call for extra care.',
   },
   spreading_activation: {
-    label: 'Activation par propagation',
+    label: 'Spreading activation',
     description:
-      "Mécanisme qui propage l'importance d'un élément à ses voisins dans le graphe, comme une onde dans un réseau.",
+      'Mechanism that propagates the importance of an element to its neighbours in the graph, like a wave through a network.',
   },
   fabric: {
-    label: 'Tissu (Fabric)',
+    label: 'Fabric',
     description:
-      "Le réseau de connaissances du projet — l'ensemble des connexions entre notes, décisions, et code.",
+      'The knowledge network of the project — the set of connections between notes, decisions and code.',
   },
   trajectory: {
-    label: 'Trajectoire',
+    label: 'Trajectory',
     description:
-      "Historique du parcours d'un agent ou d'une tâche à travers les étapes du projet.",
+      'History of the path an agent or a task took through the stages of the project.',
   },
   protocol: {
-    label: 'Protocole',
+    label: 'Protocol',
     description:
-      'Machine à états finis décrivant un workflow. Définit les transitions valides entre statuts.',
+      'Finite state machine describing a workflow. Defines the valid transitions between statuses.',
   },
   persona: {
     label: 'Persona',
     description:
-      'Profil spécialisé assigné à un agent pour orienter son comportement et ses compétences.',
+      'Specialised profile assigned to an agent to steer its behaviour and skills.',
   },
   episode: {
-    label: 'Épisode',
+    label: 'Episode',
     description:
-      "Session de travail enregistrée d'un agent, avec les actions effectuées et les résultats obtenus.",
+      'Recorded work session of an agent, with the actions taken and the results obtained.',
   },
   neural_routing: {
-    label: 'Routage neuronal',
+    label: 'Neural routing',
     description:
-      "Système intelligent de distribution des tâches aux agents, basé sur leurs compétences et la charge de travail.",
+      'Smart distribution of tasks to agents, based on their skills and workload.',
   },
   milestone: {
-    label: 'Jalon (Milestone)',
+    label: 'Milestone',
     description:
-      'Point de passage important dans le projet. Regroupe des tâches et marque une étape clé de progression.',
+      'Important checkpoint in the project. Groups tasks and marks a key step of progress.',
   },
   feature_graph: {
-    label: 'Graphe de fonctionnalités',
+    label: 'Feature graph',
     description:
-      'Visualisation des dépendances entre fonctionnalités du projet, montrant quelles features dépendent les unes des autres.',
+      'Visualisation of the dependencies between features of the project, showing which features depend on which.',
   },
   lifecycle_hook: {
-    label: 'Hook de cycle de vie',
+    label: 'Lifecycle hook',
     description:
-      "Action automatique déclenchée lors d'un changement de statut (ex: notification quand une tâche passe à 'completed').",
+      "Automatic action triggered by a status change (e.g. a notification when a task moves to 'completed').",
   },
   constraint: {
-    label: 'Contrainte',
+    label: 'Constraint',
     description:
-      "Règle ou limitation qui s'applique à une tâche ou un plan. Doit être respectée pour considérer le travail comme valide.",
+      'Rule or limitation that applies to a task or a plan. Must be respected for the work to count as valid.',
   },
   decision: {
-    label: 'Décision',
+    label: 'Decision',
     description:
-      'Choix architectural ou technique enregistré avec son contexte et sa justification, pour référence future.',
+      'Architectural or technical choice recorded with its context and rationale, for future reference.',
   },
   component: {
-    label: 'Composant',
+    label: 'Component',
     description:
-      'Module fonctionnel du projet (backend, frontend, API, etc.) utilisé pour organiser le code et les responsabilités.',
+      'Functional module of the project (backend, frontend, API…) used to organise code and responsibilities.',
   },
   workspace: {
-    label: 'Espace de travail',
+    label: 'Workspace',
     description:
-      "Conteneur isolé regroupant projets, tâches et ressources. Permet de séparer différents contextes de travail.",
+      'Isolated container grouping projects, tasks and resources. Keeps different work contexts apart.',
   },
   skill: {
-    label: 'Compétence (Skill)',
+    label: 'Skill',
     description:
-      "Capacité enregistrée d'un agent, décrivant ce qu'il sait faire et à quel niveau de maîtrise.",
+      'Recorded capability of an agent, describing what it knows how to do and at which level of mastery.',
   },
   release: {
     label: 'Release',
     description:
-      "Version publiée du projet, regroupant un ensemble de changements prêts pour la mise en production.",
+      'Published version of the project, grouping a set of changes ready for production.',
   },
   success_rate: {
-    label: 'Taux de réussite',
+    label: 'Success rate',
     description:
-      'Pourcentage de tâches complétées avec succès par cette persona. Reflète sa fiabilité sur les missions assignées.',
+      'Percentage of tasks completed successfully by this persona. Reflects its reliability on the missions assigned.',
   },
   activation_count: {
     label: 'Activations',
     description:
-      "Nombre de fois qu'un élément a été activé (utilisé par un agent). Plus le nombre est élevé, plus l'élément est sollicité.",
+      'Number of times an element was activated (used by an agent). The higher the number, the more the element is called on.',
   },
   analysis_profile: {
-    label: "Profil d'analyse",
+    label: 'Analysis profile',
     description:
-      "Configuration définissant comment analyser un projet : quelles métriques calculer, quels seuils appliquer.",
+      'Configuration defining how to analyse a project: which metrics to compute, which thresholds to apply.',
   },
   co_change: {
-    label: 'Co-changement',
+    label: 'Co-change',
     description:
-      'Fichiers qui changent souvent ensemble. Un fort co-changement suggère un couplage (voulu ou accidentel).',
+      'Files that often change together. Strong co-change suggests coupling (intended or accidental).',
   },
   coupling: {
-    label: 'Couplage',
+    label: 'Coupling',
     description:
-      'Degré de dépendance entre deux modules. Un couplage faible est préférable pour la maintenabilité.',
+      'Degree of dependency between two modules. Low coupling is preferable for maintainability.',
   },
   churn: {
-    label: 'Taux de modification (Churn)',
+    label: 'Churn',
     description:
-      "Fréquence à laquelle un fichier est modifié. Un churn élevé peut indiquer une zone instable ou en développement actif.",
+      'How often a file is modified. High churn can indicate an unstable area or one under active development.',
   },
   hotspot: {
-    label: 'Point chaud (Hotspot)',
+    label: 'Hotspot',
     description:
-      'Fichier fréquemment modifié et complexe. Les hotspots sont des zones à surveiller car elles concentrent les risques de bugs.',
+      'Frequently modified, complex file. Hotspots are areas to watch because they concentrate the risk of bugs.',
   },
   orphan: {
-    label: 'Fichier orphelin',
+    label: 'Orphan file',
     description:
-      "Fichier qui n'est ni importé ni exporté par d'autres fichiers. Peut indiquer du code mort ou un fichier mal intégré.",
+      'File that is neither imported nor exported by other files. May indicate dead code or a poorly integrated file.',
   },
   dead_note: {
-    label: 'Note morte',
+    label: 'Dead note',
     description:
-      "Note sans énergie résiduelle — elle n'a pas été consultée ou modifiée depuis longtemps et risque d'être obsolète.",
+      'Note with no residual energy — it has not been read or modified for a long time and is likely obsolete.',
   },
   stale_note: {
-    label: 'Note périmée',
+    label: 'Stale note',
     description:
-      "Note dont le contenu n'a pas été mis à jour depuis un certain temps et pourrait ne plus refléter l'état actuel du projet.",
+      'Note whose content has not been updated for a while and may no longer reflect the current state of the project.',
   },
   god_function: {
-    label: 'Fonction géante (God Function)',
+    label: 'God function',
     description:
-      'Fonction excessivement longue ou complexe qui fait trop de choses. Devrait être découpée en fonctions plus petites.',
+      'Excessively long or complex function that does too many things. Should be split into smaller functions.',
   },
   clustering_coefficient: {
-    label: 'Coefficient de clustering',
+    label: 'Clustering coefficient',
     description:
-      "Mesure la densité des connexions entre les voisins d'un nœud. Un coefficient élevé indique un groupe fortement interconnecté.",
+      "Measures the density of connections between a node's neighbours. A high coefficient indicates a tightly interconnected group.",
   },
   knowledge_coverage: {
-    label: 'Couverture des connaissances',
+    label: 'Knowledge coverage',
     description:
-      'Ratio entre le nombre de notes/décisions et le nombre de fichiers de code. Indique si le code est bien documenté.',
+      'Ratio between the number of notes/decisions and the number of code files. Indicates whether the code is well documented.',
   },
   note_freshness: {
-    label: 'Fraîcheur des notes',
+    label: 'Note freshness',
     description:
-      'Proportion de notes encore à jour. Un taux bas signifie que beaucoup de notes nécessitent une relecture.',
+      'Share of notes still up to date. A low rate means many notes need a re-read.',
   },
   synapse_quality: {
-    label: 'Qualité des synapses',
+    label: 'Synapse quality',
     description:
-      'Proportion de connexions solides dans le réseau. Les synapses faibles sont des liens peu fiables entre éléments.',
+      'Share of solid connections in the network. Weak synapses are unreliable links between elements.',
   },
   skills_maturity: {
-    label: 'Maturité des compétences',
+    label: 'Skills maturity',
     description:
-      "Ratio de compétences actives par rapport au total. Indique le niveau de maîtrise global de l'équipe sur le projet.",
+      "Ratio of active skills to the total. Indicates the team's overall level of mastery on the project.",
   },
   code_safety: {
-    label: 'Sécurité du code',
+    label: 'Code safety',
     description:
-      "Score basé sur l'évaluation des risques. Tient compte des fichiers critiques, à haut risque et des vulnérabilités.",
+      'Score based on the risk assessment. Accounts for critical and high-risk files and for vulnerabilities.',
   },
   health_score: {
-    label: 'Score de santé',
+    label: 'Health score',
     description:
-      'Score global combinant couverture des connaissances, fraîcheur des notes, énergie neurale, qualité des synapses et maturité des compétences.',
+      'Overall score combining knowledge coverage, note freshness, neural energy, synapse quality and skills maturity.',
   },
   circular_dependency: {
-    label: 'Dépendance circulaire',
+    label: 'Circular dependency',
     description:
-      "Situation où deux modules dépendent l'un de l'autre, créant une boucle. Rend le code plus difficile à maintenir et tester.",
+      'Situation where two modules depend on each other, creating a loop. Makes the code harder to maintain and test.',
   },
 } as const
 

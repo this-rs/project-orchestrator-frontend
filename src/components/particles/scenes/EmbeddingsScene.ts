@@ -67,7 +67,7 @@ export class EmbeddingsScene implements ParticleScene {
   readonly name = 'embeddings';
   readonly title = 'EMBEDDINGS';
   readonly description =
-    'du chaos émerge la structure — le sens naît de la proximité';
+    'structure emerges from chaos — meaning is born from proximity';
 
   private pool!: ParticlePool;
   private engine!: ParticleEngine;

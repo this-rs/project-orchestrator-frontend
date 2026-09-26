@@ -31,12 +31,12 @@ export function NodeInfoCard({
   onClose,
 }: NodeInfoCardProps) {
   const canOpen = !isCenter && (href !== null || onOpen !== undefined)
-  const openLabel = 'Ouvrir'
+  const openLabel = 'Open'
 
   return (
     <div
       role="dialog"
-      aria-label={`Détails : ${node.label}`}
+      aria-label={`Details: ${node.label}`}
       className="eg-card rounded-xl border border-white/10 bg-surface-popover supports-[backdrop-filter]:bg-surface-popover/70 supports-[backdrop-filter]:backdrop-blur-md shadow-xl p-3 text-xs text-gray-300"
     >
       <div className="flex items-start gap-2">
@@ -48,11 +48,11 @@ export function NodeInfoCard({
             {typeLabel(node.type)}
             {!isCenter && (
               <>
-                {' · '}à {node.depth} saut{node.depth > 1 ? 's' : ''}
-                {' · '}saillance {Math.round(node.weight * 100)}%
+                {' · '}{node.depth} hop{node.depth > 1 ? 's' : ''} away
+                {' · '}salience {Math.round(node.weight * 100)}%
               </>
             )}
-            {isCenter && ' · entité courante'}
+            {isCenter && ' · current entity'}
           </div>
           <div className="text-sm font-medium text-gray-100 break-words">{node.label}</div>
           {node.subtitle && <div className="text-gray-400 break-words">{node.subtitle}</div>}
@@ -60,7 +60,7 @@ export function NodeInfoCard({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Fermer"
+          aria-label="Close"
           className="shrink-0 -mr-1 -mt-1 inline-flex items-center justify-center w-8 h-8 rounded-md text-gray-500 hover:text-gray-200 hover:bg-white/[0.06]"
         >
           <X size={14} />
@@ -68,7 +68,7 @@ export function NodeInfoCard({
       </div>
 
       {!isCenter && (
-        <div className="mt-2" aria-label="Relation au centre">
+        <div className="mt-2" aria-label="Relation to the center">
           {path && path.length > 0 ? (
             <ol className="flex flex-wrap items-center gap-1 text-[11px]">
               {path.map((s, i) => (
@@ -85,7 +85,7 @@ export function NodeInfoCard({
             </ol>
           ) : (
             <span className="text-gray-500">
-              Relation indirecte (lien masqué par le relief ou les couches).
+              Indirect relation (link hidden by the relief or the layers).
             </span>
           )}
         </div>

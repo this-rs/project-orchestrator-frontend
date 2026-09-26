@@ -222,7 +222,7 @@ export class ContextWindowScene implements ParticleScene {
 
     // ── Subtitle ──────────────────────────────────────
     renderLabel(ctx, {
-      text: 'les anciens tokens disparaissent',
+      text: 'old tokens fade away',
       x: width / 2,
       y: height - 24,
       opacity: 0.35,

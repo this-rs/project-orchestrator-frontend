@@ -44,7 +44,7 @@ export function EntityGraphControls({
         {/* Depth — segmented control */}
         <div className="flex items-center gap-2">
           <span id="eg-depth-label" className="text-gray-500">
-            Profondeur
+            Depth
           </span>
           <div
             role="group"
@@ -56,7 +56,7 @@ export function EntityGraphControls({
                 key={d}
                 type="button"
                 aria-pressed={depth === d}
-                aria-label={`Profondeur ${d}`}
+                aria-label={`Depth ${d}`}
                 onClick={() => onDepthChange(d)}
                 className={`${chip} justify-center ${
                   depth === d
@@ -93,7 +93,7 @@ export function EntityGraphControls({
           <button
             type="button"
             onClick={() => onZoom(1 / 1.3)}
-            aria-label="Dézoomer"
+            aria-label="Zoom out"
             className={`${chip} justify-center text-gray-400 hover:text-gray-200 bg-white/[0.04]`}
           >
             <Minus size={14} />
@@ -101,7 +101,7 @@ export function EntityGraphControls({
           <button
             type="button"
             onClick={() => onZoom(1.3)}
-            aria-label="Zoomer"
+            aria-label="Zoom in"
             className={`${chip} justify-center text-gray-400 hover:text-gray-200 bg-white/[0.04]`}
           >
             <Plus size={14} />
@@ -109,17 +109,17 @@ export function EntityGraphControls({
           <button
             type="button"
             onClick={onReset}
-            aria-label="Réinitialiser la vue"
+            aria-label="Reset view"
             className={`${chip} text-gray-400 hover:text-gray-200 bg-white/[0.04]`}
           >
             <RotateCcw size={13} />
-            <span className="hidden sm:inline">Réinitialiser</span>
+            <span className="hidden sm:inline">Reset</span>
           </button>
         </div>
       </div>
 
       {/* Layers */}
-      <div role="group" aria-label="Couches" className="flex flex-wrap gap-1.5">
+      <div role="group" aria-label="Layers" className="flex flex-wrap gap-1.5">
         {NEIGHBORHOOD_LAYERS.map((l) => {
           const meta = LAYER_META[l]
           const on = layers.has(l)

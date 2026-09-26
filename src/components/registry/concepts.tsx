@@ -17,7 +17,7 @@ import type { Level } from './metrics'
 interface ConceptNoteProps {
   /** One-line summary, always visible. */
   summary: ReactNode
-  /** Extra paragraphs revealed by "En savoir plus". */
+  /** Extra paragraphs revealed by "Learn more". */
   children?: ReactNode
   defaultOpen?: boolean
   className?: string
@@ -48,7 +48,7 @@ export function ConceptNote({ summary, children, defaultOpen = false, className 
             aria-controls={open ? id : undefined}
             className={`${hitArea} ${textLink} mt-1 text-xs`}
           >
-            {open ? 'Réduire' : 'En savoir plus'}
+            {open ? 'Show less' : 'Learn more'}
           </button>
         )}
       </div>

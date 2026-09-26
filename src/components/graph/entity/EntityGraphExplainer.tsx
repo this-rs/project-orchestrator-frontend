@@ -4,7 +4,7 @@ import { NEIGHBORHOOD_LAYERS } from '@/services/neighborhood'
 import { LAYER_META, typeColor, typeLabel } from './entityVisuals'
 
 export const AGENT_SENTENCE =
-  "C'est ce voisinage que l'agent reçoit quand il travaille sur cette entité."
+  'This neighborhood is what the agent receives when it works on this entity.'
 
 /**
  * Collapsible "how to read this graph" + colour legend of the types present.
@@ -28,11 +28,11 @@ export function EntityGraphExplainer({
           className="inline-flex items-center gap-1.5 h-8 px-2 -ml-2 rounded-md text-gray-300 hover:bg-white/[0.04]"
         >
           <Info size={13} className="text-indigo-300" />
-          Comment lire ce graphe ?
+          How to read this graph?
           <ChevronDown size={13} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
         </button>
         {/* Type legend — only the types actually on screen */}
-        <ul aria-label="Légende des types" className="flex flex-wrap gap-x-3 gap-y-1">
+        <ul aria-label="Type legend" className="flex flex-wrap gap-x-3 gap-y-1">
           {typeCounts.map(([type, count]) => (
             <li key={type} className="inline-flex items-center gap-1">
               <span
@@ -51,23 +51,22 @@ export function EntityGraphExplainer({
         <div className="mt-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 space-y-2 leading-relaxed">
           <p className="text-gray-200">{AGENT_SENTENCE}</p>
           <dl className="grid gap-x-3 gap-y-1.5 sm:grid-cols-[auto_1fr]">
-            <dt className="font-medium text-gray-300">Anneaux</dt>
+            <dt className="font-medium text-gray-300">Rings</dt>
             <dd>
-              La distance en sauts depuis cette entité : 1er anneau = liens directs, 2e = liens de
-              liens, 3e = un cran plus loin. Sur un anneau, les nœuds sont regroupés par type puis
-              classés du plus fort au plus faible.
+              The distance in hops from this entity: 1st ring = direct links, 2nd = links of links,
+              3rd = one step further. On a ring, nodes are grouped by type then sorted from strongest
+              to weakest.
             </dd>
-            <dt className="font-medium text-gray-300">Taille, netteté</dt>
+            <dt className="font-medium text-gray-300">Size, sharpness</dt>
             <dd>
-              La saillance : plus un nœud est gros et opaque, plus il compte pour cette entité.
-              L’épaisseur d’un lien suit sa force.
+              Salience: the bigger and more opaque a node, the more it matters to this entity. The
+              thickness of a link follows its strength.
             </dd>
             <dt className="font-medium text-gray-300">Relief</dt>
             <dd>
-              Masque les liens faibles. Monte-le pour ne garder que l’essentiel, baisse-le pour tout
-              voir.
+              Hides weak links. Raise it to keep only the essentials, lower it to see everything.
             </dd>
-            <dt className="font-medium text-gray-300">Couches</dt>
+            <dt className="font-medium text-gray-300">Layers</dt>
             <dd>
               <ul className="space-y-0.5">
                 {NEIGHBORHOOD_LAYERS.map((l) => (
@@ -80,8 +79,7 @@ export function EntityGraphExplainer({
             </dd>
           </dl>
           <p className="text-gray-500">
-            Touchez un nœud pour voir ce qu’il est et comment il est relié. Glissez pour déplacer,
-            pincez pour zoomer.
+            Tap a node to see what it is and how it is linked. Drag to pan, pinch to zoom.
           </p>
         </div>
       )}

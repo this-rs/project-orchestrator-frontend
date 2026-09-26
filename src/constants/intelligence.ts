@@ -200,21 +200,21 @@ export const VISIBILITY_PRESETS: VisibilityPreset[] = [
   {
     id: 'knowledge_overlay',
     label: 'Knowledge',
-    description: 'Notes & decisions sur le code',
+    description: 'Notes & decisions on the code',
     layers: ['code', 'knowledge', 'fabric'],
     icon: 'BookOpen',
   },
   {
     id: 'neural_view',
     label: 'Neural',
-    description: 'Réseau neural, skills & protocoles',
+    description: 'Neural network, skills & protocols',
     layers: ['knowledge', 'neural', 'skills', 'behavioral'],
     icon: 'Brain',
   },
   {
     id: 'pm_view',
     label: 'Project',
-    description: 'Plans, tâches, milestones',
+    description: 'Plans, tasks, milestones',
     layers: ['pm'],
     icon: 'KanbanSquare',
   },
@@ -235,7 +235,7 @@ export const VISIBILITY_PRESETS: VisibilityPreset[] = [
   {
     id: 'full_stack',
     label: 'Full',
-    description: 'Toutes les couches',
+    description: 'All layers',
     layers: ['code', 'pm', 'knowledge', 'fabric', 'neural', 'skills', 'behavioral', 'chat'],
     icon: 'Layers',
   },

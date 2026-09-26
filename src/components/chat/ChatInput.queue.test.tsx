@@ -67,7 +67,7 @@ describe('ChatInput — message queue', () => {
     const panel = await screen.findByTestId('message-queue')
     expect(panel).toBeTruthy()
     expect(screen.getByText('while you were talking')).toBeTruthy()
-    expect(screen.getByText('1 message en attente')).toBeTruthy()
+    expect(screen.getByText('1 message queued')).toBeTruthy()
     expect(onSend).not.toHaveBeenCalled()
     // Nothing invisible in the way — it takes layout space rather than floating.
     expect(panel.className).not.toMatch(/absolute|pointer-events-none/)

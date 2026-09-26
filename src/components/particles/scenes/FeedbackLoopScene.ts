@@ -78,7 +78,7 @@ interface SpiralParticle {
 export class FeedbackLoopScene implements ParticleScene {
   readonly name = 'feedbackLoop';
   readonly title = 'FEEDBACK LOOP';
-  readonly description = 'chaque itération affine le résultat';
+  readonly description = 'each iteration refines the result';
 
   // Pool used for trail particles AND marker hit-test particles
   private pool: ParticlePool | null = null;
@@ -389,7 +389,7 @@ export class FeedbackLoopScene implements ParticleScene {
 
     // ── Bottom label ──────────────────────────────────
     renderLabel(ctx, {
-      text: `itération ${iteration} / ${maxIter}`,
+      text: `iteration ${iteration} / ${maxIter}`,
       x: width / 2,
       y: height - 30,
       opacity: 0.5,

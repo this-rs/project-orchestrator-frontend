@@ -318,13 +318,13 @@ export function SkillDetailPage() {
         <TagChips tags={skill.tags} />
       </PageHeader>
 
-      <ConceptNote summary="Ce skill regroupe des notes et décisions sur un même sujet. Quand la requête d’un agent correspond à un de ses déclencheurs, son savoir (et le modèle de contexte ci-dessous) est injecté dans le contexte de l’agent.">
+      <ConceptNote summary="This skill groups notes and decisions about one topic. When an agent's request matches one of its triggers, its knowledge (and the context template below) is injected into the agent's context.">
         <p>
-          « Test activation » simule une requête : vous voyez quelles notes seraient injectées, avec quel score et quel
-          niveau de confiance.
+          “Test activation” simulates a request: you see which notes would be injected, with which score and which
+          confidence level.
         </p>
         <p>
-          Les notes peuvent être activées directement (membres du skill) ou par propagation dans le graphe (notes voisines).
+          Notes can be activated directly (skill members) or by propagation through the graph (neighbouring notes).
         </p>
       </ConceptNote>
 
@@ -340,7 +340,7 @@ export function SkillDetailPage() {
       />
 
       {/* ── Vital signs ─────────────────────────────────────────── */}
-      <Section id="skill-vitals" title="Vital signs" description="Ce que mesurent les indicateurs de ce skill.">
+      <Section id="skill-vitals" title="Vital signs" description="What the indicators of this skill measure.">
         <MetricList
           items={[
             { label: 'Energy', value: pct(skill.energy), level: energy, ratio: skill.energy, hint: SKILL_HINTS.energy },
@@ -389,7 +389,7 @@ export function SkillDetailPage() {
                 <span>
                   In probation
                   {health.probation_days_remaining != null && ` — ${pluralize(health.probation_days_remaining, 'day')} remaining`}
-                  . Un skill importé doit prouver son utilité avant d’être validé.
+                  . An imported skill has to prove its usefulness before it is validated.
                 </span>
               </p>
             )}
@@ -404,7 +404,7 @@ export function SkillDetailPage() {
         id="skill-members"
         title="Members"
         count={members ? notes.length + decisions.length : undefined}
-        description="Le savoir transmis par ce skill : ses notes et ses décisions."
+        description="The knowledge this skill passes on: its notes and decisions."
       >
         {!members ? (
           <EmptyState size="sm" title="Members unavailable" description="The member list could not be loaded." />
@@ -446,7 +446,7 @@ export function SkillDetailPage() {
         id="skill-triggers"
         title="Triggers"
         count={skill.trigger_patterns.length}
-        description="Quand ce skill s’active : chaque motif est comparé à ce que fait l’agent. Le seuil est la confiance minimale pour déclencher ; la qualité (F1) mesure sa fiabilité passée."
+        description="When this skill activates: each pattern is compared with what the agent is doing. The threshold is the minimum confidence to fire; quality (F1) measures its past reliability."
       >
         {skill.trigger_patterns.length === 0 ? (
           <EmptyState size="sm" title="No triggers" description="Without triggers the skill can only be activated manually." />
@@ -463,7 +463,7 @@ export function SkillDetailPage() {
       <Section
         id="skill-template"
         title="Context template"
-        description="Texte Markdown ajouté au contexte de l’agent quand le skill s’active."
+        description="Markdown text added to the agent's context when the skill activates."
         action={
           !editingTemplate ? (
             <Button
@@ -540,7 +540,7 @@ export function SkillDetailPage() {
       <Dialog open={activationOpen} onClose={() => setActivationOpen(false)} title="Test activation" size="lg">
         <div className="space-y-4">
           <p className="text-xs text-gray-500">
-            Tapez une requête comme le ferait un agent : le skill renvoie les notes qu’il injecterait et sa confiance.
+            Type a request the way an agent would: the skill returns the notes it would inject and its confidence.
           </p>
           <form
             className="space-y-2"
