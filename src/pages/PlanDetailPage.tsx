@@ -1,14 +1,58 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
-import React from 'react'
-import { ChevronsUpDown, ChevronRight, Flag, FolderKanban, GitCommitHorizontal, ListChecks, GitFork, Archive, Play, ExternalLink, AlertTriangle, Zap, MessageCircle, ScrollText, Folder, Clock } from 'lucide-react'
-import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, LinkedEntityBadge, InteractiveTaskStatusBadge, InteractiveDecisionStatusBadge, ViewToggle, PageHeader, StatusSelect, TabLayout } from '@/components/ui'
+import {
+  AlertTriangle,
+  Archive,
+  ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  ExternalLink,
+  Flag,
+  FolderKanban,
+  GitFork,
+  Link2,
+  ListChecks,
+  MessageCircle,
+  Pencil,
+  Play,
+  Plus,
+  Trash2,
+  Unlink,
+  Zap,
+} from 'lucide-react'
+import {
+  Button,
+  EmptyState,
+  EntityList,
+  EntityListSkeleton,
+  EntityRow,
+  ErrorState,
+  FormDialog,
+  LinkEntityDialog,
+  ListGroup,
+  PageContainer,
+  PageHeader,
+  PriorityText,
+  RelativeTime,
+  Section,
+  StatusDot,
+  StatusMenu,
+  TabLayout,
+  focusRing,
+  getStatusMeta,
+  groupBy,
+  hitArea,
+  inlineLink,
+  pluralize,
+  rowInteractive,
+  surface,
+} from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { plansApi, tasksApi, projectsApi, workspacesApi, decisionsApi } from '@/services'
 import { ApiError } from '@/services/api'
-import { UniversalKanban, createTaskKanbanConfig } from '@/components/kanban'
-import { useViewMode, useConfirmDialog, useFormDialog, useLinkDialog, useToast, useWorkspaceSlug, useViewTransition } from '@/hooks'
+import { UniversalKanban, ViewModeToggle, createTaskKanbanConfig } from '@/components/kanban'
+import { useViewMode, useFormDialog, useLinkDialog, useToast, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { chatSuggestedProjectIdAtom, chatPanelModeAtom, chatSessionIdAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import { CreateTaskForm, CreateConstraintForm, EditPlanForm } from '@/components/forms'
@@ -20,13 +64,29 @@ import { CommitList } from '@/components/commits'
 import { PlanRunHistory } from '@/components/runner/PlanRunHistory'
 import { StatsRow } from '@/components/runner/StatsRow'
 import { runnerApi, useRunnerStatus } from '@/services/runner'
-import type { Plan, Decision, DecisionStatus, DependencyGraph, Task, Constraint, Step, Commit, PlanStatus, TaskStatus, StepStatus, PaginatedResponse, Project, SessionWithLinks } from '@/types'
+import {
+  CommitShaField,
+  CompactStepList,
+  ConstraintRow,
+  DecisionRow,
+  DetailSkeleton,
+  EmptyLine,
+  SectionAddButton,
+  SessionRow,
+  TaskMetaLink,
+} from '@/components/tasks/DetailRows'
+import { RowStateLink } from '@/components/tasks/RowStateLink'
+import { StatusBreakdown } from '@/components/tasks/StatusBreakdown'
+import type { Plan, Decision, DecisionStatus, DependencyGraph, Task, Constraint, Step, Commit, PlanStatus, TaskStatus, PaginatedResponse, Project, SessionWithLinks } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
 
 interface DecisionWithTask extends Decision {
   taskId: string
   taskTitle: string
 }
+
+/** Task groups in the list: active work first, finished last. */
+const TASK_GROUP_ORDER: TaskStatus[] = ['in_progress', 'blocked', 'pending', 'failed', 'completed']
 
 export function PlanDetailPage() {
   const { planId } = useParams<{ planId: string }>()
@@ -44,7 +104,6 @@ export function PlanDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useViewMode()
-  const confirmDialog = useConfirmDialog()
   const taskFormDialog = useFormDialog()
   const constraintFormDialog = useFormDialog()
   const commitFormDialog = useFormDialog()
@@ -58,6 +117,7 @@ export function PlanDetailPage() {
   const taskRefresh = useAtomValue(taskRefreshAtom)
   const projectRefresh = useAtomValue(projectRefreshAtom)
   const [linkedProject, setLinkedProject] = useState<Project | null>(null)
+  // Expand / collapse every task row's steps (signals consumed by PlanTaskRow)
   const [tasksExpandAll, setTasksExpandAll] = useState(0)
   const [tasksCollapseAll, setTasksCollapseAll] = useState(0)
   const [tasksAllExpanded, setTasksAllExpanded] = useState(false)
@@ -67,12 +127,14 @@ export function PlanDetailPage() {
   // Chat sessions linked to this plan
   const [chatSessions, setChatSessions] = useState<SessionWithLinks[]>([])
   const [chatSessionsLoading, setChatSessionsLoading] = useState(false)
-  // Active tab state — default to "tasks"
   const [activeTab, setActiveTab] = useState('tasks')
   // Detect active pipeline run — used to hide/disable implement button + runner tab
   const { isRunning: hasPipelineRunning, snapshot: runnerSnapshot } = useRunnerStatus(planId)
-  // Plan graph data for UnifiedGraphSection (replaces inline graph section)
+  // Plan graph data for UnifiedGraphSection
   const planGraphData = usePlanGraphData(planId, plan?.title, linkedProject?.slug)
+
+  const runnerPath = workspacePath(wsSlug, `/plans/${planId}/runner`)
+  const goToRunner = useCallback(() => navigate(runnerPath, { type: 'card-click' }), [navigate, runnerPath])
 
   // Fractal drill-down: navigate to task detail page
   const handleDrillDown = useCallback((target: { level: string; id: string }) => {
@@ -97,7 +159,7 @@ export function PlanDetailPage() {
   const fetchData = useCallback(async () => {
     if (!planId) return
     setError(null)
-    // Only show loading spinner on initial load, not on WS-triggered refreshes
+    // Only show the skeleton on initial load, not on WS-triggered refreshes
     const isInitialLoad = !plan
     if (isInitialLoad) setLoading(true)
     try {
@@ -115,7 +177,7 @@ export function PlanDetailPage() {
       setGraph(graphData)
       setCommits(commitsData.items || [])
 
-      // Extract decisions from PlanDetails response — backend nests them in tasks[].decisions[]
+      // Decisions come nested in the PlanDetails response: tasks[].decisions[]
       const rawTasks = (planResponse as unknown as { tasks?: { task?: Task; decisions?: Decision[] }[] }).tasks || []
       const allDecisions: DecisionWithTask[] = rawTasks.flatMap((td) => {
         const taskInfo = td.task
@@ -127,14 +189,16 @@ export function PlanDetailPage() {
       })
       setDecisions(allDecisions)
 
-      // Load linked project if exists
+      // Linked project
       if (planData.project_id) {
         try {
           const allProjects = await projectsApi.list()
-          const proj = (allProjects.items || []).find(p => p.id === planData.project_id)
+          const proj = (allProjects.items || []).find((p) => p.id === planData.project_id)
           setLinkedProject(proj || null)
           if (proj) setSuggestedProjectId(proj.id)
-        } catch { setLinkedProject(null) }
+        } catch {
+          setLinkedProject(null)
+        }
       } else {
         setLinkedProject(null)
       }
@@ -151,16 +215,25 @@ export function PlanDetailPage() {
     fetchData()
   }, [fetchData])
 
-  // Lazy-load chat sessions when switching to chat tab
+  // Lazy-load chat sessions when the Conversations tab opens
   useEffect(() => {
     if (activeTab !== 'chat' || !planId) return
     let cancelled = false
     setChatSessionsLoading(true)
-    plansApi.getSessions(planId)
-      .then((data) => { if (!cancelled) setChatSessions(data || []) })
-      .catch(() => { if (!cancelled) setChatSessions([]) })
-      .finally(() => { if (!cancelled) setChatSessionsLoading(false) })
-    return () => { cancelled = true }
+    plansApi
+      .getSessions(planId)
+      .then((data) => {
+        if (!cancelled) setChatSessions(data || [])
+      })
+      .catch(() => {
+        if (!cancelled) setChatSessions([])
+      })
+      .finally(() => {
+        if (!cancelled) setChatSessionsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [activeTab, planId])
 
   // Resolve linked milestones (workspace + project milestones that reference this plan)
@@ -171,11 +244,8 @@ export function PlanDetailPage() {
     async function resolveMilestones() {
       const milestones: Array<{ id: string; title: string; href: string; type: 'workspace' | 'project' }> = []
       try {
-        // 1. Workspace milestones
         const wsMilestones = await workspacesApi.listMilestones(wsSlug, { limit: 100 })
-        const wsDetails = await Promise.allSettled(
-          (wsMilestones.items || []).map((ms) => workspacesApi.getMilestone(ms.id))
-        )
+        const wsDetails = await Promise.allSettled((wsMilestones.items || []).map((ms) => workspacesApi.getMilestone(ms.id)))
         for (const result of wsDetails) {
           if (result.status === 'fulfilled') {
             const detail = result.value
@@ -190,13 +260,10 @@ export function PlanDetailPage() {
           }
         }
 
-        // 2. Project milestones (if the plan is linked to a project)
         if (plan?.project_id) {
           try {
             const projMilestones = await projectsApi.listMilestones(plan.project_id, { limit: 100 })
-            const projDetails = await Promise.allSettled(
-              (projMilestones.items || []).map((ms) => projectsApi.getMilestone(ms.id))
-            )
+            const projDetails = await Promise.allSettled((projMilestones.items || []).map((ms) => projectsApi.getMilestone(ms.id)))
             for (const result of projDetails) {
               if (result.status === 'fulfilled') {
                 const detail = result.value
@@ -215,7 +282,7 @@ export function PlanDetailPage() {
           }
         }
       } catch {
-        /* graceful degradation — milestone chips simply won't appear */
+        /* graceful degradation — milestone links simply won't appear */
       }
       if (!controller.signal.aborted) {
         setLinkedMilestones(milestones)
@@ -227,6 +294,7 @@ export function PlanDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- planId, wsSlug and plan?.project_id are stable
   }, [planId, wsSlug, plan?.project_id])
 
+  /** List rows: optimistic update + rollback. */
   const handleTaskStatusChange = useCallback(
     async (taskId: string, newStatus: TaskStatus) => {
       const original = tasks.find((t) => t.id === taskId)
@@ -246,6 +314,22 @@ export function PlanDetailPage() {
     [tasks],
   )
 
+  /** Board: the board moves the card optimistically; rethrow so it can roll back. */
+  const handleBoardStatusChange = useCallback(
+    async (taskId: string, newStatus: string) => {
+      try {
+        await tasksApi.update(taskId, { status: newStatus as TaskStatus })
+        setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus as TaskStatus } : t)))
+        toast.success('Status updated')
+      } catch (err) {
+        toast.error('Failed to update task status')
+        throw err
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable
+    [],
+  )
+
   // Stable fetchFn for kanban — fetches tasks scoped to this plan
   const kanbanFetchFn = useCallback(
     (params: Record<string, unknown>): Promise<PaginatedResponse<KanbanTask>> => {
@@ -254,14 +338,9 @@ export function PlanDetailPage() {
     [planId],
   )
 
-  // UniversalKanban config for plan detail tasks
   const planTaskKanbanConfig = useMemo(
-    () =>
-      createTaskKanbanConfig({
-        fetchFn: kanbanFetchFn,
-        onStatusChange: (id, status) => handleTaskStatusChange(id, status as TaskStatus),
-      }),
-    [kanbanFetchFn, handleTaskStatusChange],
+    () => createTaskKanbanConfig({ fetchFn: kanbanFetchFn, onStatusChange: handleBoardStatusChange }),
+    [kanbanFetchFn, handleBoardStatusChange],
   )
 
   const taskForm = CreateTaskForm({
@@ -292,22 +371,17 @@ export function PlanDetailPage() {
     }
   }
 
-  const handleDeleteDecision = (decision: DecisionWithTask) => {
-    confirmDialog.open({
-      title: 'Delete Decision',
-      description: 'Permanently delete this decision? This cannot be undone.',
-      onConfirm: async () => {
-        await decisionsApi.delete(decision.id)
-        setDecisions((prev) => prev.filter((d) => d.id !== decision.id))
-        toast.success('Decision deleted')
-      },
-    })
+  const handleDeleteDecision = async (decision: DecisionWithTask) => {
+    await decisionsApi.delete(decision.id)
+    setDecisions((prev) => prev.filter((d) => d.id !== decision.id))
+    toast.success('Decision deleted')
   }
 
-  // Build a fresh status map from local tasks state (includes optimistic updates)
-  // Must be before early return to respect Rules of Hooks
-  const taskStatusMap = useMemo(
-    () => new Map(tasks.map((t) => [t.id, t.status])),
+  // Fresh status map from local tasks state (includes optimistic updates)
+  const taskStatusMap = useMemo(() => new Map(tasks.map((t) => [t.id, t.status])), [tasks])
+  const taskGroups = useMemo(() => groupBy(tasks, (t) => t.status, TASK_GROUP_ORDER), [tasks])
+  const statusCounts = useMemo(
+    () => TASK_GROUP_ORDER.map((status) => ({ status, count: tasks.filter((t) => t.status === status).length })),
     [tasks],
   )
 
@@ -328,196 +402,250 @@ export function PlanDetailPage() {
     },
   })
 
-  if (error) return <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
-  if (loading || !plan) return <LoadingPage />
-
-  const tasksByStatus = {
-    pending: tasks.filter((t) => t.status === 'pending'),
-    in_progress: tasks.filter((t) => t.status === 'in_progress'),
-    blocked: tasks.filter((t) => t.status === 'blocked'),
-    completed: tasks.filter((t) => t.status === 'completed'),
-    failed: tasks.filter((t) => t.status === 'failed'),
+  const openAddTask = () => taskFormDialog.open({ title: 'Add Task', size: 'lg' })
+  const openAddConstraint = () => constraintFormDialog.open({ title: 'Add Constraint' })
+  const openLinkCommit = () => {
+    setCommitShaInput('')
+    commitFormDialog.open({ title: 'Link Commit', submitLabel: 'Link', size: 'sm' })
   }
+  const openLinkProject = () =>
+    linkDialog.open({
+      title: 'Link to Project',
+      submitLabel: 'Link',
+      fetchOptions: async () => {
+        const data = await projectsApi.list()
+        return (data.items || []).map((p) => ({ value: p.id, label: p.name, description: p.slug }))
+      },
+      onLink: async (projectId) => {
+        if (!plan) return
+        await plansApi.linkToProject(plan.id, projectId)
+        const data = await projectsApi.list()
+        const proj = (data.items || []).find((p) => p.id === projectId)
+        setLinkedProject(proj || null)
+        setPlan({ ...plan, project_id: projectId } as Plan)
+        toast.success('Project linked')
+      },
+    })
 
-  // Build parent links for milestone navigation
+  if (error) return <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
+  if (loading || !plan) return <DetailSkeleton />
+
+  const completedTasks = statusCounts.find((c) => c.status === 'completed')?.count ?? 0
+
+  // Parents: milestones, then the linked project (unlink lives in the ⋯ menu)
   const parentLinks: ParentLink[] = linkedMilestones.map((ms) => ({
     icon: ms.type === 'project' ? FolderKanban : Flag,
     label: ms.type === 'project' ? 'Project Milestone' : 'Milestone',
     name: ms.title,
     href: ms.href,
   }))
+  if (linkedProject) {
+    parentLinks.push({
+      icon: FolderKanban,
+      label: 'Project',
+      name: linkedProject.name,
+      href: workspacePath(wsSlug, `/projects/${linkedProject.slug}`),
+    })
+  }
 
-  // Tab definitions
-  const hasGraphNodes = planGraphData.data && (planGraphData.graph?.nodes || []).length > 0
+  const canLaunch = !hasPipelineRunning && plan.status === 'approved'
+  // Stuck detection: run reports as running but every task / agent is done
+  const isStuck =
+    hasPipelineRunning &&
+    runnerSnapshot != null &&
+    runnerSnapshot.tasks_total > 0 &&
+    runnerSnapshot.tasks_completed >= runnerSnapshot.tasks_total &&
+    runnerSnapshot.active_agents.every((a) => a.status === 'completed' || a.status === 'failed')
+
+  const hasGraphNodes = Boolean(planGraphData.data && (planGraphData.graph?.nodes || []).length > 0)
   const tabs = [
     { id: 'tasks', label: 'Tasks', icon: <ListChecks className="w-4 h-4" />, count: tasks.length },
     ...(hasGraphNodes ? [{ id: 'graph', label: 'Graph', icon: <GitFork className="w-4 h-4" />, count: (planGraphData.graph?.nodes || []).length }] : []),
     { id: 'runner', label: 'Runner', icon: <Play className="w-4 h-4" /> },
-    { id: 'chat', label: 'Chat', icon: <MessageCircle className="w-4 h-4" />, count: chatSessions.length || undefined },
+    { id: 'chat', label: 'Conversations', icon: <MessageCircle className="w-4 h-4" />, count: chatSessions.length || undefined },
     { id: 'artefacts', label: 'Artefacts', icon: <Archive className="w-4 h-4" />, count: commits.length + decisions.length + constraints.length },
   ]
 
+  const handlePlanStatusChange = async (newStatus: PlanStatus) => {
+    try {
+      await plansApi.updateStatus(plan.id, newStatus)
+      setPlan({ ...plan, status: newStatus })
+      toast.success('Status updated')
+    } catch {
+      toast.error('Failed to update status')
+    }
+  }
+
+  const toggleAllTasks = () => {
+    if (tasksAllExpanded) setTasksCollapseAll((s) => s + 1)
+    else setTasksExpandAll((s) => s + 1)
+    setTasksAllExpanded(!tasksAllExpanded)
+  }
+
   return (
-    <div className="pt-6 space-y-6">
+    <PageContainer width="wide" className="space-y-6">
       <PageHeader
         title={plan.title}
         parentLinks={parentLinks.length > 0 ? parentLinks : undefined}
         viewTransitionName={`plan-title-${plan.id}`}
         description={plan.description}
-        status={
-          <StatusSelect
-            status={plan.status}
-            options={[
-              { value: 'draft', label: 'Draft' },
-              { value: 'approved', label: 'Approved' },
-              { value: 'in_progress', label: 'In Progress' },
-              { value: 'completed', label: 'Completed' },
-              { value: 'cancelled', label: 'Cancelled' },
-            ]}
-            colorMap={{
-              draft: { bg: 'bg-white/[0.08]', text: 'text-gray-200', dot: 'bg-gray-400' },
-              approved: { bg: 'bg-blue-900/50', text: 'text-blue-400', dot: 'bg-blue-400' },
-              in_progress: { bg: 'bg-purple-900/50', text: 'text-purple-400', dot: 'bg-purple-400' },
-              completed: { bg: 'bg-green-900/50', text: 'text-green-400', dot: 'bg-green-400' },
-              cancelled: { bg: 'bg-red-900/50', text: 'text-red-400', dot: 'bg-red-400' },
-            }}
-            onStatusChange={async (newStatus: PlanStatus) => {
-              await plansApi.updateStatus(plan.id, newStatus)
-              setPlan({ ...plan, status: newStatus })
-              toast.success('Status updated')
-            }}
-          />
-        }
-        metadata={[
-          { label: 'Priority', value: String(plan.priority) },
-          { label: 'Created by', value: plan.created_by },
-          { label: 'Created', value: new Date(plan.created_at).toLocaleDateString() },
+        status={<StatusMenu kind="plan" status={plan.status} onChange={handlePlanStatusChange} />}
+        meta={[
+          <PriorityText key="p" priority={plan.priority} />,
+          plan.created_by ? (
+            <span key="by" className="truncate max-w-[10rem]" title={`Created by ${plan.created_by}`}>
+              {plan.created_by}
+            </span>
+          ) : null,
+          <RelativeTime key="c" date={plan.created_at} prefix="created " />,
+          pluralize(tasks.length, 'task'),
+          tasks.length > 0 ? (
+            <span key="done" className="tabular-nums">
+              {completedTasks}/{tasks.length} done
+            </span>
+          ) : null,
+          hasPipelineRunning ? (
+            <button
+              key="run"
+              type="button"
+              onClick={goToRunner}
+              className={`${hitArea} ${inlineLink} inline-flex items-center gap-1.5 text-indigo-300`}
+            >
+              <StatusDot tone="progress" pulse label="Pipeline running" />
+              Run in progress
+            </button>
+          ) : null,
         ]}
-        actions={undefined}
+        actions={
+          canLaunch ? (
+            <Button size="sm" onClick={() => setImplementDialogOpen(true)}>
+              <Play className="w-4 h-4 mr-1 -ml-0.5" aria-hidden="true" />
+              Launch pipeline
+            </Button>
+          ) : hasPipelineRunning ? (
+            <Button size="sm" variant="secondary" onClick={goToRunner}>
+              <ExternalLink className="w-4 h-4 mr-1 -ml-0.5" aria-hidden="true" />
+              Runner
+            </Button>
+          ) : undefined
+        }
         overflowActions={[
-          { label: 'Runner Dashboard', onClick: () => navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' }) },
-          { label: 'Edit', onClick: () => editPlanDialog.open({ title: 'Edit Plan' }) },
-          { label: 'Delete', variant: 'danger', onClick: () => confirmDialog.open({
-            title: 'Delete Plan',
-            description: 'This will permanently delete this plan and all its tasks, steps, decisions, and constraints.',
-            onConfirm: async () => { await plansApi.delete(plan.id); toast.success('Plan deleted'); navigate(workspacePath(wsSlug, '/plans'), { type: 'back-button' }) }
-          }) }
+          { label: 'Edit', icon: Pencil, onClick: () => editPlanDialog.open({ title: 'Edit Plan' }) },
+          { label: 'Add task', icon: Plus, onClick: openAddTask },
+          { label: 'Add constraint', icon: Plus, onClick: openAddConstraint },
+          { label: 'Link commit', icon: Link2, onClick: openLinkCommit },
+          { label: 'Link to project', icon: Link2, onClick: openLinkProject, hidden: Boolean(linkedProject) },
+          {
+            label: 'Unlink project',
+            icon: Unlink,
+            hidden: !linkedProject,
+            onClick: async () => {
+              await plansApi.unlinkFromProject(plan.id)
+              setLinkedProject(null)
+              setPlan({ ...plan, project_id: undefined } as Plan)
+              toast.success('Project unlinked')
+            },
+            confirm: {
+              title: 'Unlink project?',
+              description: `This plan will no longer belong to “${linkedProject?.name ?? 'the project'}”.`,
+              confirmLabel: 'Unlink',
+            },
+          },
+          { label: 'Runner dashboard', icon: ExternalLink, onClick: goToRunner },
+          {
+            label: 'Delete',
+            icon: Trash2,
+            variant: 'danger',
+            onClick: async () => {
+              await plansApi.delete(plan.id)
+              toast.success('Plan deleted')
+              navigate(workspacePath(wsSlug, '/plans'), { type: 'back-button' })
+            },
+            confirm: {
+              title: 'Delete Plan',
+              description: 'This will permanently delete this plan and all its tasks, steps, decisions, and constraints.',
+            },
+          },
         ]}
       >
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500">Project:</span>
-          {linkedProject ? (
-            <LinkedEntityBadge
-              label={linkedProject.name}
-              linkTo={workspacePath(wsSlug, `/projects/${linkedProject.slug}`)}
-              onUnlink={async () => {
-                await plansApi.unlinkFromProject(plan.id)
-                setLinkedProject(null)
-                setPlan({ ...plan, project_id: undefined } as Plan)
-                toast.success('Project unlinked')
-              }}
-            />
-          ) : (
-            <Button variant="ghost" size="sm" onClick={() => linkDialog.open({
-              title: 'Link to Project',
-              submitLabel: 'Link',
-              fetchOptions: async () => {
-                const data = await projectsApi.list()
-                return (data.items || []).map(p => ({ value: p.id, label: p.name, description: p.slug }))
-              },
-              onLink: async (projectId) => {
-                await plansApi.linkToProject(plan.id, projectId)
-                const data = await projectsApi.list()
-                const proj = (data.items || []).find(p => p.id === projectId)
-                setLinkedProject(proj || null)
-                setPlan({ ...plan, project_id: projectId } as Plan)
-                toast.success('Project linked')
-              },
-            })}>Link to Project</Button>
-          )}
-        </div>
+        <StatusBreakdown kind="task" counts={statusCounts} className="w-full" />
       </PageHeader>
 
-      {/* Task Stats — 5 stat cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 md:gap-4">
-        <StatCard label="Pending" value={tasksByStatus.pending.length} color="gray" />
-        <StatCard label="In Progress" value={tasksByStatus.in_progress.length} color="blue" />
-        <StatCard label="Blocked" value={tasksByStatus.blocked.length} color="yellow" />
-        <StatCard label="Completed" value={tasksByStatus.completed.length} color="green" />
-        <StatCard label="Failed" value={tasksByStatus.failed.length} color="red" />
-      </div>
-
-      {/* 3-tab layout: Tasks | Graph | Artefacts */}
-      <TabLayout
-        tabs={tabs}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-      >
-        {/* ── Tab: Tasks ── */}
-        {activeTab === 'tasks' && (
-          <div className="pt-4">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CardTitle>Tasks ({tasks.length})</CardTitle>
-                    {tasks.length > 0 && viewMode === 'list' && (
-                      <button
-                        onClick={() => {
-                          if (tasksAllExpanded) {
-                            setTasksCollapseAll((s) => s + 1)
-                          } else {
-                            setTasksExpandAll((s) => s + 1)
-                          }
-                          setTasksAllExpanded(!tasksAllExpanded)
-                        }}
-                        className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
-                        title={tasksAllExpanded ? 'Collapse all' : 'Expand all'}
-                      >
-                        <ChevronsUpDown className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" onClick={() => taskFormDialog.open({ title: 'Add Task', size: 'lg' })}>Add Task</Button>
-                    <ViewToggle value={viewMode} onChange={setViewMode} />
-                  </div>
+      {/* Tab strip scrolls horizontally on phones (TabLayout's own nav does not) */}
+      <div className="[&_[role=tablist]]:overflow-x-auto [&_[role=tablist]]:overscroll-x-contain">
+        <TabLayout tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} className="pt-4">
+          {/* ── Tasks ── */}
+          {activeTab === 'tasks' && (
+            <Section
+              title="Tasks"
+              count={tasks.length}
+              action={
+                <>
+                  {tasks.length > 0 && viewMode === 'list' && (
+                    <button
+                      type="button"
+                      onClick={toggleAllTasks}
+                      aria-label={tasksAllExpanded ? 'Collapse all steps' : 'Expand all steps'}
+                      title={tasksAllExpanded ? 'Collapse all steps' : 'Expand all steps'}
+                      className={`w-9 h-9 md:w-8 md:h-8 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-200 hover:bg-white/[0.05] ${focusRing}`}
+                    >
+                      {tasksAllExpanded ? (
+                        <ChevronsDownUp className="w-4 h-4" aria-hidden="true" />
+                      ) : (
+                        <ChevronsUpDown className="w-4 h-4" aria-hidden="true" />
+                      )}
+                    </button>
+                  )}
+                  {tasks.length > 0 && <ViewModeToggle value={viewMode} onChange={setViewMode} />}
+                  <SectionAddButton label="Add task" onClick={openAddTask} />
+                </>
+              }
+            >
+              {tasks.length === 0 ? (
+                <EmptyState
+                  size="sm"
+                  icon={<ListChecks />}
+                  title="No tasks in this plan"
+                  description="Add the first task to start planning the work."
+                  action={
+                    <Button size="sm" variant="secondary" onClick={openAddTask}>
+                      Add task
+                    </Button>
+                  }
+                />
+              ) : viewMode === 'kanban' ? (
+                <UniversalKanban
+                  config={planTaskKanbanConfig}
+                  onItemClick={(taskId) => navigate(workspacePath(wsSlug, `/tasks/${taskId}`), { type: 'card-click' })}
+                  refreshTrigger={taskRefresh}
+                />
+              ) : (
+                <div>
+                  {taskGroups.map(({ key, items }) => (
+                    <ListGroup key={key} title={getStatusMeta('task', key).label} count={items.length}>
+                      {items.map((task) => (
+                        <PlanTaskRow
+                          key={task.id}
+                          task={task}
+                          wsSlug={wsSlug}
+                          onStatusChange={(newStatus) => handleTaskStatusChange(task.id, newStatus)}
+                          refreshTrigger={taskRefresh}
+                          expandAllSignal={tasksExpandAll}
+                          collapseAllSignal={tasksCollapseAll}
+                          planId={plan.id}
+                          planTitle={plan.title}
+                          projectId={plan.project_id}
+                        />
+                      ))}
+                    </ListGroup>
+                  ))}
                 </div>
-              </CardHeader>
-              <CardContent>
-                {tasks.length === 0 ? (
-                  <p className="text-gray-500 text-sm">No tasks in this plan</p>
-                ) : viewMode === 'kanban' ? (
-                  <UniversalKanban
-                    config={planTaskKanbanConfig}
-                    onItemClick={(taskId) => navigate(workspacePath(wsSlug, `/tasks/${taskId}`), { type: 'card-click' })}
-                    refreshTrigger={taskRefresh}
-                  />
-                ) : (
-                  <div className="space-y-2">
-                    {tasks.map((task) => (
-                      <TaskRow
-                        key={task.id}
-                        task={task}
-                        onStatusChange={(newStatus) => handleTaskStatusChange(task.id, newStatus)}
-                        refreshTrigger={taskRefresh}
-                        expandAllSignal={tasksExpandAll}
-                        collapseAllSignal={tasksCollapseAll}
-                        planId={plan.id}
-                        planTitle={plan.title}
-                        projectId={plan.project_id}
-                      />
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
+              )}
+            </Section>
+          )}
 
-        {/* ── Tab: Graph (DAG only, with waves toggle) ── */}
-        {activeTab === 'graph' && hasGraphNodes && (
-          <div className="pt-4">
+          {/* ── Graph ── */}
+          {activeTab === 'graph' && hasGraphNodes && (
             <UnifiedGraphSection
               adapter={PlanGraphAdapter}
               data={planGraphData.data}
@@ -536,386 +664,191 @@ export function PlanDetailPage() {
               breadcrumbs={graphBreadcrumbs}
               projectSlug={linkedProject?.slug}
             />
-          </div>
-        )}
+          )}
 
-        {/* ── Tab: Runner (active run + history + launch) ── */}
-        {activeTab === 'runner' && plan && (() => {
-          // Stuck detection: run reports as running but all tasks are done
-          const isStuck = hasPipelineRunning && runnerSnapshot != null
-            && runnerSnapshot.tasks_total > 0
-            && runnerSnapshot.tasks_completed >= runnerSnapshot.tasks_total
-            && runnerSnapshot.active_agents.every(a => a.status === 'completed' || a.status === 'failed')
-
-          return (
-            <div className="pt-4 space-y-4">
-              {/* Stuck run warning + recovery */}
+          {/* ── Runner ── */}
+          {activeTab === 'runner' && (
+            <div className="space-y-6">
               {isStuck && runnerSnapshot && (
-                <div className="flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-500/25 rounded-xl">
-                  <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1 space-y-2">
+                <div role="alert" className={`${surface} flex items-start gap-3 p-4 border-amber-500/25`}>
+                  <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
+                  <div className="flex-1 min-w-0 space-y-2">
                     <div>
-                      <p className="text-sm font-medium text-amber-300">Run bloqué</p>
+                      <p className="text-sm font-medium text-amber-300">Run stuck</p>
                       <p className="text-xs text-amber-400/80 mt-0.5">
-                        Toutes les tâches sont terminées ({runnerSnapshot.tasks_completed}/{runnerSnapshot.tasks_total}) mais le run est toujours marqué comme actif. Le runner ne s'est pas finalisé correctement.
+                        Every task is done ({runnerSnapshot.tasks_completed}/{runnerSnapshot.tasks_total}) but the run is still marked as active. The runner did not finalise properly.
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Button
                         size="sm"
+                        variant="secondary"
                         onClick={async () => {
                           try {
                             await runnerApi.forceCancelRun(plan.id)
-                            toast.success('Run finalisé avec succès')
+                            toast.success('Run finalised')
                           } catch (err) {
-                            toast.error(err instanceof Error ? err.message : 'Échec de la finalisation')
+                            toast.error(err instanceof Error ? err.message : 'Failed to finalise the run')
                           }
                         }}
-                        className="bg-amber-600 hover:bg-amber-500 text-white"
                       >
-                        <Zap className="w-3.5 h-3.5 mr-1.5" />
-                        Forcer la finalisation
+                        <Zap className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
+                        Force finalisation
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' })}
-                      >
-                        <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-                        Full Dashboard
+                      <Button size="sm" variant="ghost" onClick={goToRunner}>
+                        <ExternalLink className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
+                        Full dashboard
                       </Button>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Active run status (normal, not stuck) */}
               {hasPipelineRunning && runnerSnapshot && !isStuck && (
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between w-full">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                        <CardTitle>Active Run</CardTitle>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' })}
-                      >
-                        <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-                        Full Dashboard
+                <Section
+                  title={
+                    <span className="inline-flex items-center gap-2">
+                      <StatusDot tone="progress" pulse size="md" label="Running" />
+                      Active run
+                    </span>
+                  }
+                  action={
+                    <Button size="sm" variant="ghost" onClick={goToRunner}>
+                      <ExternalLink className="w-4 h-4 mr-1 -ml-1" aria-hidden="true" />
+                      Dashboard
+                    </Button>
+                  }
+                >
+                  <StatsRow
+                    effectiveSnapshot={runnerSnapshot}
+                    isRunning={hasPipelineRunning}
+                    resolvedAgents={runnerSnapshot.active_agents || []}
+                    wavesTotal={runnerSnapshot.current_wave}
+                    planId={plan.id}
+                    onBudgetSave={async (pid, value) => {
+                      await runnerApi.updateBudget(pid, value)
+                    }}
+                  />
+                </Section>
+              )}
+
+              {!hasPipelineRunning && (
+                <EmptyState
+                  size="sm"
+                  icon={<Play />}
+                  title="No active pipeline run"
+                  description={
+                    plan.status === 'approved'
+                      ? 'Launch a run to implement the tasks of this plan.'
+                      : 'Approve the plan to launch a pipeline run.'
+                  }
+                  action={
+                    <>
+                      {canLaunch && (
+                        <Button size="sm" onClick={() => setImplementDialogOpen(true)}>
+                          <Play className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
+                          Launch pipeline
+                        </Button>
+                      )}
+                      <Button size="sm" variant="secondary" onClick={goToRunner}>
+                        <ExternalLink className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
+                        Runner dashboard
                       </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <StatsRow
-                      effectiveSnapshot={runnerSnapshot}
-                      isRunning={hasPipelineRunning}
-                      resolvedAgents={runnerSnapshot.active_agents || []}
-                      wavesTotal={runnerSnapshot.current_wave}
-                      planId={plan.id}
-                      onBudgetSave={async (pid, value) => {
-                        await runnerApi.updateBudget(pid, value)
+                    </>
+                  }
+                />
+              )}
+
+              <Section title="Run history">
+                <PlanRunHistory planIds={plan.id} maxRuns={10} />
+              </Section>
+            </div>
+          )}
+
+          {/* ── Conversations ── */}
+          {activeTab === 'chat' && (
+            <Section title="Conversations" count={chatSessionsLoading ? undefined : chatSessions.length}>
+              {chatSessionsLoading ? (
+                <EntityListSkeleton rows={3} />
+              ) : chatSessions.length === 0 ? (
+                <EmptyLine>
+                  No conversations linked — they are linked automatically when tasks run via the runner, or manually from the chat panel.
+                </EmptyLine>
+              ) : (
+                <EntityList aria-label="Conversations">
+                  {chatSessions.map((sw) => (
+                    <SessionRow
+                      key={sw.session.id}
+                      item={sw}
+                      showTasks
+                      onOpen={() => {
+                        setChatSessionId(sw.session.id)
+                        setChatPanelMode('open')
                       }}
                     />
-                  </CardContent>
-                </Card>
+                  ))}
+                </EntityList>
               )}
+            </Section>
+          )}
 
-              {/* Launch actions — only when plan is approved AND no run is active */}
-              {!hasPipelineRunning && plan.status === 'approved' && (
-                <Card>
-                  <CardContent className="py-6">
-                    <div className="flex flex-col items-center gap-3 text-center">
-                      <Play className="w-8 h-8 text-gray-500" />
-                      <p className="text-sm text-gray-400">No active pipeline run for this plan</p>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => setImplementDialogOpen(true)}
-                        >
-                          <Play className="w-3.5 h-3.5 mr-1.5" />
-                          Launch Pipeline
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' })}
-                        >
-                          <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-                          Runner Dashboard
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+          {/* ── Artefacts ── */}
+          {activeTab === 'artefacts' && (
+            <div className="space-y-6">
+              <Section title="Commits" count={commits.length} action={<SectionAddButton label="Link commit" icon={Link2} onClick={openLinkCommit} />}>
+                <CommitList commits={commits} emptyMessage="No commits linked to this plan yet" />
+              </Section>
 
-              {/* Run history */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Run History</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <PlanRunHistory planIds={plan.id} maxRuns={10} />
-                </CardContent>
-              </Card>
-            </div>
-          )
-        })()}
-
-        {/* ── Tab: Chat (linked sessions) ── */}
-        {activeTab === 'chat' && (
-          <div className="pt-4">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <MessageCircle className="w-4 h-4 text-gray-500" />
-                  <CardTitle>Chat Sessions ({chatSessions.length})</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {chatSessionsLoading ? (
-                  <div className="flex items-center justify-center py-8 text-gray-500 text-sm">
-                    <div className="w-4 h-4 border-2 border-gray-600 border-t-indigo-400 rounded-full animate-spin mr-2" />
-                    Loading sessions...
-                  </div>
-                ) : chatSessions.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-8 text-gray-500 text-sm">
-                    <MessageCircle className="w-8 h-8 text-gray-700 mb-2" />
-                    <p>No chat sessions linked to this plan</p>
-                    <p className="text-xs text-gray-600 mt-1">Sessions are linked automatically when tasks are executed via the runner, or manually via the chat panel.</p>
-                  </div>
+              <Section title="Constraints" count={constraints.length} action={<SectionAddButton label="Add constraint" onClick={openAddConstraint} />}>
+                {constraints.length === 0 ? (
+                  <EmptyLine>No constraints defined</EmptyLine>
                 ) : (
-                  <div className="space-y-2">
-                    {chatSessions.map((sw) => (
-                      <button
-                        key={sw.session.id}
-                        onClick={() => {
-                          setChatSessionId(sw.session.id)
-                          setChatPanelMode('open')
-                        }}
-                        className="block w-full text-left p-3 rounded-lg bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.05] hover:border-white/[0.10] transition-all group cursor-pointer"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            {/* Title + source badge */}
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-gray-200 font-medium truncate">
-                                {sw.session.title || `Session ${sw.session.id.slice(0, 8)}`}
-                              </span>
-                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium shrink-0 ${
-                                sw.source === 'runner'
-                                  ? 'bg-blue-500/15 text-blue-400'
-                                  : sw.source === 'transitive'
-                                    ? 'bg-purple-500/15 text-purple-400'
-                                    : 'bg-emerald-500/15 text-emerald-400'
-                              }`}>
-                                {sw.source}
-                              </span>
-                            </div>
-
-                            {/* Linked tasks */}
-                            {sw.links.linked_tasks.length > 0 && (
-                              <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                                <ListChecks className="w-3 h-3 text-gray-600 shrink-0" />
-                                {sw.links.linked_tasks.map((t) => (
-                                  <span
-                                    key={t.id}
-                                    className="text-[10px] bg-amber-500/10 text-amber-400/80 px-1.5 py-0.5 rounded-full truncate max-w-[200px]"
-                                    title={t.title}
-                                  >
-                                    {t.title}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Linked RFCs */}
-                            {sw.links.linked_rfcs.length > 0 && (
-                              <div className="flex flex-wrap items-center gap-1 mt-1">
-                                <ScrollText className="w-3 h-3 text-gray-600 shrink-0" />
-                                {sw.links.linked_rfcs.map((r) => (
-                                  <span
-                                    key={r.id}
-                                    className="text-[10px] bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded-full truncate max-w-[200px]"
-                                    title={`RFC: ${r.title}`}
-                                  >
-                                    {r.title}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Metadata: date, messages, model, cost */}
-                            <div className="flex items-center gap-2 mt-1.5 text-[10px] text-gray-600">
-                              <span className="flex items-center gap-0.5">
-                                <Clock className="w-2.5 h-2.5" />
-                                {new Date(sw.session.created_at).toLocaleDateString()}
-                              </span>
-                              <span>&middot;</span>
-                              <span>{sw.session.message_count} msgs</span>
-                              {sw.session.model && (
-                                <>
-                                  <span>&middot;</span>
-                                  <span className="truncate max-w-[100px]">{sw.session.model}</span>
-                                </>
-                              )}
-                              {sw.session.total_cost_usd != null && sw.session.total_cost_usd > 0 && (
-                                <>
-                                  <span>&middot;</span>
-                                  <span>${sw.session.total_cost_usd.toFixed(2)}</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* CWD */}
-                          {sw.session.cwd && (
-                            <div className="flex items-center gap-1 shrink-0">
-                              <Folder className="w-3 h-3 text-gray-600" />
-                              <span className="text-[10px] text-gray-600 truncate max-w-[120px]">
-                                {sw.session.cwd.replace(/^\/(?:Users|home)\/[^/]+\//, '~/')}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* ── Tab: Artefacts (commits + decisions + constraints) ── */}
-        {activeTab === 'artefacts' && (
-          <div className="pt-4 space-y-4">
-            {/* Commits */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-2">
-                    <GitCommitHorizontal className="w-4 h-4 text-gray-500" />
-                    <CardTitle>Commits ({commits.length})</CardTitle>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => { setCommitShaInput(''); commitFormDialog.open({ title: 'Link Commit', submitLabel: 'Link', size: 'sm' }) }}
-                  >
-                    Link Commit
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {commits.length > 0 ? (
-                  <CommitList commits={commits} />
-                ) : (
-                  <p className="text-sm text-gray-500 py-4 text-center">No commits linked to this plan yet</p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Constraints & Decisions side by side */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between w-full">
-                    <CardTitle>Constraints ({constraints.length})</CardTitle>
-                    <Button size="sm" onClick={() => constraintFormDialog.open({ title: 'Add Constraint' })}>Add</Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {constraints.length === 0 ? (
-                    <p className="text-gray-500 text-sm">No constraints defined</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {constraints.map((constraint) => (
-                        <ConstraintRow key={constraint.id} constraint={constraint} onDelete={async () => {
+                  <EntityList aria-label="Constraints">
+                    {constraints.map((constraint) => (
+                      <ConstraintRow
+                        key={constraint.id}
+                        constraint={constraint}
+                        onDelete={async () => {
                           await plansApi.deleteConstraint(constraint.id)
-                          setConstraints(prev => prev.filter(c => c.id !== constraint.id))
-                        }} />
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                          setConstraints((prev) => prev.filter((c) => c.id !== constraint.id))
+                          toast.success('Constraint deleted')
+                        }}
+                      />
+                    ))}
+                  </EntityList>
+                )}
+              </Section>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Decisions ({decisions.length})</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {decisions.length === 0 ? (
-                    <p className="text-gray-500 text-sm">No decisions recorded</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {decisions.map((decision) => (
-                        <Link
-                          key={decision.id}
-                          to={workspacePath(wsSlug, `/decisions/${decision.id}`)}
-                          className="block p-3 bg-white/[0.06] rounded-lg overflow-hidden hover:bg-white/[0.09] transition-colors group/dec"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <p className="font-medium text-gray-200 break-words line-clamp-2 mb-1">{decision.description}</p>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {decision.chosen_option && (
-                                  <Badge variant="success">{decision.chosen_option}</Badge>
-                                )}
-                                <span
-                                  role="link"
-                                  tabIndex={0}
-                                  className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
-                                  onClick={(e) => {
-                                    e.preventDefault()
-                                    e.stopPropagation()
-                                    navigate(workspacePath(wsSlug, `/tasks/${decision.taskId}`), {
-                                      state: { planId: plan.id, planTitle: plan.title, projectId: plan.project_id }
-                                    })
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                      e.preventDefault()
-                                      e.stopPropagation()
-                                      navigate(workspacePath(wsSlug, `/tasks/${decision.taskId}`), {
-                                        state: { planId: plan.id, planTitle: plan.title, projectId: plan.project_id }
-                                      })
-                                    }
-                                  }}
-                                >
-                                  ← {decision.taskTitle}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.preventDefault()}>
-                              <InteractiveDecisionStatusBadge status={decision.status} onStatusChange={(status) => handleDecisionStatusChange(decision, status)} />
-                              <button
-                                onClick={(e) => {
-                                  e.preventDefault()
-                                  e.stopPropagation()
-                                  handleDeleteDecision(decision)
-                                }}
-                                className="p-1 rounded text-gray-600 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover/dec:opacity-100 transition-all"
-                                title="Delete decision"
-                              >
-                                &times;
-                              </button>
-                            </div>
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <Section title="Decisions" count={decisions.length}>
+                {decisions.length === 0 ? (
+                  <EmptyLine>No decisions recorded — decisions are added from task pages.</EmptyLine>
+                ) : (
+                  <EntityList aria-label="Decisions">
+                    {decisions.map((decision) => (
+                      <DecisionRow
+                        key={decision.id}
+                        decision={decision}
+                        wsSlug={wsSlug}
+                        onStatusChange={(status) => handleDecisionStatusChange(decision, status)}
+                        onDelete={() => handleDeleteDecision(decision)}
+                        source={
+                          decision.taskId ? (
+                            <TaskMetaLink
+                              to={workspacePath(wsSlug, `/tasks/${decision.taskId}`)}
+                              state={{ planId: plan.id, planTitle: plan.title, projectId: plan.project_id }}
+                              label={decision.taskTitle}
+                            />
+                          ) : null
+                        }
+                      />
+                    ))}
+                  </EntityList>
+                )}
+              </Section>
             </div>
-          </div>
-        )}
-      </TabLayout>
+          )}
+        </TabLayout>
+      </div>
 
       <FormDialog {...editPlanDialog.dialogProps} onSubmit={editPlanForm.submit}>
         {editPlanForm.fields}
@@ -937,22 +870,9 @@ export function PlanDetailPage() {
           fetchData()
         }}
       >
-        <div className="space-y-3">
-          <label className="block text-sm font-medium text-gray-300">Commit SHA</label>
-          <input
-            type="text"
-            value={commitShaInput}
-            onChange={(e) => setCommitShaInput(e.target.value)}
-            placeholder="e.g. a1b2c3d or full 40-char SHA"
-            pattern="[a-f0-9]{7,40}"
-            className="w-full px-3 py-2 bg-white/[0.06] border border-white/[0.08] rounded-lg text-sm text-gray-200 placeholder:text-gray-500 font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500/50 focus:border-indigo-500/50"
-            autoFocus
-          />
-          <p className="text-xs text-gray-500">Enter a 7–40 character hex commit hash to link to this plan.</p>
-        </div>
+        <CommitShaField value={commitShaInput} onChange={setCommitShaInput} entity="plan" />
       </FormDialog>
       <LinkEntityDialog {...linkDialog.dialogProps} />
-      <ConfirmDialog {...confirmDialog.dialogProps} />
       <ImplementDialog
         open={implementDialogOpen}
         onClose={() => setImplementDialogOpen(false)}
@@ -961,16 +881,14 @@ export function PlanDetailPage() {
           try {
             const cwd = linkedProject?.root_path || '.'
             await runnerApi.startRun(plan.id, cwd, linkedProject?.slug, maxCostUsd)
-            // Navigate to runner dashboard to monitor the run
-            navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' })
+            navigate(runnerPath, { type: 'card-click' })
           } catch (err) {
-            // 409 = already running — navigate to dashboard anyway
+            // 409 = already running — go to the dashboard anyway
             if (err instanceof ApiError && err.status === 409) {
-              navigate(workspacePath(wsSlug, `/plans/${plan.id}/runner`), { type: 'card-click' })
+              navigate(runnerPath, { type: 'card-click' })
             } else {
-              const msg = err instanceof Error ? err.message : 'Failed to start run'
               console.error('Failed to start plan run:', err)
-              alert(msg)
+              toast.error(err instanceof Error ? err.message : 'Failed to start run')
             }
           } finally {
             setImplementLoading(false)
@@ -981,22 +899,15 @@ export function PlanDetailPage() {
         entityTitle={plan.title || 'Untitled Plan'}
         loading={implementLoading}
       />
-
-    </div>
+    </PageContainer>
   )
 }
 
-function TaskRow({
-  task,
-  onStatusChange,
-  refreshTrigger,
-  expandAllSignal,
-  collapseAllSignal,
-  planId,
-  planTitle,
-  projectId,
-}: {
+// ── Task row (with inline steps) ────────────────────────────────────────
+
+interface PlanTaskRowProps {
   task: Task
+  wsSlug: string
   onStatusChange: (status: TaskStatus) => Promise<void>
   refreshTrigger?: number
   expandAllSignal?: number
@@ -1004,11 +915,27 @@ function TaskRow({
   planId?: string
   planTitle?: string
   projectId?: string
-}) {
-  const wsSlug = useWorkspaceSlug()
+}
+
+/**
+ * Task row on the plan page: the row opens the task; the leading chevron
+ * expands its steps in place (lazy-loaded, refreshed on WS events).
+ */
+function PlanTaskRow({
+  task,
+  wsSlug,
+  onStatusChange,
+  refreshTrigger,
+  expandAllSignal,
+  collapseAllSignal,
+  planId,
+  planTitle,
+  projectId,
+}: PlanTaskRowProps) {
   const [expanded, setExpanded] = useState(false)
   const [steps, setSteps] = useState<Step[] | null>(null)
   const [loadingSteps, setLoadingSteps] = useState(false)
+  const title = task.title || task.description || 'Untitled task'
   const tags = task.tags || []
 
   const fetchSteps = useCallback(async () => {
@@ -1022,16 +949,12 @@ function TaskRow({
 
   // Re-fetch steps on WS refresh if already loaded
   useEffect(() => {
-    if (steps !== null) {
-      fetchSteps()
-    }
+    if (steps !== null) fetchSteps()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- steps intentionally excluded to avoid loop
   }, [refreshTrigger, fetchSteps])
 
-  // Expand/Collapse all signals
   useEffect(() => {
     if (expandAllSignal) {
-      // Trigger fetch if steps not yet loaded
       if (steps === null) {
         setLoadingSteps(true)
         fetchSteps().then(() => setLoadingSteps(false))
@@ -1045,153 +968,67 @@ function TaskRow({
     if (collapseAllSignal) setExpanded(false)
   }, [collapseAllSignal])
 
-  const toggleExpand = async (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+  const toggleExpand = async () => {
     if (!expanded && steps === null) {
       setLoadingSteps(true)
       await fetchSteps()
       setLoadingSteps(false)
     }
-    setExpanded(!expanded)
+    setExpanded((v) => !v)
   }
 
-  const completedSteps = steps?.filter(s => s.status === 'completed').length ?? 0
+  const completedSteps = steps?.filter((s) => s.status === 'completed').length ?? 0
   const totalSteps = steps?.length ?? 0
 
   return (
-    <div
-      id={`task-row-${task.id}`}
-      className="rounded-lg overflow-hidden transition-all duration-200 bg-white/[0.06]"
-    >
-      <div className="flex items-center gap-2 p-3">
+    <EntityRow
+      title={
+        <RowStateLink to={workspacePath(wsSlug, `/tasks/${task.id}`)} state={{ planId, planTitle, projectId }}>
+          {title}
+        </RowStateLink>
+      }
+      ariaLabel={title}
+      viewTransitionName={`task-title-${task.id}`}
+      className="hover:bg-white/[0.03] active:bg-white/[0.05]"
+      muted={task.status === 'completed'}
+      leading={
         <button
+          type="button"
           onClick={toggleExpand}
-          className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-300 transition-colors"
-          title={expanded ? 'Replier' : 'Voir les steps'}
+          aria-expanded={expanded}
+          aria-label={expanded ? `Hide steps of ${title}` : `Show steps of ${title}`}
+          className={`-m-2 p-2 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-200 ${focusRing}`}
         >
-          <ChevronRight className={`w-4 h-4 transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`} />
+          <ChevronRight className={`w-4 h-4 transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`} aria-hidden="true" />
         </button>
-        <Link
-          to={workspacePath(wsSlug, `/tasks/${task.id}`)}
-          state={{ planId, planTitle, projectId }}
-          className="flex-1 min-w-0 hover:text-indigo-400 transition-colors overflow-hidden"
-        >
-          <span className="font-medium text-gray-200 block truncate">{task.title || task.description}</span>
-          {tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {tags.slice(0, 3).map((tag, index) => (
-                <Badge key={`${tag}-${index}`} variant="default">{tag}</Badge>
-              ))}
-            </div>
-          )}
-        </Link>
-        {steps !== null && totalSteps > 0 && (
-          <span className="text-xs text-gray-500 flex-shrink-0">
-            {completedSteps}/{totalSteps}
+      }
+      trailing={<RelativeTime date={task.updated_at ?? task.created_at} />}
+      description={task.title ? task.description : undefined}
+      meta={[
+        <StatusMenu key="status" kind="task" status={task.status} onChange={onStatusChange} />,
+        <PriorityText key="p" priority={task.priority} />,
+        task.assigned_to ? (
+          <span key="assignee" className="truncate max-w-[10rem]" title={`Assigned to ${task.assigned_to}`}>
+            @{task.assigned_to}
           </span>
-        )}
-        <InteractiveTaskStatusBadge
-          status={task.status}
-          onStatusChange={onStatusChange}
-        />
-      </div>
+        ) : null,
+        steps !== null && totalSteps > 0 ? (
+          <span key="steps" className="tabular-nums">
+            {completedSteps}/{totalSteps} steps
+          </span>
+        ) : null,
+        tags.length > 0 ? (
+          <span key="tags" className="break-words">
+            {tags.map((t) => `#${t}`).join(' ')}
+          </span>
+        ) : null,
+      ]}
+    >
       {expanded && (
-        <div className="pl-11 pr-3 pb-3 space-y-1.5">
-          {loadingSteps ? (
-            <div className="text-xs text-gray-500 py-2">Loading steps...</div>
-          ) : steps && steps.length > 0 ? (
-            steps.map((step, index) => (
-              <CompactStepRow key={step.id || index} step={step} index={index} />
-            ))
-          ) : (
-            <div className="text-xs text-gray-500 py-1">No steps</div>
-          )}
+        <div className={`${rowInteractive} pl-1`}>
+          <CompactStepList steps={steps} loading={loadingSteps} />
         </div>
       )}
-    </div>
-  )
-}
-
-const stepStatusColors: Record<StepStatus, string> = {
-  pending: 'bg-white/[0.15]',
-  in_progress: 'bg-blue-600',
-  completed: 'bg-green-600',
-  skipped: 'bg-yellow-600',
-}
-
-const stepStatusLabels: Record<StepStatus, string> = {
-  pending: 'Pending',
-  in_progress: 'In progress',
-  completed: 'Done',
-  skipped: 'Skipped',
-}
-
-function CompactStepRow({ step, index }: { step: Step; index: number }) {
-  return (
-    <div className="flex items-start gap-2 py-1.5 px-2 rounded bg-white/[0.03]">
-      <div
-        className={`w-5 h-5 rounded-full ${stepStatusColors[step.status]} flex items-center justify-center text-[10px] font-medium text-white flex-shrink-0 mt-0.5`}
-      >
-        {step.status === 'completed' ? '✓' : index + 1}
-      </div>
-      <p className="text-sm text-gray-300 flex-1 min-w-0">{step.description}</p>
-      <span className={`text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 ${
-        step.status === 'completed' ? 'bg-green-500/20 text-green-400' :
-        step.status === 'in_progress' ? 'bg-blue-500/20 text-blue-400' :
-        step.status === 'skipped' ? 'bg-yellow-500/20 text-yellow-400' :
-        'bg-white/[0.08] text-gray-500'
-      }`}>
-        {stepStatusLabels[step.status]}
-      </span>
-    </div>
-  )
-}
-
-function ConstraintRow({ constraint, onDelete }: { constraint: Constraint; onDelete: () => void }) {
-  const typeBadgeColors: Record<string, string> = {
-    performance: 'bg-yellow-500/15 text-yellow-400',
-    security: 'bg-red-500/15 text-red-400',
-    style: 'bg-purple-500/15 text-purple-400',
-    compatibility: 'bg-blue-500/15 text-blue-400',
-    testing: 'bg-green-500/15 text-green-400',
-    other: 'bg-white/[0.08] text-gray-400',
-  }
-
-  return (
-    <div className="p-2.5 rounded-lg bg-white/[0.03] space-y-1.5">
-      <div className="flex items-center justify-between">
-        <span className={`text-[10px] uppercase font-medium px-2 py-0.5 rounded-full ${typeBadgeColors[constraint.constraint_type] || typeBadgeColors.other}`}>
-          {constraint.constraint_type}
-        </span>
-        <button
-          onClick={onDelete}
-          className="text-gray-500 hover:text-red-400 text-sm px-1 cursor-pointer"
-          title="Delete constraint"
-        >
-          &times;
-        </button>
-      </div>
-      <p className="text-sm text-gray-300 break-words">{constraint.description}</p>
-    </div>
-  )
-}
-
-function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
-  const colorClasses: Record<string, string> = {
-    gray: 'text-gray-400',
-    blue: 'text-blue-400',
-    yellow: 'text-yellow-400',
-    green: 'text-green-400',
-    red: 'text-red-400',
-  }
-
-  return (
-    <Card>
-      <CardContent className="text-center py-3">
-        <div className={`text-2xl font-bold ${colorClasses[color]}`}>{value}</div>
-        <div className="text-xs text-gray-500">{label}</div>
-      </CardContent>
-    </Card>
+    </EntityRow>
   )
 }
