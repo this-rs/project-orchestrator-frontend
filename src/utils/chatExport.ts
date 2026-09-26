@@ -68,6 +68,12 @@ function blockToMarkdown(block: ContentBlock): string {
     case 'viz':
       return '[Visualization]'
 
+    case 'background_activity': {
+      const count = (block.metadata?.count as number | undefined) ?? 1
+      const label = (block.metadata?.subagent_type ?? block.metadata?.source ?? 'background') as string
+      return `> *Background activity (${label}, ${count} event${count === 1 ? '' : 's'})*`
+    }
+
     default:
       return block.content || ''
   }
