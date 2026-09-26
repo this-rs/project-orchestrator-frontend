@@ -10,6 +10,7 @@ import {
   ListGroup,
   RelativeTime,
   Section,
+  TONE_CLASSES,
   focusRing,
   groupByRecency,
   pluralize,
@@ -128,7 +129,7 @@ export function FileHistoryDrawer({
             {loading ? (
               <EntityListSkeleton rows={4} />
             ) : history.length === 0 ? (
-              <EmptyState size="sm" title="Aucun historique trouvé" />
+              <EmptyState size="sm" title="No commits recorded for this file" />
             ) : (
               <div>
                 {groups.map(({ group, items }) => (
@@ -145,9 +146,9 @@ export function FileHistoryDrawer({
                           entry.author,
                           entry.additions > 0 || entry.deletions > 0 ? (
                             <span key="diff" className="font-mono tabular-nums">
-                              {entry.additions > 0 && <span className="text-emerald-400">+{entry.additions}</span>}
+                              {entry.additions > 0 && <span className={TONE_CLASSES.success.text}>+{entry.additions}</span>}
                               {entry.additions > 0 && entry.deletions > 0 && ' '}
-                              {entry.deletions > 0 && <span className="text-red-400">−{entry.deletions}</span>}
+                              {entry.deletions > 0 && <span className={TONE_CLASSES.danger.text}>−{entry.deletions}</span>}
                             </span>
                           ) : null,
                         ]}
@@ -165,9 +166,9 @@ export function FileHistoryDrawer({
           ) : (
             coChangers.length > 0 && (
               <Section
-                title="Fichiers souvent modifiés ensemble"
+                title="Often changed together"
                 count={coChangers.length}
-                description="Fichiers touchés dans les mêmes commits (au moins 2 fois) — un couplage caché possible."
+                description="Files touched in the same commits (at least twice) — a possible hidden coupling."
               >
                 <EntityList aria-label="Co-changed files">
                   {coChangers.map((cc) => (
@@ -192,7 +193,7 @@ export function FileHistoryDrawer({
             <div className="space-y-3">
               <Button variant="secondary" size="sm" onClick={() => setShowGraph((v) => !v)} aria-expanded={showGraph}>
                 <GitBranch className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-                {showGraph ? 'Masquer le graphe' : 'Graphe de co-changements'}
+                {showGraph ? 'Hide graph' : 'Co-change graph'}
               </Button>
               {showGraph && (
                 <div className="overflow-x-auto">

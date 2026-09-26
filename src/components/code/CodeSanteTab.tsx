@@ -7,30 +7,31 @@ import { CodeProcessesTab } from './CodeProcessesTab'
 
 interface CodeSanteTabProps {
   projectSlug: string | null
+  onOpenFile: (path: string) => void
 }
 
 type SubTab = 'health' | 'processes'
 
 const SUB_TABS: TabItem[] = [
-  { id: 'health', label: 'Métriques & Hotspots', icon: <HeartPulse className="w-4 h-4" /> },
-  { id: 'processes', label: 'Processus', icon: <Workflow className="w-4 h-4" /> },
+  { id: 'health', label: 'Metrics & hotspots', icon: <HeartPulse /> },
+  { id: 'processes', label: 'Processes', icon: <Workflow /> },
 ]
 
-export function CodeSanteTab({ projectSlug }: CodeSanteTabProps) {
+/** "Health" section of the Code page: metrics / hotspots, and detected processes. */
+export function CodeSanteTab({ projectSlug, onOpenFile }: CodeSanteTabProps) {
   const [subTab, setSubTab] = useState<SubTab>('health')
 
   return (
     <div className="space-y-4">
       <p className="text-xs text-gray-500">
-        Indicateurs de santé du code : fonctions trop grosses, fichiers orphelins,
-        points chauds de modification, et processus métier détectés.
+        God functions, orphan files, change hotspots, under-documented files and the business processes detected in
+        the code.
       </p>
 
-      <SubTabs tabs={SUB_TABS} active={subTab} onChange={(id) => setSubTab(id as SubTab)} label="Santé" />
+      <SubTabs tabs={SUB_TABS} active={subTab} onChange={(id) => setSubTab(id as SubTab)} label="Health" />
 
-      {subTab === 'health' && <CodeHealthTab projectSlug={projectSlug} />}
-
-      {subTab === 'processes' && <CodeProcessesTab projectSlug={projectSlug} />}
+      {subTab === 'health' && <CodeHealthTab projectSlug={projectSlug} onOpenFile={onOpenFile} />}
+      {subTab === 'processes' && <CodeProcessesTab projectSlug={projectSlug} onOpenFile={onOpenFile} />}
     </div>
   )
 }

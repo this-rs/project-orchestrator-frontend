@@ -1,4 +1,4 @@
-import { createElement, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react'
+import { createElement, useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAtom } from 'jotai'
 import {
@@ -29,11 +29,13 @@ import {
   Skeleton,
   StatusDot,
   TONE_CLASSES,
+  formatCost,
   pluralize,
   surface,
   textLink,
   type StatusTone,
 } from '@/components/ui'
+import { Meter, StatTiles } from '@/components/code/metrics'
 import { intelligenceApi } from '@/services/intelligence'
 import { codeApi } from '@/services/code'
 import { CommunityVizWidget } from '@/components/particles/widgets'
@@ -99,7 +101,7 @@ function computeHealthScore(s: IntelligenceSummary, h: CodeHealth | null): numbe
 
 function healthTone(score: number): StatusTone {
   if (score >= 80) return 'success'
-  if (score >= 60) return 'warning'
+  if (score >= 60) return 'info'
   if (score >= 40) return 'warning'
   return 'danger'
 }
@@ -110,8 +112,6 @@ function healthScoreLabel(score: number): string {
   if (score >= 40) return 'Needs Attention'
   return 'At Risk'
 }
-
-const ratioTone = (v: number): StatusTone => (v >= 0.7 ? 'success' : v >= 0.4 ? 'warning' : 'danger')
 
 // ============================================================================
 // SMALL PIECES
@@ -145,50 +145,6 @@ function ScoreRing({ score }: { score: number }) {
         <span className={`text-2xl font-semibold tabular-nums ${TONE_CLASSES[tone].text}`}>{score}</span>
       </div>
     </div>
-  )
-}
-
-/** Label · bar · percentage. `value` in 0–1. */
-function Meter({ label, value, tone, hint }: { label: string; value: number; tone?: StatusTone; hint?: string }) {
-  const pct = Math.min(100, Math.max(0, value * 100))
-  const t = tone ?? ratioTone(value)
-  return (
-    <div className="min-w-0">
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-gray-400 w-32 shrink-0 truncate">{label}</span>
-        <span className="flex-1 h-1 rounded-full bg-white/[0.06] overflow-hidden" aria-hidden="true">
-          <span className={`block h-full rounded-full ${TONE_CLASSES[t].dot}`} style={{ width: `${pct}%` }} />
-        </span>
-        <span className="text-[11px] tabular-nums text-gray-400 w-9 text-right">{pct.toFixed(0)}%</span>
-      </div>
-      {hint && <p className="text-[11px] leading-4 text-gray-500 mt-0.5">{hint}</p>}
-    </div>
-  )
-}
-
-interface Stat {
-  label: string
-  value: ReactNode
-  sub?: ReactNode
-  tone?: StatusTone
-  hidden?: boolean
-}
-
-function StatGrid({ items, cols = 4 }: { items: Stat[]; cols?: 2 | 4 }) {
-  return (
-    <dl className={`grid grid-cols-2 ${cols === 4 ? 'sm:grid-cols-4' : ''} gap-2`}>
-      {items
-        .filter((i) => !i.hidden)
-        .map((item) => (
-          <div key={item.label} className={`${surface} px-3 py-2 min-w-0 flex flex-col-reverse justify-end`}>
-            {item.sub && <p className="text-[11px] leading-4 text-gray-600 break-words">{item.sub}</p>}
-            <dt className="text-[11px] leading-4 text-gray-500">{item.label}</dt>
-            <dd className={`text-lg font-semibold tabular-nums ${item.tone ? TONE_CLASSES[item.tone].text : 'text-gray-100'}`}>
-              {item.value}
-            </dd>
-          </div>
-        ))}
-    </dl>
   )
 }
 
@@ -374,11 +330,11 @@ export function IntelligencePage() {
   if (s.neural.dead_notes_count > 0)
     attention.push({ key: 'dead', tone: 'neutral', title: `${pluralize(s.neural.dead_notes_count, 'dead note')} (no energy)`, href: workspacePath(wsSlug, '/notes') })
   if (s.code.orphans > 5)
-    attention.push({ key: 'orphans', tone: 'warning', title: `${s.code.orphans} orphan files (no imports/exports)`, href: codeHref({ tab: 'sante' }) })
+    attention.push({ key: 'orphans', tone: 'warning', title: `${s.code.orphans} orphan files (no imports/exports)`, href: codeHref({ tab: 'health' }) })
   if (risk && risk.critical_count > 0)
-    attention.push({ key: 'risk', tone: 'danger', title: `${pluralize(risk.critical_count, 'file')} at critical risk`, href: codeHref({ tab: 'sante' }) })
+    attention.push({ key: 'risk', tone: 'danger', title: `${pluralize(risk.critical_count, 'file')} at critical risk`, href: codeHref({ tab: 'health' }) })
   if (health && health.god_function_count > 0)
-    attention.push({ key: 'god', tone: 'warning', title: `${health.god_function_count} god functions (threshold: ${health.god_function_threshold})`, href: codeHref({ tab: 'sante' }) })
+    attention.push({ key: 'god', tone: 'warning', title: `${health.god_function_count} god functions (threshold: ${health.god_function_threshold})`, href: codeHref({ tab: 'health' }) })
 
   const quickActions: QuickAction[] = [
     {
@@ -557,7 +513,7 @@ export function IntelligencePage() {
         }
       >
         <div className="space-y-3">
-          <StatGrid
+          <StatTiles
             items={[
               { label: 'Files', value: s.code.files },
               { label: 'Functions', value: s.code.functions },
@@ -617,9 +573,9 @@ export function IntelligencePage() {
       )}
 
       {/* ── Knowledge ──────────────────────────────────────────────── */}
-      <Section title="Project management">
+      <Section title="Knowledge" description="Notes and decisions agents receive while working on this code.">
         <div className="space-y-2">
-          <StatGrid
+          <StatTiles
             cols={2}
             items={[
               { label: 'Notes', value: s.knowledge.notes, sub: s.knowledge.stale_count > 0 ? `${s.knowledge.stale_count} stale` : undefined },
@@ -642,7 +598,7 @@ export function IntelligencePage() {
 
       <Section title="Knowledge fabric" description="How files are coupled through imports and commits made together.">
         <div className="space-y-2">
-          <StatGrid
+          <StatTiles
             cols={2}
             items={[
               { label: 'Co-changed pairs', value: s.fabric.co_changed_pairs },
@@ -667,7 +623,7 @@ export function IntelligencePage() {
 
       <Section title="Neural memory" description="Notes behave like neurons: energy fades without use, synapses link notes used together.">
         <div className="space-y-3">
-          <StatGrid
+          <StatTiles
             cols={2}
             items={[
               { label: 'Active synapses', value: s.neural.active_synapses },
@@ -687,7 +643,7 @@ export function IntelligencePage() {
 
       <Section title="Skills" description={`${s.skills.total_activations} total activations`}>
         <div className="space-y-3">
-          <StatGrid
+          <StatTiles
             items={[
               { label: 'Total skills', value: s.skills.total },
               { label: 'Active', value: s.skills.active },
@@ -704,7 +660,7 @@ export function IntelligencePage() {
       {s.behavioral.protocols > 0 && (
         <Section title="Behavioral" description={`${s.behavioral.states} states · ${s.behavioral.transitions} transitions`}>
           <div className="space-y-3">
-            <StatGrid
+            <StatTiles
               items={[
                 { label: 'Protocols', value: s.behavioral.protocols },
                 { label: 'System', value: s.behavioral.system_protocols },
@@ -716,6 +672,37 @@ export function IntelligencePage() {
               <Meter label="Skill coverage" value={s.behavioral.skill_linked / s.behavioral.protocols} />
             </div>
           </div>
+        </Section>
+      )}
+
+      {s.pm && (
+        <Section title="Project management" description={`${pluralize(s.pm.milestones, 'milestone')} · ${pluralize(s.pm.releases, 'release')}`}>
+          <div className="space-y-3">
+            <StatTiles
+              items={[
+                { label: 'Plans', value: s.pm.plans },
+                { label: 'Tasks', value: s.pm.tasks, sub: `${s.pm.tasks_in_progress} in progress` },
+                { label: 'Completed', value: s.pm.tasks_completed },
+                { label: 'Steps', value: s.pm.steps },
+              ]}
+            />
+            <div className="px-1">
+              <Meter label="Completion" value={s.pm.completion_rate > 1 ? s.pm.completion_rate / 100 : s.pm.completion_rate} />
+            </div>
+          </div>
+        </Section>
+      )}
+
+      {s.chat && (
+        <Section title="Conversations" description="Chat sessions that discussed entities of this project.">
+          <StatTiles
+            items={[
+              { label: 'Sessions', value: s.chat.sessions },
+              { label: 'Messages', value: s.chat.total_messages },
+              { label: 'Entities discussed', value: s.chat.discussed_entity_count },
+              { label: 'Cost', value: formatCost(s.chat.total_cost_usd) },
+            ]}
+          />
         </Section>
       )}
 

@@ -1,137 +1,122 @@
-import { useState, useEffect } from 'react'
-import { Card, CardHeader, CardTitle, CardContent, LoadingPage, EmptyState, ErrorState } from '@/components/ui'
+import { useState, useEffect, useCallback } from 'react'
+import { EmptyState, EntityList, EntityListSkeleton, EntityRow, ErrorState, Section, Skeleton, pluralize } from '@/components/ui'
 import { codeApi } from '@/services'
 import type { ArchitectureOverview } from '@/services'
+import { StatTiles } from './metrics'
 
 interface CodeArchitectureTabProps {
   projectSlug: string | null
   workspaceSlug: string
+  onOpenFile: (path: string) => void
 }
 
-export function CodeArchitectureTab({ projectSlug, workspaceSlug }: CodeArchitectureTabProps) {
+const basename = (path: string) => path.split('/').pop() || path
+
+export function CodeArchitectureTab({ projectSlug, workspaceSlug, onOpenFile }: CodeArchitectureTabProps) {
   const [architecture, setArchitecture] = useState<ArchitectureOverview | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const loadArchitecture = async () => {
+  const loadArchitecture = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const project_slug = projectSlug ?? undefined
       const workspace_slug = projectSlug ? undefined : workspaceSlug
-      const data = await codeApi.getArchitecture({ project_slug, workspace_slug })
-      setArchitecture(data)
-    } catch (err) {
-      console.error('Failed to load architecture:', err)
-      setError('Failed to load architecture overview.')
+      setArchitecture(await codeApi.getArchitecture({ project_slug, workspace_slug }))
+    } catch {
+      setError('Could not load the architecture overview.')
     } finally {
       setLoading(false)
     }
-  }
-
-  // Auto-load on mount or when project changes
-  useEffect(() => {
-    loadArchitecture()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectSlug, workspaceSlug])
 
-  if (loading) return <LoadingPage />
+  useEffect(() => {
+    loadArchitecture()
+  }, [loadArchitecture])
 
-  if (error) return <ErrorState title="Failed to load" description={error} onRetry={loadArchitecture} />
-
-  if (!architecture) {
+  if (loading) {
     return (
-      <EmptyState
-        title="Architecture not loaded"
-        description="Loading the codebase overview..."
-      />
+      <div className="space-y-6" role="status" aria-label="Loading">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 rounded-xl" />
+          ))}
+        </div>
+        <EntityListSkeleton rows={4} />
+      </div>
     )
   }
+  if (error) return <ErrorState title="Architecture unavailable" description={error} onRetry={loadArchitecture} />
+  if (!architecture) return <EmptyState title="No architecture data" description="Sync the project first to analyse its code." />
+
+  const keyFiles = architecture.key_files ?? []
+  const languages = architecture.languages ?? []
+  const modules = architecture.modules ?? []
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-gray-400">
-        High-level overview of the codebase structure: most connected files, language breakdown, and
-        dependency statistics. Useful to understand the shape of a project at a glance.
-      </p>
-      {/* Overview Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
-        <div className="p-4 bg-white/[0.06] rounded-lg text-center">
-          <div className="text-2xl font-bold text-indigo-400">
-            {architecture.total_files.toLocaleString()}
-          </div>
-          <div className="text-sm text-gray-400">Total Files</div>
-        </div>
-        <div className="p-4 bg-white/[0.06] rounded-lg text-center">
-          <div className="text-2xl font-bold text-emerald-400">
-            {architecture.languages.length}
-          </div>
-          <div className="text-sm text-gray-400">Languages</div>
-        </div>
-        <div className="p-4 bg-white/[0.06] rounded-lg text-center">
-          <div className="text-2xl font-bold text-amber-400">
-            {architecture.key_files.length}
-          </div>
-          <div className="text-sm text-gray-400">Key Files</div>
-        </div>
-        <div className="p-4 bg-white/[0.06] rounded-lg text-center">
-          <div className="text-2xl font-bold text-purple-400">
-            {architecture.modules.length}
-          </div>
-          <div className="text-sm text-gray-400">Modules</div>
-        </div>
-      </div>
+      <StatTiles
+        items={[
+          { label: 'Files', value: architecture.total_files.toLocaleString() },
+          { label: 'Languages', value: languages.length },
+          { label: 'Key files', value: keyFiles.length },
+          { label: 'Modules', value: modules.length },
+        ]}
+      />
 
-      {/* Key Files */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Key Files</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {(architecture.key_files || []).length === 0 ? (
-            <p className="text-gray-500 text-sm">No data available</p>
-          ) : (
-            <div className="space-y-2">
-              {architecture.key_files.map((file) => (
-                <div
-                  key={file.path}
-                  className="flex items-center justify-between p-2 bg-white/[0.06] rounded"
-                >
-                  <span className="font-mono text-sm text-gray-200 truncate flex-1 mr-4">{file.path}</span>
-                  <div className="flex gap-4 text-sm shrink-0">
-                    <span className="text-indigo-400">{file.dependents} dependents</span>
-                    <span className="text-green-400">{file.imports} imports</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <Section title="Key files" count={keyFiles.length} description="The most depended-on files — changing them ripples furthest.">
+        {keyFiles.length === 0 ? (
+          <EmptyState size="sm" title="No key files yet." />
+        ) : (
+          <EntityList aria-label="Key files">
+            {keyFiles.map((file) => (
+              <EntityRow
+                key={file.path}
+                title={<span className="font-mono">{basename(file.path)}</span>}
+                ariaLabel={`History of ${file.path}`}
+                onClick={() => onOpenFile(file.path)}
+                description={<span className="font-mono break-all">{file.path}</span>}
+                meta={[pluralize(file.dependents, 'dependent'), pluralize(file.imports, 'import')]}
+              />
+            ))}
+          </EntityList>
+        )}
+      </Section>
 
-      {/* Languages */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Languages</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {(architecture.languages || []).length === 0 ? (
-            <p className="text-gray-500 text-sm">No languages detected</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-              {architecture.languages.map((lang) => (
-                <div
-                  key={lang.language}
-                  className="p-3 bg-white/[0.06] rounded text-center"
-                >
-                  <div className="text-lg font-bold text-indigo-400">{lang.file_count}</div>
-                  <div className="text-sm text-gray-400 capitalize">{lang.language}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <Section title="Languages" count={languages.length}>
+        {languages.length === 0 ? (
+          <EmptyState size="sm" title="No languages detected." />
+        ) : (
+          <EntityList aria-label="Languages">
+            {languages.map((lang) => (
+              <EntityRow
+                key={lang.language}
+                title={<span className="capitalize">{lang.language}</span>}
+                ariaLabel={lang.language}
+                trailing={pluralize(lang.file_count, 'file')}
+                meta={[pluralize(lang.function_count, 'function'), pluralize(lang.struct_count, 'struct')]}
+              />
+            ))}
+          </EntityList>
+        )}
+      </Section>
+
+      {modules.length > 0 && (
+        <Section title="Modules" count={modules.length} collapsible defaultOpen={modules.length <= 8}>
+          <EntityList aria-label="Modules">
+            {modules.map((m) => (
+              <EntityRow
+                key={m.path}
+                title={<span className="font-mono break-all">{m.path}</span>}
+                ariaLabel={m.path}
+                trailing={pluralize(m.files, 'file')}
+                meta={[m.public_api?.length ? `${pluralize(m.public_api.length, 'public symbol')}` : null]}
+              />
+            ))}
+          </EntityList>
+        </Section>
+      )}
     </div>
   )
 }

@@ -1,24 +1,24 @@
-import { useState, useCallback, type FormEvent } from 'react'
-import { Button, EmptyState, EntityList, EntityListSkeleton, EntityRow, ErrorState, FilterBar } from '@/components/ui'
+import { useState, type FormEvent } from 'react'
+import { Button, EmptyState, EntityList, EntityListSkeleton, EntityRow, ErrorState, FilterBar, pluralize } from '@/components/ui'
 import { codeApi } from '@/services'
 import type { SearchResult } from '@/services'
-import { FileHistoryDrawer } from './FileHistoryDrawer'
 
 interface CodeExplorerTabProps {
   projectSlug: string | null
   workspaceSlug: string
+  /** Open a file's history (the page owns the sheet through `?file=`). */
+  onOpenFile: (path: string) => void
 }
 
 const MAX_SYMBOLS = 10
 const MAX_SIGNATURES = 5
 
-export function CodeExplorerTab({ projectSlug, workspaceSlug }: CodeExplorerTabProps) {
+export function CodeExplorerTab({ projectSlug, workspaceSlug, onOpenFile }: CodeExplorerTabProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
-  const [historyFile, setHistoryFile] = useState<string | null>(null)
 
   const handleSearch = async (e?: FormEvent) => {
     e?.preventDefault()
@@ -31,35 +31,29 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug }: CodeExplorerTabP
       const response = await codeApi.search(searchQuery, { project_slug, workspace_slug })
       setSearchResults(Array.isArray(response) ? response : [])
       setSearched(true)
-    } catch (err) {
-      console.error('Search failed:', err)
-      setSearchError('Search failed. The backend may be unreachable.')
+    } catch {
+      setSearchError('The backend may be unreachable.')
       setSearchResults([])
     } finally {
       setLoading(false)
     }
   }
 
-  const openFileHistory = useCallback((filePath: string) => {
-    setHistoryFile(filePath)
-  }, [])
-
   return (
     <div className="space-y-3">
       <p className="text-xs text-gray-500">
-        Recherche sémantique dans les fichiers, fonctions et structures. Résultats classés par pertinence — touchez un
-        fichier pour voir ses commits récents.
+        Semantic search across files, functions and structs, ranked by relevance. Tap a file to see its recent commits.
       </p>
 
       <form role="search" onSubmit={handleSearch}>
         <FilterBar
           search={searchQuery}
           onSearchChange={setSearchQuery}
-          searchPlaceholder="Rechercher dans le code…"
-          searchLabel="Rechercher dans le code"
+          searchPlaceholder="Search the code…"
+          searchLabel="Search the code"
           trailing={
             <Button type="submit" size="sm" loading={loading} disabled={!searchQuery.trim()}>
-              Rechercher
+              Search
             </Button>
           }
         />
@@ -68,19 +62,19 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug }: CodeExplorerTabP
       {loading ? (
         <EntityListSkeleton rows={5} />
       ) : searchError ? (
-        <ErrorState title="Échec de la recherche" description={searchError} onRetry={() => handleSearch()} />
+        <ErrorState title="Search failed" description={searchError} onRetry={() => handleSearch()} />
       ) : searchResults.length === 0 ? (
         <EmptyState
           variant="search"
-          title="Aucun résultat"
+          title={searched ? 'No results' : 'Search the code'}
           description={
             searched
-              ? 'Essayez d’autres mots : la recherche porte sur le sens, pas seulement le texte exact.'
-              : 'Entrez un terme de recherche pour explorer le code de vos projets.'
+              ? 'Try other words: the search matches meaning, not only the exact text.'
+              : 'Type a term to explore the code of your projects.'
           }
         />
       ) : (
-        <EntityList aria-label="Résultats de recherche">
+        <EntityList aria-label="Search results">
           {searchResults.map((result) => {
             const doc = result.document
             const symbols = doc.symbols ?? []
@@ -90,9 +84,9 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug }: CodeExplorerTabP
               <EntityRow
                 key={doc.id}
                 title={<span className="font-mono">{name}</span>}
-                ariaLabel={`Historique de ${doc.path}`}
-                onClick={() => openFileHistory(doc.path)}
-                trailing={<span className="text-emerald-400">{(result.score * 100).toFixed(0)}%</span>}
+                ariaLabel={`History of ${doc.path}`}
+                onClick={() => onOpenFile(doc.path)}
+                trailing={<span title="Match">{(result.score * 100).toFixed(0)}%</span>}
                 description={
                   <>
                     <span className="font-mono break-all">{doc.path}</span>
@@ -103,7 +97,7 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug }: CodeExplorerTabP
                   <span key="lang" className="capitalize">
                     {doc.language}
                   </span>,
-                  symbols.length ? `${symbols.length} symbole${symbols.length > 1 ? 's' : ''}` : null,
+                  symbols.length ? pluralize(symbols.length, 'symbol') : null,
                 ]}
                 context={
                   symbols.length > 0 || signatures.length > 0 ? (
@@ -119,7 +113,7 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug }: CodeExplorerTabP
                             </span>
                           ))}
                           {symbols.length > MAX_SYMBOLS && (
-                            <span className="text-[11px] leading-5 text-gray-500">+{symbols.length - MAX_SYMBOLS} de plus</span>
+                            <span className="text-[11px] leading-5 text-gray-500">+{symbols.length - MAX_SYMBOLS} more</span>
                           )}
                         </div>
                       )}
@@ -128,7 +122,7 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug }: CodeExplorerTabP
                           <code>{signatures.slice(0, MAX_SIGNATURES).join('\n')}</code>
                           {signatures.length > MAX_SIGNATURES && (
                             <span className="text-gray-500">
-                              {'\n'}… +{signatures.length - MAX_SIGNATURES} de plus
+                              {'\n'}… +{signatures.length - MAX_SIGNATURES} more
                             </span>
                           )}
                         </pre>
@@ -140,16 +134,6 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug }: CodeExplorerTabP
             )
           })}
         </EntityList>
-      )}
-
-      {historyFile && (
-        <FileHistoryDrawer
-          filePath={historyFile}
-          projectSlug={projectSlug}
-          workspaceSlug={workspaceSlug}
-          onClose={() => setHistoryFile(null)}
-          onNavigate={openFileHistory}
-        />
       )}
     </div>
   )

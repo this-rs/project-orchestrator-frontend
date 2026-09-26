@@ -20,6 +20,7 @@ import {
   SelectCheckbox,
   StatusMenu,
   StatusText,
+  TONE_CLASSES,
   focusRing,
   getStatusOptions,
   textLink,
@@ -471,7 +472,7 @@ function NoteRow({ note, href, score, selectable, selected, onToggleSelect, onSt
           <StatusText key="stale" status="stale" label={`stale ${pct(staleness)}`} dot={false} />
         ) : null,
         note.superseded_by ? (
-          <span key="sup" className="inline-flex items-center gap-1 text-amber-400">
+          <span key="sup" className={`inline-flex items-center gap-1 ${TONE_CLASSES.warning.text}`}>
             <AlertTriangle className="w-3 h-3" aria-hidden="true" />
             superseded
           </span>

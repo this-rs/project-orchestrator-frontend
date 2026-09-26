@@ -1,34 +1,37 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Folder, Search, Blocks, HeartPulse } from 'lucide-react'
-import { PageContainer, Select, TabLayout } from '@/components/ui'
+import { PageShell, Select } from '@/components/ui'
 import type { TabItem } from '@/components/ui'
 import { workspacesApi } from '@/services'
 import { useWorkspaceSlug } from '@/hooks'
+import { SubTabs } from '@/components/code/SubTabs'
 import { CodeExplorerTab } from '@/components/code/CodeExplorerTab'
 import { CodeArchitectureFullTab } from '@/components/code/CodeArchitectureFullTab'
 import { CodeSanteTab } from '@/components/code/CodeSanteTab'
 import { FileHistoryDrawer } from '@/components/code/FileHistoryDrawer'
 
-type CodeTab = 'explorer' | 'architecture' | 'sante'
+type CodeTab = 'explorer' | 'architecture' | 'health'
 
 const TABS: TabItem[] = [
-  { id: 'explorer', label: 'Explorer', icon: <Search className="w-4 h-4" aria-hidden="true" /> },
-  { id: 'architecture', label: 'Architecture', icon: <Blocks className="w-4 h-4" aria-hidden="true" /> },
-  { id: 'sante', label: 'Santé', icon: <HeartPulse className="w-4 h-4" aria-hidden="true" /> },
+  { id: 'explorer', label: 'Explorer', icon: <Search /> },
+  { id: 'architecture', label: 'Architecture', icon: <Blocks /> },
+  { id: 'health', label: 'Health', icon: <HeartPulse /> },
 ]
 const TAB_IDS = TABS.map((t) => t.id)
+/** Older links (`?tab=sante`) keep working. */
+const LEGACY_TAB_IDS: Record<string, CodeTab> = { sante: 'health' }
 
 /**
  * Code explorer. URL state (shareable, survives back navigation on phones):
- *   ?tab=explorer|architecture|sante  ?project=<slug>  ?file=<path> (opens the file history sheet)
+ *   ?tab=explorer|architecture|health  ?project=<slug>  ?file=<path> (opens the file history sheet)
  */
 export function CodePage() {
   const wsSlug = useWorkspaceSlug()
   const [params, setParams] = useSearchParams()
 
-  const tabParam = params.get('tab')
-  const activeTab: CodeTab = tabParam && TAB_IDS.includes(tabParam) ? (tabParam as CodeTab) : 'explorer'
+  const tabParam = params.get('tab') ?? ''
+  const activeTab: CodeTab = TAB_IDS.includes(tabParam) ? (tabParam as CodeTab) : (LEGACY_TAB_IDS[tabParam] ?? 'explorer')
   const selectedProject = params.get('project') || 'all'
   const fileParam = params.get('file')
 
@@ -46,6 +49,10 @@ export function CodePage() {
     },
     [setParams],
   )
+
+  /** Every tab opens a file's history through the URL, so the sheet is shareable and closes with Back. */
+  const openFile = useCallback((path: string) => setParam('file', path), [setParam])
+  const closeFile = useCallback(() => setParam('file', null), [setParam])
 
   // Project filter
   const [projects, setProjects] = useState<{ slug: string; name: string }[]>([])
@@ -65,19 +72,18 @@ export function CodePage() {
   const projectSlug = selectedProject !== 'all' ? selectedProject : null
 
   const projectOptions = [
-    { value: 'all', label: 'Tout le workspace' },
+    { value: 'all', label: 'Whole workspace' },
     ...projects.map((p) => ({ value: p.slug, label: p.name })),
   ]
 
   return (
-    <PageContainer width="full" className="space-y-3 md:space-y-4">
-      <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <div className="min-w-0 flex-[1_1_12rem]">
-          <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-gray-100">Code Explorer</h1>
-          <p className="hidden sm:block mt-0.5 text-sm text-gray-500">Recherche, architecture et santé du code de vos projets.</p>
-        </div>
-        {projects.length > 1 && (
-          <div className="w-full sm:w-56">
+    <PageShell
+      title="Code"
+      description="Search, architecture and health of your projects' code."
+      width="wide"
+      filters={
+        projects.length > 1 ? (
+          <div className="sm:max-w-xs">
             <Select
               options={projectOptions}
               value={selectedProject}
@@ -85,26 +91,33 @@ export function CodePage() {
               icon={<Folder className="w-3 h-3" />}
             />
           </div>
+        ) : undefined
+      }
+    >
+      <SubTabs
+        variant="underline"
+        tabs={TABS}
+        active={activeTab}
+        onChange={(id) => setParam('tab', id === 'explorer' ? null : id)}
+        label="Code sections"
+      />
+      <div role="tabpanel" id={`tabpanel-${activeTab}`} aria-labelledby={`tab-${activeTab}`} className="pt-4">
+        {activeTab === 'explorer' && <CodeExplorerTab projectSlug={projectSlug} workspaceSlug={wsSlug} onOpenFile={openFile} />}
+        {activeTab === 'architecture' && (
+          <CodeArchitectureFullTab projectSlug={projectSlug} workspaceSlug={wsSlug} onOpenFile={openFile} />
         )}
-      </header>
-
-      <TabLayout tabs={TABS} activeTab={activeTab} onTabChange={(id) => setParam('tab', id === 'explorer' ? null : id)}>
-        <div className="pt-4">
-          {activeTab === 'explorer' && <CodeExplorerTab projectSlug={projectSlug} workspaceSlug={wsSlug} />}
-          {activeTab === 'architecture' && <CodeArchitectureFullTab projectSlug={projectSlug} workspaceSlug={wsSlug} />}
-          {activeTab === 'sante' && <CodeSanteTab projectSlug={projectSlug} />}
-        </div>
-      </TabLayout>
+        {activeTab === 'health' && <CodeSanteTab projectSlug={projectSlug} onOpenFile={openFile} />}
+      </div>
 
       {fileParam && (
         <FileHistoryDrawer
           filePath={fileParam}
           projectSlug={projectSlug}
           workspaceSlug={wsSlug}
-          onClose={() => setParam('file', null)}
-          onNavigate={(path) => setParam('file', path)}
+          onClose={closeFile}
+          onNavigate={openFile}
         />
       )}
-    </PageContainer>
+    </PageShell>
   )
 }
