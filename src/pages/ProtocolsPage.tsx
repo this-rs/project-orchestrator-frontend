@@ -46,10 +46,10 @@ const statusOptions = [{ value: 'all', label: 'All statuses' }, ...getStatusOpti
 
 const EXPLAIN: Record<View, string> = {
   protocols:
-    'Un protocole est une machine à états (FSM) : des états reliés par des transitions, franchies quand un événement survient. Chaque exécution d’un protocole s’appelle un run.',
-  runs: 'Les 3 derniers runs de chaque protocole, du plus récent au plus ancien. Un point qui pulse signale un run en cours ; touchez une ligne pour ouvrir le protocole.',
+    'A protocol is a state machine (FSM): states connected by transitions, taken when an event occurs. Each execution of a protocol is a run.',
+  runs: 'The 3 latest runs of each protocol, newest first. A pulsing dot marks a run in progress; tap a row to open its protocol.',
   scheduled:
-    'Les protocoles qui démarrent tout seuls (planification cron, événement, webhook…). « Run now » lance immédiatement un run, sans attendre le déclencheur.',
+    'Protocols that start on their own (cron schedule, event, webhook…). “Run now” starts a run immediately, without waiting for the trigger.',
 }
 
 function matches(p: Protocol, q: string): boolean {
