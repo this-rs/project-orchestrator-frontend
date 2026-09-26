@@ -151,7 +151,7 @@ function HierarchyView({ data }: { data: ClassHierarchy }) {
         </Section>
       )}
 
-      <div className={`${surface} flex flex-wrap items-center gap-2 px-3 py-2 md:px-4`} aria-label="Searched type">
+      <div className={`${surface} flex flex-wrap items-center gap-2 px-3 py-2 md:px-4`}>
         <StatusDot tone="progress" label="Searched type" />
         <span className="font-mono text-sm text-gray-100 break-all">{data.type_name}</span>
         <span className={`${metaText} ml-auto tabular-nums`}>depth {data.depth}</span>

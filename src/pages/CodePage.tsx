@@ -80,7 +80,7 @@ export function CodePage() {
     <PageShell
       title="Code"
       description="Search, architecture and health of your projects' code."
-      width="full"
+      width="wide"
       filters={
         projects.length > 1 ? (
           <div className="sm:max-w-xs">
