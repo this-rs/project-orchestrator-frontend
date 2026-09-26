@@ -4,6 +4,7 @@ export { AgentExecutionDetail } from './AgentExecutionDetail'
 export { CancelButton } from './CancelButton'
 export { ConversationPanel } from './ConversationPanel'
 export { PlanRunHistory } from './PlanRunHistory'
+export { PlanRunRow } from './PlanRunRow'
 
 // Header & stats (design system composition)
 export { RunnerHeader } from './RunnerHeader'
