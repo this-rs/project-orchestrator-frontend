@@ -295,9 +295,10 @@ function ServerDetail({ server }: { server: McpServerSummary }) {
         ]}
       />
 
-      <div className="flex items-center justify-between gap-2">
-        <h4 className="text-xs font-medium text-gray-400">
-          Discovered tools <span className="tabular-nums text-gray-500">{tools.length}</span>
+      {/* Group header (ListGroup typography) — not a ListGroup because the empty state must not live inside a <ul>. */}
+      <div className="flex items-center justify-between gap-2 min-h-9">
+        <h4 className="text-[11px] font-medium text-gray-500">
+          Discovered tools <span className="tabular-nums text-gray-600">{tools.length}</span>
         </h4>
         <Button size="sm" variant="ghost" onClick={handleProbe} loading={probing}>
           {!probing && <Scan className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />}
@@ -308,7 +309,7 @@ function ServerDetail({ server }: { server: McpServerSummary }) {
       {loadingTools ? (
         <EntityListSkeleton rows={2} />
       ) : tools.length === 0 ? (
-        <p className="text-xs text-gray-500">No tool discovered yet. Run a probe to query the server.</p>
+        <EmptyState size="sm" title="No tools discovered" description="Run a probe to query the server." />
       ) : (
         <EntityList variant="flush" aria-label={`Tools of ${server.display_name || server.id}`} className="rounded-lg border border-white/[0.05]">
           {tools.map((tool) => (
@@ -425,6 +426,7 @@ export function McpFederationPage() {
   return (
     <PageShell
       title="MCP Federation"
+      description="External MCP servers plugged into the orchestrator: their tools add to the agents' own. Tap a server for its statistics and tools. Refreshed every 10 seconds."
       count={loading ? undefined : servers.length}
       width="wide"
       actions={
@@ -441,11 +443,6 @@ export function McpFederationPage() {
       }
     >
       <div className="space-y-4">
-        <p className="text-xs text-gray-500">
-          External MCP servers plugged into the orchestrator: their tools add to the agents' own. Tap a server to see its statistics and
-          tools. Refreshed every 10 seconds.
-        </p>
-
         {loading ? (
           <EntityListSkeleton rows={3} />
         ) : error && servers.length === 0 ? (
@@ -453,7 +450,7 @@ export function McpFederationPage() {
         ) : servers.length === 0 ? (
           <EmptyState
             icon={<Server className="w-6 h-6" />}
-            title="No MCP server connected"
+            title="No MCP servers connected"
             description="Connect an external MCP server to discover and use its tools."
             action={
               <Button size="sm" onClick={openConnect}>
@@ -538,7 +535,7 @@ export function McpFederationPage() {
                       busy ? (
                         <ToneText key="busy" tone="progress" label={busy === 'probe' ? 'Probing…' : 'Reconnecting…'} pulse />
                       ) : (
-                        <ToneText key="st" tone={status.tone} label={status.label} />
+                        <ToneText key="st" tone={status.tone} label={status.label} dot={false} />
                       ),
                       transportLabels[server.transport_type] ?? server.transport_type,
                       server.circuit_breaker_state !== 'closed' ? (
