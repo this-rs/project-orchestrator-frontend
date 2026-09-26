@@ -114,10 +114,12 @@ describe('PersonaDetailPage', () => {
     renderPage()
     expect(await screen.findByRole('heading', { level: 1, name: 'API expert' })).toBeTruthy()
     expect(screen.getByRole('button', { name: /Status: Active/ })).toBeTruthy()
-    expect(screen.getByText('Auto-built')).toBeTruthy()
+    // Origin is a key fact in the header AND a row of the Details facts
+    expect(screen.getAllByText('Auto-built')).toHaveLength(2)
     expect(screen.getByText('4 activations')).toBeTruthy()
     expect(screen.getByText('used 3h')).toBeTruthy()
-    expect(await screen.findByRole('link', { name: 'Project: Alpha' })).toBeTruthy()
+    // PageHeader joins the sr-only "Project: " and the name without a separator in the computed name
+    expect(await screen.findByRole('link', { name: /Project:\s*Alpha/ })).toBeTruthy()
 
     const vitals = screen.getByRole('region', { name: 'Vital signs' })
     expect(within(vitals).getByText('80%')).toBeTruthy() // energy
@@ -135,12 +137,12 @@ describe('PersonaDetailPage', () => {
     expect(within(exec).getByText('$2.00')).toBeTruthy()
     expect(within(exec).getByText('Be terse.')).toBeTruthy()
 
-    const knows = screen.getByRole('region', { name: 'What it knows' })
+    const knows = screen.getByRole('region', { name: /^What it knows/ })
     expect(within(knows).getByText('src/api/mod.rs')).toBeTruthy()
     expect(within(knows).getByText('50%')).toBeTruthy()
     expect(await within(knows).findByRole('link', { name: 'Auth tokens' })).toBeTruthy()
     expect(within(knows).getByRole('link', { name: 'Auth tokens' }).getAttribute('href')).toBe('/workspace/ws/skills/sk1')
-    expect(within(knows).getByRole('button', { name: /Expand Rotate keys often/ })).toBeTruthy()
+    expect(within(knows).getByRole('button', { name: /^Expand Rotate keys often/ })).toBeTruthy()
 
     const details = screen.getByRole('region', { name: 'Details' })
     expect(within(details).getByText('pe1')).toBeTruthy()
@@ -153,7 +155,7 @@ describe('PersonaDetailPage', () => {
     await waitFor(() => expect(activate).toHaveBeenCalledWith('pe1'))
     expect(toast.success).toHaveBeenCalledWith('Persona activated')
 
-    const knows = screen.getByRole('region', { name: 'What it knows' })
+    const knows = screen.getByRole('region', { name: /^What it knows/ })
     fireEvent.click(within(knows).getByRole('button', { name: 'Actions for src/api/mod.rs' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Remove link' }))
     expect(removeFile).not.toHaveBeenCalled()

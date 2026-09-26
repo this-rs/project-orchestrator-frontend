@@ -36,10 +36,7 @@ vi.mock('@/services', () => ({
   workspacesApi: { listProjects: (...a: unknown[]) => listProjects(...a) },
 }))
 
-vi.mock('@/hooks', async () => {
-  const { useConfirmDialog } = await vi.importActual<typeof import('@/hooks/useConfirmDialog')>('@/hooks/useConfirmDialog')
-  return { useConfirmDialog, useSectionObserver: () => 'skill-vitals', useToast: () => toast, useWorkspaceSlug: () => 'ws' }
-})
+vi.mock('@/hooks', () => ({ useSectionObserver: () => 'skill-vitals', useToast: () => toast, useWorkspaceSlug: () => 'ws' }))
 
 import { SkillDetailPage } from '../SkillDetailPage'
 
@@ -143,9 +140,11 @@ describe('SkillDetailPage', () => {
     expect(screen.getByText('2 members')).toBeTruthy()
     expect(screen.getByText('6 activations')).toBeTruthy()
     expect(screen.getByText('used 2h')).toBeTruthy()
-    expect(screen.getByText('v2')).toBeTruthy()
+    // Version is a key fact in the header AND a row of the Details facts
+    expect(screen.getAllByText('v2')).toHaveLength(2)
     expect(within(screen.getByRole('list', { name: 'Tags' })).getAllByRole('listitem')).toHaveLength(2)
-    expect(await screen.findByRole('link', { name: 'Project: Alpha' })).toBeTruthy()
+    // PageHeader joins the sr-only "Project: " and the name without a separator in the computed name
+    expect(await screen.findByRole('link', { name: /Project:\s*Alpha/ })).toBeTruthy()
 
     // Vital signs
     const vitals = screen.getByRole('region', { name: 'Vital signs' })
@@ -161,15 +160,15 @@ describe('SkillDetailPage', () => {
     expect(within(h).getByText(/4 days remaining/)).toBeTruthy()
 
     // Members
-    const m = screen.getByRole('region', { name: 'Members' })
-    expect(within(m).getByRole('button', { name: /Expand note: Rotate keys often/ })).toBeTruthy()
+    const m = screen.getByRole('region', { name: /^Members/ })
+    expect(within(m).getByRole('button', { name: /^Expand note: Rotate keys often/ })).toBeTruthy()
     expect(within(m).getByText('gotcha')).toBeTruthy()
     expect(within(m).getByText('High')).toBeTruthy()
     expect(within(m).getByRole('link', { name: 'Use RS256' }).getAttribute('href')).toBe('/workspace/ws/decisions/d1')
     expect(within(m).getByText('Chosen: RS256')).toBeTruthy()
 
     // Triggers
-    const t = screen.getByRole('region', { name: 'Triggers' })
+    const t = screen.getByRole('region', { name: /^Triggers/ })
     expect(within(t).getByText('jwt|token')).toBeTruthy()
     expect(within(t).getByText('Regex')).toBeTruthy()
     expect(within(t).getByText('threshold 0.60')).toBeTruthy()
@@ -187,12 +186,13 @@ describe('SkillDetailPage', () => {
 
   it('removes a member after confirmation', async () => {
     renderPage()
-    const m = await screen.findByRole('region', { name: 'Members' })
+    const m = await screen.findByRole('region', { name: /^Members/ })
     fireEvent.click(within(m).getByRole('button', { name: 'Actions for Use RS256' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Remove from skill' }))
     expect(removeMember).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
     await waitFor(() => expect(removeMember).toHaveBeenCalledWith('s1', 'decision', 'd1'))
+    expect(getMembers).toHaveBeenCalledTimes(2)
   })
 
   it('edits and saves the context template in place', async () => {
