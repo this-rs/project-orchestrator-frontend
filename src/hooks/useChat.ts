@@ -38,6 +38,11 @@ interface LoadedWindow {
   lastEvent?: { type?: string }
 }
 
+/** Whether a window shows the user any conversation, not only background-activity noise. */
+function hasConversation(messages: ReadonlyArray<ChatMessage>): boolean {
+  return messages.some((m) => m.blocks.some((b) => b.type !== 'background_activity'))
+}
+
 /** Fetch one window of raw events and assemble it. */
 async function fetchWindow(sid: string, offset: number, limit: number): Promise<LoadedWindow> {
   const data = await chatApi.getMessages(sid, { limit, offset })
@@ -63,15 +68,22 @@ async function fetchWindow(sid: string, offset: number, limit: number): Promise<
  * container, so "load older" can never be reached: the history is then
  * unrecoverable from the UI, which is why this is worth a retry loop.
  *
- * So when a window assembles to nothing and older events exist, widen it —
- * keeping the END anchored on the tail rather than walking backwards, so the
- * caller still holds a true tail window (`isAtTail`, no "newer" page) and live
- * events keep appending normally.
+ * Since F10, orphan ticks are no longer dropped but rendered as
+ * `background_activity` blocks — so a window of nothing but ticks is not
+ * empty anymore, yet it still shows the user none of their conversation. A
+ * window therefore counts as renderable only when it carries something other
+ * than background activity: the last real exchange, with the activity block
+ * after it.
+ *
+ * So when a window assembles to no conversation and older events exist, widen
+ * it — keeping the END anchored on the tail rather than walking backwards, so
+ * the caller still holds a true tail window (`isAtTail`, no "newer" page) and
+ * live events keep appending normally.
  */
 async function fetchRenderableTail(sid: string, total: number): Promise<LoadedWindow> {
   let limit = PAGE_SIZE
   let win = await fetchWindow(sid, Math.max(0, total - limit), limit)
-  while (win.messages.length === 0 && win.offset > 0 && limit < MAX_RENDERABLE_TAIL) {
+  while (!hasConversation(win.messages) && win.offset > 0 && limit < MAX_RENDERABLE_TAIL) {
     limit = Math.min(limit * 4, MAX_RENDERABLE_TAIL)
     win = await fetchWindow(sid, Math.max(0, total - limit), limit)
   }
