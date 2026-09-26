@@ -15,6 +15,7 @@ import { ResultErrorBlock } from './ResultErrorBlock'
 import { SystemInitBlock } from './SystemInitBlock'
 import { ContinueIndicatorBlock } from './ContinueIndicatorBlock'
 import { RetryIndicatorBlock } from './RetryIndicatorBlock'
+import { BackgroundActivityBlock } from './BackgroundActivityBlock'
 import { VizBlockRenderer } from './viz'
 import { CopyMarkdownButton } from './CopyMarkdownButton'
 import { messageBodyToMarkdown } from '@/utils/chatExport'
@@ -337,6 +338,14 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
             case 'viz':
               return (
                 <VizBlockRenderer
+                  key={block.id}
+                  block={block}
+                />
+              )
+
+            case 'background_activity':
+              return (
+                <BackgroundActivityBlock
                   key={block.id}
                   block={block}
                 />

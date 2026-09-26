@@ -289,6 +289,7 @@ export type ChatEvent =
   | { type: 'retrying'; attempt: number; max_attempts: number; delay_ms: number; error_message: string }
   | { type: 'viz_block'; viz_type: string; data: Record<string, unknown>; interactive?: boolean; fallback_text: string; title?: string; max_height?: number }
   | { type: 'background_output'; source: string; content: string; received_at: string; correlation_id?: string }
+  | { type: 'workflow'; subtype: string; data: Record<string, unknown> }
   | { type: 'session_error'; reason: string; message: string; received_at: string }
   | { type: 'tools_cancelled'; cli_pid?: number; killed_count: number; requested_by: string }
   | { type: 'active_tasks_update'; tasks: BackgroundTaskInfo[] }
@@ -489,9 +490,45 @@ export interface MessageSearchResult {
 
 export interface ContentBlock {
   id: string
-  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'permission_request' | 'input_request' | 'ask_user_question' | 'error' | 'compact_boundary' | 'model_changed' | 'result_max_turns' | 'result_error' | 'system_init' | 'system_hint' | 'continue_indicator' | 'retry_indicator' | 'viz'
+  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'permission_request' | 'input_request' | 'ask_user_question' | 'error' | 'compact_boundary' | 'model_changed' | 'result_max_turns' | 'result_error' | 'system_init' | 'system_hint' | 'continue_indicator' | 'retry_indicator' | 'viz' | 'background_activity'
   content: string
   metadata?: Record<string, unknown>
+}
+
+/**
+ * One background-subagent progress tick, as stored under a `tool_use`
+ * block's `metadata.child_outputs` (F6) or a `background_activity`
+ * block's `metadata.entries` (F10).
+ */
+export interface BackgroundOutputEntry {
+  source: string
+  content: string
+  received_at: string
+}
+
+/** Cap on the entries kept on a `background_activity` block (count keeps growing). */
+export const BACKGROUND_ACTIVITY_MAX_ENTRIES = 20
+
+/**
+ * `metadata` of a `background_activity` ContentBlock (F10 — orphan
+ * tolerance). Produced when a `background_output` / `workflow` tick has
+ * no parent `tool_use` block in the loaded window: rather than dropping
+ * the tick, the assembler groups every orphan sharing a
+ * `correlation_id` into one such block on the current assistant message.
+ */
+export interface BackgroundActivityMetadata {
+  /** Grouping key: `correlation_id` (background_output) / `data.tool_use_id` (workflow). */
+  correlation_id?: string
+  /** Source of the latest tick (`Monitor`, `BashOutput`, `Workflow`…). */
+  source: string
+  /** Total ticks folded into this block — may exceed `entries.length`. */
+  count: number
+  first_received_at: string
+  last_received_at: string
+  subagent_type?: string
+  description?: string
+  /** The last `BACKGROUND_ACTIVITY_MAX_ENTRIES` ticks, oldest first. */
+  entries: BackgroundOutputEntry[]
 }
 
 export interface ChatMessage {
