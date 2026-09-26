@@ -1,6 +1,11 @@
+/**
+ * Decision detail — the decision (first line = title), its rationale, the
+ * alternatives considered, the code it constrains, its supersession timeline
+ * and lifecycle actions. Route: /workspace/:slug/decisions/:decisionId
+ */
 import { createElement, useState, useEffect, useCallback } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowRightLeft, Check, CheckCircle2, Copy, Pencil, Plus, Scale, Trash2, Unlink } from 'lucide-react'
+import { ArrowRightLeft, CheckCircle2, Copy, Pencil, Plus, Scale, Trash2, Unlink } from 'lucide-react'
 import { decisionsApi } from '@/services'
 import { ApiError } from '@/services/api'
 import {
@@ -13,17 +18,14 @@ import {
   ErrorState,
   Facts,
   FormDialog,
-  Input,
   PageContainer,
   PageHeader,
   RelativeTime,
   Section,
-  Select,
   Skeleton,
   SkeletonLine,
   StatusMenu,
   StatusText,
-  Textarea,
   TONE_CLASSES,
   formatAbsolute,
   inlineLink,
@@ -32,16 +34,10 @@ import {
 } from '@/components/ui'
 import { useFormDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import { useViewTransition } from '@/hooks/useViewTransition'
+import { useDecisionAffectsForm, useEditDecisionForm } from '@/components/forms/DecisionForms'
 import { entityHref, entityIcon } from '@/components/knowledge/noteMeta'
 import { workspacePath } from '@/utils/paths'
 import type { Decision, DecisionStatus, DecisionAffects, DecisionTimelineEntry } from '@/types'
-
-const AFFECTS_TYPES = [
-  { value: 'File', label: 'File' },
-  { value: 'Function', label: 'Function' },
-  { value: 'Struct', label: 'Struct' },
-  { value: 'Trait', label: 'Trait' },
-]
 
 /** First line of the description (plain text) — the decision's title. */
 function decisionTitle(description: string): string {
@@ -76,28 +72,14 @@ export function DecisionDetailPage() {
   const { decisionId } = useParams<{ decisionId: string }>()
   const wsSlug = useWorkspaceSlug()
   const toast = useToast()
-  const affectsFormDialog = useFormDialog()
   const { navigate } = useViewTransition()
   const decisionsHref = workspacePath(wsSlug, '/decisions')
 
-  // ── State ───────────────────────────────────────────────────────────
   const [decision, setDecision] = useState<Decision | null>(null)
   const [affects, setAffects] = useState<DecisionAffects[]>([])
   const [timeline, setTimeline] = useState<DecisionTimelineEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<'not-found' | string | null>(null)
-
-  // Edit mode for the context section
-  const [editing, setEditing] = useState(false)
-  const [descDraft, setDescDraft] = useState('')
-  const [rationaleDraft, setRationaleDraft] = useState('')
-  const [chosenDraft, setChosenDraft] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  // Add affects form state
-  const [affEntityType, setAffEntityType] = useState('File')
-  const [affEntityId, setAffEntityId] = useState('')
-  const [affImpact, setAffImpact] = useState('')
 
   // ── Fetch ───────────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -117,7 +99,7 @@ export function DecisionDetailPage() {
       }
     } catch (err) {
       setDecision(null)
-      setError(err instanceof ApiError && err.status === 404 ? 'not-found' : 'Failed to load decision')
+      setError(err instanceof ApiError && err.status === 404 ? 'not-found' : 'Could not load this decision.')
     } finally {
       setLoading(false)
     }
@@ -127,7 +109,7 @@ export function DecisionDetailPage() {
     fetchData()
   }, [fetchData])
 
-  // ── Handlers ────────────────────────────────────────────────────────
+  // ── Mutations ───────────────────────────────────────────────────────
 
   const handleDelete = async () => {
     await decisionsApi.delete(decisionId!)
@@ -146,66 +128,37 @@ export function DecisionDetailPage() {
     }
   }
 
-  const startEditing = () => {
-    if (!decision) return
-    setDescDraft(decision.description)
-    setRationaleDraft(decision.rationale)
-    setChosenDraft(decision.chosen_option || '')
-    setEditing(true)
-  }
-
-  const handleSave = async () => {
-    if (!decision) return
-    setSaving(true)
-    try {
-      await decisionsApi.update(decision.id, {
-        description: descDraft.trim(),
-        rationale: rationaleDraft.trim(),
-        chosen_option: chosenDraft.trim() || undefined,
-      })
-      setDecision({
-        ...decision,
-        description: descDraft.trim(),
-        rationale: rationaleDraft.trim(),
-        chosen_option: chosenDraft.trim() || undefined,
-      })
-      setEditing(false)
-      toast.success('Decision updated')
-    } catch {
-      toast.error('Failed to save')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const openAddAffects = () => {
-    setAffEntityType('File')
-    setAffEntityId('')
-    setAffImpact('')
-    affectsFormDialog.open({ title: 'Add affected entity', size: 'md', submitLabel: 'Add' })
-  }
-
-  const handleAddAffects = async () => {
-    if (!decisionId || !affEntityId.trim()) return false
-    try {
-      await decisionsApi.addAffects(decisionId, {
-        entity_type: affEntityType,
-        entity_id: affEntityId.trim(),
-        impact_description: affImpact.trim() || undefined,
-      })
-      const aff = await decisionsApi.listAffects(decisionId)
-      setAffects(aff)
-      toast.success('Affects added')
-    } catch {
-      toast.error('Failed to add affects')
-      return false
-    }
-  }
-
   const handleRemoveAffects = async (entityType: string, entityId: string) => {
     await decisionsApi.removeAffects(decisionId!, entityType, entityId)
     setAffects((prev) => prev.filter((a) => !(a.entity_type === entityType && a.entity_id === entityId)))
-    toast.success('Affects removed')
+    toast.success('Link removed')
+  }
+
+  // ── Dialogs ─────────────────────────────────────────────────────────
+
+  const editDialog = useFormDialog()
+  const editForm = useEditDecisionForm(async (data) => {
+    if (!decision) return
+    await decisionsApi.update(decision.id, data)
+    setDecision({ ...decision, ...data })
+    toast.success('Decision updated')
+  })
+  const openEdit = () => {
+    if (!decision) return
+    editForm.reset({ description: decision.description, rationale: decision.rationale, chosen_option: decision.chosen_option })
+    editDialog.open({ title: 'Edit decision', size: 'lg', submitLabel: 'Save' })
+  }
+
+  const affectsDialog = useFormDialog()
+  const affectsForm = useDecisionAffectsForm(async (data) => {
+    if (!decisionId) return
+    await decisionsApi.addAffects(decisionId, data)
+    setAffects(await decisionsApi.listAffects(decisionId))
+    toast.success('Affected entity added')
+  })
+  const openAddAffects = () => {
+    affectsForm.reset()
+    affectsDialog.open({ title: 'Add affected entity', submitLabel: 'Add' })
   }
 
   // ── Loading / Error ─────────────────────────────────────────────────
@@ -230,7 +183,7 @@ export function DecisionDetailPage() {
   if (error || !decision) {
     return (
       <PageContainer width="wide">
-        <ErrorState title="Could not load the decision" description={error || 'Could not load decision.'} onRetry={fetchData} />
+        <ErrorState title="Could not load the decision" description={error ?? undefined} onRetry={fetchData} />
       </PageContainer>
     )
   }
@@ -248,7 +201,7 @@ export function DecisionDetailPage() {
         meta={[
           decision.chosen_option ? (
             <span key="chosen" className="inline-flex items-center gap-1 min-w-0 text-gray-300" title={`Chosen: ${decision.chosen_option}`}>
-              <CheckCircle2 className="w-3 h-3 shrink-0 text-emerald-400" aria-label="Chosen option" />
+              <CheckCircle2 className={`w-3 h-3 shrink-0 ${TONE_CLASSES.success.text}`} aria-label="Chosen option" />
               <span className="break-words">{decision.chosen_option}</span>
             </span>
           ) : null,
@@ -258,7 +211,7 @@ export function DecisionDetailPage() {
           affects.length ? `affects ${pluralize(affects.length, 'entity', 'entities')}` : null,
         ]}
         overflowActions={[
-          { label: 'Edit', icon: Pencil, onClick: startEditing, hidden: editing },
+          { label: 'Edit', icon: Pencil, onClick: openEdit },
           { label: 'Add affected entity', icon: Plus, onClick: openAddAffects },
           {
             label: 'Copy ID',
@@ -277,7 +230,7 @@ export function DecisionDetailPage() {
             icon: Trash2,
             variant: 'danger',
             onClick: handleDelete,
-            confirm: { title: 'Delete Decision', description: 'Permanently delete this decision? This cannot be undone.' },
+            confirm: { title: 'Delete decision?', description: 'The decision and its links are permanently deleted. This cannot be undone.' },
           },
         ]}
       />
@@ -293,52 +246,26 @@ export function DecisionDetailPage() {
       <Section
         title="Context"
         action={
-          editing ? (
-            <>
-              <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
-                Cancel
-              </Button>
-              <Button size="sm" onClick={handleSave} loading={saving}>
-                <Check className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Save
-              </Button>
-            </>
-          ) : (
-            <Button variant="ghost" size="sm" onClick={startEditing}>
-              <Pencil className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Edit
-            </Button>
-          )
+          <Button variant="ghost" size="sm" onClick={openEdit}>
+            <Pencil className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Edit
+          </Button>
         }
       >
         <div className={`${surface} px-4 py-3 space-y-4`}>
-          {editing ? (
-            <>
-              <Textarea label="Description" value={descDraft} onChange={(e) => setDescDraft(e.target.value)} rows={3} />
-              <Textarea label="Rationale" value={rationaleDraft} onChange={(e) => setRationaleDraft(e.target.value)} rows={5} />
-              <Input
-                label="Chosen option"
-                value={chosenDraft}
-                onChange={(e) => setChosenDraft(e.target.value)}
-                placeholder="e.g. Option A"
-              />
-            </>
-          ) : (
-            <>
-              {!descriptionIsTitle && (
-                <div>
-                  <h3 className="text-xs text-gray-500 mb-1">Description</h3>
-                  <CollapsibleMarkdown content={decision.description} maxHeight={320} />
-                </div>
-              )}
-              <div>
-                <h3 className="text-xs text-gray-500 mb-1">Rationale</h3>
-                {decision.rationale ? (
-                  <CollapsibleMarkdown content={decision.rationale} maxHeight={320} />
-                ) : (
-                  <p className="text-sm text-gray-500">No rationale recorded.</p>
-                )}
-              </div>
-            </>
+          {!descriptionIsTitle && (
+            <div>
+              <h3 className="text-xs text-gray-500 mb-1">Description</h3>
+              <CollapsibleMarkdown content={decision.description} maxHeight={320} />
+            </div>
           )}
+          <div>
+            <h3 className="text-xs text-gray-500 mb-1">Rationale</h3>
+            {decision.rationale ? (
+              <CollapsibleMarkdown content={decision.rationale} maxHeight={320} />
+            ) : (
+              <p className="text-sm text-gray-500">No rationale recorded.</p>
+            )}
+          </div>
         </div>
       </Section>
 
@@ -356,14 +283,14 @@ export function DecisionDetailPage() {
                   title={alt}
                   leading={
                     chosen ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" aria-label="Chosen" />
+                      <CheckCircle2 className={`w-4 h-4 ${TONE_CLASSES.success.text}`} aria-label="Chosen" />
                     ) : (
                       <span className="w-4 h-4 inline-flex items-center justify-center" aria-hidden="true">
                         <span className="w-1.5 h-1.5 rounded-full bg-gray-600" />
                       </span>
                     )
                   }
-                  trailing={chosen ? <span className="text-emerald-400">chosen</span> : undefined}
+                  trailing={chosen ? <span className={TONE_CLASSES.success.text}>chosen</span> : undefined}
                 />
               )
             })}
@@ -386,7 +313,7 @@ export function DecisionDetailPage() {
           <EmptyState
             size="sm"
             title="No affected entities"
-            description="Link this decision to files, functions, or structs it impacts."
+            description="Link this decision to the files, functions or structs it impacts."
           />
         ) : (
           <EntityList aria-label="Affected entities">
@@ -413,7 +340,7 @@ export function DecisionDetailPage() {
                       icon: Unlink,
                       variant: 'danger',
                       onClick: () => handleRemoveAffects(aff.entity_type, aff.entity_id),
-                      confirm: { title: 'Remove Affects', description: `Remove impact link to ${aff.entity_type} "${aff.entity_id}"?` },
+                      confirm: { title: 'Remove this link?', description: `The decision will no longer be attached to ${name}.` },
                     },
                   ]}
                 />
@@ -426,7 +353,7 @@ export function DecisionDetailPage() {
       {/* ── Timeline ────────────────────────────────────────────────── */}
       <Section title="Timeline" count={timeline.length} description="How this decision evolved (supersessions).">
         {timeline.length === 0 ? (
-          <EmptyState size="sm" title="No timeline entries" description="Timeline shows the decision's evolution over time." />
+          <EmptyState size="sm" title="No timeline entries" description="The timeline shows the decision's evolution over time." />
         ) : (
           <EntityList aria-label="Timeline">
             {timeline.map((entry, i) => (
@@ -441,12 +368,12 @@ export function DecisionDetailPage() {
                       <Link
                         key="sb"
                         to={workspacePath(wsSlug, `/decisions/${entry.superseded_by}`)}
-                        className={`relative z-10 text-amber-400 ${inlineLink}`}
+                        className={`relative z-10 ${TONE_CLASSES.warning.text} ${inlineLink}`}
                       >
                         superseded — see newer
                       </Link>
                     ) : (
-                      <span key="sb" className="text-amber-400">
+                      <span key="sb" className={TONE_CLASSES.warning.text}>
                         superseded by another decision
                       </span>
                     )
@@ -474,22 +401,11 @@ export function DecisionDetailPage() {
 
       {/* ENTITY_GRAPH_SLOT entity_type="decision" entity_id={decision.id} */}
 
-      <FormDialog {...affectsFormDialog.dialogProps} onSubmit={handleAddAffects}>
-        <Select label="Entity Type" options={AFFECTS_TYPES} value={affEntityType} onChange={(v) => setAffEntityType(v)} />
-        <Input
-          label="Entity ID"
-          placeholder="e.g. src/api/handlers.rs or function_name"
-          value={affEntityId}
-          onChange={(e) => setAffEntityId(e.target.value)}
-          autoFocus
-        />
-        <Textarea
-          label="Impact Description"
-          placeholder="How does this decision affect this entity? (optional)"
-          value={affImpact}
-          onChange={(e) => setAffImpact(e.target.value)}
-          rows={3}
-        />
+      <FormDialog {...editDialog.dialogProps} onSubmit={editForm.submit}>
+        {editForm.fields}
+      </FormDialog>
+      <FormDialog {...affectsDialog.dialogProps} onSubmit={affectsForm.submit}>
+        {affectsForm.fields}
       </FormDialog>
     </PageContainer>
   )
