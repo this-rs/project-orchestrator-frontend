@@ -18,12 +18,12 @@ import {
   StatusDot,
   StatusText,
   Switch,
-  TONE_CLASSES,
   guessTone,
   humanizeStatus,
   type StatusTone,
 } from '@/components/ui'
 import { Notice, SettingRow, SettingsList } from '@/components/settings/SettingRow'
+import { ToneText } from '@/components/settings/ToneText'
 import { sharingApi, workspacesApi } from '@/services'
 import { useConfirmDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import type {
@@ -47,16 +47,6 @@ const CONSENT: Record<string, { label: string; tone: StatusTone }> = {
   not_set: { label: 'Not set', tone: 'neutral' },
 }
 
-/** Dot + label in an explicit tone (consent / override values have their own semantics). */
-function ToneText({ tone, label }: { tone: StatusTone; label: string }) {
-  return (
-    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap ${TONE_CLASSES[tone].text}`}>
-      <StatusDot tone={tone} />
-      {label}
-    </span>
-  )
-}
-
 function ConsentText({ consent }: { consent: string }) {
   const c = CONSENT[consent] ?? { label: humanizeStatus(consent), tone: guessTone(consent) }
   return <ToneText tone={c.tone} label={c.label} />
@@ -65,9 +55,9 @@ function ConsentText({ consent }: { consent: string }) {
 const OVERRIDE_TONE: Record<string, StatusTone> = { never: 'danger', auto: 'success', review: 'warning' }
 
 const MODE_HELP: Record<SharingMode, string> = {
-  manual: 'Rien ne part sans votre accord explicite, note par note.',
-  suggest: 'Les notes au-dessus du seuil vous sont proposées ; vous validez.',
-  auto: 'Les notes au-dessus du seuil sont partagées automatiquement.',
+  manual: 'Nothing leaves without your explicit approval, note by note.',
+  suggest: 'Notes above the threshold are suggested to you; you approve each one.',
+  auto: 'Notes above the threshold are shared automatically.',
 }
 
 const modeOptions = [
@@ -114,34 +104,47 @@ export function SharingPage() {
     <PageContainer width="narrow" className="space-y-6">
       <PageHeader
         title="Sharing & Privacy"
-        description="Décide quelles notes de ce projet peuvent être partagées avec d'autres instances, montre ce qui partirait, et permet de retirer un partage (tombstone signée)."
-        meta={[projectName ? <span key="p">Project {projectName}</span> : null]}
-        actions={
-          projects.length > 1 ? (
-            <Select
-              options={projects.map((p) => ({ value: p.slug, label: p.name }))}
-              value={selectedProject}
-              onChange={setSelectedProject}
-              className="w-44"
-            />
-          ) : undefined
-        }
+        description="Decide which notes of a project may be shared with other instances, see what would leave, and retract a share with a signed tombstone."
       />
 
       {!projectsLoaded ? (
         <SkeletonCard lines={4} />
       ) : projects.length === 0 ? (
-        <EmptyState title="No project in this workspace" description="Ajoutez un projet au workspace pour configurer le partage." />
-      ) : !projectSlug ? (
-        <Notice tone="warning">Choisissez un projet pour configurer le partage.</Notice>
+        <EmptyState title="No project in this workspace" description="Add a project to the workspace to configure sharing." />
       ) : (
         <>
-          <PolicySection slug={projectSlug} onChanged={() => setPolicyVersion((v) => v + 1)} />
-          <SuggestSection slug={projectSlug} version={policyVersion} />
-          <LastReportSection slug={projectSlug} version={policyVersion} />
-          <PreviewSection slug={projectSlug} version={policyVersion} />
-          <AuditTrailSection slug={projectSlug} />
-          <TombstonesSection slug={projectSlug} />
+          {/* Scope: the whole page is configured per project (a scope selector, not a header action — §6). */}
+          <SettingsList>
+            <SettingRow
+              label="Project"
+              description="Sharing is configured per project."
+              control={
+                projects.length > 1 ? (
+                  <Select
+                    options={projects.map((p) => ({ value: p.slug, label: p.name }))}
+                    value={selectedProject}
+                    onChange={setSelectedProject}
+                    className="w-44"
+                  />
+                ) : (
+                  <span className="text-sm text-gray-300">{projectName}</span>
+                )
+              }
+            />
+          </SettingsList>
+
+          {!projectSlug ? (
+            <Notice tone="warning">Choose a project to configure sharing.</Notice>
+          ) : (
+            <>
+              <PolicySection slug={projectSlug} onChanged={() => setPolicyVersion((v) => v + 1)} />
+              <SuggestSection slug={projectSlug} version={policyVersion} />
+              <LastReportSection slug={projectSlug} version={policyVersion} />
+              <PreviewSection slug={projectSlug} version={policyVersion} />
+              <AuditTrailSection slug={projectSlug} />
+              <TombstonesSection slug={projectSlug} />
+            </>
+          )}
         </>
       )}
     </PageContainer>
@@ -188,8 +191,8 @@ function PolicySection({ slug, onChanged }: { slug: string; onChanged: () => voi
     confirmDialog.open({
       title: enabling ? 'Enable sharing' : 'Disable sharing',
       description: enabling
-        ? 'Les notes pourront être partagées selon la politique ci-dessous. Désactivable à tout moment.'
-        : 'Plus aucune note de ce projet ne sera partagée. Les partages existants ne sont pas retirés.',
+        ? 'Notes may be shared according to the policy below. You can disable this at any time.'
+        : 'No more notes from this project will be shared. Existing shares are not retracted.',
       variant: enabling ? 'info' : 'warning',
       confirmLabel: enabling ? 'Enable' : 'Disable',
       onConfirm: async () => {
@@ -247,8 +250,8 @@ function PolicySection({ slug, onChanged }: { slug: string; onChanged: () => voi
             label="Sharing"
             description={
               enabled
-                ? 'Activé : les notes peuvent être partagées selon la politique ci-dessous.'
-                : 'Désactivé : aucune note ne quitte ce projet.'
+                ? 'Enabled: notes may be shared according to the policy below.'
+                : 'Disabled: no note leaves this project.'
             }
             control={<Switch checked={enabled} onChange={handleToggle} ariaLabel="Sharing" />}
           />
@@ -263,7 +266,7 @@ function PolicySection({ slug, onChanged }: { slug: string; onChanged: () => voi
               />
               <SettingRow
                 label="Min score"
-                description="Score de partageabilité (0 à 1) en dessous duquel une note n'est jamais proposée."
+                description="Shareability score (0 to 1) below which a note is never suggested."
                 control={
                   <div className="w-24">
                     <Input
@@ -282,15 +285,15 @@ function PolicySection({ slug, onChanged }: { slug: string; onChanged: () => voi
               />
               <SettingRow
                 label="L3 scan"
-                description="Contrôle approfondi du contenu avant tout partage."
+                description="Deep content check before anything is shared."
                 control={<StatusText status={policy.l3_scan_enabled ? 'enabled' : 'disabled'} label={policy.l3_scan_enabled ? 'On' : 'Off'} />}
               />
               <SettingRow
                 label="Type overrides"
                 description={
                   overrides.length > 0
-                    ? 'Règles forcées pour certains types de notes, prioritaires sur le mode.'
-                    : 'Aucune règle par type : le mode s’applique à toutes les notes.'
+                    ? 'Forced rules for some note types, taking precedence over the mode.'
+                    : 'No per-type rule: the mode applies to every note.'
                 }
                 control={<span className="text-sm tabular-nums text-gray-400">{overrides.length}</span>}
               >
@@ -354,14 +357,14 @@ function SuggestSection({ slug, version }: { slug: string; version: number }) {
     <Section
       title="Suggestions"
       count={suggestions.length || undefined}
-      description="Notes au-dessus du seuil sans consentement : autorisez ou refusez leur partage."
+      description="Notes above the threshold with no consent yet: allow or deny their sharing."
       collapsible
       defaultOpen={false}
     >
       {loading ? (
         <EntityListSkeleton rows={3} />
       ) : suggestions.length === 0 ? (
-        <EmptyState size="sm" title="Nothing to review" description="Toutes les notes éligibles ont déjà un consentement, ou aucune ne dépasse le seuil." />
+        <EmptyState size="sm" title="Nothing to review" description="Every eligible note already has a consent, or none scores above the threshold." />
       ) : (
         <EntityList>
           {suggestions.map((s) => (
@@ -371,6 +374,7 @@ function SuggestSection({ slug, version }: { slug: string; version: number }) {
               trailing={<span title="Shareability score">{s.shareability_score.toFixed(2)}</span>}
               meta={[s.note_type, <span key="id" className="font-mono" title={s.note_id}>{shortId(s.note_id)}</span>, s.reason]}
             >
+              {/* Allow / Deny are the row's purpose (a review queue), so they stay visible. */}
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="secondary" onClick={() => handleConsent(s.note_id, 'explicit_allow')}>
                   <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-emerald-400" aria-hidden="true" />
@@ -420,20 +424,20 @@ function LastReportSection({ slug, version }: { slug: string; version: number })
   return (
     <Section
       title="Privacy report"
-      description={generatedAt && stats ? <RelativeTime date={generatedAt} prefix="Généré " /> : undefined}
+      description={generatedAt && stats ? <RelativeTime date={generatedAt} prefix="generated " /> : undefined}
     >
       {loading ? (
         <SkeletonCard lines={2} />
       ) : !stats ? (
-        <p className="text-sm text-gray-500">Pas encore de rapport : activez le partage et donnez un consentement sur des notes.</p>
+        <EmptyState size="sm" title="No report yet" description="Enable sharing and set a consent on some notes to get one." />
       ) : (
         <Facts
           columns={2}
           items={[
-            { label: 'Allowed', value: <Count n={stats.consent_allowed} hint="notes autorisées" /> },
-            { label: 'Denied', value: <Count n={stats.consent_denied} hint="notes refusées" warn /> },
-            { label: 'Pending', value: <Count n={stats.consent_pending} hint="en attente de décision" warn /> },
-            { label: 'Denial reasons', value: <Count n={stats.denied_reasons.length} hint="motifs de refus distincts" /> },
+            { label: 'Allowed', value: <Count n={stats.consent_allowed} hint="notes allowed" /> },
+            { label: 'Denied', value: <Count n={stats.consent_denied} hint="notes denied" warn /> },
+            { label: 'Pending', value: <Count n={stats.consent_pending} hint="awaiting a decision" warn /> },
+            { label: 'Denial reasons', value: <Count n={stats.denied_reasons.length} hint="distinct reasons" /> },
           ]}
         />
       )}
@@ -483,8 +487,8 @@ function PreviewSection({ slug, version }: { slug: string; version: number }) {
       count={items.length || undefined}
       description={
         items.length > 0
-          ? `Avec la politique actuelle : ${allowed} partagée${allowed > 1 ? 's' : ''}, ${items.length - allowed} bloquée${items.length - allowed > 1 ? 's' : ''}.`
-          : 'Ce qui serait partagé avec la politique actuelle.'
+          ? `With the current policy: ${allowed} would be shared, ${items.length - allowed} blocked.`
+          : 'What would be shared with the current policy.'
       }
       collapsible
       defaultOpen={false}
@@ -492,20 +496,21 @@ function PreviewSection({ slug, version }: { slug: string; version: number }) {
       {loading ? (
         <EntityListSkeleton rows={3} />
       ) : items.length === 0 ? (
-        <EmptyState size="sm" title="Nothing to preview" description="Le projet n'a pas de notes, ou le partage est désactivé." />
+        <EmptyState size="sm" title="Nothing to preview" description="The project has no notes, or sharing is disabled." />
       ) : (
         <EntityList>
           {items.map((item) => {
             const allow = item.decision === 'allow'
+            const decision = allow ? 'Would be shared' : 'Blocked'
             return (
               <EntityRow
                 key={item.note_id}
                 title={item.content_preview || `Note ${shortId(item.note_id)}`}
-                leading={<StatusDot tone={allow ? 'success' : 'danger'} label={allow ? 'Would be shared' : 'Blocked'} />}
+                leading={<StatusDot tone={allow ? 'success' : 'danger'} label={decision} />}
                 trailing={<span title="Shareability score">{item.shareability_score.toFixed(2)}</span>}
                 muted={!allow}
                 meta={[
-                  <StatusText key="d" status={allow ? 'success' : 'denied'} label={allow ? 'Shared' : 'Blocked'} dot={false} />,
+                  <ToneText key="d" tone={allow ? 'success' : 'danger'} label={decision} dot={false} />,
                   <ConsentText key="c" consent={item.consent} />,
                   item.note_type,
                   <span key="id" className="font-mono" title={item.note_id}>{shortId(item.note_id)}</span>,
@@ -549,7 +554,7 @@ function AuditTrailSection({ slug }: { slug: string }) {
   return (
     <Section
       title="Audit trail"
-      description="Historique de chaque partage ou retrait, avec le consentement appliqué."
+      description="Every share or retraction, with the consent that applied."
       collapsible
       defaultOpen={false}
     >
@@ -560,22 +565,28 @@ function AuditTrailSection({ slug }: { slug: string }) {
       ) : (
         <div className="space-y-2">
           <EntityList>
-            {events.map((ev) => (
-              <EntityRow
-                key={ev.id}
-                title={`${ev.action} · ${ev.artifact_type}`}
-                leading={<StatusDot tone={ev.action === 'retracted' ? 'danger' : 'info'} />}
-                trailing={<RelativeTime date={ev.timestamp} />}
-                description={ev.reason}
-                meta={[
-                  <ConsentText key="c" consent={ev.consent} />,
-                  <span key="src" className="font-mono truncate max-w-[12rem]" title={ev.source_did}>
-                    {ev.source_did}
-                  </span>,
-                ]}
-              />
-            ))}
+            {events.map((ev) => {
+              const retracted = ev.action === 'retracted'
+              const action = humanizeStatus(ev.action)
+              return (
+                <EntityRow
+                  key={ev.id}
+                  title={action}
+                  leading={<StatusDot tone={retracted ? 'danger' : 'info'} label={action} />}
+                  trailing={<RelativeTime date={ev.timestamp} />}
+                  description={ev.reason}
+                  meta={[
+                    ev.artifact_type,
+                    <ConsentText key="c" consent={ev.consent} />,
+                    <span key="src" className="font-mono truncate max-w-[12rem]" title={ev.source_did}>
+                      {ev.source_did}
+                    </span>,
+                  ]}
+                />
+              )
+            })}
           </EntityList>
+          {/* Offset-based history without a total: prev / next only (the Pagination primitive needs a page count). */}
           <div className="flex items-center justify-between gap-2">
             <Button variant="ghost" size="sm" onClick={() => setOffset(Math.max(0, offset - PAGE))} disabled={offset === 0}>
               <ChevronLeft className="w-4 h-4 mr-1" aria-hidden="true" />
@@ -627,15 +638,15 @@ function TombstonesSection({ slug }: { slug: string }) {
   const handleRetract = () => {
     if (!retractNoteId.trim()) return
     confirmDialog.open({
-      title: 'Retract shared artifact',
-      description: `Crée une tombstone signée pour la note « ${retractNoteId.trim()} » et passe son consentement à Denied. Irréversible.`,
+      title: 'Retract shared note',
+      description: `Creates a signed tombstone for note “${retractNoteId.trim()}” and sets its consent to Denied. This cannot be undone.`,
       variant: 'danger',
       confirmLabel: 'Retract',
       onConfirm: async () => {
         setRetracting(true)
         try {
           await sharingApi.retract(slug, { note_id: retractNoteId.trim(), reason: retractReason.trim() || undefined })
-          toast.success('Artifact retracted successfully')
+          toast.success('Note retracted')
           setRetractNoteId('')
           setRetractReason('')
           fetchTombstones()
@@ -652,13 +663,13 @@ function TombstonesSection({ slug }: { slug: string }) {
     <Section
       title="Retraction"
       count={tombstones.length || undefined}
-      description="Retirer une note déjà partagée : une tombstone signée demande aux autres instances de l'effacer."
+      description="Take back a note that was already shared: a signed tombstone asks the other instances to delete it."
       collapsible
       defaultOpen={false}
     >
       <div className="space-y-3">
         <SettingsList>
-          <SettingRow label="Retract a note" description="Irréversible — la note ne pourra plus être partagée.">
+          <SettingRow label="Retract a note" description="Irreversible — the note can no longer be shared.">
             <div className="flex flex-wrap gap-2">
               <div className="flex-[1_1_12rem] min-w-0">
                 <Input
@@ -688,7 +699,7 @@ function TombstonesSection({ slug }: { slug: string }) {
         {loading ? (
           <EntityListSkeleton rows={2} />
         ) : tombstones.length === 0 ? (
-          <EmptyState size="sm" title="No tombstone" description="Les notes retirées apparaîtront ici." />
+          <EmptyState size="sm" title="No tombstone" description="Retracted notes will appear here." />
         ) : (
           <EntityList aria-label="Tombstones">
             {tombstones.map((t) => (

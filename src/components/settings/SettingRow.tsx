@@ -72,7 +72,7 @@ export function SettingRow({ label, description, control, meta, icon, children, 
 interface ActionRowProps {
   label: string
   description: ReactNode
-  /** Cost / risk in plain words, e.g. "Quelques secondes · sans risque". */
+  /** Cost / risk in plain words, e.g. "A few seconds · safe". */
   cost?: ReactNode
   icon?: ReactNode
   buttonLabel?: string

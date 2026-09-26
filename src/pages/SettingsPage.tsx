@@ -22,7 +22,7 @@ import { useCallback } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
 import { useAtom, useAtomValue } from 'jotai'
 import { ArrowLeft } from 'lucide-react'
-import { PageContainer, PageHeader, Section, focusRing, surface } from '@/components/ui'
+import { Button, PageContainer, PageHeader, Section, surface } from '@/components/ui'
 import { isTauri } from '@/services/env'
 import { PermissionSettingsPanel } from '@/components/chat/PermissionSettingsPanel'
 import { settingsReturnUrlAtom } from '@/atoms/setup'
@@ -71,23 +71,19 @@ export function SettingsPage() {
       <div className="px-4 md:px-6">
         <PageContainer width="narrow" className="space-y-6">
           <div className="space-y-1">
-            <button
-              type="button"
-              onClick={handleBack}
-              className={`-ml-2 inline-flex items-center gap-1.5 h-9 px-2 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] ${focusRing}`}
-            >
-              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+            <Button variant="ghost" size="sm" onClick={handleBack} className="-ml-3 text-gray-400">
+              <ArrowLeft className="w-4 h-4 mr-1.5" aria-hidden="true" />
               Back
-            </button>
+            </Button>
             <PageHeader
               title="Settings"
-              description="Réglages de l'application de bureau. Ils s'appliquent à toutes les conversations avec les agents."
+              description="Desktop app settings. They apply to every conversation with the agents."
             />
           </div>
 
           <Section
             title="Chat & AI"
-            description="Mode de permission, outils autorisés ou interdits, variables d'environnement et CLI Claude Code utilisée par les agents."
+            description="Permission mode, allowed and denied tools, environment variables and the Claude Code CLI used by the agents."
           >
             <div className={`${surface} overflow-hidden [&>div]:border-none`}>
               <PermissionSettingsPanel />

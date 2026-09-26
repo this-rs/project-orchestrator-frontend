@@ -100,7 +100,7 @@ describe('McpFederationPage', () => {
     expect(screen.getByText('returns array')).toBeTruthy()
     expect(screen.getByText(/note_search \(82%\)/)).toBeTruthy()
     expect(screen.getByText('timeout while calling search')).toBeTruthy()
-    expect(screen.getByText(/180 ms pour 95 %/)).toBeTruthy()
+    expect(screen.getByText(/180 ms at p95/)).toBeTruthy()
   })
 
   it('offers reconnect only for unreachable servers and confirms disconnect', async () => {
@@ -121,7 +121,7 @@ describe('McpFederationPage', () => {
   it('shows the empty state with a connect action', async () => {
     api.listServers.mockResolvedValue([])
     render(<McpFederationPage />)
-    expect(await screen.findByText('No MCP server connected')).toBeTruthy()
+    expect(await screen.findByText('No MCP servers connected')).toBeTruthy()
     expect(screen.getByRole('button', { name: /Connect server/ })).toBeTruthy()
   })
 })

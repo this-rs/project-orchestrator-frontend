@@ -96,7 +96,7 @@ export function FeatureGraphsPage() {
     },
   })
 
-  const openCreate = () => createDialog.open({ title: 'Create feature graph' })
+  const openCreate = () => createDialog.open({ title: 'New feature graph' })
   const openAutoBuild = () => autoBuildDialog.open({ title: 'Auto-build feature graph', size: 'lg', submitLabel: 'Build' })
 
   const handleDelete = async (graph: FeatureGraph) => {
@@ -112,77 +112,74 @@ export function FeatureGraphsPage() {
   const showProjectFilter = projects.length > 1
   const projectFilterActive = selectedProject !== 'all'
   const isPristine = graphs.length === 0 && !projectFilterActive
+  const clearAll = () => {
+    setSearch('')
+    setSelectedProject('all')
+  }
+
+  // Same two actions in the header and in the "nothing yet" empty state.
+  const createActions = (
+    <>
+      <Button size="sm" variant="secondary" onClick={openAutoBuild}>
+        <Sparkles className="w-4 h-4 mr-1.5" aria-hidden="true" />
+        Auto-build
+      </Button>
+      <Button size="sm" onClick={openCreate}>
+        <Plus className="w-4 h-4 mr-1" aria-hidden="true" />
+        New graph
+      </Button>
+    </>
+  )
 
   return (
     <PageShell
       title="Feature Graphs"
+      description="A feature graph groups the code (files, functions, types) that implements one feature. Auto-build assembles it by following calls from an entry function."
       count={loading ? undefined : filtered.length}
       width="wide"
-      actions={
-        <>
-          <Button size="sm" variant="secondary" onClick={openAutoBuild}>
-            <Sparkles className="w-4 h-4 mr-1.5" aria-hidden="true" />
-            Auto-build
-          </Button>
-          <Button size="sm" onClick={openCreate}>
-            <Plus className="w-4 h-4 mr-1" aria-hidden="true" />
-            New
-          </Button>
-        </>
-      }
+      actions={createActions}
       filters={
-        <div className="space-y-2">
-          <p className="text-xs text-gray-500">
-            Un feature graph regroupe le code (fichiers, fonctions, types) qui réalise une fonctionnalité. Auto-build le construit en
-            suivant les appels depuis une fonction d'entrée.
-          </p>
-          <FilterBar
-            search={search}
-            onSearchChange={setSearch}
-            searchPlaceholder="Search feature graphs…"
-            activeCount={projectFilterActive ? 1 : 0}
-            activeLabels={[projectFilterActive ? projectNameById[selectedProject] ?? '' : '']}
-            onClear={() => setSelectedProject('all')}
-            filters={
-              showProjectFilter ? (
-                <Select
-                  options={[{ value: 'all', label: 'All projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
-                  value={selectedProject}
-                  onChange={setSelectedProject}
-                  icon={<Folder className="w-3 h-3" />}
-                />
-              ) : undefined
-            }
-          />
-        </div>
+        <FilterBar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search feature graphs…"
+          activeCount={projectFilterActive ? 1 : 0}
+          activeLabels={[projectFilterActive ? projectNameById[selectedProject] ?? '' : '']}
+          onClear={() => setSelectedProject('all')}
+          filters={
+            showProjectFilter ? (
+              <Select
+                options={[{ value: 'all', label: 'All projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
+                value={selectedProject}
+                onChange={setSelectedProject}
+                icon={<Folder className="w-3 h-3" />}
+              />
+            ) : undefined
+          }
+        />
       }
     >
       {loading ? (
         <EntityListSkeleton rows={4} />
       ) : error ? (
-        <ErrorState description="Impossible de charger les feature graphs." onRetry={fetchGraphs} />
+        <ErrorState description="Feature graphs could not be loaded." onRetry={fetchGraphs} />
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<GitGraph className="w-6 h-6" />}
-          title={isPristine ? 'No feature graph yet' : 'No matching feature graph'}
+          title={isPristine ? 'No feature graphs yet' : 'No matching feature graphs'}
           description={
             isPristine
-              ? 'Créez-en un à la main, ou laissez Auto-build le construire depuis une fonction d’entrée de votre code.'
-              : 'Essayez une autre recherche ou retirez le filtre projet.'
+              ? 'Create one by hand, or let Auto-build assemble it from an entry function in your code.'
+              : 'Try another search, or clear the search and the project filter.'
           }
           action={
             isPristine ? (
-              <>
-                <Button size="sm" variant="secondary" onClick={openAutoBuild}>
-                  <Sparkles className="w-4 h-4 mr-1.5" aria-hidden="true" />
-                  Auto-build
-                </Button>
-                <Button size="sm" onClick={openCreate}>
-                  <Plus className="w-4 h-4 mr-1" aria-hidden="true" />
-                  Create
-                </Button>
-              </>
-            ) : undefined
+              createActions
+            ) : (
+              <Button size="sm" variant="secondary" onClick={clearAll}>
+                Clear
+              </Button>
+            )
           }
         />
       ) : (
@@ -214,7 +211,7 @@ export function FeatureGraphsPage() {
                       onClick: () => handleDelete(graph),
                       confirm: {
                         title: 'Delete feature graph',
-                        description: `Supprimer définitivement « ${graph.name} » ? Le code n'est pas touché. Irréversible.`,
+                        description: `Permanently delete “${graph.name}”? The code itself is not touched. This cannot be undone.`,
                         confirmLabel: 'Delete',
                       },
                     },
