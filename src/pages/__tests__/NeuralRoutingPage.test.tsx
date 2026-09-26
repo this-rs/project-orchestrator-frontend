@@ -101,6 +101,16 @@ describe('NeuralRoutingPage', () => {
     )
   })
 
+  it('shows a page-level error with retry when the first load fails', async () => {
+    api.getStatus.mockRejectedValueOnce(new Error('backend down'))
+    render(<NeuralRoutingPage />)
+    expect(await screen.findByText('backend down')).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Neural routing' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    expect(await screen.findByText('75.0%')).toBeTruthy()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
   it('explains the empty metrics state', async () => {
     api.getStatus.mockResolvedValue({ ...status, metrics: { ...status.metrics, total_queries: 0 } })
     render(<NeuralRoutingPage />)

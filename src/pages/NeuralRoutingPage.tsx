@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { RefreshCw } from 'lucide-react'
 import {
   Button,
   EmptyState,
+  ErrorState,
   Facts,
   Input,
   PageContainer,
@@ -35,6 +36,9 @@ export function NeuralRoutingPage() {
   const [status, setStatus] = useState<NeuralRoutingStatus | null>(null)
   const [config, setConfig] = useState<NeuralRoutingConfig | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  /** Once the first load succeeded, later failures are toasts, not a page-level error. */
+  const loadedRef = useRef(false)
   const [toggling, setToggling] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -55,9 +59,11 @@ export function NeuralRoutingPage() {
       setEditTopK(String(configRes.config.nn.top_k))
       setEditMinSim(String(configRes.config.nn.min_similarity))
       setEditMaxAge(String(configRes.config.nn.max_route_age_days))
+      setError(null)
+      loadedRef.current = true
     } catch (e: unknown) {
-      toast.error('Failed to load neural routing data')
-      console.error(e)
+      if (loadedRef.current) toast.error('Failed to load neural routing data')
+      else setError(e instanceof Error ? e.message : 'Failed to load neural routing data')
     } finally {
       setLoading(false)
     }
@@ -167,6 +173,15 @@ export function NeuralRoutingPage() {
         {header}
         <SkeletonCard lines={4} />
         <SkeletonCard lines={5} />
+      </PageContainer>
+    )
+  }
+
+  if (error) {
+    return (
+      <PageContainer width="narrow" className="space-y-6">
+        {header}
+        <ErrorState description={error} onRetry={fetchData} />
       </PageContainer>
     )
   }
