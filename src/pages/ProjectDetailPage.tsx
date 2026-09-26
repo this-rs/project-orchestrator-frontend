@@ -18,6 +18,7 @@ import {
   Section,
   StatusText,
   WatcherToggle,
+  focusRing,
   formatAbsolute,
   formatDay,
   pluralize,
@@ -205,12 +206,8 @@ export function ProjectDetailPage() {
               Never synced
             </span>
           ),
-          progress && progress.total_tasks > 0 ? (
-            <span key="prog" className="tabular-nums">
-              {progress.completed_tasks}/{pluralize(progress.total_tasks, 'task')} · {Math.round(progress.percentage)}%
-            </span>
-          ) : null,
           pluralize(milestones.length, 'milestone'),
+          releases.length > 0 ? pluralize(releases.length, 'release') : null,
         ]}
         actions={
           <>
@@ -247,29 +244,20 @@ export function ProjectDetailPage() {
         ]}
       />
 
-      {/* ── Progress ─────────────────────────────────────────────────────── */}
+      {/* ── Progress (only when the roadmap has tasks) ───────────────────── */}
       {progress && progress.total_tasks > 0 && (
         <section aria-label="Project progress" className="space-y-1.5">
           <ProgressLine value={progress.percentage} size="md" label="Project progress" />
           <p className="text-[11px] leading-4 text-gray-500 tabular-nums">
-            {progress.completed_tasks} / {progress.total_tasks} tasks completed
+            {progress.completed_tasks} / {progress.total_tasks} tasks completed · {Math.round(progress.percentage)}%
             {progress.in_progress_tasks > 0 && ` · ${progress.in_progress_tasks} in progress`}
             {progress.pending_tasks > 0 && ` · ${progress.pending_tasks} pending`}
           </p>
         </section>
       )}
 
-      {/* ── Key numbers ──────────────────────────────────────────────────── */}
-      {intelReady && intelligence.summary && <IntelStatGrid summary={intelligence.summary} />}
-
-      {/* ── Health ───────────────────────────────────────────────────────── */}
-      <Section title="Health" action={intelReady ? <IntelRefreshButton data={intelligence} /> : undefined}>
-        {intelReady ? (
-          <IntelHealthBreakdown data={intelligence} progress={progress ? { percentage: progress.percentage } : undefined} />
-        ) : (
-          <IntelFallback intelligence={intelligence} />
-        )}
-      </Section>
+      {/* ── Attention needed (actionable, short) ─────────────────────────── */}
+      {intelReady && <IntelAttention data={intelligence} />}
 
       {/* ── Milestones ───────────────────────────────────────────────────── */}
       <Section
@@ -292,10 +280,7 @@ export function ProjectDetailPage() {
         )}
       </Section>
 
-      {/* ── Attention needed ─────────────────────────────────────────────── */}
-      {intelReady && <IntelAttention data={intelligence} />}
-
-      {/* ── Releases ─────────────────────────────────────────────────────── */}
+      {/* ── Releases (collapsed by default) ──────────────────────────────── */}
       <Section
         title={<MetricTooltip term="release">Releases</MetricTooltip>}
         count={releases.length}
@@ -335,6 +320,18 @@ export function ProjectDetailPage() {
         )}
       </Section>
 
+      {/* ── Health: key numbers + breakdown ──────────────────────────────── */}
+      <Section title="Health" action={intelReady ? <IntelRefreshButton data={intelligence} /> : undefined}>
+        {intelReady && intelligence.summary ? (
+          <div className="space-y-2">
+            <IntelStatGrid summary={intelligence.summary} />
+            <IntelHealthBreakdown data={intelligence} />
+          </div>
+        ) : (
+          <IntelFallback intelligence={intelligence} />
+        )}
+      </Section>
+
       {/* ── Knowledge graph maintenance (collapsed) ──────────────────────── */}
       {intelReady && <IntelQuickActions data={intelligence} />}
 
@@ -342,7 +339,6 @@ export function ProjectDetailPage() {
       <Section title="Details">
         <Facts
           items={[
-            { label: 'Slug', value: <span className="font-mono">{project.slug}</span> },
             {
               label: 'Root path',
               value: project.root_path ? (
@@ -350,7 +346,7 @@ export function ProjectDetailPage() {
                   type="button"
                   onClick={() => copyPath(project.root_path)}
                   title="Copy path"
-                  className="font-mono text-xs text-gray-300 break-all text-right sm:text-left hover:text-white inline-flex items-start gap-1.5"
+                  className={`font-mono text-xs text-gray-300 break-all text-right sm:text-left hover:text-white inline-flex items-start gap-1.5 rounded ${focusRing}`}
                 >
                   <span>{project.root_path}</span>
                   <Clipboard className="w-3 h-3 mt-0.5 shrink-0 text-gray-500" aria-hidden="true" />
