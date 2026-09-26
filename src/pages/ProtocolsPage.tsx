@@ -13,7 +13,7 @@ import { protocolApi, workspacesApi } from '@/services'
 import { RecentRunsPanel } from '@/components/protocols/RecentRunsPanel'
 import { ScheduledActionsPanel, triggerModeMeta } from '@/components/protocols/ScheduledActionsPanel'
 import { Explainer } from '@/components/protocols/Explainer'
-import { ViewTabs } from '@/components/protocols/ViewTabs'
+import { ViewTabs } from '@/components/ui'
 import {
   EmptyState,
   EntityListSkeleton,
@@ -253,9 +253,9 @@ export function ProtocolsPage() {
             value={view}
             onChange={setView}
             tabs={[
-              { value: 'protocols', label: 'Protocols' },
-              { value: 'runs', label: 'Recent runs' },
-              { value: 'scheduled', label: 'Scheduled' },
+              { id: 'protocols', label: 'Protocols' },
+              { id: 'runs', label: 'Recent runs' },
+              { id: 'scheduled', label: 'Scheduled' },
             ]}
           />
           <Explainer>{EXPLAIN[view]}</Explainer>

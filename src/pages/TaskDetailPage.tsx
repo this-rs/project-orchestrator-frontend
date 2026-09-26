@@ -20,6 +20,8 @@ import {
   StatusText,
   formatAbsolute,
   getStatusMeta,
+  ProgressLine,
+  ViewToggle,
 } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { tasksApi, plansApi, projectsApi, workspacesApi, decisionsApi } from '@/services'
@@ -28,7 +30,7 @@ import { workspacePath } from '@/utils/paths'
 import { taskRefreshAtom, projectRefreshAtom, planRefreshAtom, chatPanelModeAtom, chatSessionIdAtom } from '@/atoms'
 import { CreateStepForm, CreateDecisionForm, EditTaskForm, EditStepForm } from '@/components/forms'
 import { CommitList } from '@/components/commits'
-import { MiniProgress, UniversalKanban, ViewModeToggle, createStepKanbanConfig } from '@/components/kanban'
+import { UniversalKanban, createStepKanbanConfig } from '@/components/kanban'
 import {
   CommitShaField,
   DecisionRow,
@@ -483,12 +485,12 @@ export function TaskDetailPage() {
         description={steps.length > 0 ? `${completedSteps} of ${steps.length} completed` : undefined}
         action={
           <>
-            {steps.length > 0 && <ViewModeToggle value={stepsViewMode} onChange={setStepsViewMode} />}
+            {steps.length > 0 && <ViewToggle value={stepsViewMode} onChange={setStepsViewMode} />}
             <SectionAddButton label="Add step" onClick={openAddStep} />
           </>
         }
       >
-        {steps.length > 0 && <MiniProgress value={stepProgress} label="Step progress" className="mb-2" />}
+        {steps.length > 0 && <ProgressLine value={stepProgress} label="Step progress" className="mb-2" />}
         {steps.length === 0 ? (
           <EmptyLine>No steps defined</EmptyLine>
         ) : stepsViewMode === 'kanban' ? (

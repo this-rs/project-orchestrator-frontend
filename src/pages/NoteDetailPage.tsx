@@ -45,6 +45,7 @@ import {
   pluralize,
   surface,
   type StatusTone,
+  Meter,
 } from '@/components/ui'
 import { MarkdownText } from '@/components/chat/MarkdownText'
 import { NoteTypeLabel } from '@/components/knowledge/NoteTypeLabel'
@@ -116,15 +117,6 @@ function normalizeContext(raw: unknown, selfId: string): RelatedNote[] {
 
 // ── Small presentational pieces ─────────────────────────────────────────
 
-function Meter({ value, tone }: { value: number; tone: StatusTone }) {
-  const width = `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`
-  return (
-    <span className="block h-1 w-full max-w-40 rounded-full bg-white/[0.06] overflow-hidden" aria-hidden="true">
-      <span className={`block h-full rounded-full ${TONE_CLASSES[tone].dot}`} style={{ width }} />
-    </span>
-  )
-}
-
 interface Signal {
   label: string
   value: ReactNode
@@ -145,7 +137,7 @@ function SignalList({ items }: { items: Signal[] }) {
               <dt className="text-xs text-gray-500">{item.label}</dt>
               <dd className="text-sm text-gray-200 tabular-nums text-right min-w-0 break-words">{item.value}</dd>
             </div>
-            {item.meter && <Meter value={item.meter.value} tone={item.meter.tone} />}
+            {item.meter && <Meter size="bar" value={item.meter.value} tone={item.meter.tone} className="max-w-40" />}
             <p className="text-xs leading-4 text-gray-500">{item.explain}</p>
           </div>
         ))}

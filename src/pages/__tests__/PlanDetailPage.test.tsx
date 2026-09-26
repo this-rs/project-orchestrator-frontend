@@ -111,7 +111,7 @@ describe('PlanDetailPage', () => {
   it('shows the header: parents, status, key facts, breakdown and the launch action when approved', async () => {
     renderPage()
     expect(await screen.findByRole('heading', { level: 1, name: 'Auth flow' })).toBeTruthy()
-    expect((await screen.findByRole('link', { name: /Project:\s?Alpha/ })).getAttribute('href')).toBe('/workspace/ws/projects/alpha')
+    expect((await screen.findByRole('link', { name: 'Project: Alpha' })).getAttribute('href')).toBe('/workspace/ws/projects/alpha')
     expect(screen.getByRole('button', { name: /Status: Approved/ })).toBeTruthy()
     expect(screen.getByText('P8')).toBeTruthy()
     expect(screen.getByText('theo')).toBeTruthy()

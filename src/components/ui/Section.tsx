@@ -44,7 +44,12 @@ export function Section({
         <ChevronRight className={`w-3.5 h-3.5 shrink-0 text-gray-500 transition-transform ${isOpen ? 'rotate-90' : ''}`} aria-hidden="true" />
       )}
       <span className="truncate">{title}</span>
-      {count !== undefined && <span className="tabular-nums font-normal text-gray-500">{count}</span>}
+      {count !== undefined && (
+        <>
+          {' '}
+          <span className="tabular-nums font-normal text-gray-500">{count}</span>
+        </>
+      )}
     </>
   )
 

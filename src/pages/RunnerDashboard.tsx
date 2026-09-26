@@ -19,7 +19,7 @@ import { RunnerHeader } from '@/components/runner/RunnerHeader'
 import { StatsRow } from '@/components/runner/StatsRow'
 import { WaveSection } from '@/components/runner/WaveSection'
 import { getWaveStatus } from '@/components/runner/shared'
-import { ViewTabs } from '@/components/protocols/ViewTabs'
+import { ViewTabs } from '@/components/ui'
 import { Explainer } from '@/components/protocols/Explainer'
 import { DiscussionTreeView } from '@/components/discussions/DiscussionTreeView'
 import { runnerApi, useRunnerStatus } from '@/services/runner'
@@ -245,8 +245,8 @@ export function RunnerDashboard() {
           value={activeTab}
           onChange={setActiveTab}
           tabs={[
-            { value: 'waves', label: 'Waves', count: orderedWaves.length || undefined },
-            { value: 'discussions', label: 'Discussion tree' },
+            { id: 'waves', label: 'Waves', count: orderedWaves.length || undefined },
+            { id: 'discussions', label: 'Discussion tree' },
           ]}
         />
 

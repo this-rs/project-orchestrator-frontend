@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react'
 import type { WorkspaceMilestone, MilestoneProgress, MilestoneStatus } from '@/types'
-import { StatusMenu, formatDay } from '@/components/ui'
+import { ProgressLine, StatusMenu, formatDay } from '@/components/ui'
 import { BoardCard, BoardCardOverlay } from './BoardCard'
-import { MiniProgress } from './ListControls'
 
 export interface MilestoneWithProgress extends WorkspaceMilestone {
   progress?: MilestoneProgress
@@ -35,7 +34,7 @@ function milestoneMeta(milestone: MilestoneWithProgress, status?: ReactNode): Re
 
 function progressFooter(milestone: MilestoneWithProgress) {
   return milestone.progress && milestone.progress.total > 0 ? (
-    <MiniProgress value={milestone.progress.percentage} label={`${Math.round(milestone.progress.percentage)}% complete`} />
+    <ProgressLine value={milestone.progress.percentage} label={`${Math.round(milestone.progress.percentage)}% complete`} />
   ) : undefined
 }
 

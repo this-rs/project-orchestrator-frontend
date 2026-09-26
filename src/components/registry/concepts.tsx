@@ -9,7 +9,7 @@
  */
 import { useId, useState, type ReactNode } from 'react'
 import { Lightbulb } from 'lucide-react'
-import { TONE_CLASSES, hitArea, textLink } from '@/components/ui'
+import { Meter, TONE_CLASSES, hitArea, textLink } from '@/components/ui'
 import type { Level } from './metrics'
 
 // ── ConceptNote ─────────────────────────────────────────────────────────
@@ -94,14 +94,7 @@ export function MetricList({ items, className = '' }: { items: MetricItem[]; cla
               {m.level && <span className={`ml-1.5 text-xs ${TONE_CLASSES[m.level.tone].text}`}>{m.level.label}</span>}
             </dd>
             <dd className="col-span-2 min-w-0">
-              {m.ratio !== undefined && (
-                <div className="mt-1.5 h-1 rounded-full bg-white/[0.06] overflow-hidden" aria-hidden="true">
-                  <div
-                    className={`h-full rounded-full ${m.level ? TONE_CLASSES[m.level.tone].dot : 'bg-indigo-400'}`}
-                    style={{ width: `${Math.min(100, Math.max(2, m.ratio * 100))}%` }}
-                  />
-                </div>
-              )}
+              {m.ratio !== undefined && <Meter size="bar" value={m.ratio} tone={m.level?.tone ?? 'progress'} className="mt-1.5" />}
               <p className="mt-1 text-xs leading-4 text-gray-500">{m.hint}</p>
             </dd>
           </div>

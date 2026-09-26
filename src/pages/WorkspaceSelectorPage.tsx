@@ -206,7 +206,6 @@ function InlineCreateWorkspace({
         onChange={(e) => setName(e.target.value)}
         placeholder="Workspace name"
         aria-label="Workspace name"
-        className="text-base md:text-sm"
         disabled={creating}
         error={error ?? undefined}
       />
@@ -266,7 +265,6 @@ function EmptyWorkspaceOnboarding({
           onChange={(e) => setName(e.target.value)}
           placeholder="My Workspace"
           aria-label="Workspace name"
-        className="text-base md:text-sm"
           disabled={creating}
           error={error ?? undefined}
         />

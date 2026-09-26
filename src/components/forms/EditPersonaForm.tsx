@@ -24,7 +24,6 @@ const complexityOptions = [
   { value: 'creative', label: 'Creative' },
 ]
 
-const inputSize = 'text-base md:text-sm'
 
 /** Positive number or undefined (empty / invalid input is not sent). */
 function positive(v: string): number | undefined {
@@ -70,10 +69,10 @@ export function EditPersonaForm({ initial, onSubmit }: Props) {
   return {
     fields: (
       <>
-        <Input label="Name" className={inputSize} value={name} onChange={(e) => setName(e.target.value)} error={errors.name} />
+        <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} error={errors.name} />
         <Textarea
           label="Description"
-          className={inputSize}
+         
           rows={3}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -81,7 +80,7 @@ export function EditPersonaForm({ initial, onSubmit }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input
             label="Model preference"
-            className={inputSize}
+           
             value={model}
             onChange={(e) => setModel(e.target.value)}
             placeholder="opus, sonnet, haiku…"
@@ -92,7 +91,7 @@ export function EditPersonaForm({ initial, onSubmit }: Props) {
             type="number"
             inputMode="numeric"
             min={1}
-            className={inputSize}
+           
             value={timeout}
             onChange={(e) => setTimeoutSecs(e.target.value)}
             error={errors.timeout}
@@ -103,7 +102,7 @@ export function EditPersonaForm({ initial, onSubmit }: Props) {
             inputMode="decimal"
             step="0.1"
             min={0}
-            className={inputSize}
+           
             value={maxCost}
             onChange={(e) => setMaxCost(e.target.value)}
             error={errors.maxCost}
@@ -111,7 +110,7 @@ export function EditPersonaForm({ initial, onSubmit }: Props) {
         </div>
         <Textarea
           label="System prompt override"
-          className={`${inputSize} font-mono`}
+          className="font-mono"
           rows={4}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}

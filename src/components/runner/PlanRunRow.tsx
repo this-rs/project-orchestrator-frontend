@@ -8,10 +8,9 @@
  */
 
 import { GitBranch } from 'lucide-react'
-import { EntityRow, RelativeTime, StatusDot, formatDurationMs, pluralize } from '@/components/ui'
+import { EntityRow, RelativeTime, StatusDot, formatDurationMs, pluralize, ToneText } from '@/components/ui'
 import type { PlanRun } from '@/services/runner'
 import { LiveProgress } from './LiveProgress'
-import { ToneText } from './ToneText'
 import { formatCost, planRunElapsedSecs, planRunTriggerLabel, runStateMeta } from './shared'
 
 interface PlanRunRowProps {
@@ -38,7 +37,7 @@ export function PlanRunRow({ run, title, href }: PlanRunRowProps) {
       leading={<StatusDot tone={meta.tone} pulse={meta.live} label={meta.label} />}
       trailing={<RelativeTime date={run.started_at} />}
       meta={[
-        <ToneText key="s" meta={{ ...meta, live: false }} />,
+        <ToneText key="s" tone={meta.tone} label={meta.label} />,
         <span key="t" className="tabular-nums">{done}/{run.total_tasks} tasks</span>,
         failed > 0 ? <span key="f" className="text-red-400">{failed} failed</span> : null,
         <span key="d" className="tabular-nums">{formatDurationMs(elapsed * 1000)}</span>,

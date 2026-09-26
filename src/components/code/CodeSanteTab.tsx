@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { TabItem } from '@/components/ui'
-import { SubTabs } from './SubTabs'
+import { ViewTabs } from '@/components/ui'
 import { HeartPulse, Workflow } from 'lucide-react'
 import { CodeHealthTab } from './CodeHealthTab'
 import { CodeProcessesTab } from './CodeProcessesTab'
@@ -28,7 +28,7 @@ export function CodeSanteTab({ projectSlug, onOpenFile }: CodeSanteTabProps) {
         the code.
       </p>
 
-      <SubTabs tabs={SUB_TABS} active={subTab} onChange={(id) => setSubTab(id as SubTab)} label="Health" />
+      <ViewTabs tabs={SUB_TABS} value={subTab} onChange={(id) => setSubTab(id as SubTab)} label="Health" />
 
       {subTab === 'health' && <CodeHealthTab projectSlug={projectSlug} onOpenFile={onOpenFile} />}
       {subTab === 'processes' && <CodeProcessesTab projectSlug={projectSlug} onOpenFile={onOpenFile} />}

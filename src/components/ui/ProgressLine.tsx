@@ -2,7 +2,8 @@
  * Thin, static progress line for rows and compact progress blocks.
  *
  * No width tween (DESIGN.md « Mouvement »: data must not animate), single
- * indigo accent, exposes a proper `progressbar` role.
+ * indigo accent (emerald once complete), proper `progressbar` role.
+ * `ProgressBar` (animated, gradient) stays for legacy dashboards only.
  */
 export function ProgressLine({
   value,
@@ -13,10 +14,11 @@ export function ProgressLine({
   /** 0–100 */
   value: number
   label?: string
+  /** `sm` = 4px hairline (rows), `md` = 6px (detail-page progress block). */
   size?: 'sm' | 'md'
   className?: string
 }) {
-  const pct = Math.min(100, Math.max(0, Math.round(value)))
+  const pct = Math.min(100, Math.max(0, Math.round(Number.isFinite(value) ? value : 0)))
   return (
     <div
       role="progressbar"

@@ -22,8 +22,9 @@ import {
   formatAbsolute,
   formatDay,
   pluralize,
+  ProgressLine,
 } from '@/components/ui'
-import { ExpandableMilestoneRow, ProgressLine } from '@/components/expandable'
+import { ExpandableMilestoneRow } from '@/components/expandable'
 import {
   useIntelligenceData,
   IntelAttention,

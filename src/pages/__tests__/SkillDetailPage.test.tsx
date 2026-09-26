@@ -143,8 +143,7 @@ describe('SkillDetailPage', () => {
     // Version is a key fact in the header AND a row of the Details facts
     expect(screen.getAllByText('v2')).toHaveLength(2)
     expect(within(screen.getByRole('list', { name: 'Tags' })).getAllByRole('listitem')).toHaveLength(2)
-    // PageHeader joins the sr-only "Project: " and the name without a separator in the computed name
-    expect(await screen.findByRole('link', { name: /Project:\s*Alpha/ })).toBeTruthy()
+    expect(await screen.findByRole('link', { name: 'Project: Alpha' })).toBeTruthy()
 
     // Vital signs
     const vitals = screen.getByRole('region', { name: 'Vital signs' })
@@ -161,7 +160,7 @@ describe('SkillDetailPage', () => {
 
     // Members
     const m = screen.getByRole('region', { name: /^Members/ })
-    expect(within(m).getByRole('button', { name: /^Expand note: Rotate keys often/ })).toBeTruthy()
+    expect(within(m).getByRole('button', { name: /^Note: Rotate keys often/, expanded: false })).toBeTruthy()
     expect(within(m).getByText('gotcha')).toBeTruthy()
     expect(within(m).getByText('High')).toBeTruthy()
     expect(within(m).getByRole('link', { name: 'Use RS256' }).getAttribute('href')).toBe('/workspace/ws/decisions/d1')

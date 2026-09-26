@@ -1,4 +1,4 @@
-import { useCallback, useId, useRef, useState } from 'react'
+import { useCallback, useId, useRef, useState, type ReactNode } from 'react'
 import { Check, ChevronDown, Loader2 } from 'lucide-react'
 import { FloatingMenu } from './FloatingMenu'
 import { menuItemClass } from './menuPosition'
@@ -68,6 +68,34 @@ export function StatusText({ kind, status, dot = true, pulse, label, className =
     <span className={`inline-flex items-center gap-1.5 whitespace-nowrap ${TONE_CLASSES[meta.tone].text} ${className}`}>
       {dot && <StatusDot tone={meta.tone} pulse={pulse} />}
       {label ?? meta.label}
+    </span>
+  )
+}
+
+// ============================================================================
+// ToneText — dot + label in an explicit tone, for values outside the registry
+// ============================================================================
+
+interface ToneTextProps {
+  tone: StatusTone
+  label: ReactNode
+  /** Hide the dot — when the row already shows a leading `StatusDot`. */
+  dot?: boolean
+  /** Soft pulse for live states (running, reconnecting…). Idle states stay still. */
+  pulse?: boolean
+  className?: string
+}
+
+/**
+ * The `StatusText` rule (§4) for values that carry their own semantics and
+ * have no registry kind — consent, circuit breaker, connection state,
+ * runner/wave states.
+ */
+export function ToneText({ tone, label, dot = true, pulse, className = '' }: ToneTextProps) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap ${TONE_CLASSES[tone].text} ${className}`}>
+      {dot && <StatusDot tone={tone} pulse={pulse} />}
+      {label}
     </span>
   )
 }

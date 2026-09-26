@@ -21,9 +21,9 @@ import {
   guessTone,
   humanizeStatus,
   type StatusTone,
+  ToneText,
 } from '@/components/ui'
 import { Notice, SettingRow, SettingsList } from '@/components/settings/SettingRow'
-import { ToneText } from '@/components/settings/ToneText'
 import { sharingApi, workspacesApi } from '@/services'
 import { useConfirmDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import type {
@@ -278,7 +278,7 @@ function PolicySection({ slug, onChanged }: { slug: string; onChanged: () => voi
                       value={threshold}
                       onChange={(e) => setThreshold(e.target.value)}
                       aria-label="Min score"
-                      className="h-9 py-1.5 text-right tabular-nums text-base md:text-sm"
+                      className="h-9 py-1.5 text-right tabular-nums"
                     />
                   </div>
                 }
@@ -677,7 +677,7 @@ function TombstonesSection({ slug }: { slug: string }) {
                   aria-label="Note UUID"
                   value={retractNoteId}
                   onChange={(e) => setRetractNoteId(e.target.value)}
-                  className="h-9 py-1.5 font-mono text-base md:text-sm"
+                  className="h-9 py-1.5 font-mono"
                 />
               </div>
               <div className="flex-[1_1_12rem] min-w-0">
@@ -686,7 +686,7 @@ function TombstonesSection({ slug }: { slug: string }) {
                   aria-label="Reason"
                   value={retractReason}
                   onChange={(e) => setRetractReason(e.target.value)}
-                  className="h-9 py-1.5 text-base md:text-sm"
+                  className="h-9 py-1.5"
                 />
               </div>
               <Button variant="danger" size="sm" onClick={handleRetract} loading={retracting} disabled={!retractNoteId.trim()}>

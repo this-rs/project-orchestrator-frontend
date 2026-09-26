@@ -502,7 +502,8 @@ function RelationRow({ kind, rel, resolved, href, onRemove }: RelationRowProps) 
   return (
     <EntityRow
       title={title}
-      ariaLabel={expandable ? `${open ? 'Collapse' : 'Expand'} ${plainTitle.slice(0, 60)}` : plainTitle}
+      ariaLabel={plainTitle}
+      expanded={expandable ? open : undefined}
       href={href}
       onClick={!href && expandable ? () => setOpen((v) => !v) : undefined}
       trailing={<span title={`Link weight ${rel.weight.toFixed(2)}`}>{pct(rel.weight)}</span>}

@@ -22,6 +22,8 @@ import {
   getStatusOptions,
   hitArea,
   textLink,
+  RowCheckbox,
+  ViewToggle,
 } from '@/components/ui'
 import {
   useViewMode,
@@ -36,7 +38,7 @@ import {
 } from '@/hooks'
 import { CreatePlanForm, EditPlanForm } from '@/components/forms'
 import type { EditPlanFormData } from '@/components/forms/EditPlanForm'
-import { PlanKanbanFilterBar, RowSelect, UniversalKanban, ViewModeToggle, createPlanKanbanConfig } from '@/components/kanban'
+import { PlanKanbanFilterBar, UniversalKanban, createPlanKanbanConfig } from '@/components/kanban'
 import type { PlanKanbanFilters } from '@/components/kanban'
 import type { Plan, PlanStatus, PaginatedResponse } from '@/types'
 import { workspacePath } from '@/utils/paths'
@@ -307,7 +309,7 @@ export function PlansPage() {
 
   const isKanban = viewMode === 'kanban'
   const showListSkeleton = loading && !isKanban && plans.length === 0
-  const viewToggle = <ViewModeToggle value={viewMode} onChange={setViewMode} />
+  const viewToggle = <ViewToggle value={viewMode} onChange={setViewMode} />
 
   const projectNames = useMemo(() => new Map(projectOptions.map((o) => [o.value, o.label])), [projectOptions])
 
@@ -420,8 +422,8 @@ export function PlansPage() {
                 selected={multiSelect.isSelected(plan.id)}
                 muted={plan.status === 'completed' || plan.status === 'cancelled'}
                 leading={
-                  <RowSelect
-                    selected={multiSelect.isSelected(plan.id)}
+                  <RowCheckbox
+                    checked={multiSelect.isSelected(plan.id)}
                     onToggle={(shiftKey) => multiSelect.toggle(plan.id, shiftKey)}
                     label={`Select ${plan.title}`}
                   />

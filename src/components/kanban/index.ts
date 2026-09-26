@@ -7,8 +7,7 @@ export { PlanKanbanCard, PlanKanbanCardOverlay } from './PlanKanbanCard'
 export { MilestoneKanbanCard, MilestoneKanbanCardOverlay } from './MilestoneKanbanCard'
 export type { MilestoneWithProgress } from './MilestoneKanbanCard'
 export { BoardCard, BoardCardOverlay } from './BoardCard'
-export { ViewModeToggle, RowSelect, MiniProgress, FilterField, PriorityRangeFields } from './ListControls'
-export type { ViewMode } from './ListControls'
+export { FilterField, PriorityRangeFields } from './ListControls'
 
 // UniversalKanban
 export { UniversalKanban } from './UniversalKanban'

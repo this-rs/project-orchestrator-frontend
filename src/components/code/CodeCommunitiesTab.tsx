@@ -14,12 +14,12 @@ import {
   StatusText,
   focusRing,
   pluralize,
+  Meter,
 } from '@/components/ui'
 import { pressFeedback } from '@/components/ui/classes'
 import { useToast } from '@/hooks'
 import { codeApi } from '@/services'
 import type { CodeCommunity, NodeImportance } from '@/types'
-import { Meter } from './metrics'
 
 interface CodeCommunitiesTabProps {
   projectSlug: string | null

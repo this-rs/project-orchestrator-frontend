@@ -200,7 +200,7 @@ export function NeuralRoutingPage() {
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={label}
-        className="h-9 py-1.5 text-right tabular-nums text-base md:text-sm"
+        className="h-9 py-1.5 text-right tabular-nums"
       />
     </div>
   )

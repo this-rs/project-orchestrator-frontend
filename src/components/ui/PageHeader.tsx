@@ -84,10 +84,10 @@ export function PageHeader({
                 key={`${link.label}-${link.href}`}
                 to={link.href}
                 title={`${link.label}: ${link.name}`}
+                aria-label={`${link.label}: ${link.name}`}
                 className={`inline-flex items-center gap-1 min-w-0 max-w-full py-1 ${inlineLink}`}
               >
                 <Icon className="w-3 h-3 shrink-0 text-gray-500" aria-hidden="true" />
-                <span className="sr-only">{link.label}: </span>
                 <span className="truncate max-w-[14rem] sm:max-w-[20rem]">{link.name}</span>
               </Link>
             )

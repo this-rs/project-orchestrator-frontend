@@ -47,11 +47,12 @@ import {
   pluralize,
   rowInteractive,
   surface,
+  ViewToggle,
 } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { plansApi, tasksApi, projectsApi, workspacesApi, decisionsApi } from '@/services'
 import { ApiError } from '@/services/api'
-import { UniversalKanban, ViewModeToggle, createTaskKanbanConfig } from '@/components/kanban'
+import { UniversalKanban, createTaskKanbanConfig } from '@/components/kanban'
 import { useViewMode, useFormDialog, useLinkDialog, useToast, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { chatSuggestedProjectIdAtom, chatPanelModeAtom, chatSessionIdAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
@@ -571,284 +572,281 @@ export function PlanDetailPage() {
         <StatusBreakdown kind="task" counts={statusCounts} className="w-full" />
       </PageHeader>
 
-      {/* Tab strip scrolls horizontally on phones (TabLayout's own nav does not) */}
-      <div className="[&_[role=tablist]]:overflow-x-auto [&_[role=tablist]]:overscroll-x-contain">
-        <TabLayout tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} className="pt-4">
-          {/* ── Tasks ── */}
-          {activeTab === 'tasks' && (
-            <Section
-              title="Tasks"
-              count={tasks.length}
-              action={
-                <>
-                  {tasks.length > 0 && viewMode === 'list' && (
-                    <button
-                      type="button"
-                      onClick={toggleAllTasks}
-                      aria-label={tasksAllExpanded ? 'Collapse all steps' : 'Expand all steps'}
-                      title={tasksAllExpanded ? 'Collapse all steps' : 'Expand all steps'}
-                      className={`w-9 h-9 md:w-8 md:h-8 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-200 hover:bg-white/[0.05] ${focusRing}`}
+      <TabLayout tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} label="Plan sections" className="pt-4">
+        {/* ── Tasks ── */}
+        {activeTab === 'tasks' && (
+          <Section
+            title="Tasks"
+            count={tasks.length}
+            action={
+              <>
+                {tasks.length > 0 && viewMode === 'list' && (
+                  <button
+                    type="button"
+                    onClick={toggleAllTasks}
+                    aria-label={tasksAllExpanded ? 'Collapse all steps' : 'Expand all steps'}
+                    title={tasksAllExpanded ? 'Collapse all steps' : 'Expand all steps'}
+                    className={`w-9 h-9 md:w-8 md:h-8 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-200 hover:bg-white/[0.05] ${focusRing}`}
+                  >
+                    {tasksAllExpanded ? (
+                      <ChevronsDownUp className="w-4 h-4" aria-hidden="true" />
+                    ) : (
+                      <ChevronsUpDown className="w-4 h-4" aria-hidden="true" />
+                    )}
+                  </button>
+                )}
+                {tasks.length > 0 && <ViewToggle value={viewMode} onChange={setViewMode} />}
+                <SectionAddButton label="Add task" onClick={openAddTask} />
+              </>
+            }
+          >
+            {tasks.length === 0 ? (
+              <EmptyState
+                size="sm"
+                icon={<ListChecks />}
+                title="No tasks in this plan"
+                description="Add the first task to start planning the work."
+                action={
+                  <Button size="sm" variant="secondary" onClick={openAddTask}>
+                    Add task
+                  </Button>
+                }
+              />
+            ) : viewMode === 'kanban' ? (
+              <UniversalKanban
+                config={planTaskKanbanConfig}
+                onItemClick={(taskId) => navigate(workspacePath(wsSlug, `/tasks/${taskId}`), { type: 'card-click' })}
+                refreshTrigger={taskRefresh}
+              />
+            ) : (
+              <div>
+                {taskGroups.map(({ key, items }) => (
+                  <ListGroup key={key} title={getStatusMeta('task', key).label} count={items.length}>
+                    {items.map((task) => (
+                      <PlanTaskRow
+                        key={task.id}
+                        task={task}
+                        wsSlug={wsSlug}
+                        onStatusChange={(newStatus) => handleTaskStatusChange(task.id, newStatus)}
+                        refreshTrigger={taskRefresh}
+                        expandAllSignal={tasksExpandAll}
+                        collapseAllSignal={tasksCollapseAll}
+                        planId={plan.id}
+                        planTitle={plan.title}
+                        projectId={plan.project_id}
+                      />
+                    ))}
+                  </ListGroup>
+                ))}
+              </div>
+            )}
+          </Section>
+        )}
+
+        {/* ── Graph ── */}
+        {activeTab === 'graph' && hasGraphNodes && (
+          <UnifiedGraphSection
+            adapter={PlanGraphAdapter}
+            data={planGraphData.data}
+            graph={planGraphData.graph}
+            taskStatuses={taskStatusMap}
+            waves={planGraphData.waves}
+            fetchWaves={planGraphData.fetchWaves}
+            wavesLoading={planGraphData.wavesLoading}
+            planId={plan.id}
+            planStatus={plan.status}
+            onLaunch={() => setImplementDialogOpen(true)}
+            isRunning={hasPipelineRunning}
+            availableViews={['dag', 'waves']}
+            defaultView="dag"
+            onDrillDown={handleDrillDown}
+            breadcrumbs={graphBreadcrumbs}
+            projectSlug={linkedProject?.slug}
+          />
+        )}
+
+        {/* ── Runner ── */}
+        {activeTab === 'runner' && (
+          <div className="space-y-6">
+            {isStuck && runnerSnapshot && (
+              <div role="alert" className={`${surface} flex items-start gap-3 p-4 border-amber-500/25`}>
+                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div>
+                    <p className="text-sm font-medium text-amber-300">Run stuck</p>
+                    <p className="text-xs text-amber-400/80 mt-0.5">
+                      Every task is done ({runnerSnapshot.tasks_completed}/{runnerSnapshot.tasks_total}) but the run is still marked as active. The runner did not finalise properly.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={async () => {
+                        try {
+                          await runnerApi.forceCancelRun(plan.id)
+                          toast.success('Run finalised')
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : 'Failed to finalise the run')
+                        }
+                      }}
                     >
-                      {tasksAllExpanded ? (
-                        <ChevronsDownUp className="w-4 h-4" aria-hidden="true" />
-                      ) : (
-                        <ChevronsUpDown className="w-4 h-4" aria-hidden="true" />
-                      )}
-                    </button>
-                  )}
-                  {tasks.length > 0 && <ViewModeToggle value={viewMode} onChange={setViewMode} />}
-                  <SectionAddButton label="Add task" onClick={openAddTask} />
-                </>
-              }
-            >
-              {tasks.length === 0 ? (
-                <EmptyState
-                  size="sm"
-                  icon={<ListChecks />}
-                  title="No tasks in this plan"
-                  description="Add the first task to start planning the work."
-                  action={
-                    <Button size="sm" variant="secondary" onClick={openAddTask}>
-                      Add task
+                      <Zap className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
+                      Force finalisation
                     </Button>
-                  }
-                />
-              ) : viewMode === 'kanban' ? (
-                <UniversalKanban
-                  config={planTaskKanbanConfig}
-                  onItemClick={(taskId) => navigate(workspacePath(wsSlug, `/tasks/${taskId}`), { type: 'card-click' })}
-                  refreshTrigger={taskRefresh}
-                />
-              ) : (
-                <div>
-                  {taskGroups.map(({ key, items }) => (
-                    <ListGroup key={key} title={getStatusMeta('task', key).label} count={items.length}>
-                      {items.map((task) => (
-                        <PlanTaskRow
-                          key={task.id}
-                          task={task}
-                          wsSlug={wsSlug}
-                          onStatusChange={(newStatus) => handleTaskStatusChange(task.id, newStatus)}
-                          refreshTrigger={taskRefresh}
-                          expandAllSignal={tasksExpandAll}
-                          collapseAllSignal={tasksCollapseAll}
-                          planId={plan.id}
-                          planTitle={plan.title}
-                          projectId={plan.project_id}
-                        />
-                      ))}
-                    </ListGroup>
-                  ))}
-                </div>
-              )}
-            </Section>
-          )}
-
-          {/* ── Graph ── */}
-          {activeTab === 'graph' && hasGraphNodes && (
-            <UnifiedGraphSection
-              adapter={PlanGraphAdapter}
-              data={planGraphData.data}
-              graph={planGraphData.graph}
-              taskStatuses={taskStatusMap}
-              waves={planGraphData.waves}
-              fetchWaves={planGraphData.fetchWaves}
-              wavesLoading={planGraphData.wavesLoading}
-              planId={plan.id}
-              planStatus={plan.status}
-              onLaunch={() => setImplementDialogOpen(true)}
-              isRunning={hasPipelineRunning}
-              availableViews={['dag', 'waves']}
-              defaultView="dag"
-              onDrillDown={handleDrillDown}
-              breadcrumbs={graphBreadcrumbs}
-              projectSlug={linkedProject?.slug}
-            />
-          )}
-
-          {/* ── Runner ── */}
-          {activeTab === 'runner' && (
-            <div className="space-y-6">
-              {isStuck && runnerSnapshot && (
-                <div role="alert" className={`${surface} flex items-start gap-3 p-4 border-amber-500/25`}>
-                  <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
-                  <div className="flex-1 min-w-0 space-y-2">
-                    <div>
-                      <p className="text-sm font-medium text-amber-300">Run stuck</p>
-                      <p className="text-xs text-amber-400/80 mt-0.5">
-                        Every task is done ({runnerSnapshot.tasks_completed}/{runnerSnapshot.tasks_total}) but the run is still marked as active. The runner did not finalise properly.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={async () => {
-                          try {
-                            await runnerApi.forceCancelRun(plan.id)
-                            toast.success('Run finalised')
-                          } catch (err) {
-                            toast.error(err instanceof Error ? err.message : 'Failed to finalise the run')
-                          }
-                        }}
-                      >
-                        <Zap className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-                        Force finalisation
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={goToRunner}>
-                        <ExternalLink className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-                        Full dashboard
-                      </Button>
-                    </div>
+                    <Button size="sm" variant="ghost" onClick={goToRunner}>
+                      <ExternalLink className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
+                      Full dashboard
+                    </Button>
                   </div>
                 </div>
-              )}
+              </div>
+            )}
 
-              {hasPipelineRunning && runnerSnapshot && !isStuck && (
-                <Section
-                  title={
-                    <span className="inline-flex items-center gap-2">
-                      <StatusDot tone="progress" pulse size="md" label="Running" />
-                      Active run
-                    </span>
-                  }
-                  action={
-                    <Button size="sm" variant="ghost" onClick={goToRunner}>
-                      <ExternalLink className="w-4 h-4 mr-1 -ml-1" aria-hidden="true" />
-                      Dashboard
+            {hasPipelineRunning && runnerSnapshot && !isStuck && (
+              <Section
+                title={
+                  <span className="inline-flex items-center gap-2">
+                    <StatusDot tone="progress" pulse size="md" label="Running" />
+                    Active run
+                  </span>
+                }
+                action={
+                  <Button size="sm" variant="ghost" onClick={goToRunner}>
+                    <ExternalLink className="w-4 h-4 mr-1 -ml-1" aria-hidden="true" />
+                    Dashboard
+                  </Button>
+                }
+              >
+                <StatsRow
+                  effectiveSnapshot={runnerSnapshot}
+                  isRunning={hasPipelineRunning}
+                  resolvedAgents={runnerSnapshot.active_agents || []}
+                  wavesTotal={runnerSnapshot.current_wave}
+                  planId={plan.id}
+                  onBudgetSave={async (pid, value) => {
+                    await runnerApi.updateBudget(pid, value)
+                  }}
+                />
+              </Section>
+            )}
+
+            {!hasPipelineRunning && (
+              <EmptyState
+                size="sm"
+                icon={<Play />}
+                title="No active pipeline run"
+                description={
+                  plan.status === 'approved'
+                    ? 'Launch a run to implement the tasks of this plan.'
+                    : 'Approve the plan to launch a pipeline run.'
+                }
+                action={
+                  <>
+                    {canLaunch && (
+                      <Button size="sm" onClick={() => setImplementDialogOpen(true)}>
+                        <Play className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
+                        Launch pipeline
+                      </Button>
+                    )}
+                    <Button size="sm" variant="secondary" onClick={goToRunner}>
+                      <ExternalLink className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
+                      Runner dashboard
                     </Button>
-                  }
-                >
-                  <StatsRow
-                    effectiveSnapshot={runnerSnapshot}
-                    isRunning={hasPipelineRunning}
-                    resolvedAgents={runnerSnapshot.active_agents || []}
-                    wavesTotal={runnerSnapshot.current_wave}
-                    planId={plan.id}
-                    onBudgetSave={async (pid, value) => {
-                      await runnerApi.updateBudget(pid, value)
+                  </>
+                }
+              />
+            )}
+
+            <Section title="Run history">
+              <PlanRunHistory planIds={plan.id} maxRuns={10} />
+            </Section>
+          </div>
+        )}
+
+        {/* ── Conversations ── */}
+        {activeTab === 'chat' && (
+          <Section title="Conversations" count={chatSessionsLoading ? undefined : chatSessions.length}>
+            {chatSessionsLoading ? (
+              <EntityListSkeleton rows={3} />
+            ) : chatSessions.length === 0 ? (
+              <EmptyLine>
+                No conversations linked — they are linked automatically when tasks run via the runner, or manually from the chat panel.
+              </EmptyLine>
+            ) : (
+              <EntityList aria-label="Conversations">
+                {chatSessions.map((sw) => (
+                  <SessionRow
+                    key={sw.session.id}
+                    item={sw}
+                    showTasks
+                    onOpen={() => {
+                      setChatSessionId(sw.session.id)
+                      setChatPanelMode('open')
                     }}
                   />
-                </Section>
-              )}
+                ))}
+              </EntityList>
+            )}
+          </Section>
+        )}
 
-              {!hasPipelineRunning && (
-                <EmptyState
-                  size="sm"
-                  icon={<Play />}
-                  title="No active pipeline run"
-                  description={
-                    plan.status === 'approved'
-                      ? 'Launch a run to implement the tasks of this plan.'
-                      : 'Approve the plan to launch a pipeline run.'
-                  }
-                  action={
-                    <>
-                      {canLaunch && (
-                        <Button size="sm" onClick={() => setImplementDialogOpen(true)}>
-                          <Play className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-                          Launch pipeline
-                        </Button>
-                      )}
-                      <Button size="sm" variant="secondary" onClick={goToRunner}>
-                        <ExternalLink className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-                        Runner dashboard
-                      </Button>
-                    </>
-                  }
-                />
-              )}
+        {/* ── Artefacts ── */}
+        {activeTab === 'artefacts' && (
+          <div className="space-y-6">
+            <Section title="Commits" count={commits.length} action={<SectionAddButton label="Link commit" icon={Link2} onClick={openLinkCommit} />}>
+              <CommitList commits={commits} emptyMessage="No commits linked to this plan yet" />
+            </Section>
 
-              <Section title="Run history">
-                <PlanRunHistory planIds={plan.id} maxRuns={10} />
-              </Section>
-            </div>
-          )}
-
-          {/* ── Conversations ── */}
-          {activeTab === 'chat' && (
-            <Section title="Conversations" count={chatSessionsLoading ? undefined : chatSessions.length}>
-              {chatSessionsLoading ? (
-                <EntityListSkeleton rows={3} />
-              ) : chatSessions.length === 0 ? (
-                <EmptyLine>
-                  No conversations linked — they are linked automatically when tasks run via the runner, or manually from the chat panel.
-                </EmptyLine>
+            <Section title="Constraints" count={constraints.length} action={<SectionAddButton label="Add constraint" onClick={openAddConstraint} />}>
+              {constraints.length === 0 ? (
+                <EmptyLine>No constraints defined</EmptyLine>
               ) : (
-                <EntityList aria-label="Conversations">
-                  {chatSessions.map((sw) => (
-                    <SessionRow
-                      key={sw.session.id}
-                      item={sw}
-                      showTasks
-                      onOpen={() => {
-                        setChatSessionId(sw.session.id)
-                        setChatPanelMode('open')
+                <EntityList aria-label="Constraints">
+                  {constraints.map((constraint) => (
+                    <ConstraintRow
+                      key={constraint.id}
+                      constraint={constraint}
+                      onDelete={async () => {
+                        await plansApi.deleteConstraint(constraint.id)
+                        setConstraints((prev) => prev.filter((c) => c.id !== constraint.id))
+                        toast.success('Constraint deleted')
                       }}
                     />
                   ))}
                 </EntityList>
               )}
             </Section>
-          )}
 
-          {/* ── Artefacts ── */}
-          {activeTab === 'artefacts' && (
-            <div className="space-y-6">
-              <Section title="Commits" count={commits.length} action={<SectionAddButton label="Link commit" icon={Link2} onClick={openLinkCommit} />}>
-                <CommitList commits={commits} emptyMessage="No commits linked to this plan yet" />
-              </Section>
-
-              <Section title="Constraints" count={constraints.length} action={<SectionAddButton label="Add constraint" onClick={openAddConstraint} />}>
-                {constraints.length === 0 ? (
-                  <EmptyLine>No constraints defined</EmptyLine>
-                ) : (
-                  <EntityList aria-label="Constraints">
-                    {constraints.map((constraint) => (
-                      <ConstraintRow
-                        key={constraint.id}
-                        constraint={constraint}
-                        onDelete={async () => {
-                          await plansApi.deleteConstraint(constraint.id)
-                          setConstraints((prev) => prev.filter((c) => c.id !== constraint.id))
-                          toast.success('Constraint deleted')
-                        }}
-                      />
-                    ))}
-                  </EntityList>
-                )}
-              </Section>
-
-              <Section title="Decisions" count={decisions.length}>
-                {decisions.length === 0 ? (
-                  <EmptyLine>No decisions recorded — decisions are added from task pages.</EmptyLine>
-                ) : (
-                  <EntityList aria-label="Decisions">
-                    {decisions.map((decision) => (
-                      <DecisionRow
-                        key={decision.id}
-                        decision={decision}
-                        wsSlug={wsSlug}
-                        onStatusChange={(status) => handleDecisionStatusChange(decision, status)}
-                        onDelete={() => handleDeleteDecision(decision)}
-                        source={
-                          decision.taskId ? (
-                            <TaskMetaLink
-                              to={workspacePath(wsSlug, `/tasks/${decision.taskId}`)}
-                              state={{ planId: plan.id, planTitle: plan.title, projectId: plan.project_id }}
-                              label={decision.taskTitle}
-                            />
-                          ) : null
-                        }
-                      />
-                    ))}
-                  </EntityList>
-                )}
-              </Section>
-            </div>
-          )}
-        </TabLayout>
-      </div>
+            <Section title="Decisions" count={decisions.length}>
+              {decisions.length === 0 ? (
+                <EmptyLine>No decisions recorded — decisions are added from task pages.</EmptyLine>
+              ) : (
+                <EntityList aria-label="Decisions">
+                  {decisions.map((decision) => (
+                    <DecisionRow
+                      key={decision.id}
+                      decision={decision}
+                      wsSlug={wsSlug}
+                      onStatusChange={(status) => handleDecisionStatusChange(decision, status)}
+                      onDelete={() => handleDeleteDecision(decision)}
+                      source={
+                        decision.taskId ? (
+                          <TaskMetaLink
+                            to={workspacePath(wsSlug, `/tasks/${decision.taskId}`)}
+                            state={{ planId: plan.id, planTitle: plan.title, projectId: plan.project_id }}
+                            label={decision.taskTitle}
+                          />
+                        ) : null
+                      }
+                    />
+                  ))}
+                </EntityList>
+              )}
+            </Section>
+          </div>
+        )}
+      </TabLayout>
 
       <FormDialog {...editPlanDialog.dialogProps} onSubmit={editPlanForm.submit}>
         {editPlanForm.fields}

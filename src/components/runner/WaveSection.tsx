@@ -10,14 +10,13 @@
 
 import { useState } from 'react'
 import { ChevronRight } from 'lucide-react'
-import { EntityList, MetaLine, focusRingInset, surface } from '@/components/ui'
+import { EntityList, MetaLine, focusRingInset, surface, ToneText } from '@/components/ui'
 import type { ActiveAgentSnapshot } from '@/services/runner'
 import type { AgentExecution } from '@/types'
 import { formatElapsed, formatCost, getWaveStatus, waveStateMeta } from './shared'
 import { WaveAgentCard } from './WaveAgentCard'
 import { InlineConversation } from './InlineConversation'
 import { LiveProgress } from './LiveProgress'
-import { ToneText } from './ToneText'
 
 export interface WaveSectionProps {
   waveNumber: number
@@ -46,6 +45,7 @@ export function WaveSection({
 }: WaveSectionProps) {
   const [open, setOpen] = useState(defaultOpen)
   const waveStatus = getWaveStatus(agents)
+  const waveMeta = waveStateMeta(waveStatus)
 
   const completedCount = agents.filter((a) => a.status === 'completed').length
   const failedCount = agents.filter((a) => a.status === 'failed').length
@@ -66,7 +66,7 @@ export function WaveSection({
         <div className="flex items-center gap-2 min-w-0">
           <ChevronRight className={`w-3.5 h-3.5 shrink-0 text-gray-500 transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden="true" />
           <span className="text-sm font-medium text-gray-200 whitespace-nowrap">Wave {waveNumber}</span>
-          <ToneText meta={waveStateMeta(waveStatus)} className="text-xs min-w-0" />
+          <ToneText tone={waveMeta.tone} label={waveMeta.label} pulse={waveMeta.live} className="text-xs min-w-0" />
           <span className="ml-auto shrink-0 text-xs tabular-nums text-gray-400">
             {completedCount}/{totalCount}
           </span>

@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Folder, Search, Blocks, HeartPulse } from 'lucide-react'
-import { PageShell, Select } from '@/components/ui'
+import { PageShell, Select, TabLayout } from '@/components/ui'
 import type { TabItem } from '@/components/ui'
 import { workspacesApi } from '@/services'
 import { useWorkspaceSlug } from '@/hooks'
-import { SubTabs } from '@/components/code/SubTabs'
 import { CodeExplorerTab } from '@/components/code/CodeExplorerTab'
 import { CodeArchitectureFullTab } from '@/components/code/CodeArchitectureFullTab'
 import { CodeSanteTab } from '@/components/code/CodeSanteTab'
@@ -94,20 +93,19 @@ export function CodePage() {
         ) : undefined
       }
     >
-      <SubTabs
-        variant="underline"
+      <TabLayout
         tabs={TABS}
-        active={activeTab}
-        onChange={(id) => setParam('tab', id === 'explorer' ? null : id)}
+        activeTab={activeTab}
+        onTabChange={(id) => setParam('tab', id === 'explorer' ? null : id)}
         label="Code sections"
-      />
-      <div role="tabpanel" id={`tabpanel-${activeTab}`} aria-labelledby={`tab-${activeTab}`} className="pt-4">
+        className="pt-4"
+      >
         {activeTab === 'explorer' && <CodeExplorerTab projectSlug={projectSlug} workspaceSlug={wsSlug} onOpenFile={openFile} />}
         {activeTab === 'architecture' && (
           <CodeArchitectureFullTab projectSlug={projectSlug} workspaceSlug={wsSlug} onOpenFile={openFile} />
         )}
         {activeTab === 'health' && <CodeSanteTab projectSlug={projectSlug} onOpenFile={openFile} />}
-      </div>
+      </TabLayout>
 
       {fileParam && (
         <FileHistoryDrawer

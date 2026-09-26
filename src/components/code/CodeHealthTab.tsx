@@ -12,9 +12,10 @@ import {
   TONE_CLASSES,
   pluralize,
   type StatusTone,
+  Meter,
+  StatTiles,
 } from '@/components/ui'
 import { codeApi } from '@/services'
-import { Meter, StatTiles } from './metrics'
 import type { CodeHealth, ChangeHotspot, KnowledgeGap, RiskFile, RiskAssessmentSummary } from '@/types'
 
 // ── Strip common base path ──────────────────────────────────────────────

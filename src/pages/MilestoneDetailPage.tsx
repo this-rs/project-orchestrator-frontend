@@ -20,9 +20,10 @@ import {
   formatAbsolute,
   formatDay,
   pluralize,
+  ProgressLine,
 } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
-import { MilestonePlanRow, ProgressLine } from '@/components/expandable'
+import { MilestonePlanRow } from '@/components/expandable'
 import { UnifiedGraphSection, type GraphBreadcrumb } from '@/components/graph/UnifiedGraphSection'
 import { EditMilestoneForm } from '@/components/forms/EditMilestoneForm'
 import { MilestoneGraphAdapter } from '@/adapters/MilestoneGraphAdapter'

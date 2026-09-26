@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { EmptyState, EntityList, EntityListSkeleton, EntityRow, ErrorState, Section, Skeleton, pluralize } from '@/components/ui'
+import { EmptyState, EntityList, EntityListSkeleton, EntityRow, ErrorState, Section, Skeleton, StatTiles, pluralize } from '@/components/ui'
 import { codeApi } from '@/services'
 import type { ArchitectureOverview } from '@/services'
-import { StatTiles } from './metrics'
 
 interface CodeArchitectureTabProps {
   projectSlug: string | null

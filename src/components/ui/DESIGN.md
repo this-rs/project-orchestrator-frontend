@@ -114,7 +114,8 @@ Every entity list is `EntityList` / `ListGroup` of `EntityRow`s. No per-page car
 - `selected` = current item (indigo inset bar). `muted` = done/archived items.
 - Grouping: by recency (`groupByRecency(items, i => i.updated_at)`) or by status (`groupBy(items, i => i.status, ORDER)`), rendered with `ListGroup` (header + count; `collapsible` + `defaultOpen={false}` for "Completed"-like groups).
 - Pagination: keep `LoadMoreSentinel` / `Pagination` below the list.
-- Bulk selection: put the `SelectCheckbox` in `leading` (it sits above the stretched link).
+- Bulk selection: put a `RowCheckbox` (36px target, keyboard, `label="Select …"`) in `leading` (it sits above the stretched link).
+- Rows that expand inline content pass `expanded` (→ `aria-expanded` on the title control) and keep `ariaLabel` free of verbs; `menuLabel` names the `⋯` menu when the title is not plain text.
 
 ## 6. Filters — `FilterBar`
 
@@ -155,7 +156,8 @@ Anatomy: **PageHeader → key facts line → sections**.
 
 - Parent entities = muted breadcrumb links above the title (built in).
 - Key facts = status first, then 2–5 short facts. Long properties → a `Facts` list in a section.
-- Sections: `Section` (title · count · one action). Use `SectionNav`/`TabLayout` only when there are ≥ 4 long sections; tabs must fit or scroll horizontally in their own strip.
+- Sections: `Section` (title · count · one action). Use `SectionNav`/`TabLayout` only when there are ≥ 4 long sections; `TabLayout`'s strip scrolls horizontally on its own. Secondary view switches inside a page/section (Protocols · Runs · Scheduled) use the segmented `ViewTabs`; list/board uses the icon-only `ViewToggle` in `FilterBar.trailing`.
+- Progress / metrics: `ProgressLine` (static 0–100 progressbar, rows and progress blocks), `Meter` (0–1 ratio with tone, `block` / `inline` / bare `bar`), `StatTiles` (grid of numbers). Never `ProgressBar` (animated) on list data.
 - `metadata={[{label, value}]}` still works (rendered as `label value` in the facts line) but prefer `meta`.
 
 ## 8. Empty / loading / error
@@ -202,7 +204,8 @@ Anatomy: **PageHeader → key facts line → sections**.
 - Dates: `formatRelativeShort`, `formatAbsolute`, `formatDay`, `formatElapsed`, `formatDurationMs`, `RelativeTime`.
 - Numbers/text: `pluralize`, `formatCost`, `formatCompactNumber`.
 - Grouping: `groupByRecency`, `groupBy`, `RECENCY_GROUP_ORDER`.
-- Status: `getStatusMeta`, `getStatusOptions(kind)` (→ Select / StatusMenu options), `getPriorityMeta`, `TONE_CLASSES`.
+- Status: `getStatusMeta`, `getStatusOptions(kind)` (→ Select / StatusMenu options), `getPriorityMeta`, `TONE_CLASSES`; `ToneText` for values outside the registry (consent, circuit breaker, runner/wave states).
+- Controls: `TabLayout` (page tabs), `ViewTabs` (segmented views), `ViewToggle` (list/board), `RowCheckbox` (bulk selection), `ProgressLine`, `Meter`, `StatTiles`.
 - Classes: `focusRing`, `focusRingInset`, `hitArea`, `rowInteractive`, `metaText`, `textLink`, `inlineLink`, `surface`.
 - Menus: `OverflowMenu`, `StatusMenu`, `useFloatingFallback`, `positionFloating`.
 

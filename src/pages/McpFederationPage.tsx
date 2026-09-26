@@ -19,9 +19,9 @@ import {
   pluralize,
   textLink,
   type StatusTone,
+  ToneText,
 } from '@/components/ui'
 import { Notice } from '@/components/settings/SettingRow'
-import { ToneText } from '@/components/settings/ToneText'
 import { useToast } from '@/hooks'
 import { mcpFederationApi } from '@/services/mcpFederation'
 import type {
@@ -93,7 +93,6 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   )
 }
 
-const inputCls = 'text-base md:text-sm'
 
 function ConnectServerDialog({ open, onClose, onSuccess }: { open: boolean; onClose: () => void; onSuccess: () => void }) {
   const toast = useToast()
@@ -144,11 +143,11 @@ function ConnectServerDialog({ open, onClose, onSuccess }: { open: boolean; onCl
           Plug in an external MCP server: its tools become available to the agents, with error and latency tracking.
         </p>
         <Field label="Server ID *">
-          {(id) => <Input id={id} value={serverId} onChange={(e) => setServerId(e.target.value)} placeholder="my-mcp-server" className={inputCls} />}
+          {(id) => <Input id={id} value={serverId} onChange={(e) => setServerId(e.target.value)} placeholder="my-mcp-server" />}
         </Field>
         <Field label="Display name">
           {(id) => (
-            <Input id={id} value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="My MCP Server (optional)" className={inputCls} />
+            <Input id={id} value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="My MCP Server (optional)" />
           )}
         </Field>
         <Field label="Transport *" hint="Stdio: a process started locally. SSE / HTTP: a server already running, reached by URL.">
@@ -173,23 +172,23 @@ function ConnectServerDialog({ open, onClose, onSuccess }: { open: boolean; onCl
                   value={command}
                   onChange={(e) => setCommand(e.target.value)}
                   placeholder="npx -y @modelcontextprotocol/server-everything"
-                  className={`font-mono ${inputCls}`}
+                  className="font-mono"
                 />
               )}
             </Field>
             <Field label="Arguments" hint="Space-separated.">
-              {(id) => <Input id={id} value={args} onChange={(e) => setArgs(e.target.value)} placeholder="--port 3000 --verbose" className={`font-mono ${inputCls}`} />}
+              {(id) => <Input id={id} value={args} onChange={(e) => setArgs(e.target.value)} placeholder="--port 3000 --verbose" className="font-mono" />}
             </Field>
             <Field label="Environment variables" hint="One KEY=VALUE per line.">
               {(id) => (
-                <Textarea id={id} value={env} onChange={(e) => setEnv(e.target.value)} placeholder={'KEY=value\nANOTHER_KEY=value'} rows={3} className={`font-mono ${inputCls}`} />
+                <Textarea id={id} value={env} onChange={(e) => setEnv(e.target.value)} placeholder={'KEY=value\nANOTHER_KEY=value'} rows={3} className="font-mono" />
               )}
             </Field>
           </>
         ) : (
           <>
             <Field label="URL *">
-              {(id) => <Input id={id} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:3000/sse" className={inputCls} />}
+              {(id) => <Input id={id} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:3000/sse" />}
             </Field>
             <Field label="Headers" hint="One KEY=VALUE per line.">
               {(id) => (
@@ -199,7 +198,7 @@ function ConnectServerDialog({ open, onClose, onSuccess }: { open: boolean; onCl
                   onChange={(e) => setHeaders(e.target.value)}
                   placeholder={'Authorization=Bearer token\nX-Custom=value'}
                   rows={3}
-                  className={`font-mono ${inputCls}`}
+                  className="font-mono"
                 />
               )}
             </Field>

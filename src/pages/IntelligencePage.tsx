@@ -34,8 +34,9 @@ import {
   surface,
   textLink,
   type StatusTone,
+  Meter,
+  StatTiles,
 } from '@/components/ui'
-import { Meter, StatTiles } from '@/components/code/metrics'
 import { intelligenceApi } from '@/services/intelligence'
 import { codeApi } from '@/services/code'
 import { CommunityVizWidget } from '@/components/particles/widgets'

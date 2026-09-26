@@ -20,10 +20,13 @@ import {
   groupBy,
   hitArea,
   textLink,
+  RowCheckbox,
+  ViewToggle,
+  ProgressLine,
 } from '@/components/ui'
 import { api, workspacesApi, projectsApi } from '@/services'
 import { useViewMode, useConfirmDialog, useToast, useMultiSelect, useWorkspaceSlug, useViewTransition, useWorkspace } from '@/hooks'
-import { MiniProgress, RowSelect, UniversalKanban, ViewModeToggle, createMilestoneKanbanConfig } from '@/components/kanban'
+import { UniversalKanban, createMilestoneKanbanConfig } from '@/components/kanban'
 import type { MilestoneWithProgress } from '@/components/kanban'
 import type { MilestoneStatus } from '@/types'
 import { workspacePath } from '@/utils/paths'
@@ -262,7 +265,7 @@ export function MilestonesPage() {
             setSourceFilter('all')
             setStatusFilter('all')
           }}
-          trailing={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
+          trailing={<ViewToggle value={viewMode} onChange={setViewMode} />}
           filters={
             <>
               <Select options={sourceOptions} value={sourceFilter} onChange={(value) => setSourceFilter(value)} />
@@ -366,7 +369,7 @@ function MilestoneRow({ milestone, wsSlug, now, selected, onToggleSelect, onStat
       viewTransitionName={`milestone-title-${milestone.id}`}
       selected={selected}
       muted={status === 'completed' || status === 'closed'}
-      leading={<RowSelect selected={selected} onToggle={onToggleSelect} label={`Select ${milestone.title}`} />}
+      leading={<RowCheckbox checked={selected} onToggle={onToggleSelect} label={`Select ${milestone.title}`} />}
       trailing={
         progress && progress.total > 0 ? (
           <span title={`${progress.completed} of ${progress.total} tasks completed`}>
@@ -395,7 +398,7 @@ function MilestoneRow({ milestone, wsSlug, now, selected, onToggleSelect, onStat
       ]}
       context={
         progress && progress.total > 0 ? (
-          <MiniProgress
+          <ProgressLine
             value={progress.percentage}
             label={`${Math.round(progress.percentage)}% complete`}
             className="max-w-xs"

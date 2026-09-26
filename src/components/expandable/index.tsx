@@ -22,11 +22,11 @@ import {
   pluralize,
   focusRing,
   metaText,
+  ProgressLine,
 } from '@/components/ui'
 import { tasksApi, projectsApi } from '@/services'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
-import { ProgressLine } from './ProgressLine'
 import type {
   Plan,
   Task,
@@ -39,8 +39,6 @@ import type {
   MilestoneTaskSummary,
   MilestoneStepSummary,
 } from '@/types'
-
-export { ProgressLine } from './ProgressLine'
 
 // ── Shared bits ──────────────────────────────────────────────────────────────
 

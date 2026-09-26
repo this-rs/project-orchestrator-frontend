@@ -118,8 +118,7 @@ describe('PersonaDetailPage', () => {
     expect(screen.getAllByText('Auto-built')).toHaveLength(2)
     expect(screen.getByText('4 activations')).toBeTruthy()
     expect(screen.getByText('used 3h')).toBeTruthy()
-    // PageHeader joins the sr-only "Project: " and the name without a separator in the computed name
-    expect(await screen.findByRole('link', { name: /Project:\s*Alpha/ })).toBeTruthy()
+    expect(await screen.findByRole('link', { name: 'Project: Alpha' })).toBeTruthy()
 
     const vitals = screen.getByRole('region', { name: 'Vital signs' })
     expect(within(vitals).getByText('80%')).toBeTruthy() // energy
@@ -142,7 +141,7 @@ describe('PersonaDetailPage', () => {
     expect(within(knows).getByText('50%')).toBeTruthy()
     expect(await within(knows).findByRole('link', { name: 'Auth tokens' })).toBeTruthy()
     expect(within(knows).getByRole('link', { name: 'Auth tokens' }).getAttribute('href')).toBe('/workspace/ws/skills/sk1')
-    expect(within(knows).getByRole('button', { name: /^Expand Rotate keys often/ })).toBeTruthy()
+    expect(within(knows).getByRole('button', { name: /^Rotate keys often/, expanded: false })).toBeTruthy()
 
     const details = screen.getByRole('region', { name: 'Details' })
     expect(within(details).getByText('pe1')).toBeTruthy()

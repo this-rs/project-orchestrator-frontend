@@ -26,13 +26,13 @@ import {
   pluralize,
   rowInteractive,
   surface,
+  ProgressLine,
 } from '@/components/ui'
 import { workspacesApi, projectsApi } from '@/services'
 import { useFormDialog, useIsMobile, useLinkDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { workspaceRefreshAtom, projectRefreshAtom, milestoneRefreshAtom, taskRefreshAtom } from '@/atoms'
 import { CreateMilestoneForm, CreateResourceForm, CreateComponentForm, EditWorkspaceForm } from '@/components/forms'
-import { ProgressLine } from '@/components/expandable'
 import {
   IntelAttention,
   IntelFallback,

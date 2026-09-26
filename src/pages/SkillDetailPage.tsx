@@ -487,7 +487,7 @@ export function SkillDetailPage() {
               value={templateDraft}
               onChange={(e) => setTemplateDraft(e.target.value)}
               rows={8}
-              className="text-base md:text-sm font-mono"
+              className="font-mono"
               placeholder="Markdown template for the activation context…"
             />
             <div className="flex flex-wrap justify-end gap-2">
@@ -552,7 +552,6 @@ export function SkillDetailPage() {
             <Input
               type="text"
               aria-label="Activation query"
-              className="text-base md:text-sm"
               placeholder="e.g. how do we handle auth tokens?"
               value={activationQuery}
               onChange={(e) => setActivationQuery(e.target.value)}
@@ -583,7 +582,8 @@ function NoteMemberRow({ note, onRemove, confirm }: { note: Note; onRemove: () =
     <EntityRow
       title={note.content}
       onClick={() => setOpen((v) => !v)}
-      ariaLabel={`${open ? 'Collapse' : 'Expand'} note: ${note.content.slice(0, 60)}`}
+      ariaLabel={`Note: ${note.content.slice(0, 60)}`}
+      expanded={open}
       trailing={<RelativeTime date={note.created_at} />}
       meta={[
         note.note_type,

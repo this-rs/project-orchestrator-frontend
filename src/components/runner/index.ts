@@ -23,7 +23,6 @@ export { WaveSection } from './WaveSection'
 export type { WaveSectionProps } from './WaveSection'
 
 // Design-system building blocks
-export { ToneText } from './ToneText'
 export { LiveProgress } from './LiveProgress'
 export { BudgetEditor } from './BudgetEditor'
 

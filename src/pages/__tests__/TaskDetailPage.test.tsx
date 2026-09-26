@@ -107,8 +107,7 @@ describe('TaskDetailPage', () => {
   it('shows the header with parent plan, status, key facts, tags and every section', async () => {
     renderPage()
     expect(await screen.findByRole('heading', { level: 1, name: 'Write login form' })).toBeTruthy()
-    // PageHeader's sr-only label has no separating space in the computed name ("Plan:Auth flow") — ui/ is frozen
-    expect(screen.getByRole('link', { name: /Plan:\s?Auth flow/ }).getAttribute('href')).toBe('/workspace/ws/plans/p1')
+    expect(screen.getByRole('link', { name: 'Plan: Auth flow' }).getAttribute('href')).toBe('/workspace/ws/plans/p1')
     expect(screen.getByRole('button', { name: /Status: In progress/ })).toBeTruthy()
     expect(screen.getByText('P7')).toBeTruthy()
     expect(screen.getByText('@theo')).toBeTruthy()

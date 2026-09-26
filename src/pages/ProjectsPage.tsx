@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSetAtom } from 'jotai'
-import { Check, CheckSquare, Pencil, Trash2 } from 'lucide-react'
+import { CheckSquare, Pencil, Trash2 } from 'lucide-react'
 import { projectRefreshAtom } from '@/atoms'
 import { projectsApi } from '@/services'
 import { workspacesApi } from '@/services/workspaces'
@@ -19,6 +19,7 @@ import {
   PageShell,
   RelativeTime,
   focusRing,
+  RowCheckbox,
 } from '@/components/ui'
 import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useWorkspaceSlug, useWorkspace } from '@/hooks'
 import { CreateProjectForm, EditProjectForm } from '@/components/forms'
@@ -225,35 +226,6 @@ export function ProjectsPage() {
 }
 
 // ── Row ───────────────────────────────────────────────────────────────────
-
-/**
- * Accessible round checkbox for the EntityRow leading slot: 36px tap target,
- * 18px visual, keyboard operable (the shared SelectZone is a mouse-only div).
- */
-function RowCheckbox({ checked, onToggle, label }: { checked: boolean; onToggle: (shiftKey: boolean) => void; label: string }) {
-  return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        onToggle(e.shiftKey)
-      }}
-      className={`-m-2 p-2 rounded-full ${focusRing}`}
-    >
-      <span
-        className={`flex w-[18px] h-[18px] items-center justify-center rounded-full border transition-colors duration-[120ms] ${
-          checked ? 'border-indigo-500 bg-indigo-500' : 'border-white/20 hover:border-white/40'
-        }`}
-      >
-        {checked && <Check className="w-3 h-3 text-white" strokeWidth={3} aria-hidden="true" />}
-      </span>
-    </button>
-  )
-}
 
 function ProjectRow({
   project,

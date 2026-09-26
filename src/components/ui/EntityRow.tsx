@@ -38,6 +38,14 @@ export interface EntityRowProps {
   titleLines?: 1 | 2
   /** Accessible name for the row control when `title` is not plain text. */
   ariaLabel?: string
+  /**
+   * Name used by the `⋯` menu (`Actions for <menuLabel>`). Defaults to
+   * `ariaLabel`, then the plain-string `title`. Pass it when `ariaLabel` carries
+   * state or a verb ("Expand …") that must not leak into the menu name.
+   */
+  menuLabel?: string
+  /** Row toggles inline content: sets `aria-expanded` on the title control. */
+  expanded?: boolean
   /** Show a trailing chevron (drill-down rows without actions). */
   chevron?: boolean
   /** Expanded content rendered under the row body (full width of the text column). */
@@ -78,13 +86,15 @@ export function EntityRow({
   muted,
   titleLines = 2,
   ariaLabel,
+  menuLabel,
+  expanded,
   chevron,
   children,
   viewTransitionName,
   as: Tag = 'li',
   className = '',
 }: EntityRowProps) {
-  const label = ariaLabel ?? (typeof title === 'string' ? title : undefined)
+  const menuName = menuLabel ?? ariaLabel ?? (typeof title === 'string' ? title : undefined)
   const clamp = titleLines === 1 ? 'truncate' : 'line-clamp-2 break-words'
   const titleColor = selected ? 'text-gray-50 font-medium' : muted ? 'text-gray-400' : 'text-gray-200'
   // Stretched activation area + focus ring drawn on the whole row.
@@ -93,11 +103,11 @@ export function EntityRow({
   const interactive = Boolean(href || onClick)
 
   const titleNode = href ? (
-    <Link to={href} aria-label={ariaLabel} aria-current={selected ? 'page' : undefined} className={stretched}>
+    <Link to={href} aria-label={ariaLabel} aria-current={selected ? 'page' : undefined} aria-expanded={expanded} className={stretched}>
       {title}
     </Link>
   ) : onClick ? (
-    <button type="button" onClick={onClick} aria-label={ariaLabel} aria-pressed={selected || undefined} className={stretched}>
+    <button type="button" onClick={onClick} aria-label={ariaLabel} aria-pressed={selected || undefined} aria-expanded={expanded} className={stretched}>
       {title}
     </button>
   ) : (
@@ -105,7 +115,7 @@ export function EntityRow({
   )
 
   const menu = Array.isArray(actions) ? (
-    <OverflowMenu actions={actions as OverflowMenuAction[]} size="sm" label={label ? `Actions for ${label}` : 'Row actions'} />
+    <OverflowMenu actions={actions as OverflowMenuAction[]} size="sm" label={menuName ? `Actions for ${menuName}` : 'Row actions'} />
   ) : (
     actions
   )
@@ -131,7 +141,12 @@ export function EntityRow({
             {titleNode}
             {titleSuffix && <span className="ml-1.5 inline-flex items-center align-middle">{titleSuffix}</span>}
           </div>
-          {trailing && <div className="shrink-0 text-[11px] leading-5 tabular-nums text-gray-500">{trailing}</div>}
+          {trailing && (
+            <>
+              {' '}
+              <div className="shrink-0 text-[11px] leading-5 tabular-nums text-gray-500">{trailing}</div>
+            </>
+          )}
         </div>
         {description && <div className="mt-0.5 text-xs leading-4 text-gray-500 line-clamp-2 break-words">{description}</div>}
         {meta != null && meta !== false && (
@@ -210,7 +225,12 @@ export function ListGroup({
         <ChevronRight className={`w-3 h-3 shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`} aria-hidden="true" />
       )}
       <span className="truncate">{title}</span>
-      {count !== undefined && <span className="tabular-nums font-normal text-gray-600">{count}</span>}
+      {count !== undefined && (
+        <>
+          {' '}
+          <span className="tabular-nums font-normal text-gray-600">{count}</span>
+        </>
+      )}
     </>
   )
 

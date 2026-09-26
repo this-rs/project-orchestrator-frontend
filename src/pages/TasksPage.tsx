@@ -24,6 +24,8 @@ import {
   inlineLink,
   rowInteractive,
   textLink,
+  RowCheckbox,
+  ViewToggle,
 } from '@/components/ui'
 import {
   useKanbanFilters,
@@ -37,7 +39,7 @@ import {
   useViewTransition,
   useProjectFilter,
 } from '@/hooks'
-import { KanbanFilterBar, RowSelect, UniversalKanban, ViewModeToggle, createTaskKanbanConfig } from '@/components/kanban'
+import { KanbanFilterBar, UniversalKanban, createTaskKanbanConfig } from '@/components/kanban'
 import { RowStateLink } from '@/components/tasks/RowStateLink'
 import { EditTaskForm } from '@/components/forms'
 import type { EditTaskFormData } from '@/components/forms/EditTaskForm'
@@ -240,7 +242,7 @@ export function TasksPage() {
 
   const isKanban = viewMode === 'kanban'
   const showListSkeleton = loading && !isKanban && tasks.length === 0
-  const viewToggle = <ViewModeToggle value={viewMode} onChange={setViewMode} />
+  const viewToggle = <ViewToggle value={viewMode} onChange={setViewMode} />
 
   // List filters (FilterBar)
   const listActiveCount = (projectFilterParam ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)
@@ -381,7 +383,7 @@ function TaskRow({ task, wsSlug, selected, onToggleSelect, onEdit, onStatusChang
       className="hover:bg-white/[0.03] active:bg-white/[0.05]"
       selected={selected}
       muted={task.status === 'completed'}
-      leading={<RowSelect selected={selected} onToggle={onToggleSelect} label={`Select ${title}`} />}
+      leading={<RowCheckbox checked={selected} onToggle={onToggleSelect} label={`Select ${title}`} />}
       trailing={<RelativeTime date={task.updated_at ?? task.created_at} />}
       description={task.title ? task.description : undefined}
       meta={[

@@ -315,7 +315,7 @@ function SyncWatchersSection() {
                   aria-label="Directory path"
                   value={syncPath}
                   onChange={(e) => setSyncPath(e.target.value)}
-                  className="text-base md:text-sm h-9 py-1.5"
+                  className="h-9 py-1.5"
                 />
               </div>
               <Button variant="secondary" size="sm" onClick={handleSync} loading={syncing} disabled={!syncPath.trim()}>

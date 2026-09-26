@@ -17,7 +17,7 @@ import {
   PageShell,
   RelativeTime,
   Select,
-  SelectCheckbox,
+  RowCheckbox,
   StatusMenu,
   StatusText,
   TONE_CLASSES,
@@ -455,7 +455,7 @@ function NoteRow({ note, href, score, selectable, selected, onToggleSelect, onSt
       href={href}
       selected={selected}
       muted={note.status === 'archived' || note.status === 'obsolete'}
-      leading={selectable ? <SelectCheckbox selected={selected} onToggle={onToggleSelect} /> : undefined}
+      leading={selectable ? <RowCheckbox checked={selected} onToggle={onToggleSelect} label={`Select ${noteTitle(note.content)}`} /> : undefined}
       trailing={
         score !== undefined ? (
           <span title="Semantic match">{Math.round(score * 100)}%</span>

@@ -16,7 +16,7 @@ import {
 import type { TabItem } from '@/components/ui'
 import { codeApi } from '@/services'
 import type { ClassHierarchy, SubclassesResponse, InterfaceImplementorsResponse } from '@/types'
-import { SubTabs } from './SubTabs'
+import { ViewTabs } from '@/components/ui'
 
 type HeritageMode = 'hierarchy' | 'subclasses' | 'implementors'
 
@@ -114,7 +114,7 @@ export function CodeHeritageTab() {
 
   return (
     <div className="space-y-4">
-      <SubTabs tabs={MODES} active={mode} onChange={changeMode} label="Heritage mode" />
+      <ViewTabs tabs={MODES} value={mode} onChange={changeMode} label="Heritage mode" />
       <form role="search" onSubmit={handleSubmit}>
         <FilterBar
           search={query}

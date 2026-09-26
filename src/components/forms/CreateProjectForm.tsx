@@ -104,7 +104,7 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
             value={rootPath}
             onChange={(e) => setRootPath(e.target.value)}
             error={errors.root_path}
-            className="font-mono text-base md:text-sm"
+            className="font-mono"
           />
           {isTauri && (
             <Button

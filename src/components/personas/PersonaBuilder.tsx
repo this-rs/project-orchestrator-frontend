@@ -165,7 +165,6 @@ export function PersonaBuilder({ projectId: defaultProjectId, projects = [], onC
             <>
               <Input
                 label="Entry function"
-                className="text-base md:text-sm"
                 value={state.entryFunction}
                 onChange={(e) => update({ entryFunction: e.target.value })}
                 placeholder="e.g. handle_request, main"
@@ -175,7 +174,6 @@ export function PersonaBuilder({ projectId: defaultProjectId, projects = [], onC
                 type="number"
                 min={1}
                 max={10}
-                className="text-base md:text-sm"
                 value={state.depth}
                 onChange={(e) => update({ depth: Number(e.target.value) })}
               />
@@ -185,7 +183,7 @@ export function PersonaBuilder({ projectId: defaultProjectId, projects = [], onC
           {state.mode === 'file_pattern' && (
             <Input
               label="Glob pattern"
-              className="text-base md:text-sm font-mono"
+              className="font-mono"
               value={state.filePattern}
               onChange={(e) => update({ filePattern: e.target.value })}
               placeholder="e.g. src/api/**/*.rs"
@@ -196,7 +194,6 @@ export function PersonaBuilder({ projectId: defaultProjectId, projects = [], onC
             <div>
               <Input
                 label="Community ID"
-                className="text-base md:text-sm"
                 value={state.communityId}
                 onChange={(e) => update({ communityId: e.target.value })}
                 placeholder="Community ID from code analysis"
@@ -276,14 +273,12 @@ export function PersonaBuilder({ projectId: defaultProjectId, projects = [], onC
           )}
           <Input
             label="Name *"
-            className="text-base md:text-sm"
             value={state.name}
             onChange={(e) => update({ name: e.target.value })}
             placeholder="e.g. API layer expert"
           />
           <Textarea
             label="Description"
-            className="text-base md:text-sm"
             rows={3}
             value={state.description}
             onChange={(e) => update({ description: e.target.value })}

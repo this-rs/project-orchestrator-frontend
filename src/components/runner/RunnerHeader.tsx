@@ -11,11 +11,10 @@
 
 import { useNavigate } from 'react-router-dom'
 import { ClipboardList, Copy, Rocket, RotateCcw } from 'lucide-react'
-import { Button, PageHeader } from '@/components/ui'
+import { Button, PageHeader, ToneText } from '@/components/ui'
 import { useToast } from '@/hooks'
 import { CancelButton } from './CancelButton'
 import { formatElapsed, runStateMeta } from './shared'
-import { ToneText } from './ToneText'
 import type { RunSnapshot } from '@/services/runner'
 
 export interface RunnerHeaderProps {
@@ -57,7 +56,7 @@ export function RunnerHeader({
     <PageHeader
       title={planTitle}
       parentLinks={[{ icon: Rocket, label: 'Pipelines', name: 'Pipelines', href: wpFn(wsSlug, '/pipelines') }]}
-      status={<ToneText meta={{ ...meta, live: meta.live && isRunning }} />}
+      status={<ToneText tone={meta.tone} label={meta.label} pulse={meta.live && isRunning} />}
       meta={[
         <span key="t" className="tabular-nums">
           {snap.tasks_completed ?? 0}/{snap.tasks_total ?? 0} tasks

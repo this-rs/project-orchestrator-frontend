@@ -396,7 +396,7 @@ function useAddEntityForm({ graphId, onSuccess }: { graphId: string; onSuccess: 
           value={entityId}
           onChange={(e) => setEntityId(e.target.value)}
           error={errors.entity_id}
-          className="font-mono text-base md:text-sm"
+          className="font-mono"
           autoFocus
         />
         <Select label="Role" options={roleOptions} value={role} onChange={setRole} />
