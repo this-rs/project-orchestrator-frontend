@@ -1,12 +1,21 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, type ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
-import { ChevronRight, Plus } from 'lucide-react'
+import { AlertTriangle, Plus } from 'lucide-react'
 import { workspacesAtom } from '@/atoms'
 import { workspacesApi } from '@/services/workspaces'
 import { workspacePath } from '@/utils/paths'
-import { ErrorState } from '@/components/ui'
+import { Button, EntityList, EntityListSkeleton, EntityRow, ErrorState, Input, RelativeTime, focusRing } from '@/components/ui'
 import type { Workspace } from '@/types'
+
+/** Full-screen centred column (this page renders outside MainLayout: it owns its gutters). */
+function Screen({ children, narrow }: { children: ReactNode; narrow?: boolean }) {
+  return (
+    <div className="min-h-dvh flex items-start sm:items-center justify-center bg-surface-base px-4 py-10">
+      <div className={`w-full ${narrow ? 'max-w-sm' : 'max-w-md'} space-y-6`}>{children}</div>
+    </div>
+  )
+}
 
 /**
  * Full-page workspace selector shown when:
@@ -36,7 +45,9 @@ export function WorkspaceSelectorPage() {
     }
   }, [])
 
-  useEffect(() => { loadWorkspaces() }, [loadWorkspaces])
+  useEffect(() => {
+    loadWorkspaces()
+  }, [loadWorkspaces])
 
   // If only one workspace exists, redirect immediately
   useEffect(() => {
@@ -45,19 +56,30 @@ export function WorkspaceSelectorPage() {
     }
   }, [loading, workspaces, navigate])
 
+  const header = (
+    <div className="text-center space-y-2">
+      <img src="/logo-32.png" alt="PO" className="w-10 h-10 mx-auto rounded-xl" />
+      <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-gray-100">Select a workspace</h1>
+      <p className="text-sm text-gray-500">Choose which workspace to work in</p>
+    </div>
+  )
+
   if (loading) {
     return (
-      <div className="min-h-dvh flex items-center justify-center bg-surface-base">
-        <div className="animate-pulse text-gray-500">Loading workspaces...</div>
-      </div>
+      <Screen>
+        {header}
+        <div aria-busy="true" aria-label="Loading workspaces">
+          <EntityListSkeleton rows={3} />
+        </div>
+      </Screen>
     )
   }
 
   if (error) {
     return (
-      <div className="min-h-dvh flex items-center justify-center bg-surface-base">
+      <Screen>
         <ErrorState title="Connection error" description={error} onRetry={loadWorkspaces} />
-      </div>
+      </Screen>
     )
   }
 
@@ -66,60 +88,57 @@ export function WorkspaceSelectorPage() {
   }
 
   return (
-    <div className="min-h-dvh flex items-center justify-center bg-surface-base">
-      <div className="w-full max-w-md space-y-6 px-4">
-        <div className="text-center space-y-2">
-          <img src="/logo-32.png" alt="PO" className="w-12 h-12 mx-auto rounded-xl" />
-          <h1 className="text-xl font-bold text-gray-100">Select a Workspace</h1>
-          <p className="text-sm text-gray-500">Choose which workspace to work in</p>
-        </div>
+    <Screen>
+      {header}
 
-        {notFoundSlug && (
-          <div className="px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-sm text-amber-300">
+      {notFoundSlug && (
+        <div role="alert" className="flex items-start gap-2 rounded-xl border border-amber-500/20 px-3 py-2.5 text-sm text-amber-300">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
+          <p className="min-w-0 break-words">
             Workspace <span className="font-medium">&quot;{notFoundSlug}&quot;</span> was not found. Please select another workspace.
-          </div>
-        )}
-
-        <div className="space-y-2">
-          {workspaces.map((ws) => (
-            <button
-              key={ws.id}
-              onClick={() => navigate(workspacePath(ws.slug, '/overview'), { replace: true })}
-              className="w-full flex items-center gap-3 px-4 py-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] rounded-lg transition-colors text-left"
-            >
-              <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold text-lg">
-                {ws.name.charAt(0).toUpperCase()}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-gray-100 font-medium truncate">{ws.name}</div>
-                {ws.description && (
-                  <div className="text-sm text-gray-500 truncate">{ws.description}</div>
-                )}
-              </div>
-              <ChevronRight className="w-5 h-5 text-gray-600 shrink-0" />
-            </button>
-          ))}
+          </p>
         </div>
+      )}
 
-        <InlineCreateWorkspace navigate={navigate} setWorkspacesAtom={setWorkspacesAtom} />
-      </div>
-    </div>
+      <EntityList aria-label="Workspaces">
+        {workspaces.map((ws) => (
+          <EntityRow
+            key={ws.id}
+            title={ws.name}
+            onClick={() => navigate(workspacePath(ws.slug, '/overview'), { replace: true })}
+            leading={
+              <span
+                aria-hidden="true"
+                className="flex w-8 h-8 -my-1.5 items-center justify-center rounded-lg bg-white/[0.06] text-sm font-semibold text-gray-300"
+              >
+                {ws.name.charAt(0).toUpperCase()}
+              </span>
+            }
+            description={ws.description || undefined}
+            meta={[
+              <span key="slug" className="font-mono">
+                {ws.slug}
+              </span>,
+              ws.updated_at ? <RelativeTime key="u" date={ws.updated_at} prefix="updated " /> : null,
+            ]}
+            chevron
+          />
+        ))}
+      </EntityList>
+
+      <InlineCreateWorkspace navigate={navigate} setWorkspacesAtom={setWorkspacesAtom} />
+    </Screen>
   )
 }
 
-/**
- * Collapsible inline form to create a new workspace from the selector page.
- */
-function InlineCreateWorkspace({ navigate, setWorkspacesAtom }: { navigate: ReturnType<typeof useNavigate>; setWorkspacesAtom: (fn: (prev: Workspace[]) => Workspace[]) => void }) {
-  const [showForm, setShowForm] = useState(false)
+/** Shared create-workspace submit logic. */
+function useCreateWorkspace(
+  navigate: ReturnType<typeof useNavigate>,
+  setWorkspacesAtom: (fn: (prev: Workspace[]) => Workspace[]) => void,
+) {
   const [name, setName] = useState('')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (showForm) inputRef.current?.focus()
-  }, [showForm])
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -139,46 +158,74 @@ function InlineCreateWorkspace({ navigate, setWorkspacesAtom }: { navigate: Retu
     }
   }
 
+  const reset = () => {
+    setName('')
+    setError(null)
+  }
+
+  return { name, setName, creating, error, handleCreate, reset }
+}
+
+/**
+ * Collapsible inline form to create a new workspace from the selector page.
+ */
+function InlineCreateWorkspace({
+  navigate,
+  setWorkspacesAtom,
+}: {
+  navigate: ReturnType<typeof useNavigate>
+  setWorkspacesAtom: (fn: (prev: Workspace[]) => Workspace[]) => void
+}) {
+  const [showForm, setShowForm] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const { name, setName, creating, error, handleCreate, reset } = useCreateWorkspace(navigate, setWorkspacesAtom)
+
+  useEffect(() => {
+    if (showForm) inputRef.current?.focus()
+  }, [showForm])
+
   if (!showForm) {
     return (
       <button
+        type="button"
         onClick={() => setShowForm(true)}
-        className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-dashed border-white/[0.1] hover:border-indigo-500/40 rounded-lg transition-colors text-gray-400 hover:text-indigo-400"
+        className={`w-full min-h-11 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-white/[0.1] text-sm text-gray-400 transition-colors hover:border-indigo-500/40 hover:text-indigo-300 ${focusRing}`}
       >
-        <Plus className="w-5 h-5" />
+        <Plus className="w-4 h-4" aria-hidden="true" />
         Create new workspace
       </button>
     )
   }
 
   return (
-    <form onSubmit={handleCreate} className="space-y-3 p-4 bg-white/[0.04] border border-white/[0.06] rounded-lg">
-      <input
+    <form onSubmit={handleCreate} className="space-y-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+      <Input
         ref={inputRef}
         type="text"
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Workspace name"
-        className="w-full px-3 py-2 bg-white/[0.06] border border-white/[0.1] rounded-lg text-gray-100 placeholder-gray-500 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+        aria-label="Workspace name"
         disabled={creating}
+        error={error ?? undefined}
       />
-      {error && <div className="text-sm text-red-400">{error}</div>}
       <div className="flex gap-2">
-        <button
+        <Button
           type="button"
-          onClick={() => { setShowForm(false); setName(''); setError(null) }}
-          className="flex-1 px-3 py-2 text-sm text-gray-400 hover:text-gray-200 bg-white/[0.04] rounded-lg transition-colors"
+          size="sm"
+          variant="secondary"
+          className="flex-1"
+          onClick={() => {
+            setShowForm(false)
+            reset()
+          }}
           disabled={creating}
         >
           Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={creating || !name.trim()}
-          className="flex-1 px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-        >
-          {creating ? 'Creating...' : 'Create'}
-        </button>
+        </Button>
+        <Button type="submit" size="sm" className="flex-1" disabled={creating || !name.trim()} loading={creating}>
+          {creating ? 'Creating…' : 'Create'}
+        </Button>
       </div>
     </form>
   )
@@ -188,65 +235,43 @@ function InlineCreateWorkspace({ navigate, setWorkspacesAtom }: { navigate: Retu
  * Onboarding screen for first-time users with no workspaces.
  * Shows a friendly welcome message and inline workspace creation form.
  */
-function EmptyWorkspaceOnboarding({ navigate, setWorkspacesAtom }: { navigate: ReturnType<typeof useNavigate>; setWorkspacesAtom: (fn: (prev: Workspace[]) => Workspace[]) => void }) {
-  const [name, setName] = useState('')
-  const [creating, setCreating] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+function EmptyWorkspaceOnboarding({
+  navigate,
+  setWorkspacesAtom,
+}: {
+  navigate: ReturnType<typeof useNavigate>
+  setWorkspacesAtom: (fn: (prev: Workspace[]) => Workspace[]) => void
+}) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const { name, setName, creating, error, handleCreate } = useCreateWorkspace(navigate, setWorkspacesAtom)
 
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const trimmed = name.trim()
-    if (!trimmed) return
-
-    setCreating(true)
-    setError(null)
-    try {
-      const ws = await workspacesApi.create({ name: trimmed })
-      // Optimistic update: add to global atom so WorkspaceRouteGuard finds it
-      setWorkspacesAtom((prev) => [...prev, ws])
-      navigate(workspacePath(ws.slug, '/overview'), { replace: true })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create workspace')
-      setCreating(false)
-    }
-  }
-
   return (
-    <div className="min-h-dvh flex items-center justify-center bg-surface-base">
-      <div className="w-full max-w-sm space-y-6 px-4 text-center">
-        <img src="/logo-32.png" alt="PO" className="w-16 h-16 mx-auto rounded-2xl" />
-        <div className="space-y-2">
-          <h1 className="text-2xl font-bold text-gray-100">Welcome to Project Orchestrator</h1>
-          <p className="text-gray-400 text-sm">Create your first workspace to get started.</p>
-        </div>
-
-        <form onSubmit={handleCreate} className="space-y-3">
-          <input
-            ref={inputRef}
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="My Workspace"
-            className="w-full px-4 py-2.5 bg-white/[0.06] border border-white/[0.1] rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
-            disabled={creating}
-          />
-          {error && (
-            <div className="text-sm text-red-400">{error}</div>
-          )}
-          <button
-            type="submit"
-            disabled={creating || !name.trim()}
-            className="w-full px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-          >
-            {creating ? 'Creating...' : 'Create Workspace'}
-          </button>
-        </form>
+    <Screen narrow>
+      <div className="text-center space-y-2">
+        <img src="/logo-32.png" alt="PO" className="w-14 h-14 mx-auto rounded-2xl" />
+        <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-gray-100">Welcome to Project Orchestrator</h1>
+        <p className="text-sm text-gray-400">Create your first workspace to get started.</p>
       </div>
-    </div>
+
+      <form onSubmit={handleCreate} className="space-y-3">
+        <Input
+          ref={inputRef}
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="My Workspace"
+          aria-label="Workspace name"
+          disabled={creating}
+          error={error ?? undefined}
+        />
+        <Button type="submit" className="w-full" disabled={creating || !name.trim()} loading={creating}>
+          {creating ? 'Creating…' : 'Create workspace'}
+        </Button>
+      </form>
+    </Screen>
   )
 }

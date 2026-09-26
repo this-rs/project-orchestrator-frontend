@@ -73,12 +73,12 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
     fields: (
       <>
         {workspaceName && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-purple-500/[0.08] border border-purple-500/20 rounded-lg">
-            <FolderOpen className="w-4 h-4 text-purple-400 shrink-0" />
-            <span className="text-sm text-purple-300">
-              Will be added to <span className="font-medium">{workspaceName}</span>
+          <p className="flex items-center gap-2 text-xs text-gray-400">
+            <FolderOpen className="w-3.5 h-3.5 text-gray-500 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 break-words">
+              Will be added to <span className="font-medium text-gray-200">{workspaceName}</span>
             </span>
-          </div>
+          </p>
         )}
         <Input
           label="Name"
@@ -98,11 +98,12 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
           }}
         />
         <div className="w-full">
-          <label className="block text-sm font-medium text-gray-300 mb-1">
+          <label htmlFor="create-project-root-path" className="block text-sm font-medium text-gray-300 mb-1">
             Root Path
           </label>
           <div className="flex gap-2">
             <input
+              id="create-project-root-path"
               className={`
                 flex-1 min-w-0 px-3 py-2 bg-surface-base border border-border-default rounded-lg
                 text-gray-100 placeholder-gray-500
@@ -125,8 +126,9 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
                   disabled:opacity-50 disabled:cursor-not-allowed
                 "
                 title="Browse for folder"
+                aria-label="Browse for folder"
               >
-                <FolderOpen className="w-5 h-5" />
+                <FolderOpen className="w-5 h-5" aria-hidden="true" />
               </button>
             )}
           </div>
