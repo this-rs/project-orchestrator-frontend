@@ -58,3 +58,20 @@ export function renderAt(element: ReactElement, { pattern, entry }: RenderAtOpti
 
 /** Event bus stub for `@/services` mocks (useCrudEventSync subscribes on mount). */
 export const eventBusStub = () => ({ on: () => () => {}, off: () => {}, emit: () => {} })
+
+// ── From group B's helper (merged here: `./testUtils` must resolve to one file) ──
+/** Shared jsdom shims for page tests (ConfirmDialog → useReducedMotion → matchMedia). */
+export function installMatchMedia() {
+  if (!window.matchMedia) {
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia
+  }
+}
