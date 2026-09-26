@@ -116,7 +116,7 @@ describe('WorkspaceDetailPage', () => {
     renderPage()
     expect(await screen.findByRole('heading', { level: 1, name: 'Main WS' })).toBeTruthy()
     expect(screen.getByText('1 project')).toBeTruthy()
-    expect(screen.getByText('3 / 8 tasks completed')).toBeTruthy()
+    expect(screen.getByText(/3 \/ 8 tasks completed/)).toBeTruthy()
     // intel not ready → fallback rendered in the Health section
     expect(screen.getByTestId('intel-empty')).toBeTruthy()
 

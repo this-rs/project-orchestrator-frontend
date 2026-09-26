@@ -25,9 +25,10 @@ import {
   inlineLink,
   pluralize,
   rowInteractive,
+  surface,
 } from '@/components/ui'
 import { workspacesApi, projectsApi } from '@/services'
-import { useFormDialog, useLinkDialog, useToast, useWorkspaceSlug } from '@/hooks'
+import { useFormDialog, useIsMobile, useLinkDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { workspaceRefreshAtom, projectRefreshAtom, milestoneRefreshAtom, taskRefreshAtom } from '@/atoms'
 import { CreateMilestoneForm, CreateResourceForm, CreateComponentForm, EditWorkspaceForm } from '@/components/forms'
@@ -70,7 +71,7 @@ function healthTone(score: number): string {
 }
 
 // ============================================================================
-// MAIN PAGE — overview: header → numbers → health → lists → graph/timeline
+// MAIN PAGE — hub: header → progress → attention → lists → health → graph/timeline → assets → maintenance
 // ============================================================================
 
 export function WorkspaceDetailPage() {
@@ -83,6 +84,7 @@ export function WorkspaceDetailPage() {
   const linkDialog = useLinkDialog()
   const moveDialog = useLinkDialog()
   const toast = useToast()
+  const isMobile = useIsMobile()
   const workspaceRefresh = useAtomValue(workspaceRefreshAtom)
   const projectRefresh = useAtomValue(projectRefreshAtom)
   const milestoneRefresh = useAtomValue(milestoneRefreshAtom)
@@ -279,12 +281,6 @@ export function WorkspaceDetailPage() {
           ) : null,
           pluralize(projects.length, 'project'),
           pluralize(milestones.length, 'milestone'),
-          overallProgress && overallProgress.total_tasks > 0 ? (
-            <span key="prog" className="tabular-nums">
-              {overallProgress.completed_tasks}/{pluralize(overallProgress.total_tasks, 'task')} ·{' '}
-              {Math.round(overallProgress.percentage)}%
-            </span>
-          ) : null,
           workspace.updated_at ? <RelativeTime key="upd" date={workspace.updated_at} prefix="updated " /> : null,
         ]}
         overflowActions={[
@@ -311,23 +307,15 @@ export function WorkspaceDetailPage() {
         ]}
       />
 
-      {/* Overall progress (if tasks exist) */}
+      {/* ── Progress (only when tasks exist) ── */}
       {overallProgress && overallProgress.total_tasks > 0 && (
         <section aria-label="Workspace progress" className="space-y-1.5">
           <ProgressLine value={overallProgress.percentage} size="md" label="Workspace progress" />
           <p className="text-[11px] leading-4 text-gray-500 tabular-nums">
-            {overallProgress.completed_tasks} / {overallProgress.total_tasks} tasks completed
+            {overallProgress.completed_tasks} / {overallProgress.total_tasks} tasks completed · {Math.round(overallProgress.percentage)}%
           </p>
         </section>
       )}
-
-      {/* ── Key numbers ── */}
-      {intelReady && intelligence.summary && <IntelStatGrid summary={intelligence.summary} />}
-
-      {/* ── Health ── */}
-      <Section title="Health" action={intelReady ? <IntelRefreshButton data={intelligence} /> : undefined}>
-        {intelReady ? <IntelHealthBreakdown data={intelligence} /> : <IntelFallback intelligence={intelligence} />}
-      </Section>
 
       {/* ── Attention needed ── */}
       {intelReady && <IntelAttention data={intelligence} />}
@@ -448,9 +436,21 @@ export function WorkspaceDetailPage() {
         )}
       </Section>
 
-      {/* ── Graph ── */}
+      {/* ── Health: key numbers + breakdown ── */}
+      <Section title="Health" action={intelReady ? <IntelRefreshButton data={intelligence} /> : undefined}>
+        {intelReady && intelligence.summary ? (
+          <div className="space-y-2">
+            <IntelStatGrid summary={intelligence.summary} />
+            <IntelHealthBreakdown data={intelligence} />
+          </div>
+        ) : (
+          <IntelFallback intelligence={intelligence} />
+        )}
+      </Section>
+
+      {/* ── Graph (visual, collapsed on phones — heavy WebGL) ── */}
       {slug && (
-        <Section title="Graph">
+        <Section title="Graph" collapsible defaultOpen={!isMobile}>
           <div className="rounded-xl border border-white/[0.06] overflow-hidden">
             <Suspense fallback={graphFallback}>
               <WorkspaceGraphPage workspaceSlug={slug} embedded />
@@ -459,12 +459,14 @@ export function WorkspaceDetailPage() {
         </Section>
       )}
 
-      {/* ── Timeline ── */}
+      {/* ── Timeline (collapsed on phones) ── */}
       {slug && (
-        <Section title="Timeline">
-          <Suspense fallback={graphFallback}>
-            <WorkspaceLearningTimeline workspaceSlug={slug} embedded />
-          </Suspense>
+        <Section title="Timeline" collapsible defaultOpen={!isMobile}>
+          <div className={`${surface} px-3 md:px-4`}>
+            <Suspense fallback={graphFallback}>
+              <WorkspaceLearningTimeline workspaceSlug={slug} embedded />
+            </Suspense>
+          </div>
         </Section>
       )}
 
