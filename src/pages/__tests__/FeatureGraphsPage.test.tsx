@@ -101,6 +101,6 @@ describe('FeatureGraphsPage', () => {
     expect(await screen.findByText('Feature graphs could not be loaded.')).toBeTruthy()
     list.mockResolvedValue({ feature_graphs: [] })
     fireEvent.click(screen.getByRole('button', { name: /try again/i }))
-    expect(await screen.findByText('No feature graph yet')).toBeTruthy()
+    expect(await screen.findByText('No feature graphs yet')).toBeTruthy()
   })
 })

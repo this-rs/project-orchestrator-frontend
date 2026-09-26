@@ -166,7 +166,7 @@ export function FeatureGraphsPage() {
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<GitGraph className="w-6 h-6" />}
-          title={isPristine ? 'No feature graph yet' : 'No matching feature graph'}
+          title={isPristine ? 'No feature graphs yet' : 'No matching feature graphs'}
           description={
             isPristine
               ? 'Create one by hand, or let Auto-build assemble it from an entry function in your code.'
