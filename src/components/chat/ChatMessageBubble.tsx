@@ -218,7 +218,10 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
               if (!block.content && block.metadata) return null
               return (
                 <div key={block.id} className="chat-markdown prose prose-invert prose-sm max-w-none break-words overflow-x-auto [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                  <MarkdownText content={block.content} />
+                  <MarkdownText
+                    content={block.content}
+                    isStreaming={isStreaming && index === grouped.length - 1}
+                  />
                 </div>
               )
             }

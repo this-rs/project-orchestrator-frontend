@@ -480,8 +480,20 @@ export class ChatWebSocket {
   /**
    * Send a user message
    */
-  sendUserMessage(content: string) {
-    return this.send({ type: 'user_message', content })
+  /**
+   * Send a user message, optionally referencing already-uploaded documents.
+   *
+   * `attachments` is omitted entirely when empty rather than sent as `[]`: the
+   * backend's `ClientMessage::UserMessage` does not carry the field yet (it is
+   * being added in parallel), and an absent field is the one shape every
+   * version of it accepts.
+   */
+  sendUserMessage(content: string, attachments?: string[]) {
+    return this.send(
+      attachments && attachments.length > 0
+        ? { type: 'user_message', content, attachments }
+        : { type: 'user_message', content },
+    )
   }
 
   /**

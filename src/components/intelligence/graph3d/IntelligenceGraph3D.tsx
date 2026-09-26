@@ -13,6 +13,12 @@ import * as THREE from 'three'
 
 import { useGraph3DLayout, type Graph3DNode, type Graph3DLink } from './useGraph3DLayout'
 import { useActivationSync } from './useActivationSync'
+import {
+  useRenderLoop,
+  isMobileLikeDevice,
+  WAKE_DATA_MS,
+  WAKE_MUTATION_MS,
+} from './useRenderLoop'
 import { createNodeObject, disposeNodeCaches, setNodeQuality, getNodeQuality } from './nodeObjects'
 import { buildCommunityHulls, disposeCommunityHulls, type CommunityHullGroup } from './CommunityHulls3D'
 import { ENTITY_COLORS } from '@/constants/intelligence'
@@ -87,6 +93,21 @@ interface IntelligenceGraph3DProps {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type GraphRef = any // ForceGraph3D ref methods are dynamically extended
 
+// ── Renderer init config ─────────────────────────────────────────────────────
+// `rendererConfig` is an init-only prop of ForceGraph3D (it is forwarded to the
+// WebGLRenderer constructor), so it must be a stable, module-level value.
+// The library's own default is `{ antialias: true, alpha: true }`.
+//
+// MSAA on a phone is a full-screen multisample resolve every frame for a
+// difference that is invisible at ~460 ppi on a 6" screen. It stays on for
+// desktop. Detection is capability-based (coarse pointer / narrow viewport),
+// never user-agent sniffing.
+const IS_MOBILE_LIKE = isMobileLikeDevice()
+const RENDERER_CONFIG = { antialias: !IS_MOBILE_LIKE }
+
+/** Same clamp as ActivityHeatmap3D.tsx — see the note at its call site. */
+const MAX_PIXEL_RATIO = 2
+
 export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }: IntelligenceGraph3DProps) {
   const graphRef = useRef<GraphRef>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -107,6 +128,12 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const brightness = useAtomValue(graphBrightnessAtom)
 
   const { transformToGraph3D, savePositions } = useGraph3DLayout()
+
+  // ── On-demand render loop ─────────────────────────────────────────────
+  // See useRenderLoop.ts. `wake(ms)` must be called by EVERY code path that
+  // can change what is on screen; the wake-up inventory is annotated at each
+  // call site below with a `wake:` comment.
+  const { wake, setEngineRunning, setParticlesAnimating } = useRenderLoop(graphRef, containerRef)
 
   // ── Community hulls ref ───────────────────────────────────────────────
   const communityHullsRef = useRef<CommunityHullGroup | null>(null)
@@ -216,6 +243,13 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     return () => clearTimeout(timer)
   }, [dimensions])
 
+  // wake: container resized / fullscreen toggled / window resized.
+  // Covers every size change, including the sub-50px ones the effect above
+  // deliberately ignores.
+  useEffect(() => {
+    wake(1000)
+  }, [dimensions, wake])
+
   // ── Workaround: three.js OrbitControls + DragControls pointercancel crash ──
   // When DragControls dispatches pointercancel, OrbitControls.onPointerUp tries
   // to read .x from a pointer already removed from its internal Map → TypeError.
@@ -245,6 +279,15 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   useMemo(() => {
     setNodeQuality(graphData.nodes.length)
   }, [graphData.nodes.length])
+
+  // wake: new data arrived (REST load, WebSocket update, preset/filter change).
+  // ForceGraph3D rebuilds its node/link objects inside tickFrame(), and the
+  // force engine restarts, so the loop must be running. `setEngineRunning(true)`
+  // keeps it running until onEngineStop fires, however long the layout takes.
+  useEffect(() => {
+    setEngineRunning(true)
+    wake(WAKE_DATA_MS)
+  }, [graphData, wake, setEngineRunning])
 
   // ── Control simulation based on relayout need ───────────────────────────
   // The ref methods (cooldownTicks, etc.) are only available after the
@@ -302,8 +345,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       }
     } catch (err) {
       console.warn('[IntelligenceGraph3D] community hulls error:', err)
+    } finally {
+      // wake: hull meshes/labels were added to or removed from the scene.
+      wake(WAKE_MUTATION_MS)
     }
-  }, [showCommunityHulls, graphData.nodes])
+  }, [showCommunityHulls, graphData.nodes, wake])
 
   // Rebuild when toggle changes (immediate — user clicked the button)
   useEffect(() => {
@@ -322,8 +368,20 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     }
   }, [needsRelayout])
 
+  // ── Force-layout lifecycle → render loop ────────────────────────────────
+  // onEngineTick fires on every simulation tick: node positions are moving, so
+  // the loop must keep running. onEngineStop releases that keep-alive.
+  const onEngineTick = useCallback(() => {
+    setEngineRunning(true)
+  }, [setEngineRunning])
+
   // ── Save positions when simulation stops ────────────────────────────────
   const onEngineStop = useCallback(() => {
+    // wake: the layout just settled — zoomToFit tween (800 ms, fired 100 ms
+    // from now) plus the hull rebuild below still need frames.
+    setEngineRunning(false)
+    wake(1600)
+
     if (graphData.nodes.length > 0) {
       savePositions(graphData.nodes)
       // Rebuild community hulls now that positions are final
@@ -344,7 +402,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         }
       }
     }
-  }, [graphData.nodes, savePositions, rebuildCommunityHulls])
+  }, [graphData.nodes, savePositions, rebuildCommunityHulls, wake, setEngineRunning])
 
   // Cleanup hulls on unmount
   useEffect(() => {
@@ -356,6 +414,14 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
   // ── Highlight: hover AND selection coexist simultaneously ──────────────
   const hasAnyHighlight = !!hoveredNodeId || !!selectedNodeId
+
+  // wake: hover / selection changed → linkColor, linkWidth, linkParticleColor
+  // and nodeOpacity are all re-evaluated by ForceGraph3D on the next frame.
+  // (Hover usually already keeps the loop awake via pointermove, but selection
+  // can also change from the Esc key or from outside the canvas.)
+  useEffect(() => {
+    wake(WAKE_MUTATION_MS)
+  }, [hoveredNodeId, selectedNodeId, wake])
 
   // ── Node color ──────────────────────────────────────────────────────────
   const nodeColor = useCallback((node: Graph3DNode) => {
@@ -609,12 +675,16 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
   // ── Spreading Activation — live 3D visual updates (extracted hook) ───
   const activationPhase = activation.phase
-  useActivationSync(graphRef, graphData.nodes)
+  useActivationSync(graphRef, graphData.nodes, wake)
 
   // ── Heatmap overlays — energy (notes) & churn (files) ────────────────────
   const heatmapDirtyRef = useRef<Map<AnySpriteChild, SpriteOriginal>>(new Map())
 
   useEffect(() => {
+    // wake: this effect mutates sprite colors/opacities in place (apply AND
+    // restore paths, both of which return early below).
+    wake(WAKE_MUTATION_MS)
+
     const fg = graphRef.current
     if (!fg || typeof fg.scene !== 'function') return
 
@@ -679,7 +749,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         })
       }
     }
-  }, [energyHeatmap, touchesHeatmap, graphData.nodes, activationPhase])
+  }, [energyHeatmap, touchesHeatmap, graphData.nodes, activationPhase, wake])
 
   // ── Unified highlight effect — single source of truth for legend/project/group hover ──
   // Merged into ONE effect to eliminate race conditions between 3 independent save/restore refs.
@@ -687,6 +757,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const highlightActiveRef = useRef(false)
 
   useEffect(() => {
+    // wake: legend / project / group hover mutates sprite opacity and node scale.
+    wake(WAKE_MUTATION_MS)
+
     const isActivationActive = activationPhase !== 'idle' && activationPhase !== 'searching'
 
     // Determine which highlight mode is active (by priority)
@@ -735,7 +808,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         obj.scale.setScalar(targetScale)
       }
     }
-  }, [legendHoveredType, hoveredProjectSlug, highlightedGroup, graphData.nodes, activationPhase])
+  }, [legendHoveredType, hoveredProjectSlug, highlightedGroup, graphData.nodes, activationPhase, wake])
 
   // ── Connection-dimmed entity types (3-state group toggle) ──────────────
   // Reduces opacity + scale for nodes whose entity type is in 'connections' mode.
@@ -744,6 +817,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const dimScaledRef = useRef<Map<THREE.Object3D, THREE.Vector3>>(new Map())
 
   useEffect(() => {
+    // wake: dimming mutates sprite opacity and node scale (apply AND restore).
+    wake(WAKE_MUTATION_MS)
+
     const dDirty = dimDirtyRef.current
     const dScaled = dimScaledRef.current
 
@@ -787,7 +863,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       if (!dScaled.has(obj)) { dScaled.set(obj, obj.scale.clone()) }
       obj.scale.setScalar(0.5)
     }
-  }, [dimmedEntityTypes, highlightedGroup, legendHoveredType, hoveredProjectSlug, graphData.nodes, activationPhase])
+  }, [dimmedEntityTypes, highlightedGroup, legendHoveredType, hoveredProjectSlug, graphData.nodes, activationPhase, wake])
 
   // ── Spreading Activation — zoom camera to activated cluster ──────────────
   const prevActivationPhaseRef = useRef<string>('idle')
@@ -840,11 +916,17 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       { x: cx, y: cy, z: cz },       // lookAt
       1200,                            // transition duration ms
     )
-  }, [activationPhase, activation.directIds, activation.propagatedIds, graphData.nodes])
+    // wake: camera tween — driven by tweenGroup.update() inside the render
+    // loop, so it needs every frame of its 1200 ms duration (+ margin).
+    wake(1700)
+  }, [activationPhase, activation.directIds, activation.propagatedIds, graphData.nodes, wake])
 
   // ── Selected node highlight — persistent emissive ring on click ─────────
   const prevSelectedRef = useRef<string | null>(null)
   useEffect(() => {
+    // wake: selection restores/raises sprite opacity on the previous and new node.
+    wake(WAKE_MUTATION_MS)
+
     const fg = graphRef.current
     if (!fg || typeof fg.scene !== 'function') return
     // Skip if activation is running (but not searching) — it overrides materials
@@ -869,7 +951,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     }
 
     prevSelectedRef.current = selectedNodeId
-  }, [selectedNodeId, graphData.nodes, activation.phase])
+  }, [selectedNodeId, graphData.nodes, activation.phase, wake])
 
   // ── Interactions ────────────────────────────────────────────────────────
   // Double-click detection: track last click time + node id
@@ -957,6 +1039,12 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         const renderer = fg.renderer()
         if (renderer) {
           renderer.setClearColor(new THREE.Color('#0f172a'), 1)
+          // Clamp the device pixel ratio, same as ActivityHeatmap3D.tsx:170.
+          // On a DPR-3 phone this is 2.25× fewer pixels to shade per frame for
+          // no visible difference at that pixel density. (three-render-objects
+          // applies the same clamp at construction; we re-assert it here so the
+          // guarantee is local and survives a library change.)
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO))
         }
       }
     } catch { /* renderer may not be ready */ }
@@ -974,11 +1062,14 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // Configure scene once on mount — ForceGraph3D is ALWAYS mounted (never conditional),
   // so this runs exactly once. Uses polling because graphRef isn't available synchronously.
   useEffect(() => {
+    // wake: background, lights, clear color and pixel ratio all change the image.
+    wake(WAKE_MUTATION_MS)
     if (configureScene()) return
 
     const interval = setInterval(() => {
       if (configureScene()) {
         clearInterval(interval)
+        wake(WAKE_MUTATION_MS)
       }
     }, 50)
 
@@ -988,7 +1079,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       clearInterval(interval)
       clearTimeout(timeout)
     }
-  }, [configureScene])
+  }, [configureScene, wake])
 
   // ── Brightness — renderer toneMappingExposure (affects entire render output) ──
   useEffect(() => {
@@ -1005,7 +1096,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         }
       }
     } catch { /* renderer may not be ready */ }
-  }, [brightness])
+
+    // wake: tone-mapping exposure changes the whole rendered image.
+    wake(WAKE_MUTATION_MS)
+  }, [brightness, wake])
 
   // ── Force configuration ─────────────────────────────────────────────────
   useEffect(() => {
@@ -1041,6 +1135,24 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // Disable particles for large graphs (saves draw calls)
   const enableParticles = quality !== 'minimal'
 
+  // ── Keep-alive: animated link particles ────────────────────────────────
+  // Directional particles move on EVERY frame (updatePhotons() inside
+  // tickFrame). They are part of what the user sees, so we must not freeze
+  // them: while any are on screen the loop stays continuous. Note that the
+  // heavy case — the one that heats the phone — is a large graph, where the
+  // existing LOD already turns particles off, so it can go fully idle.
+  const particlesAnimating = useMemo(() => {
+    if (!enableParticles) return false
+    if (activationPhase !== 'idle' && activationPhase !== 'searching') return true
+    return activeGraphData.links.some(
+      (l) => (l.particles ?? 0) > 0 || (showCommunityHulls && l.isInterCommunity),
+    )
+  }, [enableParticles, activationPhase, activeGraphData, showCommunityHulls])
+
+  useEffect(() => {
+    setParticlesAnimating(particlesAnimating)
+  }, [particlesAnimating, setParticlesAnimating])
+
   return (
     <div ref={containerRef} className="absolute inset-0 overflow-hidden bg-[#0f172a]">
       {hasDimensions && <ForceGraph3D<Graph3DNode, Graph3DLink>
@@ -1073,17 +1185,24 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
           node.fy = node.y
           node.fz = node.z
           savePositions([node])
+          // wake: the library calls resetCountdown() on drag end, so the
+          // engine restarts and nodes keep moving after the pointer is up.
+          setEngineRunning(true)
+          wake(WAKE_DATA_MS)
         }}
         onBackgroundClick={onBackgroundClick}
         // Force engine
         cooldownTicks={100}
         cooldownTime={5000}
         warmupTicks={30}
+        onEngineTick={onEngineTick}
         onEngineStop={onEngineStop}
         // Controls
         controlType="orbit"
         enableNavigationControls
         showNavInfo={false}
+        // Renderer (init-only prop) — MSAA off on touch/narrow devices
+        rendererConfig={RENDERER_CONFIG}
         // Background
         backgroundColor="#0f172a"
       />}

@@ -38,8 +38,16 @@ export default function ChatSessionPage() {
     navigate(workspacePath(wsSlug, `/chat/${childSessionId}`))
   }, [navigate, wsSlug])
   const handleStopRun = useCallback((childSessionId: string) => {
-    // Best-effort interrupt — fire-and-forget; UI will update via WebSocket events.
-    chatApi.interruptSession(childSessionId).catch(() => {})
+    // Best-effort interrupt — the UI updates via WebSocket events. Still
+    // report failures: a silent catch here is what kept a dead endpoint
+    // invisible.
+    chatApi.interruptSession(childSessionId)
+      .then((outcome) => {
+        if (!outcome?.delivered) {
+          console.warn('Stop run: nothing was interrupted', childSessionId, outcome)
+        }
+      })
+      .catch((err) => console.error('Stop run failed', childSessionId, err))
   }, [])
 
   // Auto-scroll to bottom on new messages

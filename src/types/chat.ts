@@ -228,6 +228,12 @@ export interface CreateSessionRequest {
   permission_mode?: PermissionMode
   /** Additional directories to expose to Claude CLI (--add-dir) */
   add_dirs?: string[]
+  /**
+   * Document ids to attach to the first message (plan 8b0fdd73's API
+   * contract). Ids come from `POST /api/documents`, so they always exist
+   * server-side by the time this request is built.
+   */
+  attachments?: string[]
 }
 
 export interface CreateSessionResponse {
@@ -286,6 +292,33 @@ export type ChatEvent =
   | { type: 'session_error'; reason: string; message: string; received_at: string }
   | { type: 'tools_cancelled'; cli_pid?: number; killed_count: number; requested_by: string }
   | { type: 'active_tasks_update'; tasks: BackgroundTaskInfo[] }
+
+/**
+ * How far an interrupt reaches.
+ *
+ * - `turn_and_tools` (default) — end the turn and SIGINT every subprocess
+ *   the CLI is running. What the composer's Stop button wants.
+ * - `turn` — end the turn only, leaving background `Bash`/`Monitor`
+ *   subprocesses alive. Note that in-process `Task` sub-agents die either
+ *   way: they live inside the CLI, not beside it.
+ */
+export type InterruptScope = 'turn' | 'turn_and_tools'
+
+/** Result returned by POST /api/chat/sessions/:id/interrupt. */
+export interface InterruptOutcome {
+  /**
+   * True when a live turn was actually interrupted. False means nothing was
+   * stopped locally — read `routed` to tell "handed to another instance"
+   * from "went nowhere". The UI must clear its "Stopping…" state on false,
+   * or it spins forever waiting for a `result` event that never comes.
+   */
+  delivered: boolean
+  /** Where the interrupt went: `local`, `nats`, or `none`. */
+  routed: string
+  cli_pid: number | null
+  /** PIDs that received SIGINT. Always empty for scope `turn`. */
+  killed_pids: number[]
+}
 
 /** Result returned by POST /api/chat/sessions/:id/cancel-tools (T2/T3 of plan 28e9afe3). */
 export interface CancelToolsResult {
@@ -533,7 +566,10 @@ export type WsConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | '
 
 /** Messages sent from the client to the server over WebSocket */
 export type WsChatClientMessage =
-  | { type: 'user_message'; content: string }
+  // `attachments` (document ids) is omitted when there are none: the backend's
+  // `ClientMessage::UserMessage` gains the field in parallel with this, and an
+  // absent field deserializes identically on both versions.
+  | { type: 'user_message'; content: string; attachments?: string[] }
   | { type: 'interrupt' }
   | { type: 'permission_response'; id?: string; allow: boolean }
   | { type: 'input_response'; id?: string; content: string }

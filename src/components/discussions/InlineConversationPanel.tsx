@@ -347,9 +347,14 @@ export function InlineConversationPanel({ sessionId, title, onClose }: InlineCon
   const handleStop = async () => {
     setStopping(true)
     try {
-      await chatApi.interruptSession(sessionId)
-    } catch {
-      // Ignore errors (session may already be stopped)
+      const outcome = await chatApi.interruptSession(sessionId)
+      if (!outcome?.delivered) {
+        // Not an error — the session may already have stopped — but worth
+        // saying out loud rather than looking like a successful stop.
+        console.warn('Stop: nothing was interrupted', sessionId, outcome)
+      }
+    } catch (err) {
+      console.error('Stop failed', sessionId, err)
     } finally {
       setStopping(false)
     }

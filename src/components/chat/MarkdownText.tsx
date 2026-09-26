@@ -18,6 +18,29 @@ const markdownComponents = {
 }
 
 /**
+ * Trailing, still-incomplete line made only of `-` or `=` (up to 3 leading
+ * spaces, optional trailing blanks) that directly follows another line.
+ */
+const SETEXT_UNDERLINE_TAIL = /\n {0,3}(?:-+|=+)[ \t]*$/
+
+/**
+ * Hold back an ambiguous trailing line while the block is still streaming.
+ *
+ * LLMs constantly write "Voici les étapes :\n- première étape". Mid-stream,
+ * the text often ends at "Voici les étapes :\n-": CommonMark reads a lone
+ * `-` (or `=`) line under a paragraph as a SETEXT HEADING underline, so the
+ * whole previous line flashes as a big <h2> for a frame or two until the
+ * next delta turns it into a list item — visible flicker. Deferring that
+ * single unterminated line until the next delta (or the newline that
+ * completes it) removes the flash; once the line is complete it renders
+ * exactly as CommonMark says, so a real `Title\n---` heading is unaffected.
+ */
+function holdBackAmbiguousTail(content: string): string {
+  const m = SETEXT_UNDERLINE_TAIL.exec(content)
+  return m ? content.slice(0, m.index + 1) : content
+}
+
+/**
  * Memoized markdown renderer for chat text blocks.
  *
  * ReactMarkdown + rehype-highlight is EXPENSIVE (full md parse + syntax
@@ -31,15 +54,23 @@ const markdownComponents = {
  * With memo, only the single block whose `content` string actually changed
  * (the one being streamed into) re-parses; every completed block is a
  * reference-equality cache hit.
+ *
+ * `isStreaming` must only be set on the block currently receiving deltas.
  */
-export const MarkdownText = memo(function MarkdownText({ content }: { content: string }) {
+export const MarkdownText = memo(function MarkdownText({
+  content,
+  isStreaming = false,
+}: {
+  content: string
+  isStreaming?: boolean
+}) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       rehypePlugins={[rehypeHighlight]}
       components={markdownComponents}
     >
-      {content}
+      {isStreaming ? holdBackAmbiguousTail(content) : content}
     </ReactMarkdown>
   )
 })

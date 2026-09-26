@@ -149,8 +149,14 @@ export function InlineConversation({
   // --- Stop handler ---
   const handleStop = useCallback(async () => {
     setStopping(true)
-    try { await chatApi.interruptSession(sessionId) } catch { /* ignore */ }
-    finally { setStopping(false) }
+    try {
+      const outcome = await chatApi.interruptSession(sessionId)
+      if (!outcome?.delivered) {
+        console.warn('Stop: nothing was interrupted', sessionId, outcome)
+      }
+    } catch (err) {
+      console.error('Stop failed', sessionId, err)
+    } finally { setStopping(false) }
   }, [sessionId])
 
   // --- No-op handlers for ChatMessageBubble (runner has no user interaction) ---
