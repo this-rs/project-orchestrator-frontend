@@ -1,7 +1,5 @@
 // Runner dashboard components — barrel exports
 
-// Existing components
-export { AgentCard } from './AgentCard'
 export { AgentExecutionDetail } from './AgentExecutionDetail'
 export { CancelButton } from './CancelButton'
 export { ConversationPanel } from './ConversationPanel'
@@ -13,7 +11,7 @@ export type { RunnerHeaderProps } from './RunnerHeader'
 export { StatsRow } from './StatsRow'
 export type { StatsRowProps } from './StatsRow'
 
-// Extracted wave-centric components
+// Wave-centric components
 export { WsStatusIndicator } from './WsStatusIndicator'
 export type { WsStatusIndicatorProps } from './WsStatusIndicator'
 export { InlineConversation } from './InlineConversation'
@@ -23,14 +21,21 @@ export type { WaveAgentCardProps } from './WaveAgentCard'
 export { WaveSection } from './WaveSection'
 export type { WaveSectionProps } from './WaveSection'
 
-// Shared helpers & config
+// Design-system building blocks
+export { ToneText } from './ToneText'
+export { LiveProgress } from './LiveProgress'
+export { BudgetEditor } from './BudgetEditor'
+
+// Shared helpers & status meta
 export {
   formatElapsed,
   formatCost,
-  runStatusConfig,
+  planRunElapsedSecs,
+  planRunTriggerLabel,
   agentStatusConfig,
   getWaveStatus,
-  waveStatusStyles,
-  waveStatusLabels,
+  runStateMeta,
+  agentStateMeta,
+  waveStateMeta,
 } from './shared'
-export type { WaveStatus } from './shared'
+export type { WaveStatus, ToneMeta } from './shared'

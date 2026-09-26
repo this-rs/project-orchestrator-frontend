@@ -3,10 +3,13 @@
  *
  *   ● Task title ·························· 02:14  [⋯]
  *     Running · $0.12 · 3 files · 1 commit
- *     [View conversation] [Retry]              (visible buttons, no hover)
- *     details (files, commits, tools)            (when expanded)
+ *     [Conversation] [Retry task] [Details]      (visible buttons that wrap)
+ *     files · commits · tools                      (when expanded)
  *
- * Must be rendered inside an EntityList (it is an <li>).
+ * Mobile / tablet guarantees (covered by __tests__/WaveAgentCard.test.tsx):
+ * the text column is `min-w-0` + `break-words` so nothing widens the row,
+ * the button row is `flex-wrap`, and every button is `min-w-0` with a
+ * compact, truncating label. Must be rendered inside an EntityList (<li>).
  */
 
 import { useState, useMemo } from 'react'
@@ -25,9 +28,11 @@ export interface WaveAgentCardProps {
   isSelected: boolean
   onToggleConversation: (sessionId: string, taskTitle: string) => void
   onRetryTask?: (taskId: string, taskTitle: string) => void
-  /** Task id currently being retried (disables the button). */
+  /** Task currently being retried (disables the button). */
   retrying?: boolean
 }
+
+const compactButton = 'min-w-0 max-w-full gap-1.5 !py-1.5 text-xs'
 
 export function WaveAgentCard({ agent, execution, isSelected, onToggleConversation, onRetryTask, retrying }: WaveAgentCardProps) {
   const wsSlug = useWorkspaceSlug()
@@ -71,16 +76,18 @@ export function WaveAgentCard({ agent, execution, isSelected, onToggleConversati
       ]}
     >
       {(agent.session_id || canRetry || hasDetails) && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div data-testid="agent-actions" className="flex flex-wrap items-center gap-2 min-w-0">
           {agent.session_id && (
             <Button
               size="sm"
               variant={isSelected ? 'secondary' : 'ghost'}
               onClick={() => onToggleConversation(agent.session_id!, agent.task_title)}
-              className="min-w-0 gap-1.5 !py-1.5 text-xs"
+              aria-pressed={isSelected}
+              aria-label={isSelected ? `Hide conversation for ${agent.task_title}` : `View conversation for ${agent.task_title}`}
+              className={compactButton}
             >
               {isSelected ? <EyeOff className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> : <Eye className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
-              <span className="truncate">{isSelected ? 'Hide conversation' : 'View conversation'}</span>
+              <span className="truncate">{isSelected ? 'Hide' : 'Conversation'}</span>
             </Button>
           )}
           {canRetry && (
@@ -89,7 +96,7 @@ export function WaveAgentCard({ agent, execution, isSelected, onToggleConversati
               variant="ghost"
               onClick={() => onRetryTask!(agent.task_id, agent.task_title)}
               loading={retrying}
-              className="min-w-0 gap-1.5 !py-1.5 text-xs !text-red-300"
+              className={`${compactButton} !text-red-300`}
             >
               {!retrying && <RotateCcw className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
               <span className="truncate">Retry task</span>
@@ -101,7 +108,7 @@ export function WaveAgentCard({ agent, execution, isSelected, onToggleConversati
               variant="ghost"
               onClick={() => setDetailOpen((v) => !v)}
               aria-expanded={detailOpen}
-              className="min-w-0 gap-1.5 !py-1.5 text-xs text-gray-400"
+              className={`${compactButton} text-gray-400`}
             >
               <List className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               <span className="truncate">{detailOpen ? 'Hide details' : 'Details'}</span>
@@ -110,7 +117,7 @@ export function WaveAgentCard({ agent, execution, isSelected, onToggleConversati
         </div>
       )}
       {detailOpen && hasDetails && (
-        <div className="mt-2 space-y-2 text-xs text-gray-400">
+        <div className="mt-2 space-y-2 text-xs text-gray-400 min-w-0">
           {files.length > 0 && (
             <div>
               <p className="text-[11px] font-medium text-gray-500">Files modified</p>
