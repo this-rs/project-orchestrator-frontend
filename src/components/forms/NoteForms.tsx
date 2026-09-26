@@ -46,6 +46,7 @@ export function useEditNoteForm(onSubmit: (data: EditNoteFormData) => Promise<vo
       <>
         <Textarea
           label="Content (markdown)"
+          aria-label="Content"
           value={content}
           onChange={(e) => setContent(e.target.value)}
           error={error}
@@ -90,6 +91,7 @@ export function useInvalidateNoteForm(onSubmit: (reason: string) => Promise<void
         </p>
         <Textarea
           label="Reason"
+          aria-label="Reason"
           placeholder="e.g. The retry logic was removed in the v2 client"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
@@ -149,6 +151,7 @@ export function useSupersedeNoteForm(onSubmit: (data: SupersedeNoteFormData) => 
         </div>
         <Textarea
           label="New content (markdown)"
+          aria-label="New content"
           value={content}
           onChange={(e) => setContent(e.target.value)}
           error={error}

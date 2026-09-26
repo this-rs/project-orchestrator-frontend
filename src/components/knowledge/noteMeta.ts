@@ -72,9 +72,32 @@ export function noteTitle(content: string): string {
   return lines[0] ?? '(empty note)'
 }
 
+/**
+ * Markdown to render under the page header: the content minus a leading
+ * heading that IS the title (otherwise the title would appear twice).
+ */
+export function noteBody(content: string): string {
+  const lines = content.split('\n')
+  const idx = lines.findIndex((l) => l.trim())
+  if (idx === -1) return ''
+  const first = lines[idx]
+  if (/^#{1,6}\s+/.test(first) && stripMarkdown(first) === noteTitle(content)) {
+    return lines
+      .slice(idx + 1)
+      .join('\n')
+      .replace(/^\s*\n/, '')
+      .trim()
+  }
+  return content.trim()
+}
+
 /** The rest of the content (plain text), for a muted preview line. */
 export function notePreview(content: string): string {
-  const lines = content.split('\n').map(stripMarkdown).filter((l) => l && !/^```/.test(l))
+  const lines = content
+    .split('\n')
+    .filter((l) => !/^\s*```/.test(l))
+    .map(stripMarkdown)
+    .filter(Boolean)
   return lines.slice(1).join(' ')
 }
 

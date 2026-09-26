@@ -57,6 +57,7 @@ import {
   entityHref,
   entityIcon,
   entityTypeLabel,
+  noteBody,
   noteTitle,
   pct,
   scopeLabel,
@@ -404,6 +405,7 @@ export function NoteDetailPage() {
   const scope = scopeLabel(note.scope)
   const needsReview = note.status === 'needs_review' || note.status === 'stale' || staleness >= 0.5
   const currentAnchor = anchors.find((a) => `${a.entity_type}::${a.entity_id}` === currentAnchorKey)
+  const body = noteBody(note.content)
 
   const signals: Signal[] = [
     {
@@ -569,12 +571,14 @@ export function NoteDetailPage() {
         </div>
       )}
 
-      {/* ── The note itself ─────────────────────────────────────────── */}
-      <article aria-label="Note content" className={`${surface} px-4 py-3`}>
-        <div className="prose prose-invert prose-sm max-w-none break-words [&_pre]:overflow-x-auto [&_table]:block [&_table]:overflow-x-auto">
-          <MarkdownText content={note.content} />
-        </div>
-      </article>
+      {/* ── The note itself (the title line is already the page title) ── */}
+      {body && (
+        <article aria-label="Note content" className={`${surface} px-4 py-3`}>
+          <div className="prose prose-invert prose-sm max-w-[72ch] break-words [&_pre]:overflow-x-auto [&_table]:block [&_table]:overflow-x-auto">
+            <MarkdownText content={body} />
+          </div>
+        </article>
+      )}
 
       {/* ── Linked entities ─────────────────────────────────────────── */}
       <Section
