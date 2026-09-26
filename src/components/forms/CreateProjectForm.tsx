@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { FolderOpen } from 'lucide-react'
-import { Input, Textarea } from '@/components/ui'
+import { Button, Input, Textarea } from '@/components/ui'
 import { isTauri } from '@/services/env'
 
 export interface CreateProjectFormData {
@@ -97,43 +97,26 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
             setSlug(e.target.value)
           }}
         />
-        <div className="w-full">
-          <label htmlFor="create-project-root-path" className="block text-sm font-medium text-gray-300 mb-1">
-            Root Path
-          </label>
-          <div className="flex gap-2">
-            <input
-              id="create-project-root-path"
-              className={`
-                flex-1 min-w-0 px-3 py-2 bg-surface-base border border-border-default rounded-lg
-                text-gray-100 placeholder-gray-500
-                focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent
-                disabled:opacity-50 disabled:cursor-not-allowed
-                ${errors.root_path ? 'border-red-500' : ''}
-              `}
-              placeholder="/path/to/project"
-              value={rootPath}
-              onChange={(e) => setRootPath(e.target.value)}
-            />
-            {isTauri && (
-              <button
-                type="button"
-                onClick={handleBrowse}
-                className="
-                  shrink-0 px-3 py-2 bg-white/[0.06] border border-white/[0.1] rounded-lg
-                  text-gray-300 hover:bg-white/[0.1] hover:text-gray-100
-                  transition-colors cursor-pointer
-                  disabled:opacity-50 disabled:cursor-not-allowed
-                "
-                title="Browse for folder"
-                aria-label="Browse for folder"
-              >
-                <FolderOpen className="w-5 h-5" aria-hidden="true" />
-              </button>
-            )}
-          </div>
-          {errors.root_path && (
-            <p className="mt-1 text-sm text-red-400">{errors.root_path}</p>
+        <div className="flex items-start gap-2">
+          <Input
+            label="Root Path"
+            placeholder="/path/to/project"
+            value={rootPath}
+            onChange={(e) => setRootPath(e.target.value)}
+            error={errors.root_path}
+            className="font-mono text-base md:text-sm"
+          />
+          {isTauri && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleBrowse}
+              aria-label="Browse for folder"
+              title="Browse for folder"
+              className="shrink-0 mt-6 h-10 w-10 px-0"
+            >
+              <FolderOpen className="w-4 h-4" aria-hidden="true" />
+            </Button>
           )}
         </div>
         <Textarea
