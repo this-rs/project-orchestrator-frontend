@@ -1,49 +1,38 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { FolderKanban } from 'lucide-react'
+import { Archive, FolderKanban, Network, Pencil, Trash2 } from 'lucide-react'
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-  LoadingPage,
-  ErrorState,
-  Badge,
   Button,
-  ConfirmDialog,
+  EmptyState,
+  EntityList,
+  EntityRow,
+  ErrorState,
+  Facts,
+  FormDialog,
   LinkEntityDialog,
-  ProgressBar,
+  LoadingPage,
+  PageContainer,
   PageHeader,
-  StatusSelect,
-  SectionNav,
+  RelativeTime,
+  Section,
+  StatusMenu,
+  formatAbsolute,
+  formatDay,
+  pluralize,
 } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
-import { MilestonePlanRow } from '@/components/expandable'
+import { MilestonePlanRow, ProgressLine } from '@/components/expandable'
 import { UnifiedGraphSection, type GraphBreadcrumb } from '@/components/graph/UnifiedGraphSection'
+import { EditMilestoneForm } from '@/components/forms/EditMilestoneForm'
 import { MilestoneGraphAdapter } from '@/adapters/MilestoneGraphAdapter'
 import { workspacesApi, projectsApi, plansApi } from '@/services'
-import {
-  useConfirmDialog,
-  useLinkDialog,
-  useToast,
-  useSectionObserver,
-  useWorkspaceSlug,
-  useViewTransition,
-} from '@/hooks'
+import { useFormDialog, useLinkDialog, useToast, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { useMilestoneGraphData } from '@/hooks/useMilestoneGraphData'
 import { workspacePath } from '@/utils/paths'
 import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import { PlanRunHistory } from '@/components/runner/PlanRunHistory'
-import type {
-  MilestoneDetail,
-  MilestonePlanSummary,
-  MilestoneProgress,
-  Plan,
-  Project,
-  MilestoneStatus,
-  PlanStatus,
-} from '@/types'
+import type { MilestoneDetail, MilestonePlanSummary, MilestoneProgress, Plan, Project, MilestoneStatus, PlanStatus } from '@/types'
 
 type MilestoneScope = 'workspace' | 'project'
 
@@ -53,7 +42,6 @@ interface MilestoneDetailPageProps {
 
 export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPageProps) {
   const { milestoneId } = useParams<{ milestoneId: string }>()
-  const navigateRR = useNavigate()
   const { navigate } = useViewTransition()
   const wsSlug = useWorkspaceSlug()
 
@@ -67,7 +55,6 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
   const [milestoneClosedAt, setMilestoneClosedAt] = useState<string | undefined>()
   const [milestoneTags, setMilestoneTags] = useState<string[]>([])
 
-
   const [progress, setProgress] = useState<MilestoneProgress | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [project, setProject] = useState<Project | null>(null)
@@ -77,8 +64,8 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
   const [error, setError] = useState<string | null>(null)
   const [showGraph, setShowGraph] = useState(false)
 
-  const confirmDialog = useConfirmDialog()
   const linkDialog = useLinkDialog()
+  const editDialog = useFormDialog()
   const toast = useToast()
 
   const milestoneRefresh = useAtomValue(milestoneRefreshAtom)
@@ -86,16 +73,26 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
   const taskRefresh = useAtomValue(taskRefreshAtom)
   const projectRefresh = useAtomValue(projectRefreshAtom)
 
-
   const refreshData = useCallback(async () => {
     if (!milestoneId) return
     setError(null)
     const isInitialLoad = milestoneId_ === ''
     if (isInitialLoad) setLoading(true)
 
+    const toPlans = (enriched: MilestonePlanSummary[]): Plan[] =>
+      enriched.map((p) => ({
+        id: p.id,
+        title: p.title,
+        description: '',
+        status: (p.status || 'draft') as PlanStatus,
+        created_at: '',
+        created_by: '',
+        priority: 0,
+      }))
+
     try {
       if (scope === 'workspace') {
-        const data = await workspacesApi.getMilestone(milestoneId) as MilestoneDetail
+        const data = (await workspacesApi.getMilestone(milestoneId)) as MilestoneDetail
         setMilestoneId_(data.id)
         setMilestoneTitle(data.title)
         setMilestoneDescription(data.description || '')
@@ -104,25 +101,16 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
         setMilestoneTargetDate(data.target_date)
         setMilestoneClosedAt(data.closed_at)
         setMilestoneTags(data.tags || [])
-
         setProgress(data.progress || null)
 
         const enrichedPlansData = data.plans || []
         setEnrichedPlans(enrichedPlansData)
-        setPlans(enrichedPlansData.map(p => ({
-          id: p.id,
-          title: p.title,
-          description: '',
-          status: (p.status || 'draft') as PlanStatus,
-          created_at: '',
-          created_by: '',
-          priority: 0,
-        })))
+        setPlans(toPlans(enrichedPlansData))
 
         // Fetch workspace projects
         if (data.workspace_id) {
           const workspacesData = await workspacesApi.list()
-          const workspace = (workspacesData.items || []).find(w => w.id === data.workspace_id)
+          const workspace = (workspacesData.items || []).find((w) => w.id === data.workspace_id)
           if (workspace) {
             const projectsResponse = await workspacesApi.listProjects(workspace.slug)
             const workspaceProjects = Array.isArray(projectsResponse) ? projectsResponse : []
@@ -145,21 +133,13 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
 
         const enrichedPlansData = response.plans || []
         setEnrichedPlans(enrichedPlansData)
-        setPlans(enrichedPlansData.map(p => ({
-          id: p.id,
-          title: p.title,
-          description: '',
-          status: (p.status || 'draft') as PlanStatus,
-          created_at: '',
-          created_by: '',
-          priority: 0,
-        })))
+        setPlans(toPlans(enrichedPlansData))
 
         // Fetch parent project
         if (ms.project_id) {
           try {
             const projectsData = await projectsApi.list({ limit: 100 })
-            const proj = (projectsData.items || []).find(p => p.id === ms.project_id)
+            const proj = (projectsData.items || []).find((p) => p.id === ms.project_id)
             if (proj) setProject(proj)
           } catch {
             // Project lookup failed
@@ -180,7 +160,7 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
   }, [refreshData])
 
   // Derive primary project for graph enrichment
-  const primaryProject = scope === 'project' ? project : (projects.length > 0 ? projects[0] : null)
+  const primaryProject = scope === 'project' ? project : projects.length > 0 ? projects[0] : null
 
   const milestoneGraphData = useMilestoneGraphData({
     milestoneId,
@@ -192,13 +172,16 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
     projectId: primaryProject?.id,
   })
 
-  const handleDrillDown = useCallback((target: { level: string; id: string }) => {
-    if (target.level === 'plan') {
-      navigate(workspacePath(wsSlug, `/plans/${target.id}#graph`))
-    } else if (target.level === 'task') {
-      navigate(workspacePath(wsSlug, `/tasks/${target.id}#graph`))
-    }
-  }, [navigate, wsSlug])
+  const handleDrillDown = useCallback(
+    (target: { level: string; id: string }) => {
+      if (target.level === 'plan') {
+        navigate(workspacePath(wsSlug, `/plans/${target.id}#graph`))
+      } else if (target.level === 'task') {
+        navigate(workspacePath(wsSlug, `/tasks/${target.id}#graph`))
+      }
+    },
+    [navigate, wsSlug],
+  )
 
   const graphBreadcrumbs = useMemo<GraphBreadcrumb[]>(() => {
     const crumbs: GraphBreadcrumb[] = []
@@ -212,32 +195,30 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
   // Build plan title map for run history
   const planTitleMap = useMemo(() => {
     const map: Record<string, string> = {}
-    for (const p of plans) { map[p.id] = p.title }
+    for (const p of plans) map[p.id] = p.title
     return map
   }, [plans])
 
-  // Section IDs depend on scope
-  const sectionIds = useMemo(() => {
-    const ids = ['progress', 'plans']
-    if (scope === 'workspace') {
-      ids.push('runs', 'projects')
-    }
-    return ids
-  }, [scope])
+  const updateMilestone = (data: Partial<{ title: string; description: string; status: string; target_date: string }>) =>
+    scope === 'workspace' ? workspacesApi.updateMilestone(milestoneId_, data) : projectsApi.updateMilestone(milestoneId_, data)
 
-  const activeSection = useSectionObserver(sectionIds)
+  const editForm = EditMilestoneForm({
+    initialValues: { title: milestoneTitle, description: milestoneDescription, target_date: milestoneTargetDate },
+    onSubmit: async (data) => {
+      await updateMilestone({
+        title: data.title,
+        description: data.description,
+        ...(data.target_date ? { target_date: data.target_date } : {}),
+      })
+      setMilestoneTitle(data.title)
+      setMilestoneDescription(data.description)
+      if (data.target_date) setMilestoneTargetDate(data.target_date)
+      toast.success('Milestone updated')
+    },
+  })
 
   if (error) return <ErrorState title="Failed to load" description={error} onRetry={refreshData} />
   if (loading || !milestoneId_) return <LoadingPage />
-
-  const sections = [
-    { id: 'progress', label: 'Progress' },
-    { id: 'plans', label: 'Plans', count: enrichedPlans.length },
-    ...(scope === 'workspace' ? [
-      { id: 'runs', label: 'Runs' },
-      { id: 'projects', label: 'Projects', count: projects.length },
-    ] : []),
-  ]
 
   // Parent links for project scope
   const parentLinks: ParentLink[] = []
@@ -250,108 +231,208 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
     })
   }
 
-  const handleDelete = () => confirmDialog.open({
-    title: 'Delete Milestone',
-    description: 'This will permanently delete this milestone. Tasks linked to it will not be deleted.',
-    onConfirm: async () => {
-      if (scope === 'workspace') {
-        await workspacesApi.deleteMilestone(milestoneId_)
-        toast.success('Milestone deleted')
-        navigate(workspacePath(wsSlug, '/milestones'), { type: 'back-button' })
-      } else {
-        await projectsApi.updateMilestone(milestoneId_, { status: 'closed' })
-        toast.success('Milestone deleted')
-        navigateRR(workspacePath(wsSlug, project ? `/projects/${project.slug}` : '/projects'))
-      }
-    },
-  })
-
-  const handleStatusChange = async (newStatus: MilestoneStatus) => {
-    if (scope === 'workspace') {
-      await workspacesApi.updateMilestone(milestoneId_, { status: newStatus })
-    } else {
-      await projectsApi.updateMilestone(milestoneId_, { status: newStatus })
-    }
-    setMilestoneStatus(newStatus)
-    toast.success('Status updated')
+  const handleDelete = async () => {
+    await workspacesApi.deleteMilestone(milestoneId_)
+    toast.success('Milestone deleted')
+    navigate(workspacePath(wsSlug, '/milestones'), { type: 'back-button' })
   }
 
-  const handleLinkPlan = () => linkDialog.open({
-    title: 'Link Plan to Milestone',
-    submitLabel: 'Link',
-    fetchOptions: async () => {
-      const data = await plansApi.list({ limit: 100 })
-      const existingIds = new Set(enrichedPlans.map(p => p.id))
-      return (data.items || [])
-        .filter(p => !existingIds.has(p.id))
-        .map(p => ({ value: p.id, label: p.title || 'Untitled', description: p.status }))
-    },
-    onLink: async (planId) => {
-      if (scope === 'workspace') {
-        await workspacesApi.linkPlanToMilestone(milestoneId!, planId)
-      } else {
-        await projectsApi.linkPlanToMilestone(milestoneId!, planId)
-      }
-      await refreshData()
-      toast.success('Plan linked')
-    },
-  })
+  // Project milestones have no delete endpoint: the action closes them.
+  const handleClose = async () => {
+    await projectsApi.updateMilestone(milestoneId_, { status: 'closed' })
+    setMilestoneStatus('closed')
+    toast.success('Milestone closed')
+  }
+
+  const handleStatusChange = async (newStatus: MilestoneStatus) => {
+    try {
+      await updateMilestone({ status: newStatus })
+      setMilestoneStatus(newStatus)
+      toast.success('Status updated')
+    } catch {
+      toast.error('Failed to update status')
+    }
+  }
+
+  const handleLinkPlan = () =>
+    linkDialog.open({
+      title: 'Link Plan to Milestone',
+      submitLabel: 'Link',
+      fetchOptions: async () => {
+        const data = await plansApi.list({ limit: 100 })
+        const existingIds = new Set(enrichedPlans.map((p) => p.id))
+        return (data.items || [])
+          .filter((p) => !existingIds.has(p.id))
+          .map((p) => ({ value: p.id, label: p.title || 'Untitled', description: p.status }))
+      },
+      onLink: async (planId) => {
+        if (scope === 'workspace') {
+          await workspacesApi.linkPlanToMilestone(milestoneId!, planId)
+        } else {
+          await projectsApi.linkPlanToMilestone(milestoneId!, planId)
+        }
+        await refreshData()
+        toast.success('Plan linked')
+      },
+    })
+
+  const remaining = progress ? progress.total - progress.completed : 0
 
   return (
-    <div className="pt-6 space-y-6">
+    <PageContainer width="wide" className="space-y-6">
       <PageHeader
         title={milestoneTitle}
         viewTransitionName={scope === 'workspace' ? `milestone-title-${milestoneId_}` : undefined}
         description={milestoneDescription}
         parentLinks={parentLinks.length > 0 ? parentLinks : undefined}
-        status={
-          <StatusSelect
-            status={milestoneStatus}
-            options={[
-              { value: 'planned', label: 'Planned' },
-              { value: 'open', label: 'Open' },
-              { value: 'in_progress', label: 'In Progress' },
-              { value: 'completed', label: 'Completed' },
-              { value: 'closed', label: 'Closed' },
-            ]}
-            colorMap={{
-              planned: { bg: 'bg-white/[0.08]', text: 'text-gray-200', dot: 'bg-gray-400' },
-              open: { bg: 'bg-blue-900/50', text: 'text-blue-400', dot: 'bg-blue-400' },
-              in_progress: { bg: 'bg-yellow-900/50', text: 'text-yellow-400', dot: 'bg-yellow-400' },
-              completed: { bg: 'bg-green-900/50', text: 'text-green-400', dot: 'bg-green-400' },
-              closed: { bg: 'bg-purple-900/50', text: 'text-purple-400', dot: 'bg-purple-400' },
-            }}
-            onStatusChange={handleStatusChange}
-          />
-        }
-        metadata={[
-          { label: 'Created', value: new Date(milestoneCreatedAt).toLocaleDateString() },
-          ...(milestoneTargetDate ? [{ label: 'Target', value: new Date(milestoneTargetDate).toLocaleDateString() }] : []),
-          ...(milestoneClosedAt ? [{ label: 'Closed', value: new Date(milestoneClosedAt).toLocaleDateString() }] : []),
-          ...(scope === 'project' && project ? [{ label: 'Project', value: <Link to={workspacePath(wsSlug, `/projects/${project.slug}`)} className="text-indigo-400 hover:text-indigo-300 transition-colors">{project.name}</Link> }] : []),
+        status={<StatusMenu kind="milestone" status={milestoneStatus} onChange={handleStatusChange} />}
+        meta={[
+          progress && progress.total > 0 ? (
+            <span key="prog" className="tabular-nums">
+              {progress.completed}/{pluralize(progress.total, 'task')} · {Math.round(progress.percentage)}%
+            </span>
+          ) : null,
+          milestoneTargetDate ? (
+            <span key="target" title={formatAbsolute(milestoneTargetDate)}>
+              due {formatDay(milestoneTargetDate)}
+            </span>
+          ) : null,
+          milestoneClosedAt ? <RelativeTime key="closed" date={milestoneClosedAt} prefix="closed " /> : null,
+          pluralize(enrichedPlans.length, 'plan'),
         ]}
         overflowActions={[
+          { label: 'Edit milestone', icon: Pencil, onClick: () => editDialog.open({ title: 'Edit Milestone' }) },
           {
-            label: showGraph ? 'Hide Graph' : 'Show Graph',
-            onClick: () => setShowGraph(v => !v),
+            label: showGraph ? 'Hide hierarchy graph' : 'Show hierarchy graph',
+            icon: Network,
+            onClick: () => setShowGraph((v) => !v),
           },
-          { label: 'Delete', variant: 'danger', onClick: handleDelete },
+          scope === 'workspace'
+            ? {
+                label: 'Delete milestone',
+                icon: Trash2,
+                variant: 'danger' as const,
+                onClick: handleDelete,
+                confirm: {
+                  title: 'Delete Milestone',
+                  description: 'This will permanently delete this milestone. Tasks linked to it will not be deleted.',
+                  confirmLabel: 'Delete',
+                },
+              }
+            : {
+                label: 'Close milestone',
+                icon: Archive,
+                variant: 'danger' as const,
+                hidden: milestoneStatus === 'closed',
+                onClick: handleClose,
+                confirm: {
+                  title: 'Close Milestone',
+                  description: 'Project milestones cannot be deleted; this marks the milestone as closed. Linked plans and tasks are kept.',
+                  confirmLabel: 'Close',
+                },
+              },
         ]}
       >
-        {milestoneTags.length > 0 && (
-          <div className="flex gap-1">
-            {milestoneTags.map((tag, index) => (
-              <Badge key={`${tag}-${index}`} variant="default">{tag}</Badge>
-            ))}
-          </div>
-        )}
+        {milestoneTags.map((tag, index) => (
+          <span key={`${tag}-${index}`} className="rounded border border-white/[0.08] px-1.5 text-[11px] leading-5 text-gray-400">
+            #{tag}
+          </span>
+        ))}
       </PageHeader>
 
-      <SectionNav sections={sections} activeSection={activeSection} />
+      {/* Progress */}
+      {progress && (
+        <section aria-label="Milestone progress" className="space-y-1.5">
+          <ProgressLine value={progress.percentage} size="md" label="Milestone progress" />
+          <p className="text-[11px] leading-4 text-gray-500 tabular-nums">
+            {progress.completed} completed · {remaining} remaining
+            {progress.in_progress > 0 && ` · ${progress.in_progress} in progress`}
+            {progress.pending > 0 && ` · ${progress.pending} pending`}
+          </p>
+        </section>
+      )}
 
-      {/* Graph — toggled via header button, not a permanent section */}
+      {/* Plans — expandable list (Plan -> Tasks -> Steps) */}
+      <Section
+        id="plans"
+        title="Plans"
+        count={enrichedPlans.length}
+        action={
+          <Button size="sm" variant="ghost" onClick={handleLinkPlan}>
+            Link plan
+          </Button>
+        }
+      >
+        {enrichedPlans.length === 0 ? (
+          <EmptyState size="sm" title="No plans linked to this milestone" description="Link a plan to track its tasks here." />
+        ) : (
+          <EntityList aria-label="Plans">
+            {enrichedPlans.map((plan) => (
+              <MilestonePlanRow key={plan.id} plan={plan} wsSlug={wsSlug} />
+            ))}
+          </EntityList>
+        )}
+      </Section>
+
+      {/* Pipeline Runs — workspace scope only */}
+      {scope === 'workspace' && (
+        <Section id="runs" title="Pipeline runs">
+          {plans.length > 0 ? (
+            <PlanRunHistory planIds={plans.map((p) => p.id)} maxRuns={10} showPlanTitle planTitleMap={planTitleMap} />
+          ) : (
+            <EmptyState size="sm" title="No plans linked — no runs to display" />
+          )}
+        </Section>
+      )}
+
+      {/* Projects — workspace scope only */}
+      {scope === 'workspace' && (
+        <Section id="projects" title="Projects" count={projects.length}>
+          {projects.length === 0 ? (
+            <EmptyState size="sm" title="No projects in this workspace" />
+          ) : (
+            <EntityList aria-label="Projects">
+              {projects.map((p) => (
+                <EntityRow
+                  key={p.id}
+                  title={p.name}
+                  href={workspacePath(wsSlug, `/projects/${p.slug}`)}
+                  meta={[
+                    <span key="slug" className="font-mono">
+                      {p.slug}
+                    </span>,
+                  ]}
+                  chevron
+                />
+              ))}
+            </EntityList>
+          )}
+        </Section>
+      )}
+
+      {/* Details */}
+      <Section title="Details">
+        <Facts
+          items={[
+            { label: 'Scope', value: scope === 'workspace' ? 'Workspace milestone' : 'Project milestone' },
+            { label: 'Project', value: scope === 'project' ? project?.name : null },
+            { label: 'Created', value: milestoneCreatedAt ? formatAbsolute(milestoneCreatedAt) : null },
+            { label: 'Target date', value: milestoneTargetDate ? formatAbsolute(milestoneTargetDate) : null },
+            { label: 'Closed', value: milestoneClosedAt ? formatAbsolute(milestoneClosedAt) : null },
+          ]}
+        />
+      </Section>
+
+      {/* Hierarchy graph (milestone → plans → tasks) — toggled from the ⋯ menu */}
       {showGraph && milestoneGraphData.data && (
-        <section className="scroll-mt-20">
+        <Section
+          title="Hierarchy graph"
+          action={
+            <Button size="sm" variant="ghost" onClick={() => setShowGraph(false)}>
+              Hide
+            </Button>
+          }
+        >
           <UnifiedGraphSection
             adapter={MilestoneGraphAdapter}
             data={milestoneGraphData.data}
@@ -361,116 +442,15 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
             breadcrumbs={graphBreadcrumbs}
             projectSlug={primaryProject?.slug}
           />
-        </section>
+        </Section>
       )}
 
-      {/* Progress */}
-      <section id="progress" className="scroll-mt-20">
-        {progress && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Progress</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ProgressBar value={progress.percentage} showLabel size="lg" gradient shimmer={progress.percentage < 100} />
-              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-                <div className="text-center p-3 bg-white/[0.06] rounded-lg">
-                  <div className="text-2xl font-bold text-green-400">{progress.completed}</div>
-                  <div className="text-xs text-gray-500">Completed</div>
-                </div>
-                <div className="text-center p-3 bg-white/[0.06] rounded-lg">
-                  <div className="text-2xl font-bold text-gray-400">{progress.total - progress.completed}</div>
-                  <div className="text-xs text-gray-500">Remaining</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </section>
+      {/* ENTITY_GRAPH_SLOT entity_type="milestone" entity_id={milestoneId_} */}
 
-      {/* Plans — expandable list (Plan -> Tasks -> Steps) */}
-      <section id="plans" className="scroll-mt-20">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Plans ({enrichedPlans.length})</CardTitle>
-              <Button size="sm" onClick={handleLinkPlan}>Link Plan</Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {enrichedPlans.length === 0 ? (
-              <p className="text-gray-500 text-sm">No plans linked to this milestone</p>
-            ) : (
-              <div className="space-y-2">
-                {enrichedPlans.map(plan => (
-                  <MilestonePlanRow
-                    key={plan.id}
-                    plan={plan}
-                    wsSlug={wsSlug}
-                  />
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* Pipeline Runs — workspace scope only */}
-      {scope === 'workspace' && (
-        <section id="runs" className="scroll-mt-20">
-          <Card>
-            <CardHeader>
-              <CardTitle>Pipeline Runs</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {plans.length > 0 ? (
-                <PlanRunHistory
-                  planIds={plans.map(p => p.id)}
-                  maxRuns={10}
-                  showPlanTitle
-                  planTitleMap={planTitleMap}
-                />
-              ) : (
-                <p className="text-sm text-gray-500 py-4 text-center">
-                  No plans linked — no runs to display
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </section>
-      )}
-
-      {/* Projects — workspace scope only */}
-      {scope === 'workspace' && (
-        <section id="projects" className="scroll-mt-20">
-          <Card>
-            <CardHeader>
-              <CardTitle>Projects ({projects.length})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {projects.length === 0 ? (
-                <p className="text-gray-500 text-sm">No projects in this workspace</p>
-              ) : (
-                <div className="space-y-2">
-                  {projects.map(project => (
-                    <Link
-                      key={project.id}
-                      to={workspacePath(wsSlug, `/projects/${project.slug}`)}
-                      className="flex items-center justify-between gap-2 p-3 bg-white/[0.06] rounded-lg hover:bg-white/[0.08] transition-colors"
-                    >
-                      <span className="font-medium text-gray-200 truncate min-w-0">{project.name}</span>
-                      <span className="text-xs text-gray-500 shrink-0">{project.slug}</span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </section>
-      )}
-
+      <FormDialog {...editDialog.dialogProps} onSubmit={editForm.submit}>
+        {editForm.fields}
+      </FormDialog>
       <LinkEntityDialog {...linkDialog.dialogProps} />
-      <ConfirmDialog {...confirmDialog.dialogProps} />
-    </div>
+    </PageContainer>
   )
 }

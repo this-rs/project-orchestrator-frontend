@@ -149,19 +149,20 @@ export interface GraphBreadcrumb {
 function GraphBreadcrumbs({ items }: { items: GraphBreadcrumb[] }) {
   if (items.length === 0) return null
   return (
-    <nav className="flex items-center gap-1 px-4 py-1.5 text-xs text-gray-400 border-b border-gray-700/50 bg-gray-900/30">
+    <nav aria-label="Graph breadcrumbs" className="flex flex-wrap items-center gap-x-1 gap-y-0.5 px-3 md:px-4 py-1.5 text-xs text-gray-400 border-b border-white/[0.06] min-w-0">
       {items.map((item, i) => (
         <React.Fragment key={i}>
-          {i > 0 && <ChevronRight className="w-3 h-3 text-gray-600 flex-shrink-0" />}
+          {i > 0 && <ChevronRight className="w-3 h-3 text-gray-600 flex-shrink-0" aria-hidden="true" />}
           {item.href ? (
             <Link
               to={item.href}
-              className="hover:text-gray-200 transition-colors truncate max-w-[200px]"
+              title={item.label}
+              className="py-1 hover:text-gray-200 transition-colors truncate max-w-[200px]"
             >
               {item.label}
             </Link>
           ) : (
-            <span className="text-gray-300 font-medium truncate max-w-[200px]">{item.label}</span>
+            <span className="text-gray-300 font-medium truncate max-w-[200px]" title={item.label}>{item.label}</span>
           )}
         </React.Fragment>
       ))}
@@ -188,12 +189,14 @@ function ViewModeButton({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`px-2.5 py-1 text-xs rounded-md transition-colors flex items-center gap-1.5 ${
+      aria-pressed={active}
+      className={`min-h-8 md:min-h-7 px-2.5 py-1 text-xs rounded-md transition-colors duration-[120ms] flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60 ${
         active
-          ? 'bg-indigo-600 text-white font-medium shadow-sm'
-          : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
+          ? 'bg-indigo-600 text-white font-medium'
+          : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.06]'
       } ${disabled ? 'opacity-50' : ''}`}
     >
       {icon}
@@ -430,7 +433,7 @@ export function UnifiedGraphSection<T>({
   const graph3DContent = viewMode === '3d' ? (
     <div
       ref={containerRef}
-      className={`bg-[#0a0a0f] ${isFullscreen ? 'fixed inset-0 z-[9999]' : 'relative h-[500px]'}`}
+      className={`bg-[#0a0a0f] ${isFullscreen ? 'fixed inset-0 z-[9999]' : 'relative h-[360px] sm:h-[500px]'}`}
     >
       {/* EntityGroupPanel — horizontal bar stuck to top */}
       <div className="absolute top-0 left-0 right-0 z-30 pointer-events-none">
@@ -490,11 +493,13 @@ export function UnifiedGraphSection<T>({
         {/* Fullscreen */}
         <div className="flex items-center bg-slate-800/90 backdrop-blur-sm rounded-lg border border-slate-700 p-0.5">
           <button
+            type="button"
             onClick={toggleFullscreen}
-            className="flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 transition-colors"
+            className="flex items-center justify-center w-9 h-9 md:w-8 md:h-8 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60"
             title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
           >
-            {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
+            {isFullscreen ? <Minimize size={14} aria-hidden="true" /> : <Maximize size={14} aria-hidden="true" />}
           </button>
         </div>
       </div>
@@ -502,19 +507,19 @@ export function UnifiedGraphSection<T>({
   ) : null
 
   return (
-    <div className={`rounded-xl border border-gray-700/50 bg-gray-900/50 overflow-hidden ${className}`}>
+    <div className={`rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden ${className}`}>
       {/* Breadcrumbs */}
       {breadcrumbs && breadcrumbs.length > 0 && <GraphBreadcrumbs items={breadcrumbs} />}
 
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700/50">
-        <div className="flex items-center gap-3">
-          <h3 className="text-sm font-semibold text-gray-200">{displayTitle}</h3>
-          <span className="text-xs text-gray-500">{summaryText}</span>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 md:px-4 py-2.5 border-b border-white/[0.06]">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <h3 className="text-sm font-semibold text-gray-200 truncate">{displayTitle}</h3>
+          <span className="text-[11px] text-gray-500 tabular-nums whitespace-nowrap">{summaryText}</span>
         </div>
 
         {/* View mode toggle */}
-        <div className="flex items-center rounded-lg bg-gray-800/60 border border-gray-700/50 p-0.5">
+        <div role="group" aria-label="Graph view" className="flex items-center rounded-lg bg-white/[0.04] border border-white/[0.06] p-0.5">
           {views.includes('dag') && (
             <ViewModeButton
               label="DAG"
@@ -548,9 +553,7 @@ export function UnifiedGraphSection<T>({
       <div className="relative">
         <Suspense
           fallback={
-            <div className="flex items-center justify-center h-[400px]">
-              <div className="text-gray-400 animate-pulse text-sm">Loading...</div>
-            </div>
+            <div className="h-[360px] sm:h-[400px] animate-pulse bg-white/[0.03]" aria-busy="true" aria-label="Loading graph" />
           }
         >
           {viewMode === '3d' ? (
@@ -577,7 +580,7 @@ export function UnifiedGraphSection<T>({
               />
             </div>
           ) : (
-            <div className="flex items-center justify-center h-[400px]">
+            <div className="flex items-center justify-center h-[240px] sm:h-[400px]">
               <p className="text-gray-500 text-sm">No data to visualize</p>
             </div>
           )}
