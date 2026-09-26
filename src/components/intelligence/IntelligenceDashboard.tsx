@@ -4,7 +4,6 @@ import {
   Brain,
   FileCode2,
   StickyNote,
-  Scale,
   Network,
   Zap,
   AlertTriangle,
@@ -13,23 +12,16 @@ import {
   ShieldCheck,
   Shield,
   Flame,
-  BookOpen,
-  Activity,
   RefreshCw,
   Sparkles,
-  LayoutList,
-  CheckSquare,
   Loader2,
   Check,
   Timer,
   BrainCircuit,
   Waves,
   Search,
-  Workflow,
   GitBranch,
-  Link2,
 } from 'lucide-react'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { EntityList, EntityRow } from '@/components/ui/EntityRow'
 import { MetaLine } from '@/components/ui/MetaLine'
@@ -134,7 +126,6 @@ function CircularGauge({ score, size = 140, showLabel = true }: { score: number;
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={circumference - progress}
-          style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)' }}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center" aria-hidden="true">
@@ -186,40 +177,6 @@ function RiskBadge({ risk }: { risk: CodeHealth['risk_assessment'] }) {
 }
 
 // ============================================================================
-// MINI STAT
-// ============================================================================
-
-function MiniStat({
-  label,
-  value,
-  icon: Icon,
-  color,
-  sub,
-}: {
-  label: string
-  value: number | string
-  icon: typeof Brain
-  color: string
-  sub?: string
-}) {
-  return (
-    <div className="flex items-center gap-2.5 rounded-lg bg-slate-800/50 border border-slate-700/50 px-3 py-2.5">
-      <div
-        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-        style={{ backgroundColor: `${color}15` }}
-      >
-        <Icon size={16} color={color} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-base font-bold text-slate-200 tabular-nums">{value}</p>
-        <p className="text-[10px] text-slate-500 leading-tight">{label}</p>
-        {sub && <p className="text-[9px] text-slate-600 leading-tight">{sub}</p>}
-      </div>
-    </div>
-  )
-}
-
-// ============================================================================
 // MINI GAUGE
 // ============================================================================
 
@@ -263,69 +220,7 @@ function MiniGauge({
 }
 
 // ============================================================================
-// LAYER CARD
-// ============================================================================
-
-function LayerCard({
-  title,
-  icon: Icon,
-  color,
-  badge,
-  children,
-}: {
-  title: string
-  icon: typeof Brain
-  color: string
-  badge?: React.ReactNode
-  children: React.ReactNode
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <div
-            className="w-6 h-6 rounded-md flex items-center justify-center"
-            style={{ backgroundColor: `${color}15` }}
-          >
-            <Icon size={14} color={color} />
-          </div>
-          <span className="flex-1">{title}</span>
-          {badge}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  )
-}
-
-// ============================================================================
-// HOTSPOT ROW
-// ============================================================================
-
-function HotspotRow({ path, score }: { path: string; score: number }) {
-  const filename = path.split('/').pop() ?? path
-  const barPct = Math.min(100, score * 20)
-  return (
-    <div className="flex items-center gap-2 py-0.5 group">
-      <Flame size={10} className="text-orange-500 shrink-0 opacity-60 group-hover:opacity-100" />
-      <span className="text-[10px] text-slate-400 font-mono truncate flex-1 group-hover:text-orange-300" title={path}>
-        {filename}
-      </span>
-      <div className="w-16 h-1 bg-slate-800 rounded-full overflow-hidden shrink-0">
-        <div
-          className="h-full rounded-full bg-orange-500/70"
-          style={{ width: `${barPct}%` }}
-        />
-      </div>
-      <span className="text-[9px] font-mono text-slate-600 min-w-[28px] text-right">
-        {score.toFixed(1)}
-      </span>
-    </div>
-  )
-}
-
-// ============================================================================
-// QUICK ACTION BUTTON
+// ACTION STATE (maintenance actions)
 // ============================================================================
 
 interface ActionResult {
@@ -764,221 +659,6 @@ export function IntelQuickActions({ data }: { data: IntelligenceData }) {
 }
 
 // ============================================================================
-// SECTION: Layer Cards (Code, PM, Knowledge Fabric, Neural)
-// ============================================================================
-
-export function IntelLayerCards({ data }: { data: IntelligenceData }) {
-  const s = data.summary
-  if (!s) return null
-
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      {/* CODE LAYER */}
-      <LayerCard title="Code" icon={FileCode2} color="#3B82F6">
-        <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-2 mb-3">
-          <MiniStat label="Files" value={s.code.files} icon={FileCode2} color="#3B82F6" />
-          <MiniStat label="Functions" value={s.code.functions} icon={Network} color="#60A5FA" />
-          <MiniStat label="Communities" value={s.code.communities} icon={Network} color="#6366F1" />
-          <MiniStat
-            label="Orphans"
-            value={s.code.orphans}
-            icon={AlertTriangle}
-            color={s.code.orphans > 10 ? '#F59E0B' : '#4ade80'}
-          />
-        </div>
-        {s.code.hotspots.length > 0 && (
-          <div>
-            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mb-1.5">
-              Top Hotspots
-            </p>
-            <div className="space-y-0.5">
-              {s.code.hotspots.slice(0, 5).map((h) => (
-                <HotspotRow key={h.path} path={h.path} score={h.churn_score} />
-              ))}
-            </div>
-          </div>
-        )}
-      </LayerCard>
-
-      {/* PROJECT MANAGEMENT LAYER */}
-      <LayerCard title="Project Management" icon={LayoutList} color="#818cf8">
-        <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-2">
-          <MiniStat
-            label="Notes"
-            value={s.knowledge.notes}
-            icon={StickyNote}
-            color="#F59E0B"
-            sub={s.knowledge.stale_count > 0 ? `${s.knowledge.stale_count} stale` : undefined}
-          />
-          <MiniStat label="Decisions" value={s.knowledge.decisions} icon={Scale} color="#8B5CF6" />
-        </div>
-        {Object.keys(s.knowledge.types_distribution).length > 0 && (
-          <div className="mt-3">
-            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mb-1.5">
-              Note Types
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {Object.entries(s.knowledge.types_distribution).map(([type, count]) => (
-                <span
-                  key={type}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-800/60 border border-slate-700/40 text-[10px]"
-                >
-                  <span className="text-slate-500">{type}</span>
-                  <span className="font-mono font-bold text-slate-300">{count}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-      </LayerCard>
-
-      {/* KNOWLEDGE FABRIC LAYER */}
-      <LayerCard
-        title="Knowledge Fabric"
-        icon={BookOpen}
-        color="#94A3B8"
-        badge={
-          <span className="text-[10px] font-mono text-slate-600">
-            {s.fabric.co_changed_pairs} pairs
-          </span>
-        }
-      >
-        <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-2 mb-3">
-          <MiniStat
-            label="Co-changed Pairs"
-            value={s.fabric.co_changed_pairs}
-            icon={Network}
-            color="#FED7AA"
-          />
-          {data.health?.coupling_metrics && (
-            <MiniStat
-              label="Avg Coupling"
-              value={data.health.coupling_metrics.avg_clustering_coefficient.toFixed(2)}
-              icon={Activity}
-              color="#94A3B8"
-              sub={`max: ${data.health.coupling_metrics.max_clustering_coefficient.toFixed(2)}`}
-            />
-          )}
-        </div>
-        {data.health && data.health.circular_dependency_count > 0 && (
-          <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-red-950/30 border border-red-900/30 text-[10px] text-red-400">
-            <AlertTriangle size={10} />
-            {data.health.circular_dependency_count} <MetricTooltip term="circular_dependency" showIndicator>circular dependencies</MetricTooltip> detected
-          </div>
-        )}
-        {data.health?.coupling_metrics?.most_coupled_file && (
-          <div className="mt-2">
-            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mb-1">
-              Most Coupled
-            </p>
-            <p className="text-[10px] text-slate-400 font-mono truncate" title={data.health.coupling_metrics.most_coupled_file}>
-              {data.health.coupling_metrics.most_coupled_file.split('/').pop()}
-            </p>
-          </div>
-        )}
-      </LayerCard>
-
-      {/* NEURAL LAYER */}
-      <LayerCard title="Neural" icon={Brain} color="#06B6D4">
-        <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-2 mb-3">
-          <MiniStat label="Active Synapses" value={s.neural.active_synapses} icon={Brain} color="#06B6D4" />
-          <MiniStat
-            label="Dead Notes"
-            value={s.neural.dead_notes_count}
-            icon={StickyNote}
-            color={s.neural.dead_notes_count > 5 ? '#f87171' : '#64748b'}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <MiniGauge label="Avg Energy" value={s.neural.avg_energy} color="#22d3ee" tooltipTerm="energy" />
-          <MiniGauge
-            label="Weak Synapses"
-            value={s.neural.weak_synapses_ratio}
-            color={s.neural.weak_synapses_ratio > 0.5 ? '#fb923c' : '#4ade80'}
-            tooltipTerm="synapse"
-          />
-        </div>
-      </LayerCard>
-    </div>
-  )
-}
-
-// ============================================================================
-// SECTION: Skills Layer Card (full width)
-// ============================================================================
-
-export function IntelSkillsCard({ data }: { data: IntelligenceData }) {
-  const s = data.summary
-  if (!s) return null
-
-  return (
-    <LayerCard
-      title="Skills"
-      icon={Sparkles}
-      color="#EC4899"
-      badge={
-        <span className="text-[10px] font-mono text-slate-600">
-          {s.skills.total_activations} total activations
-        </span>
-      }
-    >
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-        <MiniStat label="Total Skills" value={s.skills.total} icon={Brain} color="#EC4899" />
-        <MiniStat label="Active" value={s.skills.active} icon={Zap} color="#4ade80" />
-        <MiniStat label="Emerging" value={s.skills.emerging} icon={Sparkles} color="#fbbf24" />
-        <MiniStat
-          label="Avg Cohesion"
-          value={`${(s.skills.avg_cohesion * 100).toFixed(0)}%`}
-          icon={CheckSquare}
-          color="#F9A8D4"
-        />
-      </div>
-      <MiniGauge label="Skill Maturity" value={s.skills.total > 0 ? s.skills.active / s.skills.total : 0} color="#ec4899" tooltipTerm="skills_maturity" />
-    </LayerCard>
-  )
-}
-
-// ============================================================================
-// SECTION: Behavioral Layer Card (Protocols)
-// ============================================================================
-
-export function IntelBehavioralCard({ data }: { data: IntelligenceData }) {
-  const s = data.summary
-  if (!s || s.behavioral.protocols === 0) return null
-
-  return (
-    <LayerCard
-      title="Behavioral"
-      icon={Workflow}
-      color="#F97316"
-      badge={
-        <span className="text-[10px] font-mono text-slate-600">
-          {s.behavioral.states} states · {s.behavioral.transitions} transitions
-        </span>
-      }
-    >
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-        <MiniStat label="Protocols" value={s.behavioral.protocols} icon={Workflow} color="#F97316" />
-        <MiniStat label="System" value={s.behavioral.system_protocols} icon={BrainCircuit} color="#3B82F6" />
-        <MiniStat label="Business" value={s.behavioral.business_protocols} icon={GitBranch} color="#F97316" />
-        <MiniStat
-          label="Skill-Linked"
-          value={s.behavioral.skill_linked}
-          icon={Link2}
-          color={s.behavioral.skill_linked > 0 ? '#EC4899' : '#64748b'}
-        />
-      </div>
-      <MiniGauge
-        label="Skill Coverage"
-        value={s.behavioral.protocols > 0 ? s.behavioral.skill_linked / s.behavioral.protocols : 0}
-        color="#F97316"
-        tooltipTerm="skill"
-      />
-    </LayerCard>
-  )
-}
-
-// ============================================================================
 // SECTION: Attention Needed
 // ============================================================================
 
@@ -1063,62 +743,5 @@ export function IntelAttention({ data }: { data: IntelligenceData }) {
         ))}
       </EntityList>
     </Section>
-  )
-}
-
-// ============================================================================
-// DEFAULT EXPORT — backward compatibility (renders all sections in default order)
-// ============================================================================
-
-interface IntelligenceDashboardProps {
-  projectSlug: string
-  /** Roadmap progress (0–100), integrated into the health breakdown */
-  progress?: { percentage: number }
-}
-
-export default function IntelligenceDashboard({ projectSlug, progress }: IntelligenceDashboardProps) {
-  const data = useIntelligenceData(projectSlug)
-
-  if (data.loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
-      </div>
-    )
-  }
-
-  if (data.error) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 text-center">
-        <AlertTriangle className="w-8 h-8 text-amber-500 mb-3" />
-        <p className="text-sm text-slate-400 mb-3">{data.error}</p>
-        <button
-          onClick={data.handleRefresh}
-          className="text-xs text-cyan-400 hover:text-cyan-300 underline underline-offset-2"
-        >
-          Retry
-        </button>
-      </div>
-    )
-  }
-
-  if (!data.summary) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 text-center">
-        <Brain className="w-8 h-8 text-slate-600 mb-3" />
-        <p className="text-sm text-slate-500">No intelligence data available</p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-4">
-      <IntelHealthBreakdown data={data} progress={progress} />
-      <IntelLayerCards data={data} />
-      <IntelSkillsCard data={data} />
-      <IntelBehavioralCard data={data} />
-      <IntelAttention data={data} />
-      <IntelQuickActions data={data} />
-    </div>
   )
 }
