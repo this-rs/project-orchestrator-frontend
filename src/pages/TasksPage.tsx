@@ -322,6 +322,8 @@ export function TasksPage() {
               {multiSelect.isAllSelected ? 'Deselect all' : 'Select all'}
             </button>
           </div>
+          {/* No recency / status grouping here: the server orders by priority and the list is
+              paginated on scroll — groups would shift as pages arrive. Status is filterable above. */}
           <EntityList aria-label="Tasks">
             {tasks.map((task) => (
               <TaskRow

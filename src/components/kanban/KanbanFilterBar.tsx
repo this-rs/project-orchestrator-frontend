@@ -2,7 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import type { KanbanFilters } from '@/hooks/useKanbanFilters'
 import type { Plan, Project } from '@/types'
-import { plansApi, projectsApi } from '@/services'
+import { plansApi, workspacesApi } from '@/services'
+import { useWorkspaceSlug } from '@/hooks'
 import { FilterBar, Select, Switch } from '@/components/ui'
 import { focusRing } from '@/components/ui/classes'
 import { FilterField, PriorityRangeFields } from './ListControls'
@@ -30,13 +31,15 @@ export function KanbanFilterBar({
   activeFilterCount,
   trailing,
 }: KanbanFilterBarProps) {
+  const wsSlug = useWorkspaceSlug()
   const [plans, setPlans] = useState<Plan[]>([])
   const [projects, setProjects] = useState<Project[]>([])
 
+  // Options scoped to the active workspace (plans / projects of other workspaces are not filterable here)
   useEffect(() => {
-    plansApi.list({ limit: 100 }).then((r) => setPlans(r.items || [])).catch(() => {})
-    projectsApi.list({ limit: 100 }).then((r) => setProjects(r.items || [])).catch(() => {})
-  }, [])
+    plansApi.list({ limit: 100, workspace_slug: wsSlug }).then((r) => setPlans(r.items || [])).catch(() => {})
+    workspacesApi.listProjects(wsSlug).then((data) => setProjects(Array.isArray(data) ? data : [])).catch(() => {})
+  }, [wsSlug])
 
   const planOptions = [{ value: '', label: 'All plans' }, ...plans.map((p) => ({ value: p.id, label: p.title }))]
   const excluded = filters.exclude_projects ?? []

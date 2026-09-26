@@ -5,7 +5,7 @@
  */
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { CheckCircle2, ListChecks, MessageCircle, Pencil, Plus, ScrollText, Trash2, type LucideIcon } from 'lucide-react'
+import { CheckCircle2, ListChecks, MessageCircle, Pencil, Plus, ScrollText, ShieldCheck, Trash2, type LucideIcon } from 'lucide-react'
 import {
   Button,
   EntityListSkeleton,
@@ -14,13 +14,15 @@ import {
   SkeletonLine,
   RelativeTime,
   StatusMenu,
+  StatusText,
   formatCost,
+  humanizeStatus,
   inlineLink,
   pluralize,
   rowInteractive,
   hitArea,
 } from '@/components/ui'
-import type { Decision, DecisionStatus, SessionWithLinks, Step, StepStatus } from '@/types'
+import type { Constraint, Decision, DecisionStatus, SessionWithLinks, Step, StepStatus } from '@/types'
 import { workspacePath } from '@/utils/paths'
 
 /**
@@ -96,6 +98,64 @@ export function StepRow({ step, index, onStatusChange, onEdit, onDelete }: StepR
         },
       ]}
       ariaLabel={`Step ${index + 1}: ${step.description}`}
+    />
+  )
+}
+
+// ── Compact steps (expanded under a task row) ───────────────────────────
+
+/** Read-only step list shown inside an expanded task row (plan page). */
+export function CompactStepList({ steps, loading }: { steps: Step[] | null; loading?: boolean }) {
+  if (loading) return <p className="text-xs text-gray-500 py-0.5">Loading steps…</p>
+  if (!steps || steps.length === 0) return <p className="text-xs text-gray-500 py-0.5">No steps</p>
+  return (
+    <ol className="space-y-1" aria-label="Steps">
+      {steps.map((step, index) => {
+        const done = step.status === 'completed' || step.status === 'skipped'
+        return (
+          <li key={step.id || index} className="flex items-start gap-2 min-w-0 text-xs leading-4">
+            <span className={`w-4 shrink-0 text-right tabular-nums ${done ? 'text-gray-600' : 'text-gray-500'}`} aria-hidden="true">
+              {index + 1}
+            </span>
+            <span className={`flex-1 min-w-0 break-words ${done ? 'text-gray-500' : 'text-gray-300'}`}>{step.description}</span>
+            <StatusText kind="step" status={step.status} className="shrink-0 text-[11px]" />
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+// ── Constraint ──────────────────────────────────────────────────────────
+
+interface ConstraintRowProps {
+  constraint: Constraint
+  onDelete: () => Promise<void>
+}
+
+export function ConstraintRow({ constraint, onDelete }: ConstraintRowProps) {
+  return (
+    <EntityRow
+      title={constraint.description}
+      leading={<ShieldCheck className="w-3.5 h-3.5 text-gray-500" aria-hidden="true" />}
+      meta={[
+        <span key="type" className="text-gray-400">{humanizeStatus(constraint.constraint_type)}</span>,
+        constraint.severity ? `${constraint.severity} severity` : null,
+        constraint.enforced_by ? (
+          <span key="by" className="truncate max-w-[12rem]" title={`Enforced by ${constraint.enforced_by}`}>
+            by {constraint.enforced_by}
+          </span>
+        ) : null,
+      ]}
+      actions={[
+        {
+          label: 'Delete constraint',
+          icon: Trash2,
+          variant: 'danger',
+          onClick: onDelete,
+          confirm: { title: 'Delete constraint?', description: 'This constraint will be permanently deleted.', confirmLabel: 'Delete' },
+        },
+      ]}
     />
   )
 }
