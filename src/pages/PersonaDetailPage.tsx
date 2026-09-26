@@ -491,8 +491,8 @@ function RelationRow({ kind, rel, resolved, href, onRemove }: RelationRowProps) 
       ariaLabel={expandable ? `${open ? 'Collapse' : 'Expand'} ${plainTitle.slice(0, 60)}` : plainTitle}
       href={href}
       onClick={!href && expandable ? () => setOpen((v) => !v) : undefined}
-      trailing={<span title="Link weight">{pct(rel.weight)}</span>}
-      meta={[resolved?.sub, rel.relation_type, `weight ${rel.weight.toFixed(2)}`]}
+      trailing={<span title={`Link weight ${rel.weight.toFixed(2)}`}>{pct(rel.weight)}</span>}
+      meta={[resolved?.sub, rel.relation_type]}
       actions={
         onRemove
           ? [

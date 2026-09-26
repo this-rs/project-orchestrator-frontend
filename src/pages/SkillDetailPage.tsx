@@ -19,6 +19,7 @@ import {
   PageHeader,
   RelativeTime,
   Section,
+  SectionNav,
   SkeletonLine,
   StatusDot,
   StatusMenu,
@@ -43,7 +44,7 @@ import {
   ratioLevel,
   tagSummary,
 } from '@/components/registry'
-import { useConfirmDialog, useToast, useWorkspaceSlug } from '@/hooks'
+import { useConfirmDialog, useSectionObserver, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import type {
   Skill,
@@ -69,6 +70,17 @@ const RECOMMENDATION: Record<SkillHealthRecommendation, { label: string; tone: S
 /** Below this F1 score the backend skips the trigger (skills/models.rs). */
 const UNRELIABLE_TRIGGER_QUALITY = 0.3
 
+/** Section anchors (SectionNav targets). Stable array → stable observer. */
+const SECTIONS = [
+  { id: 'skill-vitals', label: 'Vital signs' },
+  { id: 'skill-health', label: 'Health' },
+  { id: 'skill-members', label: 'Members' },
+  { id: 'skill-triggers', label: 'Triggers' },
+  { id: 'skill-template', label: 'Template' },
+  { id: 'skill-details', label: 'Details' },
+]
+const SECTION_IDS = SECTIONS.map((s) => s.id)
+
 // ── Main component ──────────────────────────────────────────────────────
 
 export function SkillDetailPage() {
@@ -77,6 +89,7 @@ export function SkillDetailPage() {
   const wsSlug = useWorkspaceSlug()
   const confirmDialog = useConfirmDialog()
   const toast = useToast()
+  const activeSection = useSectionObserver(SECTION_IDS)
 
   const [skill, setSkill] = useState<Skill | null>(null)
   const [health, setHealth] = useState<SkillHealth | null>(null)
@@ -315,8 +328,19 @@ export function SkillDetailPage() {
         </p>
       </ConceptNote>
 
+      <SectionNav
+        activeSection={activeSection}
+        sections={SECTIONS.map((s) =>
+          s.id === 'skill-members'
+            ? { ...s, count: memberCount }
+            : s.id === 'skill-triggers'
+              ? { ...s, count: skill.trigger_patterns.length }
+              : s,
+        )}
+      />
+
       {/* ── Vital signs ─────────────────────────────────────────── */}
-      <Section title="Vital signs" description="Ce que mesurent les indicateurs de ce skill.">
+      <Section id="skill-vitals" title="Vital signs" description="Ce que mesurent les indicateurs de ce skill.">
         <MetricList
           items={[
             { label: 'Energy', value: pct(skill.energy), level: energy, ratio: skill.energy, hint: SKILL_HINTS.energy },
@@ -341,6 +365,7 @@ export function SkillDetailPage() {
 
       {/* ── Health ──────────────────────────────────────────────── */}
       <Section
+        id="skill-health"
         title="Health"
         description="Diagnostic automatique : faut-il garder, surveiller ou archiver ce skill ?"
       >
@@ -376,6 +401,7 @@ export function SkillDetailPage() {
 
       {/* ── Members ─────────────────────────────────────────────── */}
       <Section
+        id="skill-members"
         title="Members"
         count={members ? notes.length + decisions.length : undefined}
         description="Le savoir transmis par ce skill : ses notes et ses décisions."
@@ -411,6 +437,7 @@ export function SkillDetailPage() {
 
       {/* ── Triggers ────────────────────────────────────────────── */}
       <Section
+        id="skill-triggers"
         title="Triggers"
         count={skill.trigger_patterns.length}
         description="Quand ce skill s’active : chaque motif est comparé à ce que fait l’agent. Le seuil est la confiance minimale pour déclencher ; la qualité (F1) mesure sa fiabilité passée."
@@ -478,7 +505,7 @@ export function SkillDetailPage() {
       </Section>
 
       {/* ── Details ─────────────────────────────────────────────── */}
-      <Section title="Details">
+      <Section id="skill-details" title="Details">
         <Facts
           items={[
             { label: 'Project', value: project?.name ?? skill.project_id },

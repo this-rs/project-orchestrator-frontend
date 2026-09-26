@@ -20,7 +20,7 @@ import {
   groupBy,
   pluralize,
 } from '@/components/ui'
-import { ConceptNote, energyLevel, fetchAllPages, dedupeById } from '@/components/registry'
+import { ConceptNote, cohesionLevel, energyLevel, fetchAllPages, dedupeById } from '@/components/registry'
 import { PersonaBuilder } from '@/components/personas'
 import { useToast, useInfiniteList, useWorkspaceSlug } from '@/hooks'
 import type { Persona, PersonaStatus, PersonaSubgraph, PaginatedResponse } from '@/types'
@@ -335,6 +335,7 @@ interface PersonaRowProps {
 
 function PersonaRow({ persona, subgraph, href, projectLabel, onStatusChange, onDelete }: PersonaRowProps) {
   const energy = energyLevel(persona.energy ?? 0)
+  const cohesion = cohesionLevel(persona.cohesion ?? 0)
   const files = subgraph?.files ?? []
   const skills = subgraph?.skills?.length ?? 0
   return (
@@ -346,8 +347,11 @@ function PersonaRow({ persona, subgraph, href, projectLabel, onStatusChange, onD
       trailing={persona.last_activated ? <RelativeTime date={persona.last_activated} /> : <span>never used</span>}
       meta={[
         <StatusMenu key="status" kind="persona" status={persona.status} onChange={onStatusChange} />,
-        <span key="energy" title={`Energy ${Math.round((persona.energy ?? 0) * 100)}%`}>
+        <span key="energy" title={`Energy ${Math.round((persona.energy ?? 0) * 100)}% — recent vitality`}>
           <span className={TONE_CLASSES[energy.tone].text}>{energy.label}</span> energy
+        </span>,
+        <span key="cohesion" title={`Cohesion ${Math.round((persona.cohesion ?? 0) * 100)}%`}>
+          <span className={TONE_CLASSES[cohesion.tone].text}>{cohesion.label}</span> cohesion
         </span>,
         `${Math.round((persona.success_rate ?? 0) * 100)}% success`,
         pluralize(persona.activation_count ?? 0, 'activation'),

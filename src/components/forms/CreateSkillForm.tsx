@@ -15,6 +15,8 @@ export function CreateSkillForm({ projects, onSubmit }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const projectOptions = projects.map((p) => ({ value: p.id, label: p.name }))
+  // 16px on phones so iOS Safari does not zoom on focus (DESIGN §10)
+  const inputSize = 'text-base md:text-sm'
 
   const validate = () => {
     const errs: Record<string, string> = {}
@@ -36,7 +38,8 @@ export function CreateSkillForm({ projects, onSubmit }: Props) {
         />
         <Input
           label="Name"
-          placeholder="Skill name"
+          className={inputSize}
+          placeholder="e.g. Auth tokens, Retry policy…"
           value={name}
           onChange={(e) => setName(e.target.value)}
           error={errors.name}
@@ -44,14 +47,16 @@ export function CreateSkillForm({ projects, onSubmit }: Props) {
         />
         <Textarea
           label="Description"
-          placeholder="Describe this skill..."
+          className={inputSize}
+          placeholder="What this skill knows about…"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
         />
         <Input
           label="Tags"
-          placeholder="Comma-separated tags (optional)"
+          className={inputSize}
+          placeholder="Comma-separated (optional)"
           value={tags}
           onChange={(e) => setTags(e.target.value)}
         />

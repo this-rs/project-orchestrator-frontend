@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react'
+import { useRef, useState, type ChangeEvent, type DragEvent } from 'react'
 import { Upload, FileJson, AlertCircle, CheckCircle2 } from 'lucide-react'
-import { Select, Badge } from '@/components/ui'
+import { MetaLine, Select, focusRing, pluralize } from '@/components/ui'
 import type { SkillPackage, ImportSkillRequest } from '@/types'
 
 interface Props {
@@ -8,7 +8,14 @@ interface Props {
   onSubmit: (data: ImportSkillRequest) => Promise<void>
 }
 
-function validatePackage(data: unknown): data is SkillPackage {
+const conflictOptions = [
+  { value: 'skip', label: 'Skip (keep existing)' },
+  { value: 'merge', label: 'Merge (add new notes)' },
+  { value: 'replace', label: 'Replace (overwrite)' },
+]
+
+/** Structural check of an exported skill package (schema_version + metadata + skill + notes + decisions). */
+export function isSkillPackage(data: unknown): data is SkillPackage {
   if (!data || typeof data !== 'object') return false
   const pkg = data as Record<string, unknown>
   if (typeof pkg.schema_version !== 'number') return false
@@ -21,149 +28,149 @@ function validatePackage(data: unknown): data is SkillPackage {
   return true
 }
 
+/** `#a #b #c +2` — same shape as the list meta lines. */
+function tagLine(tags: string[] | undefined, max = 3): string | null {
+  if (!tags || tags.length === 0) return null
+  const shown = tags.slice(0, max).map((t) => `#${t}`).join(' ')
+  return tags.length > max ? `${shown} +${tags.length - max}` : shown
+}
+
+/**
+ * Import a skill package (.json exported from another project). Returns
+ * `{ fields, submit }` like the other forms (render `fields` in a FormDialog).
+ *
+ * The drop zone is a real button (keyboard + screen reader reachable, ≥ 36px
+ * tall); drag-and-drop is an enhancement on top of it.
+ */
 export function ImportSkillForm({ projects, onSubmit }: Props) {
   const [projectId, setProjectId] = useState(projects[0]?.id || '')
   const [conflictStrategy, setConflictStrategy] = useState<'skip' | 'merge' | 'replace'>('skip')
   const [parsedPackage, setParsedPackage] = useState<SkillPackage | null>(null)
+  const [fileName, setFileName] = useState<string | null>(null)
   const [parseError, setParseError] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [dragging, setDragging] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const projectOptions = projects.map((p) => ({ value: p.id, label: p.name }))
-  const conflictOptions = [
-    { value: 'skip', label: 'Skip (keep existing)' },
-    { value: 'merge', label: 'Merge' },
-    { value: 'replace', label: 'Replace' },
-  ]
 
   const handleFile = async (file: File) => {
     setParseError(null)
     setParsedPackage(null)
+    setFileName(file.name)
+    setErrors((e) => ({ ...e, file: '' }))
 
     if (!file.name.endsWith('.json')) {
-      setParseError('File must be a .json file')
+      setParseError('The package must be a .json file.')
       return
     }
-
     try {
-      const text = await file.text()
-      const data = JSON.parse(text)
-      if (!validatePackage(data)) {
-        setParseError('Invalid skill package format. Expected schema_version, metadata, skill, notes, and decisions fields.')
+      const data: unknown = JSON.parse(await file.text())
+      if (!isSkillPackage(data)) {
+        setParseError('Not a skill package: expected schema_version, metadata, skill, notes and decisions.')
         return
       }
-      setParsedPackage(data as SkillPackage)
+      setParsedPackage(data)
     } catch {
-      setParseError('Failed to parse JSON file')
+      setParseError('The file is not valid JSON.')
     }
   }
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = (e: DragEvent) => {
     e.preventDefault()
+    setDragging(false)
     const file = e.dataTransfer.files[0]
-    if (file) handleFile(file)
+    if (file) void handleFile(file)
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) handleFile(file)
+    if (file) void handleFile(file)
+    // Allow picking the same file again after a fix
+    e.target.value = ''
   }
 
   const validate = () => {
     const errs: Record<string, string> = {}
     if (!projectId) errs.project_id = 'Project is required'
-    if (!parsedPackage) errs.file = 'Please upload a skill package JSON file'
+    if (!parsedPackage) errs.file = 'Choose a skill package (.json) first'
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
 
+  const tone = parsedPackage
+    ? 'border-emerald-500/30 bg-emerald-500/[0.04]'
+    : parseError
+      ? 'border-red-500/30 bg-red-500/[0.04]'
+      : dragging
+        ? 'border-indigo-500/50 bg-indigo-500/[0.06]'
+        : 'border-white/[0.1] bg-white/[0.02] hover:border-white/[0.2] hover:bg-white/[0.04]'
+
+  const pkg = parsedPackage
+  const fileError = parseError ?? (errors.file || null)
+
   return {
     fields: (
       <>
-        {/* Drop zone / file input */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1.5">Skill Package</label>
-          <div
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={handleDrop}
+          <p id="skill-package-label" className="block text-sm font-medium text-gray-300 mb-1">
+            Skill package
+          </p>
+          <button
+            type="button"
+            aria-labelledby="skill-package-label"
+            aria-describedby={fileError ? 'skill-package-error' : undefined}
             onClick={() => fileRef.current?.click()}
-            className={`flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${
-              parsedPackage
-                ? 'border-emerald-500/30 bg-emerald-500/5'
-                : parseError
-                  ? 'border-red-500/30 bg-red-500/5'
-                  : 'border-white/[0.1] bg-white/[0.02] hover:border-white/[0.2] hover:bg-white/[0.04]'
-            }`}
+            onDragOver={(e) => {
+              e.preventDefault()
+              setDragging(true)
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={handleDrop}
+            className={`w-full min-h-24 flex flex-col items-center justify-center gap-2 px-4 py-5 rounded-xl border-2 border-dashed text-center transition-colors ${focusRing} ${tone}`}
           >
-            {parsedPackage ? (
-              <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+            {pkg ? (
+              <CheckCircle2 className="w-6 h-6 text-emerald-400" aria-hidden="true" />
             ) : parseError ? (
-              <AlertCircle className="w-8 h-8 text-red-400" />
+              <AlertCircle className="w-6 h-6 text-red-400" aria-hidden="true" />
             ) : (
-              <Upload className="w-8 h-8 text-gray-500" />
+              <Upload className="w-6 h-6 text-gray-500" aria-hidden="true" />
             )}
-            <span className="text-sm text-gray-400">
-              {parsedPackage
-                ? 'Package loaded — click to replace'
-                : 'Drop a .json file here or click to browse'}
+            <span className="text-sm text-gray-300 break-words">
+              {pkg ? 'Package loaded — tap to replace' : 'Tap to choose a .json file, or drop it here'}
             </span>
-          </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".json"
-            className="hidden"
-            onChange={handleInputChange}
-          />
-          {parseError && (
-            <p className="mt-1.5 text-xs text-red-400">{parseError}</p>
-          )}
-          {errors.file && !parseError && (
-            <p className="mt-1.5 text-xs text-red-400">{errors.file}</p>
+            {fileName && <span className="text-xs text-gray-500 break-all">{fileName}</span>}
+          </button>
+          <input ref={fileRef} type="file" accept=".json,application/json" className="hidden" onChange={handleInputChange} />
+          {fileError && (
+            <p id="skill-package-error" className="mt-1.5 text-xs text-red-400" role="alert">
+              {fileError}
+            </p>
           )}
         </div>
 
-        {/* Preview */}
-        {parsedPackage && (
-          <div className="p-4 rounded-lg bg-white/[0.04] border border-white/[0.08] space-y-2">
-            <div className="flex items-center gap-2">
-              <FileJson className="w-4 h-4 text-indigo-400" />
-              <span className="text-sm font-semibold text-gray-200">{parsedPackage.skill.name}</span>
-            </div>
-            {parsedPackage.skill.description && (
-              <p className="text-xs text-gray-400 line-clamp-2">{parsedPackage.skill.description}</p>
-            )}
-            <div className="flex flex-wrap gap-2 text-xs text-gray-500">
-              <span>{parsedPackage.notes.length} notes</span>
-              <span>{parsedPackage.decisions.length} decisions</span>
-              {parsedPackage.skill.tags.length > 0 && (
-                <div className="flex gap-1">
-                  {parsedPackage.skill.tags.slice(0, 3).map((t) => (
-                    <Badge key={t} variant="default">{t}</Badge>
-                  ))}
-                </div>
-              )}
-            </div>
-            {parsedPackage.metadata.source_project && (
-              <p className="text-xs text-gray-500">
-                Source: {parsedPackage.metadata.source_project}
-              </p>
-            )}
-          </div>
+        {pkg && (
+          <section aria-label="Package preview" className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-1">
+            <p className="flex items-start gap-1.5 text-sm text-gray-200 min-w-0">
+              <FileJson className="w-4 h-4 mt-0.5 shrink-0 text-indigo-400" aria-hidden="true" />
+              <span className="break-words">{pkg.skill.name}</span>
+            </p>
+            {pkg.skill.description && <p className="text-xs text-gray-500 line-clamp-2 break-words">{pkg.skill.description}</p>}
+            <MetaLine
+              items={[
+                pluralize(pkg.notes.length, 'note'),
+                pluralize(pkg.decisions.length, 'decision'),
+                pkg.protocols?.length ? pluralize(pkg.protocols.length, 'protocol') : null,
+                pkg.metadata.source_project ? `from ${pkg.metadata.source_project}` : null,
+                tagLine(pkg.skill.tags),
+              ]}
+            />
+          </section>
         )}
 
-        {/* Project destination */}
+        <Select label="Destination project" options={projectOptions} value={projectId} onChange={setProjectId} error={errors.project_id} />
         <Select
-          label="Destination Project"
-          options={projectOptions}
-          value={projectId}
-          onChange={setProjectId}
-          error={errors.project_id}
-        />
-
-        {/* Conflict strategy */}
-        <Select
-          label="Conflict Strategy"
+          label="If the skill already exists"
           options={conflictOptions}
           value={conflictStrategy}
           onChange={(v) => setConflictStrategy(v as 'skip' | 'merge' | 'replace')}
@@ -171,12 +178,8 @@ export function ImportSkillForm({ projects, onSubmit }: Props) {
       </>
     ),
     submit: async () => {
-      if (!validate()) return false
-      await onSubmit({
-        project_id: projectId,
-        package: parsedPackage!,
-        conflict_strategy: conflictStrategy,
-      })
+      if (!validate() || !parsedPackage) return false
+      await onSubmit({ project_id: projectId, package: parsedPackage, conflict_strategy: conflictStrategy })
     },
   }
 }
