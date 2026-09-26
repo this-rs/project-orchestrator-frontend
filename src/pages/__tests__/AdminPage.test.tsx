@@ -60,7 +60,7 @@ describe('AdminPage', () => {
   it('explains each maintenance action with its cost; global ones work without a project', async () => {
     render(<AdminPage />)
     fireEvent.click(await screen.findByRole('button', { name: 'Knowledge Fabric' }))
-    expect(screen.getByText(/Plusieurs minutes/)).toBeTruthy()
+    expect(screen.getByText(/Several minutes/)).toBeTruthy()
     expect((screen.getByRole('button', { name: 'Bootstrap — Bootstrap Knowledge Fabric' }) as HTMLButtonElement).disabled).toBe(true)
     const staleness = screen.getByRole('button', { name: 'Run — Update staleness scores' }) as HTMLButtonElement
     expect(staleness.disabled).toBe(false)
