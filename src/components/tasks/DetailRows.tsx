@@ -24,6 +24,7 @@ import {
 } from '@/components/ui'
 import type { Constraint, Decision, DecisionStatus, SessionWithLinks, Step, StepStatus } from '@/types'
 import { workspacePath } from '@/utils/paths'
+import { decisionTitle } from '@/components/knowledge/noteMeta'
 
 /**
  * Section header action: compact ghost button, short visible label ("Add",
@@ -82,14 +83,12 @@ export function StepRow({ step, index, onStatusChange, onEdit, onDelete }: StepR
         </span>
       }
       description={step.verification ? `Verify: ${step.verification}` : undefined}
-      meta={[
-        <StatusMenu key="s" kind="step" status={step.status} onChange={onStatusChange} />,
-        step.completed_at ? <RelativeTime key="c" date={step.completed_at} prefix="done " /> : null,
-      ]}
+      trailing={step.completed_at ? <RelativeTime date={step.completed_at} prefix="done " /> : undefined}
+      meta={[<StatusMenu key="s" kind="step" status={step.status} onChange={onStatusChange} />]}
       actions={[
-        { label: 'Edit step', icon: Pencil, onClick: () => onEdit?.(), hidden: !onEdit },
+        { label: 'Edit', icon: Pencil, onClick: () => onEdit?.(), hidden: !onEdit },
         {
-          label: 'Delete step',
+          label: 'Delete',
           icon: Trash2,
           variant: 'danger',
           onClick: () => onDelete?.(),
@@ -149,7 +148,7 @@ export function ConstraintRow({ constraint, onDelete }: ConstraintRowProps) {
       ]}
       actions={[
         {
-          label: 'Delete constraint',
+          label: 'Delete',
           icon: Trash2,
           variant: 'danger',
           onClick: onDelete,
@@ -175,7 +174,7 @@ export function DecisionRow({ decision, wsSlug, onStatusChange, onDelete, source
   const alternatives = decision.alternatives?.length ?? 0
   return (
     <EntityRow
-      title={decision.description}
+      title={decisionTitle(decision.description)}
       href={workspacePath(wsSlug, `/decisions/${decision.id}`)}
       muted={decision.status === 'superseded'}
       trailing={<RelativeTime date={decision.decided_at} />}
@@ -188,8 +187,8 @@ export function DecisionRow({ decision, wsSlug, onStatusChange, onDelete, source
             <span className="truncate max-w-[14rem]">{decision.chosen_option}</span>
           </span>
         ) : null,
-        alternatives > 0 ? pluralize(alternatives, 'alternative') : null,
         source,
+        alternatives > 0 ? pluralize(alternatives, 'alternative') : null,
       ]}
       actions={[
         {
@@ -197,7 +196,7 @@ export function DecisionRow({ decision, wsSlug, onStatusChange, onDelete, source
           icon: Trash2,
           variant: 'danger',
           onClick: onDelete,
-          confirm: { title: 'Delete Decision', description: 'Permanently delete this decision? This cannot be undone.' },
+          confirm: { title: 'Delete decision?', description: 'Permanently delete this decision? This cannot be undone.' },
         },
       ]}
     />
@@ -261,18 +260,18 @@ export function SessionRow({ item, onOpen, showTasks }: SessionRowProps) {
       description={session.preview}
       meta={[
         <span key="src">{source}</span>,
-        pluralize(session.message_count, 'msg'),
         session.model ? (
           <span key="model" className="truncate max-w-[10rem]" title={session.model}>
             {session.model}
           </span>
         ) : null,
-        formatCost(session.total_cost_usd),
         session.cwd ? (
           <span key="cwd" className="truncate max-w-[12rem] font-mono" title={session.cwd}>
             {shortCwd(session.cwd)}
           </span>
         ) : null,
+        pluralize(session.message_count, 'msg'),
+        formatCost(session.total_cost_usd),
       ]}
       context={context}
       chevron

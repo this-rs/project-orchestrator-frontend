@@ -129,10 +129,10 @@ function StepRowBase({
       muted={status === 'completed' || status === 'skipped'}
       description={verification ? `Verify: ${verification}` : undefined}
       meta={[
+        <StatusText key="s" kind="step" status={status} dot={false} />,
         <span key="n" className="tabular-nums">
           #{index + 1}
         </span>,
-        <StatusText key="s" kind="step" status={status} dot={false} />,
       ]}
     />
   )

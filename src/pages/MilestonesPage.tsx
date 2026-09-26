@@ -23,6 +23,8 @@ import {
   RowCheckbox,
   ViewToggle,
   ProgressLine,
+  Button,
+  pluralize,
 } from '@/components/ui'
 import { api, workspacesApi, projectsApi } from '@/services'
 import { useViewMode, useConfirmDialog, useToast, useMultiSelect, useWorkspaceSlug, useViewTransition, useWorkspace } from '@/hooks'
@@ -219,7 +221,7 @@ export function MilestonesPage() {
   const handleBulkDelete = () => {
     const count = multiSelect.selectionCount
     confirmDialog.open({
-      title: `Delete ${count} milestone${count > 1 ? 's' : ''}`,
+      title: `Delete ${pluralize(count, 'milestone')}?`,
       description: `This will permanently delete ${count} milestone${count > 1 ? 's' : ''}.`,
       onConfirm: async () => {
         const items = multiSelect.selectedItems
@@ -248,6 +250,11 @@ export function MilestonesPage() {
     [filteredMilestones],
   )
 
+  const clearFilters = () => {
+    setSourceFilter('all')
+    setStatusFilter('all')
+  }
+
   return (
     <PageShell
       title="Milestones"
@@ -261,10 +268,7 @@ export function MilestonesPage() {
           searchPlaceholder="Search milestones…"
           activeCount={activeFilterCount}
           activeLabels={activeLabels}
-          onClear={() => {
-            setSourceFilter('all')
-            setStatusFilter('all')
-          }}
+          onClear={clearFilters}
           trailing={<ViewToggle value={viewMode} onChange={setViewMode} />}
           filters={
             <>
@@ -299,6 +303,13 @@ export function MilestonesPage() {
             hasFilters
               ? 'No milestones match the current search or filters.'
               : 'Milestones help track major goals across your projects.'
+          }
+          action={
+            hasFilters ? (
+              <Button size="sm" variant="secondary" onClick={() => { clearFilters(); setSearch('') }}>
+                Clear
+              </Button>
+            ) : undefined
           }
         />
       ) : (
@@ -380,16 +391,16 @@ function MilestoneRow({ milestone, wsSlug, now, selected, onToggleSelect, onStat
       description={milestone.description}
       meta={[
         <StatusMenu key="status" kind="milestone" status={status} onChange={onStatusChange} />,
+        <span key="source" className="truncate max-w-[14rem]" title={milestone.workspace_name}>
+          {isProject ? 'Project' : 'Workspace'}
+          {milestone.workspace_name ? ` · ${milestone.workspace_name}` : ''}
+        </span>,
         milestone.target_date ? (
           <span key="due" className={overdue ? 'text-amber-400' : undefined} title={new Date(milestone.target_date).toLocaleDateString()}>
             {overdue ? 'overdue ' : 'due '}
             {formatDay(milestone.target_date)}
           </span>
         ) : null,
-        <span key="source" className="truncate max-w-[14rem]" title={milestone.workspace_name}>
-          {isProject ? 'Project' : 'Workspace'}
-          {milestone.workspace_name ? ` · ${milestone.workspace_name}` : ''}
-        </span>,
         tags.length > 0 ? (
           <span key="tags" className="break-words">
             {tags.map((t) => `#${t}`).join(' ')}
@@ -411,7 +422,7 @@ function MilestoneRow({ milestone, wsSlug, now, selected, onToggleSelect, onStat
           icon: Trash2,
           variant: 'danger',
           onClick: onDelete,
-          confirm: { title: 'Delete Milestone', description: 'This milestone will be permanently deleted.' },
+          confirm: { title: 'Delete milestone?', description: 'This milestone will be permanently deleted.' },
         },
       ]}
     />

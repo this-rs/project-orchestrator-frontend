@@ -15,11 +15,9 @@ import {
   PriorityText,
   RelativeTime,
   Section,
-  StatusDot,
   StatusMenu,
   StatusText,
   formatAbsolute,
-  getStatusMeta,
   ProgressLine,
   ViewToggle,
 } from '@/components/ui'
@@ -346,7 +344,7 @@ export function TaskDetailPage() {
 
   const openAddDependency = () =>
     linkDialog.open({
-      title: 'Add Dependency',
+      title: 'Add dependency',
       submitLabel: 'Add',
       fetchOptions: async () => {
         const data = await tasksApi.list({ limit: 100 })
@@ -365,10 +363,10 @@ export function TaskDetailPage() {
 
   const openLinkCommit = () => {
     setCommitShaInput('')
-    commitFormDialog.open({ title: 'Link Commit', submitLabel: 'Link', size: 'sm' })
+    commitFormDialog.open({ title: 'Link commit', submitLabel: 'Link', size: 'sm' })
   }
-  const openAddStep = () => stepFormDialog.open({ title: 'Add Step' })
-  const openAddDecision = () => decisionFormDialog.open({ title: 'Add Decision', size: 'lg' })
+  const openAddStep = () => stepFormDialog.open({ title: 'Add step' })
+  const openAddDecision = () => decisionFormDialog.open({ title: 'Add decision', size: 'lg' })
 
   if (error) return <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
   if (loading || !task) return <DetailSkeleton />
@@ -448,7 +446,7 @@ export function TaskDetailPage() {
           />,
         ]}
         overflowActions={[
-          { label: 'Edit', icon: Pencil, onClick: () => editTaskDialog.open({ title: 'Edit Task' }) },
+          { label: 'Edit', icon: Pencil, onClick: () => editTaskDialog.open({ title: 'Edit task' }) },
           { label: 'Add step', icon: Plus, onClick: openAddStep },
           { label: 'Add decision', icon: Plus, onClick: openAddDecision },
           { label: 'Add dependency', icon: Plus, onClick: openAddDependency },
@@ -465,7 +463,7 @@ export function TaskDetailPage() {
               navigate(target, { type: 'back-button' })
             },
             confirm: {
-              title: 'Delete Task',
+              title: 'Delete task?',
               description: 'This will permanently delete this task and all its steps and decisions.',
             },
           },
@@ -513,7 +511,7 @@ export function TaskDetailPage() {
                 }}
                 onEdit={() => {
                   setEditingStep(step)
-                  editStepDialog.open({ title: 'Edit Step' })
+                  editStepDialog.open({ title: 'Edit step' })
                 }}
                 onDelete={async () => {
                   await tasksApi.deleteStep(step.id)
@@ -698,23 +696,22 @@ function DependencyRow({ task, wsSlug, onRemove }: { task: Task; wsSlug: string;
       title={title}
       href={workspacePath(wsSlug, `/tasks/${task.id}`)}
       muted={task.status === 'completed'}
-      leading={<StatusDot kind="task" status={task.status} label={getStatusMeta('task', task.status).label} />}
       meta={[
-        <StatusText key="s" kind="task" status={task.status} dot={false} />,
+        <StatusText key="s" kind="task" status={task.status} />,
         <PriorityText key="p" priority={task.priority} />,
       ]}
       actions={
         onRemove
           ? [
               {
-                label: 'Remove dependency',
+                label: 'Unlink',
                 icon: Unlink,
                 variant: 'danger',
                 onClick: onRemove,
                 confirm: {
-                  title: 'Remove dependency?',
+                  title: 'Unlink dependency?',
                   description: `This task will no longer be blocked by “${title}”.`,
-                  confirmLabel: 'Remove',
+                  confirmLabel: 'Unlink',
                 },
               },
             ]

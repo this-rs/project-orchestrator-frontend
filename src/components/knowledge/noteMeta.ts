@@ -73,6 +73,18 @@ export function noteTitle(content: string): string {
 }
 
 /**
+ * Decisions have no title either: the first meaningful line of the
+ * description is the title everywhere (list rows, detail header, timeline).
+ */
+export function decisionTitle(description: string): string {
+  const lines = description.split('\n').map(stripMarkdown).filter(Boolean)
+  return lines[0] ?? 'Untitled decision'
+}
+
+/** The rest of a decision's description, for a muted preview line. */
+export const decisionPreview = notePreview
+
+/**
  * Markdown to render under the page header: the content minus a leading
  * heading that IS the title (otherwise the title would appear twice).
  */

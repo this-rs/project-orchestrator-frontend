@@ -83,6 +83,7 @@ export default function ChatSessionPage() {
           to={workspacePath(wsSlug, '/overview')}
           className="p-1.5 rounded-md text-slate-500 hover:text-slate-300 hover:bg-white/[0.06] transition-colors"
           title="Back"
+          aria-label="Back"
         >
           <ArrowLeft className="w-4 h-4" />
         </Link>
@@ -137,6 +138,7 @@ export default function ChatSessionPage() {
         onClick={scrollToBottom}
         className="absolute bottom-6 right-6 p-2 rounded-full bg-slate-800 border border-white/10 text-slate-400 hover:text-slate-200 hover:bg-slate-700 shadow-lg transition-colors cursor-pointer"
         title="Scroll to bottom"
+        aria-label="Scroll to bottom"
       >
         <ArrowDown className="w-4 h-4" />
       </button>

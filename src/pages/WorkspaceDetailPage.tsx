@@ -211,7 +211,7 @@ export function WorkspaceDetailPage() {
 
   const openAddProject = () =>
     linkDialog.open({
-      title: 'Add Project to Workspace',
+      title: 'Add project',
       submitLabel: 'Add',
       fetchOptions: async () => {
         const data = await projectsApi.list()
@@ -285,12 +285,12 @@ export function WorkspaceDetailPage() {
         ]}
         overflowActions={[
           {
-            label: 'Rename workspace',
+            label: 'Edit',
             icon: Pencil,
-            onClick: () => editWorkspaceDialog.open({ title: 'Rename Workspace' }),
+            onClick: () => editWorkspaceDialog.open({ title: 'Edit workspace' }),
           },
           {
-            label: 'Delete workspace',
+            label: 'Delete',
             icon: Trash2,
             variant: 'danger',
             onClick: async () => {
@@ -299,7 +299,7 @@ export function WorkspaceDetailPage() {
               navigate('/workspace-selector')
             },
             confirm: {
-              title: 'Delete Workspace',
+              title: 'Delete workspace?',
               description: `This will permanently delete "${workspace.name}". Projects will not be deleted.`,
               confirmLabel: 'Delete',
             },
@@ -331,7 +331,16 @@ export function WorkspaceDetailPage() {
         }
       >
         {projects.length === 0 ? (
-          <EmptyState size="sm" title="No projects in this workspace" description="Add an existing project or create one from the Projects page." />
+          <EmptyState
+            size="sm"
+            title="No projects yet"
+            description="Add an existing project or create one from the Projects page."
+            action={
+              <Button size="sm" variant="secondary" onClick={openAddProject}>
+                Add
+              </Button>
+            }
+          />
         ) : (
           <EntityList aria-label="Projects">
             {projects.map((project) => (
@@ -367,7 +376,7 @@ export function WorkspaceDetailPage() {
                       actions={[
                         { label: 'Move to another workspace', icon: ArrowRightLeft, onClick: () => openMoveProject(project) },
                         {
-                          label: 'Remove from workspace',
+                          label: 'Remove',
                           icon: X,
                           variant: 'danger',
                           onClick: () => removeProject(project),
@@ -392,13 +401,21 @@ export function WorkspaceDetailPage() {
         title="Milestones"
         count={milestones.length}
         action={
-          <Button size="sm" variant="ghost" onClick={() => milestoneFormDialog.open({ title: 'Add Milestone' })}>
+          <Button size="sm" variant="ghost" onClick={() => milestoneFormDialog.open({ title: 'Add milestone' })}>
             Add
           </Button>
         }
       >
         {milestones.length === 0 ? (
-          <EmptyState size="sm" title="No milestones defined" />
+          <EmptyState
+            size="sm"
+            title="No milestones yet"
+            action={
+              <Button size="sm" variant="secondary" onClick={() => milestoneFormDialog.open({ title: 'Add milestone' })}>
+                Add
+              </Button>
+            }
+          />
         ) : (
           <EntityList aria-label="Milestones">
             {milestones.map((milestone) => {
@@ -475,13 +492,22 @@ export function WorkspaceDetailPage() {
         title="Resources"
         count={resources.length}
         action={
-          <Button size="sm" variant="ghost" onClick={() => resourceFormDialog.open({ title: 'Add Resource', size: 'lg' })}>
+          <Button size="sm" variant="ghost" onClick={() => resourceFormDialog.open({ title: 'Add resource', size: 'lg' })}>
             Add
           </Button>
         }
       >
         {resources.length === 0 ? (
-          <EmptyState size="sm" title="No resources defined" description="API contracts, schemas and specs shared by projects." />
+          <EmptyState
+            size="sm"
+            title="No resources yet"
+            description="API contracts, schemas and specs shared by projects."
+            action={
+              <Button size="sm" variant="secondary" onClick={() => resourceFormDialog.open({ title: 'Add resource', size: 'lg' })}>
+                Add
+              </Button>
+            }
+          />
         ) : (
           <EntityList aria-label="Resources">
             {resources.map((resource) => (
@@ -530,13 +556,22 @@ export function WorkspaceDetailPage() {
         title="Components"
         count={components.length}
         action={
-          <Button size="sm" variant="ghost" onClick={() => componentFormDialog.open({ title: 'Add Component' })}>
+          <Button size="sm" variant="ghost" onClick={() => componentFormDialog.open({ title: 'Add component' })}>
             Add
           </Button>
         }
       >
         {components.length === 0 ? (
-          <EmptyState size="sm" title="No components defined" description="Services, frontends, databases… of the deployed system." />
+          <EmptyState
+            size="sm"
+            title="No components yet"
+            description="Services, frontends, databases… of the deployed system."
+            action={
+              <Button size="sm" variant="secondary" onClick={() => componentFormDialog.open({ title: 'Add component' })}>
+                Add
+              </Button>
+            }
+          />
         ) : (
           <EntityList aria-label="Components">
             {components.map((component) => (

@@ -344,11 +344,9 @@ export function SkillsPage() {
                     title="No matching skills"
                     description="Try another search or clear the filters."
                     action={
-                      activeFilterCount > 0 ? (
-                        <Button variant="secondary" size="sm" onClick={clearFilters}>
-                          Clear filters
-                        </Button>
-                      ) : undefined
+                      <Button variant="secondary" size="sm" onClick={() => { clearFilters(); setSearch('') }}>
+                        Clear
+                      </Button>
                     }
                   />
                 )
@@ -504,6 +502,7 @@ function SkillRow({ skill, wsSlug, projectName, onStatusChange, onDelete }: Skil
       trailing={<RelativeTime date={skill.created_at} />}
       meta={[
         <StatusMenu key="status" kind="skill" status={skill.status} onChange={onStatusChange} />,
+        projectName,
         pluralize(members, 'member'),
         <span key="energy" title={`Energy ${Math.round(skill.energy * 100)}% — recent activity`}>
           <span className={TONE_CLASSES[energy.tone].text}>{energy.label}</span> energy
@@ -512,7 +511,6 @@ function SkillRow({ skill, wsSlug, projectName, onStatusChange, onDelete }: Skil
           <span className={TONE_CLASSES[cohesion.tone].text}>{cohesion.label}</span> cohesion
         </span>,
         skill.activation_count > 0 ? pluralize(skill.activation_count, 'activation') : null,
-        projectName,
         tagSummary(skill.tags),
       ]}
       actions={[

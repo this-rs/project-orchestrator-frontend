@@ -139,7 +139,7 @@ describe('DecisionsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Adopt jotai for state' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }))
     expect(remove).not.toHaveBeenCalled()
-    expect(screen.getByText('Delete Decision')).toBeTruthy()
+    expect(screen.getByText('Delete decision?')).toBeTruthy()
     fireEvent.click(screen.getAllByRole('button', { name: 'Delete' }).at(-1)!)
     await waitFor(() => expect(remove).toHaveBeenCalledWith('d2'))
     await waitFor(() => expect(screen.queryByText('Adopt jotai for state')).toBeNull())

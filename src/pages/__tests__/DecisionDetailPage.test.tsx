@@ -131,7 +131,8 @@ describe('DecisionDetailPage', () => {
   it('edits the context through a dialog', async () => {
     renderPage()
     await screen.findByRole('heading', { level: 1 })
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    fireEvent.click(screen.getAllByRole('button', { name: /^Actions for/ })[0])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }))
     const description = screen.getByRole('textbox', { name: 'Description' }) as HTMLTextAreaElement
     expect(description.value).toBe(decision.description)
     fireEvent.change(description, { target: { value: 'Use Neo4j everywhere' } })
@@ -169,9 +170,9 @@ describe('DecisionDetailPage', () => {
     renderPage()
     await screen.findByRole('list', { name: 'Affected entities' })
     fireEvent.click(screen.getByRole('button', { name: 'Actions for run_query' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Unlink' }))
     expect(api.removeAffects).not.toHaveBeenCalled()
-    fireEvent.click(screen.getAllByRole('button', { name: 'Remove' }).at(-1)!)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Unlink' }).at(-1)!)
     await waitFor(() => expect(api.removeAffects).toHaveBeenCalledWith('d1', 'Function', 'run_query'))
     await waitFor(() => expect(screen.queryByText('run_query')).toBeNull())
   })

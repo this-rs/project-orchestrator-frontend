@@ -118,13 +118,13 @@ describe('PlanDetailPage', () => {
     expect(screen.getByText('3 tasks')).toBeTruthy()
     expect(screen.getByText('1/3 done')).toBeTruthy()
     expect(screen.getByRole('img', { name: '1 in progress, 1 pending, 1 completed' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Launch pipeline' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Run' })).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Auth flow' }))
-    for (const label of ['Edit', 'Add task', 'Add constraint', 'Link commit', 'Unlink project', 'Runner dashboard', 'Delete']) {
+    for (const label of ['Edit', 'Add task', 'Add constraint', 'Link commit', 'Unlink project', 'Open runner', 'Delete']) {
       expect(screen.getByRole('menuitem', { name: label })).toBeTruthy()
     }
-    expect(screen.queryByRole('menuitem', { name: 'Link to project' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: 'Link project' })).toBeNull()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Unlink project' }))
     fireEvent.click(screen.getAllByRole('button', { name: 'Unlink' }).at(-1)!)
     await waitFor(() => expect(unlinkFromProject).toHaveBeenCalledWith('p1'))
@@ -167,7 +167,7 @@ describe('PlanDetailPage', () => {
     expect(within(constraint).getByText('Security')).toBeTruthy()
     expect(within(constraint).getByText('high severity')).toBeTruthy()
     fireEvent.click(within(constraint).getByRole('button', { name: 'Actions for No plaintext tokens' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete constraint' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }))
     expect(deleteConstraint).not.toHaveBeenCalled()
     fireEvent.click(screen.getAllByRole('button', { name: 'Delete' }).at(-1)!)
     await waitFor(() => expect(deleteConstraint).toHaveBeenCalledWith('c1'))
@@ -183,8 +183,8 @@ describe('PlanDetailPage', () => {
     renderPage()
     await screen.findByRole('heading', { level: 1, name: 'Auth flow' })
     expect(screen.getByRole('button', { name: /Run in progress/ })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Launch pipeline' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Runner' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Run' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Open runner' })).toBeTruthy()
     fireEvent.click(screen.getByRole('tab', { name: 'Runner' }))
     expect(await screen.findByRole('region', { name: /Active run/ })).toBeTruthy()
     expect(screen.getByTestId('stats-row')).toBeTruthy()

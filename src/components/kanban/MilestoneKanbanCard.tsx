@@ -12,17 +12,17 @@ function milestoneMeta(milestone: MilestoneWithProgress, status?: ReactNode): Re
   const tags = (milestone.tags || []).filter((t) => !t.startsWith('project:'))
   return [
     status,
+    milestone.workspace_name ? (
+      <span key="src" className="truncate max-w-[10rem]" title={milestone.workspace_name}>
+        {milestone.workspace_name}
+      </span>
+    ) : null,
     milestone.progress ? (
       <span key="prog" className="tabular-nums" title={`${milestone.progress.completed} of ${milestone.progress.total} tasks completed`}>
         {milestone.progress.completed}/{milestone.progress.total}
       </span>
     ) : null,
     milestone.target_date ? <span key="due">due {formatDay(milestone.target_date)}</span> : null,
-    milestone.workspace_name ? (
-      <span key="src" className="truncate max-w-[10rem]" title={milestone.workspace_name}>
-        {milestone.workspace_name}
-      </span>
-    ) : null,
     tags.length > 0 ? (
       <span key="tags" className="truncate max-w-[10rem]" title={tags.map((t) => `#${t}`).join(' ')}>
         {tags.slice(0, 2).map((t) => `#${t}`).join(' ')}

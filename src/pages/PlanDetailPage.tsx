@@ -403,15 +403,15 @@ export function PlanDetailPage() {
     },
   })
 
-  const openAddTask = () => taskFormDialog.open({ title: 'Add Task', size: 'lg' })
-  const openAddConstraint = () => constraintFormDialog.open({ title: 'Add Constraint' })
+  const openAddTask = () => taskFormDialog.open({ title: 'Add task', size: 'lg' })
+  const openAddConstraint = () => constraintFormDialog.open({ title: 'Add constraint' })
   const openLinkCommit = () => {
     setCommitShaInput('')
-    commitFormDialog.open({ title: 'Link Commit', submitLabel: 'Link', size: 'sm' })
+    commitFormDialog.open({ title: 'Link commit', submitLabel: 'Link', size: 'sm' })
   }
   const openLinkProject = () =>
     linkDialog.open({
-      title: 'Link to Project',
+      title: 'Link project',
       submitLabel: 'Link',
       fetchOptions: async () => {
         const data = await projectsApi.list()
@@ -521,21 +521,21 @@ export function PlanDetailPage() {
           canLaunch ? (
             <Button size="sm" onClick={() => setImplementDialogOpen(true)}>
               <Play className="w-4 h-4 mr-1 -ml-0.5" aria-hidden="true" />
-              Launch pipeline
+              Run
             </Button>
           ) : hasPipelineRunning ? (
             <Button size="sm" variant="secondary" onClick={goToRunner}>
               <ExternalLink className="w-4 h-4 mr-1 -ml-0.5" aria-hidden="true" />
-              Runner
+              Open runner
             </Button>
           ) : undefined
         }
         overflowActions={[
-          { label: 'Edit', icon: Pencil, onClick: () => editPlanDialog.open({ title: 'Edit Plan' }) },
+          { label: 'Edit', icon: Pencil, onClick: () => editPlanDialog.open({ title: 'Edit plan' }) },
           { label: 'Add task', icon: Plus, onClick: openAddTask },
           { label: 'Add constraint', icon: Plus, onClick: openAddConstraint },
           { label: 'Link commit', icon: Link2, onClick: openLinkCommit },
-          { label: 'Link to project', icon: Link2, onClick: openLinkProject, hidden: Boolean(linkedProject) },
+          { label: 'Link project', icon: Link2, onClick: openLinkProject, hidden: Boolean(linkedProject) },
           {
             label: 'Unlink project',
             icon: Unlink,
@@ -552,7 +552,7 @@ export function PlanDetailPage() {
               confirmLabel: 'Unlink',
             },
           },
-          { label: 'Runner dashboard', icon: ExternalLink, onClick: goToRunner },
+          { label: 'Open runner', icon: ExternalLink, onClick: goToRunner },
           {
             label: 'Delete',
             icon: Trash2,
@@ -563,7 +563,7 @@ export function PlanDetailPage() {
               navigate(workspacePath(wsSlug, '/plans'), { type: 'back-button' })
             },
             confirm: {
-              title: 'Delete Plan',
+              title: 'Delete plan?',
               description: 'This will permanently delete this plan and all its tasks, steps, decisions, and constraints.',
             },
           },
@@ -696,7 +696,7 @@ export function PlanDetailPage() {
                     </Button>
                     <Button size="sm" variant="ghost" onClick={goToRunner}>
                       <ExternalLink className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-                      Full dashboard
+                      Open runner
                     </Button>
                   </div>
                 </div>
@@ -714,7 +714,7 @@ export function PlanDetailPage() {
                 action={
                   <Button size="sm" variant="ghost" onClick={goToRunner}>
                     <ExternalLink className="w-4 h-4 mr-1 -ml-1" aria-hidden="true" />
-                    Dashboard
+                    Open runner
                   </Button>
                 }
               >
@@ -746,12 +746,12 @@ export function PlanDetailPage() {
                     {canLaunch && (
                       <Button size="sm" onClick={() => setImplementDialogOpen(true)}>
                         <Play className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-                        Launch pipeline
+                        Run
                       </Button>
                     )}
                     <Button size="sm" variant="secondary" onClick={goToRunner}>
                       <ExternalLink className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-                      Runner dashboard
+                      Open runner
                     </Button>
                   </>
                 }

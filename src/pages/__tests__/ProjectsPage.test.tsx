@@ -93,6 +93,6 @@ describe('ProjectsPage', () => {
     listProjects.mockResolvedValue([])
     renderPage()
     expect(await screen.findByText('No projects yet')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Create project' })).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: 'New project' }).length).toBe(2)
   })
 })

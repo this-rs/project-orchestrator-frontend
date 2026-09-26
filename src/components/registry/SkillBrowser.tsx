@@ -112,7 +112,7 @@ export function SkillBrowser({ onImport }: SkillBrowserProps) {
       ) : skills.length === 0 ? (
         <EmptyState
           icon={<Globe className="w-8 h-8" />}
-          title={filtered ? 'No matching skills' : 'The catalog is empty'}
+          title={filtered ? 'No matching skills' : 'No published skills yet'}
           description={
             filtered
               ? 'Try different search terms or lower the trust filter.'
@@ -121,7 +121,7 @@ export function SkillBrowser({ onImport }: SkillBrowserProps) {
           action={
             filtered ? (
               <Button variant="secondary" size="sm" onClick={clearAll}>
-                Clear search and filters
+                Clear
               </Button>
             ) : undefined
           }
@@ -165,7 +165,7 @@ function PublishedSkillRow({ skill, onImport }: { skill: PublishedSkillSummary; 
         skill.import_count > 0 ? pluralize(skill.import_count, 'import') : null,
         tagSummary(skill.tags, 4),
       ]}
-      actions={[{ label: 'Preview & import', icon: Download, onClick: onImport }]}
+      actions={[{ label: 'Import', icon: Download, onClick: onImport }]}
     />
   )
 }

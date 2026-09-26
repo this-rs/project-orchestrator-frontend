@@ -35,6 +35,7 @@ import {
   inlineLink,
   pluralize,
   rowInteractive,
+  Button,
 } from '@/components/ui'
 import { Explainer } from '@/components/protocols/Explainer'
 import { useToast, useWorkspaceSlug } from '@/hooks'
@@ -255,6 +256,13 @@ export function TriggerDashboardPage() {
               ? 'Triggers are created through the MCP tools or the backend API. They will show up here.'
               : 'Try another search or clear the filters.'
           }
+          action={
+            pristine ? undefined : (
+              <Button size="sm" variant="secondary" onClick={() => { clearFilters(); setSearch('') }}>
+                Clear
+              </Button>
+            )
+          }
         />
       ) : (
         <div className="space-y-2">
@@ -324,9 +332,9 @@ function TriggerRow({ trigger, protocol, protocolHref, busy, onToggle, onDelete 
           {' · '}
           <span className="font-mono text-gray-300">{patternLabel(trigger.action_pattern)}</span>
         </span>,
+        trigger.project_scope ? <span key="scope" className="break-all">scope {trigger.project_scope}</span> : null,
         trigger.cooldown_secs > 0 ? `${trigger.cooldown_secs}s cooldown` : null,
         conditions > 0 ? pluralize(conditions, 'condition') : null,
-        trigger.project_scope ? <span key="scope" className="break-all">scope {trigger.project_scope}</span> : null,
       ]}
       context={
         <Link to={protocolHref} className={`${rowInteractive} ${inlineLink} inline-flex items-center gap-1 text-[11px] leading-4 min-w-0 max-w-full`}>

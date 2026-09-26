@@ -30,6 +30,7 @@ import {
   getStatusOptions,
   groupBy,
   pluralize,
+  Button,
 } from '@/components/ui'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
@@ -169,7 +170,7 @@ export function ProtocolsPage() {
   } else if (view === 'scheduled') {
     content = <ScheduledActionsPanel protocols={visible} onTrigger={handleRefresh} protocolHref={protocolHref} />
   } else if (visible.length === 0) {
-    const pristine = protocols.length === 0 && statusFilter === 'all'
+    const pristine = protocols.length === 0 && statusFilter === 'all' && projectFilter === 'all' && !search
     content = (
       <EmptyState
         title={pristine ? 'No protocols yet' : 'No matching protocols'}
@@ -177,6 +178,13 @@ export function ProtocolsPage() {
           pristine
             ? 'Protocols are created by agents or through the MCP protocol tools. They will show up here.'
             : 'Try another search or clear the filters.'
+        }
+        action={
+          pristine ? undefined : (
+            <Button size="sm" variant="secondary" onClick={() => { clearFilters(); setSearch('') }}>
+              Clear
+            </Button>
+          )
         }
       />
     )

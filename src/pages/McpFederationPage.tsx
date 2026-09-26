@@ -301,7 +301,7 @@ function ServerDetail({ server }: { server: McpServerSummary }) {
         </h4>
         <Button size="sm" variant="ghost" onClick={handleProbe} loading={probing}>
           {!probing && <Scan className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />}
-          Probe
+          Probe tools
         </Button>
       </div>
 
@@ -528,8 +528,9 @@ export function McpFederationPage() {
                     title={name}
                     onClick={() => setSelectedServerId(selected ? null : server.id)}
                     selected={selected}
+                    expanded={selected}
                     leading={<StatusDot tone={status.tone} pulse={server.status === 'reconnecting'} label={status.label} />}
-                    trailing={pluralize(server.tool_count, 'tool')}
+                    trailing={server.connected_at ? <RelativeTime date={server.connected_at} prefix="since " /> : undefined}
                     meta={[
                       busy ? (
                         <ToneText key="busy" tone="progress" label={busy === 'probe' ? 'Probing…' : 'Reconnecting…'} pulse />
@@ -543,7 +544,7 @@ export function McpFederationPage() {
                       server.display_name && server.display_name !== server.id ? (
                         <span key="id" className="font-mono">{server.id}</span>
                       ) : null,
-                      server.connected_at ? <RelativeTime key="since" date={server.connected_at} prefix="since " /> : null,
+                      pluralize(server.tool_count, 'tool'),
                     ]}
                     actions={[
                       {

@@ -12,7 +12,6 @@ import {
   Copy,
   Link2,
   Pencil,
-  Plus,
   Replace,
   StickyNote,
   Trash2,
@@ -319,7 +318,7 @@ export function NoteDetailPage() {
   }
   const openLink = () => {
     linkForm.reset()
-    linkDialog.open({ title: 'Link to an entity', submitLabel: 'Link' })
+    linkDialog.open({ title: 'Link entity', submitLabel: 'Link' })
   }
 
   // ── Related notes via the first / selected anchor ─────────────────────
@@ -481,7 +480,6 @@ export function NoteDetailPage() {
         parentLinks={[{ icon: StickyNote, label: 'Notes', name: 'Knowledge notes', href: notesHref }]}
         status={<StatusMenu kind="note" status={note.status} onChange={handleStatus} />}
         meta={[
-          <NoteTypeLabel key="type" type={note.note_type} className="text-gray-400" />,
           <StatusMenu
             key="importance"
             kind="importance"
@@ -489,6 +487,7 @@ export function NoteDetailPage() {
             onChange={handleImportance}
             label={`Importance: ${note.importance}. Change importance`}
           />,
+          <NoteTypeLabel key="type" type={note.note_type} className="text-gray-400" />,
           scope ? (
             <span key="scope" className="truncate max-w-[16rem]" title={scope}>
               {scope}
@@ -505,7 +504,7 @@ export function NoteDetailPage() {
         }
         overflowActions={[
           { label: 'Edit', icon: Pencil, onClick: openEdit },
-          { label: 'Link to an entity', icon: Link2, onClick: openLink },
+          { label: 'Link', icon: Link2, onClick: openLink },
           { label: 'Supersede with new version', icon: Replace, onClick: openSupersede, hidden: Boolean(note.superseded_by) },
           { label: 'Invalidate', icon: XCircle, onClick: openInvalidate, hidden: note.status === 'obsolete' },
           {
@@ -579,7 +578,7 @@ export function NoteDetailPage() {
         description="Agents receive this note when they work on these entities."
         action={
           <Button size="sm" variant="ghost" onClick={openLink}>
-            <Plus className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
+            <Link2 className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
             Link
           </Button>
         }
@@ -602,12 +601,12 @@ export function NoteDetailPage() {
                   href={entityHref(wsSlug, a.entity_type, a.entity_id) ?? undefined}
                   leading={createElement(entityIcon(a.entity_type), { className: 'w-4 h-4 text-gray-500', 'aria-hidden': true })}
                   description={name !== a.entity_id ? <span className="font-mono break-all">{a.entity_id}</span> : undefined}
+                  trailing={a.last_verified ? <RelativeTime date={a.last_verified} prefix="verified " /> : undefined}
                   meta={[
-                    entityTypeLabel(a.entity_type),
                     a.is_valid === false ? (
                       <StatusText key="v" status="broken" label="Broken anchor" />
                     ) : null,
-                    a.last_verified ? <RelativeTime key="lv" date={a.last_verified} prefix="verified " /> : null,
+                    entityTypeLabel(a.entity_type),
                   ]}
                   actions={[
                     {
@@ -615,7 +614,7 @@ export function NoteDetailPage() {
                       icon: Unlink,
                       variant: 'danger',
                       onClick: () => handleUnlink(a),
-                      confirm: { title: 'Remove this link?', description: `The note will no longer be attached to ${name}.` },
+                      confirm: { title: 'Unlink this entity?', description: `The note will no longer be attached to ${name}.`, confirmLabel: 'Unlink' },
                     },
                   ]}
                 />
@@ -668,14 +667,14 @@ export function NoteDetailPage() {
                   href={workspacePath(wsSlug, `/notes/${r.note.id}`)}
                   trailing={r.distance === 0 ? 'direct' : `${Math.round(r.score * 100)}%`}
                   meta={[
-                    <NoteTypeLabel key="t" type={r.note.note_type} />,
                     <StatusText key="s" kind="note" status={r.note.status} />,
-                    r.distance === 0 ? 'attached here' : pluralize(r.distance, 'hop'),
+                    <NoteTypeLabel key="t" type={r.note.note_type} />,
                     r.via && r.distance > 0 ? (
                       <span key="via" className="truncate max-w-[14rem]" title={r.via}>
                         via {r.via.split('/').pop()}
                       </span>
                     ) : null,
+                    r.distance === 0 ? 'attached here' : pluralize(r.distance, 'hop'),
                   ]}
                 />
               ))}

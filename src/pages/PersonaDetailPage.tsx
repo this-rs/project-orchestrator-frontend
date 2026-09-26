@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Users, Box, Zap, Pencil, Trash2, X } from 'lucide-react'
+import { Users, Box, Zap, Pencil, Trash2, Unlink } from 'lucide-react'
 import { personasApi, skillsApi, notesApi, decisionsApi, protocolApi, workspacesApi } from '@/services'
 import {
   Button,
@@ -38,6 +38,7 @@ import { EditPersonaForm, type EditPersonaFormData } from '@/components/forms'
 import { useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import type { Persona, PersonaOrigin, PersonaStatus, PersonaSubgraph, PersonaSubgraphRelation } from '@/types'
+import { decisionTitle, noteTitle } from '@/components/knowledge/noteMeta'
 
 // ── Relation kinds ──────────────────────────────────────────────────────
 
@@ -167,11 +168,11 @@ export function PersonaDetailPage() {
     add(subgraph.protocols, async (id) => ({ title: (await protocolApi.getProtocol(id)).name }))
     add(subgraph.notes, async (id) => {
       const n = await notesApi.get(id)
-      return { title: n.content, body: n.content, sub: n.note_type }
+      return { title: noteTitle(n.content), body: n.content, sub: n.note_type }
     })
     add(subgraph.decisions, async (id) => {
       const d = await decisionsApi.get(id)
-      return { title: d.description, sub: d.chosen_option ? `Chosen: ${d.chosen_option}` : undefined }
+      return { title: decisionTitle(d.description), sub: d.chosen_option ? `Chosen: ${d.chosen_option}` : undefined }
     })
     const personaName = async (id: string) => ({ title: (await personasApi.get(id)).name })
     add(subgraph.parents, personaName)
@@ -512,14 +513,14 @@ function RelationRow({ kind, rel, resolved, href, onRemove }: RelationRowProps) 
         onRemove
           ? [
               {
-                label: 'Remove link',
-                icon: X,
+                label: 'Unlink',
+                icon: Unlink,
                 variant: 'danger',
                 onClick: onRemove,
                 confirm: {
-                  title: 'Remove this link?',
+                  title: 'Unlink this element?',
                   description: 'The persona forgets this element; the element itself is not deleted.',
-                  confirmLabel: 'Remove',
+                  confirmLabel: 'Unlink',
                 },
               },
             ]

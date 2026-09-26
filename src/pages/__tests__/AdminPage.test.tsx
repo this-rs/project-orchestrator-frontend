@@ -73,7 +73,7 @@ describe('AdminPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Cleanup' }))
     fireEvent.click(screen.getByRole('button', { name: 'Clean — Cross-project calls' }))
     expect(admin.cleanupCrossProjectCalls).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clean' }))
     await waitFor(() => expect(admin.cleanupCrossProjectCalls).toHaveBeenCalled())
   })
 

@@ -187,7 +187,7 @@ describe('SkillDetailPage', () => {
     renderPage()
     const m = await screen.findByRole('region', { name: /^Members/ })
     fireEvent.click(within(m).getByRole('button', { name: 'Actions for Use RS256' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove from skill' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove' }))
     expect(removeMember).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
     await waitFor(() => expect(removeMember).toHaveBeenCalledWith('s1', 'decision', 'd1'))

@@ -15,7 +15,6 @@ import {
   Section,
   Select,
   SkeletonCard,
-  StatusDot,
   StatusText,
   Switch,
   guessTone,
@@ -506,11 +505,10 @@ function PreviewSection({ slug, version }: { slug: string; version: number }) {
               <EntityRow
                 key={item.note_id}
                 title={item.content_preview || `Note ${shortId(item.note_id)}`}
-                leading={<StatusDot tone={allow ? 'success' : 'danger'} label={decision} />}
                 trailing={<span title="Shareability score">{item.shareability_score.toFixed(2)}</span>}
                 muted={!allow}
                 meta={[
-                  <ToneText key="d" tone={allow ? 'success' : 'danger'} label={decision} dot={false} />,
+                  <ToneText key="d" tone={allow ? 'success' : 'danger'} label={decision} />,
                   <ConsentText key="c" consent={item.consent} />,
                   item.note_type,
                   <span key="id" className="font-mono" title={item.note_id}>{shortId(item.note_id)}</span>,
@@ -572,12 +570,12 @@ function AuditTrailSection({ slug }: { slug: string }) {
                 <EntityRow
                   key={ev.id}
                   title={action}
-                  leading={<StatusDot tone={retracted ? 'danger' : 'info'} label={action} />}
                   trailing={<RelativeTime date={ev.timestamp} />}
                   description={ev.reason}
                   meta={[
-                    ev.artifact_type,
+                    <ToneText key="a" tone={retracted ? 'danger' : 'info'} label={action} />,
                     <ConsentText key="c" consent={ev.consent} />,
+                    ev.artifact_type,
                     <span key="src" className="font-mono truncate max-w-[12rem]" title={ev.source_did}>
                       {ev.source_did}
                     </span>,

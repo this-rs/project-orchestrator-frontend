@@ -129,6 +129,6 @@ describe('PlansPage (list)', () => {
     list.mockResolvedValue({ items: [], total: 0, limit: 25, offset: 0 })
     renderPage()
     expect(await screen.findByText('No plans yet')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Create Plan' })).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: 'New plan' }).length).toBe(2)
   })
 })

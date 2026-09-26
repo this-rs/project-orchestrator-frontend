@@ -37,6 +37,7 @@ import {
   getStatusMeta,
   groupByRecency,
   pluralize,
+  Button,
 } from '@/components/ui'
 import { PlanRunRow } from '@/components/runner/PlanRunRow'
 import { Explainer } from '@/components/protocols/Explainer'
@@ -244,6 +245,13 @@ export function PipelineDashboardPage() {
                 pristine
                   ? 'Run a plan to see its execution history here.'
                   : 'Try another search or clear the filters.'
+              }
+              action={
+                pristine ? undefined : (
+                  <Button size="sm" variant="secondary" onClick={() => { setStatusFilter('all'); setSearch('') }}>
+                    Clear
+                  </Button>
+                )
               }
             />
           ) : (

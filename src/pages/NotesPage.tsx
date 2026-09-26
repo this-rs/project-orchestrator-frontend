@@ -24,6 +24,7 @@ import {
   focusRing,
   getStatusOptions,
   textLink,
+  pluralize,
 } from '@/components/ui'
 import type { OverflowMenuAction } from '@/components/ui'
 import { popIn, pressFeedback } from '@/components/ui/classes'
@@ -111,14 +112,14 @@ export function NotesPage() {
     },
   })
 
-  const openCreateNote = () => formDialog.open({ title: 'Create Note', size: 'lg' })
+  const openCreateNote = () => formDialog.open({ title: 'Create note', size: 'lg' })
 
   const multiSelect = useMultiSelect(notes, (n) => n.id)
 
   const handleBulkDelete = () => {
     const count = multiSelect.selectionCount
     confirmDialog.open({
-      title: `Delete ${count} note${count > 1 ? 's' : ''}`,
+      title: `Delete ${pluralize(count, 'note')}?`,
       description: `This will permanently delete ${count} note${count > 1 ? 's' : ''}.`,
       onConfirm: async () => {
         const items = multiSelect.selectedItems
@@ -200,7 +201,7 @@ export function NotesPage() {
       icon: Trash2,
       variant: 'danger',
       onClick: () => handleDelete(note),
-      confirm: { title: 'Delete Note', description: 'This note will be permanently deleted.' },
+      confirm: { title: 'Delete note?', description: 'This note will be permanently deleted.' },
     },
   ]
 
@@ -364,8 +365,13 @@ export function NotesPage() {
       ) : showSemanticResults ? (
         semanticResults.length === 0 ? (
           <EmptyState
-            title="No matches"
+            title="No matching notes"
             description="Try a different phrasing — semantic search finds notes by meaning, not exact words."
+            action={
+              <Button size="sm" variant="secondary" onClick={() => setSearchQuery('')}>
+                Clear
+              </Button>
+            }
           />
         ) : (
           <>
@@ -382,7 +388,7 @@ export function NotesPage() {
       ) : filteredNotes.length === 0 ? (
         <EmptyState
           variant={isPristine ? 'notes' : undefined}
-          title={isPristine ? 'No notes yet' : 'No notes found'}
+          title={isPristine ? 'No notes yet' : 'No matching notes'}
           description={
             isPristine
               ? 'Knowledge notes capture important patterns, gotchas, and guidelines.'
@@ -393,11 +399,11 @@ export function NotesPage() {
               <Button size="sm" onClick={openCreateNote}>
                 New note
               </Button>
-            ) : activeFilterCount > 0 ? (
-              <Button size="sm" variant="secondary" onClick={clearFilters}>
-                Clear filters
+            ) : (
+              <Button size="sm" variant="secondary" onClick={() => { clearFilters(); setSearchQuery('') }}>
+                Clear
               </Button>
-            ) : undefined
+            )
           }
         />
       ) : (
@@ -466,8 +472,8 @@ function NoteRow({ note, href, score, selectable, selected, onToggleSelect, onSt
       description={preview || undefined}
       meta={[
         <StatusMenu key="status" kind="note" status={note.status} onChange={onStatusChange} />,
-        <NoteTypeLabel key="type" type={note.note_type} />,
         <StatusText key="imp" kind="importance" status={note.importance} dot={false} />,
+        <NoteTypeLabel key="type" type={note.note_type} />,
         staleness > 0.5 ? (
           <StatusText key="stale" status="stale" label={`stale ${pct(staleness)}`} dot={false} />
         ) : null,
@@ -482,7 +488,7 @@ function NoteRow({ note, href, score, selectable, selected, onToggleSelect, onSt
             {scope.path || scope.type}
           </span>
         ) : null,
-        score !== undefined ? <RelativeTime key="date" date={note.created_at} /> : null,
+        note.anchors?.length ? pluralize(note.anchors.length, 'link') : null,
         tags.length > 0 ? (
           <span key="tags" className="truncate max-w-[14rem]" title={tags.map((t) => `#${t}`).join(' ')}>
             {tags
@@ -492,7 +498,7 @@ function NoteRow({ note, href, score, selectable, selected, onToggleSelect, onSt
             {tags.length > 3 ? ` +${tags.length - 3}` : ''}
           </span>
         ) : null,
-        note.anchors?.length ? `${note.anchors.length} link${note.anchors.length > 1 ? 's' : ''}` : null,
+        score !== undefined ? <RelativeTime key="date" date={note.created_at} /> : null,
       ]}
       actions={actions}
     />

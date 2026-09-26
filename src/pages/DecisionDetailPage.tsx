@@ -35,18 +35,9 @@ import {
 import { useFormDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import { useViewTransition } from '@/hooks/useViewTransition'
 import { useDecisionAffectsForm, useEditDecisionForm } from '@/components/forms/DecisionForms'
-import { entityHref, entityIcon } from '@/components/knowledge/noteMeta'
+import { decisionTitle, entityHref, entityIcon } from '@/components/knowledge/noteMeta'
 import { workspacePath } from '@/utils/paths'
 import type { Decision, DecisionStatus, DecisionAffects, DecisionTimelineEntry } from '@/types'
-
-/** First line of the description (plain text) — the decision's title. */
-function decisionTitle(description: string): string {
-  const first = description
-    .split('\n')
-    .map((l) => l.replace(/^#{1,6}\s+/, '').replace(/[*_`]+/g, '').trim())
-    .find(Boolean)
-  return first || 'Untitled decision'
-}
 
 function DetailSkeleton() {
   return (
@@ -212,7 +203,6 @@ export function DecisionDetailPage() {
         ]}
         overflowActions={[
           { label: 'Edit', icon: Pencil, onClick: openEdit },
-          { label: 'Add affected entity', icon: Plus, onClick: openAddAffects },
           {
             label: 'Copy ID',
             icon: Copy,
@@ -243,14 +233,7 @@ export function DecisionDetailPage() {
       )}
 
       {/* ── Context (description + rationale) ───────────────────────── */}
-      <Section
-        title="Context"
-        action={
-          <Button variant="ghost" size="sm" onClick={openEdit}>
-            <Pencil className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Edit
-          </Button>
-        }
-      >
+      <Section title="Context">
         <div className={`${surface} px-4 py-3 space-y-4`}>
           {!descriptionIsTitle && (
             <div>
@@ -312,8 +295,13 @@ export function DecisionDetailPage() {
         {affects.length === 0 ? (
           <EmptyState
             size="sm"
-            title="No affected entities"
+            title="No affected entities yet"
             description="Link this decision to the files, functions or structs it impacts."
+            action={
+              <Button size="sm" variant="secondary" onClick={openAddAffects}>
+                Add
+              </Button>
+            }
           />
         ) : (
           <EntityList aria-label="Affected entities">
@@ -336,11 +324,11 @@ export function DecisionDetailPage() {
                   ]}
                   actions={[
                     {
-                      label: 'Remove',
+                      label: 'Unlink',
                       icon: Unlink,
                       variant: 'danger',
                       onClick: () => handleRemoveAffects(aff.entity_type, aff.entity_id),
-                      confirm: { title: 'Remove this link?', description: `The decision will no longer be attached to ${name}.` },
+                      confirm: { title: 'Unlink this entity?', description: `The decision will no longer be attached to ${name}.`, confirmLabel: 'Unlink' },
                     },
                   ]}
                 />

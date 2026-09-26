@@ -156,9 +156,9 @@ describe('PersonaDetailPage', () => {
 
     const knows = screen.getByRole('region', { name: /^What it knows/ })
     fireEvent.click(within(knows).getByRole('button', { name: 'Actions for src/api/mod.rs' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove link' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Unlink' }))
     expect(removeFile).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Unlink' }))
     await waitFor(() => expect(removeFile).toHaveBeenCalledWith('pe1', 'src/api/mod.rs'))
     await waitFor(() => expect(within(knows).queryByText('src/api/mod.rs')).toBeNull())
   })

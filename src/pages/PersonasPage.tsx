@@ -181,7 +181,7 @@ export function PersonasPage() {
     setProjectFilter('all')
     setStatusFilter('all')
   }
-  const isPristine = personas.length === 0 && statusFilter === 'all' && !q
+  const isPristine = personas.length === 0 && statusFilter === 'all' && projectFilter === 'all' && !q
 
   return (
     <PageShell
@@ -260,7 +260,7 @@ export function PersonasPage() {
               action={
                 <Button size="sm" onClick={() => setCreateOpen(true)}>
                   <Plus className="w-4 h-4 mr-1.5" aria-hidden="true" />
-                  Create a persona
+                  New persona
                 </Button>
               }
             />
@@ -269,11 +269,9 @@ export function PersonasPage() {
               title="No matching personas"
               description="Try another search or clear the filters."
               action={
-                activeFilterCount > 0 ? (
-                  <Button variant="secondary" size="sm" onClick={clearFilters}>
-                    Clear filters
-                  </Button>
-                ) : undefined
+                <Button variant="secondary" size="sm" onClick={() => { clearFilters(); setSearch('') }}>
+                  Clear
+                </Button>
               }
             />
           )
@@ -347,6 +345,7 @@ function PersonaRow({ persona, subgraph, href, projectLabel, onStatusChange, onD
       trailing={persona.last_activated ? <RelativeTime date={persona.last_activated} /> : <span>never used</span>}
       meta={[
         <StatusMenu key="status" kind="persona" status={persona.status} onChange={onStatusChange} />,
+        projectLabel,
         <span key="energy" title={`Energy ${Math.round((persona.energy ?? 0) * 100)}% — recent vitality`}>
           <span className={TONE_CLASSES[energy.tone].text}>{energy.label}</span> energy
         </span>,
@@ -357,7 +356,6 @@ function PersonaRow({ persona, subgraph, href, projectLabel, onStatusChange, onD
         pluralize(persona.activation_count ?? 0, 'activation'),
         subgraph ? pluralize(files.length, 'file') : null,
         subgraph && skills > 0 ? pluralize(skills, 'skill') : null,
-        projectLabel,
       ]}
       context={
         files.length > 0 ? (

@@ -178,8 +178,8 @@ export function FileHistoryDrawer({
                       description={<span className="font-mono break-all">{cc.file_path}</span>}
                       onClick={() => onNavigate(cc.file_path)}
                       ariaLabel={`History of ${cc.file_path}`}
-                      trailing={`×${cc.co_change_count}`}
-                      meta={cc.last_at ? [<RelativeTime key="l" date={cc.last_at} prefix="last " />] : undefined}
+                      trailing={cc.last_at ? <RelativeTime date={cc.last_at} prefix="last " /> : undefined}
+                      meta={[`${cc.co_change_count} co-changes`]}
                       chevron
                     />
                   ))}

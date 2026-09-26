@@ -26,6 +26,8 @@ import {
   textLink,
   RowCheckbox,
   ViewToggle,
+  Button,
+  pluralize,
 } from '@/components/ui'
 import {
   useKanbanFilters,
@@ -223,7 +225,7 @@ export function TasksPage() {
   const handleBulkDelete = () => {
     const count = multiSelect.selectionCount
     confirmDialog.open({
-      title: `Delete ${count} task${count > 1 ? 's' : ''}`,
+      title: `Delete ${pluralize(count, 'task')}?`,
       description: `This will permanently delete ${count} task${count > 1 ? 's' : ''} and all their steps and decisions.`,
       onConfirm: async () => {
         const items = multiSelect.selectedItems
@@ -242,6 +244,10 @@ export function TasksPage() {
 
   const isKanban = viewMode === 'kanban'
   const showListSkeleton = loading && !isKanban && tasks.length === 0
+  const clearFilters = () => {
+    setSelectedProjectId('all')
+    setStatusFilter('all')
+  }
   const viewToggle = <ViewToggle value={viewMode} onChange={setViewMode} />
 
   // List filters (FilterBar)
@@ -272,10 +278,7 @@ export function TasksPage() {
           <FilterBar
             activeCount={listActiveCount}
             activeLabels={listActiveLabels}
-            onClear={() => {
-              setSelectedProjectId('all')
-              setStatusFilter('all')
-            }}
+            onClear={clearFilters}
             trailing={viewToggle}
             filters={
               <>
@@ -313,6 +316,13 @@ export function TasksPage() {
           variant={isPristine ? 'tasks' : undefined}
           title={isPristine ? 'No tasks yet' : 'No matching tasks'}
           description={isPristine ? 'Tasks will appear here when you create plans.' : 'No tasks match the current filters.'}
+          action={
+            isPristine ? undefined : (
+              <Button size="sm" variant="secondary" onClick={clearFilters}>
+                Clear
+              </Button>
+            )
+          }
         />
       ) : (
         <>
@@ -419,7 +429,7 @@ function TaskRow({ task, wsSlug, selected, onToggleSelect, onEdit, onStatusChang
           variant: 'danger',
           onClick: onDelete,
           confirm: {
-            title: 'Delete Task',
+            title: 'Delete task?',
             description: 'This will permanently delete this task and all its steps and decisions.',
           },
         },

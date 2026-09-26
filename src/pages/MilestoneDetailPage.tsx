@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { Archive, FolderKanban, Network, Pencil, Trash2 } from 'lucide-react'
+import { Archive, FolderKanban, Link2, Network, Pencil, Trash2 } from 'lucide-react'
 import {
   Button,
   EmptyState,
@@ -257,7 +257,7 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
 
   const handleLinkPlan = () =>
     linkDialog.open({
-      title: 'Link Plan to Milestone',
+      title: 'Link plan',
       submitLabel: 'Link',
       fetchOptions: async () => {
         const data = await plansApi.list({ limit: 100 })
@@ -293,16 +293,16 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
               {progress.completed}/{pluralize(progress.total, 'task')} · {Math.round(progress.percentage)}%
             </span>
           ) : null,
+          pluralize(enrichedPlans.length, 'plan'),
           milestoneTargetDate ? (
             <span key="target" title={formatAbsolute(milestoneTargetDate)}>
               due {formatDay(milestoneTargetDate)}
             </span>
           ) : null,
           milestoneClosedAt ? <RelativeTime key="closed" date={milestoneClosedAt} prefix="closed " /> : null,
-          pluralize(enrichedPlans.length, 'plan'),
         ]}
         overflowActions={[
-          { label: 'Edit milestone', icon: Pencil, onClick: () => editDialog.open({ title: 'Edit Milestone' }) },
+          { label: 'Edit', icon: Pencil, onClick: () => editDialog.open({ title: 'Edit milestone' }) },
           {
             label: showGraph ? 'Hide hierarchy graph' : 'Show hierarchy graph',
             icon: Network,
@@ -310,12 +310,12 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
           },
           scope === 'workspace'
             ? {
-                label: 'Delete milestone',
+                label: 'Delete',
                 icon: Trash2,
                 variant: 'danger' as const,
                 onClick: handleDelete,
                 confirm: {
-                  title: 'Delete Milestone',
+                  title: 'Delete milestone?',
                   description: 'This will permanently delete this milestone. Tasks linked to it will not be deleted.',
                   confirmLabel: 'Delete',
                 },
@@ -327,7 +327,7 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
                 hidden: milestoneStatus === 'closed',
                 onClick: handleClose,
                 confirm: {
-                  title: 'Close Milestone',
+                  title: 'Close milestone?',
                   description: 'Project milestones cannot be deleted; this marks the milestone as closed. Linked plans and tasks are kept.',
                   confirmLabel: 'Close',
                 },
@@ -360,12 +360,22 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
         count={enrichedPlans.length}
         action={
           <Button size="sm" variant="ghost" onClick={handleLinkPlan}>
-            Link plan
+            <Link2 className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
+            Link
           </Button>
         }
       >
         {enrichedPlans.length === 0 ? (
-          <EmptyState size="sm" title="No plans linked to this milestone" description="Link a plan to track its tasks here." />
+          <EmptyState
+            size="sm"
+            title="No plans linked yet"
+            description="Link a plan to track its tasks here."
+            action={
+              <Button size="sm" variant="secondary" onClick={handleLinkPlan}>
+                Link
+              </Button>
+            }
+          />
         ) : (
           <EntityList aria-label="Plans">
             {enrichedPlans.map((plan) => (

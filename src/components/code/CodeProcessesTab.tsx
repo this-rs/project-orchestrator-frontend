@@ -187,6 +187,7 @@ export function CodeProcessesTab({ projectSlug, onOpenFile }: CodeProcessesTabPr
                   title={proc.label || proc.id}
                   onClick={() => handleExpand(proc.id)}
                   selected={open}
+                  expanded={open}
                   chevron
                   trailing={pluralize(proc.total, 'step')}
                 >

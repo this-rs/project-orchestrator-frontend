@@ -194,14 +194,14 @@ export function FeatureGraphsPage() {
                   description={graph.description}
                   trailing={<RelativeTime date={graph.created_at} />}
                   meta={[
-                    graph.entity_count != null ? pluralize(graph.entity_count, 'entity', 'entities') : null,
+                    selectedProject === 'all' ? projectNameById[graph.project_id] : null,
                     graph.entry_function ? (
                       <code key="entry" className="font-mono text-gray-400 truncate max-w-[14rem]" title={`Entry: ${graph.entry_function}`}>
                         {graph.entry_function}
                       </code>
                     ) : null,
                     graph.build_depth != null ? `depth ${graph.build_depth}` : null,
-                    selectedProject === 'all' ? projectNameById[graph.project_id] : null,
+                    graph.entity_count != null ? pluralize(graph.entity_count, 'entity', 'entities') : null,
                   ]}
                   actions={[
                     {
@@ -210,7 +210,7 @@ export function FeatureGraphsPage() {
                       variant: 'danger',
                       onClick: () => handleDelete(graph),
                       confirm: {
-                        title: 'Delete feature graph',
+                        title: 'Delete feature graph?',
                         description: `Permanently delete “${graph.name}”? The code itself is not touched. This cannot be undone.`,
                         confirmLabel: 'Delete',
                       },

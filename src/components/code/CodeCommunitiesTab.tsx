@@ -213,6 +213,7 @@ export function CodeCommunitiesTab({ projectSlug }: CodeCommunitiesTabProps) {
                 title={name}
                 onClick={() => setOpenId(open ? null : community.id)}
                 selected={open}
+                expanded={open}
                 chevron
                 trailing={pluralize(community.size, 'member')}
                 meta={[

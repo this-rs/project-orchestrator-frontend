@@ -24,6 +24,7 @@ import {
   textLink,
   RowCheckbox,
   ViewToggle,
+  pluralize,
 } from '@/components/ui'
 import {
   useViewMode,
@@ -274,7 +275,7 @@ export function PlansPage() {
 
   const handleEditPlan = (plan: Plan) => {
     setEditingPlan(plan)
-    editDialog.open({ title: 'Edit Plan' })
+    editDialog.open({ title: 'Edit plan' })
   }
 
   const handleDeletePlan = async (plan: Plan) => {
@@ -288,7 +289,7 @@ export function PlansPage() {
   const handleBulkDelete = () => {
     const count = multiSelect.selectionCount
     confirmDialog.open({
-      title: `Delete ${count} plan${count > 1 ? 's' : ''}`,
+      title: `Delete ${pluralize(count, 'plan')}?`,
       description: `This will permanently delete ${count} plan${count > 1 ? 's' : ''} and all their tasks.`,
       onConfirm: async () => {
         const items = multiSelect.selectedItems
@@ -305,10 +306,15 @@ export function PlansPage() {
     })
   }
 
-  const openCreatePlan = () => formDialog.open({ title: 'Create Plan', size: 'lg' })
+  const openCreatePlan = () => formDialog.open({ title: 'Create plan', size: 'lg' })
 
   const isKanban = viewMode === 'kanban'
   const showListSkeleton = loading && !isKanban && plans.length === 0
+  const clearFilters = () => {
+    setSelectedProjectId('all')
+    setStatusFilter('all')
+    setListSearch('')
+  }
   const viewToggle = <ViewToggle value={viewMode} onChange={setViewMode} />
 
   const projectNames = useMemo(() => new Map(projectOptions.map((o) => [o.value, o.label])), [projectOptions])
@@ -349,10 +355,7 @@ export function PlansPage() {
             searchPlaceholder="Search plans…"
             activeCount={listActiveCount}
             activeLabels={listActiveLabels}
-            onClear={() => {
-              setSelectedProjectId('all')
-              setStatusFilter('all')
-            }}
+            onClear={clearFilters}
             trailing={viewToggle}
             filters={
               <>
@@ -395,9 +398,13 @@ export function PlansPage() {
           action={
             isPristine ? (
               <Button size="sm" onClick={openCreatePlan}>
-                Create Plan
+                New plan
               </Button>
-            ) : undefined
+            ) : (
+              <Button size="sm" variant="secondary" onClick={clearFilters}>
+                Clear
+              </Button>
+            )
           }
         />
       ) : (
@@ -458,7 +465,7 @@ export function PlansPage() {
                     variant: 'danger',
                     onClick: () => handleDeletePlan(plan),
                     confirm: {
-                      title: 'Delete Plan',
+                      title: 'Delete plan?',
                       description: 'This plan and all its tasks will be permanently deleted.',
                     },
                   },

@@ -296,7 +296,7 @@ export function IntelligencePage() {
   }
   if (error)
     return (
-      <PageContainer width="wide">
+      <PageContainer width="full">
         <ErrorState description={error} onRetry={handleRefresh} />
       </PageContainer>
     )
@@ -304,8 +304,8 @@ export function IntelligencePage() {
   const s = summary as IntelligenceSummary | null
   if (!s)
     return (
-      <PageContainer width="wide">
-        <ErrorState description="No data available" />
+      <PageContainer width="full">
+        <EmptyState title="No intelligence data yet" description="Sync your projects to compute the first summary." />
       </PageContainer>
     )
 
@@ -340,7 +340,7 @@ export function IntelligencePage() {
   const quickActions: QuickAction[] = [
     {
       key: 'staleness',
-      label: 'Update Staleness',
+      label: 'Update staleness',
       icon: Timer,
       description: 'Recalculate staleness scores for all notes',
       run: async () => {
@@ -351,7 +351,7 @@ export function IntelligencePage() {
     },
     {
       key: 'energy',
-      label: 'Recalculate Energy',
+      label: 'Recalculate energy',
       icon: Zap,
       description: 'Update neural energy scores based on activity',
       run: async () => {
@@ -362,7 +362,7 @@ export function IntelligencePage() {
     },
     {
       key: 'decay',
-      label: 'Decay Synapses',
+      label: 'Decay synapses',
       icon: Waves,
       description: 'Decay weak synapses and prune dead connections',
       confirm: 'Weak synapses are weakened and the dead ones permanently pruned.',
@@ -374,7 +374,7 @@ export function IntelligencePage() {
     },
     {
       key: 'fabric',
-      label: 'Update Fabric Scores',
+      label: 'Update fabric scores',
       icon: Network,
       description: 'Recalculate GDS metrics (PageRank, communities)',
       hidden: !project,
@@ -386,7 +386,7 @@ export function IntelligencePage() {
     },
     {
       key: 'skills',
-      label: 'Detect Skills',
+      label: 'Detect skills',
       icon: BrainCircuit,
       description: 'Auto-detect emergent skills from note clusters',
       hidden: !project,
@@ -398,7 +398,7 @@ export function IntelligencePage() {
     },
     {
       key: 'backfill',
-      label: 'Backfill Synapses',
+      label: 'Backfill synapses',
       icon: Search,
       description: 'Create missing synapses from semantic similarity',
       hidden: !project,
@@ -426,7 +426,7 @@ export function IntelligencePage() {
   }
 
   return (
-    <PageContainer width="wide" className="space-y-6">
+    <PageContainer width="full" className="space-y-6">
       <PageHeader
         title="Intelligence"
         parentLinks={

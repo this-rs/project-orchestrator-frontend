@@ -141,7 +141,7 @@ describe('WorkspaceDetailPage', () => {
     await screen.findByRole('link', { name: 'Backend' })
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Backend' }))
     expect(screen.getByRole('menuitem', { name: 'Move to another workspace' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove from workspace' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove' }))
     expect(removeProject).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
     await waitFor(() => expect(removeProject).toHaveBeenCalledWith('ws', 'p1'))

@@ -800,7 +800,7 @@ function CleanupSection() {
             title: 'Cleanup cross-project calls',
             description: 'Removes the CALLS relations between different projects (false positives from homonyms). This cannot be undone.',
             variant: 'danger',
-            confirmLabel: 'Delete',
+            confirmLabel: 'Clean',
           }}
           onAction={async () => {
             const res = await adminApi.cleanupCrossProjectCalls()
@@ -818,7 +818,7 @@ function CleanupSection() {
             title: 'Cleanup builtin calls',
             description: 'Removes the CALLS relations to misresolved standard/builtin functions. This cannot be undone.',
             variant: 'danger',
-            confirmLabel: 'Delete',
+            confirmLabel: 'Clean',
           }}
           onAction={async () => {
             const res = await adminApi.cleanupBuiltinCalls()
@@ -851,7 +851,7 @@ function CleanupSection() {
             title: 'Cleanup sync data',
             description: 'Removes orphaned sync metadata from the graph. This cannot be undone.',
             variant: 'danger',
-            confirmLabel: 'Delete',
+            confirmLabel: 'Clean',
           }}
           onAction={async () => {
             const res = await adminApi.cleanupSyncData()

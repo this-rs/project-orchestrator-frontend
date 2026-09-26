@@ -115,11 +115,11 @@ export function WorkspaceSelectorPage() {
               </span>
             }
             description={ws.description || undefined}
+            trailing={ws.updated_at ? <RelativeTime date={ws.updated_at} prefix="updated " /> : undefined}
             meta={[
               <span key="slug" className="font-mono">
                 {ws.slug}
               </span>,
-              ws.updated_at ? <RelativeTime key="u" date={ws.updated_at} prefix="updated " /> : null,
             ]}
             chevron
           />

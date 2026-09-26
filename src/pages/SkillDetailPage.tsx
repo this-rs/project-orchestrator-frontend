@@ -46,6 +46,7 @@ import {
 } from '@/components/registry'
 import { useSectionObserver, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
+import { decisionTitle } from '@/components/knowledge/noteMeta'
 import type {
   Skill,
   SkillStatus,
@@ -295,15 +296,6 @@ export function SkillDetailPage() {
         overflowActions={[
           { label: 'Export package', icon: Download, onClick: handleExport },
           {
-            label: 'Edit context template',
-            icon: Pencil,
-            onClick: () => {
-              setEditingTemplate(true)
-              setTemplateDraft(skill.context_template || '')
-              document.getElementById('skill-template')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-            },
-          },
-          {
             label: 'Delete',
             icon: Trash2,
             variant: 'danger',
@@ -367,7 +359,7 @@ export function SkillDetailPage() {
       <Section
         id="skill-health"
         title="Health"
-        description="Diagnostic automatique : faut-il garder, surveiller ou archiver ce skill ?"
+        description="Automatic diagnosis: keep, watch or archive this skill?"
       >
         {health && rec ? (
           <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-2">
@@ -586,12 +578,12 @@ function NoteMemberRow({ note, onRemove, confirm }: { note: Note; onRemove: () =
       expanded={open}
       trailing={<RelativeTime date={note.created_at} />}
       meta={[
-        note.note_type,
-        <StatusText key="imp" kind="importance" status={note.importance} />,
         note.status !== 'active' ? <StatusText key="st" kind="note" status={note.status} /> : null,
+        <StatusText key="imp" kind="importance" status={note.importance} />,
+        note.note_type,
         tagSummary(note.tags),
       ]}
-      actions={[{ label: 'Remove from skill', icon: X, variant: 'danger', onClick: onRemove, confirm }]}
+      actions={[{ label: 'Remove', icon: X, variant: 'danger', onClick: onRemove, confirm }]}
     >
       {open && (
         <div className="rounded-lg bg-white/[0.03] px-3 py-2 text-sm">
@@ -615,7 +607,7 @@ function DecisionMemberRow({
 }) {
   return (
     <EntityRow
-      title={decision.description}
+      title={decisionTitle(decision.description)}
       href={href}
       trailing={<RelativeTime date={decision.decided_at} />}
       meta={[
@@ -626,7 +618,7 @@ function DecisionMemberRow({
           </span>
         ) : null,
       ]}
-      actions={[{ label: 'Remove from skill', icon: X, variant: 'danger', onClick: onRemove, confirm }]}
+      actions={[{ label: 'Remove', icon: X, variant: 'danger', onClick: onRemove, confirm }]}
     />
   )
 }

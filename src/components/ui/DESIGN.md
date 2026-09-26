@@ -107,7 +107,8 @@ Every entity list is `EntityList` / `ListGroup` of `EntityRow`s. No per-page car
 </ListGroup>
 ```
 
-- Title = the one thing that identifies the item. Everything else goes in **one** meta line; falsy items are skipped automatically.
+- Title = the one thing that identifies the item. Everything else goes in **one** meta line; falsy items are skipped automatically. Content without a title (notes, decisions) uses `noteTitle` / `decisionTitle` (first meaningful line) everywhere — list rows, detail header, timelines.
+- **Meta order:** status → priority / importance → attribution (project, plan, assignee, author, source) → counters (tasks, steps, cost, duration) → tags. The date goes in `trailing`, never in meta (a *due* date is a fact, not a timestamp — it sits with the counters).
 - Trailing = date (`RelativeTime`: `3h` / `12 Sep`, full date in tooltip) or one short value (progress `3/8`, cost).
 - Editable status → `StatusMenu` as **first meta item**, and then no leading dot (avoid double dots). Read-only → leading `StatusDot` with `label`.
 - Links / buttons inside `meta`/`context` must carry `rowInteractive` (`relative z-10`) so they sit above the row's stretched link. `StatusMenu` and the `actions` slot already do.
@@ -169,6 +170,7 @@ Anatomy: **PageHeader → key facts line → sections**.
 | Error | `<ErrorState description onRetry />` | same, or a toast for background refreshes |
 
 - Distinguish "nothing yet" (explain how to create + primary action) from "no match" (suggest clearing filters, offer `Clear`).
+- Wording: **"No X yet"** + the create action (same label as the header, e.g. "New plan") · **"No matching X"** + a `Clear` button that resets filters *and* search. Inside a section: "No X yet" + the section's "Add" / "Link" action when one exists.
 - Loading must not shift layout: skeleton shapes match the final rows. No centred spinners for lists.
 - No entrance animations on list items (no stagger / `layout` motion) — they cause layout shift.
 
@@ -179,6 +181,7 @@ Anatomy: **PageHeader → key facts line → sections**.
 - **Destructive**: `variant: 'danger'` + `confirm: { title, description }` — the menu shows the ConfirmDialog. Bulk deletes use `useConfirmDialog` + `BulkActionBar` as today.
 - After a mutation: optimistic local update + `toast.success` / `toast.error`.
 - Menu items may have a lucide `icon`.
+- **Vocabulary — one word per gesture, no object when the row/page *is* the object:** `Edit` (Pencil) · `Delete` (Trash2, permanent) · `Remove` (X — take an item out of a list it belongs to: member of a skill, project of a workspace) · `Link` / `Unlink` (Link2 / Unlink — create or break an explicit relation: plan↔project, decision↔entity, dependency) · `Run` (Play) · `Open` (ExternalLink). Add the object only when it differs from the row/page ("Link project", "Open runner", "Open task"). Confirm titles are sentence case with a question mark (`Delete task?`, `Unlink dependency?`, `Delete 3 tasks?`) and `confirmLabel` repeats the verb. Dialog titles are sentence case (`Edit task`, `Add step`).
 
 ## 10. Mobile rules (non-negotiable)
 

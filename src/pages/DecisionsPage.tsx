@@ -14,10 +14,12 @@ import {
   getStatusOptions,
   groupByRecency,
   pluralize,
+  Button,
 } from '@/components/ui'
 import { useToast, useWorkspaceSlug } from '@/hooks'
 import type { Decision, DecisionStatus } from '@/types'
 import { workspacePath } from '@/utils/paths'
+import { decisionPreview, decisionTitle } from '@/components/knowledge/noteMeta'
 
 // ── Filter options ──────────────────────────────────────────────────────
 
@@ -126,7 +128,7 @@ export function DecisionsPage() {
     }
   }
 
-  const isPristine = decisions.length === 0 && !searchQuery
+  const isPristine = decisions.length === 0 && !searchQuery && !projectSlug && statusFilter === 'all'
 
   return (
     <PageShell
@@ -175,6 +177,13 @@ export function DecisionsPage() {
               ? 'Architectural decisions are recorded during task execution. Add decisions from task detail pages.'
               : 'Try adjusting your search query or filters.'
           }
+          action={
+            isPristine ? undefined : (
+              <Button size="sm" variant="secondary" onClick={() => { clearFilters(); setSearchQuery('') }}>
+                Clear
+              </Button>
+            )
+          }
         />
       ) : (
         <div>
@@ -210,10 +219,11 @@ function DecisionRow({ decision, wsSlug, onStatusChange, onDelete }: DecisionRow
   const alternatives = decision.alternatives.length
   return (
     <EntityRow
-      title={decision.description}
+      title={decisionTitle(decision.description)}
       href={workspacePath(wsSlug, `/decisions/${decision.id}`)}
       muted={decision.status === 'superseded'}
       trailing={<RelativeTime date={decision.decided_at} />}
+      description={decisionPreview(decision.description) || undefined}
       meta={[
         <StatusMenu key="status" kind="decision" status={decision.status} onChange={onStatusChange} />,
         decision.chosen_option ? (
@@ -231,7 +241,7 @@ function DecisionRow({ decision, wsSlug, onStatusChange, onDelete }: DecisionRow
           variant: 'danger',
           onClick: onDelete,
           confirm: {
-            title: 'Delete Decision',
+            title: 'Delete decision?',
             description: 'Permanently delete this decision? This cannot be undone.',
           },
         },

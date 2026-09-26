@@ -115,16 +115,16 @@ describe('IntelligencePage', () => {
 
   it('runs a maintenance action and reports its result inline', async () => {
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: 'Run Update Staleness' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Run Update staleness' }))
     await waitFor(() => expect(adminApi.updateStaleness).toHaveBeenCalled())
     expect(await screen.findByText('3 notes updated')).toBeTruthy()
   })
 
   it('asks for confirmation before decaying synapses', async () => {
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: 'Run Decay Synapses' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Run Decay synapses' }))
     expect(adminApi.decayNeurons).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Decay Synapses' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Decay synapses' }))
     await waitFor(() => expect(adminApi.decayNeurons).toHaveBeenCalled())
   })
 

@@ -141,8 +141,8 @@ describe('TaskDetailPage', () => {
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'In progress' }))
     await waitFor(() => expect(updateStep).toHaveBeenCalledWith('s2', { status: 'in_progress' }))
     fireEvent.click(within(row).getByRole('button', { name: 'Actions for Step 2: Add validation' }))
-    expect(screen.getByRole('menuitem', { name: 'Edit step' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete step' }))
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }))
     fireEvent.click(screen.getAllByRole('button', { name: 'Delete' }).at(-1)!)
     await waitFor(() => expect(deleteStep).toHaveBeenCalledWith('s2'))
   })
@@ -151,8 +151,8 @@ describe('TaskDetailPage', () => {
     renderPage()
     const row = (await screen.findByRole('link', { name: 'Design tokens' })).closest('li')!
     fireEvent.click(within(row).getByRole('button', { name: 'Actions for Design tokens' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove dependency' }))
-    fireEvent.click(screen.getAllByRole('button', { name: 'Remove' }).at(-1)!)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Unlink' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Unlink' }).at(-1)!)
     await waitFor(() => expect(removeDependency).toHaveBeenCalledWith('t1', 'tb'))
   })
 

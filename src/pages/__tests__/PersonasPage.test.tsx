@@ -158,7 +158,7 @@ describe('PersonasPage', () => {
     listGlobal.mockResolvedValue({ items: [], total: 0, limit: 100, offset: 0 })
     renderPage()
     expect(await screen.findByText('No personas yet')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: /Create a persona/ }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'New persona' }).at(-1)!)
     expect(await screen.findByRole('dialog')).toBeTruthy()
     expect(screen.getByRole('list', { name: 'Build mode' })).toBeTruthy()
   })

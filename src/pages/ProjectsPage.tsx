@@ -20,6 +20,7 @@ import {
   RelativeTime,
   focusRing,
   RowCheckbox,
+  ToneText,
 } from '@/components/ui'
 import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useWorkspaceSlug, useWorkspace } from '@/hooks'
 import { CreateProjectForm, EditProjectForm } from '@/components/forms'
@@ -100,7 +101,7 @@ export function ProjectsPage() {
 
   const handleEdit = (project: Project) => {
     setEditingProject(project)
-    editDialog.open({ title: 'Edit Project' })
+    editDialog.open({ title: 'Edit project' })
   }
 
   const handleDelete = async (project: Project) => {
@@ -110,7 +111,7 @@ export function ProjectsPage() {
     toast.success('Project deleted')
   }
 
-  const openCreateDialog = () => formDialog.open({ title: 'Create Project' })
+  const openCreateDialog = () => formDialog.open({ title: 'Create project' })
 
   const visible = useMemo(() => projects.filter((p) => matches(p, search)), [projects, search])
   const multiSelect = useMultiSelect(visible, (p) => p.slug)
@@ -184,7 +185,7 @@ export function ProjectsPage() {
           variant="projects"
           title="No projects yet"
           description="Create a project to start tracking your codebase."
-          action={<Button onClick={openCreateDialog}>Create project</Button>}
+          action={<Button onClick={openCreateDialog}>New project</Button>}
         />
       ) : visible.length === 0 ? (
         <EmptyState
@@ -251,6 +252,7 @@ function ProjectRow({
       description={project.description || undefined}
       trailing={project.last_synced ? <RelativeTime date={project.last_synced} prefix="synced " /> : undefined}
       meta={[
+        project.last_synced ? null : <ToneText key="never" tone="warning" label="Never synced" />,
         <span key="slug" className="font-mono">
           {project.slug}
         </span>,
@@ -259,11 +261,6 @@ function ProjectRow({
             {project.root_path}
           </span>
         ) : null,
-        project.last_synced ? null : (
-          <span key="never" className="text-amber-400/80">
-            Never synced
-          </span>
-        ),
       ]}
       actions={[
         { label: 'Edit', icon: Pencil, onClick: onEdit },
@@ -272,7 +269,7 @@ function ProjectRow({
           icon: Trash2,
           variant: 'danger',
           onClick: onDelete,
-          confirm: { title: 'Delete Project', description: `This will permanently delete “${project.name}”.` },
+          confirm: { title: 'Delete project?', description: `This will permanently delete “${project.name}”.` },
         },
       ]}
     />

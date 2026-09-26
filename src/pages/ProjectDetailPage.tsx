@@ -220,7 +220,7 @@ export function ProjectDetailPage() {
           </>
         }
         overflowActions={[
-          { label: 'Edit project', icon: Pencil, onClick: () => editProjectDialog.open({ title: 'Edit Project' }) },
+          { label: 'Edit', icon: Pencil, onClick: () => editProjectDialog.open({ title: 'Edit project' }) },
           {
             label: 'Copy root path',
             icon: Clipboard,
@@ -228,7 +228,7 @@ export function ProjectDetailPage() {
             onClick: () => copyPath(project.root_path),
           },
           {
-            label: 'Delete project',
+            label: 'Delete',
             icon: Trash2,
             variant: 'danger',
             onClick: async () => {
@@ -237,7 +237,7 @@ export function ProjectDetailPage() {
               navigate(workspacePath(wsSlug, '/projects'))
             },
             confirm: {
-              title: 'Delete Project',
+              title: 'Delete project?',
               description: 'This will permanently delete this project and all associated data.',
               confirmLabel: 'Delete',
             },
@@ -265,13 +265,22 @@ export function ProjectDetailPage() {
         title="Milestones"
         count={milestones.length}
         action={
-          <Button size="sm" variant="ghost" onClick={() => milestoneFormDialog.open({ title: 'Add Milestone' })}>
+          <Button size="sm" variant="ghost" onClick={() => milestoneFormDialog.open({ title: 'Add milestone' })}>
             Add
           </Button>
         }
       >
         {milestones.length === 0 ? (
-          <EmptyState size="sm" title="No milestones defined" description="Group plans into milestones to track delivery." />
+          <EmptyState
+            size="sm"
+            title="No milestones yet"
+            description="Group plans into milestones to track delivery."
+            action={
+              <Button size="sm" variant="secondary" onClick={() => milestoneFormDialog.open({ title: 'Add milestone' })}>
+                Add
+              </Button>
+            }
+          />
         ) : (
           <EntityList aria-label="Milestones">
             {milestones.map(({ milestone, progress: msProgress }) => (
@@ -288,7 +297,7 @@ export function ProjectDetailPage() {
         collapsible
         defaultOpen={false}
         action={
-          <Button size="sm" variant="ghost" onClick={() => releaseFormDialog.open({ title: 'Add Release' })}>
+          <Button size="sm" variant="ghost" onClick={() => releaseFormDialog.open({ title: 'Add release' })}>
             Add
           </Button>
         }

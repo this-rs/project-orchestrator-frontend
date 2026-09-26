@@ -147,6 +147,9 @@ export function ScheduledActionsPanel({ protocols, onTrigger, protocolHref, clas
             href={protocolHref?.(protocol.id)}
             description={protocol.description}
             leading={<ModeIcon className="w-3.5 h-3.5 text-gray-500" aria-hidden="true" />}
+            trailing={
+              protocol.last_triggered_at ? <RelativeTime date={protocol.last_triggered_at} prefix="triggered " /> : 'never triggered'
+            }
             meta={[
               <span key="mode" className="text-gray-400">{mode.label}</span>,
               config ? (
@@ -154,11 +157,6 @@ export function ScheduledActionsPanel({ protocols, onTrigger, protocolHref, clas
                   {config}
                 </span>
               ) : null,
-              protocol.last_triggered_at ? (
-                <RelativeTime key="last" date={protocol.last_triggered_at} prefix="triggered " />
-              ) : (
-                <span key="never">never triggered</span>
-              ),
             ]}
             context={
               loadingRun ? (
@@ -183,11 +181,11 @@ export function ScheduledActionsPanel({ protocols, onTrigger, protocolHref, clas
                 variant="secondary"
                 onClick={() => handleTrigger(protocol)}
                 loading={isTriggering}
-                aria-label={`Run ${protocol.name} now`}
+                aria-label={`Run ${protocol.name}`}
                 className="gap-1.5"
               >
                 {!isTriggering && <Play className="w-3.5 h-3.5" aria-hidden="true" />}
-                Run now
+                Run
               </Button>
             }
           />

@@ -37,12 +37,7 @@ export function PlanRunRow({ run, title, href }: PlanRunRowProps) {
       leading={<StatusDot tone={meta.tone} pulse={meta.live} label={meta.label} />}
       trailing={<RelativeTime date={run.started_at} />}
       meta={[
-        <ToneText key="s" tone={meta.tone} label={meta.label} />,
-        <span key="t" className="tabular-nums">{done}/{run.total_tasks} tasks</span>,
-        failed > 0 ? <span key="f" className="text-red-400">{failed} failed</span> : null,
-        <span key="d" className="tabular-nums">{formatDurationMs(elapsed * 1000)}</span>,
-        <span key="c" className="font-mono tabular-nums">{formatCost(run.cost_usd)}</span>,
-        running && agents > 0 ? pluralize(agents, 'agent') : null,
+        <ToneText key="s" tone={meta.tone} label={meta.label} dot={false} />,
         planRunTriggerLabel(run.triggered_by),
         run.git_branch ? (
           <span key="b" className="inline-flex items-center gap-1 min-w-0 font-mono" title={run.git_branch}>
@@ -50,6 +45,11 @@ export function PlanRunRow({ run, title, href }: PlanRunRowProps) {
             <span className="truncate max-w-[10rem] sm:max-w-[16rem]">{run.git_branch}</span>
           </span>
         ) : null,
+        <span key="t" className="tabular-nums">{done}/{run.total_tasks} tasks</span>,
+        failed > 0 ? <span key="f" className="text-red-400">{failed} failed</span> : null,
+        <span key="d" className="tabular-nums">{formatDurationMs(elapsed * 1000)}</span>,
+        <span key="c" className="font-mono tabular-nums">{formatCost(run.cost_usd)}</span>,
+        running && agents > 0 ? pluralize(agents, 'agent') : null,
       ]}
       context={
         running && run.total_tasks > 0 ? (

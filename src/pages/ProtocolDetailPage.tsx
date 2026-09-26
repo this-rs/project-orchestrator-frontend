@@ -265,18 +265,18 @@ export function ProtocolDetailPage() {
           ) : (
             <span key="mode">Manual</span>
           ),
-          pluralize(states.length, 'state'),
-          pluralize(transitions.length, 'transition'),
           activeRuns > 0 ? (
             <StatusText key="live" kind="run" status="running" pulse label={`${activeRuns} active`} />
           ) : null,
+          pluralize(states.length, 'state'),
+          pluralize(transitions.length, 'transition'),
           <RelativeTime key="u" date={protocol.updated_at ?? protocol.created_at} prefix="updated " />,
         ]}
         actions={
           status !== 'archived' ? (
             <Button size="sm" onClick={handleStartRun} loading={starting} className="gap-1.5">
               {!starting && <Play className="w-3.5 h-3.5" aria-hidden="true" />}
-              Start run
+              Run
             </Button>
           ) : undefined
         }
@@ -459,9 +459,9 @@ function RunRow({ run, selected, onToggle, onCancel, onShowState }: RunRowProps)
       trailing={<RelativeTime date={run.started_at} />}
       meta={[
         <StatusText key="s" kind="run" status={run.status} pulse={run.status === 'running'} />,
+        run.triggered_by ? <span key="t">by {humanizeStatus(run.triggered_by)}</span> : null,
         <span key="d" className="tabular-nums">{formatRunDuration(run.started_at, run.completed_at)}</span>,
         visited > 0 ? `${pluralize(visited, 'state')} visited` : null,
-        run.triggered_by ? <span key="t">by {humanizeStatus(run.triggered_by)}</span> : null,
       ]}
       context={run.error ? <p className="text-xs leading-4 text-red-400/90 break-words">{run.error}</p> : undefined}
       actions={[
@@ -532,7 +532,7 @@ function StateRow({ state, outgoing, subProtocolHref }: { state: ProtocolState; 
         subProtocolHref ? (
           <Link key="sub" to={subProtocolHref} className={`${rowInteractive} ${inlineLink} inline-flex items-center gap-1`}>
             <Layers className="w-3 h-3" aria-hidden="true" />
-            Open sub-protocol
+            Open
           </Link>
         ) : null,
       ]}

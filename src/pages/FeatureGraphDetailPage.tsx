@@ -577,8 +577,6 @@ export function FeatureGraphDetailPage() {
         description={detail.description}
         parentLinks={parentLinks}
         meta={[
-          pluralize(totalEntities, 'entity', 'entities'),
-          relationCount > 0 ? pluralize(relationCount, 'relation') : null,
           detail.entry_function ? (
             <span key="entry" className="inline-flex items-baseline gap-1 min-w-0">
               built from
@@ -588,6 +586,8 @@ export function FeatureGraphDetailPage() {
             </span>
           ) : null,
           detail.build_depth != null ? `depth ${detail.build_depth}` : null,
+          pluralize(totalEntities, 'entity', 'entities'),
+          relationCount > 0 ? pluralize(relationCount, 'relation') : null,
           <RelativeTime key="c" date={detail.created_at} prefix="created " />,
         ]}
         actions={
@@ -611,7 +611,7 @@ export function FeatureGraphDetailPage() {
               }
             },
             confirm: {
-              title: 'Delete feature graph',
+              title: 'Delete feature graph?',
               description: `Delete “${detail.name}” and its entity associations? The code itself is not touched. This cannot be undone.`,
               confirmLabel: 'Delete',
             },
@@ -629,7 +629,7 @@ export function FeatureGraphDetailPage() {
           <EmptyState
             size="sm"
             icon={<Package />}
-            title="No entity yet"
+            title="No entities yet"
             description="Add files or functions by hand, or rebuild the graph with Auto-build."
             action={
               <Button size="sm" variant="secondary" onClick={openAddEntity}>
