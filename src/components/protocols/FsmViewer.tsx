@@ -165,7 +165,7 @@ function FsmStateNode({ data }: { data: FsmStateNodeData }) {
 
       {isMacro && (
         <div className="text-[10px] text-violet-400/70 mt-1 flex items-center gap-1">
-          <span>Click to drill down</span>
+          <span>Tap to open sub-protocol</span>
         </div>
       )}
 
@@ -273,7 +273,7 @@ export function FsmViewer({ protocol: initialProtocol, className = '', highlight
   return (
     <div className={`flex flex-col h-full ${className}`}>
       {/* Breadcrumbs */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-border-subtle">
+      <div className="flex items-center gap-3 px-3 py-2 border-b border-white/[0.06] min-w-0">
         <FsmBreadcrumbs
           mode="drill-down"
           hierarchy={breadcrumbs}
@@ -310,18 +310,18 @@ export function FsmViewer({ protocol: initialProtocol, className = '', highlight
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 px-4 py-2 border-t border-border-subtle text-[10px] text-gray-500">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 border-t border-white/[0.06] text-[11px] text-gray-500">
         <span className="flex items-center gap-1">
-          <Circle className="w-2.5 h-2.5 text-cyan-400 fill-cyan-400" /> Initial
+          <Circle className="w-2.5 h-2.5 text-cyan-400 fill-cyan-400" aria-hidden="true" /> Start
         </span>
         <span className="flex items-center gap-1">
-          <Square className="w-2.5 h-2.5 text-green-400" /> Terminal
+          <Square className="w-2.5 h-2.5 text-green-400" aria-hidden="true" /> End
         </span>
         <span className="flex items-center gap-1">
-          <Layers className="w-2.5 h-2.5 text-violet-400" /> Macro-state
+          <Layers className="w-2.5 h-2.5 text-violet-400" aria-hidden="true" /> Sub-protocol
         </span>
         <span className="flex items-center gap-1">
-          <Circle className="w-2.5 h-2.5 text-gray-400" /> State
+          <Circle className="w-2.5 h-2.5 text-gray-400" aria-hidden="true" /> State
         </span>
       </div>
     </div>

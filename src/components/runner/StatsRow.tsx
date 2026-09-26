@@ -88,7 +88,7 @@ function BudgetCard({
 
   return (
     <div
-      className={`glass rounded-xl shadow-sm overflow-hidden border-t-2 border-yellow-500 group transition-colors ${
+      className={`rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden border-t-2 border-yellow-500 group transition-colors ${
         !editing ? 'hover:bg-white/[0.03] cursor-pointer' : ''
       }`}
       onClick={!editing ? handleEdit : undefined}
@@ -101,7 +101,7 @@ function BudgetCard({
         <div className="flex items-center gap-1.5 text-gray-500 mb-2">
           <DollarSign className="w-4 h-4" />
           {!editing && (
-            <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-indigo-400" />
+            <Pencil className="w-3 h-3 text-indigo-400" aria-hidden="true" />
           )}
         </div>
         {editing ? (
@@ -134,12 +134,12 @@ function BudgetCard({
             {maxCostUsd > 0 && (
               <span className="text-sm text-gray-500 font-mono">/ {formatCost(maxCostUsd)}</span>
             )}
-            {saved && <span className="text-xs text-green-400 animate-pulse ml-1">Saved!</span>}
+            {saved && <span className="text-xs text-green-400 ml-1">Saved</span>}
           </div>
         )}
         <div className="text-sm text-gray-400 mt-0.5">
           Budget
-          {!editing && <span className="text-xs text-gray-600 ml-1.5 group-hover:text-indigo-400/60 transition-colors">· click to edit</span>}
+          {!editing && <span className="text-xs text-gray-600 ml-1.5 ">· click to edit</span>}
         </div>
       </div>
     </div>

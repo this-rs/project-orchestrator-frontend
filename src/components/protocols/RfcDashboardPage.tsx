@@ -1,65 +1,60 @@
 /**
- * RfcDashboardPage — Dashboard for managing RFC documents.
+ * RfcDashboardPage — RFC documents of the workspace (or one project).
  *
- * Fetches RFCs via the rfcApi, provides filter tabs by status, and renders
- * a responsive grid of RfcCard components.
+ * Search (title / preview) + filters (project, lifecycle state), grouped by
+ * lifecycle state. Each row exposes the lifecycle transitions available from
+ * its current state in the ⋯ menu (reject / supersede ask for confirmation).
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { FileText, Loader2, AlertCircle, RefreshCw } from 'lucide-react'
-import { RfcCard } from './RfcCard'
+import { Folder, RefreshCw } from 'lucide-react'
 import { rfcApi } from '@/services/rfcApi'
 import { workspacesApi } from '@/services'
-import { Select } from '@/components/ui'
-import { useWorkspaceSlug } from '@/hooks'
+import {
+  EmptyState,
+  EntityListSkeleton,
+  EntityRow,
+  ErrorState,
+  FilterBar,
+  ListGroup,
+  PageShell,
+  RelativeTime,
+  Select,
+  StatusText,
+  focusRing,
+  getStatusMeta,
+  getStatusOptions,
+  groupBy,
+  pluralize,
+  type OverflowMenuAction,
+} from '@/components/ui'
+import { useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
+import { Explainer } from './Explainer'
+import {
+  RFC_STATUS_ORDER,
+  apiErrorMessage,
+  formatTrigger,
+  isDestructiveTrigger,
+  rfcPreview,
+  rfcState,
+  rfcTransitions,
+  transitionConfirm,
+  triggerIcon,
+} from './rfcLifecycle'
 import type { Rfc, RfcStatus } from '@/types/protocol'
 
-// ---------------------------------------------------------------------------
-// Tab config
-// ---------------------------------------------------------------------------
-
-interface StatusTab {
-  key: RfcStatus | 'all'
-  label: string
-  color: string
-}
-
-const STATUS_TABS: StatusTab[] = [
-  { key: 'all',          label: 'All',          color: 'text-gray-400' },
-  { key: 'draft',        label: 'Draft',        color: 'text-gray-400' },
-  { key: 'proposed',     label: 'Proposed',     color: 'text-blue-400' },
-  { key: 'under_review', label: 'Under Review', color: 'text-cyan-400' },
-  { key: 'accepted',     label: 'Accepted',     color: 'text-green-400' },
-  { key: 'planning',     label: 'Planning',     color: 'text-violet-400' },
-  { key: 'in_progress',  label: 'In Progress',  color: 'text-indigo-400' },
-  { key: 'implemented',  label: 'Implemented',  color: 'text-emerald-400' },
-  { key: 'rejected',     label: 'Rejected',     color: 'text-red-400' },
-  { key: 'superseded',   label: 'Superseded',   color: 'text-amber-400' },
-]
-
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
-
 interface RfcDashboardPageProps {
-  /** Callback when an RFC card is clicked */
+  /** Callback when an RFC is activated (default: navigate to its page) */
   onRfcClick?: (rfcId: string) => void
   className?: string
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+const CLOSED: RfcStatus[] = ['implemented', 'rejected', 'superseded']
 
-export function RfcDashboardPage({ onRfcClick: externalOnRfcClick, className = '' }: RfcDashboardPageProps) {
+export function RfcDashboardPage({ onRfcClick, className = '' }: RfcDashboardPageProps) {
   const wsSlug = useWorkspaceSlug()
-  const navigate = useNavigate()
-
-  const onRfcClick = externalOnRfcClick ?? ((rfcId: string) => {
-    navigate(workspacePath(wsSlug, `/rfcs/${rfcId}`))
-  })
+  const toast = useToast()
 
   // ── Project selector ───────────────────────────────────────────────
   const [projects, setProjects] = useState<{ id: string; name: string; slug: string }[]>([])
@@ -75,20 +70,13 @@ export function RfcDashboardPage({ onRfcClick: externalOnRfcClick, className = '
 
   const activeProjectId = projectFilter !== 'all' ? projectFilter : undefined
 
-  const projectOptions = useMemo(
-    () => [
-      { value: 'all', label: 'Workspace' },
-      ...projects.map((p) => ({ value: p.id, label: p.name })),
-    ],
-    [projects],
-  )
-
   const [rfcs, setRfcs] = useState<Rfc[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<RfcStatus | 'all'>('all')
+  const [statusFilter, setStatusFilter] = useState<RfcStatus | 'all'>('all')
+  const [search, setSearch] = useState('')
 
-  // Fetch RFCs — when "Workspace" is selected, omit project_id to get all
+  // When "All projects" is selected, omit project_id to get every RFC
   const fetchRfcs = useCallback(async () => {
     try {
       setLoading(true)
@@ -106,154 +94,202 @@ export function RfcDashboardPage({ onRfcClick: externalOnRfcClick, className = '
     fetchRfcs()
   }, [fetchRfcs])
 
-  // Filter by active tab
-  const filteredRfcs = useMemo(() => {
-    if (activeTab === 'all') return rfcs
-    return rfcs.filter((rfc) => (rfc.current_state ?? rfc.status) === activeTab)
-  }, [rfcs, activeTab])
-
-  // Count by status for tab badges
+  // Count by state (for the filter labels)
   const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: rfcs.length }
+    const counts: Record<string, number> = {}
     for (const rfc of rfcs) {
-      const s = rfc.current_state ?? rfc.status
+      const s = rfcState(rfc)
       counts[s] = (counts[s] ?? 0) + 1
     }
     return counts
   }, [rfcs])
 
-  // Handle RFC action (transition)
-  const [actionError, setActionError] = useState<string | null>(null)
+  const statusOptions = useMemo(
+    () => [
+      { value: 'all', label: `All states (${rfcs.length})` },
+      ...getStatusOptions('rfc').map((o) => ({ value: o.value, label: `${o.label} (${statusCounts[o.value] ?? 0})` })),
+    ],
+    [rfcs.length, statusCounts],
+  )
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return rfcs.filter((rfc) => {
+      if (statusFilter !== 'all' && rfcState(rfc) !== statusFilter) return false
+      if (!q) return true
+      return (
+        rfc.title.toLowerCase().includes(q) ||
+        rfc.tags.some((t) => t.toLowerCase().includes(q)) ||
+        rfc.sections.some((s) => s.content.toLowerCase().includes(q))
+      )
+    })
+  }, [rfcs, statusFilter, search])
+
+  const groups = useMemo(() => groupBy(filtered, rfcState, RFC_STATUS_ORDER), [filtered])
+
+  // Fire a lifecycle transition from a row
   const handleAction = useCallback(
-    async (rfcId: string, action: string) => {
-      setActionError(null)
+    async (rfc: Rfc, trigger: string) => {
       try {
-        const updated = await rfcApi.transition(rfcId, action)
+        const updated = await rfcApi.transition(rfc.id, trigger)
         setRfcs((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))
+        toast.success(`${formatTrigger(trigger)}: ${getStatusMeta('rfc', rfcState(updated)).label}`)
       } catch (err) {
-        const msg = err instanceof Error ? err.message : `Failed to ${action} RFC`
-        const match = msg.match(/"error":"([^"]+)"/)
-        setActionError(match ? match[1] : msg)
-        // Auto-dismiss after 5s
-        setTimeout(() => setActionError(null), 5000)
+        toast.error(apiErrorMessage(err, `Failed to ${formatTrigger(trigger).toLowerCase()} the RFC`))
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable (Jotai setter)
     [],
   )
 
-  // --- Render ---
+  // ── Filters ────────────────────────────────────────────────────────
+  const showProjectFilter = projects.length > 1
+  const activeCount = (activeProjectId ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)
+  const activeLabels = [
+    activeProjectId ? projects.find((p) => p.id === activeProjectId)?.name ?? '' : '',
+    statusFilter !== 'all' ? getStatusMeta('rfc', statusFilter).label : '',
+  ]
+  const clearFilters = () => {
+    setProjectFilter('all')
+    setStatusFilter('all')
+  }
+  const pristine = rfcs.length === 0
 
   return (
-    <div className={`flex flex-col h-full ${className}`}>
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle">
-        <div className="flex items-center gap-3">
-          <FileText className="w-5 h-5 text-blue-400" />
-          <h1 className="text-lg font-semibold text-gray-100">RFCs</h1>
-          {!loading && (
-            <span className="text-xs text-gray-500 tabular-nums">
-              {filteredRfcs.length} {filteredRfcs.length === 1 ? 'document' : 'documents'}
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Select
-            options={projectOptions}
-            value={projectFilter}
-            onChange={setProjectFilter}
-          />
-          <button
-            onClick={fetchRfcs}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-gray-400 hover:text-gray-200 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-        </div>
-      </div>
-
-      {/* Error toast */}
-      {actionError && (
-        <div className="mx-6 mt-2 px-3 py-2 rounded-lg text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 flex items-center justify-between gap-2">
-          <span>{actionError}</span>
-          <button
-            onClick={() => setActionError(null)}
-            className="text-amber-400 hover:text-amber-200 text-[10px] font-medium shrink-0"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {/* Status filter tabs */}
-      <div className="flex items-center gap-1 px-6 py-2 border-b border-border-subtle overflow-x-auto scrollbar-thin">
-        {STATUS_TABS.map((tab) => {
-          const count = statusCounts[tab.key] ?? 0
-          const isActive = activeTab === tab.key
-
-          return (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`
-                inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap
-                ${isActive
-                  ? 'bg-white/[0.08] text-gray-100 border border-white/[0.12]'
-                  : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.04] border border-transparent'
-                }
-              `}
-            >
-              {tab.label}
-              {count > 0 && (
-                <span className={`px-1.5 py-0 rounded-full text-[10px] tabular-nums ${isActive ? 'bg-white/[0.08]' : 'bg-white/[0.04]'}`}>
-                  {count}
-                </span>
-              )}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+    <div className={className}>
+      <PageShell
+        title="RFCs"
+        description="Requests for comments — proposals and their lifecycle"
+        count={loading ? undefined : filtered.length}
+        width="wide"
+        filters={
+          <div className="space-y-3">
+            <FilterBar
+              search={search}
+              onSearchChange={setSearch}
+              searchPlaceholder="Search RFCs…"
+              activeCount={activeCount}
+              activeLabels={activeLabels}
+              onClear={clearFilters}
+              filters={
+                <>
+                  {showProjectFilter && (
+                    <Select
+                      options={[{ value: 'all', label: 'All projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
+                      value={projectFilter}
+                      onChange={setProjectFilter}
+                      icon={<Folder className="w-3 h-3" />}
+                    />
+                  )}
+                  <Select
+                    options={statusOptions}
+                    value={statusFilter}
+                    onChange={(v) => setStatusFilter(v as RfcStatus | 'all')}
+                  />
+                </>
+              }
+              trailing={
+                <button
+                  type="button"
+                  onClick={fetchRfcs}
+                  disabled={loading}
+                  aria-label="Refresh"
+                  className={`inline-flex items-center justify-center w-9 h-9 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] disabled:opacity-50 ${focusRing}`}
+                >
+                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+                </button>
+              }
+            />
+            <Explainer>
+              Une RFC est une proposition de changement soumise à discussion. Elle suit un cycle de vie : brouillon →
+              proposée → en revue → acceptée → planification → en cours → implémentée (ou rejetée / remplacée). Les
+              étapes suivantes possibles sont dans le menu ⋯ de chaque RFC.
+            </Explainer>
+          </div>
+        }
+      >
         {loading && rfcs.length === 0 ? (
-          <div className="flex items-center justify-center h-40">
-            <Loader2 className="w-6 h-6 text-gray-500 animate-spin" />
-          </div>
+          <EntityListSkeleton rows={6} />
         ) : error ? (
-          <div className="flex flex-col items-center justify-center h-40 gap-3">
-            <AlertCircle className="w-8 h-8 text-red-400/60" />
-            <p className="text-sm text-red-400">{error}</p>
-            <button
-              onClick={fetchRfcs}
-              className="text-xs text-gray-400 hover:text-gray-200 underline underline-offset-2"
-            >
-              Retry
-            </button>
-          </div>
-        ) : filteredRfcs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-40 gap-2">
-            <FileText className="w-8 h-8 text-gray-600" />
-            <p className="text-sm text-gray-500">
-              {activeTab === 'all' ? 'No RFCs found' : `No ${activeTab} RFCs`}
-            </p>
-          </div>
+          <ErrorState title="Failed to load RFCs" description={error} onRetry={fetchRfcs} />
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            title={pristine ? 'No RFCs yet' : 'No matching RFCs'}
+            description={
+              pristine
+                ? 'RFCs are written by agents (or through the MCP note tools) to propose significant changes.'
+                : 'Try another search or clear the filters.'
+            }
+          />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filteredRfcs.map((rfc) => (
-              <RfcCard
-                key={rfc.id}
-                rfc={rfc}
-                onAction={handleAction}
-                onClick={onRfcClick}
-              />
+          <div>
+            {groups.map(({ key, items }) => (
+              <ListGroup
+                key={key}
+                title={getStatusMeta('rfc', key).label}
+                count={items.length}
+                collapsible={CLOSED.includes(key)}
+                defaultOpen={!CLOSED.includes(key) || groups.length === 1}
+              >
+                {items.map((rfc) => (
+                  <RfcRow
+                    key={rfc.id}
+                    rfc={rfc}
+                    href={onRfcClick ? undefined : workspacePath(wsSlug, `/rfcs/${rfc.id}`)}
+                    onClick={onRfcClick ? () => onRfcClick(rfc.id) : undefined}
+                    onAction={(trigger) => handleAction(rfc, trigger)}
+                  />
+                ))}
+              </ListGroup>
             ))}
           </div>
         )}
-      </div>
+      </PageShell>
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// RFC row
+// ---------------------------------------------------------------------------
+
+interface RfcRowProps {
+  rfc: Rfc
+  href?: string
+  onClick?: () => void
+  onAction: (trigger: string) => Promise<void>
+}
+
+function RfcRow({ rfc, href, onClick, onAction }: RfcRowProps) {
+  const state = rfcState(rfc)
+  const actions: OverflowMenuAction[] = rfcTransitions(rfc).map((t) => {
+    const destructive = isDestructiveTrigger(t.trigger)
+    return {
+      label: `${formatTrigger(t.trigger)} → ${getStatusMeta('rfc', t.target_state).label}`,
+      icon: triggerIcon(t.trigger),
+      variant: destructive ? 'danger' : 'default',
+      onClick: () => onAction(t.trigger),
+      confirm: destructive ? transitionConfirm(t.trigger, rfc.title) : undefined,
+    }
+  })
+  const tags = rfc.tags.filter((t) => !t.startsWith('rfc-'))
+  return (
+    <EntityRow
+      title={rfc.title}
+      href={href}
+      onClick={onClick}
+      muted={state === 'rejected' || state === 'superseded'}
+      description={rfcPreview(rfc)}
+      trailing={<RelativeTime date={rfc.created_at} />}
+      meta={[
+        <StatusText key="s" kind="rfc" status={state} />,
+        rfc.importance === 'high' || rfc.importance === 'critical' ? (
+          <StatusText key="i" kind="importance" status={rfc.importance} dot={false} label={`${getStatusMeta('importance', rfc.importance).label} importance`} />
+        ) : null,
+        rfc.sections.length > 1 ? pluralize(rfc.sections.length, 'section') : null,
+        tags.length > 0 ? <span key="t">{tags.slice(0, 2).map((t) => `#${t}`).join(' ')}{tags.length > 2 ? ` +${tags.length - 2}` : ''}</span> : null,
+      ]}
+      actions={actions.length > 0 ? actions : undefined}
+    />
   )
 }

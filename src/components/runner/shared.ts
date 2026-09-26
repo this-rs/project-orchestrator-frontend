@@ -3,6 +3,7 @@
  */
 
 import type { ActiveAgentSnapshot } from '@/services/runner'
+import type { StatusTone } from '@/components/ui/statusMeta'
 
 // ---------------------------------------------------------------------------
 // Format helpers
@@ -87,4 +88,51 @@ export const waveStatusLabels: Record<WaveStatus, string> = {
   failed: 'Failed',
   pending: 'Pending',
   partial: 'Partial',
+}
+
+// ---------------------------------------------------------------------------
+// Design-system status meta (dot + text, see components/ui/DESIGN.md §4)
+// ---------------------------------------------------------------------------
+
+export interface ToneMeta {
+  label: string
+  tone: StatusTone
+  /** Something is still going on → the dot pulses (temporal motion). */
+  live?: boolean
+}
+
+const RUN_META: Record<string, ToneMeta> = {
+  running: { label: 'Running', tone: 'progress', live: true },
+  completed: { label: 'Completed', tone: 'success' },
+  failed: { label: 'Failed', tone: 'danger' },
+  cancelled: { label: 'Cancelled', tone: 'muted' },
+  budget_exceeded: { label: 'Budget exceeded', tone: 'warning' },
+}
+
+const AGENT_META: Record<string, ToneMeta> = {
+  spawning: { label: 'Starting', tone: 'progress', live: true },
+  running: { label: 'Running', tone: 'progress', live: true },
+  verifying: { label: 'Verifying', tone: 'progress', live: true },
+  completed: { label: 'Completed', tone: 'success' },
+  failed: { label: 'Failed', tone: 'danger' },
+}
+
+const WAVE_META: Record<WaveStatus, ToneMeta> = {
+  active: { label: 'Running', tone: 'progress', live: true },
+  completed: { label: 'Completed', tone: 'success' },
+  failed: { label: 'Has failures', tone: 'danger' },
+  pending: { label: 'Waiting', tone: 'neutral' },
+  partial: { label: 'Partial', tone: 'warning' },
+}
+
+export function runStateMeta(status: string | null | undefined): ToneMeta {
+  return RUN_META[status ?? ''] ?? { label: status ? status.replace(/_/g, ' ') : 'Unknown', tone: 'neutral' }
+}
+
+export function agentStateMeta(status: string | null | undefined): ToneMeta {
+  return AGENT_META[status ?? ''] ?? { label: status ?? 'Unknown', tone: 'neutral' }
+}
+
+export function waveStateMeta(status: WaveStatus): ToneMeta {
+  return WAVE_META[status]
 }
