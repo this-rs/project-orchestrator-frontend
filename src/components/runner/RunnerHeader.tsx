@@ -6,6 +6,7 @@
  *   ● Running · 3/8 tasks · 1 failed · 04:12 · wave 2/3 · run 1a2b3c4d
  *
  * Cancel asks for confirmation (CancelButton). ⋯ → Open plan, Copy run ID.
+ * Actions wrap under the title on phones (PageHeader); nothing truncates.
  */
 
 import { useNavigate } from 'react-router-dom'

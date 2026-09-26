@@ -1,41 +1,59 @@
 /**
  * RunnerDashboard — real-time view of a plan's runner execution.
- * Composition-only orchestrator: delegates to extracted components.
+ *
+ *   Pipelines
+ *   <Plan title>                              [Cancel run | Retry] [⋯]
+ *   ● Running · 3/8 tasks · 04:12 · wave 2/3 · run 1a2b3c4d
+ *   progress · budget · agents · wave          (StatsRow)
+ *   [Waves] [Discussion tree]                   (ViewTabs)
+ *   Wave 1 ▸ … / Wave 2 ▾ agents as rows, conversation inline
+ *
+ * Composition-only orchestrator: data comes from the runner hooks, the
+ * page scrolls normally (no inner scroll area), one column at every width.
  */
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { Layers, GitBranch, Loader2 } from 'lucide-react'
-import { Card, CardContent, LoadingPage, ErrorState } from '@/components/ui'
+import { EmptyState, EntityListSkeleton, ErrorState, PageContainer } from '@/components/ui'
 import { RunnerHeader } from '@/components/runner/RunnerHeader'
 import { StatsRow } from '@/components/runner/StatsRow'
 import { WaveSection } from '@/components/runner/WaveSection'
 import { getWaveStatus } from '@/components/runner/shared'
+import { ViewTabs } from '@/components/protocols/ViewTabs'
+import { Explainer } from '@/components/protocols/Explainer'
 import { DiscussionTreeView } from '@/components/discussions/DiscussionTreeView'
 import { runnerApi, useRunnerStatus } from '@/services/runner'
 import type { ActiveAgentSnapshot, RunSnapshot } from '@/services/runner'
-import { useWorkspaceSlug } from '@/hooks'
+import { plansApi } from '@/services/plans'
+import { useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
-import {
-  useAgentExecutionsMap,
-  useLatestPlanRun,
-  useRunRootSession,
-  useWavesData,
-} from '@/hooks/runner'
+import { useAgentExecutionsMap, useLatestPlanRun, useRunRootSession, useWavesData } from '@/hooks/runner'
 
 type DashboardTab = 'waves' | 'discussions'
-
-const tabCls = (active: boolean) =>
-  `px-4 py-2 text-sm font-medium transition-colors cursor-pointer border-b-2 -mb-px ${
-    active ? 'border-indigo-500 text-gray-200' : 'border-transparent text-gray-500 hover:text-gray-300'
-  }`
 
 export function RunnerDashboard() {
   const { planId } = useParams<{ planId: string }>()
   const wsSlug = useWorkspaceSlug()
+  const toast = useToast()
   const { snapshot, isRunning, error, refresh } = useRunnerStatus(planId)
   const latestRun = useLatestPlanRun(planId)
   const { waves: wavesData, loading: wavesLoading } = useWavesData(planId, isRunning)
+
+  // Plan title (the snapshot only carries the current *task* title)
+  const [planTitle, setPlanTitle] = useState<string | null>(null)
+  useEffect(() => {
+    if (!planId) return
+    let cancelled = false
+    plansApi
+      .get(planId)
+      .then((p) => {
+        if (!cancelled) setPlanTitle(p.title)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [planId])
 
   const effectiveSnapshot: RunSnapshot | null = useMemo(() => {
     if (!snapshot) return null
@@ -70,8 +88,15 @@ export function RunnerDashboard() {
 
   const handleBudgetSave = useCallback(async (_planId: string, value: number) => {
     if (!planId) return
-    await runnerApi.updateBudget(planId, value)
-    refresh()
+    try {
+      await runnerApi.updateBudget(planId, value)
+      toast.success('Budget updated')
+      refresh()
+    } catch {
+      toast.error('Failed to update the budget')
+      throw new Error('budget')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable (Jotai setter)
   }, [planId, refresh])
 
   const { taskWaveMap, taskTitleMap } = useMemo(() => {
@@ -90,15 +115,15 @@ export function RunnerDashboard() {
 
   const resolvedAgents: ActiveAgentSnapshot[] = useMemo(() => {
     const liveAgents = effectiveSnapshot?.active_agents ?? []
-    const liveTaskIds = new Set(liveAgents.map(a => a.task_id))
+    const liveTaskIds = new Set(liveAgents.map((a) => a.task_id))
     const historicalAgents: ActiveAgentSnapshot[] = Array.from(executionsMap.values())
-      .filter(exec => !liveTaskIds.has(exec.task_id))
+      .filter((exec) => !liveTaskIds.has(exec.task_id))
       .map((exec) => ({
         task_id: exec.task_id,
         task_title: taskTitleMap.get(exec.task_id) ?? exec.task_id.slice(0, 8),
         session_id: exec.session_id ?? null,
         elapsed_secs: exec.duration_secs, cost_usd: exec.cost_usd,
-        status: exec.status === 'timeout' ? 'failed' : exec.status as ActiveAgentSnapshot['status'],
+        status: exec.status === 'timeout' ? 'failed' : (exec.status as ActiveAgentSnapshot['status']),
       }))
     return [...liveAgents, ...historicalAgents]
   }, [effectiveSnapshot, executionsMap, taskTitleMap])
@@ -117,16 +142,16 @@ export function RunnerDashboard() {
   const orderedWaves = useMemo<Array<{ waveNumber: number; taskIds: string[]; agents: ActiveAgentSnapshot[] }>>(() => {
     if (!wavesData) {
       return resolvedAgents.length > 0
-        ? [{ waveNumber: 1, taskIds: resolvedAgents.map(a => a.task_id), agents: resolvedAgents }]
+        ? [{ waveNumber: 1, taskIds: resolvedAgents.map((a) => a.task_id), agents: resolvedAgents }]
         : []
     }
     return wavesData.waves.map((wave) => {
       const waveAgents = waveAgentsMap.get(wave.wave_number) ?? []
-      const agentTaskIds = new Set(waveAgents.map(a => a.task_id))
+      const agentTaskIds = new Set(waveAgents.map((a) => a.task_id))
       const currentWave = effectiveSnapshot?.current_wave ?? 0
       const waveAlreadyRan = wave.wave_number <= currentWave || !isRunning
       const syntheticAgents: ActiveAgentSnapshot[] = waveAlreadyRan
-        ? wave.tasks.filter(t => !agentTaskIds.has(t.id)).map(t => ({
+        ? wave.tasks.filter((t) => !agentTaskIds.has(t.id)).map((t) => ({
             task_id: t.id,
             task_title: t.title ?? t.id.slice(0, 8),
             session_id: null, elapsed_secs: 0, cost_usd: 0,
@@ -136,105 +161,139 @@ export function RunnerDashboard() {
               : 'completed') as ActiveAgentSnapshot['status'],
           }))
         : []
-      return { waveNumber: wave.wave_number, taskIds: wave.tasks.map(t => t.id), agents: [...waveAgents, ...syntheticAgents] }
+      return { waveNumber: wave.wave_number, taskIds: wave.tasks.map((t) => t.id), agents: [...waveAgents, ...syntheticAgents] }
     })
   }, [wavesData, waveAgentsMap, resolvedAgents, effectiveSnapshot, isRunning])
 
   const handleToggleConversation = useCallback((sessionId: string, taskTitle: string) => {
-    setSelectedConversation(prev => prev?.sessionId === sessionId ? null : { sessionId, taskTitle })
+    setSelectedConversation((prev) => (prev?.sessionId === sessionId ? null : { sessionId, taskTitle }))
   }, [])
   const handleCloseConversation = useCallback(() => setSelectedConversation(null), [])
 
   const [retryingTaskId, setRetryingTaskId] = useState<string | null>(null)
-  const handleRetryTask = useCallback(async (taskId: string, _taskTitle: string) => {
+  const handleRetryTask = useCallback(async (taskId: string, taskTitle: string) => {
     if (!planId || retryingTaskId) return
     setRetryingTaskId(taskId)
-    try { await runnerApi.retryTask(planId, taskId); refresh() }
-    catch (err) { console.error('Failed to retry task:', err) }
-    finally { setRetryingTaskId(null) }
+    try {
+      await runnerApi.retryTask(planId, taskId)
+      toast.success(`Retrying “${taskTitle}”`)
+      refresh()
+    } catch {
+      toast.error('Failed to retry the task')
+    } finally {
+      setRetryingTaskId(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable (Jotai setter)
   }, [planId, retryingTaskId, refresh])
 
   const [retryingRun, setRetryingRun] = useState(false)
   const handleRetryRun = useCallback(async () => {
     if (!planId || retryingRun) return
     setRetryingRun(true)
-    try { await runnerApi.startRun(planId, '.', undefined, effectiveSnapshot?.max_cost_usd); refresh() }
-    catch (err) { console.error('Failed to retry run:', err) }
-    finally { setRetryingRun(false) }
+    try {
+      await runnerApi.startRun(planId, '.', undefined, effectiveSnapshot?.max_cost_usd)
+      toast.success('Run started')
+      refresh()
+    } catch {
+      toast.error('Failed to start the run')
+    } finally {
+      setRetryingRun(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable (Jotai setter)
   }, [planId, retryingRun, effectiveSnapshot?.max_cost_usd, refresh])
 
+  // ── Loading / error ──────────────────────────────────────────────────
   if (error && !snapshot && !latestRun) {
-    return <ErrorState title="Runner not available" description={error} onRetry={refresh} />
+    return (
+      <PageContainer width="wide">
+        <ErrorState title="Runner not available" description={error} onRetry={refresh} />
+      </PageContainer>
+    )
   }
-  if (!effectiveSnapshot) return <LoadingPage />
+  if (!effectiveSnapshot) {
+    return (
+      <PageContainer width="wide" className="space-y-6">
+        <div className="h-7 w-2/3 rounded bg-white/[0.04]" />
+        <div className="h-4 w-1/2 rounded bg-white/[0.04]" />
+        <EntityListSkeleton rows={4} />
+      </PageContainer>
+    )
+  }
 
-  const planTitle = effectiveSnapshot.current_task_title ?? `Plan ${planId?.slice(0, 8)}...`
+  const title = planTitle ?? effectiveSnapshot.current_task_title ?? `Plan ${planId?.slice(0, 8)}…`
+  const failedCount = resolvedAgents.filter((a) => a.status === 'failed').length
+  const anyActive = orderedWaves.some((w) => getWaveStatus(w.agents) === 'active')
 
   return (
-    <div className="pt-6 flex flex-col h-full min-h-0">
-      <div className="mb-6 space-y-4 flex-shrink-0">
-        <RunnerHeader
-          planId={planId!} planTitle={planTitle} wsSlug={wsSlug} workspacePath={workspacePath}
-          effectiveSnapshot={effectiveSnapshot} isRunning={isRunning}
-          onRetryRun={handleRetryRun} retrying={retryingRun}
-        />
-        <StatsRow
-          effectiveSnapshot={effectiveSnapshot} isRunning={isRunning}
-          resolvedAgents={resolvedAgents} wavesTotal={wavesData?.waves.length ?? null}
-          planId={planId!} onBudgetSave={handleBudgetSave}
-        />
-        <div className="flex items-center gap-1 border-b border-border-subtle">
-          <button onClick={() => setActiveTab('waves')} className={tabCls(activeTab === 'waves')}>
-            <span className="flex items-center gap-1.5"><Layers className="w-3.5 h-3.5" />Waves</span>
-          </button>
-          <button onClick={() => setActiveTab('discussions')} className={tabCls(activeTab === 'discussions')}>
-            <span className="flex items-center gap-1.5"><GitBranch className="w-3.5 h-3.5" />Discussion Tree</span>
-          </button>
-        </div>
-      </div>
+    <PageContainer width="wide" className="space-y-6">
+      <RunnerHeader
+        planId={planId!} planTitle={title} wsSlug={wsSlug} workspacePath={workspacePath}
+        effectiveSnapshot={effectiveSnapshot} isRunning={isRunning}
+        wavesTotal={wavesData?.waves.length ?? null} failedCount={failedCount}
+        onRetryRun={handleRetryRun} retrying={retryingRun}
+      />
 
-      {activeTab === 'waves' ? (
-        <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pb-6">
-          {wavesLoading && orderedWaves.length === 0 ? (
-            <Card><CardContent className="py-8 text-center">
-              <Loader2 className="w-5 h-5 text-gray-500 animate-spin mx-auto mb-2" />
-              <p className="text-sm text-gray-500">Loading wave structure...</p>
-            </CardContent></Card>
-          ) : orderedWaves.length > 0 ? (
-            orderedWaves.map((wave) => {
-              const wStatus = getWaveStatus(wave.agents)
-              const defaultOpen = wStatus === 'active' || wStatus === 'partial' || wStatus === 'failed'
-                || (wStatus === 'pending' && orderedWaves.every(w => getWaveStatus(w.agents) !== 'active'))
-              return (
-                <WaveSection key={wave.waveNumber}
-                  waveNumber={wave.waveNumber} taskIds={wave.taskIds} agents={wave.agents}
-                  executionsMap={executionsMap} selectedConversation={selectedConversation}
-                  onToggleConversation={handleToggleConversation} onCloseConversation={handleCloseConversation}
-                  onRetryTask={handleRetryTask} defaultOpen={defaultOpen}
-                />
-              )
-            })
-          ) : (
-            <Card><CardContent className="py-12 text-center">
-              <p className="text-sm text-gray-500">
-                {effectiveSnapshot.running ? 'Waiting for agents to start...' : 'No agents have been spawned.'}
-              </p>
-            </CardContent></Card>
-          )}
-        </div>
-      ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto pb-6 pt-3">
-          {rootSessionId ? (
-            <DiscussionTreeView sessionId={rootSessionId} />
-          ) : (
-            <Card><CardContent className="py-12 text-center">
-              <p className="text-sm text-gray-500">
-                {rootSessionLoading ? 'Loading discussion tree...' : 'No discussion sessions found for this run.'}
-              </p>
-            </CardContent></Card>
-          )}
-        </div>
-      )}
-    </div>
+      <StatsRow
+        effectiveSnapshot={effectiveSnapshot} isRunning={isRunning}
+        resolvedAgents={resolvedAgents} wavesTotal={wavesData?.waves.length ?? null}
+        planId={planId!} onBudgetSave={handleBudgetSave}
+      />
+
+      <div className="space-y-3">
+        <ViewTabs
+          label="Runner views"
+          value={activeTab}
+          onChange={setActiveTab}
+          tabs={[
+            { value: 'waves', label: 'Waves', count: orderedWaves.length || undefined },
+            { value: 'discussions', label: 'Discussion tree' },
+          ]}
+        />
+
+        {activeTab === 'waves' ? (
+          <>
+            <Explainer>
+              A run executes the plan wave by wave: the tasks of a wave run in parallel, each one by its own agent.
+              Open an agent's conversation to follow it live; retry a failed task from its row.
+            </Explainer>
+            {wavesLoading && orderedWaves.length === 0 ? (
+              <EntityListSkeleton rows={4} />
+            ) : orderedWaves.length > 0 ? (
+              <div className="space-y-3">
+                {orderedWaves.map((wave) => {
+                  const wStatus = getWaveStatus(wave.agents)
+                  const defaultOpen =
+                    wStatus === 'active' || wStatus === 'partial' || wStatus === 'failed' || (wStatus === 'pending' && !anyActive)
+                  return (
+                    <WaveSection
+                      key={wave.waveNumber}
+                      waveNumber={wave.waveNumber} taskIds={wave.taskIds} agents={wave.agents}
+                      executionsMap={executionsMap} selectedConversation={selectedConversation}
+                      onToggleConversation={handleToggleConversation} onCloseConversation={handleCloseConversation}
+                      onRetryTask={handleRetryTask} retryingTaskId={retryingTaskId} defaultOpen={defaultOpen}
+                    />
+                  )
+                })}
+              </div>
+            ) : (
+              <EmptyState
+                title={effectiveSnapshot.running ? 'Waiting for agents to start…' : 'No agents were spawned'}
+                description={
+                  effectiveSnapshot.running
+                    ? 'The first wave is being prepared. Agents appear here as soon as they start.'
+                    : 'This run has no agent executions. Retry the run to start it again.'
+                }
+              />
+            )}
+          </>
+        ) : rootSessionId ? (
+          <DiscussionTreeView sessionId={rootSessionId} />
+        ) : rootSessionLoading ? (
+          <EntityListSkeleton rows={3} />
+        ) : (
+          <EmptyState title="No discussion sessions" description="No conversation was recorded for this run." />
+        )}
+      </div>
+    </PageContainer>
   )
 }
