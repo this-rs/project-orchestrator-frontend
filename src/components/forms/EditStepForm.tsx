@@ -52,7 +52,7 @@ export function EditStepForm({ initialValues, onSubmit, loading }: Props) {
       </>
     ),
     submit: async () => {
-      if (!validate()) return
+      if (!validate()) return false
       await onSubmit({
         description: description.trim(),
         verification: verification.trim(),

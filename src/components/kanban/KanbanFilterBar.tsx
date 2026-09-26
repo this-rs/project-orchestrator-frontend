@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { X } from 'lucide-react'
 import type { KanbanFilters } from '@/hooks/useKanbanFilters'
 import type { Plan, Project } from '@/types'
 import { plansApi, projectsApi } from '@/services'
-import { Select, Button } from '@/components/ui'
+import { FilterBar, Select, Switch } from '@/components/ui'
+import { focusRing } from '@/components/ui/classes'
+import { FilterField, PriorityRangeFields } from './ListControls'
 
 interface KanbanFilterBarProps {
   filters: KanbanFilters
@@ -10,14 +13,22 @@ interface KanbanFilterBarProps {
   onToggleExcludeProject: (projectId: string) => void
   onClearFilters: () => void
   activeFilterCount: number
+  /** Right of the search row (view toggle). */
+  trailing?: ReactNode
 }
 
+/**
+ * Task board filters, rendered with the design-system FilterBar: filters
+ * collapse behind the sliders button, the active-filter summary + Clear stay
+ * visible. (The task API has no text search, so no search field.)
+ */
 export function KanbanFilterBar({
   filters,
   onFilterChange,
   onToggleExcludeProject,
   onClearFilters,
   activeFilterCount,
+  trailing,
 }: KanbanFilterBarProps) {
   const [plans, setPlans] = useState<Plan[]>([])
   const [projects, setProjects] = useState<Project[]>([])
@@ -27,113 +38,85 @@ export function KanbanFilterBar({
     projectsApi.list({ limit: 100 }).then((r) => setProjects(r.items || [])).catch(() => {})
   }, [])
 
-  const planOptions = [
-    { value: '', label: 'All Plans' },
-    ...plans.map((p) => ({ value: p.id, label: p.title })),
+  const planOptions = [{ value: '', label: 'All plans' }, ...plans.map((p) => ({ value: p.id, label: p.title }))]
+  const excluded = filters.exclude_projects ?? []
+  const includable = projects.filter((p) => !excluded.includes(p.id))
+  const excludedProjects = projects.filter((p) => excluded.includes(p.id))
+
+  const planLabel = filters.plan_id ? plans.find((p) => p.id === filters.plan_id)?.title ?? 'Plan' : ''
+  const activeLabels = [
+    planLabel,
+    filters.assigned_to ? `@${filters.assigned_to}` : '',
+    filters.priority_min !== undefined ? `P ≥ ${filters.priority_min}` : '',
+    filters.priority_max !== undefined ? `P ≤ ${filters.priority_max}` : '',
+    filters.exclude_completed ? 'Hide completed' : '',
+    filters.exclude_failed ? 'Hide failed' : '',
+    excluded.length > 0 ? `Excluding ${excludedProjects.map((p) => p.name).join(', ') || `${excluded.length} projects`}` : '',
   ]
 
-  const projectOptions = projects.filter(
-    (p) => !filters.exclude_projects?.includes(p.id),
-  )
-
-  const excludedProjects = projects.filter(
-    (p) => filters.exclude_projects?.includes(p.id),
-  )
-
   return (
-    <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3 p-3 bg-surface-raised/50 rounded-lg border border-border-subtle mb-4">
-      {/* Plan filter */}
-      <Select
-        options={planOptions}
-        value={filters.plan_id || ''}
-        onChange={(value) => onFilterChange('plan_id', value || undefined)}
-        className="w-full sm:w-44"
-      />
-
-      {/* Assigned filter */}
-      <input
-        type="text"
-        placeholder="Assigned to..."
-        value={filters.assigned_to || ''}
-        onChange={(e) => onFilterChange('assigned_to', e.target.value || undefined)}
-        className="w-full sm:w-36 px-2.5 py-1.5 text-sm bg-surface-base border border-border-default rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500"
-      />
-
-      {/* Priority range */}
-      <div className="flex items-center gap-1 text-xs text-gray-400">
-        <span>P:</span>
-        <input
-          type="number"
-          placeholder="Min"
-          value={filters.priority_min ?? ''}
-          onChange={(e) => onFilterChange('priority_min', e.target.value ? Number(e.target.value) : undefined)}
-          className="w-14 px-1.5 py-1.5 text-sm bg-surface-base border border-border-default rounded text-gray-200 focus:outline-none focus:border-indigo-500"
-        />
-        <span>-</span>
-        <input
-          type="number"
-          placeholder="Max"
-          value={filters.priority_max ?? ''}
-          onChange={(e) => onFilterChange('priority_max', e.target.value ? Number(e.target.value) : undefined)}
-          className="w-14 px-1.5 py-1.5 text-sm bg-surface-base border border-border-default rounded text-gray-200 focus:outline-none focus:border-indigo-500"
-        />
-      </div>
-
-      {/* Divider */}
-      <div className="hidden sm:block w-px h-6 bg-white/[0.06]" />
-
-      {/* Hide completed/failed toggles */}
-      <label className="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={filters.exclude_completed || false}
-          onChange={(e) => onFilterChange('exclude_completed', e.target.checked || undefined)}
-          className="rounded border-border-default bg-surface-base text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
-        />
-        Hide completed
-      </label>
-      <label className="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={filters.exclude_failed || false}
-          onChange={(e) => onFilterChange('exclude_failed', e.target.checked || undefined)}
-          className="rounded border-border-default bg-surface-base text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
-        />
-        Hide failed
-      </label>
-
-      {/* Exclude projects */}
-      {projectOptions.length > 0 && (
-        <Select
-          options={projectOptions.map((p) => ({ value: p.id, label: p.name }))}
-          value=""
-          onChange={(value) => { if (value) onToggleExcludeProject(value) }}
-          placeholder="Exclude project..."
-          className="w-full sm:w-40"
-        />
-      )}
-
-      {/* Excluded project chips */}
-      {excludedProjects.map((p) => (
-        <button key={p.id} onClick={() => onToggleExcludeProject(p.id)} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-900/50 text-red-400 hover:bg-red-900/70 transition-colors cursor-pointer">
-          {p.name} &times;
-        </button>
-      ))}
-
-      {/* Spacer */}
-      <div className="hidden sm:block flex-1" />
-
-      {/* Active filter count + clear */}
-      {activeFilterCount > 0 && (
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-[10px] font-bold text-white">
-            {activeFilterCount}
-          </span>
-          <Button variant="ghost" size="sm" onClick={onClearFilters}>
-            Clear all
-          </Button>
-        </div>
-      )}
-    </div>
+    <FilterBar
+      activeCount={activeFilterCount}
+      activeLabels={activeLabels}
+      onClear={onClearFilters}
+      trailing={trailing}
+      filters={
+        <>
+          <Select
+            options={planOptions}
+            value={filters.plan_id || ''}
+            onChange={(value) => onFilterChange('plan_id', value || undefined)}
+          />
+          <FilterField
+            label="Assigned to"
+            placeholder="Assigned to…"
+            value={filters.assigned_to}
+            onChange={(v) => onFilterChange('assigned_to', v || undefined)}
+          />
+          <PriorityRangeFields
+            min={filters.priority_min}
+            max={filters.priority_max}
+            onMinChange={(v) => onFilterChange('priority_min', v)}
+            onMaxChange={(v) => onFilterChange('priority_max', v)}
+          />
+          <Switch
+            label="Hide completed"
+            checked={filters.exclude_completed || false}
+            onChange={(v) => onFilterChange('exclude_completed', v || undefined)}
+          />
+          <Switch
+            label="Hide failed"
+            checked={filters.exclude_failed || false}
+            onChange={(v) => onFilterChange('exclude_failed', v || undefined)}
+          />
+          {includable.length > 0 && (
+            <Select
+              options={includable.map((p) => ({ value: p.id, label: p.name }))}
+              value=""
+              onChange={(value) => {
+                if (value) onToggleExcludeProject(value)
+              }}
+              placeholder="Exclude project…"
+            />
+          )}
+          {excludedProjects.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 sm:col-span-2 lg:col-span-3">
+              {excludedProjects.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => onToggleExcludeProject(p.id)}
+                  aria-label={`Stop excluding ${p.name}`}
+                  className={`inline-flex items-center gap-1 min-h-9 px-2 rounded-md border border-white/[0.08] text-xs text-gray-400 line-through decoration-gray-600 hover:text-gray-200 ${focusRing}`}
+                >
+                  {p.name}
+                  <X className="w-3 h-3 no-underline" aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      }
+    />
   )
 }

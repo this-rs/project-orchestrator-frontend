@@ -22,8 +22,9 @@ export function createTaskKanbanConfig(
   return {
     entityType: 'task',
     columns: taskColumns,
-    renderCard: (item, _isDragging) => (
-      <KanbanCard task={item} />
+    statusKind: 'task',
+    renderCard: (item, _isDragging, ctx) => (
+      <KanbanCard task={item} onStatusChange={ctx ? (s) => ctx.changeStatus(s) : undefined} />
     ),
     renderOverlayCard: (item) => <KanbanCardOverlay task={item} />,
     crudEventType: 'task',

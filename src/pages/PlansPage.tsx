@@ -1,24 +1,27 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
-import { Link } from 'react-router-dom'
-import { motion, AnimatePresence } from 'motion/react'
+import { Folder, FolderKanban, Pencil, Plus, Trash2 } from 'lucide-react'
 import { plansAtom, plansLoadingAtom, planStatusFilterAtom, planRefreshAtom } from '@/atoms'
 import { plansApi } from '@/services'
 import {
-  Card,
-  Button,
-  EmptyState,
-  Select,
-  InteractivePlanStatusBadge,
-  ViewToggle,
-  ConfirmDialog,
-  FormDialog,
-  OverflowMenu,
-  PageShell,
-  SelectZone,
   BulkActionBar,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  EntityList,
+  EntityListSkeleton,
+  EntityRow,
+  FilterBar,
+  FormDialog,
   LoadMoreSentinel,
-  SkeletonCard,
+  PageShell,
+  PriorityText,
+  RelativeTime,
+  Select,
+  StatusMenu,
+  getStatusOptions,
+  hitArea,
+  textLink,
 } from '@/components/ui'
 import {
   useViewMode,
@@ -33,19 +36,12 @@ import {
 } from '@/hooks'
 import { CreatePlanForm, EditPlanForm } from '@/components/forms'
 import type { EditPlanFormData } from '@/components/forms/EditPlanForm'
-import { PlanKanbanFilterBar, UniversalKanban, createPlanKanbanConfig } from '@/components/kanban'
+import { PlanKanbanFilterBar, RowSelect, UniversalKanban, ViewModeToggle, createPlanKanbanConfig } from '@/components/kanban'
 import type { PlanKanbanFilters } from '@/components/kanban'
-import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
 import type { Plan, PlanStatus, PaginatedResponse } from '@/types'
+import { workspacePath } from '@/utils/paths'
 
-const statusOptions = [
-  { value: 'all', label: 'All Status' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'approved', label: 'Approved' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'cancelled', label: 'Cancelled' },
-]
+const statusOptions = [{ value: 'all', label: 'All statuses' }, ...getStatusOptions('plan')]
 
 const defaultFilters: PlanKanbanFilters = {
   project: 'all',
@@ -61,7 +57,6 @@ export function PlansPage() {
   const [, setLoadingAtom] = useAtom(plansLoadingAtom)
   const [statusFilter, setStatusFilter] = useAtom(planStatusFilterAtom)
   const planRefresh = useAtomValue(planRefreshAtom)
-  const reducedMotion = useReducedMotion()
   const [viewMode, setViewMode] = useViewMode()
   const { navigate } = useViewTransition()
   const confirmDialog = useConfirmDialog()
@@ -72,24 +67,21 @@ export function PlansPage() {
   const { selectedProjectId, setSelectedProjectId, projectFilterParam, projectOptions } = useProjectFilter()
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null)
 
-  // Kanban filters (workspace filter removed — implicit via wsSlug)
+  // Board filters (+ the search text, shared by both views)
   const [kanbanFilters, setKanbanFilters] = useState<PlanKanbanFilters>(defaultFilters)
 
-  const handleFilterChange = useCallback(
-    <K extends keyof PlanKanbanFilters>(key: K, value: PlanKanbanFilters[K]) => {
-      setKanbanFilters((prev) => ({ ...prev, [key]: value }))
-    },
-    []
-  )
-
-  const handleClearFilters = useCallback(() => {
-    setKanbanFilters(defaultFilters)
+  const handleFilterChange = useCallback(<K extends keyof PlanKanbanFilters>(key: K, value: PlanKanbanFilters[K]) => {
+    setKanbanFilters((prev) => ({ ...prev, [key]: value }))
   }, [])
 
-  const activeFilterCount = useMemo(() => {
+  // "Clear" resets filters, not the search (FilterBar contract)
+  const handleClearFilters = useCallback(() => {
+    setKanbanFilters((prev) => ({ ...defaultFilters, search: prev.search }))
+  }, [])
+
+  const boardActiveCount = useMemo(() => {
     let count = 0
     if (kanbanFilters.project !== 'all') count++
-    if (kanbanFilters.search) count++
     if (kanbanFilters.priority_min !== undefined) count++
     if (kanbanFilters.priority_max !== undefined) count++
     if (kanbanFilters.hide_completed) count++
@@ -97,33 +89,37 @@ export function PlansPage() {
     return count
   }, [kanbanFilters])
 
+  // Debounced search for the list view (server-side `search` param)
+  const [listSearch, setListSearch] = useState('')
+  useEffect(() => {
+    const id = setTimeout(() => setListSearch(kanbanFilters.search.trim()), 300)
+    return () => clearTimeout(id)
+  }, [kanbanFilters.search])
+
   // --- Infinite scroll for list mode (workspace-scoped) ---
   const listFilters = useMemo(
     () => ({
       status: statusFilter !== 'all' ? statusFilter : undefined,
       project_id: projectFilterParam,
+      search: listSearch || undefined,
       _refresh: planRefresh,
       _ws: wsSlug, // trigger reset on workspace change
     }),
-    [statusFilter, projectFilterParam, planRefresh, wsSlug]
+    [statusFilter, projectFilterParam, listSearch, planRefresh, wsSlug],
   )
 
   const listFetcher = useCallback(
-    (params: {
-      limit: number
-      offset: number
-      status?: string
-      project_id?: string
-    }): Promise<PaginatedResponse<Plan>> => {
+    (params: { limit: number; offset: number; status?: string; project_id?: string; search?: string }): Promise<PaginatedResponse<Plan>> => {
       return plansApi.list({
         limit: params.limit,
         offset: params.offset,
         status: params.status,
         project_id: params.project_id,
+        search: params.search,
         workspace_slug: wsSlug,
       })
     },
-    [wsSlug]
+    [wsSlug],
   )
 
   const {
@@ -150,17 +146,15 @@ export function PlansPage() {
     }
   }, [plans, loading, viewMode, setPlans, setLoadingAtom])
 
-  // Stable fetchFn for PlanKanbanBoard (workspace-scoped via server filter)
+  // Stable fetchFn for the board (workspace-scoped via server filter)
   const kanbanFetchFn = useCallback(
     async (params: Record<string, unknown>): Promise<PaginatedResponse<Plan>> => {
       const apiParams: Record<string, unknown> = {
         ...params,
         workspace_slug: wsSlug,
       }
-      if (kanbanFilters.priority_min !== undefined)
-        apiParams.priority_min = kanbanFilters.priority_min
-      if (kanbanFilters.priority_max !== undefined)
-        apiParams.priority_max = kanbanFilters.priority_max
+      if (kanbanFilters.priority_min !== undefined) apiParams.priority_min = kanbanFilters.priority_min
+      if (kanbanFilters.priority_max !== undefined) apiParams.priority_max = kanbanFilters.priority_max
       if (kanbanFilters.search) apiParams.search = kanbanFilters.search
 
       const response = await plansApi.list(apiParams as Record<string, string | number | undefined>)
@@ -176,9 +170,7 @@ export function PlansPage() {
       if (kanbanFilters.search) {
         const term = kanbanFilters.search.toLowerCase()
         filtered = filtered.filter(
-          (p) =>
-            p.title.toLowerCase().includes(term) ||
-            (p.description && p.description.toLowerCase().includes(term))
+          (p) => p.title.toLowerCase().includes(term) || (p.description && p.description.toLowerCase().includes(term)),
         )
       }
 
@@ -188,14 +180,11 @@ export function PlansPage() {
         total: filtered.length,
       }
     },
-    [kanbanFilters, wsSlug]
+    [kanbanFilters, wsSlug],
   )
 
   // Filters key — triggers column re-fetch when any filter changes
-  const kanbanColumnFilters = useMemo(
-    () => ({ ...kanbanFilters, _ws: wsSlug }),
-    [kanbanFilters, wsSlug]
-  )
+  const kanbanColumnFilters = useMemo(() => ({ ...kanbanFilters, _ws: wsSlug }), [kanbanFilters, wsSlug])
 
   // Determine which statuses to hide
   const hiddenStatuses = useMemo(() => {
@@ -205,37 +194,46 @@ export function PlansPage() {
     return hidden
   }, [kanbanFilters.hide_completed, kanbanFilters.hide_cancelled])
 
+  /** List rows: optimistic update + rollback. */
   const handlePlanStatusChange = useCallback(
     async (planId: string, newStatus: PlanStatus) => {
       const oldPlan = plans.find((p) => p.id === planId)
       updateItem(
         (p) => p.id === planId,
-        (p) => ({ ...p, status: newStatus })
+        (p) => ({ ...p, status: newStatus }),
       )
       try {
         await plansApi.updateStatus(planId, newStatus)
         toast.success('Status updated')
       } catch {
-        // Rollback optimistic update
         if (oldPlan)
           updateItem(
             (p) => p.id === planId,
-            () => oldPlan
+            () => oldPlan,
           )
         toast.error('Failed to update status')
       }
     },
-    [plans, updateItem, toast]
+    [plans, updateItem, toast],
   )
 
-  // UniversalKanban config for plans
+  /** Board: the board moves the card optimistically; rethrow so it can roll back. */
+  const handleBoardStatusChange = useCallback(
+    async (planId: string, newStatus: string) => {
+      try {
+        await plansApi.updateStatus(planId, newStatus)
+        toast.success('Status updated')
+      } catch (err) {
+        toast.error('Failed to update status')
+        throw err
+      }
+    },
+    [toast],
+  )
+
   const planKanbanConfig = useMemo(
-    () =>
-      createPlanKanbanConfig({
-        fetchFn: kanbanFetchFn,
-        onStatusChange: (id, status) => handlePlanStatusChange(id, status as PlanStatus),
-      }),
-    [kanbanFetchFn, handlePlanStatusChange],
+    () => createPlanKanbanConfig({ fetchFn: kanbanFetchFn, onStatusChange: handleBoardStatusChange }),
+    [kanbanFetchFn, handleBoardStatusChange],
   )
 
   const planForm = CreatePlanForm({
@@ -266,7 +264,7 @@ export function PlansPage() {
       }
       updateItem(
         (p) => p.id === editingPlan.id,
-        (p) => ({ ...p, ...updateData, project_id })
+        (p) => ({ ...p, ...updateData, project_id }),
       )
       toast.success('Plan updated')
     },
@@ -275,6 +273,12 @@ export function PlansPage() {
   const handleEditPlan = (plan: Plan) => {
     setEditingPlan(plan)
     editDialog.open({ title: 'Edit Plan' })
+  }
+
+  const handleDeletePlan = async (plan: Plan) => {
+    await plansApi.delete(plan.id)
+    removeItems((p) => p.id === plan.id)
+    toast.success('Plan deleted')
   }
 
   const multiSelect = useMultiSelect(plans, (p) => p.id)
@@ -301,136 +305,168 @@ export function PlansPage() {
 
   const openCreatePlan = () => formDialog.open({ title: 'Create Plan', size: 'lg' })
 
-  const showListSkeleton = loading && viewMode === 'list' && plans.length === 0
+  const isKanban = viewMode === 'kanban'
+  const showListSkeleton = loading && !isKanban && plans.length === 0
+  const viewToggle = <ViewModeToggle value={viewMode} onChange={setViewMode} />
+
+  const projectNames = useMemo(() => new Map(projectOptions.map((o) => [o.value, o.label])), [projectOptions])
+
+  // List filters (FilterBar)
+  const listActiveCount = (projectFilterParam ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)
+  const listActiveLabels = [
+    projectFilterParam ? projectNames.get(selectedProjectId) ?? 'Project' : '',
+    statusFilter !== 'all' ? statusOptions.find((o) => o.value === statusFilter)?.label ?? statusFilter : '',
+  ]
+  const isPristine = total === 0 && listActiveCount === 0 && !listSearch
 
   return (
     <PageShell
       title="Plans"
       description="Plan and track implementation phases"
+      count={!isKanban && !loading ? total : undefined}
+      width={isKanban ? 'full' : 'wide'}
       actions={
-        <>
-          {viewMode === 'list' && (
-            <>
-              <Select
-                options={projectOptions}
-                value={selectedProjectId}
-                onChange={setSelectedProjectId}
-                className="w-full sm:w-44"
-              />
-              <Select
-                options={statusOptions}
-                value={statusFilter}
-                onChange={(value) => setStatusFilter(value as PlanStatus | 'all')}
-                className="w-full sm:w-40"
-              />
-            </>
-          )}
-          <ViewToggle value={viewMode} onChange={setViewMode} />
-          <Button onClick={openCreatePlan}>Create Plan</Button>
-        </>
+        <Button size="sm" onClick={openCreatePlan}>
+          <Plus className="w-4 h-4 mr-1 -ml-0.5" aria-hidden="true" />
+          New plan
+        </Button>
+      }
+      filters={
+        isKanban ? (
+          <PlanKanbanFilterBar
+            filters={kanbanFilters}
+            onFilterChange={handleFilterChange}
+            onClearFilters={handleClearFilters}
+            activeFilterCount={boardActiveCount}
+            trailing={viewToggle}
+          />
+        ) : (
+          <FilterBar
+            search={kanbanFilters.search}
+            onSearchChange={(v) => handleFilterChange('search', v)}
+            searchPlaceholder="Search plans…"
+            activeCount={listActiveCount}
+            activeLabels={listActiveLabels}
+            onClear={() => {
+              setSelectedProjectId('all')
+              setStatusFilter('all')
+            }}
+            trailing={viewToggle}
+            filters={
+              <>
+                {projectOptions.length > 1 && (
+                  <Select
+                    options={projectOptions}
+                    value={selectedProjectId}
+                    onChange={setSelectedProjectId}
+                    icon={<Folder className="w-3 h-3" />}
+                  />
+                )}
+                <Select
+                  options={statusOptions}
+                  value={statusFilter}
+                  onChange={(value) => setStatusFilter(value as PlanStatus | 'all')}
+                />
+              </>
+            }
+          />
+        )
       }
     >
-      {/* Kanban filters */}
-      {viewMode === 'kanban' && (
-        <PlanKanbanFilterBar
-          filters={kanbanFilters}
-          onFilterChange={handleFilterChange}
-          onClearFilters={handleClearFilters}
-          activeFilterCount={activeFilterCount}
-        />
-      )}
-
-      {viewMode === 'kanban' ? (
+      {isKanban ? (
         <UniversalKanban
           config={planKanbanConfig}
           filters={kanbanColumnFilters}
           hiddenStatuses={hiddenStatuses}
-          onItemClick={(planId) =>
-            navigate(`/workspace/${wsSlug}/plans/${planId}`, { type: 'card-click' })
-          }
+          onItemClick={(planId) => navigate(`/workspace/${wsSlug}/plans/${planId}`, { type: 'card-click' })}
           refreshTrigger={planRefresh}
         />
       ) : showListSkeleton ? (
-        <div className="space-y-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <SkeletonCard key={i} lines={2} />
-          ))}
-        </div>
+        <EntityListSkeleton rows={6} />
       ) : plans.length === 0 ? (
         <EmptyState
-          variant={total === 0 && statusFilter === 'all' ? 'plans' : undefined}
-          title="No plans found"
+          variant={isPristine ? 'plans' : undefined}
+          title={isPristine ? 'No plans yet' : 'No matching plans'}
           description={
-            total === 0 && statusFilter === 'all'
-              ? 'Create a plan to organize your development work.'
-              : 'No plans match the current filters.'
+            isPristine ? 'Create a plan to organize your development work.' : 'Try adjusting your search or filters.'
           }
           action={
-            total === 0 && statusFilter === 'all' ? (
-              <Button onClick={openCreatePlan}>Create Plan</Button>
+            isPristine ? (
+              <Button size="sm" onClick={openCreatePlan}>
+                Create Plan
+              </Button>
             ) : undefined
           }
         />
       ) : (
         <>
-          {viewMode === 'list' && plans.length > 0 && (
-            <div className="flex items-center gap-2 mb-3">
-              <button
-                onClick={multiSelect.toggleAll}
-                className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
-              >
-                {multiSelect.isAllSelected ? 'Deselect All' : 'Select All'}
-              </button>
-            </div>
-          )}
-          <motion.div
-            className="space-y-4"
-            variants={reducedMotion ? undefined : staggerContainer}
-            initial="hidden"
-            animate="visible"
-          >
-            <AnimatePresence mode="popLayout">
-              {plans.map((plan) => (
-                <motion.div key={plan.id} variants={fadeInUp} exit="exit" layout={!reducedMotion}>
-                  <PlanCard
-                    wsSlug={wsSlug}
+          <div className="flex items-center justify-between gap-2 px-1 pb-1.5 min-h-9 text-[11px] text-gray-500">
+            <span className="tabular-nums">
+              {plans.length < total ? `${plans.length} of ${total} loaded` : `${total} plan${total === 1 ? '' : 's'}`}
+            </span>
+            <button type="button" onClick={multiSelect.toggleAll} className={`${hitArea} ${textLink}`}>
+              {multiSelect.isAllSelected ? 'Deselect all' : 'Select all'}
+            </button>
+          </div>
+          <EntityList aria-label="Plans">
+            {plans.map((plan) => (
+              <EntityRow
+                key={plan.id}
+                title={plan.title}
+                href={workspacePath(wsSlug, `/plans/${plan.id}`)}
+                viewTransitionName={`plan-title-${plan.id}`}
+                selected={multiSelect.isSelected(plan.id)}
+                muted={plan.status === 'completed' || plan.status === 'cancelled'}
+                leading={
+                  <RowSelect
                     selected={multiSelect.isSelected(plan.id)}
-                    onToggleSelect={(shiftKey) => multiSelect.toggle(plan.id, shiftKey)}
-                    plan={plan}
-                    onEdit={() => handleEditPlan(plan)}
-                    onStatusChange={async (newStatus) => {
-                      await plansApi.updateStatus(plan.id, newStatus)
-                      updateItem(
-                        (p) => p.id === plan.id,
-                        (p) => ({ ...p, status: newStatus })
-                      )
-                      toast.success('Status updated')
-                    }}
-                    onDelete={() =>
-                      confirmDialog.open({
-                        title: 'Delete Plan',
-                        description: 'This plan and all its tasks will be permanently deleted.',
-                        onConfirm: async () => {
-                          await plansApi.delete(plan.id)
-                          removeItems((p) => p.id === plan.id)
-                          toast.success('Plan deleted')
-                        },
-                      })
-                    }
+                    onToggle={(shiftKey) => multiSelect.toggle(plan.id, shiftKey)}
+                    label={`Select ${plan.title}`}
                   />
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </motion.div>
+                }
+                trailing={<RelativeTime date={plan.created_at} />}
+                description={plan.description}
+                meta={[
+                  <StatusMenu
+                    key="status"
+                    kind="plan"
+                    status={plan.status}
+                    onChange={(s) => handlePlanStatusChange(plan.id, s)}
+                  />,
+                  <PriorityText key="p" priority={plan.priority} />,
+                  plan.project_id ? (
+                    <span key="project" className="inline-flex items-center gap-1 min-w-0" title="Project">
+                      <FolderKanban className="w-3 h-3 shrink-0" aria-hidden="true" />
+                      <span className="truncate max-w-[12rem]">{projectNames.get(plan.project_id) ?? 'Project'}</span>
+                    </span>
+                  ) : null,
+                  plan.created_by ? (
+                    <span key="by" className="truncate max-w-[10rem]" title={`Created by ${plan.created_by}`}>
+                      {plan.created_by}
+                    </span>
+                  ) : null,
+                ]}
+                actions={[
+                  { label: 'Edit', icon: Pencil, onClick: () => handleEditPlan(plan) },
+                  {
+                    label: 'Delete',
+                    icon: Trash2,
+                    variant: 'danger',
+                    onClick: () => handleDeletePlan(plan),
+                    confirm: {
+                      title: 'Delete Plan',
+                      description: 'This plan and all its tasks will be permanently deleted.',
+                    },
+                  },
+                ]}
+              />
+            ))}
+          </EntityList>
           <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
         </>
       )}
 
-      <BulkActionBar
-        count={multiSelect.selectionCount}
-        onDelete={handleBulkDelete}
-        onClear={multiSelect.clear}
-      />
+      <BulkActionBar count={multiSelect.selectionCount} onDelete={handleBulkDelete} onClear={multiSelect.clear} />
       <FormDialog {...formDialog.dialogProps} onSubmit={planForm.submit}>
         {planForm.fields}
       </FormDialog>
@@ -439,73 +475,5 @@ export function PlansPage() {
       </FormDialog>
       <ConfirmDialog {...confirmDialog.dialogProps} />
     </PageShell>
-  )
-}
-
-const planStatusBarColor: Record<PlanStatus, string> = {
-  draft: 'bg-gray-400',
-  approved: 'bg-blue-400',
-  in_progress: 'bg-purple-400',
-  completed: 'bg-green-400',
-  cancelled: 'bg-red-400',
-}
-
-function PlanCard({
-  plan,
-  onEdit,
-  onStatusChange,
-  onDelete,
-  selected,
-  onToggleSelect,
-  wsSlug,
-}: {
-  plan: Plan
-  onEdit: () => void
-  onStatusChange: (status: PlanStatus) => Promise<void>
-  onDelete: () => void
-  selected?: boolean
-  onToggleSelect?: (shiftKey: boolean) => void
-  wsSlug: string
-}) {
-  return (
-    <Link to={`/workspace/${wsSlug}/plans/${plan.id}`}>
-      <Card
-        lazy="lg"
-        className={`transition-colors ${selected ? 'border-indigo-500/40 bg-indigo-500/[0.05]' : 'hover:border-indigo-500'}`}
-      >
-        <div className="flex">
-          {onToggleSelect && <SelectZone selected={!!selected} onToggle={onToggleSelect} />}
-          <div
-            className={`w-1 shrink-0 ${!onToggleSelect ? 'rounded-l-xl' : ''} ${planStatusBarColor[plan.status] || 'bg-gray-400'}`}
-          />
-          <div className="flex-1 min-w-0 p-3 md:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 sm:gap-3 mb-1">
-                <h3
-                  className="text-base sm:text-lg font-semibold text-gray-100 truncate min-w-0"
-                  style={{ viewTransitionName: `plan-title-${plan.id}` }}
-                >
-                  {plan.title}
-                </h3>
-                <InteractivePlanStatusBadge status={plan.status} onStatusChange={onStatusChange} />
-              </div>
-              <p className="text-sm text-gray-400 line-clamp-1">{plan.description}</p>
-            </div>
-            <div className="flex items-center gap-3 sm:ml-4 shrink-0">
-              <div className="text-right">
-                <div className="text-sm text-gray-400">Priority</div>
-                <div className="text-lg font-bold text-indigo-400">{plan.priority}</div>
-              </div>
-              <OverflowMenu
-                actions={[
-                  { label: 'Edit', onClick: () => onEdit() },
-                  { label: 'Delete', variant: 'danger', onClick: () => onDelete() },
-                ]}
-              />
-            </div>
-          </div>
-        </div>
-      </Card>
-    </Link>
   )
 }

@@ -1,42 +1,51 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { Link } from 'react-router-dom'
-import { motion, AnimatePresence } from 'motion/react'
+import { ClipboardList, Folder, Pencil, Trash2 } from 'lucide-react'
 import { tasksAtom, tasksLoadingAtom, taskStatusFilterAtom, taskRefreshAtom } from '@/atoms'
 import { tasksApi } from '@/services'
 import {
-  Card,
-  EmptyState,
-  Select,
-  InteractiveTaskStatusBadge,
-  Badge,
-  ViewToggle,
-  ConfirmDialog,
-  FormDialog,
-  OverflowMenu,
-  PageShell,
-  SelectZone,
   BulkActionBar,
+  ConfirmDialog,
+  EmptyState,
+  EntityList,
+  EntityListSkeleton,
+  EntityRow,
+  FilterBar,
+  FormDialog,
   LoadMoreSentinel,
-  SkeletonCard,
-  PulseIndicator,
+  PageShell,
+  PriorityText,
+  RelativeTime,
+  Select,
+  StatusMenu,
+  getStatusOptions,
+  hitArea,
+  inlineLink,
+  rowInteractive,
+  textLink,
 } from '@/components/ui'
-import { useKanbanFilters, useViewMode, useConfirmDialog, useFormDialog, useToast, useMultiSelect, useInfiniteList, useWorkspaceSlug, useViewTransition, useProjectFilter } from '@/hooks'
-import { KanbanFilterBar, UniversalKanban, createTaskKanbanConfig } from '@/components/kanban'
+import {
+  useKanbanFilters,
+  useViewMode,
+  useConfirmDialog,
+  useFormDialog,
+  useToast,
+  useMultiSelect,
+  useInfiniteList,
+  useWorkspaceSlug,
+  useViewTransition,
+  useProjectFilter,
+} from '@/hooks'
+import { KanbanFilterBar, RowSelect, UniversalKanban, ViewModeToggle, createTaskKanbanConfig } from '@/components/kanban'
+import { RowStateLink } from '@/components/tasks/RowStateLink'
 import { EditTaskForm } from '@/components/forms'
 import type { EditTaskFormData } from '@/components/forms/EditTaskForm'
 import type { TaskWithPlan, TaskStatus, PaginatedResponse } from '@/types'
 import type { KanbanTask } from '@/components/kanban/KanbanCard'
-import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
+import { workspacePath } from '@/utils/paths'
 
-const statusOptions = [
-  { value: 'all', label: 'All Status' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'blocked', label: 'Blocked' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'failed', label: 'Failed' },
-]
+const statusOptions = [{ value: 'all', label: 'All statuses' }, ...getStatusOptions('task')]
 
 export function TasksPage() {
   const [, setTasksAtom] = useAtom(tasksAtom)
@@ -52,7 +61,6 @@ export function TasksPage() {
   const kanbanFilters = useKanbanFilters()
   const wsSlug = useWorkspaceSlug()
   const { selectedProjectId, setSelectedProjectId, projectFilterParam, projectOptions } = useProjectFilter()
-  const reducedMotion = useReducedMotion()
 
   // --- Infinite scroll for list mode (workspace-scoped) ---
   const listFilters = useMemo(
@@ -131,6 +139,7 @@ export function TasksPage() {
     return hidden
   }, [kanbanFilters.filters.exclude_completed, kanbanFilters.filters.exclude_failed])
 
+  /** List rows: optimistic update + rollback. */
   const handleTaskStatusChange = useCallback(
     async (taskId: string, newStatus: TaskStatus) => {
       const oldTask = tasks.find((t) => t.id === taskId)
@@ -150,6 +159,20 @@ export function TasksPage() {
     [tasks, updateItem, toast],
   )
 
+  /** Board: the board moves the card optimistically; rethrow so it can roll back. */
+  const handleBoardStatusChange = useCallback(
+    async (taskId: string, newStatus: string) => {
+      try {
+        await tasksApi.update(taskId, { status: newStatus as TaskStatus })
+        toast.success('Status updated')
+      } catch (err) {
+        toast.error('Failed to update status')
+        throw err
+      }
+    },
+    [toast],
+  )
+
   const handleTaskClick = useCallback(
     (taskId: string) => {
       navigate(`/workspace/${wsSlug}/tasks/${taskId}`, { type: 'card-click' })
@@ -159,16 +182,18 @@ export function TasksPage() {
 
   // UniversalKanban config for tasks
   const taskKanbanConfig = useMemo(
-    () =>
-      createTaskKanbanConfig({
-        fetchFn: kanbanFetchFn,
-        onStatusChange: (id, status) => handleTaskStatusChange(id, status as TaskStatus),
-      }),
-    [kanbanFetchFn, handleTaskStatusChange],
+    () => createTaskKanbanConfig({ fetchFn: kanbanFetchFn, onStatusChange: handleBoardStatusChange }),
+    [kanbanFetchFn, handleBoardStatusChange],
   )
 
   const editForm = EditTaskForm({
-    initialValues: { title: editingTask?.title, description: editingTask?.description, priority: editingTask?.priority, estimated_complexity: editingTask?.estimated_complexity, tags: editingTask?.tags },
+    initialValues: {
+      title: editingTask?.title,
+      description: editingTask?.description,
+      priority: editingTask?.priority,
+      estimated_complexity: editingTask?.estimated_complexity,
+      tags: editingTask?.tags,
+    },
     onSubmit: async (data: EditTaskFormData) => {
       if (!editingTask) return
       await tasksApi.update(editingTask.id, data)
@@ -183,6 +208,12 @@ export function TasksPage() {
   const handleEditTask = (task: TaskWithPlan) => {
     setEditingTask(task)
     editDialog.open({ title: 'Edit Task' })
+  }
+
+  const handleDeleteTask = async (task: TaskWithPlan) => {
+    await tasksApi.delete(task.id)
+    removeItems((t) => t.id === task.id)
+    toast.success('Task deleted')
   }
 
   const multiSelect = useMultiSelect(tasks, (t) => t.id)
@@ -207,47 +238,65 @@ export function TasksPage() {
     })
   }
 
-  const showListSkeleton = loading && viewMode === 'list' && tasks.length === 0
+  const isKanban = viewMode === 'kanban'
+  const showListSkeleton = loading && !isKanban && tasks.length === 0
+  const viewToggle = <ViewModeToggle value={viewMode} onChange={setViewMode} />
+
+  // List filters (FilterBar)
+  const listActiveCount = (projectFilterParam ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)
+  const listActiveLabels = [
+    projectFilterParam ? projectOptions.find((o) => o.value === selectedProjectId)?.label ?? 'Project' : '',
+    statusFilter !== 'all' ? statusOptions.find((o) => o.value === statusFilter)?.label ?? statusFilter : '',
+  ]
+  const isPristine = total === 0 && listActiveCount === 0
 
   return (
     <PageShell
       title="Tasks"
       description="Manage tasks across all plans"
-      actions={
-        <>
-          {viewMode === 'list' && (
-            <>
-              <Select
-                options={projectOptions}
-                value={selectedProjectId}
-                onChange={setSelectedProjectId}
-                className="w-full sm:w-44"
-              />
-              <Select
-                options={statusOptions}
-                value={statusFilter}
-                onChange={(value) => setStatusFilter(value as TaskStatus | 'all')}
-                className="w-full sm:w-40"
-              />
-            </>
-          )}
-          <ViewToggle value={viewMode} onChange={setViewMode} />
-        </>
+      count={!isKanban && !loading ? total : undefined}
+      width={isKanban ? 'full' : 'wide'}
+      filters={
+        isKanban ? (
+          <KanbanFilterBar
+            filters={kanbanFilters.filters}
+            onFilterChange={kanbanFilters.setFilter}
+            onToggleExcludeProject={kanbanFilters.toggleExcludeProject}
+            onClearFilters={kanbanFilters.clearFilters}
+            activeFilterCount={kanbanFilters.activeFilterCount}
+            trailing={viewToggle}
+          />
+        ) : (
+          <FilterBar
+            activeCount={listActiveCount}
+            activeLabels={listActiveLabels}
+            onClear={() => {
+              setSelectedProjectId('all')
+              setStatusFilter('all')
+            }}
+            trailing={viewToggle}
+            filters={
+              <>
+                {projectOptions.length > 1 && (
+                  <Select
+                    options={projectOptions}
+                    value={selectedProjectId}
+                    onChange={setSelectedProjectId}
+                    icon={<Folder className="w-3 h-3" />}
+                  />
+                )}
+                <Select
+                  options={statusOptions}
+                  value={statusFilter}
+                  onChange={(value) => setStatusFilter(value as TaskStatus | 'all')}
+                />
+              </>
+            }
+          />
+        )
       }
     >
-      {/* Kanban filter bar */}
-      {viewMode === 'kanban' && (
-        <KanbanFilterBar
-          filters={kanbanFilters.filters}
-          onFilterChange={kanbanFilters.setFilter}
-          onToggleExcludeProject={kanbanFilters.toggleExcludeProject}
-          onClearFilters={kanbanFilters.clearFilters}
-          activeFilterCount={kanbanFilters.activeFilterCount}
-        />
-      )}
-
-      {/* Content */}
-      {viewMode === 'kanban' ? (
+      {isKanban ? (
         <UniversalKanban
           config={taskKanbanConfig}
           filters={kanbanColumnFilters}
@@ -256,81 +305,42 @@ export function TasksPage() {
           refreshTrigger={taskRefresh}
         />
       ) : showListSkeleton ? (
-        <div className="space-y-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <SkeletonCard key={i} lines={2} />
-          ))}
-        </div>
+        <EntityListSkeleton rows={6} />
       ) : tasks.length === 0 ? (
         <EmptyState
-          variant={total === 0 && statusFilter === 'all' ? 'tasks' : undefined}
-          title="No tasks found"
-          description={
-            total === 0 && statusFilter === 'all'
-              ? 'Tasks will appear here when you create plans.'
-              : 'No tasks match the current filters.'
-          }
+          variant={isPristine ? 'tasks' : undefined}
+          title={isPristine ? 'No tasks yet' : 'No matching tasks'}
+          description={isPristine ? 'Tasks will appear here when you create plans.' : 'No tasks match the current filters.'}
         />
       ) : (
         <>
-          {viewMode === 'list' && tasks.length > 0 && (
-            <div className="flex items-center gap-2 mb-3">
-              <button
-                onClick={multiSelect.toggleAll}
-                className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
-              >
-                {multiSelect.isAllSelected ? 'Deselect All' : 'Select All'}
-              </button>
-            </div>
-          )}
-          <motion.div
-            className="space-y-3"
-            variants={reducedMotion ? undefined : staggerContainer}
-            initial="hidden"
-            animate="visible"
-          >
-            <AnimatePresence mode="popLayout">
-              {tasks.map((task) => (
-                <motion.div key={task.id} variants={fadeInUp} exit="exit" layout={!reducedMotion}>
-                  <TaskCard
-                    wsSlug={wsSlug}
-                    selected={multiSelect.isSelected(task.id)}
-                    onToggleSelect={(shiftKey) => multiSelect.toggle(task.id, shiftKey)}
-                    task={task}
-                    onEdit={() => handleEditTask(task)}
-                    onStatusChange={async (newStatus) => {
-                      await tasksApi.update(task.id, { status: newStatus })
-                      updateItem(
-                        (t) => t.id === task.id,
-                        (t) => ({ ...t, status: newStatus }),
-                      )
-                      toast.success('Status updated')
-                    }}
-                    onDelete={() =>
-                      confirmDialog.open({
-                        title: 'Delete Task',
-                        description: 'This will permanently delete this task and all its steps and decisions.',
-                        onConfirm: async () => {
-                          await tasksApi.delete(task.id)
-                          removeItems((t) => t.id === task.id)
-                          toast.success('Task deleted')
-                        },
-                      })
-                    }
-                  />
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </motion.div>
+          <div className="flex items-center justify-between gap-2 px-1 pb-1.5 min-h-9 text-[11px] text-gray-500">
+            <span className="tabular-nums">
+              {tasks.length < total ? `${tasks.length} of ${total} loaded` : `${total} task${total === 1 ? '' : 's'}`}
+            </span>
+            <button type="button" onClick={multiSelect.toggleAll} className={`${hitArea} ${textLink}`}>
+              {multiSelect.isAllSelected ? 'Deselect all' : 'Select all'}
+            </button>
+          </div>
+          <EntityList aria-label="Tasks">
+            {tasks.map((task) => (
+              <TaskRow
+                key={task.id}
+                task={task}
+                wsSlug={wsSlug}
+                selected={multiSelect.isSelected(task.id)}
+                onToggleSelect={(shiftKey) => multiSelect.toggle(task.id, shiftKey)}
+                onEdit={() => handleEditTask(task)}
+                onStatusChange={(status) => handleTaskStatusChange(task.id, status)}
+                onDelete={() => handleDeleteTask(task)}
+              />
+            ))}
+          </EntityList>
           <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
         </>
       )}
 
-      <BulkActionBar
-        count={multiSelect.selectionCount}
-        onDelete={handleBulkDelete}
-        onClear={multiSelect.clear}
-      />
+      <BulkActionBar count={multiSelect.selectionCount} onDelete={handleBulkDelete} onClear={multiSelect.clear} />
       <FormDialog {...editDialog.dialogProps} onSubmit={editForm.submit}>
         {editForm.fields}
       </FormDialog>
@@ -339,83 +349,77 @@ export function TasksPage() {
   )
 }
 
-const taskStatusBarColor: Record<TaskStatus, string> = {
-  pending: 'bg-gray-400',
-  in_progress: 'bg-blue-400',
-  blocked: 'bg-yellow-400',
-  completed: 'bg-green-400',
-  failed: 'bg-red-400',
-}
+// ── Task row ────────────────────────────────────────────────────────────
 
-function TaskCard({
-  task,
-  onEdit,
-  onStatusChange,
-  onDelete,
-  selected,
-  onToggleSelect,
-  wsSlug,
-}: {
+interface TaskRowProps {
   task: TaskWithPlan
+  wsSlug: string
+  selected: boolean
+  onToggleSelect: (shiftKey: boolean) => void
   onEdit: () => void
   onStatusChange: (status: TaskStatus) => Promise<void>
-  onDelete: () => void
-  selected?: boolean
-  onToggleSelect?: (shiftKey: boolean) => void
-  wsSlug: string
-}) {
+  onDelete: () => Promise<void>
+}
+
+function TaskRow({ task, wsSlug, selected, onToggleSelect, onEdit, onStatusChange, onDelete }: TaskRowProps) {
+  const title = task.title || task.description || 'Untitled task'
   const tags = task.tags || []
   return (
-    <Link to={`/workspace/${wsSlug}/tasks/${task.id}`} state={{ planId: task.plan_id, planTitle: task.plan_title }}>
-      <Card lazy className={`transition-colors ${selected ? 'border-indigo-500/40 bg-indigo-500/[0.05]' : 'hover:border-indigo-500'}`}>
-        <div className="flex">
-          {onToggleSelect && (
-            <SelectZone selected={!!selected} onToggle={onToggleSelect} />
-          )}
-          <div className={`w-1 shrink-0 ${!onToggleSelect ? 'rounded-l-xl' : ''} ${taskStatusBarColor[task.status] || 'bg-gray-400'}`} />
-          <div className="flex-1 min-w-0 p-3 md:p-4">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  {task.status === 'in_progress' && <PulseIndicator variant="pending" size={8} />}
-                  <h3 className="font-semibold text-gray-100 truncate min-w-0" style={{ viewTransitionName: `task-title-${task.id}` }}>
-                    {task.title || (task.description || '').slice(0, 60)}
-                  </h3>
-                  <InteractiveTaskStatusBadge status={task.status} onStatusChange={onStatusChange} />
-                </div>
-                <p className="text-sm text-gray-400 line-clamp-2 mb-2">{task.description}</p>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
-                  <span className="truncate max-w-[150px] sm:max-w-[200px] md:max-w-xs">Plan: {task.plan_title}</span>
-                  {task.assigned_to && <span className="truncate max-w-[120px] sm:max-w-[180px]">Assigned: {task.assigned_to}</span>}
-                </div>
-                {tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {tags.map((tag, index) => (
-                      <Badge key={`${tag}-${index}`} variant="default">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-2 sm:ml-4 shrink-0">
-                {task.priority !== undefined && (
-                  <div className="text-right">
-                    <div className="text-xs text-gray-500">Priority</div>
-                    <div className="text-lg font-bold text-indigo-400">{task.priority}</div>
-                  </div>
-                )}
-                <OverflowMenu
-                  actions={[
-                    { label: 'Edit', onClick: () => onEdit() },
-                    { label: 'Delete', variant: 'danger', onClick: () => onDelete() },
-                  ]}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </Card>
-    </Link>
+    <EntityRow
+      title={
+        <RowStateLink
+          to={workspacePath(wsSlug, `/tasks/${task.id}`)}
+          state={{ planId: task.plan_id, planTitle: task.plan_title }}
+        >
+          {title}
+        </RowStateLink>
+      }
+      ariaLabel={title}
+      viewTransitionName={`task-title-${task.id}`}
+      className="hover:bg-white/[0.03] active:bg-white/[0.05]"
+      selected={selected}
+      muted={task.status === 'completed'}
+      leading={<RowSelect selected={selected} onToggle={onToggleSelect} label={`Select ${title}`} />}
+      trailing={<RelativeTime date={task.updated_at ?? task.created_at} />}
+      description={task.title ? task.description : undefined}
+      meta={[
+        <StatusMenu key="status" kind="task" status={task.status} onChange={onStatusChange} />,
+        <PriorityText key="p" priority={task.priority} />,
+        task.plan_id && task.plan_title ? (
+          <Link
+            key="plan"
+            to={workspacePath(wsSlug, `/plans/${task.plan_id}`)}
+            title={`Plan: ${task.plan_title}`}
+            className={`${rowInteractive} ${hitArea} ${inlineLink} inline-flex items-center gap-1 min-w-0`}
+          >
+            <ClipboardList className="w-3 h-3 shrink-0" aria-hidden="true" />
+            <span className="truncate max-w-[14rem]">{task.plan_title}</span>
+          </Link>
+        ) : null,
+        task.assigned_to ? (
+          <span key="assignee" className="truncate max-w-[10rem]" title={`Assigned to ${task.assigned_to}`}>
+            @{task.assigned_to}
+          </span>
+        ) : null,
+        tags.length > 0 ? (
+          <span key="tags" className="break-words">
+            {tags.map((t) => `#${t}`).join(' ')}
+          </span>
+        ) : null,
+      ]}
+      actions={[
+        { label: 'Edit', icon: Pencil, onClick: onEdit },
+        {
+          label: 'Delete',
+          icon: Trash2,
+          variant: 'danger',
+          onClick: onDelete,
+          confirm: {
+            title: 'Delete Task',
+            description: 'This will permanently delete this task and all its steps and decisions.',
+          },
+        },
+      ]}
+    />
   )
 }

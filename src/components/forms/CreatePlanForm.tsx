@@ -90,6 +90,10 @@ export function CreatePlanForm({ onSubmit, defaultProjectId, workspaceSlug }: Pr
         priority: parseInt(priority) || 5,
         project_id: projectId || undefined,
       })
+      // Fresh form for the next "New plan"
+      setTitle('')
+      setDescription('')
+      setPriority('5')
     },
   }
 }

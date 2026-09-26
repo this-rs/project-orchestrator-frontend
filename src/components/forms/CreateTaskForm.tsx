@@ -86,6 +86,12 @@ export function CreateTaskForm({ onSubmit }: Props) {
           .filter(Boolean),
         estimated_complexity: complexity ? parseInt(complexity) : undefined,
       })
+      // Fresh form for the next "Add task"
+      setTitle('')
+      setDescription('')
+      setPriority('')
+      setTags('')
+      setComplexity('')
     },
   }
 }

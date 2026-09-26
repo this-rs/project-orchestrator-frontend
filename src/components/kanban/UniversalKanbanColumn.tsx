@@ -1,14 +1,14 @@
 import type { ReactNode } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { useInfiniteScroll } from '@/hooks'
-import { kanbanColorMap } from './KanbanColumn'
-import { Spinner } from '@/components/ui/Spinner'
+import { Skeleton, Spinner, StatusDot, type StatusKind } from '@/components/ui'
 
 interface UniversalKanbanColumnProps<T extends { id: string }> {
   id: string
   title: string
   items: T[]
-  color: string
+  /** Status registry for the header dot tone. */
+  kind?: StatusKind
   total?: number
   hasMore?: boolean
   loadingMore?: boolean
@@ -19,11 +19,16 @@ interface UniversalKanbanColumnProps<T extends { id: string }> {
   children: (item: T) => ReactNode
 }
 
+/**
+ * Board column: `● Status  12` header (status tone dot, like everywhere else)
+ * over an opaque surface that scrolls on its own. Drop target highlight uses
+ * the indigo accent.
+ */
 export function UniversalKanbanColumn<T extends { id: string }>({
   id,
   title,
   items,
-  color,
+  kind,
   total,
   hasMore = false,
   loadingMore = false,
@@ -34,7 +39,6 @@ export function UniversalKanbanColumn<T extends { id: string }>({
   children,
 }: UniversalKanbanColumnProps<T>) {
   const { isOver, setNodeRef } = useDroppable({ id })
-  const colors = kanbanColorMap[color] || kanbanColorMap.gray
 
   const { sentinelRef } = useInfiniteScroll({
     onLoadMore: onLoadMore || (() => {}),
@@ -45,36 +49,35 @@ export function UniversalKanbanColumn<T extends { id: string }>({
   const displayCount = total !== undefined ? total : items.length
 
   return (
-    <div className={`flex flex-col flex-1 ${fullWidth ? 'min-w-0' : 'min-w-[200px]'}`}>
-      {/* Header */}
-      <div className={`flex items-center gap-2 px-3 py-2 rounded-t-lg ${colors.bg} border-l-4 ${colors.border}`}>
-        <h3 className={`text-sm font-semibold ${colors.text}`}>{title}</h3>
-        <span className="text-xs text-gray-500 bg-surface-raised rounded-full px-2 py-0.5">
-          {displayCount}
-        </span>
-      </div>
+    <section
+      aria-label={`${title} (${displayCount})`}
+      className={`flex flex-col flex-1 rounded-xl border bg-white/[0.02] transition-colors duration-[120ms] ${
+        fullWidth ? 'min-w-0' : 'min-w-[220px]'
+      } ${isOver ? 'border-indigo-500/40 bg-indigo-500/[0.04]' : 'border-white/[0.06]'}`}
+    >
+      <h3 className="flex items-center gap-2 px-3 min-h-9 text-xs font-medium text-gray-300">
+        <StatusDot kind={kind} status={id} size="md" />
+        <span className="truncate">{title}</span>
+        <span className="tabular-nums font-normal text-gray-500">{displayCount}</span>
+      </h3>
 
-      {/* Drop zone */}
       <div
         ref={setNodeRef}
-        className={`flex-1 p-2 space-y-2 rounded-b-lg border border-t-0 border-border-subtle min-h-[200px] ${fullWidth ? 'max-h-[calc(100dvh-200px)]' : 'max-h-[calc(100vh-280px)]'} overflow-y-auto transition-colors duration-150 ${
-          isOver ? colors.dropHighlight : 'bg-surface-raised/30'
-        }`}
+        className={`flex-1 px-2 pb-2 space-y-2 min-h-[120px] ${
+          fullWidth ? 'max-h-[calc(100dvh-220px)]' : 'max-h-[calc(100vh-280px)]'
+        } overflow-y-auto overscroll-contain`}
       >
         {loading ? (
-          <div className="space-y-2">
+          <div className="space-y-2" aria-hidden="true">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-20 bg-white/[0.06] rounded-lg animate-pulse" />
+              <Skeleton key={i} className="h-16 rounded-lg" />
             ))}
           </div>
         ) : items.length === 0 ? (
-          <div className="flex items-center justify-center h-20 text-xs text-gray-600">
-            {emptyLabel}
-          </div>
+          <div className="flex items-center justify-center h-16 text-xs text-gray-600">{emptyLabel}</div>
         ) : (
           <>
             {items.map((item) => children(item))}
-            {/* Sentinel for infinite scroll */}
             {hasMore && <div ref={sentinelRef} className="h-1" />}
             {loadingMore && (
               <div className="flex justify-center py-2">
@@ -84,6 +87,6 @@ export function UniversalKanbanColumn<T extends { id: string }>({
           </>
         )}
       </div>
-    </div>
+    </section>
   )
 }

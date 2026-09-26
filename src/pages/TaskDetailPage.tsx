@@ -1,16 +1,43 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useParams, Link, useLocation } from 'react-router-dom'
+import { useParams, useLocation } from 'react-router-dom'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { ClipboardList, Flag, FolderKanban, GitCommitHorizontal, Pencil, MessageCircle, ScrollText, Folder, Clock } from 'lucide-react'
-import { Card, CardHeader, CardTitle, CardContent, LoadingPage, ErrorState, Badge, Button, ConfirmDialog, FormDialog, LinkEntityDialog, TaskStatusBadge, InteractiveStepStatusBadge, InteractiveDecisionStatusBadge, ProgressBar, PageHeader, StatusSelect, TabLayout, ViewToggle } from '@/components/ui'
+import { ClipboardList, FileCode2, Flag, FolderKanban, Link2, Pencil, Plus, Trash2, Unlink } from 'lucide-react'
+import {
+  EntityList,
+  EntityListSkeleton,
+  EntityRow,
+  ErrorState,
+  Facts,
+  FormDialog,
+  LinkEntityDialog,
+  PageContainer,
+  PageHeader,
+  PriorityText,
+  RelativeTime,
+  Section,
+  StatusDot,
+  StatusMenu,
+  StatusText,
+  formatAbsolute,
+  getStatusMeta,
+} from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { tasksApi, plansApi, projectsApi, workspacesApi, decisionsApi } from '@/services'
-import { useConfirmDialog, useFormDialog, useLinkDialog, useToast, useWorkspaceSlug, useViewTransition, useViewMode } from '@/hooks'
+import { useFormDialog, useLinkDialog, useToast, useWorkspaceSlug, useViewTransition, useViewMode } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { taskRefreshAtom, projectRefreshAtom, planRefreshAtom, chatPanelModeAtom, chatSessionIdAtom } from '@/atoms'
 import { CreateStepForm, CreateDecisionForm, EditTaskForm, EditStepForm } from '@/components/forms'
 import { CommitList } from '@/components/commits'
-import { UniversalKanban, createStepKanbanConfig } from '@/components/kanban'
+import { MiniProgress, UniversalKanban, ViewModeToggle, createStepKanbanConfig } from '@/components/kanban'
+import {
+  CommitShaField,
+  DecisionRow,
+  DetailSkeleton,
+  EmptyLine,
+  SectionAddButton,
+  SessionRow,
+  StepRow,
+} from '@/components/tasks/DetailRows'
 import type { Task, Step, Decision, Commit, TaskStatus, StepStatus, DecisionStatus, Project, SessionWithLinks } from '@/types'
 
 // The API response structure
@@ -36,7 +63,6 @@ export function TaskDetailPage() {
   const { navigate } = useViewTransition()
   const location = useLocation()
   const wsSlug = useWorkspaceSlug()
-  const confirmDialog = useConfirmDialog()
   const editTaskDialog = useFormDialog()
   const editStepDialog = useFormDialog()
   const stepFormDialog = useFormDialog()
@@ -59,7 +85,6 @@ export function TaskDetailPage() {
   const [commitShaInput, setCommitShaInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState('steps')
   // Chat sessions linked to this task
   const [chatSessions, setChatSessions] = useState<SessionWithLinks[]>([])
   const [chatSessionsLoading, setChatSessionsLoading] = useState(false)
@@ -73,31 +98,31 @@ export function TaskDetailPage() {
   const fetchData = useCallback(async () => {
     if (!taskId) return
     setError(null)
-    // Only show loading spinner on initial load, not on WS-triggered refreshes
+    // Only show the loading skeleton on initial load, not on WS-triggered refreshes
     const isInitialLoad = !task
     if (isInitialLoad) setLoading(true)
     try {
-        // The API returns { task, steps, decisions, depends_on, modifies_files }
-        const response = await tasksApi.get(taskId) as unknown as TaskApiResponse
+      // The API returns { task, steps, decisions, depends_on, modifies_files }
+      const response = (await tasksApi.get(taskId)) as unknown as TaskApiResponse
 
-        // Handle both nested and flat response structures
-        const taskData = response.task || response
-        setTask(taskData)
-        setDecisions(response.decisions || [])
+      // Handle both nested and flat response structures
+      const taskData = response.task || response
+      setTask(taskData)
+      setDecisions(response.decisions || [])
 
-        // Fetch steps via dedicated endpoint (task.steps can have stale statuses)
-        // Also fetch blockers, blocking, and commits in parallel
-        const [stepsData, blockersData, blockingData, commitsData] = await Promise.all([
-          tasksApi.listSteps(taskId).catch(() => [] as Step[]),
-          tasksApi.getBlockers(taskId).catch(() => ({ items: [] })),
-          tasksApi.getBlocking(taskId).catch(() => ({ items: [] })),
-          tasksApi.getCommits(taskId).catch(() => ({ items: [] })),
-        ])
-        setSteps(stepsData)
-        setBlockers(blockersData.items || [])
-        setBlocking(blockingData.items || [])
-        setCommits(commitsData.items || [])
-      } catch (error) {
+      // Fetch steps via dedicated endpoint (task.steps can have stale statuses)
+      // Also fetch blockers, blocking, and commits in parallel
+      const [stepsData, blockersData, blockingData, commitsData] = await Promise.all([
+        tasksApi.listSteps(taskId).catch(() => [] as Step[]),
+        tasksApi.getBlockers(taskId).catch(() => ({ items: [] })),
+        tasksApi.getBlocking(taskId).catch(() => ({ items: [] })),
+        tasksApi.getCommits(taskId).catch(() => ({ items: [] })),
+      ])
+      setSteps(stepsData)
+      setBlockers(blockersData.items || [])
+      setBlocking(blockingData.items || [])
+      setCommits(commitsData.items || [])
+    } catch (error) {
       console.error('Failed to fetch task:', error)
       setError('Failed to load task')
     } finally {
@@ -110,17 +135,26 @@ export function TaskDetailPage() {
     fetchData()
   }, [fetchData])
 
-  // Lazy-load chat sessions when switching to chat tab
+  // Linked chat sessions (was lazy-loaded with the old "Chat" tab; the page is now one scroll)
   useEffect(() => {
-    if (activeTab !== 'chat' || !taskId) return
+    if (!taskId) return
     let cancelled = false
     setChatSessionsLoading(true)
-    tasksApi.getSessions(taskId)
-      .then((data) => { if (!cancelled) setChatSessions(data || []) })
-      .catch(() => { if (!cancelled) setChatSessions([]) })
-      .finally(() => { if (!cancelled) setChatSessionsLoading(false) })
-    return () => { cancelled = true }
-  }, [activeTab, taskId])
+    tasksApi
+      .getSessions(taskId)
+      .then((data) => {
+        if (!cancelled) setChatSessions(data || [])
+      })
+      .catch(() => {
+        if (!cancelled) setChatSessions([])
+      })
+      .finally(() => {
+        if (!cancelled) setChatSessionsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [taskId])
 
   // Resolve parent plan & project
   useEffect(() => {
@@ -141,7 +175,9 @@ export function TaskDetailPage() {
             planId = (match as { plan_id?: string }).plan_id ?? null
             planTitle = (match as { plan_title?: string }).plan_title ?? null
           }
-        } catch { /* graceful degradation */ }
+        } catch {
+          /* graceful degradation */
+        }
       }
 
       if (controller.signal.aborted) return
@@ -161,7 +197,9 @@ export function TaskDetailPage() {
             const allProjects = await projectsApi.list()
             project = (allProjects.items || []).find((p) => p.id === planData.project_id) ?? null
           }
-        } catch { /* graceful degradation */ }
+        } catch {
+          /* graceful degradation */
+        }
       }
 
       if (controller.signal.aborted) return
@@ -181,7 +219,9 @@ export function TaskDetailPage() {
                 }
                 return
               }
-            } catch { /* skip */ }
+            } catch {
+              /* skip */
+            }
           }
 
           // Check project milestones
@@ -199,11 +239,17 @@ export function TaskDetailPage() {
                     }
                     return
                   }
-                } catch { /* skip */ }
+                } catch {
+                  /* skip */
+                }
               }
-            } catch { /* graceful degradation */ }
+            } catch {
+              /* graceful degradation */
+            }
           }
-        } catch { /* graceful degradation */ }
+        } catch {
+          /* graceful degradation */
+        }
       }
     }
 
@@ -240,16 +286,10 @@ export function TaskDetailPage() {
     }
   }
 
-  const handleDeleteDecision = (decision: Decision) => {
-    confirmDialog.open({
-      title: 'Delete Decision',
-      description: 'Permanently delete this decision? This cannot be undone.',
-      onConfirm: async () => {
-        await decisionsApi.delete(decision.id)
-        setDecisions((prev) => prev.filter((d) => d.id !== decision.id))
-        toast.success('Decision deleted')
-      },
-    })
+  const handleDeleteDecision = async (decision: Decision) => {
+    await decisionsApi.delete(decision.id)
+    setDecisions((prev) => prev.filter((d) => d.id !== decision.id))
+    toast.success('Decision deleted')
   }
 
   const [stepsViewMode, setStepsViewMode] = useViewMode()
@@ -264,20 +304,13 @@ export function TaskDetailPage() {
     [steps],
   )
 
-  const handleStepStatusChange = useCallback(
-    async (stepId: string, newStatus: string) => {
-      await tasksApi.updateStep(stepId, { status: newStatus })
-      setSteps((prev) => prev.map((s) => s.id === stepId ? { ...s, status: newStatus as StepStatus } : s))
-    },
-    [],
-  )
+  const handleStepStatusChange = useCallback(async (stepId: string, newStatus: string) => {
+    await tasksApi.updateStep(stepId, { status: newStatus })
+    setSteps((prev) => prev.map((s) => (s.id === stepId ? { ...s, status: newStatus as StepStatus } : s)))
+  }, [])
 
   const stepKanbanConfig = useMemo(
-    () =>
-      createStepKanbanConfig({
-        fetchFn: stepFetchFn,
-        onStatusChange: handleStepStatusChange,
-      }),
+    () => createStepKanbanConfig({ fetchFn: stepFetchFn, onStatusChange: handleStepStatusChange }),
     [stepFetchFn, handleStepStatusChange],
   )
 
@@ -288,13 +321,19 @@ export function TaskDetailPage() {
     onSubmit: async (data) => {
       if (!editingStep) return
       await tasksApi.updateStep(editingStep.id, data)
-      setSteps(prev => prev.map(s => s.id === editingStep.id ? { ...s, ...data } : s))
+      setSteps((prev) => prev.map((s) => (s.id === editingStep.id ? { ...s, ...data } : s)))
       toast.success('Step updated')
     },
   })
 
   const editTaskForm = EditTaskForm({
-    initialValues: { title: task?.title, description: task?.description, priority: task?.priority, estimated_complexity: task?.estimated_complexity, tags: task?.tags },
+    initialValues: {
+      title: task?.title,
+      description: task?.description,
+      priority: task?.priority,
+      estimated_complexity: task?.estimated_complexity,
+      tags: task?.tags,
+    },
     onSubmit: async (data) => {
       if (!task) return
       await tasksApi.update(task.id, data)
@@ -303,31 +342,47 @@ export function TaskDetailPage() {
     },
   })
 
-  if (error) return <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
-  if (loading || !task) return <LoadingPage />
+  const openAddDependency = () =>
+    linkDialog.open({
+      title: 'Add Dependency',
+      submitLabel: 'Add',
+      fetchOptions: async () => {
+        const data = await tasksApi.list({ limit: 100 })
+        const existingIds = new Set([taskId, ...blockers.map((b) => b.id)])
+        return (data.items || [])
+          .filter((t) => !existingIds.has(t.id))
+          .map((t) => ({ value: t.id, label: t.title || t.description || 'Untitled', description: t.status }))
+      },
+      onLink: async (depId) => {
+        await tasksApi.addDependencies(taskId!, [depId])
+        const blockersData = await tasksApi.getBlockers(taskId!).catch(() => ({ items: [] }))
+        setBlockers(blockersData.items || [])
+        toast.success('Dependency added')
+      },
+    })
 
-  // Use state variables for arrays
+  const openLinkCommit = () => {
+    setCommitShaInput('')
+    commitFormDialog.open({ title: 'Link Commit', submitLabel: 'Link', size: 'sm' })
+  }
+  const openAddStep = () => stepFormDialog.open({ title: 'Add Step' })
+  const openAddDecision = () => decisionFormDialog.open({ title: 'Add Decision', size: 'lg' })
+
+  if (error) return <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
+  if (loading || !task) return <DetailSkeleton />
+
   const tags = task.tags || []
   const acceptanceCriteria = task.acceptance_criteria || []
   const affectedFiles = task.affected_files || []
-
   const completedSteps = steps.filter((s) => s.status === 'completed').length
   const stepProgress = steps.length > 0 ? (completedSteps / steps.length) * 100 : 0
+  const title = task.title || task.description?.slice(0, 80) || 'Task'
 
-  // Tab definitions
-  const tabs = [
-    { id: 'steps', label: 'Steps', count: steps.length },
-    { id: 'dependencies', label: 'Dependencies', count: blockers.length + blocking.length },
-    { id: 'chat', label: 'Chat', icon: <MessageCircle className="w-4 h-4" />, count: chatSessions.length || undefined },
-    { id: 'artefacts', label: 'Artefacts', count: decisions.length + commits.length },
-  ]
-
-  // Build parent links for navigation — ascending: milestone → project → plan
+  // Parent links — ascending: milestone → project → plan
   const parentLinks: ParentLink[] = []
   if (parentMilestone) {
-    const msPath = parentMilestone.type === 'project'
-      ? `/project-milestones/${parentMilestone.id}`
-      : `/milestones/${parentMilestone.id}`
+    const msPath =
+      parentMilestone.type === 'project' ? `/project-milestones/${parentMilestone.id}` : `/milestones/${parentMilestone.id}`
     parentLinks.push({
       icon: Flag,
       label: parentMilestone.type === 'project' ? 'Project Milestone' : 'Milestone',
@@ -352,411 +407,255 @@ export function TaskDetailPage() {
     })
   }
 
+  const handleTaskStatusChange = async (newStatus: TaskStatus) => {
+    try {
+      await tasksApi.update(task.id, { status: newStatus })
+      setTask({ ...task, status: newStatus })
+      toast.success('Status updated')
+    } catch {
+      toast.error('Failed to update status')
+    }
+  }
+
+  const complexity =
+    task.estimated_complexity || task.actual_complexity
+      ? `complexity ${task.estimated_complexity ?? '–'}${task.actual_complexity ? ` → ${task.actual_complexity}` : ''}`
+      : null
+
   return (
-    <div className="pt-6 space-y-6">
+    <PageContainer width="wide" className="space-y-6">
       <PageHeader
-        title={task.title || 'Task'}
+        title={title}
         viewTransitionName={`task-title-${task.id}`}
-        description={task.description}
+        description={task.title ? task.description : undefined}
         parentLinks={parentLinks.length > 0 ? parentLinks : undefined}
-        status={
-          <StatusSelect
-            status={task.status}
-            options={[
-              { value: 'pending', label: 'Pending' },
-              { value: 'in_progress', label: 'In Progress' },
-              { value: 'blocked', label: 'Blocked' },
-              { value: 'completed', label: 'Completed' },
-              { value: 'failed', label: 'Failed' },
-            ]}
-            colorMap={{
-              pending: { bg: 'bg-white/[0.08]', text: 'text-gray-200', dot: 'bg-gray-400' },
-              in_progress: { bg: 'bg-blue-900/50', text: 'text-blue-400', dot: 'bg-blue-400' },
-              blocked: { bg: 'bg-yellow-900/50', text: 'text-yellow-400', dot: 'bg-yellow-400' },
-              completed: { bg: 'bg-green-900/50', text: 'text-green-400', dot: 'bg-green-400' },
-              failed: { bg: 'bg-red-900/50', text: 'text-red-400', dot: 'bg-red-400' },
-            }}
-            onStatusChange={async (newStatus: TaskStatus) => {
-              await tasksApi.update(task.id, { status: newStatus })
-              setTask({ ...task, status: newStatus })
-              toast.success('Status updated')
-            }}
-          />
-        }
-        metadata={[
-          ...(task.priority !== undefined ? [{ label: 'Priority', value: String(task.priority) }] : []),
-          ...(task.assigned_to ? [{ label: 'Assigned to', value: task.assigned_to }] : []),
-          ...(task.estimated_complexity ? [{ label: 'Est. complexity', value: String(task.estimated_complexity) }] : []),
-          ...(task.actual_complexity ? [{ label: 'Actual complexity', value: String(task.actual_complexity) }] : []),
+        status={<StatusMenu kind="task" status={task.status} onChange={handleTaskStatusChange} />}
+        meta={[
+          <PriorityText key="p" priority={task.priority} />,
+          task.assigned_to ? <span key="a">@{task.assigned_to}</span> : null,
+          steps.length > 0 ? (
+            <span key="steps" className="tabular-nums">
+              {completedSteps}/{steps.length} steps
+            </span>
+          ) : null,
+          complexity,
+          <RelativeTime
+            key="u"
+            date={task.updated_at ?? task.created_at}
+            prefix={task.updated_at ? 'updated ' : 'created '}
+          />,
         ]}
-        actions={
-          tags.length > 0 ? (
-            <div className="flex flex-wrap gap-1">
-              {tags.map((tag, index) => (
-                <Badge key={`${tag}-${index}`}>{tag}</Badge>
-              ))}
-            </div>
-          ) : undefined
-        }
         overflowActions={[
-          { label: 'Edit', onClick: () => editTaskDialog.open({ title: 'Edit Task' }) },
-          { label: 'Delete', variant: 'danger', onClick: () => confirmDialog.open({
-            title: 'Delete Task',
-            description: 'This will permanently delete this task and all its steps and decisions.',
-            onConfirm: async () => {
+          { label: 'Edit', icon: Pencil, onClick: () => editTaskDialog.open({ title: 'Edit Task' }) },
+          { label: 'Add step', icon: Plus, onClick: openAddStep },
+          { label: 'Add decision', icon: Plus, onClick: openAddDecision },
+          { label: 'Add dependency', icon: Plus, onClick: openAddDependency },
+          { label: 'Link commit', icon: Link2, onClick: openLinkCommit },
+          {
+            label: 'Delete',
+            icon: Trash2,
+            variant: 'danger',
+            onClick: async () => {
               await tasksApi.delete(task.id)
               toast.success('Task deleted')
               // Navigate to parent plan if known, otherwise task list
-              const target = parentPlanId
-                ? workspacePath(wsSlug, `/plans/${parentPlanId}`)
-                : workspacePath(wsSlug, '/tasks')
+              const target = parentPlanId ? workspacePath(wsSlug, `/plans/${parentPlanId}`) : workspacePath(wsSlug, '/tasks')
               navigate(target, { type: 'back-button' })
-            }
-          }) }
+            },
+            confirm: {
+              title: 'Delete Task',
+              description: 'This will permanently delete this task and all its steps and decisions.',
+            },
+          },
         ]}
-      />
+      >
+        {tags.map((tag, index) => (
+          <span key={`${tag}-${index}`} className="rounded border border-white/[0.08] px-1.5 text-[11px] leading-5 text-gray-400">
+            #{tag}
+          </span>
+        ))}
+      </PageHeader>
 
-      {/* Affected files — compact chips under header */}
-      {affectedFiles.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-gray-500 mr-1">Files:</span>
-          {affectedFiles.map((file, index) => (
-            <button
-              key={`${file}-${index}`}
-              onClick={() => navigate(workspacePath(wsSlug, `/code?file=${encodeURIComponent(file)}`), { type: 'card-click' })}
-              className="inline-flex items-center bg-white/[0.06] border border-white/[0.08] rounded-full px-2 py-0.5 text-[11px] font-mono text-gray-400 hover:bg-white/[0.10] hover:text-gray-200 hover:border-white/[0.14] transition-colors truncate max-w-[240px]"
-              title={file}
-            >
-              {file.split('/').pop()}
-            </button>
-          ))}
-        </div>
+      {/* ── Steps ── */}
+      <Section
+        title="Steps"
+        count={steps.length}
+        description={steps.length > 0 ? `${completedSteps} of ${steps.length} completed` : undefined}
+        action={
+          <>
+            {steps.length > 0 && <ViewModeToggle value={stepsViewMode} onChange={setStepsViewMode} />}
+            <SectionAddButton label="Add step" onClick={openAddStep} />
+          </>
+        }
+      >
+        {steps.length > 0 && <MiniProgress value={stepProgress} label="Step progress" className="mb-2" />}
+        {steps.length === 0 ? (
+          <EmptyLine>No steps defined</EmptyLine>
+        ) : stepsViewMode === 'kanban' ? (
+          <UniversalKanban config={stepKanbanConfig} refreshTrigger={stepKanbanRefreshKey} />
+        ) : (
+          <EntityList aria-label="Steps">
+            {steps.map((step, index) => (
+              <StepRow
+                key={step.id || index}
+                step={step}
+                index={index}
+                onStatusChange={async (newStatus) => {
+                  try {
+                    await tasksApi.updateStep(step.id, { status: newStatus })
+                    setSteps((prev) => prev.map((s) => (s.id === step.id ? { ...s, status: newStatus } : s)))
+                    toast.success('Step status updated')
+                  } catch {
+                    toast.error('Failed to update step')
+                  }
+                }}
+                onEdit={() => {
+                  setEditingStep(step)
+                  editStepDialog.open({ title: 'Edit Step' })
+                }}
+                onDelete={async () => {
+                  await tasksApi.deleteStep(step.id)
+                  setSteps((prev) => prev.filter((s) => s.id !== step.id))
+                  toast.success('Step deleted')
+                }}
+              />
+            ))}
+          </EntityList>
+        )}
+      </Section>
+
+      {/* ── Acceptance criteria ── */}
+      {acceptanceCriteria.length > 0 && (
+        <Section title="Acceptance criteria" count={acceptanceCriteria.length}>
+          <ul className="space-y-1.5 px-1">
+            {acceptanceCriteria.map((criterion, index) => (
+              <li key={index} className="flex items-start gap-2 text-sm text-gray-300">
+                <span className="mt-2 w-1 h-1 rounded-full bg-gray-500 shrink-0" aria-hidden="true" />
+                <span className="break-words min-w-0">{criterion}</span>
+              </li>
+            ))}
+          </ul>
+        </Section>
       )}
 
-      {/* Tabbed body: Steps | Dependencies | Artefacts */}
-      <TabLayout
-        tabs={tabs}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-      >
-        {/* Tab: Steps */}
-        {activeTab === 'steps' && (
-          <div className="space-y-4 pt-4">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Steps ({steps.length})</CardTitle>
-                  <div className="flex items-center gap-2">
-                    {steps.length > 0 && (
-                      <span className="text-sm text-gray-400">{completedSteps}/{steps.length} completed</span>
-                    )}
-                    <Button size="sm" onClick={() => stepFormDialog.open({ title: 'Add Step' })}>Add Step</Button>
-                    <ViewToggle value={stepsViewMode} onChange={setStepsViewMode} />
-                  </div>
-                </div>
-                {steps.length > 0 && <ProgressBar value={stepProgress} size="sm" className="mt-2" />}
-              </CardHeader>
-              <CardContent>
-                {steps.length === 0 ? (
-                  <p className="text-gray-500 text-sm">No steps defined</p>
-                ) : stepsViewMode === 'kanban' ? (
-                  <UniversalKanban
-                    config={stepKanbanConfig}
-                    refreshTrigger={stepKanbanRefreshKey}
-                  />
-                ) : (
-                  <div className="space-y-2">
-                    {steps.map((step, index) => (
-                      <StepRow
-                        key={step.id || index}
-                        step={step}
-                        index={index}
-                        onStatusChange={async (newStatus) => {
-                          await tasksApi.updateStep(step.id, { status: newStatus })
-                          setSteps(prev => prev.map(s => s.id === step.id ? { ...s, status: newStatus } : s))
-                          toast.success('Step status updated')
-                        }}
-                        onEdit={() => {
-                          setEditingStep(step)
-                          editStepDialog.open({ title: 'Edit Step' })
-                        }}
-                        onDelete={async () => {
-                          await tasksApi.deleteStep(step.id)
-                          setSteps(prev => prev.filter(s => s.id !== step.id))
-                          toast.success('Step deleted')
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+      {/* ── Affected files ── */}
+      {affectedFiles.length > 0 && (
+        <Section title="Affected files" count={affectedFiles.length}>
+          <EntityList aria-label="Affected files">
+            {affectedFiles.map((file, index) => (
+              <EntityRow
+                key={`${file}-${index}`}
+                title={<span className="font-mono text-xs break-all">{file}</span>}
+                ariaLabel={`Open ${file} in code explorer`}
+                href={workspacePath(wsSlug, `/code?file=${encodeURIComponent(file)}`)}
+                leading={<FileCode2 className="w-3.5 h-3.5 text-gray-500" aria-hidden="true" />}
+                chevron
+              />
+            ))}
+          </EntityList>
+        </Section>
+      )}
 
-            {/* Acceptance Criteria — inside Steps tab */}
-            {acceptanceCriteria.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Acceptance Criteria</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {acceptanceCriteria.map((criterion, index) => (
-                      <li key={index} className="flex items-start gap-2 text-gray-300">
-                        <span className="text-indigo-400 mt-0.5 shrink-0">•</span>
-                        <span className="break-words min-w-0">{criterion}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+      {/* ── Dependencies ── */}
+      <Section title="Blocked by" count={blockers.length} action={<SectionAddButton label="Add dependency" onClick={openAddDependency} />}>
+        {blockers.length === 0 ? (
+          <EmptyLine>No blockers</EmptyLine>
+        ) : (
+          <EntityList aria-label="Blocked by">
+            {blockers.map((blocker) => (
+              <DependencyRow
+                key={blocker.id}
+                task={blocker}
+                wsSlug={wsSlug}
+                onRemove={async () => {
+                  await tasksApi.removeDependency(taskId!, blocker.id)
+                  setBlockers((prev) => prev.filter((b) => b.id !== blocker.id))
+                  toast.success('Dependency removed')
+                }}
+              />
+            ))}
+          </EntityList>
         )}
+      </Section>
 
-        {/* Tab: Dependencies */}
-        {activeTab === 'dependencies' && (
-          <div className="space-y-4 pt-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Blocked By ({blockers.length})</CardTitle>
-                    <Button size="sm" onClick={() => linkDialog.open({
-                      title: 'Add Dependency',
-                      submitLabel: 'Add',
-                      fetchOptions: async () => {
-                        const data = await tasksApi.list({ limit: 100 })
-                        const existingIds = new Set([taskId, ...blockers.map(b => b.id)])
-                        return (data.items || [])
-                          .filter(t => !existingIds.has(t.id))
-                          .map(t => ({ value: t.id, label: t.title || t.description || 'Untitled', description: t.status }))
-                      },
-                      onLink: async (depId) => {
-                        await tasksApi.addDependencies(taskId!, [depId])
-                        const blockersData = await tasksApi.getBlockers(taskId!).catch(() => ({ items: [] }))
-                        setBlockers(blockersData.items || [])
-                        toast.success('Dependency added')
-                      },
-                    })}>Add</Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {blockers.length === 0 ? (
-                    <p className="text-gray-500 text-sm">No blockers</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {blockers.map((blocker) => (
-                        <div key={blocker.id} className="flex items-center justify-between gap-2 p-2 bg-white/[0.06] rounded">
-                          <Link to={workspacePath(wsSlug, `/tasks/${blocker.id}`)} className="text-gray-200 truncate min-w-0 hover:text-indigo-400 transition-colors">
-                            {blocker.title || blocker.description}
-                          </Link>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <TaskStatusBadge status={blocker.status} />
-                            <button
-                              onClick={async () => {
-                                await tasksApi.removeDependency(taskId!, blocker.id)
-                                setBlockers(prev => prev.filter(b => b.id !== blocker.id))
-                                toast.success('Dependency removed')
-                              }}
-                              className="text-gray-500 hover:text-red-400 text-sm px-1"
-                              title="Remove dependency"
-                            >
-                              &times;
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Blocking ({blocking.length})</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {blocking.length === 0 ? (
-                    <p className="text-gray-500 text-sm">Not blocking any tasks</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {blocking.map((blocked) => (
-                        <div key={blocked.id} className="flex items-center justify-between gap-2 p-2 bg-white/[0.06] rounded">
-                          <Link to={workspacePath(wsSlug, `/tasks/${blocked.id}`)} className="text-gray-200 truncate min-w-0 hover:text-indigo-400 transition-colors">
-                            {blocked.title || blocked.description}
-                          </Link>
-                          <TaskStatusBadge status={blocked.status} />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </div>
+      <Section title="Blocking" count={blocking.length}>
+        {blocking.length === 0 ? (
+          <EmptyLine>Not blocking any tasks</EmptyLine>
+        ) : (
+          <EntityList aria-label="Blocking">
+            {blocking.map((blocked) => (
+              <DependencyRow key={blocked.id} task={blocked} wsSlug={wsSlug} />
+            ))}
+          </EntityList>
         )}
+      </Section>
 
-        {/* Tab: Chat (linked sessions) */}
-        {activeTab === 'chat' && (
-          <div className="pt-4">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <MessageCircle className="w-4 h-4 text-gray-500" />
-                  <CardTitle>Chat Sessions ({chatSessions.length})</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {chatSessionsLoading ? (
-                  <div className="flex items-center justify-center py-8 text-gray-500 text-sm">
-                    <div className="w-4 h-4 border-2 border-gray-600 border-t-indigo-400 rounded-full animate-spin mr-2" />
-                    Loading sessions...
-                  </div>
-                ) : chatSessions.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-8 text-gray-500 text-sm">
-                    <MessageCircle className="w-8 h-8 text-gray-700 mb-2" />
-                    <p>No chat sessions linked to this task</p>
-                    <p className="text-xs text-gray-600 mt-1">Sessions are linked automatically when a task is executed via the runner.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {chatSessions.map((sw) => (
-                      <button
-                        key={sw.session.id}
-                        onClick={() => {
-                          setChatSessionId(sw.session.id)
-                          setChatPanelMode('open')
-                        }}
-                        className="block w-full text-left p-3 rounded-lg bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.05] hover:border-white/[0.10] transition-all group cursor-pointer"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-gray-200 font-medium truncate">
-                                {sw.session.title || `Session ${sw.session.id.slice(0, 8)}`}
-                              </span>
-                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium shrink-0 ${
-                                sw.source === 'runner'
-                                  ? 'bg-blue-500/15 text-blue-400'
-                                  : 'bg-emerald-500/15 text-emerald-400'
-                              }`}>
-                                {sw.source}
-                              </span>
-                            </div>
-
-                            {/* Linked RFCs */}
-                            {sw.links.linked_rfcs.length > 0 && (
-                              <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                                <ScrollText className="w-3 h-3 text-gray-600 shrink-0" />
-                                {sw.links.linked_rfcs.map((r) => (
-                                  <span
-                                    key={r.id}
-                                    className="text-[10px] bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded-full truncate max-w-[200px]"
-                                    title={`RFC: ${r.title}`}
-                                  >
-                                    {r.title}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Metadata */}
-                            <div className="flex items-center gap-2 mt-1.5 text-[10px] text-gray-600">
-                              <span className="flex items-center gap-0.5">
-                                <Clock className="w-2.5 h-2.5" />
-                                {new Date(sw.session.created_at).toLocaleDateString()}
-                              </span>
-                              <span>&middot;</span>
-                              <span>{sw.session.message_count} msgs</span>
-                              {sw.session.model && (
-                                <>
-                                  <span>&middot;</span>
-                                  <span className="truncate max-w-[100px]">{sw.session.model}</span>
-                                </>
-                              )}
-                              {sw.session.total_cost_usd != null && sw.session.total_cost_usd > 0 && (
-                                <>
-                                  <span>&middot;</span>
-                                  <span>${sw.session.total_cost_usd.toFixed(2)}</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-
-                          {sw.session.cwd && (
-                            <div className="flex items-center gap-1 shrink-0">
-                              <Folder className="w-3 h-3 text-gray-600" />
-                              <span className="text-[10px] text-gray-600 truncate max-w-[120px]">
-                                {sw.session.cwd.replace(/^\/(?:Users|home)\/[^/]+\//, '~/')}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+      {/* ── Decisions ── */}
+      <Section title="Decisions" count={decisions.length} action={<SectionAddButton label="Add decision" onClick={openAddDecision} />}>
+        {decisions.length === 0 ? (
+          <EmptyLine>No decisions recorded</EmptyLine>
+        ) : (
+          <EntityList aria-label="Decisions">
+            {decisions.map((decision) => (
+              <DecisionRow
+                key={decision.id}
+                decision={decision}
+                wsSlug={wsSlug}
+                onStatusChange={(status) => handleDecisionStatusChange(decision, status)}
+                onDelete={() => handleDeleteDecision(decision)}
+              />
+            ))}
+          </EntityList>
         )}
+      </Section>
 
-        {/* Tab: Artefacts (Decisions + Commits) */}
-        {activeTab === 'artefacts' && (
-          <div className="space-y-4 pt-4">
-            {/* Decisions */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Decisions ({decisions.length})</CardTitle>
-                <Button size="sm" onClick={() => decisionFormDialog.open({ title: 'Add Decision', size: 'lg' })}>Add Decision</Button>
-              </CardHeader>
-              <CardContent>
-                {decisions.length === 0 ? (
-                  <p className="text-gray-500 text-sm">No decisions recorded</p>
-                ) : (
-                  <div className="space-y-2">
-                    {decisions.map((decision) => (
-                      <DecisionRow
-                        key={decision.id}
-                        decision={decision}
-                        wsSlug={wsSlug}
-                        onStatusChange={(status) => handleDecisionStatusChange(decision, status)}
-                        onDelete={() => handleDeleteDecision(decision)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+      {/* ── Commits ── */}
+      <Section title="Commits" count={commits.length} action={<SectionAddButton label="Link commit" icon={Link2} onClick={openLinkCommit} />}>
+        <CommitList commits={commits} emptyMessage="No commits linked to this task yet" />
+      </Section>
 
-            {/* Commits */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-2">
-                    <GitCommitHorizontal className="w-4 h-4 text-gray-500" />
-                    <CardTitle>Commits ({commits.length})</CardTitle>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => { setCommitShaInput(''); commitFormDialog.open({ title: 'Link Commit', submitLabel: 'Link', size: 'sm' }) }}
-                  >
-                    Link Commit
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {commits.length > 0 ? (
-                  <CommitList commits={commits} />
-                ) : (
-                  <p className="text-sm text-gray-500 py-4 text-center">No commits linked to this task yet</p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+      {/* ── Conversations ── */}
+      <Section title="Conversations" count={chatSessionsLoading ? undefined : chatSessions.length}>
+        {chatSessionsLoading ? (
+          <EntityListSkeleton rows={2} />
+        ) : chatSessions.length === 0 ? (
+          <EmptyLine>No chat sessions linked — they are linked automatically when the task runs via the runner.</EmptyLine>
+        ) : (
+          <EntityList aria-label="Conversations">
+            {chatSessions.map((sw) => (
+              <SessionRow
+                key={sw.session.id}
+                item={sw}
+                onOpen={() => {
+                  setChatSessionId(sw.session.id)
+                  setChatPanelMode('open')
+                }}
+              />
+            ))}
+          </EntityList>
         )}
-      </TabLayout>
+      </Section>
+
+      {/* ── Details ── */}
+      <Section title="Details">
+        <Facts
+          items={[
+            { label: 'Status', value: <StatusText kind="task" status={task.status} /> },
+            { label: 'Priority', value: task.priority != null ? String(task.priority) : undefined },
+            { label: 'Assigned to', value: task.assigned_to },
+            { label: 'Est. complexity', value: task.estimated_complexity != null ? String(task.estimated_complexity) : undefined },
+            { label: 'Actual complexity', value: task.actual_complexity != null ? String(task.actual_complexity) : undefined },
+            { label: 'Plan', value: parentPlanTitle ?? undefined },
+            { label: 'Created', value: formatAbsolute(task.created_at) },
+            { label: 'Updated', value: task.updated_at ? formatAbsolute(task.updated_at) : undefined },
+            { label: 'Started', value: task.started_at ? formatAbsolute(task.started_at) : undefined },
+            { label: 'Completed', value: task.completed_at ? formatAbsolute(task.completed_at) : undefined },
+            { label: 'ID', value: <span className="font-mono text-xs text-gray-400 break-all">{task.id}</span> },
+          ]}
+        />
+      </Section>
+
+      {/* ENTITY_GRAPH_SLOT entity_type="task" entity_id={task.id} */}
 
       <FormDialog {...editStepDialog.dialogProps} onSubmit={editStepForm.submit}>
         {editStepForm.fields}
@@ -781,125 +680,45 @@ export function TaskDetailPage() {
           fetchData()
         }}
       >
-        <div className="space-y-3">
-          <label className="block text-sm font-medium text-gray-300">Commit SHA</label>
-          <input
-            type="text"
-            value={commitShaInput}
-            onChange={(e) => setCommitShaInput(e.target.value)}
-            placeholder="e.g. a1b2c3d or full 40-char SHA"
-            pattern="[a-f0-9]{7,40}"
-            className="w-full px-3 py-2 bg-white/[0.06] border border-white/[0.08] rounded-lg text-sm text-gray-200 placeholder:text-gray-500 font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500/50 focus:border-indigo-500/50"
-            autoFocus
-          />
-          <p className="text-xs text-gray-500">Enter a 7–40 character hex commit hash to link to this task.</p>
-        </div>
+        <CommitShaField value={commitShaInput} onChange={setCommitShaInput} entity="task" />
       </FormDialog>
       <LinkEntityDialog {...linkDialog.dialogProps} />
-      <ConfirmDialog {...confirmDialog.dialogProps} />
-    </div>
+    </PageContainer>
   )
 }
 
-function StepRow({
-  step,
-  index,
-  onStatusChange,
-  onEdit,
-  onDelete,
-}: {
-  step: Step
-  index: number
-  onStatusChange: (status: StepStatus) => Promise<void>
-  onEdit: () => void
-  onDelete: () => void
-}) {
-  const statusColors: Record<string, string> = {
-    pending: 'bg-white/[0.15]',
-    in_progress: 'bg-blue-600',
-    completed: 'bg-green-600',
-    skipped: 'bg-yellow-600',
-  }
+// ── Dependency row ──────────────────────────────────────────────────────
 
+function DependencyRow({ task, wsSlug, onRemove }: { task: Task; wsSlug: string; onRemove?: () => Promise<void> }) {
+  const title = task.title || task.description || 'Untitled task'
   return (
-    <div className="flex items-start gap-3 p-3 bg-white/[0.06] rounded-lg">
-      <div className={`w-6 h-6 rounded-full shrink-0 ${statusColors[step.status]} flex items-center justify-center text-xs font-medium text-white`}>
-        {step.status === 'completed' ? '✓' : index + 1}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-gray-200 break-words">{step.description}</p>
-        {step.verification && (
-          <p className="text-xs text-gray-500 mt-1 break-words">Verification: {step.verification}</p>
-        )}
-      </div>
-      <InteractiveStepStatusBadge
-        status={step.status}
-        onStatusChange={onStatusChange}
-      />
-      <button
-        onClick={onEdit}
-        className="text-gray-500 hover:text-indigo-400 text-sm px-1"
-        title="Edit step"
-      >
-        <Pencil className="w-3.5 h-3.5" />
-      </button>
-      <button
-        onClick={onDelete}
-        className="text-gray-500 hover:text-red-400 text-sm px-1"
-        title="Delete step"
-      >
-        &times;
-      </button>
-    </div>
-  )
-}
-
-interface DecisionRowProps {
-  decision: Decision
-  wsSlug: string
-  onStatusChange: (status: DecisionStatus) => Promise<void>
-  onDelete: () => void
-}
-
-function DecisionRow({ decision, wsSlug, onStatusChange, onDelete }: DecisionRowProps) {
-  const alternatives = decision.alternatives || []
-  return (
-    <Link
-      to={workspacePath(wsSlug, `/decisions/${decision.id}`)}
-      className="block p-3 bg-white/[0.06] rounded-lg overflow-hidden hover:bg-white/[0.09] transition-colors group/dec"
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="font-medium text-gray-200 mb-1 break-words line-clamp-2">{decision.description}</p>
-          {decision.rationale && (
-            <p className="text-sm text-gray-400 mb-2 break-words line-clamp-2">{decision.rationale}</p>
-          )}
-          <div className="flex flex-wrap items-center gap-2">
-            {decision.chosen_option && (
-              <Badge variant="success">Chosen: {decision.chosen_option}</Badge>
-            )}
-            {alternatives.length > 0 && (
-              <span className="text-xs text-gray-500">
-                {alternatives.length} alternative{alternatives.length > 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.preventDefault()}>
-          <InteractiveDecisionStatusBadge status={decision.status} onStatusChange={onStatusChange} />
-          <button
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              onDelete()
-            }}
-            className="p-1 rounded text-gray-600 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover/dec:opacity-100 transition-all"
-            title="Delete decision"
-          >
-            &times;
-          </button>
-        </div>
-      </div>
-    </Link>
+    <EntityRow
+      title={title}
+      href={workspacePath(wsSlug, `/tasks/${task.id}`)}
+      muted={task.status === 'completed'}
+      leading={<StatusDot kind="task" status={task.status} label={getStatusMeta('task', task.status).label} />}
+      meta={[
+        <StatusText key="s" kind="task" status={task.status} dot={false} />,
+        <PriorityText key="p" priority={task.priority} />,
+      ]}
+      actions={
+        onRemove
+          ? [
+              {
+                label: 'Remove dependency',
+                icon: Unlink,
+                variant: 'danger',
+                onClick: onRemove,
+                confirm: {
+                  title: 'Remove dependency?',
+                  description: `This task will no longer be blocked by “${title}”.`,
+                  confirmLabel: 'Remove',
+                },
+              },
+            ]
+          : undefined
+      }
+      chevron={!onRemove}
+    />
   )
 }

@@ -22,8 +22,9 @@ export function createMilestoneKanbanConfig(
   return {
     entityType: 'milestone',
     columns: milestoneColumns,
-    renderCard: (item, _isDragging) => (
-      <MilestoneKanbanCard milestone={item} />
+    statusKind: 'milestone',
+    renderCard: (item, _isDragging, ctx) => (
+      <MilestoneKanbanCard milestone={item} onStatusChange={ctx ? (s) => ctx.changeStatus(s) : undefined} />
     ),
     renderOverlayCard: (item) => <MilestoneKanbanCardOverlay milestone={item} />,
     crudEventType: 'milestone',

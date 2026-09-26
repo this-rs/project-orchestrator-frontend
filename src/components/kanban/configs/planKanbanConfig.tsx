@@ -22,8 +22,9 @@ export function createPlanKanbanConfig(
   return {
     entityType: 'plan',
     columns: planColumns,
-    renderCard: (item, _isDragging) => (
-      <PlanKanbanCard plan={item} />
+    statusKind: 'plan',
+    renderCard: (item, _isDragging, ctx) => (
+      <PlanKanbanCard plan={item} onStatusChange={ctx ? (s) => ctx.changeStatus(s) : undefined} />
     ),
     renderOverlayCard: (item) => <PlanKanbanCardOverlay plan={item} />,
     crudEventType: 'plan',

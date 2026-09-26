@@ -35,7 +35,6 @@ export function CreateMilestoneForm({ onSubmit }: Props) {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           error={errors.title}
-
           autoFocus
         />
         <Textarea
@@ -43,7 +42,6 @@ export function CreateMilestoneForm({ onSubmit }: Props) {
           placeholder="Optional description..."
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-
           rows={3}
         />
         <Input
@@ -51,14 +49,12 @@ export function CreateMilestoneForm({ onSubmit }: Props) {
           type="date"
           value={targetDate}
           onChange={(e) => setTargetDate(e.target.value)}
-
         />
         <Input
           label="Tags"
           placeholder="Comma-separated tags"
           value={tags}
           onChange={(e) => setTags(e.target.value)}
-
         />
       </>
     ),
@@ -73,6 +69,11 @@ export function CreateMilestoneForm({ onSubmit }: Props) {
           .map((t) => t.trim())
           .filter(Boolean),
       })
+      // Fresh form for the next milestone
+      setTitle('')
+      setDescription('')
+      setTargetDate('')
+      setTags('')
     },
   }
 }

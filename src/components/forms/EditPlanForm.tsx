@@ -93,7 +93,7 @@ export function EditPlanForm({ initialValues, onSubmit, workspaceSlug, loading }
       </>
     ),
     submit: async () => {
-      if (!validate()) return
+      if (!validate()) return false
       await onSubmit({
         title: title.trim(),
         description: description.trim(),

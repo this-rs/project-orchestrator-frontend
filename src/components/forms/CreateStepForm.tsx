@@ -48,6 +48,9 @@ export function CreateStepForm({ onSubmit }: Props) {
         description: description.trim(),
         verification: verification.trim() || undefined,
       })
+      // Fresh form for the next "Add step"
+      setDescription('')
+      setVerification('')
     },
   }
 }

@@ -1,6 +1,4 @@
 import type { ReactNode } from 'react'
-import { motion } from 'motion/react'
-import { fadeInUp, useReducedMotion } from '@/utils/motion'
 
 interface UniversalKanbanCardProps {
   id: string
@@ -9,34 +7,15 @@ interface UniversalKanbanCardProps {
 }
 
 /**
- * Wraps a kanban card with motion animations:
- * - fadeInUp for appearance
- * - fadeOut + scale for removal
- * - layoutId for smooth column transitions
- * - Respects useReducedMotion
+ * Click wrapper around a kanban card (opens the item). No entrance / layout
+ * animation: cards are live data that re-render on every refetch or
+ * websocket event (DESIGN.md "Mouvement" — no list entrance motion).
+ * Inner controls (StatusMenu) stop propagation, so they never open the item.
  */
 export function UniversalKanbanCard({ id, children, onClick }: UniversalKanbanCardProps) {
-  const reducedMotion = useReducedMotion()
-
-  if (reducedMotion) {
-    return (
-      <div onClick={onClick}>
-        {children}
-      </div>
-    )
-  }
-
   return (
-    <motion.div
-      layoutId={`kanban-card-${id}`}
-      variants={fadeInUp}
-      initial="hidden"
-      animate="visible"
-      exit={{ opacity: 0, y: -10, scale: 0.95, transition: { duration: 0.15 } }}
-      layout
-      onClick={onClick}
-    >
+    <div data-card-id={id} onClick={onClick}>
       {children}
-    </motion.div>
+    </div>
   )
 }
