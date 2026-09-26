@@ -9,37 +9,31 @@ import { CodeHeritageTab } from './CodeHeritageTab'
 interface CodeArchitectureFullTabProps {
   projectSlug: string | null
   workspaceSlug: string
+  onOpenFile: (path: string) => void
 }
 
 type SubTab = 'overview' | 'communities' | 'heritage'
 
 const SUB_TABS: TabItem[] = [
-  { id: 'overview', label: 'Vue d\'ensemble', icon: <Blocks className="w-4 h-4" /> },
-  { id: 'communities', label: 'Communautés', icon: <Users className="w-4 h-4" /> },
-  { id: 'heritage', label: 'Héritage', icon: <GitFork className="w-4 h-4" /> },
+  { id: 'overview', label: 'Overview', icon: <Blocks /> },
+  { id: 'communities', label: 'Communities', icon: <Users /> },
+  { id: 'heritage', label: 'Heritage', icon: <GitFork /> },
 ]
 
-export function CodeArchitectureFullTab({
-  projectSlug,
-  workspaceSlug,
-}: CodeArchitectureFullTabProps) {
+/** "Architecture" section of the Code page: overview, coupled communities, inheritance. */
+export function CodeArchitectureFullTab({ projectSlug, workspaceSlug, onOpenFile }: CodeArchitectureFullTabProps) {
   const [subTab, setSubTab] = useState<SubTab>('overview')
 
   return (
     <div className="space-y-4">
       <p className="text-xs text-gray-500">
-        Structure du code : vue d&apos;ensemble des modules, communautés de fichiers couplés,
-        et hiérarchies d&apos;héritage.
+        Shape of the code: key files and languages, communities of tightly coupled files, inheritance hierarchies.
       </p>
 
       <SubTabs tabs={SUB_TABS} active={subTab} onChange={(id) => setSubTab(id as SubTab)} label="Architecture" />
 
-      {subTab === 'overview' && (
-        <CodeArchitectureTab projectSlug={projectSlug} workspaceSlug={workspaceSlug} />
-      )}
-
+      {subTab === 'overview' && <CodeArchitectureTab projectSlug={projectSlug} workspaceSlug={workspaceSlug} onOpenFile={onOpenFile} />}
       {subTab === 'communities' && <CodeCommunitiesTab projectSlug={projectSlug} />}
-
       {subTab === 'heritage' && <CodeHeritageTab />}
     </div>
   )

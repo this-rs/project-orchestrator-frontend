@@ -3,47 +3,39 @@ import {
   Button,
   EmptyState,
   EntityList,
+  EntityListSkeleton,
   EntityRow,
   ErrorState,
   Section,
+  Skeleton,
   StatusDot,
   TONE_CLASSES,
   pluralize,
   type StatusTone,
 } from '@/components/ui'
-import { AlertTriangle, FileX, Link2, RefreshCw, Activity, Brain, Zap, Skull } from 'lucide-react'
 import { codeApi } from '@/services'
-import type {
-  CodeHealth,
-  ChangeHotspot,
-  KnowledgeGap,
-  RiskFile,
-  RiskAssessmentSummary,
-} from '@/types'
+import { Meter, StatTiles } from './metrics'
+import type { CodeHealth, ChangeHotspot, KnowledgeGap, RiskFile, RiskAssessmentSummary } from '@/types'
 
 // ── Strip common base path ──────────────────────────────────────────────
 
-/** Find the longest common directory prefix among all paths */
+/** Longest common directory prefix among all paths. */
 function findCommonPrefix(paths: string[]): string {
   if (paths.length === 0) return ''
   const parts = paths[0].split('/')
   let prefix = ''
   for (let i = 0; i < parts.length; i++) {
     const candidate = parts.slice(0, i + 1).join('/') + '/'
-    if (paths.every((p) => p.startsWith(candidate))) {
-      prefix = candidate
-    } else {
-      break
-    }
+    if (paths.every((p) => p.startsWith(candidate))) prefix = candidate
+    else break
   }
   return prefix
 }
 
-interface CodeHealthTabProps {
-  projectSlug: string | null
+function stripBase(path: string, basePath: string): string {
+  if (!path) return '—'
+  return basePath && path.startsWith(basePath) ? path.slice(basePath.length) : path
 }
-
-// ── Risk level → status tone ────────────────────────────────────────────
 
 const RISK_TONE: Record<string, StatusTone> = {
   critical: 'danger',
@@ -52,50 +44,49 @@ const RISK_TONE: Record<string, StatusTone> = {
   low: 'success',
 }
 
-// ── Churn bar ───────────────────────────────────────────────────────────
+/** Higher churn / lower density is worse. */
+const churnTone = (ratio: number): StatusTone => (ratio > 0.66 ? 'danger' : ratio > 0.33 ? 'warning' : 'success')
+const densityTone = (density: number): StatusTone => (density < 0.3 ? 'danger' : density < 0.6 ? 'warning' : 'success')
 
-function ChurnBar({ score, max }: { score: number; max: number }) {
-  const pct = max > 0 ? Math.min((score / max) * 100, 100) : 0
-  const color = pct > 66 ? 'bg-red-500' : pct > 33 ? 'bg-yellow-500' : 'bg-green-500'
-  return (
-    <div className="flex items-center gap-2">
-      <div className="w-16 h-1 bg-white/[0.08] rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className="text-xs text-gray-400 tabular-nums">{score.toFixed(2)}</span>
-    </div>
-  )
+const PAGE = 20
+
+interface CodeHealthTabProps {
+  projectSlug: string | null
+  onOpenFile: (path: string) => void
 }
-
-// ── Knowledge density bar (inverted — red when low) ─────────────────────
-
-function DensityBar({ density }: { density: number }) {
-  const pct = Math.min(density * 100, 100)
-  const color = pct < 30 ? 'bg-red-500' : pct < 60 ? 'bg-yellow-500' : 'bg-green-500'
-  return (
-    <div className="flex items-center gap-2">
-      <div className="w-16 h-1 bg-white/[0.08] rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className="text-xs text-gray-400 tabular-nums">{(density * 100).toFixed(0)}%</span>
-    </div>
-  )
-}
-
-// ── File path display (with common prefix stripped) ─────────────────────
 
 function FilePath({ path, basePath }: { path: string; basePath: string }) {
-  const display = basePath && path.startsWith(basePath) ? path.slice(basePath.length) : path
   return (
     <span className="font-mono break-all" title={path}>
-      {display}
+      {stripBase(path, basePath)}
     </span>
+  )
+}
+
+function ShowMore({ remaining, loading, onClick }: { remaining: number; loading: boolean; onClick: () => void }) {
+  return (
+    <Button variant="ghost" size="sm" className="mt-2" onClick={onClick} loading={loading}>
+      Show more ({remaining} remaining)
+    </Button>
+  )
+}
+
+function HealthSkeleton() {
+  return (
+    <div className="space-y-6" role="status" aria-label="Loading">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-16 rounded-xl" />
+        ))}
+      </div>
+      <EntityListSkeleton rows={4} />
+    </div>
   )
 }
 
 // ── Main component ──────────────────────────────────────────────────────
 
-export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
+export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
   const [health, setHealth] = useState<CodeHealth | null>(null)
   const [hotspots, setHotspots] = useState<ChangeHotspot[]>([])
   const [knowledgeGaps, setKnowledgeGaps] = useState<KnowledgeGap[]>([])
@@ -104,10 +95,9 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Show more states
-  const [hotspotsLimit, setHotspotsLimit] = useState(20)
-  const [gapsLimit, setGapsLimit] = useState(20)
-  const [riskLimit, setRiskLimit] = useState(20)
+  const [hotspotsLimit, setHotspotsLimit] = useState(PAGE)
+  const [gapsLimit, setGapsLimit] = useState(PAGE)
+  const [riskLimit, setRiskLimit] = useState(PAGE)
   const [hotspotsTotal, setHotspotsTotal] = useState(0)
   const [gapsTotal, setGapsTotal] = useState(0)
   const [riskTotal, setRiskTotal] = useState(0)
@@ -131,9 +121,8 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
       setRiskFiles(riskData.risk_files)
       setRiskTotal(riskData.total_files)
       setRiskSummary(riskData.summary)
-    } catch (err) {
-      console.error('Failed to load health data:', err)
-      setError('Failed to load health metrics. Please try again.')
+    } catch {
+      setError('Could not load the health metrics.')
     } finally {
       setLoading(false)
     }
@@ -143,125 +132,131 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
     loadAll()
   }, [loadAll])
 
-  // Compute common base path across all file paths for cleaner display
-  // Must be before early returns to satisfy React hooks rules
-  const basePath = useMemo(() => {
-    const allPaths = [
-      ...hotspots.map((h) => h.path),
-      ...knowledgeGaps.map((g) => g.path),
-      ...riskFiles.map((r) => r.path),
-    ]
-    return findCommonPrefix(allPaths)
-  }, [hotspots, knowledgeGaps, riskFiles])
+  // Common base path across every list, for shorter rows (full path in the tooltip)
+  const basePath = useMemo(
+    () => findCommonPrefix([...hotspots.map((h) => h.path), ...knowledgeGaps.map((g) => g.path), ...riskFiles.map((r) => r.path)]),
+    [hotspots, knowledgeGaps, riskFiles],
+  )
 
   if (!projectSlug) {
     return (
       <EmptyState
         title="Select a project"
-        description="Health analysis requires a specific project. Please select one from the filter above."
+        description="Health analysis works on one project at a time — pick one in the filter above."
       />
     )
   }
 
-  if (loading && !health) {
-    return (
-      <div className="space-y-4">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-32 bg-white/[0.04] rounded-xl animate-pulse" />
-        ))}
-      </div>
-    )
-  }
-
-  if (error) {
-    return <ErrorState title="Health check failed" description={error} onRetry={loadAll} />
-  }
-
+  if (loading && !health) return <HealthSkeleton />
+  if (error) return <ErrorState title="Health check failed" description={error} onRetry={loadAll} />
   if (!health) return null
 
   const maxChurn = hotspots.length > 0 ? Math.max(...hotspots.map((h) => h.churn_score)) : 1
+  const coupling = health.coupling_metrics
+  const neural = health.neural_metrics
+  const godFunctions = health.god_functions ?? []
+  const orphanFiles = health.orphan_files ?? []
+  const circular = health.circular_dependencies ?? []
 
   return (
     <div className="space-y-6">
-      <p className="text-xs text-gray-500">
-        Codebase health indicators: god functions, orphan files, coupling metrics, and neural
-        knowledge fabric status. Explore hotspots, knowledge gaps, and risk assessment to prioritize
-        technical debt.
-      </p>
+      {/* ── Key numbers ──────────────────────────────────────────── */}
+      <StatTiles
+        items={[
+          {
+            label: 'God functions',
+            value: health.god_function_count,
+            sub: `threshold ${health.god_function_threshold}`,
+            tone: health.god_function_count > 5 ? 'warning' : undefined,
+          },
+          { label: 'Orphan files', value: health.orphan_file_count, tone: health.orphan_file_count > 10 ? 'warning' : undefined },
+          {
+            label: 'Avg coupling',
+            hidden: !coupling,
+            value: coupling?.avg_clustering_coefficient.toFixed(3),
+            sub: coupling?.most_coupled_file ? `most coupled: ${stripBase(coupling.most_coupled_file, basePath)}` : undefined,
+          },
+          {
+            label: 'Circular deps',
+            value: health.circular_dependency_count,
+            tone: health.circular_dependency_count > 0 ? 'danger' : 'success',
+          },
+        ]}
+      />
 
-      {/* ── KPI Cards ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <KpiCard
-          icon={<AlertTriangle className="w-5 h-5" />}
-          label="God Functions"
-          value={health.god_function_count}
-          color={health.god_function_count > 5 ? 'text-orange-400' : 'text-gray-300'}
-          iconColor={health.god_function_count > 5 ? 'text-orange-400' : 'text-gray-500'}
-          subtitle={`threshold: ${health.god_function_threshold}`}
+      {neural && (
+        <StatTiles
+          items={[
+            { label: 'Active synapses', value: neural.active_synapses },
+            { label: 'Avg energy', value: `${(neural.avg_energy * 100).toFixed(0)}%` },
+            {
+              label: 'Weak synapses',
+              value: `${(neural.weak_synapses_ratio * 100).toFixed(0)}%`,
+              tone: neural.weak_synapses_ratio > 0.5 ? 'warning' : undefined,
+            },
+            { label: 'Dead notes', value: neural.dead_notes_count, tone: neural.dead_notes_count > 10 ? 'danger' : undefined },
+          ]}
         />
-        <KpiCard
-          icon={<FileX className="w-5 h-5" />}
-          label="Orphan Files"
-          value={health.orphan_file_count}
-          color="text-gray-300"
-          iconColor="text-gray-500"
-        />
-        {health.coupling_metrics && (
-        <KpiCard
-          icon={<Link2 className="w-5 h-5" />}
-          label="Avg Coupling"
-          value={health.coupling_metrics.avg_clustering_coefficient.toFixed(3)}
-          color="text-gray-300"
-          iconColor="text-indigo-400"
-          subtitle={health.coupling_metrics.most_coupled_file ? `most coupled: ${stripBase(health.coupling_metrics.most_coupled_file, basePath)}` : undefined}
-        />
-        )}
-        <KpiCard
-          icon={<RefreshCw className="w-5 h-5" />}
-          label="Circular Deps"
-          value={health.circular_dependency_count}
-          color={health.circular_dependency_count > 0 ? 'text-red-400' : 'text-green-400'}
-          iconColor={health.circular_dependency_count > 0 ? 'text-red-400' : 'text-green-400'}
-        />
-      </div>
+      )}
 
-      {/* ── Neural Metrics (optional) ────────────────────────────── */}
-      {health.neural_metrics && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-          <KpiCard
-            icon={<Activity className="w-5 h-5" />}
-            label="Active Synapses"
-            value={health.neural_metrics.active_synapses}
-            color="text-purple-400"
-            iconColor="text-purple-400"
-          />
-          <KpiCard
-            icon={<Zap className="w-5 h-5" />}
-            label="Avg Energy"
-            value={health.neural_metrics.avg_energy.toFixed(3)}
-            color="text-amber-400"
-            iconColor="text-amber-400"
-          />
-          <KpiCard
-            icon={<Brain className="w-5 h-5" />}
-            label="Weak Synapses"
-            value={`${(health.neural_metrics.weak_synapses_ratio * 100).toFixed(0)}%`}
-            color={health.neural_metrics.weak_synapses_ratio > 0.5 ? 'text-orange-400' : 'text-gray-300'}
-            iconColor="text-gray-500"
-          />
-          <KpiCard
-            icon={<Skull className="w-5 h-5" />}
-            label="Dead Notes"
-            value={health.neural_metrics.dead_notes_count}
-            color={health.neural_metrics.dead_notes_count > 10 ? 'text-red-400' : 'text-gray-300'}
-            iconColor="text-gray-500"
-          />
-        </div>
+      {/* ── Structural problems (lists behind the numbers) ───────── */}
+      {godFunctions.length > 0 && (
+        <Section
+          title="God functions"
+          count={godFunctions.length}
+          description="Functions with too many callers and callees — hard to change safely."
+          collapsible
+          defaultOpen={false}
+        >
+          <EntityList aria-label="God functions">
+            {godFunctions.map((f) => (
+              <EntityRow
+                key={`${f.file}-${f.name}`}
+                title={<span className="font-mono">{f.name}</span>}
+                ariaLabel={`History of ${f.file}`}
+                onClick={() => onOpenFile(f.file)}
+                description={<FilePath path={f.file} basePath={basePath} />}
+                meta={[`${f.in_degree} in`, `${f.out_degree} out`]}
+              />
+            ))}
+          </EntityList>
+        </Section>
+      )}
+
+      {circular.length > 0 && (
+        <Section title="Circular dependencies" count={circular.length} collapsible defaultOpen={false}>
+          <EntityList aria-label="Circular dependencies">
+            {circular.map((c, i) => (
+              <EntityRow key={`${c}-${i}`} title={<span className="font-mono break-all">{c}</span>} ariaLabel={c} />
+            ))}
+          </EntityList>
+        </Section>
+      )}
+
+      {orphanFiles.length > 0 && (
+        <Section
+          title="Orphan files"
+          count={orphanFiles.length}
+          description="Files nothing imports and that import nothing."
+          collapsible
+          defaultOpen={false}
+        >
+          <EntityList aria-label="Orphan files">
+            {orphanFiles.map((path) => (
+              <EntityRow
+                key={path}
+                title={<FilePath path={path} basePath={basePath} />}
+                ariaLabel={`History of ${path}`}
+                onClick={() => onOpenFile(path)}
+              />
+            ))}
+          </EntityList>
+        </Section>
       )}
 
       {/* ── Hotspots ─────────────────────────────────────────────── */}
       <Section
-        title="Hotspots — most changed files"
+        title="Hotspots"
         count={hotspotsTotal || hotspots.length}
         description="Files that change the most: where bugs and merge conflicts concentrate."
       >
@@ -274,22 +269,32 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
                 <EntityRow
                   key={h.path}
                   title={<FilePath path={h.path} basePath={basePath} />}
-                  ariaLabel={h.path}
-                  trailing={`${h.commit_count} commits`}
-                  meta={[<ChurnBar key="c" score={h.churn_score} max={maxChurn} />]}
+                  ariaLabel={`History of ${h.path}`}
+                  onClick={() => onOpenFile(h.path)}
+                  trailing={pluralize(h.commit_count, 'commit')}
+                  meta={[
+                    <Meter
+                      key="churn"
+                      size="inline"
+                      value={maxChurn > 0 ? h.churn_score / maxChurn : 0}
+                      display={`churn ${h.churn_score.toFixed(2)}`}
+                      tone={churnTone(maxChurn > 0 ? h.churn_score / maxChurn : 0)}
+                    />,
+                    h.co_change_count > 0 ? `${h.co_change_count} co-changes` : null,
+                  ]}
                 />
               ))}
             </EntityList>
             {hotspots.length < hotspotsTotal && (
-              <ShowMore remaining={hotspotsTotal - hotspots.length} loading={loading} onClick={() => setHotspotsLimit((l) => l + 20)} />
+              <ShowMore remaining={hotspotsTotal - hotspots.length} loading={loading} onClick={() => setHotspotsLimit((l) => l + PAGE)} />
             )}
           </>
         )}
       </Section>
 
-      {/* ── Knowledge Gaps ───────────────────────────────────────── */}
+      {/* ── Knowledge gaps ───────────────────────────────────────── */}
       <Section
-        title="Knowledge gaps — under-documented files"
+        title="Knowledge gaps"
         count={gapsTotal || knowledgeGaps.length}
         description="Important files with few notes or decisions attached: agents work there blind."
       >
@@ -302,9 +307,16 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
                 <EntityRow
                   key={g.path}
                   title={<FilePath path={g.path} basePath={basePath} />}
-                  ariaLabel={g.path}
+                  ariaLabel={`History of ${g.path}`}
+                  onClick={() => onOpenFile(g.path)}
                   meta={[
-                    <DensityBar key="d" density={g.knowledge_density} />,
+                    <Meter
+                      key="density"
+                      size="inline"
+                      value={g.knowledge_density}
+                      display={`${(g.knowledge_density * 100).toFixed(0)}% covered`}
+                      tone={densityTone(g.knowledge_density)}
+                    />,
                     pluralize(g.note_count, 'note'),
                     pluralize(g.decision_count, 'decision'),
                   ]}
@@ -312,23 +324,23 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
               ))}
             </EntityList>
             {knowledgeGaps.length < gapsTotal && (
-              <ShowMore remaining={gapsTotal - knowledgeGaps.length} loading={loading} onClick={() => setGapsLimit((l) => l + 20)} />
+              <ShowMore remaining={gapsTotal - knowledgeGaps.length} loading={loading} onClick={() => setGapsLimit((l) => l + PAGE)} />
             )}
           </>
         )}
       </Section>
 
-      {/* ── Risk Assessment ──────────────────────────────────────── */}
+      {/* ── Risk assessment ──────────────────────────────────────── */}
       <Section
         title="Risk assessment"
         count={riskTotal || riskFiles.length}
         description={
           riskSummary ? (
             <span className="inline-flex flex-wrap gap-x-3">
-              <span className="text-red-400">{riskSummary.critical_count} critical</span>
-              <span className="text-orange-400">{riskSummary.high_count} high</span>
-              <span className="text-yellow-400">{riskSummary.medium_count} medium</span>
-              <span className="text-green-400">{riskSummary.low_count} low</span>
+              <span className={TONE_CLASSES.danger.text}>{riskSummary.critical_count} critical</span>
+              <span className={TONE_CLASSES.warning.text}>{riskSummary.high_count} high</span>
+              <span className={TONE_CLASSES.info.text}>{riskSummary.medium_count} medium</span>
+              <span className={TONE_CLASSES.success.text}>{riskSummary.low_count} low</span>
             </span>
           ) : undefined
         }
@@ -344,7 +356,8 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
                   <EntityRow
                     key={r.path}
                     title={<FilePath path={r.path} basePath={basePath} />}
-                    ariaLabel={r.path}
+                    ariaLabel={`History of ${r.path}`}
+                    onClick={() => onOpenFile(r.path)}
                     leading={<StatusDot tone={tone} label={`${r.risk_level} risk`} />}
                     trailing={r.risk_score.toFixed(3)}
                     meta={[
@@ -353,7 +366,7 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
                       </span>,
                       `PageRank ${r.factors.pagerank.toFixed(4)}`,
                       `churn ${r.factors.churn.toFixed(3)}`,
-                      `k-gap ${r.factors.knowledge_gap.toFixed(3)}`,
+                      `knowledge gap ${r.factors.knowledge_gap.toFixed(3)}`,
                       `betweenness ${r.factors.betweenness.toFixed(4)}`,
                     ]}
                   />
@@ -361,59 +374,11 @@ export function CodeHealthTab({ projectSlug }: CodeHealthTabProps) {
               })}
             </EntityList>
             {riskFiles.length < riskTotal && (
-              <ShowMore remaining={riskTotal - riskFiles.length} loading={loading} onClick={() => setRiskLimit((l) => l + 20)} />
+              <ShowMore remaining={riskTotal - riskFiles.length} loading={loading} onClick={() => setRiskLimit((l) => l + PAGE)} />
             )}
           </>
         )}
       </Section>
     </div>
   )
-}
-
-function ShowMore({ remaining, loading, onClick }: { remaining: number; loading: boolean; onClick: () => void }) {
-  return (
-    <Button variant="ghost" size="sm" className="mt-2" onClick={onClick} loading={loading}>
-      Show more ({remaining} remaining)
-    </Button>
-  )
-}
-
-// ── KPI Card sub-component ──────────────────────────────────────────────
-
-function KpiCard({
-  icon,
-  label,
-  value,
-  color,
-  iconColor,
-  subtitle,
-}: {
-  icon: React.ReactNode
-  label: string
-  value: string | number
-  color: string
-  iconColor: string
-  subtitle?: string
-}) {
-  return (
-    <div className="p-3 md:p-4 rounded-xl border border-white/[0.06] bg-white/[0.02] min-w-0">
-      <div className="flex items-center gap-2 mb-2">
-        <span className={iconColor}>{icon}</span>
-        <span className="text-sm text-gray-400">{label}</span>
-      </div>
-      <div className={`text-xl md:text-2xl font-semibold tabular-nums ${color}`}>{value}</div>
-      {subtitle && (
-        <div className="text-[11px] leading-4 text-gray-500 mt-1 break-words">
-          {subtitle}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────
-
-function stripBase(path: string, basePath: string): string {
-  if (!path) return '—'
-  return basePath && path.startsWith(basePath) ? path.slice(basePath.length) : path
 }

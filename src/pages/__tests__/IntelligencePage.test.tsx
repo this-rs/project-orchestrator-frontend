@@ -99,7 +99,7 @@ describe('IntelligencePage', () => {
     const attention = screen.getByRole('list', { name: 'Attention needed' })
     expect(within(attention).getByRole('link', { name: '3 stale notes need review' }).getAttribute('href')).toBe('/workspace/ws/notes')
     expect(within(attention).getByRole('link', { name: '1 file at critical risk' }).getAttribute('href')).toBe(
-      '/workspace/ws/code?project=p1&tab=sante',
+      '/workspace/ws/code?project=p1&tab=health',
     )
     expect(within(attention).getByRole('link', { name: /2 god functions/ })).toBeTruthy()
 

@@ -330,11 +330,11 @@ export function IntelligencePage() {
   if (s.neural.dead_notes_count > 0)
     attention.push({ key: 'dead', tone: 'neutral', title: `${pluralize(s.neural.dead_notes_count, 'dead note')} (no energy)`, href: workspacePath(wsSlug, '/notes') })
   if (s.code.orphans > 5)
-    attention.push({ key: 'orphans', tone: 'warning', title: `${s.code.orphans} orphan files (no imports/exports)`, href: codeHref({ tab: 'sante' }) })
+    attention.push({ key: 'orphans', tone: 'warning', title: `${s.code.orphans} orphan files (no imports/exports)`, href: codeHref({ tab: 'health' }) })
   if (risk && risk.critical_count > 0)
-    attention.push({ key: 'risk', tone: 'danger', title: `${pluralize(risk.critical_count, 'file')} at critical risk`, href: codeHref({ tab: 'sante' }) })
+    attention.push({ key: 'risk', tone: 'danger', title: `${pluralize(risk.critical_count, 'file')} at critical risk`, href: codeHref({ tab: 'health' }) })
   if (health && health.god_function_count > 0)
-    attention.push({ key: 'god', tone: 'warning', title: `${health.god_function_count} god functions (threshold: ${health.god_function_threshold})`, href: codeHref({ tab: 'sante' }) })
+    attention.push({ key: 'god', tone: 'warning', title: `${health.god_function_count} god functions (threshold: ${health.god_function_threshold})`, href: codeHref({ tab: 'health' }) })
 
   const quickActions: QuickAction[] = [
     {
