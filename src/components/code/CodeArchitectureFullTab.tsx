@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { TabItem } from '@/components/ui'
+import { SubTabs } from './SubTabs'
 import { Blocks, Users, GitFork } from 'lucide-react'
 import { CodeArchitectureTab } from './CodeArchitectureTab'
 import { CodeCommunitiesTab } from './CodeCommunitiesTab'
@@ -26,27 +27,12 @@ export function CodeArchitectureFullTab({
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-400">
+      <p className="text-xs text-gray-500">
         Structure du code : vue d&apos;ensemble des modules, communautés de fichiers couplés,
         et hiérarchies d&apos;héritage.
       </p>
 
-      <div className="flex gap-2">
-        {SUB_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setSubTab(tab.id as SubTab)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${
-              subTab === tab.id
-                ? 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/30'
-                : 'bg-white/[0.04] text-gray-400 border border-white/[0.06] hover:bg-white/[0.08]'
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <SubTabs tabs={SUB_TABS} active={subTab} onChange={(id) => setSubTab(id as SubTab)} label="Architecture" />
 
       {subTab === 'overview' && (
         <CodeArchitectureTab projectSlug={projectSlug} workspaceSlug={workspaceSlug} />

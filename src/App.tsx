@@ -26,6 +26,7 @@ import {
   TasksPage,
   TaskDetailPage,
   NotesPage,
+  NoteDetailPage,
   CodePage,
   DecisionsPage,
   DecisionDetailPage,
@@ -197,6 +198,7 @@ function App() {
                         <Route path="tasks" element={<TasksPage />} />
                         <Route path="tasks/:taskId" element={<TaskDetailPage />} />
                         <Route path="notes" element={<NotesPage />} />
+                        <Route path="notes/:noteId" element={<NoteDetailPage />} />
                         <Route path="decisions" element={<DecisionsPage />} />
                         <Route path="decisions/:decisionId" element={<DecisionDetailPage />} />
                         <Route path="code" element={<CodePage />} />

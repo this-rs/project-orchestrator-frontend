@@ -1,41 +1,39 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { createElement, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAtom } from 'jotai'
 import {
-  Brain,
-  FileCode2,
-  StickyNote,
-  Scale,
-  Network,
-  Zap,
   ArrowRight,
-  AlertTriangle,
-  ShieldX,
-  ShieldAlert,
-  ShieldCheck,
-  Shield,
-  Flame,
-  BookOpen,
-  Activity,
-  RefreshCw,
-  Sparkles,
-  LayoutList,
-  CheckSquare,
-  Wrench,
-  Loader2,
-  Check,
-  Timer,
   BrainCircuit,
-  Waves,
-  Search,
+  Check,
+  Folder,
+  Network,
   Orbit,
-  Workflow,
-  GitBranch,
-  Link2,
+  RefreshCw,
+  Search,
+  Timer,
+  Waves,
+  Zap,
+  type LucideIcon,
 } from 'lucide-react'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
-import { LoadingPage } from '@/components/ui/Spinner'
-import { ErrorState } from '@/components/ui/ErrorState'
+import {
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  EntityList,
+  EntityListSkeleton,
+  EntityRow,
+  ErrorState,
+  PageContainer,
+  PageHeader,
+  Section,
+  Skeleton,
+  StatusDot,
+  TONE_CLASSES,
+  pluralize,
+  surface,
+  textLink,
+  type StatusTone,
+} from '@/components/ui'
 import { intelligenceApi } from '@/services/intelligence'
 import { codeApi } from '@/services/code'
 import { CommunityVizWidget } from '@/components/particles/widgets'
@@ -46,18 +44,15 @@ import { projectsApi } from '@/services/projects'
 import { intelligenceSummaryAtom } from '@/atoms/intelligence'
 import type { IntelligenceSummary } from '@/types/intelligence'
 import type { CodeHealth, Project } from '@/types'
-import { useWorkspaceSlug } from '@/hooks'
+import { useConfirmDialog, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 
 // ============================================================================
-// HEALTH SCORE — Circular Gauge
+// HEALTH SCORE
 // ============================================================================
 
 /** Compute a 0–100 health score from multiple signals */
-function computeHealthScore(
-  s: IntelligenceSummary,
-  h: CodeHealth | null,
-): number {
+function computeHealthScore(s: IntelligenceSummary, h: CodeHealth | null): number {
   const scores: number[] = []
 
   // 1. Knowledge coverage — notes + decisions per file (0–100)
@@ -102,11 +97,11 @@ function computeHealthScore(
   return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
 }
 
-function healthScoreColor(score: number): string {
-  if (score >= 80) return '#4ade80'
-  if (score >= 60) return '#fbbf24'
-  if (score >= 40) return '#fb923c'
-  return '#f87171'
+function healthTone(score: number): StatusTone {
+  if (score >= 80) return 'success'
+  if (score >= 60) return 'warning'
+  if (score >= 40) return 'warning'
+  return 'danger'
 }
 
 function healthScoreLabel(score: number): string {
@@ -116,230 +111,89 @@ function healthScoreLabel(score: number): string {
   return 'At Risk'
 }
 
-function CircularGauge({ score }: { score: number }) {
-  const size = 160
-  const strokeWidth = 10
-  const radius = (size - strokeWidth) / 2
-  const circumference = 2 * Math.PI * radius
-  const color = healthScoreColor(score)
-  const progress = (score / 100) * circumference
+const ratioTone = (v: number): StatusTone => (v >= 0.7 ? 'success' : v >= 0.4 ? 'warning' : 'danger')
 
+// ============================================================================
+// SMALL PIECES
+// ============================================================================
+
+/** Static ring (no tween: the score is data, it updates in place). */
+function ScoreRing({ score }: { score: number }) {
+  const size = 88
+  const stroke = 7
+  const r = (size - stroke) / 2
+  const c = 2 * Math.PI * r
+  const tone = healthTone(score)
   return (
-    <div className="relative" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="transform -rotate-90">
-        {/* Background circle */}
+    <div className="relative shrink-0" style={{ width: size, height: size }} role="img" aria-label={`Health score ${score} of 100, ${healthScoreLabel(score)}`}>
+      <svg width={size} height={size} className="-rotate-90" aria-hidden="true">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" className="text-white/[0.06]" strokeWidth={stroke} />
         <circle
           cx={size / 2}
           cy={size / 2}
-          r={radius}
+          r={r}
           fill="none"
-          stroke="#1e293b"
-          strokeWidth={strokeWidth}
-        />
-        {/* Progress arc */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={color}
-          strokeWidth={strokeWidth}
+          stroke="currentColor"
+          className={TONE_CLASSES[tone].text}
+          strokeWidth={stroke}
           strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={circumference - progress}
-          style={{
-            transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)',
-            filter: `drop-shadow(0 0 6px ${color}40)`,
-          }}
+          strokeDasharray={c}
+          strokeDashoffset={c - (score / 100) * c}
         />
       </svg>
-      {/* Center label */}
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span
-          className="text-3xl font-bold tabular-nums"
-          style={{ color }}
-        >
-          {score}
-        </span>
-        <span className="text-[10px] text-slate-500 uppercase tracking-wider mt-0.5">
-          {healthScoreLabel(score)}
-        </span>
+        <span className={`text-2xl font-semibold tabular-nums ${TONE_CLASSES[tone].text}`}>{score}</span>
       </div>
     </div>
   )
 }
 
-// ============================================================================
-// RISK BADGE (reused pattern from FileContextCard)
-// ============================================================================
-
-function RiskBadge({ risk }: { risk: CodeHealth['risk_assessment'] }) {
-  if (!risk) return null
-  const total = risk.critical_count + risk.high_count + risk.medium_count + risk.low_count
-  if (total === 0) return null
-
-  const Icon =
-    risk.critical_count > 0
-      ? ShieldX
-      : risk.high_count > 0
-        ? ShieldAlert
-        : risk.avg_risk_score > 0.3
-          ? ShieldCheck
-          : Shield
-  const color =
-    risk.critical_count > 0
-      ? '#f87171'
-      : risk.high_count > 0
-        ? '#fb923c'
-        : risk.avg_risk_score > 0.3
-          ? '#fbbf24'
-          : '#4ade80'
-
-  return (
-    <div
-      className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium"
-      style={{ backgroundColor: `${color}15`, color }}
-    >
-      <Icon size={12} />
-      {risk.critical_count > 0
-        ? `${risk.critical_count} critical`
-        : risk.high_count > 0
-          ? `${risk.high_count} high risk`
-          : `Avg risk ${(risk.avg_risk_score * 100).toFixed(0)}%`}
-    </div>
-  )
-}
-
-// ============================================================================
-// MINI STAT — compact stat for layer cards
-// ============================================================================
-
-function MiniStat({
-  label,
-  value,
-  icon: Icon,
-  color,
-  sub,
-}: {
-  label: string
-  value: number | string
-  icon: typeof Brain
-  color: string
-  sub?: string
-}) {
-  return (
-    <div className="flex items-center gap-2.5 rounded-lg bg-slate-800/50 border border-slate-700/50 px-3 py-2.5">
-      <div
-        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-        style={{ backgroundColor: `${color}15` }}
-      >
-        <Icon size={16} color={color} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-base font-bold text-slate-200 tabular-nums">{value}</p>
-        <p className="text-[10px] text-slate-500 leading-tight">{label}</p>
-        {sub && <p className="text-[9px] text-slate-600 leading-tight">{sub}</p>}
-      </div>
-    </div>
-  )
-}
-
-// ============================================================================
-// MINI GAUGE — horizontal bar
-// ============================================================================
-
-function MiniGauge({
-  label,
-  value,
-  color,
-  suffix = '%',
-}: {
-  label: string
-  value: number
-  color: string
-  suffix?: string
-}) {
+/** Label · bar · percentage. `value` in 0–1. */
+function Meter({ label, value, tone, hint }: { label: string; value: number; tone?: StatusTone; hint?: string }) {
   const pct = Math.min(100, Math.max(0, value * 100))
+  const t = tone ?? ratioTone(value)
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-[10px] text-slate-500 min-w-[80px] shrink-0">{label}</span>
-      <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-        <div
-          className="h-full rounded-full transition-all duration-700"
-          style={{ width: `${pct}%`, backgroundColor: color }}
-        />
+    <div className="min-w-0">
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-gray-400 w-32 shrink-0 truncate">{label}</span>
+        <span className="flex-1 h-1 rounded-full bg-white/[0.06] overflow-hidden" aria-hidden="true">
+          <span className={`block h-full rounded-full ${TONE_CLASSES[t].dot}`} style={{ width: `${pct}%` }} />
+        </span>
+        <span className="text-[11px] tabular-nums text-gray-400 w-9 text-right">{pct.toFixed(0)}%</span>
       </div>
-      <span className="text-[10px] font-mono text-slate-400 min-w-[36px] text-right tabular-nums">
-        {pct.toFixed(0)}{suffix}
-      </span>
+      {hint && <p className="text-[11px] leading-4 text-gray-500 mt-0.5">{hint}</p>}
     </div>
   )
 }
 
-// ============================================================================
-// LAYER CARD — enhanced section for each intelligence layer
-// ============================================================================
+interface Stat {
+  label: string
+  value: ReactNode
+  sub?: ReactNode
+  tone?: StatusTone
+  hidden?: boolean
+}
 
-function LayerCard({
-  title,
-  icon: Icon,
-  color,
-  badge,
-  children,
-}: {
-  title: string
-  icon: typeof Brain
-  color: string
-  badge?: React.ReactNode
-  children: React.ReactNode
-}) {
+function StatGrid({ items, cols = 4 }: { items: Stat[]; cols?: 2 | 4 }) {
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <div
-            className="w-6 h-6 rounded-md flex items-center justify-center"
-            style={{ backgroundColor: `${color}15` }}
-          >
-            <Icon size={14} color={color} />
+    <dl className={`grid grid-cols-2 ${cols === 4 ? 'sm:grid-cols-4' : ''} gap-2`}>
+      {items
+        .filter((i) => !i.hidden)
+        .map((item) => (
+          <div key={item.label} className={`${surface} px-3 py-2 min-w-0 flex flex-col-reverse justify-end`}>
+            {item.sub && <p className="text-[11px] leading-4 text-gray-600 break-words">{item.sub}</p>}
+            <dt className="text-[11px] leading-4 text-gray-500">{item.label}</dt>
+            <dd className={`text-lg font-semibold tabular-nums ${item.tone ? TONE_CLASSES[item.tone].text : 'text-gray-100'}`}>
+              {item.value}
+            </dd>
           </div>
-          <span className="flex-1">{title}</span>
-          {badge}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
+        ))}
+    </dl>
   )
 }
 
 // ============================================================================
-// HOTSPOT ROW
-// ============================================================================
-
-function HotspotRow({ path, score }: { path: string; score: number }) {
-  const filename = path.split('/').pop() ?? path
-  const barPct = Math.min(100, score * 20) // normalize: 5 → 100%
-  return (
-    <div className="flex items-center gap-2 py-0.5 group">
-      <Flame size={10} className="text-orange-500 shrink-0 opacity-60 group-hover:opacity-100" />
-      <span className="text-[10px] text-slate-400 font-mono truncate flex-1 group-hover:text-orange-300" title={path}>
-        {filename}
-      </span>
-      <div className="w-16 h-1 bg-slate-800 rounded-full overflow-hidden shrink-0">
-        <div
-          className="h-full rounded-full bg-orange-500/70"
-          style={{ width: `${barPct}%` }}
-        />
-      </div>
-      <span className="text-[9px] font-mono text-slate-600 min-w-[28px] text-right">
-        {score.toFixed(1)}
-      </span>
-    </div>
-  )
-}
-
-// ============================================================================
-// QUICK ACTION BUTTON
+// QUICK ACTIONS
 // ============================================================================
 
 interface ActionResult {
@@ -348,55 +202,15 @@ interface ActionResult {
   message?: string
 }
 
-function QuickActionButton({
-  label,
-  icon: Icon,
-  color,
-  description,
-  actionState,
-  onClick,
-}: {
+interface QuickAction {
+  key: string
   label: string
-  icon: typeof Brain
-  color: string
+  icon: LucideIcon
   description: string
-  actionState: ActionResult
-  onClick: () => void
-}) {
-  const isRunning = actionState.status === 'running'
-  const isDone = actionState.status === 'success'
-  const isError = actionState.status === 'error'
-
-  return (
-    <button
-      onClick={onClick}
-      disabled={isRunning}
-      className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-slate-800/50 border border-slate-700/50 hover:bg-slate-800 hover:border-slate-600 transition-colors text-left disabled:opacity-60 disabled:cursor-not-allowed group w-full"
-    >
-      <div
-        className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 mt-0.5"
-        style={{ backgroundColor: `${color}15` }}
-      >
-        {isRunning ? (
-          <Loader2 size={14} color={color} className="animate-spin" />
-        ) : isDone ? (
-          <Check size={14} className="text-emerald-400" />
-        ) : (
-          <Icon size={14} color={color} />
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-slate-300 group-hover:text-slate-200">{label}</p>
-        <p className="text-[10px] text-slate-600 leading-tight mt-0.5">{description}</p>
-        {isDone && actionState.message && (
-          <p className="text-[10px] text-emerald-500 mt-0.5">{actionState.message}</p>
-        )}
-        {isError && actionState.message && (
-          <p className="text-[10px] text-red-400 mt-0.5">{actionState.message}</p>
-        )}
-      </div>
-    </button>
-  )
+  run: () => Promise<string>
+  /** Destructive / irreversible → confirm first. */
+  confirm?: string
+  hidden?: boolean
 }
 
 // ============================================================================
@@ -407,6 +221,7 @@ export function IntelligencePage() {
   const { projectSlug } = useParams<{ projectSlug: string }>()
   const wsSlug = useWorkspaceSlug()
   const navigate = useNavigate()
+  const confirmDialog = useConfirmDialog()
   const [summary, setSummary] = useAtom(intelligenceSummaryAtom)
   const [health, setHealth] = useState<CodeHealth | null>(null)
   const [project, setProject] = useState<Project | null>(null)
@@ -417,7 +232,6 @@ export function IntelligencePage() {
   // Community filter state — set when clicking a cluster label in the viz
   const [selectedCommunity, setSelectedCommunity] = useState<string | null>(null)
 
-  // Quick action states
   // Particle viz: communities (embeddings) — enriched with hotspot paths
   const hotspotPaths = useMemo(() => {
     if (!summary) return undefined
@@ -427,6 +241,14 @@ export function IntelligencePage() {
   }, [summary])
   const embeddingsViz = useEmbeddingsVizData(projectSlug, hotspotPaths ? { hotspotPaths } : undefined)
 
+  const codeHref = useCallback(
+    (extra: Record<string, string> = {}) => {
+      const q = new URLSearchParams({ ...(projectSlug ? { project: projectSlug } : {}), ...extra })
+      return workspacePath(wsSlug, `/code?${q.toString()}`)
+    },
+    [projectSlug, wsSlug],
+  )
+
   // Click handler for community viz particles
   const handleCommunityParticleClick = useCallback(
     (info: ParticleHitInfo) => {
@@ -434,67 +256,56 @@ export function IntelligencePage() {
       const clusterLabel = info.metadata?.clusterLabel as string | null
 
       if (filePath && projectSlug) {
-        // Navigate to CodePage with the file selected
-        navigate(
-          workspacePath(wsSlug, `/projects/${projectSlug}/code?file=${encodeURIComponent(filePath)}`),
-        )
+        // Open the file history on the Code page (the former /projects/:slug/code route did not exist → 404)
+        navigate(codeHref({ file: filePath }))
       } else if (clusterLabel) {
-        // Toggle community filter for Code Layer section
         setSelectedCommunity((prev) => (prev === clusterLabel ? null : clusterLabel))
       }
     },
-    [projectSlug, navigate, wsSlug],
+    [projectSlug, navigate, codeHref],
   )
 
   const [actions, setActions] = useState<Record<string, ActionResult>>({})
+  const getAction = (key: string): ActionResult => actions[key] ?? { key, status: 'idle' }
 
-  const getAction = (key: string): ActionResult =>
-    actions[key] ?? { key, status: 'idle' }
+  const runAction = useCallback(async (key: string, fn: () => Promise<string>) => {
+    setActions((prev) => ({ ...prev, [key]: { key, status: 'running' } }))
+    try {
+      const message = await fn()
+      setActions((prev) => ({ ...prev, [key]: { key, status: 'success', message } }))
+      setTimeout(() => {
+        setActions((prev) => ({ ...prev, [key]: { key, status: 'idle' } }))
+      }, 4000)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Action failed'
+      setActions((prev) => ({ ...prev, [key]: { key, status: 'error', message } }))
+    }
+  }, [])
 
-  const runAction = useCallback(
-    async (key: string, fn: () => Promise<string>) => {
-      setActions((prev) => ({ ...prev, [key]: { key, status: 'running' } }))
+  const fetchAll = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!projectSlug) return
+      setError(null)
       try {
-        const message = await fn()
-        setActions((prev) => ({ ...prev, [key]: { key, status: 'success', message } }))
-        // Auto-clear after 4s
-        setTimeout(() => {
-          setActions((prev) => ({ ...prev, [key]: { key, status: 'idle' } }))
-        }, 4000)
+        const [summaryData, healthData, projectData] = await Promise.allSettled([
+          intelligenceApi.getSummary(projectSlug, signal),
+          codeApi.getHealth({ project_slug: projectSlug }, signal),
+          projectsApi.get(projectSlug, signal),
+        ])
+        if (signal?.aborted) return
+        if (summaryData.status === 'fulfilled') setSummary(summaryData.value)
+        else throw new Error(summaryData.reason?.message ?? 'Failed to load intelligence data')
+        if (healthData.status === 'fulfilled') setHealth(healthData.value)
+        if (projectData.status === 'fulfilled') setProject(projectData.value)
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Action failed'
-        setActions((prev) => ({ ...prev, [key]: { key, status: 'error', message } }))
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        if (signal?.aborted) return
+        setError(err instanceof Error ? err.message : 'Failed to load intelligence data')
       }
     },
-    [],
+    [projectSlug, setSummary],
   )
 
-  const fetchAll = useCallback(async (signal?: AbortSignal) => {
-    if (!projectSlug) return
-    setError(null)
-    try {
-      const [summaryData, healthData, projectData] = await Promise.allSettled([
-        intelligenceApi.getSummary(projectSlug, signal),
-        codeApi.getHealth({ project_slug: projectSlug }, signal),
-        projectsApi.get(projectSlug, signal),
-      ])
-
-      // Bail out if aborted — don't update state for a stale request
-      if (signal?.aborted) return
-
-      if (summaryData.status === 'fulfilled') setSummary(summaryData.value)
-      else throw new Error(summaryData.reason?.message ?? 'Failed to load intelligence data')
-
-      if (healthData.status === 'fulfilled') setHealth(healthData.value)
-      if (projectData.status === 'fulfilled') setProject(projectData.value)
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return
-      if (signal?.aborted) return
-      setError(err instanceof Error ? err.message : 'Failed to load intelligence data')
-    }
-  }, [projectSlug, setSummary])
-
-  // Initial load — abort in-flight requests on unmount / slug change
   useEffect(() => {
     const controller = new AbortController()
     setLoading(true)
@@ -504,564 +315,450 @@ export function IntelligencePage() {
     return () => controller.abort()
   }, [fetchAll])
 
-  // Refresh handler
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)
     await fetchAll()
     setRefreshing(false)
   }, [fetchAll])
 
-  // Health score
   const healthScore = useMemo(() => {
     if (!summary) return 0
     return computeHealthScore(summary as IntelligenceSummary, health)
   }, [summary, health])
 
-  if (loading) return <LoadingPage />
-  if (error) return <ErrorState description={error} onRetry={handleRefresh} />
+  if (loading) {
+    return (
+      <PageContainer width="wide" className="space-y-6">
+        <div className="space-y-3" aria-busy="true" aria-label="Loading intelligence">
+          <Skeleton className="h-7 w-1/2" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+        <EntityListSkeleton rows={4} />
+      </PageContainer>
+    )
+  }
+  if (error)
+    return (
+      <PageContainer width="wide">
+        <ErrorState description={error} onRetry={handleRefresh} />
+      </PageContainer>
+    )
 
   const s = summary as IntelligenceSummary | null
-  if (!s) return <ErrorState description="No data available" />
+  if (!s)
+    return (
+      <PageContainer width="wide">
+        <ErrorState description="No data available" />
+      </PageContainer>
+    )
+
+  const risk = health?.risk_assessment
+  const riskTotal = risk ? risk.critical_count + risk.high_count + risk.medium_count + risk.low_count : 0
+  const codeSafety = risk ? (riskTotal === 0 ? 1 : (risk.low_count + risk.medium_count * 0.5) / riskTotal) : null
+
+  // Hotspots — filtered by selected community (from the embeddings viz)
+  const communityFiles =
+    selectedCommunity && embeddingsViz.data
+      ? new Set(
+          embeddingsViz.data.clusters
+            .filter((c) => c.label === selectedCommunity)
+            .flatMap((c) => c.files?.map((f) => f.path) ?? []),
+        )
+      : null
+  const filteredHotspots = communityFiles ? s.code.hotspots.filter((h) => communityFiles.has(h.path)) : s.code.hotspots
+
+  // Attention items
+  const attention: { key: string; tone: StatusTone; title: string; href: string }[] = []
+  if (s.knowledge.stale_count > 0)
+    attention.push({ key: 'stale', tone: 'warning', title: `${pluralize(s.knowledge.stale_count, 'stale note')} need review`, href: workspacePath(wsSlug, '/notes') })
+  if (s.neural.dead_notes_count > 0)
+    attention.push({ key: 'dead', tone: 'neutral', title: `${pluralize(s.neural.dead_notes_count, 'dead note')} (no energy)`, href: workspacePath(wsSlug, '/notes') })
+  if (s.code.orphans > 5)
+    attention.push({ key: 'orphans', tone: 'warning', title: `${s.code.orphans} orphan files (no imports/exports)`, href: codeHref({ tab: 'sante' }) })
+  if (risk && risk.critical_count > 0)
+    attention.push({ key: 'risk', tone: 'danger', title: `${pluralize(risk.critical_count, 'file')} at critical risk`, href: codeHref({ tab: 'sante' }) })
+  if (health && health.god_function_count > 0)
+    attention.push({ key: 'god', tone: 'warning', title: `${health.god_function_count} god functions (threshold: ${health.god_function_threshold})`, href: codeHref({ tab: 'sante' }) })
+
+  const quickActions: QuickAction[] = [
+    {
+      key: 'staleness',
+      label: 'Update Staleness',
+      icon: Timer,
+      description: 'Recalculate staleness scores for all notes',
+      run: async () => {
+        const r = await adminApi.updateStaleness()
+        await handleRefresh()
+        return `${r.notes_updated} notes updated`
+      },
+    },
+    {
+      key: 'energy',
+      label: 'Recalculate Energy',
+      icon: Zap,
+      description: 'Update neural energy scores based on activity',
+      run: async () => {
+        const r = await adminApi.updateEnergy()
+        await handleRefresh()
+        return `${r.notes_updated} notes updated (half-life: ${r.half_life_days}d)`
+      },
+    },
+    {
+      key: 'decay',
+      label: 'Decay Synapses',
+      icon: Waves,
+      description: 'Decay weak synapses and prune dead connections',
+      confirm: 'Weak synapses are weakened and the dead ones permanently pruned.',
+      run: async () => {
+        const r = await adminApi.decayNeurons()
+        await handleRefresh()
+        return `${r.synapses_decayed} decayed, ${r.synapses_pruned} pruned`
+      },
+    },
+    {
+      key: 'fabric',
+      label: 'Update Fabric Scores',
+      icon: Network,
+      description: 'Recalculate GDS metrics (PageRank, communities)',
+      hidden: !project,
+      run: async () => {
+        const r = await adminApi.updateFabricScores({ project_id: project!.id })
+        await handleRefresh()
+        return `${r.nodes_updated} nodes, ${r.communities} communities`
+      },
+    },
+    {
+      key: 'skills',
+      label: 'Detect Skills',
+      icon: BrainCircuit,
+      description: 'Auto-detect emergent skills from note clusters',
+      hidden: !project,
+      run: async () => {
+        const r = await adminApi.detectSkills(project!.id)
+        await handleRefresh()
+        return `${r.skills_created ?? 0} new, ${r.skills_updated ?? 0} updated`
+      },
+    },
+    {
+      key: 'backfill',
+      label: 'Backfill Synapses',
+      icon: Search,
+      description: 'Create missing synapses from semantic similarity',
+      hidden: !project,
+      run: async () => {
+        await adminApi.startBackfillSynapses()
+        return 'Backfill job started'
+      },
+    },
+  ]
+
+  const triggerAction = (a: QuickAction) => {
+    if (a.confirm) {
+      confirmDialog.open({
+        title: `${a.label}?`,
+        description: a.confirm,
+        confirmLabel: a.label,
+        variant: 'warning',
+        onConfirm: async () => {
+          runAction(a.key, a.run)
+        },
+      })
+    } else {
+      runAction(a.key, a.run)
+    }
+  }
 
   return (
-    <div className="py-6 space-y-6">
-      {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-200 flex items-center gap-2">
-            <Brain size={22} className="text-cyan-400" />
-            Intelligence Dashboard
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Multi-layer knowledge graph overview for{' '}
-            <span className="text-slate-400 font-medium">{projectSlug}</span>
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-300 border border-slate-700 transition-colors text-xs font-medium disabled:opacity-50"
-          >
-            <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
-            Refresh
-          </button>
-          <button
-            onClick={() =>
-              navigate(
-                workspacePath(wsSlug, `/projects/${projectSlug}/intelligence/vector-space`),
-              )
-            }
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 border border-violet-500/30 transition-colors text-sm font-medium"
-          >
-            <Orbit size={14} />
-            Vector Space
-          </button>
-          <button
-            onClick={() =>
-              navigate(
-                workspacePath(wsSlug, `/projects/${projectSlug}/intelligence/graph`),
-              )
-            }
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/30 transition-colors text-sm font-medium"
-          >
-            Open Graph
-            <ArrowRight size={14} />
-          </button>
-        </div>
-      </div>
+    <PageContainer width="wide" className="space-y-6">
+      <PageHeader
+        title="Intelligence"
+        parentLinks={
+          projectSlug
+            ? [{ icon: Folder, label: 'Project', name: project?.name ?? projectSlug, href: workspacePath(wsSlug, `/projects/${projectSlug}`) }]
+            : undefined
+        }
+        meta={[
+          `${s.code.files + s.code.functions} code entities`,
+          `${s.knowledge.notes + s.knowledge.decisions} knowledge items`,
+          pluralize(s.skills.total, 'skill'),
+        ]}
+        actions={
+          <>
+            <Button size="sm" onClick={() => navigate(workspacePath(wsSlug, `/projects/${projectSlug}/intelligence/graph`))}>
+              Open graph
+              <ArrowRight className="w-3.5 h-3.5 ml-1" aria-hidden="true" />
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => navigate(workspacePath(wsSlug, `/projects/${projectSlug}/intelligence/vector-space`))}
+            >
+              <Orbit className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
+              Vector space
+            </Button>
+          </>
+        }
+        overflowActions={[{ label: refreshing ? 'Refreshing…' : 'Refresh', icon: RefreshCw, onClick: handleRefresh, disabled: refreshing }]}
+        description="Multi-layer knowledge graph overview: code, knowledge, neural memory, skills and protocols."
+      />
 
-      {/* ── Health Score Hero ───────────────────────────────────────────── */}
-      <Card>
-        <CardContent className="py-6">
-          <div className="flex items-center gap-8">
-            {/* Circular gauge */}
-            <CircularGauge score={healthScore} />
-
-            {/* Health breakdown */}
-            <div className="flex-1 space-y-2">
-              <h2 className="text-sm font-semibold text-slate-300 mb-3">Health Breakdown</h2>
-              <MiniGauge
-                label="Knowledge Coverage"
-                value={s.code.files > 0 ? Math.min(1, (s.knowledge.notes + s.knowledge.decisions) / s.code.files / 2) : 0}
-                color="#fbbf24"
-              />
-              <MiniGauge
-                label="Note Freshness"
-                value={s.knowledge.notes > 0 ? 1 - s.knowledge.stale_count / s.knowledge.notes : 1}
-                color="#4ade80"
-              />
-              <MiniGauge
-                label="Neural Energy"
-                value={s.neural.avg_energy}
-                color="#22d3ee"
-              />
-              <MiniGauge
-                label="Synapse Quality"
-                value={1 - s.neural.weak_synapses_ratio}
-                color="#a78bfa"
-              />
-              <MiniGauge
-                label="Skills Maturity"
-                value={s.skills.total > 0 ? s.skills.active / s.skills.total : 0}
-                color="#ec4899"
-              />
-              {health?.risk_assessment && (
-                <MiniGauge
-                  label="Code Safety"
-                  value={
-                    (() => {
-                      const r = health.risk_assessment!
-                      const total = r.critical_count + r.high_count + r.medium_count + r.low_count
-                      if (total === 0) return 1
-                      return (r.low_count + r.medium_count * 0.5) / total
-                    })()
-                  }
-                  color="#f87171"
-                />
-              )}
-            </div>
-
-            {/* Quick stats column */}
-            <div className="space-y-3 min-w-[140px]">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-slate-200 tabular-nums">
-                  {s.code.files + s.code.functions}
+      {/* ── Health ─────────────────────────────────────────────────── */}
+      <Section title="Health" description="Average of the signals below — each bar is 0–100%, higher is better.">
+        <div className={`${surface} p-4 flex flex-wrap items-center gap-4`}>
+          <div className="flex items-center gap-3">
+            <ScoreRing score={healthScore} />
+            <div>
+              <p className={`text-sm font-medium ${TONE_CLASSES[healthTone(healthScore)].text}`}>{healthScoreLabel(healthScore)}</p>
+              {risk && riskTotal > 0 && (
+                <p className="text-[11px] text-gray-500">
+                  {risk.critical_count > 0
+                    ? `${risk.critical_count} critical`
+                    : risk.high_count > 0
+                      ? `${risk.high_count} high risk`
+                      : `Avg risk ${(risk.avg_risk_score * 100).toFixed(0)}%`}
                 </p>
-                <p className="text-[10px] text-slate-500">Code Entities</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-slate-200 tabular-nums">
-                  {s.knowledge.notes + s.knowledge.decisions}
-                </p>
-                <p className="text-[10px] text-slate-500">Knowledge Items</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-slate-200 tabular-nums">
-                  {s.skills.total}
-                </p>
-                <p className="text-[10px] text-slate-500">Neural Skills</p>
-              </div>
-              {health?.risk_assessment && (
-                <div className="flex justify-center">
-                  <RiskBadge risk={health.risk_assessment} />
-                </div>
               )}
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* ── Layer Cards Grid ────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* CODE LAYER */}
-        <LayerCard
-          title={selectedCommunity ? `Code — ${selectedCommunity}` : 'Code'}
-          icon={FileCode2}
-          color="#3B82F6"
-          badge={
-            selectedCommunity ? (
-              <button
-                onClick={() => setSelectedCommunity(null)}
-                className="text-[10px] text-cyan-400 hover:text-cyan-300 px-1.5 py-0.5 rounded bg-cyan-950/30 border border-cyan-900/30"
-              >
-                Clear filter
-              </button>
-            ) : undefined
-          }
-        >
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            <MiniStat label="Files" value={s.code.files} icon={FileCode2} color="#3B82F6" />
-            <MiniStat label="Functions" value={s.code.functions} icon={Network} color="#60A5FA" />
-            <MiniStat label="Communities" value={s.code.communities} icon={Network} color="#6366F1" />
-            <MiniStat
-              label="Orphans"
-              value={s.code.orphans}
-              icon={AlertTriangle}
-              color={s.code.orphans > 10 ? '#F59E0B' : '#4ade80'}
+          <div className="flex-[1_1_16rem] min-w-0 space-y-1.5">
+            <Meter
+              label="Knowledge coverage"
+              value={s.code.files > 0 ? Math.min(1, (s.knowledge.notes + s.knowledge.decisions) / s.code.files / 2) : 0}
             />
+            <Meter label="Note freshness" value={s.knowledge.notes > 0 ? 1 - s.knowledge.stale_count / s.knowledge.notes : 1} />
+            <Meter label="Neural energy" value={s.neural.avg_energy} />
+            <Meter label="Synapse quality" value={1 - s.neural.weak_synapses_ratio} />
+            <Meter label="Skills maturity" value={s.skills.total > 0 ? s.skills.active / s.skills.total : 0} />
+            {codeSafety !== null && <Meter label="Code safety" value={codeSafety} />}
           </div>
-          {/* Hotspots — filtered by selectedCommunity if active */}
-          {(() => {
-            // Get file paths for selected community from embeddings data
-            const communityFiles = selectedCommunity && embeddingsViz.data
-              ? new Set(
-                  embeddingsViz.data.clusters
-                    .filter((c) => c.label === selectedCommunity)
-                    .flatMap((c) => c.files?.map((f) => f.path) ?? []),
-                )
-              : null
+        </div>
+      </Section>
 
-            const filteredHotspots = communityFiles
-              ? s.code.hotspots.filter((h) => communityFiles.has(h.path))
-              : s.code.hotspots
+      {/* ── Attention ──────────────────────────────────────────────── */}
+      {attention.length > 0 && (
+        <Section title="Attention needed" count={attention.length}>
+          <EntityList aria-label="Attention needed">
+            {attention.map((a) => (
+              <EntityRow key={a.key} title={a.title} href={a.href} leading={<StatusDot tone={a.tone} />} chevron />
+            ))}
+          </EntityList>
+        </Section>
+      )}
 
-            return filteredHotspots.length > 0 ? (
-              <div>
-                <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mb-1.5">
-                  {selectedCommunity ? `Hotspots in ${selectedCommunity}` : 'Top Hotspots'}
-                </p>
-                <div className="space-y-0.5">
-                  {filteredHotspots.slice(0, 5).map((h) => (
-                    <HotspotRow key={h.path} path={h.path} score={h.churn_score} />
-                  ))}
-                </div>
-              </div>
-            ) : selectedCommunity ? (
-              <p className="text-[10px] text-slate-500 italic">No hotspots in this community</p>
-            ) : null
-          })()}
-        </LayerCard>
+      {/* ── Code layer ─────────────────────────────────────────────── */}
+      <Section
+        title={selectedCommunity ? `Code — ${selectedCommunity}` : 'Code'}
+        action={
+          selectedCommunity ? (
+            <button type="button" onClick={() => setSelectedCommunity(null)} className={`px-1 py-2 text-xs ${textLink}`}>
+              Clear filter
+            </button>
+          ) : undefined
+        }
+      >
+        <div className="space-y-3">
+          <StatGrid
+            items={[
+              { label: 'Files', value: s.code.files },
+              { label: 'Functions', value: s.code.functions },
+              { label: 'Communities', value: s.code.communities },
+              { label: 'Orphans', value: s.code.orphans, tone: s.code.orphans > 10 ? 'warning' : undefined },
+            ]}
+          />
+          {filteredHotspots.length > 0 ? (
+            <div>
+              <h3 className="px-1 pb-1.5 text-[11px] font-medium text-gray-500">
+                {selectedCommunity ? `Hotspots in ${selectedCommunity}` : 'Top hotspots'}
+              </h3>
+              <EntityList aria-label="Hotspots">
+                {filteredHotspots.slice(0, 5).map((h) => (
+                  <EntityRow
+                    key={h.path}
+                    title={<span className="font-mono">{h.path.split('/').pop() ?? h.path}</span>}
+                    ariaLabel={`History of ${h.path}`}
+                    href={codeHref({ file: h.path })}
+                    description={<span className="font-mono break-all">{h.path}</span>}
+                    trailing={`churn ${h.churn_score.toFixed(1)}`}
+                  />
+                ))}
+              </EntityList>
+            </div>
+          ) : selectedCommunity ? (
+            <EmptyState size="sm" title="No hotspots in this community" />
+          ) : null}
+        </div>
+      </Section>
 
-        {/* CODE COMMUNITIES VIZ — interactive */}
-        {embeddingsViz.data && (
-          <div className="md:col-span-2">
+      {/* ── Communities map (canvas mounted on demand — it is costly on phones) ── */}
+      {embeddingsViz.data && (
+        <Section
+          title="Code communities map"
+          collapsible
+          defaultOpen={false}
+          description="Files clustered by meaning. Tap a file to open its history, a cluster label to filter the Code section."
+        >
+          <div className="rounded-xl overflow-hidden">
             <CommunityVizWidget
               data={embeddingsViz.data}
               height={300}
-              className="rounded-lg"
               interactive
               onParticleClick={handleCommunityParticleClick}
             />
-            {selectedCommunity && (
-              <div className="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-md bg-cyan-950/30 border border-cyan-900/30 text-[11px] text-cyan-400">
-                <span>
-                  Filtering Code Layer by community: <strong>{selectedCommunity}</strong>
-                </span>
-                <button
-                  onClick={() => setSelectedCommunity(null)}
-                  className="ml-auto text-cyan-500 hover:text-cyan-300 text-xs"
-                >
-                  Clear
-                </button>
-              </div>
-            )}
           </div>
-        )}
-
-        {/* PROJECT MANAGEMENT LAYER */}
-        <LayerCard title="Project Management" icon={LayoutList} color="#818cf8">
-          <div className="grid grid-cols-2 gap-2">
-            <MiniStat
-              label="Notes"
-              value={s.knowledge.notes}
-              icon={StickyNote}
-              color="#F59E0B"
-              sub={s.knowledge.stale_count > 0 ? `${s.knowledge.stale_count} stale` : undefined}
-            />
-            <MiniStat label="Decisions" value={s.knowledge.decisions} icon={Scale} color="#8B5CF6" />
-          </div>
-          {/* Note type distribution */}
-          {Object.keys(s.knowledge.types_distribution).length > 0 && (
-            <div className="mt-3">
-              <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mb-1.5">
-                Note Types
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {Object.entries(s.knowledge.types_distribution).map(([type, count]) => (
-                  <span
-                    key={type}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-800/60 border border-slate-700/40 text-[10px]"
-                  >
-                    <span className="text-slate-500">{type}</span>
-                    <span className="font-mono font-bold text-slate-300">{count}</span>
-                  </span>
-                ))}
-              </div>
-            </div>
+          {selectedCommunity && (
+            <p className="mt-2 text-[11px] text-gray-400">
+              Filtering Code by community: <strong className="text-gray-200">{selectedCommunity}</strong>{' '}
+              <button type="button" onClick={() => setSelectedCommunity(null)} className={`px-1 py-2 ${textLink}`}>
+                Clear
+              </button>
+            </p>
           )}
-        </LayerCard>
-
-        {/* KNOWLEDGE LAYER */}
-        <LayerCard
-          title="Knowledge Fabric"
-          icon={BookOpen}
-          color="#94A3B8"
-          badge={
-            <span className="text-[10px] font-mono text-slate-600">
-              {s.fabric.co_changed_pairs} pairs
-            </span>
-          }
-        >
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            <MiniStat
-              label="Co-changed Pairs"
-              value={s.fabric.co_changed_pairs}
-              icon={Network}
-              color="#FED7AA"
-            />
-            {health?.coupling_metrics && (
-              <MiniStat
-                label="Avg Coupling"
-                value={health.coupling_metrics.avg_clustering_coefficient.toFixed(2)}
-                icon={Activity}
-                color="#94A3B8"
-                sub={`max: ${health.coupling_metrics.max_clustering_coefficient.toFixed(2)}`}
-              />
-            )}
-          </div>
-          {health && health.circular_dependency_count > 0 && (
-            <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-red-950/30 border border-red-900/30 text-[10px] text-red-400">
-              <AlertTriangle size={10} />
-              {health.circular_dependency_count} circular dependencies detected
-            </div>
-          )}
-          {health?.coupling_metrics?.most_coupled_file && (
-            <div className="mt-2">
-              <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mb-1">
-                Most Coupled
-              </p>
-              <p className="text-[10px] text-slate-400 font-mono truncate" title={health.coupling_metrics.most_coupled_file}>
-                {health.coupling_metrics.most_coupled_file.split('/').pop()}
-              </p>
-            </div>
-          )}
-        </LayerCard>
-
-        {/* NEURAL LAYER */}
-        <LayerCard title="Neural" icon={Brain} color="#06B6D4">
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            <MiniStat label="Active Synapses" value={s.neural.active_synapses} icon={Brain} color="#06B6D4" />
-            <MiniStat
-              label="Dead Notes"
-              value={s.neural.dead_notes_count}
-              icon={StickyNote}
-              color={s.neural.dead_notes_count > 5 ? '#f87171' : '#64748b'}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <MiniGauge label="Avg Energy" value={s.neural.avg_energy} color="#22d3ee" />
-            <MiniGauge
-              label="Weak Synapses"
-              value={s.neural.weak_synapses_ratio}
-              color={s.neural.weak_synapses_ratio > 0.5 ? '#fb923c' : '#4ade80'}
-            />
-          </div>
-        </LayerCard>
-
-        {/* SKILLS LAYER — full width */}
-        <div className="md:col-span-2">
-          <LayerCard
-            title="Skills"
-            icon={Sparkles}
-            color="#EC4899"
-            badge={
-              <span className="text-[10px] font-mono text-slate-600">
-                {s.skills.total_activations} total activations
-              </span>
-            }
-          >
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-              <MiniStat label="Total Skills" value={s.skills.total} icon={Brain} color="#EC4899" />
-              <MiniStat label="Active" value={s.skills.active} icon={Zap} color="#4ade80" />
-              <MiniStat label="Emerging" value={s.skills.emerging} icon={Sparkles} color="#fbbf24" />
-              <MiniStat
-                label="Avg Cohesion"
-                value={`${(s.skills.avg_cohesion * 100).toFixed(0)}%`}
-                icon={CheckSquare}
-                color="#F9A8D4"
-              />
-            </div>
-            <MiniGauge label="Skill Maturity" value={s.skills.total > 0 ? s.skills.active / s.skills.total : 0} color="#ec4899" />
-          </LayerCard>
-        </div>
-
-        {/* BEHAVIORAL LAYER — full width */}
-        {s.behavioral.protocols > 0 && (
-          <div className="md:col-span-2">
-            <LayerCard
-              title="Behavioral"
-              icon={Workflow}
-              color="#F97316"
-              badge={
-                <span className="text-[10px] font-mono text-slate-600">
-                  {s.behavioral.states} states · {s.behavioral.transitions} transitions
-                </span>
-              }
-            >
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-                <MiniStat label="Protocols" value={s.behavioral.protocols} icon={Workflow} color="#F97316" />
-                <MiniStat label="System" value={s.behavioral.system_protocols} icon={BrainCircuit} color="#3B82F6" />
-                <MiniStat label="Business" value={s.behavioral.business_protocols} icon={GitBranch} color="#F97316" />
-                <MiniStat
-                  label="Skill-Linked"
-                  value={s.behavioral.skill_linked}
-                  icon={Link2}
-                  color={s.behavioral.skill_linked > 0 ? '#EC4899' : '#64748b'}
-                />
-              </div>
-              <MiniGauge
-                label="Skill Coverage"
-                value={s.behavioral.protocols > 0 ? s.behavioral.skill_linked / s.behavioral.protocols : 0}
-                color="#F97316"
-              />
-            </LayerCard>
-          </div>
-        )}
-      </div>
-
-      {/* ── Attention Section (health warnings) ─────────────────────────── */}
-      {(s.knowledge.stale_count > 0 ||
-        s.neural.dead_notes_count > 0 ||
-        s.code.orphans > 5 ||
-        (health?.risk_assessment && health.risk_assessment.critical_count > 0)) && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm text-amber-400">
-              <AlertTriangle size={16} />
-              Attention Needed
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {s.knowledge.stale_count > 0 && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-950/20 border border-amber-900/30 text-[11px] text-amber-400">
-                  <StickyNote size={12} />
-                  <span>
-                    <strong>{s.knowledge.stale_count}</strong> stale notes need review
-                  </span>
-                </div>
-              )}
-              {s.neural.dead_notes_count > 0 && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-800/50 border border-slate-700/50 text-[11px] text-slate-400">
-                  <Brain size={12} className="text-cyan-500" />
-                  <span>
-                    <strong>{s.neural.dead_notes_count}</strong> dead notes (no energy)
-                  </span>
-                </div>
-              )}
-              {s.code.orphans > 5 && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-950/20 border border-amber-900/30 text-[11px] text-amber-400">
-                  <FileCode2 size={12} />
-                  <span>
-                    <strong>{s.code.orphans}</strong> orphan files (no imports/exports)
-                  </span>
-                </div>
-              )}
-              {health?.risk_assessment && health.risk_assessment.critical_count > 0 && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-red-950/20 border border-red-900/30 text-[11px] text-red-400">
-                  <ShieldX size={12} />
-                  <span>
-                    <strong>{health.risk_assessment.critical_count}</strong> files at critical risk
-                  </span>
-                </div>
-              )}
-              {health && health.god_function_count > 0 && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-orange-950/20 border border-orange-900/30 text-[11px] text-orange-400">
-                  <Flame size={12} />
-                  <span>
-                    <strong>{health.god_function_count}</strong> god functions (threshold: {health.god_function_threshold})
-                  </span>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        </Section>
       )}
 
-      {/* ── Quick Actions (maintenance) ────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Wrench size={16} className="text-slate-400" />
-            Quick Actions
-            <span className="text-[10px] text-slate-600 font-normal ml-auto">
-              Knowledge graph maintenance
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            <QuickActionButton
-              label="Update Staleness"
-              icon={Timer}
-              color="#fb923c"
-              description="Recalculate staleness scores for all notes"
-              actionState={getAction('staleness')}
-              onClick={() =>
-                runAction('staleness', async () => {
-                  const r = await adminApi.updateStaleness()
-                  await handleRefresh()
-                  return `${r.notes_updated} notes updated`
-                })
-              }
+      {/* ── Knowledge ──────────────────────────────────────────────── */}
+      <Section title="Project management">
+        <div className="space-y-2">
+          <StatGrid
+            cols={2}
+            items={[
+              { label: 'Notes', value: s.knowledge.notes, sub: s.knowledge.stale_count > 0 ? `${s.knowledge.stale_count} stale` : undefined },
+              { label: 'Decisions', value: s.knowledge.decisions },
+            ]}
+          />
+          {Object.keys(s.knowledge.types_distribution).length > 0 && (
+            <p className="px-1 text-[11px] leading-5 text-gray-500">
+              Note types:{' '}
+              {Object.entries(s.knowledge.types_distribution).map(([type, count], i) => (
+                <span key={type}>
+                  {i > 0 && ' · '}
+                  {type} <span className="tabular-nums text-gray-300">{count}</span>
+                </span>
+              ))}
+            </p>
+          )}
+        </div>
+      </Section>
+
+      <Section title="Knowledge fabric" description="How files are coupled through imports and commits made together.">
+        <div className="space-y-2">
+          <StatGrid
+            cols={2}
+            items={[
+              { label: 'Co-changed pairs', value: s.fabric.co_changed_pairs },
+              {
+                label: 'Avg coupling',
+                hidden: !health?.coupling_metrics,
+                value: health?.coupling_metrics?.avg_clustering_coefficient.toFixed(2),
+                sub: health?.coupling_metrics ? `max: ${health.coupling_metrics.max_clustering_coefficient.toFixed(2)}` : undefined,
+              },
+            ]}
+          />
+          {health && health.circular_dependency_count > 0 && (
+            <p className={`px-1 text-xs ${TONE_CLASSES.danger.text}`}>{health.circular_dependency_count} circular dependencies detected</p>
+          )}
+          {health?.coupling_metrics?.most_coupled_file && (
+            <p className="px-1 text-[11px] text-gray-500">
+              Most coupled: <span className="font-mono text-gray-400 break-all">{health.coupling_metrics.most_coupled_file}</span>
+            </p>
+          )}
+        </div>
+      </Section>
+
+      <Section title="Neural memory" description="Notes behave like neurons: energy fades without use, synapses link notes used together.">
+        <div className="space-y-3">
+          <StatGrid
+            cols={2}
+            items={[
+              { label: 'Active synapses', value: s.neural.active_synapses },
+              { label: 'Dead notes', value: s.neural.dead_notes_count, tone: s.neural.dead_notes_count > 5 ? 'danger' : undefined },
+            ]}
+          />
+          <div className="space-y-1.5 px-1">
+            <Meter label="Avg energy" value={s.neural.avg_energy} />
+            <Meter
+              label="Weak synapses"
+              value={s.neural.weak_synapses_ratio}
+              tone={s.neural.weak_synapses_ratio > 0.5 ? 'warning' : 'success'}
             />
-            <QuickActionButton
-              label="Recalculate Energy"
-              icon={Zap}
-              color="#22d3ee"
-              description="Update neural energy scores based on activity"
-              actionState={getAction('energy')}
-              onClick={() =>
-                runAction('energy', async () => {
-                  const r = await adminApi.updateEnergy()
-                  await handleRefresh()
-                  return `${r.notes_updated} notes updated (half-life: ${r.half_life_days}d)`
-                })
-              }
-            />
-            <QuickActionButton
-              label="Decay Synapses"
-              icon={Waves}
-              color="#a78bfa"
-              description="Decay weak synapses and prune dead connections"
-              actionState={getAction('decay')}
-              onClick={() =>
-                runAction('decay', async () => {
-                  const r = await adminApi.decayNeurons()
-                  await handleRefresh()
-                  return `${r.synapses_decayed} decayed, ${r.synapses_pruned} pruned`
-                })
-              }
-            />
-            {project && (
-              <>
-                <QuickActionButton
-                  label="Update Fabric Scores"
-                  icon={Network}
-                  color="#94a3b8"
-                  description="Recalculate GDS metrics (PageRank, communities)"
-                  actionState={getAction('fabric')}
-                  onClick={() =>
-                    runAction('fabric', async () => {
-                      const r = await adminApi.updateFabricScores({ project_id: project.id })
-                      await handleRefresh()
-                      return `${r.nodes_updated} nodes, ${r.communities} communities`
-                    })
-                  }
-                />
-                <QuickActionButton
-                  label="Detect Skills"
-                  icon={BrainCircuit}
-                  color="#ec4899"
-                  description="Auto-detect emergent skills from note clusters"
-                  actionState={getAction('skills')}
-                  onClick={() =>
-                    runAction('skills', async () => {
-                      const r = await adminApi.detectSkills(project.id)
-                      await handleRefresh()
-                      return `${r.skills_created ?? 0} new, ${r.skills_updated ?? 0} updated`
-                    })
-                  }
-                />
-                <QuickActionButton
-                  label="Backfill Synapses"
-                  icon={Search}
-                  color="#06b6d4"
-                  description="Create missing synapses from semantic similarity"
-                  actionState={getAction('backfill')}
-                  onClick={() =>
-                    runAction('backfill', async () => {
-                      await adminApi.startBackfillSynapses()
-                      return 'Backfill job started'
-                    })
-                  }
-                />
-              </>
-            )}
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </Section>
+
+      <Section title="Skills" description={`${s.skills.total_activations} total activations`}>
+        <div className="space-y-3">
+          <StatGrid
+            items={[
+              { label: 'Total skills', value: s.skills.total },
+              { label: 'Active', value: s.skills.active },
+              { label: 'Emerging', value: s.skills.emerging },
+              { label: 'Avg cohesion', value: `${(s.skills.avg_cohesion * 100).toFixed(0)}%` },
+            ]}
+          />
+          <div className="px-1">
+            <Meter label="Skill maturity" value={s.skills.total > 0 ? s.skills.active / s.skills.total : 0} />
+          </div>
+        </div>
+      </Section>
+
+      {s.behavioral.protocols > 0 && (
+        <Section title="Behavioral" description={`${s.behavioral.states} states · ${s.behavioral.transitions} transitions`}>
+          <div className="space-y-3">
+            <StatGrid
+              items={[
+                { label: 'Protocols', value: s.behavioral.protocols },
+                { label: 'System', value: s.behavioral.system_protocols },
+                { label: 'Business', value: s.behavioral.business_protocols },
+                { label: 'Skill-linked', value: s.behavioral.skill_linked },
+              ]}
+            />
+            <div className="px-1">
+              <Meter label="Skill coverage" value={s.behavioral.skill_linked / s.behavioral.protocols} />
+            </div>
+          </div>
+        </Section>
+      )}
+
+      {/* ── Maintenance ────────────────────────────────────────────── */}
+      <Section title="Quick actions" description="Knowledge graph maintenance.">
+        <EntityList aria-label="Quick actions">
+          {quickActions
+            .filter((a) => !a.hidden)
+            .map((a) => {
+              const st = getAction(a.key)
+              return (
+                <EntityRow
+                  key={a.key}
+                  title={a.label}
+                  description={a.description}
+                  leading={createElement(a.icon, { className: 'w-4 h-4 text-gray-500', 'aria-hidden': true })}
+                  meta={
+                    st.status === 'success' && st.message ? (
+                      <span className={`text-[11px] ${TONE_CLASSES.success.text}`}>{st.message}</span>
+                    ) : st.status === 'error' && st.message ? (
+                      <span className={`text-[11px] ${TONE_CLASSES.danger.text}`}>{st.message}</span>
+                    ) : undefined
+                  }
+                  actions={
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      loading={st.status === 'running'}
+                      disabled={st.status === 'running'}
+                      onClick={() => triggerAction(a)}
+                      aria-label={`Run ${a.label}`}
+                      className="my-1.5 mr-1.5"
+                    >
+                      {st.status === 'success' ? <Check className="w-3.5 h-3.5" aria-hidden="true" /> : 'Run'}
+                    </Button>
+                  }
+                />
+              )
+            })}
+        </EntityList>
+      </Section>
+
+      <ConfirmDialog {...confirmDialog.dialogProps} />
+    </PageContainer>
   )
 }
