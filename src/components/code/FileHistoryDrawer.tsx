@@ -10,6 +10,7 @@ import {
   ListGroup,
   RelativeTime,
   Section,
+  TONE_CLASSES,
   focusRing,
   groupByRecency,
   pluralize,
@@ -145,9 +146,9 @@ export function FileHistoryDrawer({
                           entry.author,
                           entry.additions > 0 || entry.deletions > 0 ? (
                             <span key="diff" className="font-mono tabular-nums">
-                              {entry.additions > 0 && <span className="text-emerald-400">+{entry.additions}</span>}
+                              {entry.additions > 0 && <span className={TONE_CLASSES.success.text}>+{entry.additions}</span>}
                               {entry.additions > 0 && entry.deletions > 0 && ' '}
-                              {entry.deletions > 0 && <span className="text-red-400">−{entry.deletions}</span>}
+                              {entry.deletions > 0 && <span className={TONE_CLASSES.danger.text}>−{entry.deletions}</span>}
                             </span>
                           ) : null,
                         ]}
