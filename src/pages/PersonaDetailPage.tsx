@@ -72,6 +72,20 @@ const ORIGIN_LABEL: Record<PersonaOrigin, string> = {
 /** Max targets resolved to a readable name per relation kind. */
 const RESOLVE_CAP = 50
 
+/**
+ * Exact seconds for a configured value (`90s` must not read as `1m`):
+ * `45s`, `1m 30s`, `5m`, `1h 5m`. Measured averages keep `formatDurationMs`.
+ */
+function formatSecondsExact(secs: number): string {
+  const s = Math.max(0, Math.round(secs))
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  const rest = s % 60
+  if (m < 60) return rest ? `${m}m ${rest}s` : `${m}m`
+  const h = Math.floor(m / 60)
+  return m % 60 ? `${h}h ${m % 60}m` : `${h}h`
+}
+
 interface Resolved {
   title: string
   /** Full text for expandable rows (notes). */
@@ -386,7 +400,7 @@ export function PersonaDetailPage() {
           items={[
             { label: 'Model', value: persona.model_preference || 'Default' },
             { label: 'Complexity', value: persona.complexity_default || 'Automatic' },
-            { label: 'Timeout', value: persona.timeout_secs ? formatDurationMs(persona.timeout_secs * 1000) : 'Default' },
+            { label: 'Timeout', value: persona.timeout_secs ? formatSecondsExact(persona.timeout_secs) : 'Default' },
             { label: 'Max cost', value: formatCost(persona.max_cost_usd) ?? 'No limit' },
           ]}
         />
@@ -491,8 +505,8 @@ function RelationRow({ kind, rel, resolved, href, onRemove }: RelationRowProps) 
       ariaLabel={expandable ? `${open ? 'Collapse' : 'Expand'} ${plainTitle.slice(0, 60)}` : plainTitle}
       href={href}
       onClick={!href && expandable ? () => setOpen((v) => !v) : undefined}
-      trailing={<span title="Link weight">{pct(rel.weight)}</span>}
-      meta={[resolved?.sub, rel.relation_type, `weight ${rel.weight.toFixed(2)}`]}
+      trailing={<span title={`Link weight ${rel.weight.toFixed(2)}`}>{pct(rel.weight)}</span>}
+      meta={[resolved?.sub, rel.relation_type]}
       actions={
         onRemove
           ? [

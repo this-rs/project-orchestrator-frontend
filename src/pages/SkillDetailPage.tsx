@@ -5,7 +5,6 @@ import { skillsApi, workspacesApi } from '@/services'
 import {
   Button,
   CollapsibleMarkdown,
-  ConfirmDialog,
   Dialog,
   EmptyState,
   EntityList,
@@ -13,12 +12,14 @@ import {
   EntityRow,
   ErrorState,
   Facts,
+  Input,
   ListGroup,
   MetaLine,
   PageContainer,
   PageHeader,
   RelativeTime,
   Section,
+  SectionNav,
   SkeletonLine,
   StatusDot,
   StatusMenu,
@@ -43,7 +44,7 @@ import {
   ratioLevel,
   tagSummary,
 } from '@/components/registry'
-import { useConfirmDialog, useToast, useWorkspaceSlug } from '@/hooks'
+import { useSectionObserver, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import type {
   Skill,
@@ -69,14 +70,25 @@ const RECOMMENDATION: Record<SkillHealthRecommendation, { label: string; tone: S
 /** Below this F1 score the backend skips the trigger (skills/models.rs). */
 const UNRELIABLE_TRIGGER_QUALITY = 0.3
 
+/** Section anchors (SectionNav targets). Stable array → stable observer. */
+const SECTIONS = [
+  { id: 'skill-vitals', label: 'Vital signs' },
+  { id: 'skill-health', label: 'Health' },
+  { id: 'skill-members', label: 'Members' },
+  { id: 'skill-triggers', label: 'Triggers' },
+  { id: 'skill-template', label: 'Template' },
+  { id: 'skill-details', label: 'Details' },
+]
+const SECTION_IDS = SECTIONS.map((s) => s.id)
+
 // ── Main component ──────────────────────────────────────────────────────
 
 export function SkillDetailPage() {
   const { id: skillId } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const wsSlug = useWorkspaceSlug()
-  const confirmDialog = useConfirmDialog()
   const toast = useToast()
+  const activeSection = useSectionObserver(SECTION_IDS)
 
   const [skill, setSkill] = useState<Skill | null>(null)
   const [health, setHealth] = useState<SkillHealth | null>(null)
@@ -192,22 +204,23 @@ export function SkillDetailPage() {
     }
   }
 
-  const handleRemoveMember = (entityType: 'note' | 'decision', entityId: string) => {
+  // Confirmation is asked by the row's ⋯ menu (`confirm` on the action, §9)
+  const handleRemoveMember = async (entityType: 'note' | 'decision', entityId: string) => {
     if (!skill) return
-    confirmDialog.open({
-      title: `Remove this ${entityType} from the skill?`,
-      description: `The ${entityType} itself is kept; it just stops being part of “${skill.name}”.`,
-      onConfirm: async () => {
-        try {
-          await skillsApi.removeMember(skill.id, entityType, entityId)
-          setMembers(await skillsApi.getMembers(skill.id))
-          toast.success('Member removed')
-        } catch {
-          toast.error('Failed to remove member')
-        }
-      },
-    })
+    try {
+      await skillsApi.removeMember(skill.id, entityType, entityId)
+      setMembers(await skillsApi.getMembers(skill.id))
+      toast.success('Member removed')
+    } catch {
+      toast.error('Failed to remove member')
+    }
   }
+
+  const removeConfirm = (entityType: 'note' | 'decision') => ({
+    title: `Remove this ${entityType} from the skill?`,
+    description: `The ${entityType} itself is kept; it just stops being part of “${skill?.name ?? 'this skill'}”.`,
+    confirmLabel: 'Remove',
+  })
 
   const handleSaveTemplate = async () => {
     if (!skill) return
@@ -315,8 +328,19 @@ export function SkillDetailPage() {
         </p>
       </ConceptNote>
 
+      <SectionNav
+        activeSection={activeSection}
+        sections={SECTIONS.map((s) =>
+          s.id === 'skill-members'
+            ? { ...s, count: memberCount }
+            : s.id === 'skill-triggers'
+              ? { ...s, count: skill.trigger_patterns.length }
+              : s,
+        )}
+      />
+
       {/* ── Vital signs ─────────────────────────────────────────── */}
-      <Section title="Vital signs" description="Ce que mesurent les indicateurs de ce skill.">
+      <Section id="skill-vitals" title="Vital signs" description="Ce que mesurent les indicateurs de ce skill.">
         <MetricList
           items={[
             { label: 'Energy', value: pct(skill.energy), level: energy, ratio: skill.energy, hint: SKILL_HINTS.energy },
@@ -341,6 +365,7 @@ export function SkillDetailPage() {
 
       {/* ── Health ──────────────────────────────────────────────── */}
       <Section
+        id="skill-health"
         title="Health"
         description="Diagnostic automatique : faut-il garder, surveiller ou archiver ce skill ?"
       >
@@ -376,6 +401,7 @@ export function SkillDetailPage() {
 
       {/* ── Members ─────────────────────────────────────────────── */}
       <Section
+        id="skill-members"
         title="Members"
         count={members ? notes.length + decisions.length : undefined}
         description="Le savoir transmis par ce skill : ses notes et ses décisions."
@@ -389,7 +415,12 @@ export function SkillDetailPage() {
             {notes.length > 0 && (
               <ListGroup title="Notes" count={notes.length}>
                 {notes.map((note) => (
-                  <NoteMemberRow key={note.id} note={note} onRemove={() => handleRemoveMember('note', note.id)} />
+                  <NoteMemberRow
+                    key={note.id}
+                    note={note}
+                    onRemove={() => handleRemoveMember('note', note.id)}
+                    confirm={removeConfirm('note')}
+                  />
                 ))}
               </ListGroup>
             )}
@@ -401,6 +432,7 @@ export function SkillDetailPage() {
                     decision={dec}
                     href={workspacePath(wsSlug, `/decisions/${dec.id}`)}
                     onRemove={() => handleRemoveMember('decision', dec.id)}
+                    confirm={removeConfirm('decision')}
                   />
                 ))}
               </ListGroup>
@@ -411,6 +443,7 @@ export function SkillDetailPage() {
 
       {/* ── Triggers ────────────────────────────────────────────── */}
       <Section
+        id="skill-triggers"
         title="Triggers"
         count={skill.trigger_patterns.length}
         description="Quand ce skill s’active : chaque motif est comparé à ce que fait l’agent. Le seuil est la confiance minimale pour déclencher ; la qualité (F1) mesure sa fiabilité passée."
@@ -478,7 +511,7 @@ export function SkillDetailPage() {
       </Section>
 
       {/* ── Details ─────────────────────────────────────────────── */}
-      <Section title="Details">
+      <Section id="skill-details" title="Details">
         <Facts
           items={[
             { label: 'Project', value: project?.name ?? skill.project_id },
@@ -510,39 +543,41 @@ export function SkillDetailPage() {
             Tapez une requête comme le ferait un agent : le skill renvoie les notes qu’il injecterait et sa confiance.
           </p>
           <form
-            className="flex flex-wrap gap-2"
+            className="space-y-2"
             onSubmit={(e) => {
               e.preventDefault()
               handleActivate()
             }}
           >
-            <input
+            <Input
               type="text"
               aria-label="Activation query"
-              className="flex-[1_1_12rem] min-w-0 h-9 rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 text-base md:text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500/50"
+              className="text-base md:text-sm"
               placeholder="e.g. how do we handle auth tokens?"
               value={activationQuery}
               onChange={(e) => setActivationQuery(e.target.value)}
               autoFocus
             />
-            <Button type="submit" size="sm" loading={activating} disabled={!activationQuery.trim()}>
-              {!activating && <Zap className="w-4 h-4 mr-1" aria-hidden="true" />}
-              Activate
-            </Button>
+            <div className="flex justify-end">
+              <Button type="submit" size="sm" loading={activating} disabled={!activationQuery.trim()}>
+                {!activating && <Zap className="w-4 h-4 mr-1" aria-hidden="true" />}
+                Activate
+              </Button>
+            </div>
           </form>
 
           {activationResult && <ActivationResultView result={activationResult} />}
         </div>
       </Dialog>
-
-      <ConfirmDialog {...confirmDialog.dialogProps} />
     </PageContainer>
   )
 }
 
 // ── Member rows ─────────────────────────────────────────────────────────
 
-function NoteMemberRow({ note, onRemove }: { note: Note; onRemove: () => void }) {
+type RemoveConfirm = { title: string; description?: string; confirmLabel?: string }
+
+function NoteMemberRow({ note, onRemove, confirm }: { note: Note; onRemove: () => Promise<void>; confirm: RemoveConfirm }) {
   const [open, setOpen] = useState(false)
   return (
     <EntityRow
@@ -556,7 +591,7 @@ function NoteMemberRow({ note, onRemove }: { note: Note; onRemove: () => void })
         note.status !== 'active' ? <StatusText key="st" kind="note" status={note.status} /> : null,
         tagSummary(note.tags),
       ]}
-      actions={[{ label: 'Remove from skill', icon: X, variant: 'danger', onClick: onRemove }]}
+      actions={[{ label: 'Remove from skill', icon: X, variant: 'danger', onClick: onRemove, confirm }]}
     >
       {open && (
         <div className="rounded-lg bg-white/[0.03] px-3 py-2 text-sm">
@@ -567,7 +602,17 @@ function NoteMemberRow({ note, onRemove }: { note: Note; onRemove: () => void })
   )
 }
 
-function DecisionMemberRow({ decision, href, onRemove }: { decision: Decision; href: string; onRemove: () => void }) {
+function DecisionMemberRow({
+  decision,
+  href,
+  onRemove,
+  confirm,
+}: {
+  decision: Decision
+  href: string
+  onRemove: () => Promise<void>
+  confirm: RemoveConfirm
+}) {
   return (
     <EntityRow
       title={decision.description}
@@ -581,7 +626,7 @@ function DecisionMemberRow({ decision, href, onRemove }: { decision: Decision; h
           </span>
         ) : null,
       ]}
-      actions={[{ label: 'Remove from skill', icon: X, variant: 'danger', onClick: onRemove }]}
+      actions={[{ label: 'Remove from skill', icon: X, variant: 'danger', onClick: onRemove, confirm }]}
     />
   )
 }

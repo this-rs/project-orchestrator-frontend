@@ -73,7 +73,8 @@ export interface MetricItem {
 
 /**
  * Explained metrics: `label ··· value · Level` then a one-line explanation,
- * optional thin meter. One per line on phones, 2 columns from `sm`.
+ * optional thin meter. One per line on phones and tablets (the sidebar
+ * appears at `md`, leaving ~520px of content at 820px), 2 columns from `lg`.
  */
 export function MetricList({ items, className = '' }: { items: MetricItem[]; className?: string }) {
   const visible = items.filter((i) => !i.hidden)
@@ -81,11 +82,11 @@ export function MetricList({ items, className = '' }: { items: MetricItem[]; cla
   return (
     <div className={`rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden ${className}`}>
       {/* -mb-px: the last row's bottom border is clipped by the container */}
-      <dl className="grid grid-cols-1 sm:grid-cols-2 -mb-px">
+      <dl className="grid grid-cols-1 lg:grid-cols-2 -mb-px">
         {visible.map((m) => (
           <div
             key={m.label}
-            className="min-w-0 grid grid-cols-[1fr_auto] items-baseline gap-x-3 px-3 py-2.5 border-b border-white/[0.05] sm:odd:border-r"
+            className="min-w-0 grid grid-cols-[1fr_auto] items-baseline gap-x-3 px-3 py-2.5 border-b border-white/[0.05] lg:odd:border-r"
           >
             <dt className="min-w-0 text-sm text-gray-300">{m.label}</dt>
             <dd className="text-sm tabular-nums text-gray-100 text-right">

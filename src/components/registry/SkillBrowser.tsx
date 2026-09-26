@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { Download, Globe } from 'lucide-react'
 import { registryApi } from '@/services'
 import {
+  Button,
   EmptyState,
   EntityList,
   EntityListSkeleton,
@@ -82,6 +83,13 @@ export function SkillBrowser({ onImport }: SkillBrowserProps) {
   })
 
   const trustActive = minTrust !== 'all'
+  const filtered = Boolean(debouncedQuery) || trustActive
+  const clearAll = () => {
+    clearTimeout(debounceRef.current)
+    setSearchQuery('')
+    setDebouncedQuery('')
+    setMinTrust('all')
+  }
 
   return (
     <div className="space-y-3">
@@ -104,11 +112,18 @@ export function SkillBrowser({ onImport }: SkillBrowserProps) {
       ) : skills.length === 0 ? (
         <EmptyState
           icon={<Globe className="w-8 h-8" />}
-          title={debouncedQuery || trustActive ? 'No matching skills' : 'The catalog is empty'}
+          title={filtered ? 'No matching skills' : 'The catalog is empty'}
           description={
-            debouncedQuery || trustActive
+            filtered
               ? 'Try different search terms or lower the trust filter.'
               : 'No skill has been published yet. Publish skills from your projects to share them with other workspaces.'
+          }
+          action={
+            filtered ? (
+              <Button variant="secondary" size="sm" onClick={clearAll}>
+                Clear search and filters
+              </Button>
+            ) : undefined
           }
         />
       ) : (

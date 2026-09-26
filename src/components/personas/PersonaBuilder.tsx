@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Wand2, FileCode, Network, Hand, ArrowRight, ArrowLeft, Check } from 'lucide-react'
 import { personasApi } from '@/services'
-import { Button, Input, Select, Textarea, MetaLine, focusRing } from '@/components/ui'
+import { Button, EntityList, EntityRow, Input, Select, Textarea, pluralize } from '@/components/ui'
 import { useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import type { PersonaProposal } from '@/types'
@@ -139,30 +139,21 @@ export function PersonaBuilder({ projectId: defaultProjectId, projects = [], onC
         })}
       </ol>
 
-      {/* Step 0: mode */}
+      {/* Step 0: mode — one row per option (no cards), chevron = drill-down */}
       {state.step === 0 && (
-        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <EntityList aria-label="Build mode">
           {modes.map(({ key, label, description, icon: ModeIcon }) => (
-            <li key={key}>
-              <button
-                type="button"
-                onClick={() => update({ mode: key, step: 1 })}
-                aria-pressed={state.mode === key}
-                className={`w-full h-full text-left flex items-start gap-3 rounded-xl border px-3 py-3 transition-colors ${focusRing} ${
-                  state.mode === key
-                    ? 'border-indigo-500/60 bg-indigo-500/[0.08]'
-                    : 'border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]'
-                }`}
-              >
-                <ModeIcon className="w-4 h-4 mt-0.5 shrink-0 text-indigo-400" aria-hidden="true" />
-                <span className="min-w-0">
-                  <span className="block text-sm text-gray-200">{label}</span>
-                  <span className="block mt-0.5 text-xs text-gray-500">{description}</span>
-                </span>
-              </button>
-            </li>
+            <EntityRow
+              key={key}
+              title={label}
+              description={description}
+              onClick={() => update({ mode: key, step: 1 })}
+              selected={state.mode === key}
+              leading={<ModeIcon className="w-4 h-4 text-indigo-400" aria-hidden="true" />}
+              chevron
+            />
           ))}
-        </ul>
+        </EntityList>
       )}
 
       {/* Step 1: configure */}
@@ -240,33 +231,26 @@ export function PersonaBuilder({ projectId: defaultProjectId, projects = [], onC
           {state.proposals.length === 0 ? (
             <p className="text-sm text-gray-500 py-4 text-center">No proposal detected. Try another configuration or create manually.</p>
           ) : (
-            <ul className="rounded-xl border border-white/[0.06] bg-white/[0.02] divide-y divide-white/[0.05] overflow-hidden">
+            <EntityList aria-label="Detected proposals">
               {state.proposals.map((p, i) => (
-                <li key={i}>
-                  <button
-                    type="button"
-                    onClick={() => update({ name: p.suggested_name, step: 3 })}
-                    className={`w-full text-left px-3 py-2.5 hover:bg-white/[0.03] ${focusRing}`}
-                  >
-                    <span className="block text-sm text-gray-200 break-words">{p.suggested_name}</span>
-                    <MetaLine
-                      className="mt-0.5"
-                      items={[
-                        `${p.file_count} files`,
-                        `${(p.confidence * 100).toFixed(0)}% confidence`,
-                        `community ${p.community_id}`,
-                      ]}
-                    />
-                    {p.sample_files?.length > 0 && (
-                      <span className="block mt-0.5 text-[11px] text-gray-500 font-mono break-all">
+                <EntityRow
+                  key={`${p.community_id}-${i}`}
+                  title={p.suggested_name}
+                  onClick={() => update({ name: p.suggested_name, step: 3 })}
+                  trailing={<span title="Confidence">{(p.confidence * 100).toFixed(0)}%</span>}
+                  meta={[pluralize(p.file_count, 'file'), `community ${p.community_id}`]}
+                  context={
+                    p.sample_files?.length > 0 ? (
+                      <p className="text-[11px] leading-4 text-gray-500 font-mono break-all" title={p.sample_files.join('\n')}>
                         {p.sample_files.slice(0, 3).join(', ')}
                         {p.sample_files.length > 3 && ` +${p.sample_files.length - 3} more`}
-                      </span>
-                    )}
-                  </button>
-                </li>
+                      </p>
+                    ) : undefined
+                  }
+                  chevron
+                />
               ))}
-            </ul>
+            </EntityList>
           )}
           <div className="flex flex-wrap justify-between gap-2 pt-1">
             {back(1)}
