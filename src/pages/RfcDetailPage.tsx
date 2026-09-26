@@ -10,7 +10,7 @@
  * Reject / supersede end the lifecycle, so they ask for confirmation.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { AlertTriangle, Check, Copy, FileText, Hash } from 'lucide-react'
 import {
@@ -24,6 +24,7 @@ import {
   PageHeader,
   RelativeTime,
   Section,
+  SectionNav,
   StatusText,
   formatAbsolute,
   getStatusMeta,
@@ -43,7 +44,7 @@ import {
   triggerIcon,
 } from '@/components/protocols/rfcLifecycle'
 import { rfcApi } from '@/services/rfcApi'
-import { useConfirmDialog, useToast, useWorkspaceSlug } from '@/hooks'
+import { useConfirmDialog, useSectionObserver, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import type { Rfc, RfcAvailableTransition, RfcStatus } from '@/types/protocol'
 
@@ -64,12 +65,8 @@ function LifecycleStepper({ status }: { status: RfcStatus }) {
             <li key={step.key} className="flex items-center gap-1" aria-current={current ? 'step' : undefined}>
               {idx > 0 && <span className={`h-px w-3 ${done || current ? 'bg-emerald-500/40' : 'bg-white/[0.08]'}`} aria-hidden="true" />}
               <span
-                className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] ${
-                  current
-                    ? 'bg-indigo-500/15 text-indigo-200'
-                    : done
-                      ? 'text-emerald-400/90'
-                      : 'text-gray-600'
+                className={`inline-flex items-center gap-1 whitespace-nowrap px-1 py-0.5 text-[11px] ${
+                  current ? 'font-medium text-indigo-300' : done ? 'text-emerald-400/90' : 'text-gray-600'
                 }`}
               >
                 {done ? <Check className="w-3 h-3" aria-hidden="true" /> : <span className={`w-1.5 h-1.5 rounded-full ${current ? 'bg-indigo-400' : 'bg-gray-700'}`} aria-hidden="true" />}
@@ -82,7 +79,7 @@ function LifecycleStepper({ status }: { status: RfcStatus }) {
         {closed && (
           <li className="flex items-center gap-1" aria-current="step">
             <span className="h-px w-3 bg-red-500/30" aria-hidden="true" />
-            <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-red-500/10 px-2 py-0.5 text-[11px] text-red-300">
+            <span className="inline-flex items-center gap-1 whitespace-nowrap px-1 py-0.5 text-[11px] font-medium text-red-400">
               <AlertTriangle className="w-3 h-3" aria-hidden="true" />
               {getStatusMeta('rfc', status).label}
             </span>
@@ -181,6 +178,14 @@ export function RfcDetailPage() {
     void copy(lines.join('\n'), 'RFC (Markdown)')
   }
 
+  // Quick-jump nav only for long documents (≥ 4 sections)
+  const navSections = useMemo(
+    () => (rfc && rfc.sections.length >= 4 ? rfc.sections.map((s, i) => ({ id: `section-${i}`, label: s.title })) : []),
+    [rfc],
+  )
+  const navIds = useMemo(() => navSections.map((s) => s.id), [navSections])
+  const activeSection = useSectionObserver(navIds)
+
   // ── Loading / error ──────────────────────────────────────────────────
   if (loading && !rfc) {
     return (
@@ -252,8 +257,8 @@ export function RfcDetailPage() {
         <div className="space-y-3">
           <LifecycleStepper status={state} />
           <Explainer>
-            Une RFC avance étape par étape : proposée, relue, acceptée, planifiée, réalisée. « Revise » et « Replan »
-            la renvoient à une étape précédente ; « Reject » et « Supersede » la clôturent définitivement.
+            An RFC moves step by step: proposed, reviewed, accepted, planned, implemented. “Revise” and “Replan” send it
+            back to a previous step; “Reject” and “Supersede” close it for good.
           </Explainer>
           {transitions.length === 0 ? (
             <p className="text-sm text-gray-400">
@@ -272,6 +277,7 @@ export function RfcDetailPage() {
       </Section>
 
       {/* ── Content ───────────────────────────────────────────────────── */}
+      {navSections.length > 0 && <SectionNav sections={navSections} activeSection={activeSection} />}
       {isSingleContent ? (
         <Section title="Content">
           <div className="text-sm text-gray-300">
@@ -280,7 +286,7 @@ export function RfcDetailPage() {
         </Section>
       ) : (
         rfc.sections.map((section, idx) => (
-          <Section key={idx} title={section.title}>
+          <Section key={idx} id={`section-${idx}`} title={section.title}>
             <div className="text-sm text-gray-300">
               <CollapsibleMarkdown content={section.content} maxHeight={400} />
             </div>

@@ -201,9 +201,9 @@ export function RfcDashboardPage({ onRfcClick, className = '' }: RfcDashboardPag
               }
             />
             <Explainer>
-              Une RFC est une proposition de changement soumise à discussion. Elle suit un cycle de vie : brouillon →
-              proposée → en revue → acceptée → planification → en cours → implémentée (ou rejetée / remplacée). Les
-              étapes suivantes possibles sont dans le menu ⋯ de chaque RFC.
+              An RFC is a change proposal open for discussion. It follows a lifecycle: draft → proposed → under review →
+              accepted → planning → in progress → implemented (or rejected / superseded). The next possible steps are in
+              each RFC's ⋯ menu.
             </Explainer>
           </div>
         }

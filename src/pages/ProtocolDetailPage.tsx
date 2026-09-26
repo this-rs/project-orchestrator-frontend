@@ -297,9 +297,9 @@ export function ProtocolDetailPage() {
       <div ref={fsmRef} className="scroll-mt-16">
         <Section title="State machine">
           <Explainer className="mb-2">
-            Chaque case est un état, chaque flèche une transition, étiquetée par l’événement qui la déclenche. Un run
-            part de l’état « Start » et s’arrête sur un état « End ». Les cases violettes contiennent un sous-protocole :
-            touchez-les pour l’ouvrir. Glissez pour vous déplacer, pincez pour zoomer.
+            Each box is a state, each arrow a transition labelled with the event that fires it. A run starts at the
+            “Start” state and stops on an “End” state. Violet boxes contain a sub-protocol: tap them to open it. Drag to
+            pan, pinch to zoom — the diagram scrolls inside its own frame, never the page.
           </Explainer>
           {states.length === 0 ? (
             <EmptyState size="sm" title="No states defined" description="This protocol has no FSM states yet." />
@@ -322,8 +322,8 @@ export function ProtocolDetailPage() {
         }
       >
         <Explainer className="mb-2">
-          Un run est une exécution du protocole : il avance d’état en état à chaque événement. Touchez un run pour voir son
-          arbre (sous-runs lancés par les sous-protocoles) et son parcours.
+          A run is one execution of the protocol: it moves from state to state on each event. Tap a run to see its tree
+          (sub-runs started by sub-protocols) and its path through the states.
         </Explainer>
         {runsError ? (
           <ErrorState title="Failed to load runs" description={runsError} onRetry={() => fetchRuns()} />
