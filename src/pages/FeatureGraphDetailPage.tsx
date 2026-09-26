@@ -55,54 +55,17 @@ const ROLE_ORDER = [
   'support',
 ] as const
 
-const roleConfig: Record<
-  string,
-  { label: string; color: string; bg: string; border: string }
-> = {
-  entry_point: {
-    label: 'Entry Points',
-    color: 'text-indigo-400',
-    bg: 'bg-indigo-500/10',
-    border: 'border-indigo-500/20',
-  },
-  core_logic: {
-    label: 'Core Logic',
-    color: 'text-blue-400',
-    bg: 'bg-blue-500/10',
-    border: 'border-blue-500/20',
-  },
-  data_model: {
-    label: 'Data Models',
-    color: 'text-emerald-400',
-    bg: 'bg-emerald-500/10',
-    border: 'border-emerald-500/20',
-  },
-  trait_contract: {
-    label: 'Trait Contracts',
-    color: 'text-purple-400',
-    bg: 'bg-purple-500/10',
-    border: 'border-purple-500/20',
-  },
-  api_surface: {
-    label: 'API Surface',
-    color: 'text-amber-400',
-    bg: 'bg-amber-500/10',
-    border: 'border-amber-500/20',
-  },
-  support: {
-    label: 'Support',
-    color: 'text-gray-400',
-    bg: 'bg-gray-500/10',
-    border: 'border-gray-500/20',
-  },
+/** Group titles (roles are grouping only — no colour, per DESIGN.md §3). */
+const ROLE_LABELS: Record<string, string> = {
+  entry_point: 'Entry Points',
+  core_logic: 'Core Logic',
+  data_model: 'Data Models',
+  trait_contract: 'Trait Contracts',
+  api_surface: 'API Surface',
+  support: 'Support',
 }
 
-const defaultRoleConfig = {
-  label: 'Other',
-  color: 'text-gray-500',
-  bg: 'bg-gray-500/10',
-  border: 'border-gray-500/20',
-}
+const roleLabel = (role: string | undefined) => (role && ROLE_LABELS[role]) || 'Other'
 
 // ============================================================================
 // ENTITY TYPE COLORS (for graph nodes)
@@ -362,14 +325,13 @@ function GraphLegend({ hasRelations }: { hasRelations: boolean }) {
 // ============================================================================
 
 function EntityPanel({ entity, onClose }: { entity: FeatureGraphEntity; onClose: () => void }) {
-  const config = roleConfig[entity.role || ''] || defaultRoleConfig
   return (
     <div className={`absolute top-2 right-2 left-2 sm:left-auto sm:w-80 z-20 rounded-xl p-3 ${glass} ${popIn}`}>
       <div className="flex items-start gap-2">
         <EntityIcon type={entity.entity_type} className="w-4 h-4 shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
           <p className="text-sm text-gray-100 break-words">{entity.name || entity.entity_id}</p>
-          <MetaLine items={[<span key="t" className="capitalize">{entity.entity_type}</span>, entity.role ? config.label : null]} />
+          <MetaLine items={[<span key="t" className="capitalize">{entity.entity_type}</span>, entity.role ? roleLabel(entity.role) : null]} />
         </div>
         <button
           type="button"
@@ -426,7 +388,7 @@ function useAddEntityForm({ graphId, onSuccess }: { graphId: string; onSuccess: 
   return {
     fields: (
       <>
-        <p className="text-xs text-gray-500">Ajoute à la main un fichier ou un symbole que l'auto-build n'a pas trouvé.</p>
+        <p className="text-xs text-gray-500">Add a file or a symbol that Auto-build did not pick up.</p>
         <Select label="Entity Type" options={typeOptions} value={entityType} onChange={setEntityType} />
         <Input
           label={entityType === 'file' ? 'File Path' : 'Symbol Name'}
@@ -650,7 +612,7 @@ export function FeatureGraphDetailPage() {
             },
             confirm: {
               title: 'Delete feature graph',
-              description: `Supprimer « ${detail.name} » et ses associations d'entités ? Le code n'est pas touché. Irréversible.`,
+              description: `Delete “${detail.name}” and its entity associations? The code itself is not touched. This cannot be undone.`,
               confirmLabel: 'Delete',
             },
           },
@@ -661,14 +623,14 @@ export function FeatureGraphDetailPage() {
       <Section
         title="Entities"
         count={totalEntities}
-        description="Le code qui réalise cette fonctionnalité, classé par rôle : points d'entrée, logique métier, modèles de données, contrats, API, support."
+        description="The code that implements this feature, grouped by role: entry points, core logic, data models, contracts, API surface, support."
       >
         {totalEntities === 0 ? (
           <EmptyState
             size="sm"
             icon={<Package />}
             title="No entity yet"
-            description="Ajoutez des fichiers ou des fonctions, ou reconstruisez le graphe avec Auto-build."
+            description="Add files or functions by hand, or rebuild the graph with Auto-build."
             action={
               <Button size="sm" variant="secondary" onClick={openAddEntity}>
                 Add entity
@@ -678,10 +640,9 @@ export function FeatureGraphDetailPage() {
         ) : (
           <div>
             {orderedRoles.map((role) => {
-              const config = roleConfig[role] || defaultRoleConfig
               const entities = groupedEntities.get(role) || []
               return (
-                <ListGroup key={role} title={config.label} count={entities.length} collapsible>
+                <ListGroup key={role} title={roleLabel(role)} count={entities.length} collapsible>
                   {entities.map((entity, idx) => {
                     const label = entity.name || entity.entity_id
                     return (
@@ -706,11 +667,11 @@ export function FeatureGraphDetailPage() {
         )}
       </Section>
 
-      {/* ── Visualisation (heavy canvas, opt-in) ── */}
+      {/* ── Graph (heavy canvas, opt-in) ── */}
       {totalEntities > 0 && (
         <Section
-          title="Visualisation"
-          description="Schéma interactif des entités et de leurs appels. Déplacer, zoomer ; touchez un nœud pour le détailler."
+          title="Graph"
+          description="Interactive diagram of the entities and their calls. Drag to pan, pinch or scroll to zoom, tap a node for its details."
           action={
             <Button
               size="sm"
@@ -721,7 +682,7 @@ export function FeatureGraphDetailPage() {
                 setSelectedEntity(null)
               }}
             >
-              {showGraph ? 'Masquer' : 'Afficher la visualisation'}
+              {showGraph ? 'Hide graph' : 'Show graph'}
             </Button>
           }
         >

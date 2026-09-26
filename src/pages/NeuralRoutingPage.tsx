@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { RefreshCw } from 'lucide-react'
 import {
   Button,
+  EmptyState,
   Facts,
   Input,
   PageContainer,
@@ -135,7 +136,7 @@ export function NeuralRoutingPage() {
   const header = (
     <PageHeader
       title="Neural Routing"
-      description="Le routage neuronal choisit, pour chaque requête d'un agent, le chemin le plus probable en s'appuyant sur les trajectoires passées similaires. Ici : l'activer, suivre son efficacité et régler ses paramètres."
+      description="For each agent request, neural routing picks the most likely path from similar past trajectories. Enable it here, follow how well it performs and tune its parameters."
       status={
         status ? (
           <StatusText
@@ -151,8 +152,9 @@ export function NeuralRoutingPage() {
         ) : null,
       ]}
       actions={
-        <Button size="sm" variant="ghost" onClick={fetchData} aria-label="Refresh">
-          <RefreshCw className="w-4 h-4 md:mr-1" aria-hidden="true" />
+        // Icon-only on phones, icon + label from md (same pattern as MCP Federation).
+        <Button size="sm" variant="ghost" onClick={fetchData} aria-label="Refresh" className="w-9 px-0 md:w-auto md:px-3">
+          <RefreshCw className="w-4 h-4 md:mr-1.5" aria-hidden="true" />
           <span className="hidden md:inline">Refresh</span>
         </Button>
       }
@@ -175,16 +177,16 @@ export function NeuralRoutingPage() {
 
   const numberInput = (value: string, onChange: (v: string) => void, label: string, placeholder: string, step?: string) => (
     <div className="w-24">
-    <Input
-      type="number"
-      inputMode="decimal"
-      step={step}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      aria-label={label}
-      className="h-9 py-1.5 text-right tabular-nums text-base md:text-sm"
-    />
+      <Input
+        type="number"
+        inputMode="decimal"
+        step={step}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-label={label}
+        className="h-9 py-1.5 text-right tabular-nums text-base md:text-sm"
+      />
     </div>
   )
 
@@ -199,8 +201,8 @@ export function NeuralRoutingPage() {
             label="Neural routing"
             description={
               status?.enabled
-                ? 'Actif : les requêtes passent par le routeur neuronal.'
-                : 'Inactif : les requêtes suivent le routage classique.'
+                ? 'On: requests go through the neural router.'
+                : 'Off: requests follow the classic routing.'
             }
             control={
               <Switch
@@ -213,7 +215,7 @@ export function NeuralRoutingPage() {
           />
           <SettingRow
             label="NN fallback"
-            description="Si le modèle ne répond pas à temps, se rabattre sur les plus proches voisins."
+            description="When the model does not answer in time, fall back to the nearest neighbours."
             control={
               <Switch
                 checked={!!config?.inference.nn_fallback}
@@ -225,7 +227,7 @@ export function NeuralRoutingPage() {
           />
           <SettingRow
             label="Trajectory collection"
-            description="Enregistrer les trajectoires des agents pour améliorer le routage."
+            description="Record agent trajectories to improve routing over time."
             meta={
               config
                 ? [
@@ -247,7 +249,7 @@ export function NeuralRoutingPage() {
       </Section>
 
       {/* ── Metrics ── */}
-      <Section title="Performance" description="Mis à jour toutes les 10 secondes.">
+      <Section title="Performance" description="Refreshed every 10 seconds.">
         {hasQueries ? (
           <Facts
             columns={1}
@@ -263,7 +265,7 @@ export function NeuralRoutingPage() {
                     <span className="tabular-nums">{hitRate}%</span>
                     <span className="text-gray-500">
                       {' '}
-                      — {metrics.hits} requêtes routées par un voisin connu, {metrics.misses} sans correspondance
+                      — {metrics.hits} routed by a known neighbour, {metrics.misses} without a match
                     </span>
                   </span>
                 ),
@@ -275,7 +277,7 @@ export function NeuralRoutingPage() {
                     <span className="tabular-nums">{ms(metrics.avg_latency_us)}</span>
                     <span className="text-gray-500">
                       {' '}
-                      en moyenne{metrics.p99_latency_us ? `, ${ms(metrics.p99_latency_us)} au pire (p99)` : ''}
+                      on average{metrics.p99_latency_us ? `, ${ms(metrics.p99_latency_us)} worst case (p99)` : ''}
                     </span>
                   </span>
                 ),
@@ -285,11 +287,11 @@ export function NeuralRoutingPage() {
                 value: (
                   <span>
                     <span className="tabular-nums">{metrics.cache_size.toLocaleString()}</span>
-                    <span className="text-gray-500"> routes en mémoire · </span>
+                    <span className="text-gray-500"> routes in memory · </span>
                     {metrics.last_invalidated_at ? (
-                      <RelativeTime date={metrics.last_invalidated_at} prefix="vidé il y a " className="text-gray-500" />
+                      <RelativeTime date={metrics.last_invalidated_at} prefix="cleared " className="text-gray-500" />
                     ) : (
-                      <span className="text-gray-500">jamais vidé</span>
+                      <span className="text-gray-500">never cleared</span>
                     )}
                   </span>
                 ),
@@ -297,16 +299,18 @@ export function NeuralRoutingPage() {
             ]}
           />
         ) : (
-          <p className="text-sm text-gray-500">
-            Aucune requête enregistrée. Activez le routage neuronal puis utilisez les agents pour voir les métriques.
-          </p>
+          <EmptyState
+            size="sm"
+            title="No queries recorded"
+            description="Enable neural routing, then use the agents to see metrics here."
+          />
         )}
       </Section>
 
       {/* ── Configuration ── */}
       <Section
         title="Parameters"
-        description="Réglages avancés — les valeurs par défaut conviennent dans la plupart des cas."
+        description="Advanced settings — the defaults are fine in most cases."
         action={
           <Button size="sm" onClick={handleSaveConfig} loading={saving} disabled={!dirty}>
             Save
@@ -316,27 +320,27 @@ export function NeuralRoutingPage() {
         <SettingsList>
           <SettingRow
             label="Routing mode"
-            description="NN : réutilise les chemins de trajectoires similaires. Full : un modèle décide, NN en secours."
+            description="NN: reuse the paths of similar trajectories. Full: a model decides, with NN as fallback."
             control={<Select value={editMode} onChange={setEditMode} options={modeOptions} className="w-52" />}
           />
           <SettingRow
             label="Inference timeout (ms)"
-            description="Temps maximum laissé au modèle avant d'abandonner."
+            description="Maximum time given to the model before giving up."
             control={numberInput(editTimeoutMs, setEditTimeoutMs, 'Inference timeout (ms)', '15')}
           />
           <SettingRow
             label="NN top-K"
-            description="Nombre de trajectoires voisines consultées pour chaque requête."
+            description="Number of neighbouring trajectories consulted for each request."
             control={numberInput(editTopK, setEditTopK, 'NN top-K', '5')}
           />
           <SettingRow
             label="Min similarity"
-            description="Ressemblance minimale (0 à 1) pour qu'un voisin soit utilisé."
+            description="Minimum similarity (0 to 1) for a neighbour to be used."
             control={numberInput(editMinSim, setEditMinSim, 'Min similarity', '0.65', '0.01')}
           />
           <SettingRow
             label="Max route age (days)"
-            description="Les trajectoires plus anciennes sont ignorées."
+            description="Older trajectories are ignored."
             control={numberInput(editMaxAge, setEditMaxAge, 'Max route age (days)', '90')}
           />
         </SettingsList>
@@ -350,9 +354,9 @@ export function NeuralRoutingPage() {
             {
               label: 'CPU guard',
               value: status?.cpu_guard_paused ? (
-                <StatusText status="blocked" label="Paused — machine trop chargée, routage suspendu" />
+                <StatusText status="blocked" label="Paused — machine under heavy load, routing suspended" />
               ) : (
-                <StatusText status="active" label="Active — surveille la charge CPU" />
+                <StatusText status="active" label="Active — watching CPU load" />
               ),
             },
           ]}

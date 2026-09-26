@@ -53,14 +53,17 @@ describe('SharingPage', () => {
     ])
   })
 
-  it('shows policy rows, overrides and the privacy report with meaning', async () => {
+  it('shows the project scope, policy rows, overrides and the privacy report with meaning', async () => {
     render(<SharingPage />)
     expect(await screen.findByRole('switch', { name: 'Sharing' })).toBeTruthy()
-    expect(screen.getByText(/Rien ne part sans votre accord/)).toBeTruthy()
+    // single project → shown as a plain value, no selector
+    expect(screen.getByText('Orchestrator')).toBeTruthy()
+    expect(screen.queryByRole('combobox', { name: /project/i })).toBeNull()
+    expect(screen.getByText(/Nothing leaves without your explicit approval/)).toBeTruthy()
     expect(screen.getByText('gotcha')).toBeTruthy()
     expect(screen.getByText('never')).toBeTruthy()
-    expect(await screen.findByText('notes autorisées')).toBeTruthy()
-    expect(screen.getByText('en attente de décision')).toBeTruthy()
+    expect(await screen.findByText('notes allowed')).toBeTruthy()
+    expect(screen.getByText('awaiting a decision')).toBeTruthy()
   })
 
   it('confirms before enabling sharing', async () => {
@@ -78,7 +81,7 @@ describe('SharingPage', () => {
     await waitFor(() => expect(sharing.setConsent).toHaveBeenCalledWith('n2bbbbbbbb', { consent: 'explicit_allow' }))
     fireEvent.click(screen.getByRole('button', { name: /Preview/ }))
     expect(await screen.findByText('Use retries')).toBeTruthy()
-    expect(screen.getByText('Shared')).toBeTruthy()
+    expect(screen.getByText('Would be shared')).toBeTruthy()
     expect(screen.getByText('Auto (policy)')).toBeTruthy()
   })
 })

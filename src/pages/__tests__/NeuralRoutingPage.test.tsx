@@ -59,10 +59,10 @@ describe('NeuralRoutingPage', () => {
     expect(screen.getByText('Enabled')).toBeTruthy()
     expect(screen.getByText('Mode NN')).toBeTruthy()
     expect(screen.getByText('200')).toBeTruthy()
-    expect(screen.getByText(/150 requêtes routées/)).toBeTruthy()
+    expect(screen.getByText(/150 routed by a known neighbour/)).toBeTruthy()
     expect(screen.getByText('2.5 ms')).toBeTruthy()
-    expect(screen.getByText(/9.0 ms au pire/)).toBeTruthy()
-    expect(screen.getByText('jamais vidé')).toBeTruthy()
+    expect(screen.getByText(/9.0 ms worst case/)).toBeTruthy()
+    expect(screen.getByText('never cleared')).toBeTruthy()
     // collection buffer / flush facts kept
     expect(screen.getByText('buffer 100 entries')).toBeTruthy()
     expect(screen.getByText('flush every 30s')).toBeTruthy()
@@ -104,6 +104,6 @@ describe('NeuralRoutingPage', () => {
   it('explains the empty metrics state', async () => {
     api.getStatus.mockResolvedValue({ ...status, metrics: { ...status.metrics, total_queries: 0 } })
     render(<NeuralRoutingPage />)
-    expect(await screen.findByText(/Aucune requête enregistrée/)).toBeTruthy()
+    expect(await screen.findByText('No queries recorded')).toBeTruthy()
   })
 })

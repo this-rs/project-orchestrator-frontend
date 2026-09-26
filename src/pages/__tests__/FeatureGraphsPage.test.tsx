@@ -98,7 +98,7 @@ describe('FeatureGraphsPage', () => {
   it('distinguishes load errors from an empty list', async () => {
     list.mockRejectedValueOnce(new Error('boom'))
     renderPage()
-    expect(await screen.findByText('Impossible de charger les feature graphs.')).toBeTruthy()
+    expect(await screen.findByText('Feature graphs could not be loaded.')).toBeTruthy()
     list.mockResolvedValue({ feature_graphs: [] })
     fireEvent.click(screen.getByRole('button', { name: /try again/i }))
     expect(await screen.findByText('No feature graph yet')).toBeTruthy()

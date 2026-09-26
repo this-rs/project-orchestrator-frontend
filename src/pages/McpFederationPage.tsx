@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useId, type ReactNode } from 'react'
-import { Plus, RefreshCw, Scan, Trash2, Server } from 'lucide-react'
+import { Plus, RefreshCw, Scan, Server, Unplug } from 'lucide-react'
 import {
   Button,
   EmptyState,
@@ -14,13 +14,14 @@ import {
   RelativeTime,
   Select,
   StatusDot,
-  StatusText,
   Textarea,
-  TONE_CLASSES,
+  hitArea,
   pluralize,
+  textLink,
   type StatusTone,
 } from '@/components/ui'
 import { Notice } from '@/components/settings/SettingRow'
+import { ToneText } from '@/components/settings/ToneText'
 import { useToast } from '@/hooks'
 import { mcpFederationApi } from '@/services/mcpFederation'
 import type {
@@ -44,9 +45,9 @@ const STATUS: Record<ConnectionStatus, { label: string; tone: StatusTone }> = {
 }
 
 const CIRCUIT: Record<CircuitState, { label: string; tone: StatusTone; help: string }> = {
-  closed: { label: 'Closed', tone: 'success', help: 'normal, les appels passent' },
-  open: { label: 'Open', tone: 'danger', help: 'trop d’erreurs, appels bloqués temporairement' },
-  half_open: { label: 'Half open', tone: 'warning', help: 'quelques appels d’essai pour vérifier le retour' },
+  closed: { label: 'Closed', tone: 'success', help: 'normal, calls go through' },
+  open: { label: 'Open', tone: 'danger', help: 'too many errors, calls temporarily blocked' },
+  half_open: { label: 'Half open', tone: 'warning', help: 'a few trial calls to check recovery' },
 }
 
 const transportLabels: Record<McpTransportType, string> = {
@@ -62,15 +63,6 @@ const CATEGORY_TONE: Record<string, StatusTone> = {
   mutation: 'warning',
   delete: 'danger',
   unknown: 'neutral',
-}
-
-function ToneText({ tone, label, pulse }: { tone: StatusTone; label: ReactNode; pulse?: boolean }) {
-  return (
-    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap ${TONE_CLASSES[tone].text}`}>
-      <StatusDot tone={tone} pulse={pulse} />
-      {label}
-    </span>
-  )
 }
 
 function parseKeyValuePairs(text: string): Record<string, string> {
@@ -149,7 +141,7 @@ function ConnectServerDialog({ open, onClose, onSuccess }: { open: boolean; onCl
     <FormDialog open={open} onClose={onClose} onSubmit={handleSubmit} title="Connect MCP server" submitLabel="Connect" size="lg">
       <div className="space-y-3">
         <p className="text-xs text-gray-500">
-          Branche un serveur MCP externe : ses outils deviennent utilisables par les agents, avec suivi des erreurs et de la latence.
+          Plug in an external MCP server: its tools become available to the agents, with error and latency tracking.
         </p>
         <Field label="Server ID *">
           {(id) => <Input id={id} value={serverId} onChange={(e) => setServerId(e.target.value)} placeholder="my-mcp-server" className={inputCls} />}
@@ -159,7 +151,7 @@ function ConnectServerDialog({ open, onClose, onSuccess }: { open: boolean; onCl
             <Input id={id} value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="My MCP Server (optional)" className={inputCls} />
           )}
         </Field>
-        <Field label="Transport *" hint="Stdio : processus lancé localement. SSE / HTTP : serveur déjà en ligne, joint par URL.">
+        <Field label="Transport *" hint="Stdio: a process started locally. SSE / HTTP: a server already running, reached by URL.">
           {() => (
             <Select
               value={transport}
@@ -185,10 +177,10 @@ function ConnectServerDialog({ open, onClose, onSuccess }: { open: boolean; onCl
                 />
               )}
             </Field>
-            <Field label="Arguments" hint="Séparés par des espaces.">
+            <Field label="Arguments" hint="Space-separated.">
               {(id) => <Input id={id} value={args} onChange={(e) => setArgs(e.target.value)} placeholder="--port 3000 --verbose" className={`font-mono ${inputCls}`} />}
             </Field>
-            <Field label="Environment variables" hint="Une ligne KEY=VALUE par variable.">
+            <Field label="Environment variables" hint="One KEY=VALUE per line.">
               {(id) => (
                 <Textarea id={id} value={env} onChange={(e) => setEnv(e.target.value)} placeholder={'KEY=value\nANOTHER_KEY=value'} rows={3} className={`font-mono ${inputCls}`} />
               )}
@@ -199,7 +191,7 @@ function ConnectServerDialog({ open, onClose, onSuccess }: { open: boolean; onCl
             <Field label="URL *">
               {(id) => <Input id={id} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:3000/sse" className={inputCls} />}
             </Field>
-            <Field label="Headers" hint="Une ligne KEY=VALUE par en-tête.">
+            <Field label="Headers" hint="One KEY=VALUE per line.">
               {(id) => (
                 <Textarea
                   id={id}
@@ -273,7 +265,7 @@ function ServerDetail({ server }: { server: McpServerSummary }) {
             value: (
               <span>
                 <span className="tabular-nums">{stats.error_count.toLocaleString()}</span>
-                <span className="text-gray-500"> · {(stats.error_rate * 100).toFixed(1)}% des appels</span>
+                <span className="text-gray-500"> · {(stats.error_rate * 100).toFixed(1)}% of calls</span>
               </span>
             ),
           },
@@ -283,7 +275,7 @@ function ServerDetail({ server }: { server: McpServerSummary }) {
               stats.latency_p50 != null ? (
                 <span>
                   <span className="tabular-nums">{stats.latency_p50} ms</span>
-                  <span className="text-gray-500"> médiane{stats.latency_p95 != null ? `, ${stats.latency_p95} ms pour 95 %` : ''}</span>
+                  <span className="text-gray-500"> median{stats.latency_p95 != null ? `, ${stats.latency_p95} ms at p95` : ''}</span>
                 </span>
               ) : (
                 'N/A'
@@ -316,7 +308,7 @@ function ServerDetail({ server }: { server: McpServerSummary }) {
       {loadingTools ? (
         <EntityListSkeleton rows={2} />
       ) : tools.length === 0 ? (
-        <p className="text-xs text-gray-500">Aucun outil découvert. Lancez un probe pour interroger le serveur.</p>
+        <p className="text-xs text-gray-500">No tool discovered yet. Run a probe to query the server.</p>
       ) : (
         <EntityList variant="flush" aria-label={`Tools of ${server.display_name || server.id}`} className="rounded-lg border border-white/[0.05]">
           {tools.map((tool) => (
@@ -450,8 +442,8 @@ export function McpFederationPage() {
     >
       <div className="space-y-4">
         <p className="text-xs text-gray-500">
-          Serveurs MCP externes branchés sur l'orchestrateur : leurs outils s'ajoutent à ceux des agents. Touchez un serveur pour voir ses
-          statistiques et ses outils. Actualisé toutes les 10 s.
+          External MCP servers plugged into the orchestrator: their tools add to the agents' own. Tap a server to see its statistics and
+          tools. Refreshed every 10 seconds.
         </p>
 
         {loading ? (
@@ -462,7 +454,7 @@ export function McpFederationPage() {
           <EmptyState
             icon={<Server className="w-6 h-6" />}
             title="No MCP server connected"
-            description="Connectez un serveur MCP externe pour découvrir et utiliser ses outils."
+            description="Connect an external MCP server to discover and use its tools."
             action={
               <Button size="sm" onClick={openConnect}>
                 <Plus className="w-4 h-4 mr-1" aria-hidden="true" />
@@ -475,7 +467,7 @@ export function McpFederationPage() {
             {error && (
               <Notice tone="warning">
                 {error}{' '}
-                <button type="button" onClick={fetchData} className="underline underline-offset-2">
+                <button type="button" onClick={fetchData} className={`${textLink} ${hitArea}`}>
                   Retry
                 </button>
               </Notice>
@@ -491,7 +483,7 @@ export function McpFederationPage() {
                       <span className="tabular-nums">
                         {connectedCount} / {servers.length}
                       </span>
-                      <span className="text-gray-500"> serveurs joignables</span>
+                      <span className="text-gray-500"> servers reachable</span>
                     </span>
                   ),
                 },
@@ -500,7 +492,7 @@ export function McpFederationPage() {
                   value: (
                     <span>
                       <span className="tabular-nums">{totalTools}</span>
-                      <span className="text-gray-500"> outils disponibles</span>
+                      <span className="text-gray-500"> tools available</span>
                     </span>
                   ),
                 },
@@ -509,7 +501,7 @@ export function McpFederationPage() {
                   value: avgLatency > 0 ? (
                     <span>
                       <span className="tabular-nums">{avgLatency.toFixed(0)} ms</span>
-                      <span className="text-gray-500"> médiane moyenne</span>
+                      <span className="text-gray-500"> median, averaged</span>
                     </span>
                   ) : (
                     'N/A'
@@ -520,7 +512,7 @@ export function McpFederationPage() {
                   value: (
                     <span>
                       <span className="tabular-nums">{(avgErrorRate * 100).toFixed(1)}%</span>
-                      <span className="text-gray-500"> des appels échouent (moyenne)</span>
+                      <span className="text-gray-500"> of calls fail (average)</span>
                     </span>
                   ),
                 },
@@ -544,7 +536,7 @@ export function McpFederationPage() {
                     trailing={pluralize(server.tool_count, 'tool')}
                     meta={[
                       busy ? (
-                        <StatusText key="busy" status="running" label={busy === 'probe' ? 'Probing…' : 'Reconnecting…'} pulse />
+                        <ToneText key="busy" tone="progress" label={busy === 'probe' ? 'Probing…' : 'Reconnecting…'} pulse />
                       ) : (
                         <ToneText key="st" tone={status.tone} label={status.label} />
                       ),
@@ -573,12 +565,12 @@ export function McpFederationPage() {
                       },
                       {
                         label: 'Disconnect',
-                        icon: Trash2,
+                        icon: Unplug,
                         variant: 'danger',
                         onClick: () => handleDisconnect(server),
                         confirm: {
                           title: `Disconnect ${name}?`,
-                          description: `Déconnecte le serveur et retire ses ${server.tool_count} outils découverts.`,
+                          description: `Disconnects the server and removes its ${server.tool_count} discovered tools.`,
                           confirmLabel: 'Disconnect',
                         },
                       },

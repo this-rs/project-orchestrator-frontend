@@ -97,11 +97,11 @@ describe('FeatureGraphDetailPage', () => {
     await screen.findByText('3 entities')
     expect(screen.queryByTestId('react-flow')).toBeNull()
     expect(flowMounted).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Afficher la visualisation' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show graph' }))
     expect(screen.getByTestId('react-flow')).toBeTruthy()
     expect(flowMounted).toHaveBeenCalledWith(3)
     expect(screen.getByLabelText('Legend')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Masquer' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Hide graph' }))
     expect(screen.queryByTestId('react-flow')).toBeNull()
   })
 

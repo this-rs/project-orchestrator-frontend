@@ -100,7 +100,7 @@ describe('McpFederationPage', () => {
     expect(screen.getByText('returns array')).toBeTruthy()
     expect(screen.getByText(/note_search \(82%\)/)).toBeTruthy()
     expect(screen.getByText('timeout while calling search')).toBeTruthy()
-    expect(screen.getByText(/180 ms pour 95 %/)).toBeTruthy()
+    expect(screen.getByText(/180 ms at p95/)).toBeTruthy()
   })
 
   it('offers reconnect only for unreachable servers and confirms disconnect', async () => {
