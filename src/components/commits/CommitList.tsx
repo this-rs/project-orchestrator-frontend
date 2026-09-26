@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { Check, ChevronRight, Copy, GitCommitHorizontal } from 'lucide-react'
 import { commitsApi } from '@/services'
-import { EntityList, EntityRow, RelativeTime, hitArea, rowInteractive } from '@/components/ui'
+import { EntityList, EntityRow, RelativeTime, hitArea, pluralize, rowInteractive } from '@/components/ui'
 import { focusRing } from '@/components/ui/classes'
 import type { Commit, CommitFile } from '@/types'
 
@@ -96,7 +96,7 @@ function CommitRow({ commit }: { commit: Commit }) {
             {commit.author}
           </span>
         ) : null,
-        commit.files_changed && commit.files_changed.length > 0 ? `${commit.files_changed.length} files` : null,
+        commit.files_changed && commit.files_changed.length > 0 ? pluralize(commit.files_changed.length, 'file') : null,
       ]}
     >
       {expanded && (
