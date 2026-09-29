@@ -225,7 +225,7 @@ export function ProjectDetailPage() {
             label: 'Copy root path',
             icon: Clipboard,
             hidden: !project.root_path,
-            onClick: () => copyPath(project.root_path),
+            onClick: () => { if (project.root_path) copyPath(project.root_path) },
           },
           {
             label: 'Delete',
@@ -354,7 +354,7 @@ export function ProjectDetailPage() {
               value: project.root_path ? (
                 <button
                   type="button"
-                  onClick={() => copyPath(project.root_path)}
+                  onClick={() => project.root_path && copyPath(project.root_path)}
                   title="Copy path"
                   className={`font-mono text-xs text-gray-300 break-all text-right sm:text-left hover:text-white inline-flex items-start gap-1.5 rounded ${focusRing}`}
                 >

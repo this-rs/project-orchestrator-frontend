@@ -160,7 +160,7 @@ export function ChatPanel() {
       // When allProjectsMode → send workspaceSlug (adds all project dirs)
       // When single project → send only projectSlug (no extra dirs)
       chat.sendMessage(text, {
-        cwd: selectedProject.root_path,
+        cwd: selectedProject.root_path ?? '',
         workspaceSlug: allProjectsMode ? (activeWsSlug || undefined) : undefined,
         projectSlug: allProjectsMode ? undefined : selectedProject.slug,
       }, attachmentIds)

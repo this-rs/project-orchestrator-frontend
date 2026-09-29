@@ -121,7 +121,7 @@ function SyncWatchersSection() {
                 workspace: { name: ws.name, slug: ws.slug },
                 projects: projects
                   .filter((p) => p.root_path)
-                  .map((p) => ({ id: p.id, name: p.name, slug: p.slug, root_path: p.root_path })),
+                  .map((p) => ({ id: p.id, name: p.name, slug: p.slug, root_path: p.root_path as string })),
               }
             } catch {
               return { workspace: { name: ws.name, slug: ws.slug }, projects: [] }

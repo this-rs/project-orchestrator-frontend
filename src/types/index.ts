@@ -73,7 +73,8 @@ export interface Project {
   id: string
   name: string
   slug: string
-  root_path: string
+  /** Optional: a non-code project (planning, documents) has no folder. */
+  root_path?: string
   description?: string
   created_at: string
   last_synced?: string
