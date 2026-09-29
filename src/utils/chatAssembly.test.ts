@@ -333,3 +333,39 @@ describe('historyEventsToMessages — orphan background output (F10)', () => {
     expect(activityBlocks(messages)).toHaveLength(0)
   })
 })
+
+describe('historyEventsToMessages — structured workflow payload (readable activity)', () => {
+  const wf = (subtype: string, data: Record<string, unknown>, n: number) => ({
+    type: 'workflow',
+    subtype,
+    data: { tool_use_id: 'toolu_WF9', ...data },
+    created_at: 1_700_000_000 + n,
+  })
+
+  it('keeps the subtype on entries and shallow-merges the payload on the orphan block', () => {
+    const messages = historyEventsToMessages([
+      wf('task_started', { workflow_name: 'Fix tests', task_id: 't1' }, 0),
+      wf('task_progress', { workflow_progress: [{ index: 1, state: 'done' }], usage: { total_tokens: 5 } }, 1),
+    ])
+    const [block] = activityBlocks(messages)
+    const meta = block.metadata as unknown as ActivityMeta & { data: Record<string, unknown> }
+    expect(meta.entries.map((e) => e.subtype)).toEqual(['task_started', 'task_progress'])
+    expect(meta.data.workflow_name).toBe('Fix tests')
+    expect(meta.data.workflow_progress).toEqual([{ index: 1, state: 'done' }])
+    expect(meta.data.usage).toEqual({ total_tokens: 5 })
+  })
+
+  it('merges the payload onto the parent tool_use as child_data', () => {
+    const messages = historyEventsToMessages([
+      { type: 'tool_use', id: 'toolu_WF9', tool: 'Workflow', input: {}, created_at: 1_700_000_000 },
+      wf('task_started', { workflow_name: 'Fix tests' }, 1),
+      wf('task_progress', { status: 'running' }, 2),
+    ])
+    const toolBlock = messages[0].blocks.find((b) => b.type === 'tool_use')
+    expect(toolBlock?.metadata?.child_data).toEqual({
+      tool_use_id: 'toolu_WF9',
+      workflow_name: 'Fix tests',
+      status: 'running',
+    })
+  })
+})

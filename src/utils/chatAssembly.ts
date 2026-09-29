@@ -76,6 +76,10 @@ export interface BackgroundTick extends BackgroundOutputEntry {
   correlation_id?: string
   subagent_type?: string
   description?: string
+  /** Workflow lifecycle subtype (`task_progress`…), for `workflow` ticks. */
+  subtype?: string
+  /** Verbatim structured payload of a `workflow` tick. */
+  data?: Record<string, unknown>
 }
 
 /**
@@ -110,7 +114,20 @@ export function workflowEventToTick(evt: any, fallbackReceivedAt: string): Backg
     received_at: receivedAt,
     subagent_type: subagentType,
     description,
+    subtype,
+    data,
   }
+}
+
+/** The persisted, display-sized slice of a tick (the heavy `data` lives on the block metadata). */
+function entryOf(tick: BackgroundTick): BackgroundOutputEntry {
+  const entry: BackgroundOutputEntry = {
+    source: tick.source,
+    content: tick.content,
+    received_at: tick.received_at,
+  }
+  if (tick.subtype) entry.subtype = tick.subtype
+  return entry
 }
 
 /**
@@ -136,8 +153,11 @@ export function attachToParentToolUse(messages: ChatMessage[], tick: BackgroundT
             ...block.metadata,
             child_outputs: [
               ...existing,
-              { source: tick.source, content: tick.content, received_at: tick.received_at },
+              entryOf(tick),
             ],
+            ...(tick.data
+              ? { child_data: { ...(block.metadata?.child_data as Record<string, unknown> | undefined), ...tick.data } }
+              : {}),
           },
         }
         return true
@@ -156,11 +176,7 @@ export function attachToParentToolUse(messages: ChatMessage[], tick: BackgroundT
  */
 export function appendBackgroundActivity(msg: ChatMessage, tick: BackgroundTick): void {
   const key = tick.correlation_id ?? null
-  const entry: BackgroundOutputEntry = {
-    source: tick.source,
-    content: tick.content,
-    received_at: tick.received_at,
-  }
+  const entry = entryOf(tick)
   for (let bi = msg.blocks.length - 1; bi >= 0; bi--) {
     const block = msg.blocks[bi]
     if (block.type !== 'background_activity') continue
@@ -174,6 +190,7 @@ export function appendBackgroundActivity(msg: ChatMessage, tick: BackgroundTick)
       last_received_at: tick.received_at,
       subagent_type: tick.subagent_type ?? meta.subagent_type,
       description: tick.description ?? meta.description,
+      data: tick.data ? { ...meta.data, ...tick.data } : meta.data,
       entries,
     }
     msg.blocks[bi] = {
@@ -191,6 +208,7 @@ export function appendBackgroundActivity(msg: ChatMessage, tick: BackgroundTick)
     last_received_at: tick.received_at,
     subagent_type: tick.subagent_type,
     description: tick.description,
+    data: tick.data,
     entries: [entry],
   }
   const block: ContentBlock = {

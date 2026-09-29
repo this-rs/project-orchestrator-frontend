@@ -669,6 +669,7 @@ export function useChat() {
             // tool_use block and remove the orphan block so the activity
             // is shown once, nested where it belongs.
             let initialChildOutputs: BackgroundOutputEntry[] = []
+            let initialChildData: Record<string, unknown> | undefined
             for (let mi = updated.length - 1; mi >= 0 && initialChildOutputs.length === 0; mi--) {
               const msg = updated[mi]
               const bi = msg.blocks.findIndex(
@@ -679,6 +680,7 @@ export function useChat() {
               if (bi === -1) continue
               const meta = msg.blocks[bi].metadata as unknown as BackgroundActivityMetadata
               initialChildOutputs = meta.entries
+              initialChildData = meta.data
               const blocks = msg.blocks.filter((_, i) => i !== bi)
               if (msg === lastMsg) {
                 lastMsg.blocks = blocks
@@ -700,6 +702,7 @@ export function useChat() {
                     ...(initialChildOutputs.length > 0
                       ? { child_outputs: initialChildOutputs }
                       : {}),
+                    ...(initialChildData ? { child_data: initialChildData } : {}),
                   },
                   tuParent,
                 ),

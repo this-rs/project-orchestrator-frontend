@@ -504,6 +504,8 @@ export interface BackgroundOutputEntry {
   source: string
   content: string
   received_at: string
+  /** Workflow lifecycle subtype (`task_started` / `task_progress` / …) when the tick came from a `workflow` event. */
+  subtype?: string
 }
 
 /** Cap on the entries kept on a `background_activity` block (count keeps growing). */
@@ -527,6 +529,12 @@ export interface BackgroundActivityMetadata {
   last_received_at: string
   subagent_type?: string
   description?: string
+  /**
+   * Structured payload of `workflow` ticks (task_id, workflow_name,
+   * workflow_progress[], usage, status…), shallow-merged in arrival order
+   * so the latest values win. Absent for plain `background_output` ticks.
+   */
+  data?: Record<string, unknown>
   /** The last `BACKGROUND_ACTIVITY_MAX_ENTRIES` ticks, oldest first. */
   entries: BackgroundOutputEntry[]
 }
