@@ -15,7 +15,7 @@ import { ResultErrorBlock } from './ResultErrorBlock'
 import { SystemInitBlock } from './SystemInitBlock'
 import { ContinueIndicatorBlock } from './ContinueIndicatorBlock'
 import { RetryIndicatorBlock } from './RetryIndicatorBlock'
-import { BackgroundActivityBlock } from './BackgroundActivityBlock'
+import { BackgroundActivityGroup } from './BackgroundActivityBlock'
 import { VizBlockRenderer } from './viz'
 import { CopyMarkdownButton } from './CopyMarkdownButton'
 import { messageBodyToMarkdown } from '@/utils/chatExport'
@@ -343,13 +343,19 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
                 />
               )
 
-            case 'background_activity':
-              return (
-                <BackgroundActivityBlock
-                  key={block.id}
-                  block={block}
-                />
-              )
+            case 'background_activity': {
+              // A run of consecutive background blocks renders as ONE chained
+              // panel (status summary + timeline) anchored on its first block.
+              const prev = grouped[index - 1]
+              if (prev?.kind === 'block' && prev.block.type === 'background_activity') return null
+              const run: ContentBlock[] = []
+              for (let j = index; j < grouped.length; j++) {
+                const g = grouped[j]
+                if (g.kind !== 'block' || g.block.type !== 'background_activity') break
+                run.push(g.block)
+              }
+              return <BackgroundActivityGroup key={block.id} blocks={run} />
+            }
 
             case 'error':
               return (
