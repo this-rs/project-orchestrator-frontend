@@ -25,6 +25,8 @@ import {
   TodayPage,
   TrajectoryPage,
   ArchitecturePage,
+  DocumentsPage,
+  DeploymentsPage,
   PlanDetailPage,
   TasksPage,
   TaskDetailPage,
@@ -197,6 +199,8 @@ function App() {
                         <Route path="today" element={<TodayPage />} />
                         <Route path="trajectory" element={<TrajectoryPage />} />
                         <Route path="architecture" element={<ArchitecturePage />} />
+                        <Route path="documents" element={<DocumentsPage />} />
+                        <Route path="deployments" element={<DeploymentsPage />} />
                         <Route path="plans" element={<PlansPage />} />
                         <Route path="plans/:planId" element={<PlanDetailPage />} />
                         <Route path="plans/:planId/runner" element={<RunnerDashboard />} />

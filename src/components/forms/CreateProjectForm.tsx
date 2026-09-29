@@ -6,7 +6,8 @@ import { isTauri } from '@/services/env'
 export interface CreateProjectFormData {
   name: string
   slug: string
-  root_path: string
+  /** Empty for projects that are not code (a budget, a launch, a trip). */
+  root_path?: string
   description: string
 }
 
@@ -64,7 +65,6 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
   const validate = () => {
     const errs: Record<string, string> = {}
     if (!name.trim()) errs.name = 'Name is required'
-    if (!rootPath.trim()) errs.root_path = 'Root path is required'
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -99,8 +99,8 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
         />
         <div className="flex items-start gap-2">
           <Input
-            label="Root Path"
-            placeholder="/path/to/project"
+            label="Folder (optional)"
+            placeholder="/path/to/project — leave empty if this is not a code project"
             value={rootPath}
             onChange={(e) => setRootPath(e.target.value)}
             error={errors.root_path}
@@ -133,7 +133,7 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
       await onSubmit({
         name: name.trim(),
         slug: slug.trim() || (undefined as unknown as string),
-        root_path: rootPath.trim(),
+        root_path: rootPath.trim() || undefined,
         description: description.trim(),
       })
     },

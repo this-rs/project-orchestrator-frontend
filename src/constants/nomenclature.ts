@@ -290,10 +290,12 @@ export interface NavGroup {
 }
 
 export const NAV_GROUPS: NavGroup[] = [
-  { label: 'Organize', items: ['overview', 'projects', 'objectives'] },
-  { label: 'Plan', items: ['plans', 'tasks', 'automation', 'triggers'] },
-  { label: 'Knowledge', items: ['notes', 'proposals', 'decisions', 'code', 'featureGraphs'] },
-  { label: 'Agent', items: ['skills', 'personas', 'protocols', 'neuralRouting'] },
+  { label: 'Focus', items: ['overview', 'today', 'trajectory'] },
+  { label: 'Plan', items: ['projects', 'objectives', 'plans', 'tasks'] },
+  { label: 'Design', items: ['architecture', 'decisions', 'proposals', 'documents'] },
+  { label: 'Build', items: ['code', 'featureGraphs'] },
+  { label: 'Ship', items: ['deployments', 'automation', 'triggers'] },
+  { label: 'Knowledge', items: ['notes', 'skills', 'personas', 'protocols', 'neuralRouting'] },
   { label: 'System', items: ['sharing', 'mcpFederation', 'admin'] },
 ]
 

@@ -20,6 +20,27 @@ describe('nomenclature', () => {
     }
   })
 
+  it('organises the sidebar by phase of the work, in seven groups', () => {
+    expect(NAV_GROUPS.map((g) => g.label)).toEqual([
+      'Focus',
+      'Plan',
+      'Design',
+      'Build',
+      'Ship',
+      'Knowledge',
+      'System',
+    ])
+  })
+
+  it('lists every concept that has a page in the sidebar', () => {
+    const keys = new Set(NAV_GROUPS.flatMap((g) => g.items))
+    // `insights` lives inside a project, not in the sidebar.
+    for (const key of Object.keys(NOMENCLATURE)) {
+      if (key === 'insights') continue
+      expect(keys.has(key as keyof typeof NOMENCLATURE)).toBe(true)
+    }
+  })
+
   it('names segments and entities from the registry', () => {
     expect(segmentLabel('milestones')).toBe('Objectives')
     expect(segmentLabel('project-milestones')).toBe('Objectives')

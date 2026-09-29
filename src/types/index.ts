@@ -1384,7 +1384,7 @@ export interface CreateWorkspaceRequest {
 export interface CreateProjectRequest {
   name: string
   slug?: string
-  root_path: string
+  root_path?: string
   description?: string
 }
 
