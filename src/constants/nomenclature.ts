@@ -29,6 +29,11 @@ import {
   Settings,
   Plug,
   Lightbulb,
+  Sun,
+  GitBranch,
+  Rocket,
+  Files,
+  Blocks,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -56,6 +61,11 @@ export type ConceptKey =
   | 'mcpFederation'
   | 'admin'
   | 'insights'
+  | 'today'
+  | 'trajectory'
+  | 'deployments'
+  | 'documents'
+  | 'architecture'
 
 export interface Concept {
   /** Singular label ("Plan"). */
@@ -229,6 +239,46 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     description: 'Health and structure metrics of one project.',
     icon: Lightbulb,
     segment: 'intelligence',
+    profile: 'all',
+  },
+  today: {
+    singular: 'Today',
+    plural: 'Today',
+    description: 'What is moving, what is stuck, and what to pick up next.',
+    icon: Sun,
+    segment: 'today',
+    profile: 'all',
+  },
+  trajectory: {
+    singular: 'Trajectory',
+    plural: 'Trajectory',
+    description: 'What is in progress toward your objectives, and the path travelled.',
+    icon: GitBranch,
+    segment: 'trajectory',
+    profile: 'all',
+  },
+  architecture: {
+    singular: 'Architecture',
+    plural: 'Architecture',
+    description: 'The system as built: components and what depends on what.',
+    icon: Blocks,
+    segment: 'architecture',
+    profile: 'software',
+  },
+  deployments: {
+    singular: 'Deployment',
+    plural: 'Deployments',
+    description: 'Where each project runs and what was shipped there.',
+    icon: Rocket,
+    segment: 'deployments',
+    profile: 'software',
+  },
+  documents: {
+    singular: 'Document',
+    plural: 'Documents',
+    description: 'Spreadsheets, decks and files attached to your work.',
+    icon: Files,
+    segment: 'documents',
     profile: 'all',
   },
 }

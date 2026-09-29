@@ -123,9 +123,23 @@ export const workspacesApi = {
   mapComponentToProject: (componentId: string, projectId: string) =>
     api.put(`/components/${componentId}/project`, { project_id: projectId }),
 
-  getTopology: (slug: string) =>
-    api.get<{
-      components: Component[]
-      dependencies: { from_id: string; to_id: string; protocol?: string; required: boolean }[]
-    }>(`/workspaces/${slug}/topology`),
+  /** Raw topology as the backend serves it (component_type is PascalCase there). */
+  getTopology: (slug: string) => api.get<TopologyResponse>(`/workspaces/${slug}/topology`),
+}
+
+/** One dependency edge, as nested under its source component. */
+export interface TopologyDependency {
+  to_id: string
+  protocol?: string | null
+  required: boolean
+}
+
+export interface TopologyComponent {
+  component: Omit<Component, 'component_type'> & { component_type: string }
+  project_name?: string | null
+  dependencies: TopologyDependency[]
+}
+
+export interface TopologyResponse {
+  components: TopologyComponent[]
 }
