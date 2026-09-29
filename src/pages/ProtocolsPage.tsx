@@ -36,6 +36,7 @@ import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import type { Protocol, ProtocolStatus } from '@/types/protocol'
 import { NOMENCLATURE } from '@/constants/nomenclature'
+import { fetchAllPages } from '@/services/paginate'
 
 // ---------------------------------------------------------------------------
 // Config
@@ -109,15 +110,17 @@ export function ProtocolsPage() {
     setError(null)
     try {
       if (activeProjectId) {
-        const res = await protocolApi.listProtocols({ project_id: activeProjectId, status: statusParam, limit: 100, offset: 0 })
+        const res = await fetchAllPages((page) =>
+          protocolApi.listProtocols({ project_id: activeProjectId, status: statusParam, ...page }),
+        )
         setProtocols(res.items)
       } else {
         // Workspace mode: fetch every project in parallel, merge, dedupe
         const results = await Promise.all(
           projects.map((p) =>
-            protocolApi
-              .listProtocols({ project_id: p.id, status: statusParam, limit: 100, offset: 0 })
-              .catch(() => ({ items: [] as Protocol[], total: 0 })),
+            fetchAllPages((page) =>
+              protocolApi.listProtocols({ project_id: p.id, status: statusParam, ...page }),
+            ).catch(() => ({ items: [] as Protocol[], total: 0 })),
           ),
         )
         const byId = new Map<string, Protocol>()

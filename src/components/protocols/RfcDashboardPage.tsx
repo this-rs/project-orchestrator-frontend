@@ -44,6 +44,7 @@ import {
 } from './rfcLifecycle'
 import type { Rfc, RfcStatus } from '@/types/protocol'
 import { NOMENCLATURE } from '@/constants/nomenclature'
+import { fetchAllPages } from '@/services/paginate'
 
 interface RfcDashboardPageProps {
   /** Callback when an RFC is activated (default: navigate to its page) */
@@ -82,7 +83,7 @@ export function RfcDashboardPage({ onRfcClick, className = '' }: RfcDashboardPag
     try {
       setLoading(true)
       setError(null)
-      const response = await rfcApi.list({ limit: 200, project_id: activeProjectId })
+      const response = await fetchAllPages((page) => rfcApi.list({ ...page, project_id: activeProjectId }))
       setRfcs(response.items)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load RFCs')

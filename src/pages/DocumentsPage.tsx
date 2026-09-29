@@ -19,6 +19,7 @@ import {
   PageShell,
   RelativeTime,
 } from '@/components/ui'
+import { fetchAllPages } from '@/services/paginate'
 import { useToast, useWorkspaceSlug } from '@/hooks'
 import { documentsApi } from '@/services/documents'
 import { workspacesApi } from '@/services/workspaces'
@@ -64,7 +65,7 @@ export function DocumentsPage() {
     setError(null)
     try {
       const [list, proj] = await Promise.all([
-        documentsApi.list({ project_id: projectId || undefined, limit: 200 }),
+        fetchAllPages((page) => documentsApi.list({ project_id: projectId || undefined, ...page })),
         workspacesApi.listProjects(wsSlug).catch(() => [] as Project[]),
       ])
       setDocs(list.items ?? [])
