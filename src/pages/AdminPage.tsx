@@ -31,7 +31,8 @@ import {
 import { ActionRow, Notice, SettingRow, SettingsList } from '@/components/settings/SettingRow'
 import { adminApi, workspacesApi } from '@/services'
 import { useConfirmDialog, useToast, useWorkspaceSlug } from '@/hooks'
-import type { BackfillJobStatus, MeilisearchStats, MaintenanceLevel } from '@/types'
+import type { BackfillJobStatus, MeilisearchStats, MaintenanceLevel, WatchStatus } from '@/types'
+import { isProjectWatched, unlinkedWatchedPaths } from '@/utils/watch'
 import { NOMENCLATURE } from '@/constants/nomenclature'
 
 // ============================================================================
@@ -90,7 +91,7 @@ interface WsProjects {
 }
 
 function SyncWatchersSection() {
-  const [watchStatus, setWatchStatus] = useState<{ running: boolean; watched_paths: string[] } | null>(null)
+  const [watchStatus, setWatchStatus] = useState<WatchStatus | null>(null)
   const [wsProjectGroups, setWsProjectGroups] = useState<WsProjects[]>([])
   const [syncPath, setSyncPath] = useState('')
   const [syncing, setSyncing] = useState(false)
@@ -136,10 +137,7 @@ function SyncWatchersSection() {
   const allProjects = wsProjectGroups.flatMap((g) => g.projects)
 
   const isPathWatched = useCallback(
-    (rootPath: string) =>
-      watchStatus?.watched_paths.some(
-        (wp) => wp === rootPath || rootPath.startsWith(wp + '/') || wp.startsWith(rootPath + '/'),
-      ) ?? false,
+    (projectId: string, rootPath: string) => isProjectWatched(watchStatus, projectId, rootPath),
     [watchStatus],
   )
 
@@ -176,13 +174,7 @@ function SyncWatchersSection() {
   }
 
   /** Watched paths not matching any known project */
-  const unlinkedPaths =
-    watchStatus?.watched_paths.filter(
-      (wp) =>
-        !allProjects.some(
-          (p) => p.root_path === wp || wp.startsWith(p.root_path + '/') || p.root_path.startsWith(wp + '/'),
-        ),
-    ) ?? []
+  const unlinkedPaths = unlinkedWatchedPaths(watchStatus, allProjects)
 
   const handleSync = async () => {
     if (!syncPath.trim()) return
@@ -255,7 +247,7 @@ function SyncWatchersSection() {
             {wsProjectGroups.map((group) => (
               <ListGroup key={group.workspace.slug} title={group.workspace.name} count={group.projects.length}>
                 {group.projects.map((project) => {
-                  const watched = isPathWatched(project.root_path)
+                  const watched = isPathWatched(project.id, project.root_path)
                   return (
                     <SettingRow
                       key={project.id}

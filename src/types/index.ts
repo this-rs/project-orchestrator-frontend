@@ -1472,9 +1472,18 @@ export interface SyncResult {
   errors: string[]
 }
 
+export interface WatchedProject {
+  project_id: string
+  slug: string
+  path: string
+}
+
 export interface WatchStatus {
   running: boolean
+  /** Canonicalized paths (symlinks resolved) — do not compare to a project's root_path. */
   watched_paths: string[]
+  /** Projects under watch, keyed by id. Absent on backends that predate it. */
+  watched_projects?: WatchedProject[]
 }
 
 export interface BackfillJobStatus {

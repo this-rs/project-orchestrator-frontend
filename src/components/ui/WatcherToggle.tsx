@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { adminApi } from '@/services/admin'
 import type { WatchStatus } from '@/types'
+import { isProjectWatched } from '@/utils/watch'
 
 interface WatcherToggleProps {
   /** Project UUID */
@@ -36,18 +37,14 @@ export function WatcherToggle({
   const checkStatus = useCallback(async () => {
     try {
       const status: WatchStatus = await adminApi.getWatchStatus()
-      // Check if this project's root_path is in the watched list
-      const isWatched = status.watched_paths.some(
-        (p) => p === rootPath || rootPath.startsWith(p + '/') || p.startsWith(rootPath + '/'),
-      )
-      setWatching(isWatched)
+      setWatching(isProjectWatched(status, projectId, rootPath))
     } catch {
       // If we can't check status, assume not watching
       setWatching(false)
     } finally {
       setLoading(false)
     }
-  }, [rootPath])
+  }, [projectId, rootPath])
 
   useEffect(() => {
     checkStatus()
