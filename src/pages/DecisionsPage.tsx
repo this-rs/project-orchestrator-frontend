@@ -20,6 +20,7 @@ import { useToast, useWorkspaceSlug } from '@/hooks'
 import type { Decision, DecisionStatus } from '@/types'
 import { workspacePath } from '@/utils/paths'
 import { decisionPreview, decisionTitle } from '@/components/knowledge/noteMeta'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 // ── Filter options ──────────────────────────────────────────────────────
 
@@ -132,7 +133,7 @@ export function DecisionsPage() {
 
   return (
     <PageShell
-      title="Architectural Decisions"
+      title={NOMENCLATURE.decisions.plural}
       description="Track architectural decisions, their rationale, and impact across the codebase"
       count={loading ? undefined : filtered.length}
       width="wide"

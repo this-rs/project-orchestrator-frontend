@@ -32,6 +32,7 @@ import { ActionRow, Notice, SettingRow, SettingsList } from '@/components/settin
 import { adminApi, workspacesApi } from '@/services'
 import { useConfirmDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import type { BackfillJobStatus, MeilisearchStats, MaintenanceLevel } from '@/types'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 // ============================================================================
 // MAIN PAGE
@@ -61,7 +62,7 @@ export function AdminPage() {
   return (
     <PageContainer width="narrow" className="space-y-6">
       <PageHeader
-        title="Administration"
+        title={NOMENCLATURE.admin.plural}
         description="Server maintenance: code sync, search index, embeddings, graph analyses and cleanup. Each action says what it does and what it costs; destructive ones ask for confirmation."
       />
 

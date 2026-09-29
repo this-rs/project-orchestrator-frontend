@@ -39,6 +39,7 @@ import { useFormDialog, useToast, useInfiniteList, useWorkspaceSlug } from '@/ho
 import { CreateSkillForm, ImportSkillForm } from '@/components/forms'
 import type { Skill, SkillStatus, PaginatedResponse, PublishedSkillSummary } from '@/types'
 import { workspacePath } from '@/utils/paths'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 // ── Options ─────────────────────────────────────────────────────────────
 
@@ -250,7 +251,7 @@ export function SkillsPage() {
 
   return (
     <PageShell
-      title="Skills"
+      title={NOMENCLATURE.skills.plural}
       description="Emergent knowledge clusters, detected from your notes and decisions."
       count={activeTab === 'skills' && !loading && !noProjects ? visible.length : undefined}
       width="wide"

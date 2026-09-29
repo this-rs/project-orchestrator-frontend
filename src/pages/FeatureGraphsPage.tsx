@@ -21,6 +21,7 @@ import { useFormDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import { CreateFeatureGraphForm, AutoBuildFeatureGraphForm } from '@/components/forms'
 import type { FeatureGraph } from '@/types'
 import { workspacePath } from '@/utils/paths'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 // ── Main page ───────────────────────────────────────────────────────────
 
@@ -133,7 +134,7 @@ export function FeatureGraphsPage() {
 
   return (
     <PageShell
-      title="Feature Graphs"
+      title={NOMENCLATURE.featureGraphs.plural}
       description="A feature graph groups the code (files, functions, types) that implements one feature. Auto-build assembles it by following calls from an entry function."
       count={loading ? undefined : filtered.length}
       width="wide"

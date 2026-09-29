@@ -48,6 +48,7 @@ import type { EditTaskFormData } from '@/components/forms/EditTaskForm'
 import type { TaskWithPlan, TaskStatus, PaginatedResponse } from '@/types'
 import type { KanbanTask } from '@/components/kanban/KanbanCard'
 import { workspacePath } from '@/utils/paths'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 const statusOptions = [{ value: 'all', label: 'All statuses' }, ...getStatusOptions('task')]
 
@@ -260,7 +261,7 @@ export function TasksPage() {
 
   return (
     <PageShell
-      title="Tasks"
+      title={NOMENCLATURE.tasks.plural}
       description="Manage tasks across all plans"
       count={!isKanban && !loading ? total : undefined}
       width={isKanban ? 'full' : 'wide'}

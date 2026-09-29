@@ -25,6 +25,7 @@ import { PersonaBuilder } from '@/components/personas'
 import { useToast, useInfiniteList, useWorkspaceSlug } from '@/hooks'
 import type { Persona, PersonaStatus, PersonaSubgraph, PaginatedResponse } from '@/types'
 import { workspacePath } from '@/utils/paths'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 // ── Options ─────────────────────────────────────────────────────────────
 
@@ -185,7 +186,7 @@ export function PersonasPage() {
 
   return (
     <PageShell
-      title="Personas"
+      title={NOMENCLATURE.personas.plural}
       description="Expertise profiles assigned to agents, built from your code and knowledge."
       count={loading || noProjects ? undefined : visible.length}
       width="wide"

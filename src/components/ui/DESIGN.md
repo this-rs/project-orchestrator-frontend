@@ -11,6 +11,22 @@ existing primitives inside the page's own folder — never copy/paste a variant.
 
 ---
 
+## 0. Names come from one place
+
+Every visible name of a concept — sidebar entry, list-page title, breadcrumb
+segment, card kicker — is read from `@/constants/nomenclature` (`NOMENCLATURE`,
+`NAV_GROUPS`, `segmentLabel`, `entityNoun`). Never type "Plans" or "Objectives"
+by hand in a page: `<PageShell title={NOMENCLATURE.plans.plural}>`.
+
+- Labels only. API paths, entity types and MCP identifiers do not change
+  (an *Objective* is still a `milestone` on the wire, a *Proposal* an `rfc`).
+- Detail pages need no breadcrumb code: `PageHeader` publishes its `title` and
+  the breadcrumb shows it in place of the id.
+- New concept or new page = one entry in the registry, then it appears in the
+  menu and the breadcrumb. Every route must be reachable from the sidebar.
+
+---
+
 ## 1. Layout
 
 | Page type | Wrapper | Width |

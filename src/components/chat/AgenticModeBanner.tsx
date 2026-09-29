@@ -252,7 +252,7 @@ export const AgenticModeBanner = memo(function AgenticModeBanner({
   if (activeRuns.length === 0) return null
 
   const handleOpenDashboard = (planId: string) => {
-    navigate(workspacePath(wsSlug, `/runner/${planId}`))
+    navigate(workspacePath(wsSlug, `/plans/${planId}/runner`))
   }
 
   return (

@@ -92,7 +92,7 @@ describe('IntelligencePage', () => {
 
   it('shows the score, the attention list with links and the code hotspots', async () => {
     renderPage()
-    expect(await screen.findByRole('heading', { level: 1, name: 'Intelligence' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Insights' })).toBeTruthy()
     expect(screen.getByRole('link', { name: /Payments/ }).getAttribute('href')).toBe('/workspace/ws/projects/p1')
     expect(screen.getByRole('img', { name: /Health score \d+ of 100/ })).toBeTruthy()
 
@@ -133,6 +133,6 @@ describe('IntelligencePage', () => {
     renderPage()
     expect(await screen.findByText('boom')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
-    expect(await screen.findByRole('heading', { level: 1, name: 'Intelligence' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Insights' })).toBeTruthy()
   })
 })

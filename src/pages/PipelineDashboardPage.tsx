@@ -44,6 +44,7 @@ import { Explainer } from '@/components/protocols/Explainer'
 import { formatCost } from '@/components/runner/shared'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 // ---------------------------------------------------------------------------
 // Config
@@ -199,7 +200,7 @@ export function PipelineDashboardPage() {
 
   return (
     <PageShell
-      title="Pipelines"
+      title={NOMENCLATURE.automation.plural}
       description="Run history across all plans — status, cost and progress"
       count={loading ? undefined : visible.length}
       width="wide"

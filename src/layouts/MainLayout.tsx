@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Menu, Home, Flag, Box, ClipboardList, FileText, Scale, Code, Brain, Users, Workflow, ChevronLeft, ChevronRight, MessageCircle, Settings, Activity, ScrollText, Plug } from 'lucide-react'
-import { sidebarCollapsedAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, workspaceRefreshAtom } from '@/atoms'
+import { Menu, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
+import { NOMENCLATURE, NAV_GROUPS, segmentLabel, entityNoun } from '@/constants/nomenclature'
+import { sidebarCollapsedAtom, breadcrumbTitleAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, workspaceRefreshAtom } from '@/atoms'
 import { ToastContainer, Branding } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
@@ -32,47 +33,22 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
     return () => controller.abort()
   }, [wsSlug])
 
-  const navGroups = useMemo(() => [
-    {
-      label: 'Organize',
-      items: [
-        { name: 'Overview', href: workspacePath(wsSlug, '/overview'), icon: Home },
-        { name: 'Projects', href: workspacePath(wsSlug, '/projects'), icon: Box },
-        { name: 'Milestones', href: workspacePath(wsSlug, '/milestones'), icon: Flag },
-      ],
-    },
-    {
-      label: 'Plan',
-      items: [
-        { name: 'Plans', href: workspacePath(wsSlug, '/plans'), icon: ClipboardList },
-        { name: 'Pipelines', href: workspacePath(wsSlug, '/pipelines'), icon: Activity },
-      ],
-    },
-    {
-      label: 'Knowledge',
-      items: [
-        { name: 'Notes', href: workspacePath(wsSlug, '/notes'), icon: FileText },
-        { name: 'RFCs', href: workspacePath(wsSlug, '/rfcs'), icon: ScrollText },
-        { name: 'Decisions', href: workspacePath(wsSlug, '/decisions'), icon: Scale },
-        { name: 'Code', href: workspacePath(wsSlug, '/code'), icon: Code },
-      ],
-    },
-    {
-      label: 'Intelligence',
-      items: [
-        { name: 'Skills', href: workspacePath(wsSlug, '/skills'), icon: Brain },
-        { name: 'Personas', href: workspacePath(wsSlug, '/personas'), icon: Users },
-        { name: 'Protocols', href: workspacePath(wsSlug, '/protocols'), icon: Workflow },
-      ],
-    },
-    {
-      label: 'System',
-      items: [
-        { name: 'MCP Federation', href: workspacePath(wsSlug, '/mcp-federation'), icon: Plug },
-        { name: 'Admin', href: workspacePath(wsSlug, '/admin'), icon: Settings },
-      ],
-    },
-  ], [wsSlug])
+  const navGroups = useMemo(
+    () =>
+      NAV_GROUPS.map((group) => ({
+        label: group.label,
+        items: group.items.map((key) => {
+          const concept = NOMENCLATURE[key]
+          return {
+            key,
+            name: concept.plural,
+            href: workspacePath(wsSlug, `/${concept.segment}`),
+            icon: concept.icon,
+          }
+        }),
+      })),
+    [wsSlug],
+  )
 
   // Flat list of all nav hrefs for direction detection
   const allHrefs = useMemo(
@@ -119,14 +95,16 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
               )}
               <ul className="space-y-0.5">
                 {group.items.map((item) => (
-                  <li key={item.name}>
+                  <li key={item.key}>
                     <NavLink
                       to={item.href}
-                      end={item.name === 'Overview' || item.name === 'Projects'}
+                      end={item.key === 'overview' || item.key === 'projects'}
                       onClick={(e) => handleNavClick(e, item.href)}
+                      aria-label={collapsed ? item.name : undefined}
+                      title={collapsed ? item.name : undefined}
                       className={({ isActive }) =>
                         `flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${
-                          isActive || (item.name === 'Projects' && isProjectsActive)
+                          isActive || (item.key === 'projects' && isProjectsActive)
                             ? 'bg-indigo-500/15 text-indigo-400 font-medium border-l-[3px] border-indigo-500 -ml-[3px] glow-primary'
                             : 'text-gray-400 hover:bg-white/[0.06] hover:text-gray-200'
                         }`
@@ -137,7 +115,7 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
                     </NavLink>
 
                     {/* Project sub-items — shown when Projects is active */}
-                    {item.name === 'Projects' && isProjectsActive && !collapsed && projects.length > 0 && (
+                    {item.key === 'projects' && isProjectsActive && !collapsed && projects.length > 0 && (
                       <ul className="mt-1 ml-5 space-y-0.5 border-l border-white/[0.06] pl-3">
                         {projects.map((project) => (
                           <li key={project.id}>
@@ -361,7 +339,7 @@ export function MainLayout() {
  * Breadcrumb that handles workspace-scoped URLs.
  * Shows: WorkspaceName > Section > Entity
  *
- * /workspace/my-ws/plans/abc → My Workspace / Plans / abc
+ * /workspace/my-ws/plans/abc → My Workspace / Plans / Auth flow (title published by PageHeader)
  */
 function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceName?: string }) {
   const parts = pathname.split('/').filter(Boolean)
@@ -371,35 +349,17 @@ function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceNa
   const displayParts = isWorkspaceScoped ? parts.slice(2) : parts
   const basePath = isWorkspaceScoped ? `/workspace/${parts[1]}` : ''
 
-  // Capitalize and prettify segment names
-  const prettyName = (s: string) => {
-    // Known section labels
-    const labels: Record<string, string> = {
-      overview: 'Overview',
-      projects: 'Projects',
-      plans: 'Plans',
-      tasks: 'Tasks',
-      notes: 'Notes',
-      milestones: 'Milestones',
-      code: 'Code',
-      decisions: 'Decisions',
-      skills: 'Skills',
-      personas: 'Personas',
-      'project-milestones': 'Milestones',
-      'feature-graphs': 'Feature Graphs',
-      protocols: 'Protocols',
-      rfcs: 'RFCs',
-      intelligence: 'Intelligence',
-      graph: 'Graph',
-      triggers: 'Triggers',
-      pipelines: 'Pipelines',
-      sharing: 'Sharing',
-      'neural-routing': 'Neural Routing',
-      'mcp-federation': 'MCP Federation',
-      admin: 'Admin',
-      runner: 'Runner',
-    }
-    return labels[s] || s.charAt(0).toUpperCase() + s.slice(1)
+  // Title published by the detail page's PageHeader (see breadcrumbTitleAtom).
+  const published = useAtomValue(breadcrumbTitleAtom)
+  const entityTitle = published && published.pathname === pathname ? published.title : null
+  const lastIdIndex = displayParts.reduce((acc, p, i) => (segmentLabel(p) ? acc : i), -1)
+
+  // Names come from the nomenclature registry; anything else is an entity id.
+  const prettyName = (part: string, index: number) => {
+    const known = segmentLabel(part)
+    if (known) return known
+    if (index === lastIdIndex && entityTitle) return entityTitle
+    return (index > 0 ? entityNoun(displayParts[index - 1]) : null) ?? 'Details'
   }
 
   // Segments whose list page lives at a different route
@@ -444,7 +404,7 @@ function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceNa
                   : 'text-gray-400 hover:text-gray-200'
               }`}
             >
-              {prettyName(part)}
+              {prettyName(part, index)}
             </NavLink>
           </span>
         )

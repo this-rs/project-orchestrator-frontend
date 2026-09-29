@@ -35,6 +35,7 @@ import {
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import type { Protocol, ProtocolStatus } from '@/types/protocol'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 // ---------------------------------------------------------------------------
 // Config
@@ -210,7 +211,7 @@ export function ProtocolsPage() {
 
   return (
     <PageShell
-      title="Protocols"
+      title={NOMENCLATURE.protocols.plural}
       description="State machines that drive automated workflows"
       count={loading || view !== 'protocols' ? undefined : visible.length}
       width="wide"

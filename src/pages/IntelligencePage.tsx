@@ -49,6 +49,7 @@ import type { IntelligenceSummary } from '@/types/intelligence'
 import type { CodeHealth, Project } from '@/types'
 import { useConfirmDialog, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 // ============================================================================
 // HEALTH SCORE
@@ -428,7 +429,7 @@ export function IntelligencePage() {
   return (
     <PageContainer width="full" className="space-y-6">
       <PageHeader
-        title="Intelligence"
+        title={NOMENCLATURE.insights.plural}
         parentLinks={
           projectSlug
             ? [{ icon: Folder, label: 'Project', name: project?.name ?? projectSlug, href: workspacePath(wsSlug, `/projects/${projectSlug}`) }]

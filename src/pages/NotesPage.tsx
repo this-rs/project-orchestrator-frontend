@@ -43,6 +43,7 @@ import { NoteTypeLabel } from '@/components/knowledge/NoteTypeLabel'
 import { noteTitle, notePreview, noteTypeOptions, pct } from '@/components/knowledge/noteMeta'
 import { workspacePath } from '@/utils/paths'
 import type { Note, NoteType, NoteStatus, PaginatedResponse } from '@/types'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 const typeOptions = [{ value: 'all', label: 'All types' }, ...noteTypeOptions]
 const statusOptions = [{ value: 'all', label: 'All statuses' }, ...getStatusOptions('note')]
@@ -295,7 +296,7 @@ export function NotesPage() {
 
   return (
     <PageShell
-      title="Knowledge Notes"
+      title={NOMENCLATURE.notes.plural}
       description="Guidelines, gotchas and patterns your agents receive while they work."
       count={loading || showSemanticResults ? undefined : total}
       width="wide"

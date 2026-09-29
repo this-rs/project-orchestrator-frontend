@@ -43,6 +43,7 @@ import { PlanKanbanFilterBar, UniversalKanban, createPlanKanbanConfig } from '@/
 import type { PlanKanbanFilters } from '@/components/kanban'
 import type { Plan, PlanStatus, PaginatedResponse } from '@/types'
 import { workspacePath } from '@/utils/paths'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 const statusOptions = [{ value: 'all', label: 'All statuses' }, ...getStatusOptions('plan')]
 
@@ -329,7 +330,7 @@ export function PlansPage() {
 
   return (
     <PageShell
-      title="Plans"
+      title={NOMENCLATURE.plans.plural}
       description="Plan and track implementation phases"
       count={!isKanban && !loading ? total : undefined}
       width={isKanban ? 'full' : 'wide'}

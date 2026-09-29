@@ -32,6 +32,7 @@ import { UniversalKanban, createMilestoneKanbanConfig } from '@/components/kanba
 import type { MilestoneWithProgress } from '@/components/kanban'
 import type { MilestoneStatus } from '@/types'
 import { workspacePath } from '@/utils/paths'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 const statusOptions = [{ value: 'all', label: 'All statuses' }, ...getStatusOptions('milestone')]
 
@@ -257,7 +258,7 @@ export function MilestonesPage() {
 
   return (
     <PageShell
-      title="Milestones"
+      title={NOMENCLATURE.objectives.plural}
       description="Track milestones for this workspace"
       count={loading ? undefined : isKanban ? baseFiltered.length : filteredMilestones.length}
       width={isKanban ? 'full' : 'wide'}

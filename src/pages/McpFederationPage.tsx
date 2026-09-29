@@ -32,6 +32,7 @@ import type {
   CircuitState,
   ConnectServerRequest,
 } from '@/services/mcpFederation'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 // ============================================================================
 // LABELS
@@ -424,7 +425,7 @@ export function McpFederationPage() {
 
   return (
     <PageShell
-      title="MCP Federation"
+      title={NOMENCLATURE.mcpFederation.plural}
       description="External MCP servers plugged into the orchestrator: their tools add to the agents' own. Tap a server for its statistics and tools. Refreshed every 10 seconds."
       count={loading ? undefined : servers.length}
       width="wide"

@@ -34,6 +34,7 @@ import type {
   SharingSuggestionItem,
   ConsentStats,
 } from '@/types'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 // ============================================================================
 // LABELS
@@ -102,7 +103,7 @@ export function SharingPage() {
   return (
     <PageContainer width="narrow" className="space-y-6">
       <PageHeader
-        title="Sharing & Privacy"
+        title={NOMENCLATURE.sharing.plural}
         description="Decide which notes of a project may be shared with other instances, see what would leave, and retract a share with a signed tombstone."
       />
 

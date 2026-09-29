@@ -40,6 +40,7 @@ import {
 import { Explainer } from '@/components/protocols/Explainer'
 import { useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 // ---------------------------------------------------------------------------
 // Config
@@ -206,7 +207,7 @@ export function TriggerDashboardPage() {
 
   return (
     <PageShell
-      title="Event triggers"
+      title={NOMENCLATURE.triggers.plural}
       description="Persistent event → protocol rules — automatic FSM activation"
       count={loading ? undefined : visible.length}
       width="wide"

@@ -66,7 +66,7 @@ export const AgenticModePill = memo(function AgenticModePill({
 
   const handleOpenDashboard = () => {
     if (latestRunWithPlan?.planId) {
-      navigate(workspacePath(wsSlug, `/runner/${latestRunWithPlan.planId}`))
+      navigate(workspacePath(wsSlug, `/plans/${latestRunWithPlan.planId}/runner`))
       setPopoverOpen(false)
     }
   }

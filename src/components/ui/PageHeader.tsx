@@ -1,5 +1,7 @@
-import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, type ReactNode } from 'react'
+import { Link, useInRouterContext, useLocation } from 'react-router-dom'
+import { useSetAtom } from 'jotai'
+import { breadcrumbTitleAtom } from '@/atoms/ui'
 import type { LucideIcon } from 'lucide-react'
 import type { OverflowMenuAction } from './OverflowMenu'
 import { OverflowMenu } from './OverflowMenu'
@@ -33,6 +35,21 @@ interface PageHeaderProps {
   parentLinks?: ParentLink[]
   /** view-transition-name for shared element morph (title ↔ card title) */
   viewTransitionName?: string
+}
+
+/**
+ * Publishes the page title to the breadcrumb so it can name the entity
+ * instead of showing its id. Renders nothing; lives in its own component so
+ * PageHeader itself still works outside a Router.
+ */
+function BreadcrumbTitle({ title }: { title: string }) {
+  const { pathname } = useLocation()
+  const setBreadcrumbTitle = useSetAtom(breadcrumbTitleAtom)
+  useEffect(() => {
+    setBreadcrumbTitle({ pathname, title })
+    return () => setBreadcrumbTitle((cur) => (cur?.pathname === pathname ? null : cur))
+  }, [pathname, title, setBreadcrumbTitle])
+  return null
 }
 
 /**
@@ -71,10 +88,13 @@ export function PageHeader({
       </span>
     )),
   ]
+  const inRouter = useInRouterContext()
+
   const hasOverflow = overflowActions && overflowActions.some((a) => !a.hidden)
 
   return (
     <header className="space-y-2">
+      {inRouter && <BreadcrumbTitle title={title} />}
       {parentLinks && parentLinks.length > 0 && (
         <nav aria-label="Parent entities" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
           {parentLinks.map((link) => {

@@ -9,6 +9,7 @@ import { CodeExplorerTab } from '@/components/code/CodeExplorerTab'
 import { CodeArchitectureFullTab } from '@/components/code/CodeArchitectureFullTab'
 import { CodeSanteTab } from '@/components/code/CodeSanteTab'
 import { FileHistoryDrawer } from '@/components/code/FileHistoryDrawer'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 type CodeTab = 'explorer' | 'architecture' | 'health'
 
@@ -77,7 +78,7 @@ export function CodePage() {
 
   return (
     <PageShell
-      title="Code"
+      title={NOMENCLATURE.code.plural}
       description="Search, architecture and health of your projects' code."
       width="wide"
       filters={

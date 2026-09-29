@@ -26,6 +26,7 @@ import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useWorkspace
 import { CreateProjectForm, EditProjectForm } from '@/components/forms'
 import { workspacePath } from '@/utils/paths'
 import type { Project } from '@/types'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 function matches(p: Project, q: string) {
   const needle = q.trim().toLowerCase()
@@ -141,7 +142,7 @@ export function ProjectsPage() {
 
   return (
     <PageShell
-      title="Projects"
+      title={NOMENCLATURE.projects.plural}
       description="Track your codebase projects"
       count={loading || error ? undefined : projects.length}
       width="wide"

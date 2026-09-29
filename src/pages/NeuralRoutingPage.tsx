@@ -19,6 +19,7 @@ import { SettingRow, SettingsList } from '@/components/settings/SettingRow'
 import { useToast } from '@/hooks'
 import { neuralRoutingApi } from '@/services/neuralRouting'
 import type { NeuralRoutingStatus, NeuralRoutingConfig, UpdateConfigRequest } from '@/services/neuralRouting'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 const modeOptions = [
   { value: 'nn', label: 'NN (nearest neighbour)' },
@@ -141,7 +142,7 @@ export function NeuralRoutingPage() {
 
   const header = (
     <PageHeader
-      title="Neural Routing"
+      title={NOMENCLATURE.neuralRouting.plural}
       description="For each agent request, neural routing picks the most likely path from similar past trajectories. Enable it here, follow how well it performs and tune its parameters."
       status={
         status ? (

@@ -43,6 +43,7 @@ import {
   triggerIcon,
 } from './rfcLifecycle'
 import type { Rfc, RfcStatus } from '@/types/protocol'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 interface RfcDashboardPageProps {
   /** Callback when an RFC is activated (default: navigate to its page) */
@@ -158,7 +159,7 @@ export function RfcDashboardPage({ onRfcClick, className = '' }: RfcDashboardPag
   return (
     <div className={className}>
       <PageShell
-        title="RFCs"
+        title={NOMENCLATURE.proposals.plural}
         description="Requests for comments — proposals and their lifecycle"
         count={loading ? undefined : filtered.length}
         width="wide"
