@@ -80,10 +80,10 @@ export const MessageQueueBar = memo(function MessageQueueBar({
       <div className="flex items-center gap-1.5 px-2.5 py-1 border-b border-white/[0.06] text-[11px] text-gray-500">
         <Clock className="w-3 h-3" />
         <span>
-          {queue.length} message{queue.length > 1 ? 's' : ''} en attente
+          {queue.length} message{queue.length > 1 ? 's' : ''} queued
         </span>
         <span className="ml-auto text-[10px] text-gray-600">
-          part à la fin de la réponse
+          sent when the response ends
         </span>
       </div>
 
@@ -164,8 +164,8 @@ export const MessageQueueBar = memo(function MessageQueueBar({
                   }
                   title={
                     m.prioritized
-                      ? 'Envoyer maintenant (interrompt la réponse en cours)'
-                      : 'Envoyer ensuite (attend la fin de la réponse)'
+                      ? 'Send now (interrupts the current response)'
+                      : 'Send next (waits for the current response to finish)'
                   }
                   data-stage={m.prioritized ? 'send-now' : 'send-next'}
                   className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${

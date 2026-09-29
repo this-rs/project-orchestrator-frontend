@@ -1,76 +1,60 @@
-import { useState, useEffect, useCallback } from 'react'
-import { useParams } from 'react-router-dom'
-import {
-  Pencil,
-  Check,
-  X,
-  Plus,
-  CheckCircle2,
-  ArrowRightLeft,
-  FileCode2,
-  Box,
-  Hash,
-} from 'lucide-react'
+/**
+ * Decision detail — the decision (first line = title), its rationale, the
+ * alternatives considered, the code it constrains, its supersession timeline
+ * and lifecycle actions. Route: /workspace/:slug/decisions/:decisionId
+ */
+import { createElement, useState, useEffect, useCallback } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import { ArrowRightLeft, CheckCircle2, Copy, Pencil, Plus, Scale, Trash2, Unlink } from 'lucide-react'
 import { decisionsApi } from '@/services'
+import { ApiError } from '@/services/api'
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
   Button,
-  Input,
-  Textarea,
-  Badge,
-  InteractiveDecisionStatusBadge,
   CollapsibleMarkdown,
-  ConfirmDialog,
-  FormDialog,
-  SectionNav,
-  LoadingPage,
-  ErrorState,
   EmptyState,
-  Select,
+  EntityList,
+  EntityListSkeleton,
+  EntityRow,
+  ErrorState,
+  Facts,
+  FormDialog,
+  PageContainer,
+  PageHeader,
+  RelativeTime,
+  Section,
+  Skeleton,
+  SkeletonLine,
+  StatusMenu,
+  StatusText,
+  TONE_CLASSES,
+  formatAbsolute,
+  inlineLink,
+  pluralize,
+  surface,
 } from '@/components/ui'
-import { PageHeader } from '@/components/ui/PageHeader'
-import { useConfirmDialog, useFormDialog, useToast, useWorkspaceSlug, useSectionObserver } from '@/hooks'
+import { useFormDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import { useViewTransition } from '@/hooks/useViewTransition'
+import { useDecisionAffectsForm, useEditDecisionForm } from '@/components/forms/DecisionForms'
+import { decisionTitle, entityHref, entityIcon } from '@/components/knowledge/noteMeta'
 import { workspacePath } from '@/utils/paths'
 import type { Decision, DecisionStatus, DecisionAffects, DecisionTimelineEntry } from '@/types'
 
-// ── Section nav ─────────────────────────────────────────────────────────
-
-const SECTIONS = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'affects', label: 'Affects' },
-  { id: 'timeline', label: 'Timeline' },
-]
-
-// ── Entity type icons ───────────────────────────────────────────────────
-
-const entityTypeIcons: Record<string, typeof FileCode2> = {
-  File: FileCode2,
-  Function: Hash,
-  Struct: Box,
-  Trait: Box,
-}
-
-function EntityTypeIcon({ type }: { type: string }) {
-  const Icon = entityTypeIcons[type] || FileCode2
-  return <Icon className="w-3.5 h-3.5" />
-}
-
-// ── Relative time ───────────────────────────────────────────────────────
-
-function relativeTime(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 30) return `${days}d ago`
-  return new Date(dateStr).toLocaleDateString()
+function DetailSkeleton() {
+  return (
+    <PageContainer width="wide" className="space-y-6">
+      <div className="space-y-3" aria-busy="true" aria-label="Loading decision">
+        <SkeletonLine width="30%" />
+        <Skeleton className="h-7 w-3/4" />
+        <SkeletonLine width="55%" />
+      </div>
+      <div className={`${surface} p-4 space-y-2`}>
+        <SkeletonLine />
+        <SkeletonLine width="85%" />
+        <SkeletonLine width="60%" />
+      </div>
+      <EntityListSkeleton rows={3} />
+    </PageContainer>
+  )
 }
 
 // ── Main page ───────────────────────────────────────────────────────────
@@ -79,53 +63,34 @@ export function DecisionDetailPage() {
   const { decisionId } = useParams<{ decisionId: string }>()
   const wsSlug = useWorkspaceSlug()
   const toast = useToast()
-  const confirmDialog = useConfirmDialog()
-  const affectsFormDialog = useFormDialog()
   const { navigate } = useViewTransition()
-  const activeSection = useSectionObserver(SECTIONS.map((s) => s.id))
+  const decisionsHref = workspacePath(wsSlug, '/decisions')
 
-  // ── State ───────────────────────────────────────────────────────────
   const [decision, setDecision] = useState<Decision | null>(null)
   const [affects, setAffects] = useState<DecisionAffects[]>([])
   const [timeline, setTimeline] = useState<DecisionTimelineEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  // Edit mode for overview
-  const [editing, setEditing] = useState(false)
-  const [descDraft, setDescDraft] = useState('')
-  const [rationaleDraft, setRationaleDraft] = useState('')
-  const [chosenDraft, setChosenDraft] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  // Add affects form state
-  const [affEntityType, setAffEntityType] = useState('File')
-  const [affEntityId, setAffEntityId] = useState('')
-  const [affImpact, setAffImpact] = useState('')
+  const [error, setError] = useState<'not-found' | string | null>(null)
 
   // ── Fetch ───────────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
     if (!decisionId) return
-    const isInitial = !decision
-    if (isInitial) setLoading(true)
+    setLoading(true)
     setError(null)
     try {
-      const [d, aff] = await Promise.all([
-        decisionsApi.get(decisionId),
-        decisionsApi.listAffects(decisionId),
-      ])
+      const [d, aff] = await Promise.all([decisionsApi.get(decisionId), decisionsApi.listAffects(decisionId)])
       setDecision(d)
-      setAffects(aff)
+      setAffects(Array.isArray(aff) ? aff : [])
       // Timeline is best-effort (may not have task_id context)
       try {
         const tl = await decisionsApi.getTimeline({})
-        // Filter timeline to this decision
         setTimeline(tl.filter((e) => e.decision.id === decisionId))
       } catch {
         setTimeline([])
       }
-    } catch {
-      setError('Failed to load decision')
+    } catch (err) {
+      setDecision(null)
+      setError(err instanceof ApiError && err.status === 404 ? 'not-found' : 'Could not load this decision.')
     } finally {
       setLoading(false)
     }
@@ -135,18 +100,12 @@ export function DecisionDetailPage() {
     fetchData()
   }, [fetchData])
 
-  // ── Handlers ────────────────────────────────────────────────────────
+  // ── Mutations ───────────────────────────────────────────────────────
 
-  const handleDelete = () => {
-    confirmDialog.open({
-      title: 'Delete Decision',
-      description: 'Permanently delete this decision? This cannot be undone.',
-      onConfirm: async () => {
-        await decisionsApi.delete(decisionId!)
-        toast.success('Decision deleted')
-        navigate(workspacePath(wsSlug, '/decisions'), { type: 'back-button' })
-      },
-    })
+  const handleDelete = async () => {
+    await decisionsApi.delete(decisionId!)
+    toast.success('Decision deleted')
+    navigate(decisionsHref, { type: 'back-button' })
   }
 
   const handleStatusChange = async (newStatus: DecisionStatus) => {
@@ -160,355 +119,282 @@ export function DecisionDetailPage() {
     }
   }
 
-  const startEditing = () => {
+  const handleRemoveAffects = async (entityType: string, entityId: string) => {
+    await decisionsApi.removeAffects(decisionId!, entityType, entityId)
+    setAffects((prev) => prev.filter((a) => !(a.entity_type === entityType && a.entity_id === entityId)))
+    toast.success('Link removed')
+  }
+
+  // ── Dialogs ─────────────────────────────────────────────────────────
+
+  const editDialog = useFormDialog()
+  const editForm = useEditDecisionForm(async (data) => {
     if (!decision) return
-    setDescDraft(decision.description)
-    setRationaleDraft(decision.rationale)
-    setChosenDraft(decision.chosen_option || '')
-    setEditing(true)
-  }
-
-  const handleSave = async () => {
-    if (!decision) return
-    setSaving(true)
-    try {
-      await decisionsApi.update(decision.id, {
-        description: descDraft.trim(),
-        rationale: rationaleDraft.trim(),
-        chosen_option: chosenDraft.trim() || undefined,
-      })
-      setDecision({
-        ...decision,
-        description: descDraft.trim(),
-        rationale: rationaleDraft.trim(),
-        chosen_option: chosenDraft.trim() || undefined,
-      })
-      setEditing(false)
-      toast.success('Decision updated')
-    } catch {
-      toast.error('Failed to save')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleAddAffects = async () => {
-    if (!decisionId || !affEntityId.trim()) return false
-    try {
-      await decisionsApi.addAffects(decisionId, {
-        entity_type: affEntityType,
-        entity_id: affEntityId.trim(),
-        impact_description: affImpact.trim() || undefined,
-      })
-      // Refresh affects list
-      const aff = await decisionsApi.listAffects(decisionId)
-      setAffects(aff)
-      toast.success('Affects added')
-      // Reset form
-      setAffEntityType('File')
-      setAffEntityId('')
-      setAffImpact('')
-    } catch {
-      toast.error('Failed to add affects')
-      return false
-    }
-  }
-
-  const handleRemoveAffects = (entityType: string, entityId: string) => {
-    confirmDialog.open({
-      title: 'Remove Affects',
-      description: `Remove impact link to ${entityType} "${entityId}"?`,
-      onConfirm: async () => {
-        await decisionsApi.removeAffects(decisionId!, entityType, entityId)
-        setAffects((prev) => prev.filter((a) => !(a.entity_type === entityType && a.entity_id === entityId)))
-        toast.success('Affects removed')
-      },
-    })
-  }
-
-  // ── Section counts ──────────────────────────────────────────────────
-  const sectionCounts = SECTIONS.map((s) => {
-    if (s.id === 'affects') return { ...s, count: affects.length }
-    if (s.id === 'timeline') return { ...s, count: timeline.length }
-    return s
+    await decisionsApi.update(decision.id, data)
+    setDecision({ ...decision, ...data })
+    toast.success('Decision updated')
   })
+  const openEdit = () => {
+    if (!decision) return
+    editForm.reset({ description: decision.description, rationale: decision.rationale, chosen_option: decision.chosen_option })
+    editDialog.open({ title: 'Edit decision', size: 'lg', submitLabel: 'Save' })
+  }
+
+  const affectsDialog = useFormDialog()
+  const affectsForm = useDecisionAffectsForm(async (data) => {
+    if (!decisionId) return
+    await decisionsApi.addAffects(decisionId, data)
+    setAffects(await decisionsApi.listAffects(decisionId))
+    toast.success('Affected entity added')
+  })
+  const openAddAffects = () => {
+    affectsForm.reset()
+    affectsDialog.open({ title: 'Add affected entity', submitLabel: 'Add' })
+  }
 
   // ── Loading / Error ─────────────────────────────────────────────────
 
-  if (loading) return <LoadingPage />
+  if (loading) return <DetailSkeleton />
+  if (error === 'not-found') {
+    return (
+      <PageContainer width="wide">
+        <EmptyState
+          icon={<Scale className="w-8 h-8 text-gray-500" />}
+          title="Decision not found"
+          description="It may have been deleted, or the link is wrong."
+          action={
+            <Link to={decisionsHref} className={`text-sm ${inlineLink}`}>
+              Back to decisions
+            </Link>
+          }
+        />
+      </PageContainer>
+    )
+  }
   if (error || !decision) {
-    return <ErrorState title="Decision not found" description={error || 'Could not load decision.'} onRetry={fetchData} />
+    return (
+      <PageContainer width="wide">
+        <ErrorState title="Could not load the decision" description={error ?? undefined} onRetry={fetchData} />
+      </PageContainer>
+    )
   }
 
+  const title = decisionTitle(decision.description)
+  // The header shows the first line; the section shows the full text unless it IS that line.
+  const descriptionIsTitle = decision.description.trim() === title
+
   return (
-    <div className="pt-6 space-y-6">
-      {/* ── Header ──────────────────────────────────────────────────── */}
+    <PageContainer width="wide" className="space-y-6">
       <PageHeader
-        title={decision.description.length > 80 ? decision.description.slice(0, 80) + '…' : decision.description}
-        status={<InteractiveDecisionStatusBadge status={decision.status} onStatusChange={handleStatusChange} />}
-        metadata={[
-          { label: 'Decided by', value: decision.decided_by },
-          { label: 'Decided', value: relativeTime(decision.decided_at) },
+        title={title}
+        parentLinks={[{ icon: Scale, label: 'Decisions', name: 'Architectural decisions', href: decisionsHref }]}
+        status={<StatusMenu kind="decision" status={decision.status} onChange={handleStatusChange} />}
+        meta={[
+          decision.chosen_option ? (
+            <span key="chosen" className="inline-flex items-center gap-1 min-w-0 text-gray-300" title={`Chosen: ${decision.chosen_option}`}>
+              <CheckCircle2 className={`w-3 h-3 shrink-0 ${TONE_CLASSES.success.text}`} aria-label="Chosen option" />
+              <span className="break-words">{decision.chosen_option}</span>
+            </span>
+          ) : null,
+          decision.decided_by ? `by ${decision.decided_by}` : null,
+          <RelativeTime key="d" date={decision.decided_at} prefix="decided " />,
+          decision.alternatives.length ? pluralize(decision.alternatives.length, 'alternative') : null,
+          affects.length ? `affects ${pluralize(affects.length, 'entity', 'entities')}` : null,
         ]}
-        overflowActions={[{ label: 'Delete', variant: 'danger' as const, onClick: handleDelete }]}
-      >
-        {decision.chosen_option && (
-          <Badge variant="success">
-            <CheckCircle2 className="w-3 h-3 mr-1" />
-            {decision.chosen_option}
-          </Badge>
-        )}
-      </PageHeader>
+        overflowActions={[
+          { label: 'Edit', icon: Pencil, onClick: openEdit },
+          {
+            label: 'Copy ID',
+            icon: Copy,
+            onClick: async () => {
+              try {
+                await navigator.clipboard.writeText(decision.id)
+                toast.success('ID copied')
+              } catch {
+                toast.error('Could not copy')
+              }
+            },
+          },
+          {
+            label: 'Delete',
+            icon: Trash2,
+            variant: 'danger',
+            onClick: handleDelete,
+            confirm: { title: 'Delete decision?', description: 'The decision and its links are permanently deleted. This cannot be undone.' },
+          },
+        ]}
+      />
 
-      <SectionNav sections={sectionCounts} activeSection={activeSection} />
-
-      {/* ── Overview Section ────────────────────────────────────────── */}
-      <section id="overview" className="scroll-mt-20 space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Context</CardTitle>
-            {!editing ? (
-              <Button variant="secondary" size="sm" onClick={startEditing}>
-                <Pencil className="w-3.5 h-3.5 mr-1" /> Edit
-              </Button>
-            ) : (
-              <div className="flex gap-2">
-                <Button variant="secondary" size="sm" onClick={() => setEditing(false)}>
-                  Cancel
-                </Button>
-                <Button variant="primary" size="sm" onClick={handleSave} loading={saving}>
-                  <Check className="w-3.5 h-3.5 mr-1" /> Save
-                </Button>
-              </div>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {editing ? (
-              <>
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1">Description</label>
-                  <Textarea value={descDraft} onChange={(e) => setDescDraft(e.target.value)} rows={3} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1">Rationale</label>
-                  <Textarea value={rationaleDraft} onChange={(e) => setRationaleDraft(e.target.value)} rows={5} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1">Chosen Option</label>
-                  <Input value={chosenDraft} onChange={(e) => setChosenDraft(e.target.value)} placeholder="e.g. Option A" />
-                </div>
-              </>
-            ) : (
-              <>
-                <div>
-                  <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Description</h4>
-                  <CollapsibleMarkdown content={decision.description} />
-                </div>
-                {decision.rationale && (
-                  <div>
-                    <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Rationale</h4>
-                    <CollapsibleMarkdown content={decision.rationale} />
-                  </div>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Alternatives sub-section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Alternatives ({decision.alternatives.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {decision.alternatives.length === 0 ? (
-              <p className="text-sm text-gray-500">No alternatives recorded.</p>
-            ) : (
-              <div className="space-y-2">
-                {decision.alternatives.map((alt, i) => (
-                  <div
-                    key={i}
-                    className={`flex items-center gap-2 p-2.5 rounded-lg ${
-                      alt === decision.chosen_option
-                        ? 'bg-emerald-500/10 ring-1 ring-emerald-500/20'
-                        : 'bg-white/[0.04]'
-                    }`}
-                  >
-                    {alt === decision.chosen_option && (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    )}
-                    <span
-                      className={`text-sm ${
-                        alt === decision.chosen_option ? 'text-emerald-300 font-medium' : 'text-gray-300'
-                      }`}
-                    >
-                      {alt}
-                    </span>
-                    {alt === decision.chosen_option && (
-                      <Badge variant="success" className="ml-auto text-[10px]">
-                        chosen
-                      </Badge>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* ── Affects Section ─────────────────────────────────────────── */}
-      <section id="affects" className="scroll-mt-20">
-        <Card>
-          <CardHeader>
-            <CardTitle>Affects ({affects.length})</CardTitle>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setAffEntityType('File')
-                setAffEntityId('')
-                setAffImpact('')
-                affectsFormDialog.open({ title: 'Add Affects', size: 'md' })
-              }}
-            >
-              <Plus className="w-3.5 h-3.5 mr-1" /> Add
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {affects.length === 0 ? (
-              <EmptyState
-                title="No affected entities"
-                description="Link this decision to files, functions, or structs it impacts."
-              />
-            ) : (
-              <div className="space-y-2">
-                {affects.map((aff) => (
-                  <div
-                    key={`${aff.entity_type}-${aff.entity_id}`}
-                    className="flex items-center gap-3 p-2.5 bg-white/[0.04] rounded-lg group/aff"
-                  >
-                    <Badge variant="default" className="shrink-0">
-                      <EntityTypeIcon type={aff.entity_type} />
-                      <span className="ml-1">{aff.entity_type}</span>
-                    </Badge>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm text-gray-200 truncate">{aff.entity_name || aff.entity_id}</p>
-                      {aff.entity_name && aff.entity_name !== aff.entity_id && (
-                        <p className="text-xs text-gray-500 truncate">{aff.entity_id}</p>
-                      )}
-                      {aff.impact_description && (
-                        <p className="text-xs text-gray-400 mt-0.5">{aff.impact_description}</p>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => handleRemoveAffects(aff.entity_type, aff.entity_id)}
-                      className="p-1 rounded text-gray-600 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover/aff:opacity-100 transition-all shrink-0"
-                      title="Remove"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* ── Timeline Section ────────────────────────────────────────── */}
-      <section id="timeline" className="scroll-mt-20">
-        <Card>
-          <CardHeader>
-            <CardTitle>Timeline</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {timeline.length === 0 ? (
-              <EmptyState title="No timeline entries" description="Timeline shows the decision's evolution over time." />
-            ) : (
-              <div className="relative">
-                {/* Vertical line */}
-                <div className="absolute left-4 top-0 bottom-0 w-px bg-white/[0.08]" />
-                <div className="space-y-4">
-                  {timeline.map((entry, i) => (
-                    <div key={i} className="relative flex items-start gap-3 pl-10">
-                      <div className="absolute left-2.5 top-1 w-3 h-3 rounded-full bg-gray-700 ring-2 ring-gray-900" />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <Badge variant={entry.decision.status === 'accepted' ? 'success' : 'default'}>
-                            {entry.decision.status}
-                          </Badge>
-                          <span className="text-xs text-gray-500">
-                            {relativeTime(entry.decision.decided_at)}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-300 mt-1 line-clamp-2">{entry.decision.description}</p>
-                        {entry.superseded_by && (
-                          <p className="text-xs text-amber-400 mt-1 flex items-center gap-1">
-                            <ArrowRightLeft className="w-3 h-3" />
-                            Superseded by another decision
-                          </p>
-                        )}
-                        {entry.supersedes_chain && entry.supersedes_chain.length > 0 && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Supersedes {entry.supersedes_chain.length} previous decision
-                            {entry.supersedes_chain.length > 1 ? 's' : ''}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* ── Supersession banner ─────────────────────────────────────── */}
       {decision.status === 'superseded' && (
-        <Card className="border-amber-500/20 bg-amber-500/5">
-          <CardContent className="py-3">
-            <div className="flex items-center gap-2 text-amber-400">
-              <ArrowRightLeft className="w-4 h-4 shrink-0" />
-              <p className="text-sm">
-                This decision has been <strong>superseded</strong>. It is kept for historical reference.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <div className={`flex items-start gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-sm ${TONE_CLASSES.warning.text}`}>
+          <ArrowRightLeft className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
+          <p>This decision has been superseded. It is kept for historical reference.</p>
+        </div>
       )}
 
-      {/* ── Dialogs ─────────────────────────────────────────────────── */}
-      <FormDialog {...affectsFormDialog.dialogProps} onSubmit={handleAddAffects}>
-        <Select
-          label="Entity Type"
-          options={[
-            { value: 'File', label: 'File' },
-            { value: 'Function', label: 'Function' },
-            { value: 'Struct', label: 'Struct' },
-            { value: 'Trait', label: 'Trait' },
-          ]}
-          value={affEntityType}
-          onChange={(v) => setAffEntityType(v)}
-        />
-        <Input
-          label="Entity ID"
-          placeholder="e.g. src/api/handlers.rs or function_name"
-          value={affEntityId}
-          onChange={(e) => setAffEntityId(e.target.value)}
-          autoFocus
-        />
-        <Textarea
-          label="Impact Description"
-          placeholder="How does this decision affect this entity? (optional)"
-          value={affImpact}
-          onChange={(e) => setAffImpact(e.target.value)}
-          rows={3}
-        />
-      </FormDialog>
+      {/* ── Context (description + rationale) ───────────────────────── */}
+      <Section title="Context">
+        <div className={`${surface} px-4 py-3 space-y-4`}>
+          {!descriptionIsTitle && (
+            <div>
+              <h3 className="text-xs text-gray-500 mb-1">Description</h3>
+              <CollapsibleMarkdown content={decision.description} maxHeight={320} />
+            </div>
+          )}
+          <div>
+            <h3 className="text-xs text-gray-500 mb-1">Rationale</h3>
+            {decision.rationale ? (
+              <CollapsibleMarkdown content={decision.rationale} maxHeight={320} />
+            ) : (
+              <p className="text-sm text-gray-500">No rationale recorded.</p>
+            )}
+          </div>
+        </div>
+      </Section>
 
-      <ConfirmDialog {...confirmDialog.dialogProps} />
-    </div>
+      {/* ── Alternatives ────────────────────────────────────────────── */}
+      <Section title="Alternatives" count={decision.alternatives.length} description="Options that were considered.">
+        {decision.alternatives.length === 0 ? (
+          <EmptyState size="sm" title="No alternatives recorded." />
+        ) : (
+          <EntityList aria-label="Alternatives">
+            {decision.alternatives.map((alt, i) => {
+              const chosen = alt === decision.chosen_option
+              return (
+                <EntityRow
+                  key={`${alt}-${i}`}
+                  title={alt}
+                  leading={
+                    chosen ? (
+                      <CheckCircle2 className={`w-4 h-4 ${TONE_CLASSES.success.text}`} aria-label="Chosen" />
+                    ) : (
+                      <span className="w-4 h-4 inline-flex items-center justify-center" aria-hidden="true">
+                        <span className="w-1.5 h-1.5 rounded-full bg-gray-600" />
+                      </span>
+                    )
+                  }
+                  trailing={chosen ? <span className={TONE_CLASSES.success.text}>chosen</span> : undefined}
+                />
+              )
+            })}
+          </EntityList>
+        )}
+      </Section>
+
+      {/* ── Affects ─────────────────────────────────────────────────── */}
+      <Section
+        title="Affects"
+        count={affects.length}
+        description="Code this decision constrains — agents working there are reminded of it."
+        action={
+          <Button variant="ghost" size="sm" onClick={openAddAffects}>
+            <Plus className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Add
+          </Button>
+        }
+      >
+        {affects.length === 0 ? (
+          <EmptyState
+            size="sm"
+            title="No affected entities yet"
+            description="Link this decision to the files, functions or structs it impacts."
+            action={
+              <Button size="sm" variant="secondary" onClick={openAddAffects}>
+                Add
+              </Button>
+            }
+          />
+        ) : (
+          <EntityList aria-label="Affected entities">
+            {affects.map((aff) => {
+              const name = aff.entity_name || aff.entity_id
+              return (
+                <EntityRow
+                  key={`${aff.entity_type}-${aff.entity_id}`}
+                  title={name}
+                  href={entityHref(wsSlug, aff.entity_type, aff.entity_id) ?? undefined}
+                  leading={createElement(entityIcon(aff.entity_type), { className: 'w-4 h-4 text-gray-500', 'aria-hidden': true })}
+                  description={aff.impact_description}
+                  meta={[
+                    aff.entity_type,
+                    aff.entity_name && aff.entity_name !== aff.entity_id ? (
+                      <span key="id" className="font-mono break-all">
+                        {aff.entity_id}
+                      </span>
+                    ) : null,
+                  ]}
+                  actions={[
+                    {
+                      label: 'Unlink',
+                      icon: Unlink,
+                      variant: 'danger',
+                      onClick: () => handleRemoveAffects(aff.entity_type, aff.entity_id),
+                      confirm: { title: 'Unlink this entity?', description: `The decision will no longer be attached to ${name}.`, confirmLabel: 'Unlink' },
+                    },
+                  ]}
+                />
+              )
+            })}
+          </EntityList>
+        )}
+      </Section>
+
+      {/* ── Timeline ────────────────────────────────────────────────── */}
+      <Section title="Timeline" count={timeline.length} description="How this decision evolved (supersessions).">
+        {timeline.length === 0 ? (
+          <EmptyState size="sm" title="No timeline entries" description="The timeline shows the decision's evolution over time." />
+        ) : (
+          <EntityList aria-label="Timeline">
+            {timeline.map((entry, i) => (
+              <EntityRow
+                key={`${entry.decision.id}-${i}`}
+                title={decisionTitle(entry.decision.description)}
+                trailing={<RelativeTime date={entry.decision.decided_at} />}
+                meta={[
+                  <StatusText key="s" kind="decision" status={entry.decision.status} />,
+                  entry.superseded_by ? (
+                    entry.superseded_by !== decision.id ? (
+                      <Link
+                        key="sb"
+                        to={workspacePath(wsSlug, `/decisions/${entry.superseded_by}`)}
+                        className={`relative z-10 ${TONE_CLASSES.warning.text} ${inlineLink}`}
+                      >
+                        superseded — see newer
+                      </Link>
+                    ) : (
+                      <span key="sb" className={TONE_CLASSES.warning.text}>
+                        superseded by another decision
+                      </span>
+                    )
+                  ) : null,
+                  entry.supersedes_chain?.length
+                    ? `supersedes ${pluralize(entry.supersedes_chain.length, 'previous decision', 'previous decisions')}`
+                    : null,
+                ]}
+              />
+            ))}
+          </EntityList>
+        )}
+      </Section>
+
+      {/* ── Details ─────────────────────────────────────────────────── */}
+      <Section title="Details">
+        <Facts
+          items={[
+            { label: 'Decided by', value: decision.decided_by },
+            { label: 'Decided', value: formatAbsolute(decision.decided_at) },
+            { label: 'ID', value: <span className="font-mono text-xs break-all">{decision.id}</span> },
+          ]}
+        />
+      </Section>
+
+      {/* ENTITY_GRAPH_SLOT entity_type="decision" entity_id={decision.id} */}
+
+      <FormDialog {...editDialog.dialogProps} onSubmit={editForm.submit}>
+        {editForm.fields}
+      </FormDialog>
+      <FormDialog {...affectsDialog.dialogProps} onSubmit={affectsForm.submit}>
+        {affectsForm.fields}
+      </FormDialog>
+    </PageContainer>
   )
 }

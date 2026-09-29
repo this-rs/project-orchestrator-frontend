@@ -260,7 +260,7 @@ export class LeverageScene implements ParticleScene {
 
     // ── Subtitle ──────────────────────────────────────
     renderLabel(ctx, {
-      text: 'petit effort \u2192 grand impact',
+      text: 'small effort \u2192 big impact',
       x: width / 2,
       y: height - 24,
       opacity: 0.35,

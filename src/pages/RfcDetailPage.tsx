@@ -1,235 +1,91 @@
 /**
- * RfcDetailPage — Full view of a single RFC document.
+ * RfcDetailPage — one RFC with all its information, then its graph
+ * neighbourhood (RFCs are notes in the knowledge graph):
  *
- * Layout:
- *   - PageHeader with title, status badge, importance, metadata
- *   - SectionNav for quick-jump between sections
- *   - Lifecycle progress bar showing the RFC journey
- *   - Full content rendered via CollapsibleMarkdown per section
- *   - Tags, linked protocol run, action buttons
+ *   Header     title · lifecycle state · importance · dates · next step (primary)
+ *   Lifecycle  where the RFC stands on its path + every available transition
+ *   Content    the RFC sections (markdown)
+ *   Details    importance, dates, author, protocol run, id, tags
+ *
+ * Reject / supersede end the lifecycle, so they ask for confirmation.
  */
 
-import { useState, useEffect, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useParams, Link } from 'react-router-dom'
+import { AlertTriangle, Check, Copy, FileText, Hash } from 'lucide-react'
 import {
-  FileText,
-  Calendar,
-  Hash,
-  BookOpen,
-  ThumbsUp,
-  ThumbsDown,
-  Rocket,
-  Send,
-  AlertTriangle,
-  ExternalLink,
-  Tag,
-  CheckCircle2,
-  Circle,
-  ArrowRight,
-  Copy,
-  Check,
-} from 'lucide-react'
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
+  Button,
   CollapsibleMarkdown,
-  SectionNav,
-  LoadingPage,
+  ConfirmDialog,
+  EntityListSkeleton,
   ErrorState,
-  Badge,
+  Facts,
+  PageContainer,
+  PageHeader,
+  RelativeTime,
+  Section,
+  SectionNav,
+  StatusText,
+  formatAbsolute,
+  getStatusMeta,
+  inlineLink,
+  pluralize,
 } from '@/components/ui'
-import { RfcStatusBadge } from '@/components/protocols/RfcStatusBadge'
-import { PageHeader } from '@/components/ui/PageHeader'
+import { Explainer } from '@/components/protocols/Explainer'
+import {
+  LIFECYCLE_STEPS,
+  apiErrorMessage,
+  formatTrigger,
+  isBackwardTrigger,
+  isDestructiveTrigger,
+  rfcState,
+  rfcTransitions,
+  transitionConfirm,
+  triggerIcon,
+} from '@/components/protocols/rfcLifecycle'
 import { rfcApi } from '@/services/rfcApi'
-import { useWorkspaceSlug, useSectionObserver, useToast } from '@/hooks'
-import { useViewTransition } from '@/hooks/useViewTransition'
+import { useConfirmDialog, useSectionObserver, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
-import type { Rfc, RfcStatus } from '@/types/protocol'
+import type { Rfc, RfcAvailableTransition, RfcStatus } from '@/types/protocol'
 
 // ---------------------------------------------------------------------------
-// Visual config
+// Lifecycle stepper — scrolls horizontally inside its own strip on phones
 // ---------------------------------------------------------------------------
 
-const importanceConfig: Record<string, { dot: string; label: string; variant: 'error' | 'warning' | 'default' | 'success' }> = {
-  critical: { dot: 'bg-red-400',    label: 'Critical', variant: 'error' },
-  high:     { dot: 'bg-orange-400', label: 'High',     variant: 'warning' },
-  medium:   { dot: 'bg-yellow-400', label: 'Medium',   variant: 'default' },
-  low:      { dot: 'bg-gray-400',   label: 'Low',      variant: 'default' },
-}
-
-// Visual config for known triggers — unknown triggers get a neutral style
-const triggerStyles: Record<string, { icon: typeof Send; cls: string }> = {
-  propose:        { icon: Send,       cls: 'text-blue-400 bg-blue-500/10 border-blue-500/20 hover:bg-blue-500/25' },
-  submit_review:  { icon: Send,       cls: 'text-blue-400 bg-blue-500/10 border-blue-500/20 hover:bg-blue-500/25' },
-  accept:         { icon: ThumbsUp,   cls: 'text-green-400 bg-green-500/10 border-green-500/20 hover:bg-green-500/25' },
-  reject:         { icon: ThumbsDown, cls: 'text-red-400 bg-red-500/10 border-red-500/20 hover:bg-red-500/25' },
-  supersede:      { icon: ThumbsDown, cls: 'text-amber-400 bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/25' },
-  revise:         { icon: Send,       cls: 'text-orange-400 bg-orange-500/10 border-orange-500/20 hover:bg-orange-500/25' },
-  start_planning: { icon: Rocket,     cls: 'text-violet-400 bg-violet-500/10 border-violet-500/20 hover:bg-violet-500/25' },
-  start_work:     { icon: Rocket,     cls: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20 hover:bg-indigo-500/25' },
-  complete:       { icon: Rocket,     cls: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/25' },
-  replan:         { icon: Send,       cls: 'text-orange-400 bg-orange-500/10 border-orange-500/20 hover:bg-orange-500/25' },
-}
-
-const defaultTriggerStyle = { icon: ArrowRight, cls: 'text-gray-300 bg-white/[0.06] border-white/[0.1] hover:bg-white/[0.1]' }
-
-/** Format a trigger name for display: submit_review → Submit Review */
-function formatTrigger(trigger: string): string {
-  return trigger.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
-// ---------------------------------------------------------------------------
-// Fallback transitions when backend doesn't return available_transitions
-// (mirrors the rfc-lifecycle FSM defined server-side)
-// ---------------------------------------------------------------------------
-
-const FALLBACK_TRANSITIONS: Record<string, { trigger: string; target_state: string }[]> = {
-  // Exact mirror of rfc-lifecycle protocol (549d57c3) transitions
-  draft:        [{ trigger: 'propose', target_state: 'proposed' }, { trigger: 'supersede', target_state: 'superseded' }],
-  proposed:     [{ trigger: 'submit_review', target_state: 'under_review' }, { trigger: 'reject', target_state: 'rejected' }, { trigger: 'supersede', target_state: 'superseded' }],
-  under_review: [{ trigger: 'accept', target_state: 'accepted' }, { trigger: 'revise', target_state: 'draft' }, { trigger: 'reject', target_state: 'rejected' }, { trigger: 'supersede', target_state: 'superseded' }],
-  accepted:     [{ trigger: 'start_planning', target_state: 'planning' }, { trigger: 'supersede', target_state: 'superseded' }],
-  planning:     [{ trigger: 'start_work', target_state: 'in_progress' }, { trigger: 'supersede', target_state: 'superseded' }],
-  in_progress:  [{ trigger: 'complete', target_state: 'implemented' }, { trigger: 'replan', target_state: 'planning' }, { trigger: 'supersede', target_state: 'superseded' }],
-  implemented:  [],
-  rejected:     [],
-  superseded:   [],
-}
-
-// ---------------------------------------------------------------------------
-// Lifecycle pipeline steps
-// ---------------------------------------------------------------------------
-
-const LIFECYCLE_STEPS: { key: RfcStatus; label: string }[] = [
-  { key: 'draft',        label: 'Draft' },
-  { key: 'proposed',     label: 'Proposed' },
-  { key: 'under_review', label: 'Review' },
-  { key: 'accepted',     label: 'Accepted' },
-  { key: 'planning',     label: 'Planning' },
-  { key: 'in_progress',  label: 'In Progress' },
-  { key: 'implemented',  label: 'Implemented' },
-]
-
-function getLifecycleIndex(status: RfcStatus): number {
-  if (status === 'rejected' || status === 'superseded') return -1
-  return LIFECYCLE_STEPS.findIndex((s) => s.key === status)
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    weekday: 'short', month: 'long', day: 'numeric', year: 'numeric',
-  })
-}
-
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 30) return `${days}d ago`
-  const months = Math.floor(days / 30)
-  return `${months} month${months > 1 ? 's' : ''} ago`
-}
-
-
-// ---------------------------------------------------------------------------
-// Section nav config
-// ---------------------------------------------------------------------------
-
-function buildSections(rfc: Rfc) {
-  const sections = [{ id: 'overview', label: 'Overview' }]
-  if (rfc.sections.length > 1) {
-    sections.push({ id: 'content', label: `Content (${rfc.sections.length})` })
-  } else {
-    sections.push({ id: 'content', label: 'Content' })
-  }
-  if (rfc.tags.length > 0) {
-    sections.push({ id: 'tags', label: `Tags (${rfc.tags.filter((t) => !t.startsWith('rfc-')).length})` })
-  }
-  sections.push({ id: 'actions', label: 'Actions' })
-  return sections
-}
-
-// ---------------------------------------------------------------------------
-// Lifecycle Progress Component
-// ---------------------------------------------------------------------------
-
-function LifecycleProgress({ status }: { status: RfcStatus }) {
-  const activeIdx = getLifecycleIndex(status)
-  const isRejected = status === 'rejected'
-
+function LifecycleStepper({ status }: { status: RfcStatus }) {
+  const closed = status === 'rejected' || status === 'superseded'
+  const activeIdx = LIFECYCLE_STEPS.findIndex((s) => s.key === status)
   return (
-    <div className="flex items-center gap-0">
-      {LIFECYCLE_STEPS.map((step, idx) => {
-        const isCompleted = !isRejected && idx < activeIdx
-        const isCurrent = !isRejected && idx === activeIdx
-        const isPending = !isRejected && idx > activeIdx
-
-        return (
-          <div key={step.key} className="flex items-center">
-            {/* Step */}
-            <div className="flex flex-col items-center gap-1">
-              <div
-                className={`
-                  w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold border-2 transition-all
-                  ${isCompleted ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : ''}
-                  ${isCurrent ? 'bg-blue-500/20 border-blue-400 text-blue-400 ring-2 ring-blue-500/20' : ''}
-                  ${isPending ? 'bg-white/[0.04] border-white/[0.08] text-gray-600' : ''}
-                  ${isRejected ? 'bg-white/[0.04] border-white/[0.08] text-gray-600' : ''}
-                `}
-              >
-                {isCompleted ? (
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                ) : (
-                  <Circle className="w-3 h-3" />
-                )}
-              </div>
+    <div className="overflow-x-auto -mx-1 px-1 pb-1">
+      <ol className="flex items-center min-w-max gap-1" aria-label="RFC lifecycle">
+        {LIFECYCLE_STEPS.map((step, idx) => {
+          const done = !closed && idx < activeIdx
+          const current = !closed && idx === activeIdx
+          return (
+            <li key={step.key} className="flex items-center gap-1" aria-current={current ? 'step' : undefined}>
+              {idx > 0 && <span className={`h-px w-3 ${done || current ? 'bg-emerald-500/40' : 'bg-white/[0.08]'}`} aria-hidden="true" />}
               <span
-                className={`text-[10px] font-medium whitespace-nowrap
-                  ${isCompleted ? 'text-emerald-400' : ''}
-                  ${isCurrent ? 'text-blue-400' : ''}
-                  ${isPending || isRejected ? 'text-gray-600' : ''}
-                `}
-              >
-                {step.label}
-              </span>
-            </div>
-
-            {/* Connector */}
-            {idx < LIFECYCLE_STEPS.length - 1 && (
-              <div
-                className={`w-8 h-0.5 mx-1 mb-5 rounded-full ${
-                  !isRejected && idx < activeIdx
-                    ? 'bg-emerald-500/40'
-                    : 'bg-white/[0.06]'
+                className={`inline-flex items-center gap-1 whitespace-nowrap px-1 py-0.5 text-[11px] ${
+                  current ? 'font-medium text-indigo-300' : done ? 'text-emerald-400/90' : 'text-gray-600'
                 }`}
-              />
-            )}
-          </div>
-        )
-      })}
-
-      {/* Rejected state — separate indicator */}
-      {isRejected && (
-        <>
-          <div className="w-8 h-0.5 mx-1 mb-5 rounded-full bg-red-500/30" />
-          <div className="flex flex-col items-center gap-1">
-            <div className="w-7 h-7 rounded-full flex items-center justify-center border-2 bg-red-500/20 border-red-500/50 text-red-400 ring-2 ring-red-500/20">
-              <AlertTriangle className="w-3 h-3" />
-            </div>
-            <span className="text-[10px] font-medium text-red-400">Rejected</span>
-          </div>
-        </>
-      )}
+              >
+                {done ? <Check className="w-3 h-3" aria-hidden="true" /> : <span className={`w-1.5 h-1.5 rounded-full ${current ? 'bg-indigo-400' : 'bg-gray-700'}`} aria-hidden="true" />}
+                {step.label}
+                {done && <span className="sr-only"> (done)</span>}
+              </span>
+            </li>
+          )
+        })}
+        {closed && (
+          <li className="flex items-center gap-1" aria-current="step">
+            <span className="h-px w-3 bg-red-500/30" aria-hidden="true" />
+            <span className="inline-flex items-center gap-1 whitespace-nowrap px-1 py-0.5 text-[11px] font-medium text-red-400">
+              <AlertTriangle className="w-3 h-3" aria-hidden="true" />
+              {getStatusMeta('rfc', status).label}
+            </span>
+          </li>
+        )}
+      </ol>
     </div>
   )
 }
@@ -240,28 +96,21 @@ function LifecycleProgress({ status }: { status: RfcStatus }) {
 
 export function RfcDetailPage() {
   const { rfcId } = useParams<{ rfcId: string }>()
-  const navigate = useNavigate()
   const wsSlug = useWorkspaceSlug()
   const toast = useToast()
-  const { navigate: viewNav } = useViewTransition()
+  const confirm = useConfirmDialog()
 
   const [rfc, setRfc] = useState<Rfc | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [transitioning, setTransitioning] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
 
-  const sections = rfc ? buildSections(rfc) : []
-  const activeSection = useSectionObserver(sections.map((s) => s.id))
-
-  // Fetch RFC
   const fetchRfc = useCallback(async () => {
     if (!rfcId) return
     setLoading(true)
     setError(null)
     try {
-      const data = await rfcApi.get(rfcId)
-      setRfc(data)
+      setRfc(await rfcApi.get(rfcId))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load RFC')
     } finally {
@@ -273,311 +122,218 @@ export function RfcDetailPage() {
     fetchRfc()
   }, [fetchRfc])
 
-  // Handle any FSM transition (trigger comes from backend available_transitions)
-  const handleAction = useCallback(
+  // Fire an FSM transition (trigger comes from available_transitions)
+  const fire = useCallback(
     async (trigger: string) => {
       if (!rfcId) return
       setTransitioning(trigger)
       try {
         const updated = await rfcApi.transition(rfcId, trigger)
         setRfc(updated)
-        toast.success(`Transition "${formatTrigger(trigger)}" applied successfully`)
+        toast.success(`${formatTrigger(trigger)}: ${getStatusMeta('rfc', rfcState(updated)).label}`)
       } catch (err) {
-        const msg = err instanceof Error ? err.message : `Failed to fire "${trigger}"`
-        const match = msg.match(/"error":"([^"]+)"/)
-        toast.error(match ? match[1] : msg)
+        toast.error(apiErrorMessage(err, `Failed to fire "${trigger}"`))
       } finally {
         setTransitioning(null)
       }
     },
-    [rfcId, toast],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable (Jotai setter)
+    [rfcId],
   )
 
-  const goBack = () => viewNav(workspacePath(wsSlug, '/rfcs'), { type: 'back-button' })
-
-  const handleCopyMarkdown = useCallback(async () => {
+  const request = (t: RfcAvailableTransition) => {
     if (!rfc) return
-    const lines: string[] = []
-    lines.push(`# ${rfc.title}`)
-    lines.push('')
-    lines.push(`**Status:** ${rfc.current_state ?? rfc.status}`)
-    lines.push(`**Importance:** ${rfc.importance}`)
-    lines.push(`**Created:** ${formatDate(rfc.created_at)}`)
-    if (rfc.updated_at) lines.push(`**Updated:** ${formatDate(rfc.updated_at)}`)
-    if (rfc.tags.length > 0) {
-      lines.push(`**Tags:** ${rfc.tags.filter((t) => !t.startsWith('rfc-')).join(', ')}`)
+    if (isDestructiveTrigger(t.trigger)) {
+      const c = transitionConfirm(t.trigger, rfc.title)
+      confirm.open({ ...c, variant: 'danger', onConfirm: () => fire(t.trigger) })
+    } else {
+      void fire(t.trigger)
     }
-    lines.push('')
-    lines.push('---')
-    lines.push('')
-    for (const section of rfc.sections) {
-      if (rfc.sections.length === 1 && section.title === 'Content') {
-        lines.push(section.content)
-      } else {
-        lines.push(`## ${section.title}`)
-        lines.push('')
-        lines.push(section.content)
-      }
-      lines.push('')
-    }
+  }
+
+  const copy = async (text: string, what: string) => {
     try {
-      await navigator.clipboard.writeText(lines.join('\n'))
-      setCopied(true)
-      toast.success('RFC copied as Markdown')
-      setTimeout(() => setCopied(false), 2000)
+      await navigator.clipboard.writeText(text)
+      toast.success(`${what} copied`)
     } catch {
       toast.error('Failed to copy to clipboard')
     }
-  }, [rfc, toast])
+  }
 
-  // Loading / Error states
-  if (loading) return <LoadingPage />
+  const copyMarkdown = () => {
+    if (!rfc) return
+    const lines: string[] = [`# ${rfc.title}`, '']
+    lines.push(`**Status:** ${rfc.current_state ?? rfc.status}`)
+    lines.push(`**Importance:** ${rfc.importance}`)
+    lines.push(`**Created:** ${formatAbsolute(rfc.created_at)}`)
+    if (rfc.updated_at) lines.push(`**Updated:** ${formatAbsolute(rfc.updated_at)}`)
+    const tags = rfc.tags.filter((t) => !t.startsWith('rfc-'))
+    if (tags.length > 0) lines.push(`**Tags:** ${tags.join(', ')}`)
+    lines.push('', '---', '')
+    for (const section of rfc.sections) {
+      if (rfc.sections.length === 1 && section.title === 'Content') lines.push(section.content)
+      else lines.push(`## ${section.title}`, '', section.content)
+      lines.push('')
+    }
+    void copy(lines.join('\n'), 'RFC (Markdown)')
+  }
+
+  // Quick-jump nav only for long documents (≥ 4 sections)
+  const navSections = useMemo(
+    () => (rfc && rfc.sections.length >= 4 ? rfc.sections.map((s, i) => ({ id: `section-${i}`, label: s.title })) : []),
+    [rfc],
+  )
+  const navIds = useMemo(() => navSections.map((s) => s.id), [navSections])
+  const activeSection = useSectionObserver(navIds)
+
+  // ── Loading / error ──────────────────────────────────────────────────
+  if (loading && !rfc) {
+    return (
+      <PageContainer width="wide" className="space-y-6">
+        <div className="h-7 w-2/3 rounded bg-white/[0.04]" />
+        <EntityListSkeleton rows={3} />
+      </PageContainer>
+    )
+  }
   if (error || !rfc) {
     return (
-      <ErrorState
-        title="RFC not found"
-        description={error || 'Could not load this RFC document.'}
-        onRetry={fetchRfc}
-      />
+      <PageContainer width="wide">
+        <ErrorState title="RFC not found" description={error || 'Could not load this RFC document.'} onRetry={fetchRfc} />
+      </PageContainer>
     )
   }
 
-  const imp = importanceConfig[rfc.importance] ?? importanceConfig.medium
-  const backendTransitions = rfc.available_transitions ?? []
-  const transitions = backendTransitions.length > 0
-    ? backendTransitions
-    : FALLBACK_TRANSITIONS[rfc.current_state ?? rfc.status] ?? []
+  const state = rfcState(rfc)
+  const transitions = rfcTransitions(rfc)
+  // Primary = the first forward step (not backward, not closing)
+  const primary = transitions.find((t) => !isDestructiveTrigger(t.trigger) && !isBackwardTrigger(t.trigger))
+  const others = transitions.filter((t) => t !== primary)
   const isSingleContent = rfc.sections.length === 1 && rfc.sections[0].title === 'Content'
   const visibleTags = rfc.tags.filter((t) => !t.startsWith('rfc-'))
+  const importanceLabel = `${getStatusMeta('importance', rfc.importance).label} importance`
+
+  const transitionButton = (t: RfcAvailableTransition, variant: 'primary' | 'secondary' | 'ghost') => {
+    const Icon = triggerIcon(t.trigger)
+    const busy = transitioning === t.trigger
+    const destructive = isDestructiveTrigger(t.trigger)
+    return (
+      <Button
+        key={t.trigger}
+        size="sm"
+        variant={variant}
+        onClick={() => request(t)}
+        loading={busy}
+        disabled={!!transitioning && !busy}
+        className={`gap-1.5 ${destructive ? '!text-red-300' : ''}`}
+      >
+        {!busy && <Icon className="w-3.5 h-3.5" aria-hidden="true" />}
+        {formatTrigger(t.trigger)}
+        <span className="text-xs font-normal opacity-70">→ {getStatusMeta('rfc', t.target_state).label}</span>
+      </Button>
+    )
+  }
 
   return (
-    <div className="pt-6 space-y-6">
-      {/* ── Header ──────────────────────────────────────────────────────── */}
+    <PageContainer width="wide" className="space-y-6">
       <PageHeader
         title={rfc.title}
-        status={<RfcStatusBadge status={(rfc.current_state as RfcStatus) ?? rfc.status} />}
-        metadata={[
-          { label: 'Created', value: relativeTime(rfc.created_at) },
-          ...(rfc.updated_at ? [{ label: 'Updated', value: relativeTime(rfc.updated_at) }] : []),
+        parentLinks={[{ icon: FileText, label: 'RFCs', name: 'RFCs', href: workspacePath(wsSlug, '/rfcs') }]}
+        status={<StatusText kind="rfc" status={state} />}
+        meta={[
+          <StatusText key="imp" kind="importance" status={rfc.importance} dot={false} label={importanceLabel} />,
+          <RelativeTime key="c" date={rfc.created_at} prefix="created " />,
+          rfc.updated_at ? <RelativeTime key="u" date={rfc.updated_at} prefix="updated " /> : null,
+          pluralize(rfc.sections.length, 'section'),
         ]}
-        actions={
-          <button
-            onClick={goBack}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:text-gray-200 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] transition-colors"
-          >
-            <ArrowRight className="w-3.5 h-3.5 rotate-180" />
-            Back to RFCs
-          </button>
-        }
-      >
-        <Badge variant={imp.variant}>
-          <span className={`w-2 h-2 rounded-full ${imp.dot} mr-1`} />
-          {imp.label}
-        </Badge>
-      </PageHeader>
+        actions={primary ? transitionButton(primary, 'primary') : undefined}
+        overflowActions={[
+          { label: 'Copy as Markdown', icon: Copy, onClick: copyMarkdown },
+          { label: 'Copy ID', icon: Hash, onClick: () => copy(rfc.id, 'RFC ID') },
+        ]}
+      />
 
-      <SectionNav sections={sections} activeSection={activeSection} />
+      {/* ── Lifecycle ─────────────────────────────────────────────────── */}
+      <Section title="Lifecycle">
+        <div className="space-y-3">
+          <LifecycleStepper status={state} />
+          <Explainer>
+            An RFC moves step by step: proposed, reviewed, accepted, planned, implemented. “Revise” and “Replan” send it
+            back to a previous step; “Reject” and “Supersede” close it for good.
+          </Explainer>
+          {transitions.length === 0 ? (
+            <p className="text-sm text-gray-400">
+              {state === 'implemented'
+                ? 'This RFC has been fully implemented — nothing left to do.'
+                : state === 'rejected'
+                  ? 'This RFC has been rejected.'
+                  : state === 'superseded'
+                    ? 'This RFC has been superseded by another proposal.'
+                    : 'No transitions are available from this state.'}
+            </p>
+          ) : others.length > 0 ? (
+            <div className="flex flex-wrap gap-2">{others.map((t) => transitionButton(t, 'secondary'))}</div>
+          ) : null}
+        </div>
+      </Section>
 
-      {/* ── Overview Section ────────────────────────────────────────────── */}
-      <section id="overview" className="scroll-mt-20 space-y-4">
-        {/* Lifecycle progress */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Lifecycle</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-center py-2">
-              <LifecycleProgress status={(rfc.current_state as RfcStatus) ?? rfc.status} />
+      {/* ── Content ───────────────────────────────────────────────────── */}
+      {navSections.length > 0 && <SectionNav sections={navSections} activeSection={activeSection} />}
+      {isSingleContent ? (
+        <Section title="Content">
+          <div className="text-sm text-gray-300">
+            <CollapsibleMarkdown content={rfc.sections[0].content} maxHeight={600} />
+          </div>
+        </Section>
+      ) : (
+        rfc.sections.map((section, idx) => (
+          <Section key={idx} id={`section-${idx}`} title={section.title}>
+            <div className="text-sm text-gray-300">
+              <CollapsibleMarkdown content={section.content} maxHeight={400} />
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Metadata card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Details</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="space-y-1">
-                <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Status</p>
-                <RfcStatusBadge status={(rfc.current_state as RfcStatus) ?? rfc.status} />
-              </div>
-              <div className="space-y-1">
-                <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Importance</p>
-                <div className="flex items-center gap-1.5">
-                  <span className={`w-2.5 h-2.5 rounded-full ${imp.dot}`} />
-                  <span className="text-sm text-gray-300">{imp.label}</span>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Created</p>
-                <div className="flex items-center gap-1.5 text-sm text-gray-300">
-                  <Calendar className="w-3.5 h-3.5 text-gray-500" />
-                  {formatDate(rfc.created_at)}
-                </div>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Sections</p>
-                <div className="flex items-center gap-1.5 text-sm text-gray-300">
-                  <BookOpen className="w-3.5 h-3.5 text-gray-500" />
-                  {rfc.sections.length} {rfc.sections.length === 1 ? 'section' : 'sections'}
-                </div>
-              </div>
-            </div>
-
-            {/* IDs row */}
-            <div className="mt-4 pt-3 border-t border-white/[0.06] flex flex-wrap items-center gap-4 text-xs text-gray-500">
-              <span className="inline-flex items-center gap-1.5">
-                <Hash className="w-3 h-3" />
-                <span className="font-mono">{rfc.id.slice(0, 12)}</span>
-              </span>
-              {rfc.protocol_run_id && (
-                <button
-                  onClick={() => navigate(workspacePath(wsSlug, '/protocols'))}
-                  className="inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300 transition-colors"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  Protocol run
-                  <ArrowRight className="w-3 h-3" />
-                </button>
-              )}
-              {!rfc.protocol_run_id && (
-                <span className="inline-flex items-center gap-1 text-amber-500/50">
-                  <AlertTriangle className="w-3 h-3" />
-                  No protocol run linked
-                </span>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* ── Content Section ─────────────────────────────────────────────── */}
-      <section id="content" className="scroll-mt-20 space-y-4">
-        {isSingleContent ? (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>
-                <FileText className="w-4 h-4 mr-1.5 inline" />
-                Content
-              </CardTitle>
-              <button
-                onClick={handleCopyMarkdown}
-                className="p-1.5 rounded-md text-gray-500 hover:text-gray-200 hover:bg-white/[0.08] transition-colors"
-                title="Copy RFC as Markdown"
-              >
-                {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-              </button>
-            </CardHeader>
-            <CardContent>
-              <CollapsibleMarkdown content={rfc.sections[0].content} maxHeight={600} />
-            </CardContent>
-          </Card>
-        ) : (
-          rfc.sections.map((section, idx) => (
-            <Card key={idx}>
-              <CardHeader className={idx === 0 ? 'flex flex-row items-center justify-between' : undefined}>
-                <CardTitle>
-                  <BookOpen className="w-4 h-4 mr-1.5 inline text-gray-500" />
-                  {section.title}
-                </CardTitle>
-                {idx === 0 && (
-                  <button
-                    onClick={handleCopyMarkdown}
-                    className="p-1.5 rounded-md text-gray-500 hover:text-gray-200 hover:bg-white/[0.08] transition-colors"
-                    title="Copy RFC as Markdown"
-                  >
-                    {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                  </button>
-                )}
-              </CardHeader>
-              <CardContent>
-                <CollapsibleMarkdown content={section.content} maxHeight={400} />
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </section>
-
-      {/* ── Tags Section ────────────────────────────────────────────────── */}
-      {visibleTags.length > 0 && (
-        <section id="tags" className="scroll-mt-20">
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                <Tag className="w-4 h-4 mr-1.5 inline text-gray-500" />
-                Tags ({visibleTags.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {visibleTags.map((tag) => (
-                  <Badge key={tag} variant="default">{tag}</Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </section>
+          </Section>
+        ))
       )}
 
-      {/* ── Actions Section ─────────────────────────────────────────────── */}
-      <section id="actions" className="scroll-mt-20">
-        <Card>
-          <CardHeader>
-            <CardTitle>Actions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {transitions.length === 0 ? (
-              <div className="flex items-center gap-3 py-2">
-                <CheckCircle2 className="w-5 h-5 text-gray-500" />
-                <div>
-                  <p className="text-sm text-gray-400">No actions available</p>
-                  <p className="text-xs text-gray-600">
-                    {rfc.status === 'implemented'
-                      ? 'This RFC has been fully implemented.'
-                      : rfc.status === 'rejected'
-                        ? 'This RFC has been rejected.'
-                        : 'No transitions are available for the current state.'}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-xs text-gray-500">
-                  Available transitions for <span className="text-gray-400 font-medium">{rfc.current_state ?? rfc.status}</span> state:
-                </p>
-                <div className="flex flex-wrap gap-3">
-                  {transitions.map((t) => {
-                    const style = triggerStyles[t.trigger] ?? defaultTriggerStyle
-                    const Icon = style.icon
-                    const isLoading = transitioning === t.trigger
-                    return (
-                      <button
-                        key={t.trigger}
-                        onClick={() => handleAction(t.trigger)}
-                        disabled={!!transitioning}
-                        title={`→ ${t.target_state}`}
-                        className={`
-                          inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold
-                          border transition-all active:scale-[0.97] disabled:opacity-50 ${style.cls}
-                        `}
-                      >
-                        {isLoading ? (
-                          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <Icon className="w-4 h-4" />
-                        )}
-                        {formatTrigger(t.trigger)}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
-    </div>
+      {/* ── Details ───────────────────────────────────────────────────── */}
+      <Section title="Details">
+        <Facts
+          items={[
+            { label: 'State', value: <StatusText kind="rfc" status={state} /> },
+            { label: 'Importance', value: <StatusText kind="importance" status={rfc.importance} /> },
+            { label: 'Created', value: formatAbsolute(rfc.created_at) },
+            { label: 'Updated', value: rfc.updated_at ? formatAbsolute(rfc.updated_at) : null },
+            { label: 'Author', value: rfc.created_by },
+            { label: 'Sections', value: String(rfc.sections.length) },
+            {
+              label: 'Protocol run',
+              value: rfc.protocol_run_id ? (
+                <Link to={workspacePath(wsSlug, '/protocols')} className={`font-mono text-xs ${inlineLink}`}>
+                  {rfc.protocol_run_id.slice(0, 8)} →
+                </Link>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-amber-400/80">
+                  <AlertTriangle className="w-3 h-3" aria-hidden="true" />
+                  Not linked
+                </span>
+              ),
+            },
+            { label: 'ID', value: <span className="font-mono text-xs break-all">{rfc.id}</span> },
+          ]}
+        />
+        {visibleTags.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Tags">
+            {visibleTags.map((tag) => (
+              <span key={tag} className="rounded border border-white/[0.08] px-1.5 text-[11px] text-gray-400">
+                #{tag}
+              </span>
+            ))}
+          </div>
+        )}
+      </Section>
+
+      {/* ENTITY_GRAPH_SLOT entity_type="note" entity_id={rfc.id} */}
+
+      <ConfirmDialog {...confirm.dialogProps} />
+    </PageContainer>
   )
 }

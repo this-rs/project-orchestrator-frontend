@@ -1,33 +1,26 @@
 /**
- * WaveAgentCard — card for a single agent within a wave section.
+ * WaveAgentCard — one agent (= one task) inside a wave, as an EntityRow.
  *
- * 3-zone layout:
- *   Header — task title + Badge status
- *   Body   — spaced metrics (elapsed, cost)
- *   Footer — explicit action buttons with labels (Conversation, Retry, Details)
+ *   ● Task title ·························· 02:14  [⋯]
+ *     Running · $0.12 · 3 files · 1 commit
+ *     [Conversation] [Retry task] [Details]      (visible buttons that wrap)
+ *     files · commits · tools                      (when expanded)
+ *
+ * Mobile / tablet guarantees (covered by __tests__/WaveAgentCard.test.tsx):
+ * the text column is `min-w-0` + `break-words` so nothing widens the row,
+ * the button row is `flex-wrap`, and every button is `min-w-0` with a
+ * compact, truncating label. Must be rendered inside an EntityList (<li>).
  */
 
 import { useState, useMemo } from 'react'
-import {
-  Clock,
-  DollarSign,
-  ChevronUp,
-  Eye,
-  EyeOff,
-  RotateCcw,
-  FileCode2,
-  GitCommitHorizontal,
-  Wrench,
-  List,
-} from 'lucide-react'
-import { Badge, PulseIndicator } from '@/components/ui'
+import { Eye, EyeOff, FileCode2, GitCommitHorizontal, List, RotateCcw, SquareArrowOutUpRight } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Button, EntityRow, StatusDot, TONE_CLASSES, pluralize } from '@/components/ui'
+import { useWorkspaceSlug } from '@/hooks'
+import { workspacePath } from '@/utils/paths'
 import type { ActiveAgentSnapshot } from '@/services/runner'
 import type { AgentExecution } from '@/types'
-import { formatElapsed, formatCost, agentStatusConfig, agentStatusBadgeVariant } from './shared'
-
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
+import { formatElapsed, formatCost, agentStateMeta } from './shared'
 
 export interface WaveAgentCardProps {
   agent: ActiveAgentSnapshot
@@ -35,152 +28,130 @@ export interface WaveAgentCardProps {
   isSelected: boolean
   onToggleConversation: (sessionId: string, taskTitle: string) => void
   onRetryTask?: (taskId: string, taskTitle: string) => void
+  /** Task currently being retried (disables the button). */
+  retrying?: boolean
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+const compactButton = 'min-w-0 max-w-full gap-1.5 !py-1.5 text-xs'
 
-export function WaveAgentCard({
-  agent,
-  execution,
-  isSelected,
-  onToggleConversation,
-  onRetryTask,
-}: WaveAgentCardProps) {
-  const cfg = agentStatusConfig[agent.status] ?? agentStatusConfig.running
-  const badgeVariant = agentStatusBadgeVariant[agent.status] ?? 'info'
+export function WaveAgentCard({ agent, execution, isSelected, onToggleConversation, onRetryTask, retrying }: WaveAgentCardProps) {
+  const wsSlug = useWorkspaceSlug()
+  const navigate = useNavigate()
+  const meta = agentStateMeta(agent.status)
   const [detailOpen, setDetailOpen] = useState(false)
-  const isLive = agent.status === 'running' || agent.status === 'spawning' || agent.status === 'verifying'
 
   const tools = useMemo(() => {
     if (!execution?.tools_used) return []
     try {
       const parsed = JSON.parse(execution.tools_used)
       return Array.isArray(parsed) ? parsed.map(String) : []
-    } catch { return [] }
+    } catch {
+      return []
+    }
   }, [execution?.tools_used])
 
+  const files = execution?.files_modified ?? []
+  const commits = execution?.commits ?? []
+  const hasDetails = files.length > 0 || commits.length > 0 || tools.length > 0
+  const canRetry = agent.status === 'failed' && !!onRetryTask
+
   return (
-    <div
-      className={`
-        rounded-lg border transition-all duration-200 flex flex-col overflow-hidden
-        ${isSelected
-          ? 'border-indigo-500/40 bg-indigo-500/[0.06] shadow-[0_0_12px_rgba(99,102,241,0.1)]'
-          : 'border-border-subtle bg-white/[0.04] hover:bg-white/[0.06] hover:border-border-default'
-        }
-      `}
+    <EntityRow
+      title={agent.task_title}
+      selected={isSelected}
+      leading={<StatusDot tone={meta.tone} pulse={meta.live} label={meta.label} />}
+      trailing={<span className="font-mono">{formatElapsed(agent.elapsed_secs)}</span>}
+      meta={[
+        <span key="s" className={TONE_CLASSES[meta.tone].text}>{meta.label}</span>,
+        <span key="c" className="font-mono tabular-nums">{formatCost(agent.cost_usd)}</span>,
+        files.length > 0 ? pluralize(files.length, 'file') : null,
+        commits.length > 0 ? pluralize(commits.length, 'commit') : null,
+      ]}
+      actions={[
+        {
+          label: 'Open task',
+          icon: SquareArrowOutUpRight,
+          onClick: () => navigate(workspacePath(wsSlug, `/tasks/${agent.task_id}`)),
+        },
+      ]}
     >
-      {/* ── Header: title + Badge status ── */}
-      <div className="flex items-start justify-between gap-2 px-4 pt-3 pb-2">
-        <h4 className="text-sm font-medium text-gray-200 leading-snug line-clamp-2 flex-1 min-w-0">
-          {agent.task_title}
-        </h4>
-        <Badge variant={badgeVariant} className="shrink-0 gap-1.5">
-          {isLive && <PulseIndicator variant="active" size={6} />}
-          {!isLive && <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />}
-          {cfg.label}
-        </Badge>
-      </div>
-
-      {/* ── Body: spaced metrics ── */}
-      <div className="flex items-center gap-6 px-4 py-2 border-t border-white/[0.04]">
-        <div className="flex items-center gap-1.5 text-xs text-gray-400">
-          <Clock className="w-3.5 h-3.5 text-gray-500" />
-          <span className="font-mono tabular-nums">{formatElapsed(agent.elapsed_secs)}</span>
+      {(agent.session_id || canRetry || hasDetails) && (
+        <div data-testid="agent-actions" className="flex flex-wrap items-center gap-2 min-w-0">
+          {agent.session_id && (
+            <Button
+              size="sm"
+              variant={isSelected ? 'secondary' : 'ghost'}
+              onClick={() => onToggleConversation(agent.session_id!, agent.task_title)}
+              aria-pressed={isSelected}
+              aria-label={isSelected ? `Hide conversation for ${agent.task_title}` : `View conversation for ${agent.task_title}`}
+              className={compactButton}
+            >
+              {isSelected ? <EyeOff className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> : <Eye className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
+              <span className="truncate">{isSelected ? 'Hide' : 'Conversation'}</span>
+            </Button>
+          )}
+          {canRetry && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onRetryTask!(agent.task_id, agent.task_title)}
+              loading={retrying}
+              className={`${compactButton} !text-red-300`}
+            >
+              {!retrying && <RotateCcw className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
+              <span className="truncate">Retry task</span>
+            </Button>
+          )}
+          {hasDetails && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setDetailOpen((v) => !v)}
+              aria-expanded={detailOpen}
+              className={`${compactButton} text-gray-400`}
+            >
+              <List className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">{detailOpen ? 'Hide details' : 'Details'}</span>
+            </Button>
+          )}
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-gray-400">
-          <DollarSign className="w-3.5 h-3.5 text-gray-500" />
-          <span className="font-mono tabular-nums">{formatCost(agent.cost_usd)}</span>
-        </div>
-      </div>
-
-      {/* ── Footer: explicit action buttons with labels ── */}
-      <div className="flex flex-wrap items-center gap-2 px-4 pt-2 pb-3 border-t border-white/[0.04]">
-        {agent.session_id && (
-          <button
-            onClick={() => onToggleConversation(agent.session_id!, agent.task_title)}
-            className={`
-              flex-1 min-w-0 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium
-              transition-colors cursor-pointer
-              ${isSelected
-                ? 'bg-indigo-500/20 text-indigo-300'
-                : 'bg-white/[0.06] text-gray-400 hover:bg-white/[0.1] hover:text-gray-200'
-              }
-            `}
-          >
-            {isSelected ? <EyeOff className="w-3.5 h-3.5 shrink-0" /> : <Eye className="w-3.5 h-3.5 shrink-0" />}
-            <span className="truncate">{isSelected ? 'Hide conversation' : 'View conversation'}</span>
-            {isLive && !isSelected && (
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-            )}
-          </button>
-        )}
-        {agent.status === 'failed' && onRetryTask && (
-          <button
-            onClick={() => onRetryTask(agent.task_id, agent.task_title)}
-            className="min-w-0 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">Retry</span>
-          </button>
-        )}
-        {execution && (
-          <button
-            onClick={() => setDetailOpen(!detailOpen)}
-            className="min-w-0 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-gray-500 bg-white/[0.06] hover:bg-white/[0.1] hover:text-gray-300 transition-colors cursor-pointer"
-          >
-            {detailOpen ? <ChevronUp className="w-3.5 h-3.5 shrink-0" /> : <List className="w-3.5 h-3.5 shrink-0" />}
-            <span className="truncate">{detailOpen ? 'Hide details' : 'Details'}</span>
-          </button>
-        )}
-      </div>
-
-      {/* ── Expandable execution detail ── */}
-      {detailOpen && execution && (
-        <div className="px-4 pb-3 border-t border-white/[0.06] pt-3 space-y-2">
-          {execution.files_modified.length > 0 && (
-            <div className="space-y-1">
-              <h5 className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Files modified</h5>
-              <ul className="space-y-0.5">
-                {execution.files_modified.map((file) => (
-                  <li key={file} className="flex items-center gap-1.5 text-xs text-gray-400">
-                    <FileCode2 className="w-3 h-3 text-gray-500 shrink-0" />
-                    <span className="truncate font-mono">{file}</span>
+      )}
+      {detailOpen && hasDetails && (
+        <div className="mt-2 space-y-2 text-xs text-gray-400 min-w-0">
+          {files.length > 0 && (
+            <div>
+              <p className="text-[11px] font-medium text-gray-500">Files modified</p>
+              <ul className="mt-0.5 space-y-0.5">
+                {files.map((file) => (
+                  <li key={file} className="flex items-start gap-1.5 min-w-0">
+                    <FileCode2 className="w-3 h-3 mt-0.5 shrink-0 text-gray-500" aria-hidden="true" />
+                    <span className="font-mono break-all">{file}</span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
-          {execution.commits.length > 0 && (
-            <div className="space-y-1">
-              <h5 className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Commits</h5>
-              <ul className="space-y-0.5">
-                {execution.commits.map((sha) => (
-                  <li key={sha} className="flex items-center gap-1.5 text-xs text-gray-400">
-                    <GitCommitHorizontal className="w-3 h-3 text-gray-500 shrink-0" />
-                    <span className="font-mono">{sha.slice(0, 7)}</span>
+          {commits.length > 0 && (
+            <div>
+              <p className="text-[11px] font-medium text-gray-500">Commits</p>
+              <ul className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                {commits.map((sha) => (
+                  <li key={sha} className="inline-flex items-center gap-1 font-mono">
+                    <GitCommitHorizontal className="w-3 h-3 text-gray-500" aria-hidden="true" />
+                    {sha.slice(0, 7)}
                   </li>
                 ))}
               </ul>
             </div>
           )}
           {tools.length > 0 && (
-            <div className="space-y-1">
-              <h5 className="text-[10px] font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                <Wrench className="w-3 h-3" /> Tools used
-              </h5>
-              <div className="flex flex-wrap gap-1">
-                {tools.map((tool) => (
-                  <span key={tool} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-white/[0.06] text-gray-400">
-                    {tool}
-                  </span>
-                ))}
-              </div>
+            <div>
+              <p className="text-[11px] font-medium text-gray-500">Tools used</p>
+              <p className="mt-0.5 break-words">{tools.join(' · ')}</p>
             </div>
           )}
         </div>
       )}
-    </div>
+    </EntityRow>
   )
 }

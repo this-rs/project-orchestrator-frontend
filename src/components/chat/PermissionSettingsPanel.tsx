@@ -93,6 +93,8 @@ function PatternChip({ value, onRemove, danger }: { value: string; onRemove: () 
         onClick={onRemove}
         className="ml-0.5 hover:text-white transition-colors"
         title="Remove"
+        aria-label={`Remove ${value}`}
+        type="button"
       >
         <X className="w-3 h-3" />
       </button>

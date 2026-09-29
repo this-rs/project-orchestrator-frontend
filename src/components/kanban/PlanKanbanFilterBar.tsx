@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
-import { Select, Button } from '@/components/ui'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Folder } from 'lucide-react'
+import { FilterBar, Select, Switch } from '@/components/ui'
 import { workspacesApi } from '@/services'
 import { useWorkspaceSlug } from '@/hooks'
 import type { Project } from '@/types'
+import { PriorityRangeFields } from './ListControls'
 
 export interface PlanKanbanFilters {
   project: string
@@ -17,14 +19,19 @@ interface PlanKanbanFilterBarProps {
   filters: PlanKanbanFilters
   onFilterChange: <K extends keyof PlanKanbanFilters>(key: K, value: PlanKanbanFilters[K]) => void
   onClearFilters: () => void
+  /** Number of active filters (search excluded — it is not a filter). */
   activeFilterCount: number
+  /** Right of the search row (view toggle). */
+  trailing?: ReactNode
 }
 
+/** Plan board toolbar: title search + collapsible filters (FilterBar). */
 export function PlanKanbanFilterBar({
   filters,
   onFilterChange,
   onClearFilters,
   activeFilterCount,
+  trailing,
 }: PlanKanbanFilterBarProps) {
   const wsSlug = useWorkspaceSlug()
   const [projects, setProjects] = useState<Project[]>([])
@@ -37,91 +44,45 @@ export function PlanKanbanFilterBar({
       .catch(() => setProjects([]))
   }, [wsSlug])
 
-  const projectOptions = [
-    { value: 'all', label: 'All Projects' },
-    ...projects.map((p) => ({ value: p.id, label: p.name })),
+  const projectOptions = [{ value: 'all', label: 'All projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]
+
+  const activeLabels = [
+    filters.project !== 'all' ? projects.find((p) => p.id === filters.project)?.name ?? 'Project' : '',
+    filters.priority_min !== undefined ? `P ≥ ${filters.priority_min}` : '',
+    filters.priority_max !== undefined ? `P ≤ ${filters.priority_max}` : '',
+    filters.hide_completed ? 'Hide completed' : '',
+    filters.hide_cancelled ? 'Hide cancelled' : '',
   ]
 
   return (
-    <div className="flex flex-wrap items-center gap-3 p-3 bg-surface-raised/50 rounded-lg border border-border-subtle mb-4">
-      {/* Search */}
-      <input
-        type="text"
-        placeholder="Search title..."
-        value={filters.search}
-        onChange={(e) => onFilterChange('search', e.target.value)}
-        className="w-40 px-2.5 py-1.5 text-sm bg-surface-base border border-border-default rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500"
-      />
-
-      {/* Project */}
-      <Select
-        options={projectOptions}
-        value={filters.project}
-        onChange={(value) => onFilterChange('project', value)}
-        className="w-44"
-      />
-
-      {/* Priority range */}
-      <div className="flex items-center gap-1 text-xs text-gray-400">
-        <span>P:</span>
-        <input
-          type="number"
-          placeholder="Min"
-          value={filters.priority_min ?? ''}
-          onChange={(e) =>
-            onFilterChange('priority_min', e.target.value ? Number(e.target.value) : undefined)
-          }
-          className="w-14 px-1.5 py-1.5 text-sm bg-surface-base border border-border-default rounded text-gray-200 focus:outline-none focus:border-indigo-500"
-        />
-        <span>-</span>
-        <input
-          type="number"
-          placeholder="Max"
-          value={filters.priority_max ?? ''}
-          onChange={(e) =>
-            onFilterChange('priority_max', e.target.value ? Number(e.target.value) : undefined)
-          }
-          className="w-14 px-1.5 py-1.5 text-sm bg-surface-base border border-border-default rounded text-gray-200 focus:outline-none focus:border-indigo-500"
-        />
-      </div>
-
-      {/* Divider */}
-      <div className="w-px h-6 bg-white/[0.06]" />
-
-      {/* Hide toggles */}
-      <label className="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={filters.hide_completed}
-          onChange={(e) => onFilterChange('hide_completed', e.target.checked)}
-          className="rounded border-border-default bg-surface-base text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
-        />
-        Hide completed
-      </label>
-      <label className="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={filters.hide_cancelled}
-          onChange={(e) => onFilterChange('hide_cancelled', e.target.checked)}
-          className="rounded border-border-default bg-surface-base text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
-        />
-        Hide cancelled
-      </label>
-
-      {/* Spacer */}
-      <div className="flex-1" />
-
-      {/* Active filter count + clear */}
-      {activeFilterCount > 0 && (
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-[10px] font-bold text-white">
-            {activeFilterCount}
-          </span>
-          <Button variant="ghost" size="sm" onClick={onClearFilters}>
-            Clear all
-          </Button>
-        </div>
-      )}
-    </div>
+    <FilterBar
+      search={filters.search}
+      onSearchChange={(v) => onFilterChange('search', v)}
+      searchPlaceholder="Search plans…"
+      activeCount={activeFilterCount}
+      activeLabels={activeLabels}
+      onClear={onClearFilters}
+      trailing={trailing}
+      filters={
+        <>
+          {projects.length > 0 && (
+            <Select
+              options={projectOptions}
+              value={filters.project}
+              onChange={(value) => onFilterChange('project', value)}
+              icon={<Folder className="w-3 h-3" />}
+            />
+          )}
+          <PriorityRangeFields
+            min={filters.priority_min}
+            max={filters.priority_max}
+            onMinChange={(v) => onFilterChange('priority_min', v)}
+            onMaxChange={(v) => onFilterChange('priority_max', v)}
+          />
+          <Switch label="Hide completed" checked={filters.hide_completed} onChange={(v) => onFilterChange('hide_completed', v)} />
+          <Switch label="Hide cancelled" checked={filters.hide_cancelled} onChange={(v) => onFilterChange('hide_cancelled', v)} />
+        </>
+      }
+    />
   )
 }

@@ -1,16 +1,40 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSetAtom } from 'jotai'
-import { motion, AnimatePresence } from 'motion/react'
+import { CheckSquare, Pencil, Trash2 } from 'lucide-react'
 import { projectRefreshAtom } from '@/atoms'
 import { projectsApi } from '@/services'
 import { workspacesApi } from '@/services/workspaces'
 import type { EditProjectFormData } from '@/components/forms/EditProjectForm'
-import { Card, CardContent, Button, EmptyState, Badge, ConfirmDialog, FormDialog, OverflowMenu, PageShell, SelectZone, BulkActionBar, SkeletonCard, ErrorState } from '@/components/ui'
-import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useWorkspaceSlug, useWorkspace } from '@/hooks'
+import {
+  BulkActionBar,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  EntityList,
+  EntityListSkeleton,
+  EntityRow,
+  ErrorState,
+  FilterBar,
+  FormDialog,
+  PageShell,
+  RelativeTime,
+  focusRing,
+  RowCheckbox,
+  TaskProgress,
+  ToneText,
+} from '@/components/ui'
+import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useWorkspaceSlug, useWorkspace, useTaskProgress } from '@/hooks'
+import type { TaskCounts } from '@/services/progress'
 import { CreateProjectForm, EditProjectForm } from '@/components/forms'
-import { fadeInUp, staggerContainer, useReducedMotion } from '@/utils/motion'
+import { workspacePath } from '@/utils/paths'
 import type { Project } from '@/types'
+import { NOMENCLATURE } from '@/constants/nomenclature'
+
+function matches(p: Project, q: string) {
+  const needle = q.trim().toLowerCase()
+  if (!needle) return true
+  return [p.name, p.slug, p.description, p.root_path].some((v) => v?.toLowerCase().includes(needle))
+}
 
 export function ProjectsPage() {
   const confirmDialog = useConfirmDialog()
@@ -21,10 +45,10 @@ export function ProjectsPage() {
   const wsSlug = useWorkspaceSlug()
   const activeWorkspace = useWorkspace()
   const bumpProjectRefresh = useSetAtom(projectRefreshAtom)
-  const reducedMotion = useReducedMotion()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
 
   const loadProjects = useCallback(async () => {
     setLoading(true)
@@ -40,7 +64,9 @@ export function ProjectsPage() {
     }
   }, [wsSlug])
 
-  useEffect(() => { loadProjects() }, [loadProjects])
+  useEffect(() => {
+    loadProjects()
+  }, [loadProjects])
 
   const removeItems = (predicate: (p: Project) => boolean) => {
     setProjects((prev) => prev.filter((p) => !predicate(p)))
@@ -62,25 +88,38 @@ export function ProjectsPage() {
   })
 
   const editForm = EditProjectForm({
-    initialValues: { name: editingProject?.name ?? '', slug: editingProject?.slug, description: editingProject?.description, root_path: editingProject?.root_path },
+    initialValues: {
+      name: editingProject?.name ?? '',
+      slug: editingProject?.slug,
+      description: editingProject?.description,
+      root_path: editingProject?.root_path,
+    },
     onSubmit: async (data: EditProjectFormData) => {
       if (!editingProject) return
       await projectsApi.update(editingProject.slug, data)
-      setProjects(prev => prev.map(p => p.id === editingProject.id ? { ...p, ...data } : p))
+      setProjects((prev) => prev.map((p) => (p.id === editingProject.id ? { ...p, ...data } : p)))
       toast.success('Project updated')
     },
   })
 
   const handleEdit = (project: Project) => {
     setEditingProject(project)
-    editDialog.open({ title: 'Edit Project' })
+    editDialog.open({ title: 'Edit project' })
   }
 
-  const openCreateDialog = () => {
-    formDialog.open({ title: 'Create Project' })
+  const handleDelete = async (project: Project) => {
+    await projectsApi.delete(project.slug)
+    removeItems((p) => p.id === project.id)
+    bumpProjectRefresh((c) => c + 1)
+    toast.success('Project deleted')
   }
 
-  const multiSelect = useMultiSelect(projects, (p) => p.slug)
+  const openCreateDialog = () => formDialog.open({ title: 'Create project' })
+
+  const visible = useMemo(() => projects.filter((p) => matches(p, search)), [projects, search])
+  const multiSelect = useMultiSelect(visible, (p) => p.slug)
+  const projectIds = useMemo(() => projects.map((p) => p.id), [projects])
+  const progress = useTaskProgress('project', projectIds)
 
   const handleBulkDelete = () => {
     const count = multiSelect.selectionCount
@@ -103,78 +142,85 @@ export function ProjectsPage() {
     })
   }
 
+  const selectAllLabel = multiSelect.isAllSelected ? 'Deselect all projects' : 'Select all projects'
+
   return (
     <PageShell
-      title="Projects"
+      title={NOMENCLATURE.projects.plural}
       description="Track your codebase projects"
-      actions={<Button onClick={openCreateDialog}>Create Project</Button>}
+      count={loading || error ? undefined : projects.length}
+      width="wide"
+      actions={
+        <Button size="sm" onClick={openCreateDialog}>
+          New project
+        </Button>
+      }
+      filters={
+        projects.length > 0 ? (
+          <FilterBar
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search projects…"
+            trailing={
+              visible.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={multiSelect.toggleAll}
+                  aria-label={selectAllLabel}
+                  aria-pressed={multiSelect.isAllSelected}
+                  title={selectAllLabel}
+                  className={`w-9 h-9 inline-flex items-center justify-center rounded-md transition-colors ${
+                    multiSelect.isAllSelected ? 'text-indigo-300 bg-indigo-500/10' : 'text-gray-500 hover:text-gray-200 hover:bg-white/[0.05]'
+                  } ${focusRing}`}
+                >
+                  <CheckSquare className="w-4 h-4" aria-hidden="true" />
+                </button>
+              ) : undefined
+            }
+          />
+        ) : undefined
+      }
     >
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <SkeletonCard key={i} lines={2} />
-          ))}
-        </div>
+        <EntityListSkeleton rows={6} />
       ) : error ? (
         <ErrorState title="Failed to load" description={error} onRetry={loadProjects} />
       ) : projects.length === 0 ? (
         <EmptyState
           variant="projects"
-          title="No projects"
+          title="No projects yet"
           description="Create a project to start tracking your codebase."
-          action={<Button onClick={openCreateDialog}>Create Project</Button>}
+          action={<Button onClick={openCreateDialog}>New project</Button>}
+        />
+      ) : visible.length === 0 ? (
+        <EmptyState
+          variant="search"
+          title="No matching projects"
+          description="Try another search."
+          action={
+            <Button size="sm" variant="secondary" onClick={() => setSearch('')}>
+              Clear search
+            </Button>
+          }
         />
       ) : (
-        <>
-          {projects.length > 0 && (
-            <div className="flex items-center gap-2 mb-3">
-              <button
-                onClick={multiSelect.toggleAll}
-                className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
-              >
-                {multiSelect.isAllSelected ? 'Deselect All' : 'Select All'}
-              </button>
-            </div>
-          )}
-          <motion.div
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4"
-            variants={reducedMotion ? undefined : staggerContainer}
-            initial="hidden"
-            animate="visible"
-          >
-            <AnimatePresence mode="popLayout">
-              {projects.map((project) => (
-                <motion.div key={project.id} variants={fadeInUp} exit="exit" layout={!reducedMotion}>
-                  <ProjectCard
-                    wsSlug={wsSlug}
-                    selected={multiSelect.isSelected(project.slug)}
-                    onToggleSelect={(shiftKey) => multiSelect.toggle(project.slug, shiftKey)}
-                    project={project}
-                    onEdit={() => handleEdit(project)}
-                    onDelete={() => confirmDialog.open({
-                      title: 'Delete Project',
-                      description: 'This will permanently delete this project.',
-                      onConfirm: async () => {
-                        await projectsApi.delete(project.slug)
-                        removeItems((p) => p.id === project.id)
-                        bumpProjectRefresh((c) => c + 1)
-                        toast.success('Project deleted')
-                      },
-                    })}
-                  />
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </motion.div>
-          {/* No infinite scroll needed — workspace projects count is small */}
-        </>
+        <EntityList aria-label="Projects">
+          {visible.map((project) => (
+            <ProjectRow
+              key={project.id}
+              project={project}
+              counts={progress[project.id]}
+              wsSlug={wsSlug}
+              selected={multiSelect.isSelected(project.slug)}
+              onToggleSelect={(shiftKey) => multiSelect.toggle(project.slug, shiftKey)}
+              onEdit={() => handleEdit(project)}
+              onDelete={() => handleDelete(project)}
+            />
+          ))}
+        </EntityList>
       )}
 
-      <BulkActionBar
-        count={multiSelect.selectionCount}
-        onDelete={handleBulkDelete}
-        onClear={multiSelect.clear}
-      />
+      <BulkActionBar count={multiSelect.selectionCount} onDelete={handleBulkDelete} onClear={multiSelect.clear} />
       <FormDialog {...formDialog.dialogProps} onSubmit={form.submit}>
         {form.fields}
       </FormDialog>
@@ -186,41 +232,55 @@ export function ProjectsPage() {
   )
 }
 
-function ProjectCard({ project, onEdit, onDelete, selected, onToggleSelect, wsSlug }: { project: Project; onEdit: () => void; onDelete: () => void; selected?: boolean; onToggleSelect?: (shiftKey: boolean) => void; wsSlug: string }) {
+// ── Row ───────────────────────────────────────────────────────────────────
+
+function ProjectRow({
+  project,
+  counts,
+  wsSlug,
+  selected,
+  onToggleSelect,
+  onEdit,
+  onDelete,
+}: {
+  project: Project
+  counts?: TaskCounts
+  wsSlug: string
+  selected: boolean
+  onToggleSelect: (shiftKey: boolean) => void
+  onEdit: () => void
+  onDelete: () => Promise<void>
+}) {
   return (
-    <Link to={`/workspace/${wsSlug}/projects/${project.slug}`}>
-      <Card className={`h-full transition-colors ${selected ? 'border-indigo-500/40 bg-indigo-500/[0.05]' : 'hover:border-indigo-500'}`}>
-        <div className="flex h-full">
-          {onToggleSelect && (
-            <SelectZone selected={!!selected} onToggle={onToggleSelect} />
-          )}
-          <div className="flex-1 min-w-0">
-            <div className="h-0.5 bg-blue-500/50" />
-            <CardContent>
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <h3 className="text-lg font-semibold text-gray-100 truncate min-w-0">{project.name}</h3>
-                <OverflowMenu
-                  actions={[
-                    { label: 'Edit', onClick: () => onEdit() },
-                    { label: 'Delete', variant: 'danger', onClick: () => onDelete() },
-                  ]}
-                />
-              </div>
-              {project.description && (
-                <p className="text-sm text-gray-400 line-clamp-2 mb-3">{project.description}</p>
-              )}
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>
-                  {project.last_synced
-                    ? `Synced ${new Date(project.last_synced).toLocaleDateString()}`
-                    : 'Never synced'}
-                </span>
-                {project.last_synced && <Badge variant="success">Synced</Badge>}
-              </div>
-            </CardContent>
-          </div>
-        </div>
-      </Card>
-    </Link>
+    <EntityRow
+      title={project.name}
+      href={workspacePath(wsSlug, `/projects/${project.slug}`)}
+      selected={selected}
+      leading={<RowCheckbox checked={selected} onToggle={onToggleSelect} label={`Select ${project.name}`} />}
+      description={project.description || undefined}
+      context={<TaskProgress counts={counts} />}
+      trailing={project.last_synced ? <RelativeTime date={project.last_synced} prefix="synced " /> : undefined}
+      meta={[
+        project.last_synced ? null : <ToneText key="never" tone="warning" label="Never synced" />,
+        <span key="slug" className="font-mono">
+          {project.slug}
+        </span>,
+        project.root_path ? (
+          <span key="path" className="font-mono truncate max-w-[16rem]" title={project.root_path}>
+            {project.root_path}
+          </span>
+        ) : null,
+      ]}
+      actions={[
+        { label: 'Edit', icon: Pencil, onClick: onEdit },
+        {
+          label: 'Delete',
+          icon: Trash2,
+          variant: 'danger',
+          onClick: onDelete,
+          confirm: { title: 'Delete project?', description: `This will permanently delete “${project.name}”.` },
+        },
+      ]}
+    />
   )
 }

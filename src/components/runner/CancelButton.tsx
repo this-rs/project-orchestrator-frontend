@@ -25,10 +25,10 @@ export function CancelButton({ planId, isRunning }: CancelButtonProps) {
 
   const handleClick = () => {
     confirm.open({
-      title: 'Cancel Run',
+      title: 'Cancel run?',
       description:
         'Are you sure? This will stop all running agents. Agents that have already completed will keep their results.',
-      confirmLabel: 'Cancel Run',
+      confirmLabel: 'Cancel run',
       variant: 'danger',
       onConfirm: async () => {
         setCancelState('cancelling')
@@ -53,7 +53,7 @@ export function CancelButton({ planId, isRunning }: CancelButtonProps) {
   const config = {
     idle: {
       icon: <StopCircle className="w-4 h-4" />,
-      label: 'Cancel Run',
+      label: 'Cancel run',
       className: '',
     },
     cancelling: {

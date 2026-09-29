@@ -15,6 +15,8 @@ import { ChevronRight, ChevronDown, Clock, Layers } from 'lucide-react'
 import { protocolApi } from '@/services/protocolApi'
 import { useEventBus } from '@/hooks/useEventBus'
 import { Skeleton, SkeletonLine, SkeletonBadge } from '@/components/ui/Skeleton'
+import { MetaLine } from '@/components/ui/MetaLine'
+import { focusRing, hitArea, textLink } from '@/components/ui/classes'
 import type { CrudEvent } from '@/types/events'
 import { RunStatusBadge, type RunStatus } from './RunStatusBadge'
 
@@ -91,7 +93,7 @@ function RunTreeSkeleton() {
       {Array.from({ length: 4 }).map((_, i) => (
         <div key={i} className="flex items-center gap-3" style={{ paddingLeft: i > 0 ? `${(i % 3) * 20 + 8}px` : '8px' }}>
           <Skeleton className="w-4 h-4 rounded" />
-          <SkeletonLine width={`${60 + Math.random() * 30}%`} />
+          <SkeletonLine width={`${60 + ((i * 17) % 30)}%`} />
           <SkeletonBadge />
         </div>
       ))}
@@ -115,7 +117,6 @@ function RunTreeNode({ node, depth, onRunClick, selectedRunId }: RunTreeNodeProp
   const [expanded, setExpanded] = useState(depth < 2) // auto-expand first 2 levels
 
   const isSelected = selectedRunId === node.id
-  const isRunning = node.status === 'running'
 
   const handleToggle = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -126,82 +127,64 @@ function RunTreeNode({ node, depth, onRunClick, selectedRunId }: RunTreeNodeProp
     onRunClick?.(node.id)
   }, [onRunClick, node.id])
 
+  const sv = node.states_visited
+  const visited = typeof sv === 'number' ? sv : Array.isArray(sv) ? sv.length : 0
+  const indent = { paddingLeft: `${depth * 16}px` }
+
   return (
     <div>
-      {/* Node row */}
+      {/* Node row — whole row selects the run, chevron toggles children */}
       <div
-        className={`
-          group flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition-colors
-          ${isSelected
-            ? 'bg-indigo-500/[0.08] border border-indigo-500/30'
-            : 'hover:bg-white/[0.04] border border-transparent'
-          }
-        `}
-        style={{ paddingLeft: `${depth * 20 + 8}px` }}
-        onClick={handleClick}
+        className={`flex items-start gap-1.5 rounded-md py-1.5 pr-2 transition-colors ${
+          isSelected ? 'bg-indigo-500/[0.08] shadow-[inset_2px_0_0_var(--color-indigo-500)]' : onRunClick ? 'hover:bg-white/[0.03]' : ''
+        }`}
+        style={indent}
         role="treeitem"
         aria-expanded={hasChildren ? expanded : undefined}
         aria-selected={isSelected}
       >
-        {/* Expand/collapse toggle */}
         <button
-          className={`shrink-0 w-4 h-4 flex items-center justify-center text-gray-500 hover:text-gray-300 transition-colors ${hasChildren ? 'cursor-pointer' : 'invisible'}`}
+          type="button"
+          className={`shrink-0 w-7 h-7 -my-1 flex items-center justify-center rounded text-gray-500 hover:text-gray-300 ${focusRing} ${hasChildren ? '' : 'invisible'}`}
           onClick={handleToggle}
-          tabIndex={-1}
-          aria-label={expanded ? 'Collapse' : 'Expand'}
+          aria-label={expanded ? 'Collapse child runs' : 'Expand child runs'}
+          tabIndex={hasChildren ? 0 : -1}
         >
-          {hasChildren && (
-            expanded
-              ? <ChevronDown className="w-3.5 h-3.5" />
-              : <ChevronRight className="w-3.5 h-3.5" />
-          )}
+          {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
         </button>
 
-        {/* Protocol name */}
-        <span className={`text-sm font-medium truncate flex-1 min-w-0 ${isSelected ? 'text-gray-100' : 'text-gray-300 group-hover:text-gray-200'}`}>
-          {node.protocol_name ?? 'Run'}
-          {node.current_state && (
-            <span className="ml-1.5 text-[11px] text-gray-500 font-normal">
-              @ {node.current_state}
+        <div
+          className={`flex-1 min-w-0 ${onRunClick ? 'cursor-pointer' : ''}`}
+          onClick={onRunClick ? handleClick : undefined}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <span className={`text-sm leading-5 break-words min-w-0 ${isSelected ? 'text-gray-100' : 'text-gray-300'}`}>
+              {node.protocol_name ?? 'Run'}
+              {node.current_state && <span className="ml-1.5 text-[11px] text-gray-500">in {node.current_state}</span>}
             </span>
+            <RunStatusBadge status={node.status} className="shrink-0 leading-5" />
+          </div>
+          <MetaLine
+            items={[
+              <span key="d" className="inline-flex items-center gap-1 tabular-nums">
+                <Clock className="w-3 h-3" aria-hidden="true" />
+                {formatRunDuration(node.started_at, node.completed_at ?? node.finished_at)}
+              </span>,
+              visited > 0 ? (
+                <span key="v" className="inline-flex items-center gap-1 tabular-nums">
+                  <Layers className="w-3 h-3" aria-hidden="true" />
+                  {visited} {visited === 1 ? 'state' : 'states'} visited
+                </span>
+              ) : null,
+              hasChildren ? `${node.children!.length} child ${node.children!.length === 1 ? 'run' : 'runs'}` : null,
+              <span key="id" className="font-mono text-gray-600">{node.id.slice(0, 8)}</span>,
+            ]}
+          />
+          {node.status === 'failed' && node.error && (
+            <p className="mt-1 text-xs leading-4 text-red-400/90 break-words">{node.error}</p>
           )}
-        </span>
-
-        {/* Status badge */}
-        <RunStatusBadge status={node.status} />
-
-        {/* Metrics */}
-        <div className="flex items-center gap-3 text-[11px] text-gray-500 shrink-0 tabular-nums font-mono">
-          {/* Duration */}
-          <span className="inline-flex items-center gap-1" title="Duration">
-            <Clock className={`w-3 h-3 ${isRunning ? 'text-cyan-500' : ''}`} />
-            {formatRunDuration(node.started_at, node.completed_at ?? node.finished_at)}
-          </span>
-
-          {/* States visited */}
-          {(() => {
-            const sv = node.states_visited
-            const count = typeof sv === 'number' ? sv : Array.isArray(sv) ? sv.length : 0
-            return count > 0 ? (
-              <span className="inline-flex items-center gap-1" title="States visited">
-                <Layers className="w-3 h-3" />
-                {count}
-              </span>
-            ) : null
-          })()}
         </div>
       </div>
-
-      {/* Error message (if failed) */}
-      {node.status === 'failed' && node.error && (
-        <div
-          className="ml-6 mt-0.5 mb-1 px-2 py-1 text-[11px] text-red-400/80 bg-red-500/[0.06] rounded border border-red-500/10 truncate"
-          style={{ marginLeft: `${depth * 20 + 32}px` }}
-          title={node.error}
-        >
-          {node.error}
-        </div>
-      )}
 
       {/* Children (recursive) */}
       {hasChildren && expanded && (
@@ -299,12 +282,13 @@ export function RunTreeView({ rootRunId, onRunClick, selectedRunId, className = 
 
   if (error) {
     return (
-      <div className={`p-4 text-sm text-red-400 ${className}`}>
-        <p className="font-medium">Failed to load run tree</p>
-        <p className="text-red-400/60 text-xs mt-1">{error}</p>
+      <div className={`py-2 text-sm text-red-400 ${className}`}>
+        <p>Failed to load the run tree</p>
+        <p className="text-red-400/70 text-xs mt-1 break-words">{error}</p>
         <button
+          type="button"
           onClick={fetchTree}
-          className="mt-2 text-xs text-gray-400 hover:text-gray-200 underline underline-offset-2 cursor-pointer"
+          className={`${hitArea} mt-2 text-xs ${textLink}`}
         >
           Retry
         </button>

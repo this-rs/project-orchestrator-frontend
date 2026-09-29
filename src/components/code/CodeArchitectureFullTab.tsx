@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { TabItem } from '@/components/ui'
+import { ViewTabs } from '@/components/ui'
 import { Blocks, Users, GitFork } from 'lucide-react'
 import { CodeArchitectureTab } from './CodeArchitectureTab'
 import { CodeCommunitiesTab } from './CodeCommunitiesTab'
@@ -8,52 +9,31 @@ import { CodeHeritageTab } from './CodeHeritageTab'
 interface CodeArchitectureFullTabProps {
   projectSlug: string | null
   workspaceSlug: string
+  onOpenFile: (path: string) => void
 }
 
 type SubTab = 'overview' | 'communities' | 'heritage'
 
 const SUB_TABS: TabItem[] = [
-  { id: 'overview', label: 'Vue d\'ensemble', icon: <Blocks className="w-4 h-4" /> },
-  { id: 'communities', label: 'Communautés', icon: <Users className="w-4 h-4" /> },
-  { id: 'heritage', label: 'Héritage', icon: <GitFork className="w-4 h-4" /> },
+  { id: 'overview', label: 'Overview', icon: <Blocks /> },
+  { id: 'communities', label: 'Communities', icon: <Users /> },
+  { id: 'heritage', label: 'Heritage', icon: <GitFork /> },
 ]
 
-export function CodeArchitectureFullTab({
-  projectSlug,
-  workspaceSlug,
-}: CodeArchitectureFullTabProps) {
+/** "Architecture" section of the Code page: overview, coupled communities, inheritance. */
+export function CodeArchitectureFullTab({ projectSlug, workspaceSlug, onOpenFile }: CodeArchitectureFullTabProps) {
   const [subTab, setSubTab] = useState<SubTab>('overview')
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-400">
-        Structure du code : vue d&apos;ensemble des modules, communautés de fichiers couplés,
-        et hiérarchies d&apos;héritage.
+      <p className="text-xs text-gray-500">
+        Shape of the code: key files and languages, communities of tightly coupled files, inheritance hierarchies.
       </p>
 
-      <div className="flex gap-2">
-        {SUB_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setSubTab(tab.id as SubTab)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${
-              subTab === tab.id
-                ? 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/30'
-                : 'bg-white/[0.04] text-gray-400 border border-white/[0.06] hover:bg-white/[0.08]'
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <ViewTabs tabs={SUB_TABS} value={subTab} onChange={(id) => setSubTab(id as SubTab)} label="Architecture" />
 
-      {subTab === 'overview' && (
-        <CodeArchitectureTab projectSlug={projectSlug} workspaceSlug={workspaceSlug} />
-      )}
-
+      {subTab === 'overview' && <CodeArchitectureTab projectSlug={projectSlug} workspaceSlug={workspaceSlug} onOpenFile={onOpenFile} />}
       {subTab === 'communities' && <CodeCommunitiesTab projectSlug={projectSlug} />}
-
       {subTab === 'heritage' && <CodeHeritageTab />}
     </div>
   )

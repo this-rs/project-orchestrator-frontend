@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { FolderOpen } from 'lucide-react'
-import { Input, Textarea } from '@/components/ui'
+import { Button, Input, Textarea } from '@/components/ui'
 import { isTauri } from '@/services/env'
 
 export interface CreateProjectFormData {
   name: string
   slug: string
-  root_path: string
+  /** Empty for projects that are not code (a budget, a launch, a trip). */
+  root_path?: string
   description: string
 }
 
@@ -64,7 +65,6 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
   const validate = () => {
     const errs: Record<string, string> = {}
     if (!name.trim()) errs.name = 'Name is required'
-    if (!rootPath.trim()) errs.root_path = 'Root path is required'
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -73,12 +73,12 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
     fields: (
       <>
         {workspaceName && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-purple-500/[0.08] border border-purple-500/20 rounded-lg">
-            <FolderOpen className="w-4 h-4 text-purple-400 shrink-0" />
-            <span className="text-sm text-purple-300">
-              Will be added to <span className="font-medium">{workspaceName}</span>
+          <p className="flex items-center gap-2 text-xs text-gray-400">
+            <FolderOpen className="w-3.5 h-3.5 text-gray-500 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 break-words">
+              Will be added to <span className="font-medium text-gray-200">{workspaceName}</span>
             </span>
-          </div>
+          </p>
         )}
         <Input
           label="Name"
@@ -97,41 +97,26 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
             setSlug(e.target.value)
           }}
         />
-        <div className="w-full">
-          <label className="block text-sm font-medium text-gray-300 mb-1">
-            Root Path
-          </label>
-          <div className="flex gap-2">
-            <input
-              className={`
-                flex-1 min-w-0 px-3 py-2 bg-surface-base border border-border-default rounded-lg
-                text-gray-100 placeholder-gray-500
-                focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent
-                disabled:opacity-50 disabled:cursor-not-allowed
-                ${errors.root_path ? 'border-red-500' : ''}
-              `}
-              placeholder="/path/to/project"
-              value={rootPath}
-              onChange={(e) => setRootPath(e.target.value)}
-            />
-            {isTauri && (
-              <button
-                type="button"
-                onClick={handleBrowse}
-                className="
-                  shrink-0 px-3 py-2 bg-white/[0.06] border border-white/[0.1] rounded-lg
-                  text-gray-300 hover:bg-white/[0.1] hover:text-gray-100
-                  transition-colors cursor-pointer
-                  disabled:opacity-50 disabled:cursor-not-allowed
-                "
-                title="Browse for folder"
-              >
-                <FolderOpen className="w-5 h-5" />
-              </button>
-            )}
-          </div>
-          {errors.root_path && (
-            <p className="mt-1 text-sm text-red-400">{errors.root_path}</p>
+        <div className="flex items-start gap-2">
+          <Input
+            label="Folder (optional)"
+            placeholder="/path/to/project — leave empty if this is not a code project"
+            value={rootPath}
+            onChange={(e) => setRootPath(e.target.value)}
+            error={errors.root_path}
+            className="font-mono"
+          />
+          {isTauri && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleBrowse}
+              aria-label="Browse for folder"
+              title="Browse for folder"
+              className="shrink-0 mt-6 h-10 w-10 px-0"
+            >
+              <FolderOpen className="w-4 h-4" aria-hidden="true" />
+            </Button>
           )}
         </div>
         <Textarea
@@ -148,7 +133,7 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
       await onSubmit({
         name: name.trim(),
         slug: slug.trim() || (undefined as unknown as string),
-        root_path: rootPath.trim(),
+        root_path: rootPath.trim() || undefined,
         description: description.trim(),
       })
     },

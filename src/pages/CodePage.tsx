@@ -1,28 +1,61 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Select, PageHeader, TabLayout } from '@/components/ui'
+import { useSearchParams } from 'react-router-dom'
+import { Folder, Search, Blocks, HeartPulse } from 'lucide-react'
+import { PageShell, Select, TabLayout } from '@/components/ui'
 import type { TabItem } from '@/components/ui'
 import { workspacesApi } from '@/services'
 import { useWorkspaceSlug } from '@/hooks'
-import { Search, Blocks, HeartPulse } from 'lucide-react'
 import { CodeExplorerTab } from '@/components/code/CodeExplorerTab'
 import { CodeArchitectureFullTab } from '@/components/code/CodeArchitectureFullTab'
 import { CodeSanteTab } from '@/components/code/CodeSanteTab'
+import { FileHistoryDrawer } from '@/components/code/FileHistoryDrawer'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
-type CodeTab = 'explorer' | 'architecture' | 'sante'
+type CodeTab = 'explorer' | 'architecture' | 'health'
 
 const TABS: TabItem[] = [
-  { id: 'explorer', label: 'Explorer', icon: <Search className="w-4 h-4" /> },
-  { id: 'architecture', label: 'Architecture', icon: <Blocks className="w-4 h-4" /> },
-  { id: 'sante', label: 'Santé', icon: <HeartPulse className="w-4 h-4" /> },
+  { id: 'explorer', label: 'Explorer', icon: <Search /> },
+  { id: 'architecture', label: 'Architecture', icon: <Blocks /> },
+  { id: 'health', label: 'Health', icon: <HeartPulse /> },
 ]
+const TAB_IDS = TABS.map((t) => t.id)
+/** Older links (`?tab=sante`) keep working. */
+const LEGACY_TAB_IDS: Record<string, CodeTab> = { sante: 'health' }
 
+/**
+ * Code explorer. URL state (shareable, survives back navigation on phones):
+ *   ?tab=explorer|architecture|health  ?project=<slug>  ?file=<path> (opens the file history sheet)
+ */
 export function CodePage() {
   const wsSlug = useWorkspaceSlug()
-  const [activeTab, setActiveTab] = useState<CodeTab>('explorer')
+  const [params, setParams] = useSearchParams()
+
+  const tabParam = params.get('tab') ?? ''
+  const activeTab: CodeTab = TAB_IDS.includes(tabParam) ? (tabParam as CodeTab) : (LEGACY_TAB_IDS[tabParam] ?? 'explorer')
+  const selectedProject = params.get('project') || 'all'
+  const fileParam = params.get('file')
+
+  const setParam = useCallback(
+    (key: string, value: string | null) => {
+      setParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          if (value === null) next.delete(key)
+          else next.set(key, value)
+          return next
+        },
+        { replace: true },
+      )
+    },
+    [setParams],
+  )
+
+  /** Every tab opens a file's history through the URL, so the sheet is shareable and closes with Back. */
+  const openFile = useCallback((path: string) => setParam('file', path), [setParam])
+  const closeFile = useCallback(() => setParam('file', null), [setParam])
 
   // Project filter
   const [projects, setProjects] = useState<{ slug: string; name: string }[]>([])
-  const [selectedProject, setSelectedProject] = useState('all')
 
   useEffect(() => {
     async function loadProjects() {
@@ -39,50 +72,51 @@ export function CodePage() {
   const projectSlug = selectedProject !== 'all' ? selectedProject : null
 
   const projectOptions = [
-    { value: 'all', label: 'Tout le workspace' },
+    { value: 'all', label: 'Whole workspace' },
     ...projects.map((p) => ({ value: p.slug, label: p.name })),
   ]
 
-  const handleTabChange = useCallback((tabId: string) => {
-    setActiveTab(tabId as CodeTab)
-  }, [])
-
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title="Code Explorer"
-        description="Recherche, architecture et santé du code dans vos projets."
-        actions={
-          projects.length > 1 ? (
+    <PageShell
+      title={NOMENCLATURE.code.plural}
+      description="Search, architecture and health of your projects' code."
+      width="wide"
+      filters={
+        projects.length > 1 ? (
+          <div className="sm:max-w-xs">
             <Select
               options={projectOptions}
               value={selectedProject}
-              onChange={(value) => setSelectedProject(value)}
-              className="w-48"
+              onChange={(value) => setParam('project', value === 'all' ? null : value)}
+              icon={<Folder className="w-3 h-3" />}
             />
-          ) : undefined
-        }
-      />
-
-      <TabLayout tabs={TABS} activeTab={activeTab} onTabChange={handleTabChange}>
-        {activeTab === 'explorer' && (
-          <div className="pt-4">
-            <CodeExplorerTab projectSlug={projectSlug} workspaceSlug={wsSlug} />
           </div>
-        )}
-
+        ) : undefined
+      }
+    >
+      <TabLayout
+        tabs={TABS}
+        activeTab={activeTab}
+        onTabChange={(id) => setParam('tab', id === 'explorer' ? null : id)}
+        label="Code sections"
+        className="pt-4"
+      >
+        {activeTab === 'explorer' && <CodeExplorerTab projectSlug={projectSlug} workspaceSlug={wsSlug} onOpenFile={openFile} />}
         {activeTab === 'architecture' && (
-          <div className="pt-4">
-            <CodeArchitectureFullTab projectSlug={projectSlug} workspaceSlug={wsSlug} />
-          </div>
+          <CodeArchitectureFullTab projectSlug={projectSlug} workspaceSlug={wsSlug} onOpenFile={openFile} />
         )}
-
-        {activeTab === 'sante' && (
-          <div className="pt-4">
-            <CodeSanteTab projectSlug={projectSlug} />
-          </div>
-        )}
+        {activeTab === 'health' && <CodeSanteTab projectSlug={projectSlug} onOpenFile={openFile} />}
       </TabLayout>
-    </div>
+
+      {fileParam && (
+        <FileHistoryDrawer
+          filePath={fileParam}
+          projectSlug={projectSlug}
+          workspaceSlug={wsSlug}
+          onClose={closeFile}
+          onNavigate={openFile}
+        />
+      )}
+    </PageShell>
   )
 }

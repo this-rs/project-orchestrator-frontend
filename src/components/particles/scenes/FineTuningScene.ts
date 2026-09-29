@@ -33,7 +33,7 @@ interface GridTarget {
 export class FineTuningScene implements ParticleScene {
   readonly name = 'fine-tuning';
   readonly title = 'FINE-TUNING VS PROMPTING';
-  readonly description = 'lancer contre un mur vs reshaper la structure';
+  readonly description = 'throwing at a wall vs reshaping the structure';
 
   // Left side: prompting (bounce)
   private leftPool!: ParticlePool;

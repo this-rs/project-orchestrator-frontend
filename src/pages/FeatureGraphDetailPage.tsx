@@ -14,26 +14,30 @@ import {
   MarkerType,
 } from '@xyflow/react'
 import dagre from 'dagre'
-import { motion, AnimatePresence } from 'motion/react'
-import { Zap, File, Database, Link as LinkIcon, Package, FolderKanban, Plus, X, LayoutGrid, GitGraph as GitGraphIcon } from 'lucide-react'
+import { Zap, File, Database, Link as LinkIcon, Package, FolderKanban, Plus, X, Trash2, GitGraph as GitGraphIcon } from 'lucide-react'
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-  LoadingPage,
-  ErrorState,
-  Badge,
   Button,
-  Select,
-  Input,
-  ConfirmDialog,
+  EmptyState,
+  EntityRow,
+  ErrorState,
   FormDialog,
+  Input,
+  ListGroup,
+  MetaLine,
+  PageContainer,
   PageHeader,
+  RelativeTime,
+  Section,
+  Select,
+  SkeletonCard,
+  SkeletonLine,
+  EntityListSkeleton,
+  pluralize,
 } from '@/components/ui'
+import { glass, popIn } from '@/components/ui/classes'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { featureGraphsApi, projectsApi } from '@/services'
-import { useConfirmDialog, useFormDialog, useToast, useWorkspaceSlug } from '@/hooks'
+import { useFormDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import type { FeatureGraphDetail, FeatureGraphEntity, FeatureGraphRelation, FeatureGraphRole, Project } from '@/types'
 import '@xyflow/react/dist/style.css'
@@ -51,54 +55,17 @@ const ROLE_ORDER = [
   'support',
 ] as const
 
-const roleConfig: Record<
-  string,
-  { label: string; color: string; bg: string; border: string }
-> = {
-  entry_point: {
-    label: 'Entry Points',
-    color: 'text-indigo-400',
-    bg: 'bg-indigo-500/10',
-    border: 'border-indigo-500/20',
-  },
-  core_logic: {
-    label: 'Core Logic',
-    color: 'text-blue-400',
-    bg: 'bg-blue-500/10',
-    border: 'border-blue-500/20',
-  },
-  data_model: {
-    label: 'Data Models',
-    color: 'text-emerald-400',
-    bg: 'bg-emerald-500/10',
-    border: 'border-emerald-500/20',
-  },
-  trait_contract: {
-    label: 'Trait Contracts',
-    color: 'text-purple-400',
-    bg: 'bg-purple-500/10',
-    border: 'border-purple-500/20',
-  },
-  api_surface: {
-    label: 'API Surface',
-    color: 'text-amber-400',
-    bg: 'bg-amber-500/10',
-    border: 'border-amber-500/20',
-  },
-  support: {
-    label: 'Support',
-    color: 'text-gray-400',
-    bg: 'bg-gray-500/10',
-    border: 'border-gray-500/20',
-  },
+/** Group titles (roles are grouping only — no colour, per DESIGN.md §3). */
+const ROLE_LABELS: Record<string, string> = {
+  entry_point: 'Entry Points',
+  core_logic: 'Core Logic',
+  data_model: 'Data Models',
+  trait_contract: 'Trait Contracts',
+  api_surface: 'API Surface',
+  support: 'Support',
 }
 
-const defaultRoleConfig = {
-  label: 'Other',
-  color: 'text-gray-500',
-  bg: 'bg-gray-500/10',
-  border: 'border-gray-500/20',
-}
+const roleLabel = (role: string | undefined) => (role && ROLE_LABELS[role]) || 'Other'
 
 // ============================================================================
 // ENTITY TYPE COLORS (for graph nodes)
@@ -160,7 +127,7 @@ function EntityNodeComponent({ data }: NodeProps<Node<EntityNodeData>>) {
 
   return (
     <div
-      className="cursor-pointer transition-all duration-150 hover:scale-105 hover:shadow-lg"
+      className="cursor-pointer transition-transform duration-150 ease-out hover:scale-105"
       style={{
         background: colors.bg,
         border: `1.5px solid ${colors.border}`,
@@ -306,125 +273,79 @@ function layoutEntities(
 }
 
 // ============================================================================
-// LEGEND
+// LEGEND (static, under the canvas — never covers the graph on phones)
 // ============================================================================
 
+const legendTypes = [
+  { label: 'File', color: '#3b82f6' },
+  { label: 'Function', color: '#22c55e' },
+  { label: 'Struct', color: '#a855f7' },
+  { label: 'Trait', color: '#f97316' },
+  { label: 'Enum', color: '#10b981' },
+]
+
+const legendEdges = [
+  { label: 'Calls', color: '#6b7280', dashed: false },
+  { label: 'Imports', color: '#60a5fa', dashed: true },
+  { label: 'Extends', color: '#a855f7', dashed: false },
+  { label: 'Implements', color: '#f97316', dashed: false },
+]
+
 function GraphLegend({ hasRelations }: { hasRelations: boolean }) {
-  const types = [
-    { label: 'File', color: '#3b82f6' },
-    { label: 'Function', color: '#22c55e' },
-    { label: 'Struct', color: '#a855f7' },
-    { label: 'Trait', color: '#f97316' },
-    { label: 'Enum', color: '#10b981' },
-  ]
-
-  const edges = [
-    { label: 'Calls', color: '#6b7280', dashed: false },
-    { label: 'Imports', color: '#60a5fa', dashed: true },
-    { label: 'Extends', color: '#a855f7', dashed: false },
-    { label: 'Implements', color: '#f97316', dashed: false },
-  ]
-
   return (
-    <div className="absolute top-3 right-3 z-10 glass-medium rounded-lg px-3 py-2.5 max-w-[260px]">
-      <span className="text-[10px] uppercase tracking-wider text-gray-500 mb-1.5 block">Nodes</span>
-      <div className="flex flex-wrap gap-x-3 gap-y-1 mb-2">
-        {types.map((t) => (
-          <div key={t.label} className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-sm" style={{ background: t.color }} />
-            <span className="text-xs text-gray-400">{t.label}</span>
-          </div>
+    <div className="space-y-1" aria-label="Legend">
+      <MetaLine
+        items={legendTypes.map((t) => (
+          <span key={t.label} className="inline-flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-sm" style={{ background: t.color }} aria-hidden="true" />
+            {t.label}
+          </span>
         ))}
-      </div>
+      />
       {hasRelations && (
-        <>
-          <span className="text-[10px] uppercase tracking-wider text-gray-500 mb-1.5 block">Edges</span>
-          <div className="flex flex-wrap gap-x-3 gap-y-1">
-            {edges.map((e) => (
-              <div key={e.label} className="flex items-center gap-1.5">
-                <div className="w-4 h-0 border-t-[2px]" style={{ borderColor: e.color, borderStyle: e.dashed ? 'dashed' : 'solid' }} />
-                <span className="text-xs text-gray-400">{e.label}</span>
-              </div>
-            ))}
-          </div>
-        </>
+        <MetaLine
+          items={legendEdges.map((e) => (
+            <span key={e.label} className="inline-flex items-center gap-1.5">
+              <span
+                className="w-3.5 h-0 border-t-2"
+                style={{ borderColor: e.color, borderStyle: e.dashed ? 'dashed' : 'solid' }}
+                aria-hidden="true"
+              />
+              {e.label}
+            </span>
+          ))}
+        />
       )}
     </div>
   )
 }
 
 // ============================================================================
-// SIDE PANEL
+// SELECTED NODE PANEL (floating layer over the canvas → glass)
 // ============================================================================
 
-interface SidePanelProps {
-  entity: FeatureGraphEntity | null
-  onClose: () => void
-}
-
-function EntitySidePanel({ entity, onClose }: SidePanelProps) {
-  if (!entity) return null
-  const config = roleConfig[entity.role || ''] || defaultRoleConfig
-
+function EntityPanel({ entity, onClose }: { entity: FeatureGraphEntity; onClose: () => void }) {
   return (
-    <motion.div
-      initial={{ x: '100%', opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      exit={{ x: '100%', opacity: 0 }}
-      transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-      className="absolute top-0 right-0 bottom-0 w-80 glass-medium border-l border-white/[0.06] z-20 overflow-y-auto"
-    >
-      <div className="p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-gray-100">Entity Details</h3>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-md hover:bg-white/[0.08] text-gray-400 hover:text-gray-200 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+    <div className={`absolute top-2 right-2 left-2 sm:left-auto sm:w-80 z-20 rounded-xl p-3 ${glass} ${popIn}`}>
+      <div className="flex items-start gap-2">
+        <EntityIcon type={entity.entity_type} className="w-4 h-4 shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-gray-100 break-words">{entity.name || entity.entity_id}</p>
+          <MetaLine items={[<span key="t" className="capitalize">{entity.entity_type}</span>, entity.role ? roleLabel(entity.role) : null]} />
         </div>
-
-        <div className="space-y-4">
-          {/* Type */}
-          <div>
-            <label className="text-[10px] uppercase tracking-wider text-gray-500 block mb-1">Type</label>
-            <div className="flex items-center gap-2">
-              <EntityIcon type={entity.entity_type} />
-              <span className="text-sm text-gray-200 capitalize">{entity.entity_type}</span>
-            </div>
-          </div>
-
-          {/* Name / ID */}
-          <div>
-            <label className="text-[10px] uppercase tracking-wider text-gray-500 block mb-1">
-              {entity.entity_type === 'file' ? 'Path' : 'Name'}
-            </label>
-            <code className="text-sm text-gray-200 font-mono break-all block bg-white/[0.04] px-2 py-1.5 rounded-md">
-              {entity.entity_id}
-            </code>
-          </div>
-
-          {/* Display Name (if different from entity_id) */}
-          {entity.name && entity.name !== entity.entity_id && (
-            <div>
-              <label className="text-[10px] uppercase tracking-wider text-gray-500 block mb-1">Display Name</label>
-              <span className="text-sm text-gray-200">{entity.name}</span>
-            </div>
-          )}
-
-          {/* Role */}
-          {entity.role && (
-            <div>
-              <label className="text-[10px] uppercase tracking-wider text-gray-500 block mb-1">Role</label>
-              <Badge variant="default" className={config.color}>
-                {config.label}
-              </Badge>
-            </div>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close entity details"
+          className="shrink-0 -m-1 w-9 h-9 md:w-8 md:h-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/[0.06]"
+        >
+          <X className="w-4 h-4" aria-hidden="true" />
+        </button>
       </div>
-    </motion.div>
+      <code className="mt-2 block text-xs text-gray-300 font-mono break-all bg-white/[0.04] px-2 py-1.5 rounded-md">
+        {entity.entity_id}
+      </code>
+    </div>
   )
 }
 
@@ -432,30 +353,30 @@ function EntitySidePanel({ entity, onClose }: SidePanelProps) {
 // ADD ENTITY FORM
 // ============================================================================
 
+const typeOptions = [
+  { value: 'function', label: 'Function' },
+  { value: 'file', label: 'File' },
+  { value: 'struct', label: 'Struct' },
+  { value: 'trait', label: 'Trait' },
+  { value: 'enum', label: 'Enum' },
+]
+
+const roleOptions = [
+  { value: '', label: 'Auto-detect' },
+  { value: 'entry_point', label: 'Entry Point' },
+  { value: 'core_logic', label: 'Core Logic' },
+  { value: 'data_model', label: 'Data Model' },
+  { value: 'trait_contract', label: 'Trait Contract' },
+  { value: 'api_surface', label: 'API Surface' },
+  { value: 'support', label: 'Support' },
+]
+
 function useAddEntityForm({ graphId, onSuccess }: { graphId: string; onSuccess: () => void }) {
   const [entityId, setEntityId] = useState('')
   const [entityType, setEntityType] = useState<string>('function')
   const [role, setRole] = useState<string>('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const toast = useToast()
-
-  const typeOptions = [
-    { value: 'function', label: 'Function' },
-    { value: 'file', label: 'File' },
-    { value: 'struct', label: 'Struct' },
-    { value: 'trait', label: 'Trait' },
-    { value: 'enum', label: 'Enum' },
-  ]
-
-  const roleOptions = [
-    { value: '', label: 'Auto-detect' },
-    { value: 'entry_point', label: 'Entry Point' },
-    { value: 'core_logic', label: 'Core Logic' },
-    { value: 'data_model', label: 'Data Model' },
-    { value: 'trait_contract', label: 'Trait Contract' },
-    { value: 'api_surface', label: 'API Surface' },
-    { value: 'support', label: 'Support' },
-  ]
 
   const validate = () => {
     const errs: Record<string, string> = {}
@@ -467,26 +388,18 @@ function useAddEntityForm({ graphId, onSuccess }: { graphId: string; onSuccess: 
   return {
     fields: (
       <>
-        <Select
-          label="Entity Type"
-          options={typeOptions}
-          value={entityType}
-          onChange={setEntityType}
-        />
+        <p className="text-xs text-gray-500">Add a file or a symbol that Auto-build did not pick up.</p>
+        <Select label="Entity Type" options={typeOptions} value={entityType} onChange={setEntityType} />
         <Input
           label={entityType === 'file' ? 'File Path' : 'Symbol Name'}
           placeholder={entityType === 'file' ? 'src/api/handlers.rs' : 'handle_request'}
           value={entityId}
           onChange={(e) => setEntityId(e.target.value)}
           error={errors.entity_id}
+          className="font-mono"
           autoFocus
         />
-        <Select
-          label="Role"
-          options={roleOptions}
-          value={role}
-          onChange={setRole}
-        />
+        <Select label="Role" options={roleOptions} value={role} onChange={setRole} />
       </>
     ),
     submit: async () => {
@@ -514,21 +427,19 @@ interface FGLocationState {
   projectName?: string
 }
 
-type ViewMode = 'list' | 'graph'
-
 export function FeatureGraphDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const location = useLocation()
   const wsSlug = useWorkspaceSlug()
-  const confirmDialog = useConfirmDialog()
   const addEntityDialog = useFormDialog()
   const toast = useToast()
   const [detail, setDetail] = useState<FeatureGraphDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [parentProject, setParentProject] = useState<Project | null>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>('graph')
+  /** Heavy React Flow canvas: mounted only on demand (phones first). */
+  const [showGraph, setShowGraph] = useState(false)
   const [selectedEntity, setSelectedEntity] = useState<FeatureGraphEntity | null>(null)
 
   const fetchData = useCallback(async () => {
@@ -536,8 +447,7 @@ export function FeatureGraphDetailPage() {
     setError(null)
     setLoading(true)
     try {
-      const data = await featureGraphsApi.get(id)
-      setDetail(data)
+      setDetail(await featureGraphsApi.get(id))
     } catch (err) {
       console.error('Failed to fetch feature graph:', err)
       setError('Failed to load feature graph')
@@ -546,7 +456,9 @@ export function FeatureGraphDetailPage() {
     }
   }, [id])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
   // Resolve parent project
   useEffect(() => {
@@ -557,11 +469,15 @@ export function FeatureGraphDetailPage() {
     if (state?.projectSlug && state?.projectName) {
       setParentProject({ slug: state.projectSlug, name: state.projectName, id: state.projectId } as Project)
     } else {
-      projectsApi.list().then((res) => {
-        if (controller.signal.aborted) return
-        const proj = (res.items || []).find((p) => p.id === detail.project_id) ?? null
-        setParentProject(proj)
-      }).catch(() => { /* graceful degradation */ })
+      projectsApi
+        .list()
+        .then((res) => {
+          if (controller.signal.aborted) return
+          setParentProject((res.items || []).find((p) => p.id === detail.project_id) ?? null)
+        })
+        .catch(() => {
+          /* graceful degradation */
+        })
     }
 
     return () => controller.abort()
@@ -570,9 +486,8 @@ export function FeatureGraphDetailPage() {
 
   // Group entities by role
   const groupedEntities = useMemo(() => {
-    if (!detail?.entities) return new Map<string, FeatureGraphEntity[]>()
     const groups = new Map<string, FeatureGraphEntity[]>()
-    for (const entity of detail.entities) {
+    for (const entity of detail?.entities ?? []) {
       const role = entity.role || 'unknown'
       const group = groups.get(role) || []
       group.push(entity)
@@ -582,36 +497,29 @@ export function FeatureGraphDetailPage() {
   }, [detail])
 
   const orderedRoles = useMemo(() => {
-    const roles: string[] = []
-    for (const role of ROLE_ORDER) {
-      if (groupedEntities.has(role)) roles.push(role)
-    }
-    for (const role of groupedEntities.keys()) {
-      if (!roles.includes(role)) roles.push(role)
-    }
+    const roles: string[] = ROLE_ORDER.filter((r) => groupedEntities.has(r))
+    for (const role of groupedEntities.keys()) if (!roles.includes(role)) roles.push(role)
     return roles
   }, [groupedEntities])
 
-  // Graph layout
-  const { graphNodes, graphEdges, graphHeight } = useMemo(() => {
-    if (!detail?.entities || detail.entities.length === 0) {
-      return { graphNodes: [], graphEdges: [], graphHeight: 400 }
-    }
-    const { nodes, edges, height } = layoutEntities(detail.entities, detail.relations || [])
-    return { graphNodes: nodes, graphEdges: edges, graphHeight: height }
-  }, [detail])
+  // Graph layout — computed only when the canvas is shown
+  const layout = useMemo(() => {
+    if (!showGraph || !detail?.entities?.length) return null
+    return layoutEntities(detail.entities, detail.relations || [])
+  }, [detail, showGraph])
 
-  // Handle node click
-  const onNodeClick: NodeMouseHandler = useCallback((_event, node) => {
-    if (!detail?.entities) return
-    const nodeData = node.data as EntityNodeData
-    const entity = detail.entities.find(
-      (e) => (e.name || e.entity_id) === nodeData.label && e.entity_type === nodeData.entityType,
-    )
-    setSelectedEntity(entity || null)
-  }, [detail])
+  const onNodeClick: NodeMouseHandler = useCallback(
+    (_event, node) => {
+      if (!detail?.entities) return
+      const nodeData = node.data as EntityNodeData
+      const entity = detail.entities.find(
+        (e) => (e.name || e.entity_id) === nodeData.label && e.entity_type === nodeData.entityType,
+      )
+      setSelectedEntity(entity || null)
+    },
+    [detail],
+  )
 
-  // Add entity form
   const addEntityForm = useAddEntityForm({
     graphId: id || '',
     onSuccess: () => {
@@ -620,24 +528,36 @@ export function FeatureGraphDetailPage() {
     },
   })
 
-  // MiniMap node color
   const minimapNodeColor = useCallback((node: Node) => {
     const data = node.data as EntityNodeData
     return (entityTypeColors[data.entityType] || defaultEntityColors).minimap
   }, [])
 
-  if (error) return <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
-  if (loading || !detail) return <LoadingPage />
+  if (error) {
+    return (
+      <PageContainer width="wide">
+        <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
+      </PageContainer>
+    )
+  }
+  if (loading || !detail) {
+    return (
+      <PageContainer width="wide" className="space-y-6">
+        <div className="space-y-2">
+          <SkeletonLine width="40%" />
+          <SkeletonLine width="60%" />
+        </div>
+        <EntityListSkeleton rows={5} />
+        <SkeletonCard lines={2} />
+      </PageContainer>
+    )
+  }
 
   const totalEntities = detail.entities.length
+  const relationCount = detail.relations?.length ?? 0
 
   const parentLinks: ParentLink[] = [
-    {
-      icon: GitGraphIcon,
-      label: 'Feature Graphs',
-      name: 'Feature Graphs',
-      href: workspacePath(wsSlug, '/feature-graphs'),
-    },
+    { icon: GitGraphIcon, label: 'Feature Graphs', name: 'Feature Graphs', href: workspacePath(wsSlug, '/feature-graphs') },
   ]
   if (parentProject) {
     parentLinks.unshift({
@@ -648,116 +568,133 @@ export function FeatureGraphDetailPage() {
     })
   }
 
+  const openAddEntity = () => addEntityDialog.open({ title: 'Add entity', size: 'md' })
+
   return (
-    <div className="pt-6 space-y-6">
+    <PageContainer width="wide" className="space-y-6">
       <PageHeader
         title={detail.name}
         description={detail.description}
         parentLinks={parentLinks}
+        meta={[
+          detail.entry_function ? (
+            <span key="entry" className="inline-flex items-baseline gap-1 min-w-0">
+              built from
+              <code className="font-mono text-gray-300 truncate max-w-[14rem]" title={detail.entry_function}>
+                {detail.entry_function}
+              </code>
+            </span>
+          ) : null,
+          detail.build_depth != null ? `depth ${detail.build_depth}` : null,
+          pluralize(totalEntities, 'entity', 'entities'),
+          relationCount > 0 ? pluralize(relationCount, 'relation') : null,
+          <RelativeTime key="c" date={detail.created_at} prefix="created " />,
+        ]}
+        actions={
+          <Button size="sm" variant="secondary" onClick={openAddEntity}>
+            <Plus className="w-4 h-4 mr-1" aria-hidden="true" />
+            Add entity
+          </Button>
+        }
         overflowActions={[
           {
             label: 'Delete',
+            icon: Trash2,
             variant: 'danger',
-            onClick: () =>
-              confirmDialog.open({
-                title: 'Delete Feature Graph',
-                description: `Delete "${detail.name}"? This will remove the feature graph and all its entity associations. This cannot be undone.`,
-                onConfirm: async () => {
-                  await featureGraphsApi.delete(detail.id)
-                  toast.success('Feature graph deleted')
-                  navigate(workspacePath(wsSlug, '/feature-graphs'))
-                },
-              }),
+            onClick: async () => {
+              try {
+                await featureGraphsApi.delete(detail.id)
+                toast.success('Feature graph deleted')
+                navigate(workspacePath(wsSlug, '/feature-graphs'))
+              } catch {
+                toast.error('Failed to delete feature graph')
+              }
+            },
+            confirm: {
+              title: 'Delete feature graph?',
+              description: `Delete “${detail.name}” and its entity associations? The code itself is not touched. This cannot be undone.`,
+              confirmLabel: 'Delete',
+            },
           },
         ]}
       />
 
-      {/* Stats + actions bar */}
-      <Card>
-        <CardContent className="pt-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap gap-3">
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.06]">
-                <span className="text-2xl font-bold text-gray-200">{totalEntities}</span>
-                <span className="text-xs text-gray-500">Total entities</span>
-              </div>
-              {orderedRoles.map((role) => {
-                const config = roleConfig[role] || defaultRoleConfig
-                const count = groupedEntities.get(role)?.length || 0
-                return (
-                  <div
-                    key={role}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg ${config.bg} border ${config.border}`}
-                  >
-                    <span className={`text-lg font-bold ${config.color}`}>{count}</span>
-                    <span className="text-xs text-gray-400">{config.label}</span>
-                  </div>
-                )
-              })}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => addEntityDialog.open({ title: 'Add Entity', size: 'md' })}
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                Add Entity
+      {/* ── Entities, grouped by role ── */}
+      <Section
+        title="Entities"
+        count={totalEntities}
+        description="The code that implements this feature, grouped by role: entry points, core logic, data models, contracts, API surface, support."
+      >
+        {totalEntities === 0 ? (
+          <EmptyState
+            size="sm"
+            icon={<Package />}
+            title="No entities yet"
+            description="Add files or functions by hand, or rebuild the graph with Auto-build."
+            action={
+              <Button size="sm" variant="secondary" onClick={openAddEntity}>
+                Add entity
               </Button>
-              {/* View toggle */}
-              <div className="flex rounded-lg border border-white/[0.08] overflow-hidden">
-                <button
-                  onClick={() => setViewMode('graph')}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                    viewMode === 'graph'
-                      ? 'bg-indigo-500/20 text-indigo-300'
-                      : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.04]'
-                  }`}
-                  title="Graph view"
-                >
-                  <GitGraphIcon className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                    viewMode === 'list'
-                      ? 'bg-indigo-500/20 text-indigo-300'
-                      : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.04]'
-                  }`}
-                  title="List view"
-                >
-                  <LayoutGrid className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+            }
+          />
+        ) : (
+          <div>
+            {orderedRoles.map((role) => {
+              const entities = groupedEntities.get(role) || []
+              return (
+                <ListGroup key={role} title={roleLabel(role)} count={entities.length} collapsible>
+                  {entities.map((entity, idx) => {
+                    const label = entity.name || entity.entity_id
+                    return (
+                      <EntityRow
+                        key={`${entity.entity_type}-${entity.entity_id}-${idx}`}
+                        title={<span className="font-mono text-[13px]">{label}</span>}
+                        ariaLabel={label}
+                        leading={<EntityIcon type={entity.entity_type} className="w-3.5 h-3.5 shrink-0" />}
+                        description={
+                          entity.name && entity.name !== entity.entity_id ? (
+                            <code className="font-mono break-all">{entity.entity_id}</code>
+                          ) : undefined
+                        }
+                        meta={[<span key="t" className="capitalize">{entity.entity_type}</span>]}
+                      />
+                    )
+                  })}
+                </ListGroup>
+              )
+            })}
           </div>
-          {detail.entry_function && (
-            <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
-              <span>Built from</span>
-              <code className="px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 font-mono text-xs">
-                {detail.entry_function}
-              </code>
-              {detail.build_depth != null && (
-                <span>depth {detail.build_depth}</span>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        )}
+      </Section>
 
-      {/* Content area */}
-      {viewMode === 'graph' ? (
-        <Card>
-          <CardContent className="p-0 relative">
-            {graphNodes.length === 0 ? (
-              <div className="flex items-center justify-center py-16 text-sm text-gray-500">
-                No entities to visualize
-              </div>
-            ) : (
-              <div style={{ height: graphHeight }} className="relative">
+      {/* ── Graph (heavy canvas, opt-in) ── */}
+      {totalEntities > 0 && (
+        <Section
+          title="Graph"
+          description="Interactive diagram of the entities and their calls. Drag to pan, pinch or scroll to zoom, tap a node for its details."
+          action={
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-expanded={showGraph}
+              onClick={() => {
+                setShowGraph((v) => !v)
+                setSelectedEntity(null)
+              }}
+            >
+              {showGraph ? 'Hide graph' : 'Show graph'}
+            </Button>
+          }
+        >
+          {showGraph && layout && (
+            <div className="space-y-2">
+              <div
+                style={{ height: layout.height }}
+                className="relative max-h-[70vh] rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden"
+              >
                 <ReactFlow
-                  nodes={graphNodes}
-                  edges={graphEdges}
+                  nodes={layout.nodes}
+                  edges={layout.edges}
                   nodeTypes={nodeTypes}
                   fitView
                   fitViewOptions={{ padding: 0.3 }}
@@ -777,87 +714,22 @@ export function FeatureGraphDetailPage() {
                     nodeColor={minimapNodeColor}
                     maskColor="rgba(0,0,0,0.6)"
                     style={{ background: '#111827' }}
+                    className="!hidden sm:!block"
                   />
                 </ReactFlow>
-                <GraphLegend hasRelations={(detail.relations?.length ?? 0) > 0} />
-                <AnimatePresence>
-                  {selectedEntity && (
-                    <EntitySidePanel
-                      entity={selectedEntity}
-                      onClose={() => setSelectedEntity(null)}
-                    />
-                  )}
-                </AnimatePresence>
+                {selectedEntity && <EntityPanel entity={selectedEntity} onClose={() => setSelectedEntity(null)} />}
               </div>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        /* List view — grouped by role */
-        <>
-          {orderedRoles.map((role) => {
-            const config = roleConfig[role] || defaultRoleConfig
-            const entities = groupedEntities.get(role) || []
-            return (
-              <Card key={role}>
-                <CardHeader>
-                  <div className="flex items-center gap-2">
-                    <CardTitle className={config.color}>{config.label}</CardTitle>
-                    <Badge variant="default">{entities.length}</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-1">
-                    {entities.map((entity, idx) => (
-                      <button
-                        key={`${entity.entity_type}-${entity.entity_id}-${idx}`}
-                        onClick={() => setSelectedEntity(entity)}
-                        className={`w-full flex items-center gap-3 py-2 px-3 rounded-md hover:bg-white/[0.04] transition-colors text-left ${
-                          selectedEntity?.entity_id === entity.entity_id
-                            ? 'bg-indigo-500/10 ring-1 ring-indigo-500/30'
-                            : ''
-                        }`}
-                      >
-                        <EntityIcon type={entity.entity_type} />
-                        <span className="text-sm text-gray-200 font-mono truncate min-w-0 flex-1">
-                          {entity.name || entity.entity_id}
-                        </span>
-                        <Badge variant="default" className="shrink-0 text-[10px]">
-                          {entity.entity_type}
-                        </Badge>
-                      </button>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-
-          {totalEntities === 0 && (
-            <Card>
-              <CardContent className="pt-5">
-                <p className="text-gray-500 text-sm text-center py-8">
-                  No entities in this feature graph
-                </p>
-              </CardContent>
-            </Card>
+              <GraphLegend hasRelations={relationCount > 0} />
+            </div>
           )}
-        </>
+        </Section>
       )}
 
-      {/* List view side panel (absolute positioned relative to viewport) */}
-      {viewMode === 'list' && selectedEntity && (
-        <div className="fixed top-0 right-0 bottom-0 z-40">
-          <AnimatePresence>
-            <EntitySidePanel entity={selectedEntity} onClose={() => setSelectedEntity(null)} />
-          </AnimatePresence>
-        </div>
-      )}
+      {/* ENTITY_GRAPH_SLOT entity_type="feature_graph" entity_id={detail.id} */}
 
       <FormDialog {...addEntityDialog.dialogProps} onSubmit={addEntityForm.submit}>
         {addEntityForm.fields}
       </FormDialog>
-      <ConfirmDialog {...confirmDialog.dialogProps} />
-    </div>
+    </PageContainer>
   )
 }

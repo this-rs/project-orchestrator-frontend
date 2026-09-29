@@ -224,6 +224,7 @@ export function InlineConversation({
           </Link>
           <button
             onClick={onClose}
+            aria-label="Close conversation"
             className="p-1.5 rounded-md text-gray-500 hover:text-gray-300 hover:bg-white/[0.06] transition-colors cursor-pointer"
           >
             <X className="w-3.5 h-3.5" />

@@ -7,25 +7,44 @@ interface EmptyStateProps {
   title: string
   description?: string
   action?: ReactNode
-  /** Auto-select a themed illustration */
+  /** Auto-select a themed illustration (ignored when `size="sm"`) */
   variant?: EmptyStateVariant
+  /**
+   * `md` (default): page-level empty list. `sm`: inside a Section / list
+   * group — no border, no illustration, small icon.
+   */
+  size?: 'md' | 'sm'
+  className?: string
 }
 
-export function EmptyState({ icon, title, description, action, variant }: EmptyStateProps) {
+export function EmptyState({ icon, title, description, action, variant, size = 'md', className = '' }: EmptyStateProps) {
+  if (size === 'sm') {
+    return (
+      <div className={`empty-state flex flex-col items-center justify-center py-6 px-4 text-center ${className}`}>
+        {icon && <div className="mb-2 text-gray-600 [&_svg]:w-5 [&_svg]:h-5">{icon}</div>}
+        <p className="text-sm text-gray-400">{title}</p>
+        {description && <p className="mt-0.5 text-xs text-gray-500 max-w-sm">{description}</p>}
+        {action && <div className="mt-3">{action}</div>}
+      </div>
+    )
+  }
+
   const illustration = variant ? illustrations[variant] : null
 
   return (
-    <div className="empty-state flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-white/[0.06] rounded-2xl">
+    <div
+      className={`empty-state flex flex-col items-center justify-center py-10 md:py-14 px-4 text-center border border-dashed border-white/[0.08] rounded-xl ${className}`}
+    >
       {illustration ? (
-        <div className="mb-5">{illustration}</div>
+        <div className="mb-4 scale-75 md:scale-100 -my-2 md:my-0">{illustration}</div>
       ) : icon ? (
-        <div className="w-16 h-16 rounded-full bg-white/[0.03] flex items-center justify-center text-gray-500 mb-4">
+        <div className="w-12 h-12 rounded-full bg-white/[0.03] flex items-center justify-center text-gray-500 mb-3">
           {icon}
         </div>
       ) : null}
-      <h3 className="text-lg font-medium text-gray-200 mb-1">{title}</h3>
-      {description && <p className="text-sm text-gray-400 mb-4 max-w-xs sm:max-w-md">{description}</p>}
-      {action}
+      <h3 className="text-base font-medium text-gray-200">{title}</h3>
+      {description && <p className="mt-1 text-sm text-gray-500 max-w-xs sm:max-w-md">{description}</p>}
+      {action && <div className="mt-4 flex flex-wrap items-center justify-center gap-2">{action}</div>}
     </div>
   )
 }

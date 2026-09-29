@@ -1,15 +1,20 @@
 /**
- * RunnerHeader — uses the design system <PageHeader> with breadcrumb, status badge, and actions.
+ * RunnerHeader — PageHeader of the runner dashboard.
  *
- * Actions: Cancel Run (while running), Retry Run (when failed/budget_exceeded).
+ *   Pipelines
+ *   <Plan title>                                  [Cancel run | Retry run] [⋯]
+ *   ● Running · 3/8 tasks · 1 failed · 04:12 · wave 2/3 · run 1a2b3c4d
+ *
+ * Cancel asks for confirmation (CancelButton). ⋯ → Open plan, Copy run ID.
+ * Actions wrap under the title on phones (PageHeader); nothing truncates.
  */
 
-import { useMemo } from 'react'
-import { ClipboardList, Rocket, RotateCcw } from 'lucide-react'
-import { PageHeader } from '@/components/ui/PageHeader'
-import { Button } from '@/components/ui/Button'
+import { useNavigate } from 'react-router-dom'
+import { ClipboardList, Copy, Rocket, RotateCcw } from 'lucide-react'
+import { Button, PageHeader, ToneText } from '@/components/ui'
+import { useToast } from '@/hooks'
 import { CancelButton } from './CancelButton'
-import { runStatusConfig } from './shared'
+import { formatElapsed, runStateMeta } from './shared'
 import type { RunSnapshot } from '@/services/runner'
 
 export interface RunnerHeaderProps {
@@ -19,6 +24,10 @@ export interface RunnerHeaderProps {
   workspacePath: (slug: string, path: string) => string
   effectiveSnapshot: RunSnapshot
   isRunning: boolean
+  /** Total number of waves (when known). */
+  wavesTotal?: number | null
+  /** Failed agents / tasks in this run. */
+  failedCount?: number
   /** Called when user clicks "Retry Run" on a failed/budget_exceeded run */
   onRetryRun?: () => void
   retrying?: boolean
@@ -29,61 +38,65 @@ export function RunnerHeader({
   planTitle,
   wsSlug,
   workspacePath: wpFn,
-  effectiveSnapshot,
+  effectiveSnapshot: snap,
   isRunning,
+  wavesTotal,
+  failedCount = 0,
   onRetryRun,
   retrying = false,
 }: RunnerHeaderProps) {
-  const statusStr = effectiveSnapshot.status ?? (effectiveSnapshot.running ? 'running' : 'completed')
-  const statusCfg = runStatusConfig[statusStr] ?? runStatusConfig.running
-
-  const statusBadge = useMemo(() => (
-    <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${statusCfg.bg} ${statusCfg.text}`}
-    >
-      <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot} ${isRunning ? 'animate-pulse' : ''}`} />
-      {statusCfg.label}
-    </span>
-  ), [statusCfg, isRunning])
-
+  const navigate = useNavigate()
+  const toast = useToast()
+  const statusStr = snap.status ?? (snap.running ? 'running' : 'completed')
+  const meta = runStateMeta(statusStr)
   const canRetry = !isRunning && (statusStr === 'failed' || statusStr === 'budget_exceeded' || statusStr === 'cancelled')
-
-  const actions = useMemo(() => (
-    <div className="flex items-center gap-2">
-      {isRunning && <CancelButton planId={planId} isRunning={isRunning} />}
-      {canRetry && onRetryRun && (
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={onRetryRun}
-          disabled={retrying}
-        >
-          {statusStr === 'budget_exceeded' ? (
-            <Rocket className="w-3.5 h-3.5" />
-          ) : (
-            <RotateCcw className={`w-3.5 h-3.5 ${retrying ? 'animate-spin' : ''}`} />
-          )}
-          {retrying ? 'Retrying...' : statusStr === 'budget_exceeded' ? 'Relaunch' : 'Retry Run'}
-        </Button>
-      )}
-    </div>
-  ), [isRunning, planId, canRetry, onRetryRun, retrying, statusStr])
-
-  const parentLinks = useMemo(() => [
-    {
-      icon: ClipboardList,
-      label: 'Plan',
-      name: planTitle,
-      href: wpFn(wsSlug, `/plans/${planId}`),
-    },
-  ], [planId, planTitle, wpFn, wsSlug])
+  const wave = snap.current_wave != null ? snap.current_wave + 1 : null
 
   return (
     <PageHeader
-      title="Runner Dashboard"
-      parentLinks={parentLinks}
-      status={statusBadge}
-      actions={actions}
+      title={planTitle}
+      parentLinks={[{ icon: Rocket, label: 'Pipelines', name: 'Pipelines', href: wpFn(wsSlug, '/pipelines') }]}
+      status={<ToneText tone={meta.tone} label={meta.label} pulse={meta.live && isRunning} />}
+      meta={[
+        <span key="t" className="tabular-nums">
+          {snap.tasks_completed ?? 0}/{snap.tasks_total ?? 0} tasks
+        </span>,
+        failedCount > 0 ? <span key="f" className="text-red-400">{failedCount} failed</span> : null,
+        <span key="e" className="font-mono tabular-nums">{formatElapsed(snap.elapsed_secs)}</span>,
+        wave != null ? <span key="w" className="tabular-nums">wave {wave}{wavesTotal ? `/${wavesTotal}` : ''}</span> : null,
+        snap.run_id ? <span key="id" className="font-mono text-gray-600">run {snap.run_id.slice(0, 8)}</span> : null,
+      ]}
+      actions={
+        isRunning ? (
+          <CancelButton planId={planId} isRunning={isRunning} />
+        ) : canRetry && onRetryRun ? (
+          <Button variant="secondary" size="sm" onClick={onRetryRun} loading={retrying} className="gap-1.5">
+            {!retrying &&
+              (statusStr === 'budget_exceeded' ? (
+                <Rocket className="w-3.5 h-3.5" aria-hidden="true" />
+              ) : (
+                <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+              ))}
+            {statusStr === 'budget_exceeded' ? 'Relaunch' : 'Retry run'}
+          </Button>
+        ) : undefined
+      }
+      overflowActions={[
+        { label: 'Open plan', icon: ClipboardList, onClick: () => navigate(wpFn(wsSlug, `/plans/${planId}`)) },
+        {
+          label: 'Copy run ID',
+          icon: Copy,
+          hidden: !snap.run_id,
+          onClick: async () => {
+            try {
+              await navigator.clipboard.writeText(snap.run_id ?? '')
+              toast.success('Run ID copied')
+            } catch {
+              toast.error('Failed to copy to clipboard')
+            }
+          },
+        },
+      ]}
     />
   )
 }

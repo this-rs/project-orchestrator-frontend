@@ -1,124 +1,58 @@
-import { useDraggable } from '@dnd-kit/core'
-import { CSS } from '@dnd-kit/utilities'
-import { AlertCircle } from 'lucide-react'
-import type { Task, TaskWithPlan } from '@/types'
-import { Badge } from '@/components/ui'
+import type { ReactNode } from 'react'
+import type { Task, TaskStatus } from '@/types'
+import { PriorityText, StatusMenu } from '@/components/ui'
+import { BoardCard, BoardCardOverlay } from './BoardCard'
 
 /** KanbanTask is the minimal type the card needs — works with both Task and TaskWithPlan */
 export type KanbanTask = Task & { plan_title?: string; plan_id?: string }
 
-interface KanbanCardProps {
-  task: KanbanTask
-  onClick?: () => void
+function taskTitle(task: KanbanTask) {
+  return task.title || (task.description || '').slice(0, 80) || 'Untitled task'
 }
 
-export function KanbanCard({ task, onClick }: KanbanCardProps) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: task.id,
-    data: { task },
-  })
-
-  const style = transform
-    ? {
-        transform: CSS.Translate.toString(transform),
-        zIndex: isDragging ? 50 : undefined,
-      }
-    : undefined
-
+function taskMeta(task: KanbanTask, status?: ReactNode): ReactNode[] {
   const tags = task.tags || []
-  const isBlocked = task.status === 'blocked'
-  const planTitle = (task as TaskWithPlan).plan_title
+  return [
+    status,
+    <PriorityText key="p" priority={task.priority} />,
+    task.plan_title ? (
+      <span key="plan" className="truncate max-w-[12rem]" title={`Plan: ${task.plan_title}`}>
+        {task.plan_title}
+      </span>
+    ) : null,
+    task.assigned_to ? <span key="a" className="truncate max-w-[8rem]" title={`Assigned to ${task.assigned_to}`}>@{task.assigned_to}</span> : null,
+    tags.length > 0 ? (
+      <span key="tags" className="truncate max-w-[12rem]" title={tags.map((t) => `#${t}`).join(' ')}>
+        {tags.slice(0, 2).map((t) => `#${t}`).join(' ')}
+        {tags.length > 2 ? ` +${tags.length - 2}` : ''}
+      </span>
+    ) : null,
+  ]
+}
 
+interface KanbanCardProps {
+  task: KanbanTask
+  onStatusChange?: (status: TaskStatus) => Promise<void>
+}
+
+export function KanbanCard({ task, onStatusChange }: KanbanCardProps) {
+  const title = taskTitle(task)
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...listeners}
-      {...attributes}
-      onClick={(e) => {
-        if (!isDragging && onClick) {
-          e.stopPropagation()
-          onClick()
-        }
-      }}
-      className={`rounded-lg border p-3 cursor-grab active:cursor-grabbing transition-all duration-150 select-none ${
-        isDragging
-          ? 'opacity-50 rotate-2 shadow-xl border-indigo-500 bg-surface-raised'
-          : isBlocked
-            ? 'border-yellow-500/50 bg-surface-raised hover:border-yellow-400'
-            : 'border-border-subtle bg-surface-raised hover:border-indigo-500 hover:shadow-lg'
-      }`}
-    >
-      {/* Title */}
-      <div className="flex items-start justify-between gap-2 mb-1">
-        <h4 className="text-sm font-medium text-gray-100 line-clamp-2 flex-1">
-          {task.title || (task.description || '').slice(0, 60)}
-        </h4>
-        {task.priority !== undefined && (
-          <span className="text-xs font-bold text-indigo-400 shrink-0">{task.priority}</span>
-        )}
-      </div>
-
-      {/* Plan badge (only if available) */}
-      {planTitle && (
-        <div className="text-xs text-gray-500 truncate mb-2">{planTitle}</div>
+    <BoardCard
+      id={task.id}
+      dataKey="task"
+      item={task}
+      ariaLabel={title}
+      title={title}
+      meta={taskMeta(
+        task,
+        onStatusChange ? <StatusMenu key="s" kind="task" status={task.status} onChange={onStatusChange} /> : null,
       )}
-
-      {/* Bottom row: assigned + tags + blocked indicator */}
-      <div className="flex items-center gap-1 flex-wrap">
-        {isBlocked && (
-          <span className="text-xs text-yellow-400" title="Blocked">
-            <AlertCircle className="w-3.5 h-3.5 inline" />
-          </span>
-        )}
-
-        {task.assigned_to && (
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-[10px] font-bold text-white shrink-0" title={task.assigned_to}>
-            {task.assigned_to.slice(0, 2).toUpperCase()}
-          </span>
-        )}
-
-        {tags.slice(0, 3).map((tag, i) => (
-          <Badge key={`${tag}-${i}`} variant="default" className="text-[10px] px-1.5 py-0">
-            {tag}
-          </Badge>
-        ))}
-        {tags.length > 3 && (
-          <span className="text-[10px] text-gray-500">+{tags.length - 3}</span>
-        )}
-      </div>
-    </div>
+    />
   )
 }
 
 /** Card rendered in the DragOverlay (no drag listeners) */
 export function KanbanCardOverlay({ task }: { task: KanbanTask }) {
-  const tags = task.tags || []
-  const planTitle = (task as TaskWithPlan).plan_title
-
-  return (
-    <div className="rounded-lg border border-indigo-500 bg-surface-raised p-3 shadow-2xl rotate-2 w-[244px] opacity-90">
-      <div className="flex items-start justify-between gap-2 mb-1">
-        <h4 className="text-sm font-medium text-gray-100 line-clamp-2 flex-1">
-          {task.title || (task.description || '').slice(0, 60)}
-        </h4>
-        {task.priority !== undefined && (
-          <span className="text-xs font-bold text-indigo-400 shrink-0">{task.priority}</span>
-        )}
-      </div>
-      {planTitle && <div className="text-xs text-gray-500 truncate mb-2">{planTitle}</div>}
-      <div className="flex items-center gap-1 flex-wrap">
-        {task.assigned_to && (
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-[10px] font-bold text-white shrink-0">
-            {task.assigned_to.slice(0, 2).toUpperCase()}
-          </span>
-        )}
-        {tags.slice(0, 3).map((tag, i) => (
-          <Badge key={`${tag}-${i}`} variant="default" className="text-[10px] px-1.5 py-0">
-            {tag}
-          </Badge>
-        ))}
-      </div>
-    </div>
-  )
+  return <BoardCardOverlay title={taskTitle(task)} meta={taskMeta(task)} />
 }

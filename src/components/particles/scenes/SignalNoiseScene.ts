@@ -32,7 +32,7 @@ function easeOutQuad(t: number): number {
 export class SignalNoiseScene implements ParticleScene {
   readonly name = 'signal-noise';
   readonly title = 'SIGNAL / NOISE';
-  readonly description = "un signal clair émerge quand le bruit s'efface";
+  readonly description = 'a clear signal emerges as the noise fades';
 
   private pool!: ParticlePool;
   private engine!: ParticleEngine;
@@ -229,7 +229,7 @@ export class SignalNoiseScene implements ParticleScene {
       const op =
         smoothstep(0, 0.05, progress) * (1 - smoothstep(0.15, 0.25, progress));
       renderLabel(ctx, {
-        text: 'BRUIT',
+        text: 'NOISE',
         x: width / 2,
         y: height - 30,
         opacity: op * 0.5,

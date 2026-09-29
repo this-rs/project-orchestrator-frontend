@@ -22,10 +22,16 @@ import {
   ProjectsPage,
   ProjectDetailPage,
   PlansPage,
+  TodayPage,
+  TrajectoryPage,
+  ArchitecturePage,
+  DocumentsPage,
+  DeploymentsPage,
   PlanDetailPage,
   TasksPage,
   TaskDetailPage,
   NotesPage,
+  NoteDetailPage,
   CodePage,
   DecisionsPage,
   DecisionDetailPage,
@@ -47,7 +53,6 @@ import {
   TriggerDashboardPage,
   IntelligencePage,
 
-  ParticlesShowcasePage,
   NotFoundPage,
   SettingsPage,
   SetupWizard,
@@ -191,12 +196,18 @@ function App() {
                           path="project-milestones/:milestoneId"
                           element={<ProjectMilestoneDetailPage />}
                         />
+                        <Route path="today" element={<TodayPage />} />
+                        <Route path="trajectory" element={<TrajectoryPage />} />
+                        <Route path="architecture" element={<ArchitecturePage />} />
+                        <Route path="documents" element={<DocumentsPage />} />
+                        <Route path="deployments" element={<DeploymentsPage />} />
                         <Route path="plans" element={<PlansPage />} />
                         <Route path="plans/:planId" element={<PlanDetailPage />} />
                         <Route path="plans/:planId/runner" element={<RunnerDashboard />} />
                         <Route path="tasks" element={<TasksPage />} />
                         <Route path="tasks/:taskId" element={<TaskDetailPage />} />
                         <Route path="notes" element={<NotesPage />} />
+                        <Route path="notes/:noteId" element={<NoteDetailPage />} />
                         <Route path="decisions" element={<DecisionsPage />} />
                         <Route path="decisions/:decisionId" element={<DecisionDetailPage />} />
                         <Route path="code" element={<CodePage />} />
@@ -220,7 +231,6 @@ function App() {
                         <Route path="sharing" element={<SharingPage />} />
                         <Route path="neural-routing" element={<NeuralRoutingPage />} />
                         <Route path="mcp-federation" element={<McpFederationPage />} />
-                        <Route path="particles" element={<ParticlesShowcasePage />} />
                         <Route path="admin" element={<AdminPage />} />
                         <Route path="*" element={<NotFoundPage embedded />} />
                       </Route>

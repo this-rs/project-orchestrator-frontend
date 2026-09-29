@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useId, type ReactNode, type CSSProperties } from 'react'
+import { useFloatingFallback } from './useFloatingFallback'
 
 interface DropdownOption<T> {
   value: T
@@ -40,6 +41,9 @@ export function Dropdown<T extends string>({
     menu.addEventListener('toggle', handleToggle)
     return () => menu.removeEventListener('toggle', handleToggle)
   }, [])
+
+  // iOS Safari < 26 / WKWebView: no CSS anchor positioning → place in JS
+  useFloatingFallback(triggerRef, menuRef, isOpen, { align: 'start' })
 
   const openMenu = () => {
     try {

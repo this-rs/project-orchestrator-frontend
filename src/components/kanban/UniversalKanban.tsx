@@ -10,7 +10,6 @@ import {
   closestCenter,
 } from '@dnd-kit/core'
 import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core'
-import { AnimatePresence } from 'motion/react'
 import { useKanbanColumnData, useIsMobile } from '@/hooks'
 import type { ColumnData } from '@/hooks'
 import { useCrudEventSync } from '@/hooks/useCrudEventSync'
@@ -89,54 +88,70 @@ export function UniversalKanban<T extends { id: string; status: string }>({
     else if (fallback) setActiveItem(fallback)
   }, [config.dataKey])
 
+  /**
+   * Optimistically move an item to another column, then persist; rollback on
+   * error. Shared by drag & drop and the cards' StatusMenu.
+   */
+  const moveItem = useCallback(
+    async (item: T, newStatus: string) => {
+      const oldStatus = item.status
+      if (oldStatus === newStatus) return
+      const cols = columnDataRef.current
+      if (!cols[oldStatus] || !cols[newStatus]) {
+        // Target column not loaded (hidden) — persist without local move.
+        await config.onStatusChange(item.id, newStatus)
+        cols[oldStatus]?.removeItem(item.id)
+        return
+      }
+
+      // Mark as optimistic so CrudEvent echo is skipped
+      markOptimistic(item.id)
+
+      // Optimistic: remove from source, add to destination
+      cols[oldStatus].removeItem(item.id)
+      cols[newStatus].addItem({ ...item, status: newStatus } as T)
+
+      try {
+        await config.onStatusChange(item.id, newStatus)
+      } catch (error) {
+        // Rollback: remove from destination, add back to source
+        cols[newStatus].removeItem(item.id)
+        cols[oldStatus].addItem(item)
+        console.error(`Failed to update ${config.entityType} status:`, error)
+      }
+    },
+    [config, markOptimistic],
+  )
+
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
       const draggedItem = activeItem
       setActiveItem(null)
-      const { active, over } = event
+      const { over } = event
       if (!over || !draggedItem) return
-
-      const itemId = active.id as string
-      const newStatus = over.id as string
-      const oldStatus = draggedItem.status
-
-      if (oldStatus === newStatus) return
-
       const cols = columnDataRef.current
-
-      if (!cols[oldStatus] || !cols[newStatus]) return
-
-      // Mark as optimistic so CrudEvent echo is skipped
-      markOptimistic(itemId)
-
-      // Optimistic: remove from source, add to destination
-      cols[oldStatus].removeItem(itemId)
-      cols[newStatus].addItem({ ...draggedItem, status: newStatus } as T)
-
-      try {
-        await config.onStatusChange(itemId, newStatus)
-      } catch (error) {
-        // Rollback: remove from destination, add back to source
-        cols[newStatus].removeItem(itemId)
-        cols[oldStatus].addItem(draggedItem)
-        console.error(`Failed to update ${config.entityType} status:`, error)
-      }
+      // Drops outside a known column are ignored
+      if (!cols[draggedItem.status] || !cols[over.id as string]) return
+      await moveItem(draggedItem, over.id as string)
     },
-    [activeItem, config, markOptimistic],
+    [activeItem, moveItem],
   )
+
+  const renderCard = (item: T) =>
+    config.renderCard(item, false, { changeStatus: (newStatus) => moveItem(item, newStatus) })
 
   if (isMobile) {
     return (
-      <div className="flex gap-3 overflow-x-auto pb-4 -mx-4 px-4 snap-x snap-mandatory">
+      <div className="flex gap-3 overflow-x-auto overscroll-x-contain pb-2 -mx-4 px-4 scroll-px-4 snap-x snap-mandatory">
         {visibleColumns.map((col) => {
           const data = columnDataMap[col.status]
           return (
-            <div key={col.status} className="w-[80vw] shrink-0 snap-start">
+            <div key={col.status} className="w-[82vw] max-w-[340px] shrink-0 snap-start flex">
               <UniversalKanbanColumn
                 id={col.status}
                 title={col.label}
                 items={data.items}
-                color={col.color}
+                kind={config.statusKind}
                 total={data.total}
                 hasMore={data.hasMore}
                 loadingMore={data.loadingMore}
@@ -146,12 +161,8 @@ export function UniversalKanban<T extends { id: string; status: string }>({
                 fullWidth
               >
                 {(item) => (
-                  <UniversalKanbanCard
-                    key={item.id}
-                    id={item.id}
-                    onClick={() => onItemClick?.(item.id)}
-                  >
-                    {config.renderCard(item, false)}
+                  <UniversalKanbanCard key={item.id} id={item.id} onClick={() => onItemClick?.(item.id)}>
+                    {renderCard(item)}
                   </UniversalKanbanCard>
                 )}
               </UniversalKanbanColumn>
@@ -169,7 +180,7 @@ export function UniversalKanban<T extends { id: string; status: string }>({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      <div className="flex gap-3 overflow-x-auto pb-2">
         {visibleColumns.map((col) => {
           const data = columnDataMap[col.status]
           return (
@@ -178,7 +189,7 @@ export function UniversalKanban<T extends { id: string; status: string }>({
               id={col.status}
               title={col.label}
               items={data.items}
-              color={col.color}
+              kind={config.statusKind}
               total={data.total}
               hasMore={data.hasMore}
               loadingMore={data.loadingMore}
@@ -187,14 +198,9 @@ export function UniversalKanban<T extends { id: string; status: string }>({
               emptyLabel={config.emptyLabel}
             >
               {(item) => (
-                <AnimatePresence mode="popLayout" key={item.id}>
-                  <UniversalKanbanCard
-                    id={item.id}
-                    onClick={() => onItemClick?.(item.id)}
-                  >
-                    {config.renderCard(item, false)}
-                  </UniversalKanbanCard>
-                </AnimatePresence>
+                <UniversalKanbanCard key={item.id} id={item.id} onClick={() => onItemClick?.(item.id)}>
+                  {renderCard(item)}
+                </UniversalKanbanCard>
               )}
             </UniversalKanbanColumn>
           )

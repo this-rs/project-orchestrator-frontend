@@ -48,7 +48,7 @@ describe('SystemScene', () => {
 
   it('has correct metadata', () => {
     expect(scene.name).toBe('system');
-    expect(scene.title).toBe('SYST\u00C8ME');
+    expect(scene.title).toBe('SYSTEM');
   });
 
   it('initializes and allocates ejection pool', () => {
@@ -117,7 +117,7 @@ describe('SystemScene', () => {
     expect(() => scene.draw(ctx, 800, 600)).not.toThrow();
   });
 
-  it('labels are drawn (MANUEL and SYSTÈME)', () => {
+  it('labels are drawn (MANUAL and SYSTEM)', () => {
     scene.init(800, 600);
     scene.update(0.016, 0, 0);
     scene.draw(ctx, 800, 600);

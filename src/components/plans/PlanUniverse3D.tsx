@@ -403,12 +403,12 @@ export function PlanUniverse3D({ planId, planTitle, projectSlug }: PlanUniverse3
                     : 'bg-white/[0.03] text-gray-600 border-white/[0.06] hover:bg-white/[0.06] hover:text-gray-500'
                 }`}
                 title={showAllFeatureGraphs
-                  ? `Masquer ${disconnectedFGs.length} non connecté${disconnectedFGs.length > 1 ? 's' : ''}`
-                  : `Voir tout (+${disconnectedFGs.length})`
+                  ? `Hide ${disconnectedFGs.length} unconnected`
+                  : `Show all (+${disconnectedFGs.length})`
                 }
               >
                 <Eye className="w-2.5 h-2.5" />
-                {showAllFeatureGraphs ? 'Connectés' : `+${disconnectedFGs.length}`}
+                {showAllFeatureGraphs ? 'Connected' : `+${disconnectedFGs.length}`}
               </button>
             )}
           </div>

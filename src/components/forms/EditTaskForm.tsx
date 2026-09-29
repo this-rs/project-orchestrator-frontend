@@ -90,7 +90,7 @@ export function EditTaskForm({ initialValues, onSubmit, loading }: Props) {
       </>
     ),
     submit: async () => {
-      if (!validate()) return
+      if (!validate()) return false
       const parsedTags = tagsInput.split(',').map(t => t.trim()).filter(Boolean)
       await onSubmit({
         title: title.trim(),

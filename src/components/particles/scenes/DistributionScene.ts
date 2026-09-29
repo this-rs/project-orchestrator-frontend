@@ -78,7 +78,7 @@ export class DistributionScene implements ParticleScene {
   readonly name = 'distribution';
   readonly title = 'DISTRIBUTION';
   readonly description =
-    'le contenu brillant sans distribution reste invisible';
+    'brilliant content without distribution stays invisible';
 
   private pool: ParticlePool | null = null;
   private engine: ParticleEngine | null = null;
@@ -311,7 +311,7 @@ export class DistributionScene implements ParticleScene {
 
     // Label under it
     renderLabel(ctx, {
-      text: 'contenu brillant',
+      text: 'brilliant content',
       x: leftCx,
       y: leftCy + 40,
       opacity: 0.5,
@@ -409,7 +409,7 @@ export class DistributionScene implements ParticleScene {
     reach = clamp(reach, 0, maxReach);
 
     renderLabel(ctx, {
-      text: `portée: ${reach}`,
+      text: `reach: ${reach}`,
       x: this.rightCx,
       y: height - 30,
       opacity: 0.7,
@@ -420,7 +420,7 @@ export class DistributionScene implements ParticleScene {
 
     // Left side "portée: 0" to emphasize isolation
     renderLabel(ctx, {
-      text: 'portée: 0',
+      text: 'reach: 0',
       x: leftCx,
       y: height - 30,
       opacity: 0.35,

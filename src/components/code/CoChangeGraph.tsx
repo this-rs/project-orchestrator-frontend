@@ -9,7 +9,7 @@ import {
   Handle,
   Position,
 } from '@xyflow/react'
-import { Card, CardHeader, CardTitle, CardContent, EmptyState } from '@/components/ui'
+import { EmptyState, Skeleton, metaText, surface } from '@/components/ui'
 import { GitBranch } from 'lucide-react'
 import { commitsApi, projectsApi } from '@/services'
 import type { CoChangeEdge } from '@/types'
@@ -228,12 +228,7 @@ export function CoChangeGraph({ projectSlug }: CoChangeGraphProps) {
   }, [])
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center gap-2 py-12">
-        <div className="w-4 h-4 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
-        <span className="text-sm text-gray-400">Loading co-change graph...</span>
-      </div>
-    )
+    return <Skeleton className="h-[500px] rounded-xl" aria-label="Loading co-change graph" />
   }
 
   if (edges.length === 0) {
@@ -247,32 +242,30 @@ export function CoChangeGraph({ projectSlug }: CoChangeGraphProps) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-2">
-            <GitBranch className="w-4 h-4 text-gray-500" />
-            <CardTitle>Co-Change Graph</CardTitle>
-            <span className="text-xs text-gray-500">
-              {flowNodes.length} files · {flowEdges.length} relationships
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500">Min co-changes:</label>
-            <input
-              type="range"
-              min={1}
-              max={Math.max(10, maxCount)}
-              value={minCount}
-              onChange={(e) => setMinCount(Number(e.target.value))}
-              className="w-24 h-1 accent-indigo-500"
-            />
-            <span className="text-xs text-gray-400 font-mono w-6 text-right">{minCount}</span>
-          </div>
+    <div className={`${surface} overflow-hidden`}>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 py-2 md:px-4 border-b border-white/[0.06]">
+        <div className="flex items-center gap-2 min-w-0">
+          <GitBranch className="w-4 h-4 shrink-0 text-gray-500" aria-hidden="true" />
+          <h3 className="text-sm font-semibold text-gray-200">Co-change graph</h3>
+          <span className={`${metaText} tabular-nums`}>
+            {flowNodes.length} files · {flowEdges.length} relationships
+          </span>
         </div>
-      </CardHeader>
-      <CardContent className="p-0">
-        <div className="h-[500px] bg-zinc-950 rounded-b-lg">
+        <label className={`flex items-center gap-2 ${metaText}`}>
+          Min co-changes
+          <input
+            type="range"
+            min={1}
+            max={Math.max(10, maxCount)}
+            value={minCount}
+            onChange={(e) => setMinCount(Number(e.target.value))}
+            className="w-24 h-1 accent-indigo-500"
+          />
+          <span className="text-gray-400 font-mono tabular-nums w-6 text-right">{minCount}</span>
+        </label>
+      </div>
+      <div>
+        <div className="h-[500px] bg-zinc-950">
           <ReactFlow
             nodes={flowNodes}
             edges={flowEdges}
@@ -287,7 +280,7 @@ export function CoChangeGraph({ projectSlug }: CoChangeGraphProps) {
             <Controls className="!bg-zinc-800 !border-white/[0.1] !shadow-lg [&>button]:!bg-zinc-800 [&>button]:!border-white/[0.06] [&>button]:!text-gray-400 [&>button:hover]:!bg-zinc-700" />
           </ReactFlow>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }

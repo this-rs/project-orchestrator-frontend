@@ -16,7 +16,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           ref={ref}
           className={`
             w-full px-3 py-2 bg-surface-base border border-border-default rounded-lg
-            text-gray-100 placeholder-gray-500 input-focus-glow
+            text-base md:text-sm text-gray-100 placeholder-gray-500 input-focus-glow
             disabled:opacity-50 disabled:cursor-not-allowed
             resize-vertical min-h-[80px]
             ${error ? 'border-red-500' : ''}

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Wand2, FileCode, Network, Hand, ArrowRight, ArrowLeft, Check } from 'lucide-react'
 import { personasApi } from '@/services'
-import { Button, Card, CardContent } from '@/components/ui'
+import { Button, EntityList, EntityRow, Input, Select, Textarea, pluralize } from '@/components/ui'
 import { useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import type { PersonaProposal } from '@/types'
@@ -14,15 +14,12 @@ type BuildMode = 'entry_point' | 'file_pattern' | 'community' | 'manual'
 interface WizardState {
   step: 0 | 1 | 2 | 3
   mode: BuildMode | null
-  // Mode-specific inputs
   entryFunction: string
   depth: number
   filePattern: string
   communityId: string
-  // Preview
   proposals: PersonaProposal[]
   loadingPreview: boolean
-  // Config
   name: string
   description: string
 }
@@ -40,30 +37,37 @@ const initialState: WizardState = {
   description: '',
 }
 
-// ── Mode cards ──────────────────────────────────────────────────────────
+// ── Modes ────────────────────────────────────────────────────────────────
 
 const modes: { key: BuildMode; label: string; description: string; icon: React.ElementType }[] = [
-  { key: 'entry_point', label: 'From Entry Point', description: 'Start from a function and traverse its call graph', icon: Wand2 },
-  { key: 'file_pattern', label: 'From File Pattern', description: 'Match files with a glob pattern (e.g. src/api/**/*.rs)', icon: FileCode },
-  { key: 'community', label: 'From Community', description: 'Use a detected code community cluster', icon: Network },
-  { key: 'manual', label: 'Manual', description: 'Start empty and add entities manually', icon: Hand },
+  { key: 'entry_point', label: 'From an entry point', description: 'Start from a function and follow its call graph.', icon: Wand2 },
+  { key: 'file_pattern', label: 'From a file pattern', description: 'Match files with a glob (e.g. src/api/**/*.rs).', icon: FileCode },
+  { key: 'community', label: 'From a code community', description: 'Use a cluster detected by code analysis.', icon: Network },
+  { key: 'manual', label: 'Manual', description: 'Start empty and link files, notes and skills later.', icon: Hand },
 ]
+
+const STEPS = ['Mode', 'Configure', 'Preview', 'Create']
 
 // ── Component ───────────────────────────────────────────────────────────
 
 interface PersonaBuilderProps {
+  /** Default destination project */
   projectId: string
+  /** Candidate projects — a selector is shown on the last step when > 1 */
+  projects?: { id: string; name: string }[]
   onClose: () => void
 }
 
-export function PersonaBuilder({ projectId, onClose }: PersonaBuilderProps) {
+export function PersonaBuilder({ projectId: defaultProjectId, projects = [], onClose }: PersonaBuilderProps) {
   const [state, setState] = useState<WizardState>(initialState)
+  const [projectId, setProjectId] = useState(defaultProjectId)
   const [creating, setCreating] = useState(false)
   const toast = useToast()
   const navigate = useNavigate()
   const wsSlug = useWorkspaceSlug()
 
   const update = (partial: Partial<WizardState>) => setState((prev) => ({ ...prev, ...partial }))
+  const modeLabel = modes.find((m) => m.key === state.mode)?.label
 
   const handlePreview = async () => {
     update({ loadingPreview: true })
@@ -81,29 +85,26 @@ export function PersonaBuilder({ projectId, onClose }: PersonaBuilderProps) {
       toast.error('Name is required')
       return
     }
+    if (!projectId) {
+      toast.error('Choose a project')
+      return
+    }
     setCreating(true)
     try {
-      if (state.mode === 'manual') {
-        const persona = await personasApi.create({
-          project_id: projectId,
-          name: state.name,
-          description: state.description,
-        })
-        toast.success(`Persona "${state.name}" created`)
-        navigate(workspacePath(wsSlug, `/personas/${persona.id}`))
-      } else {
-        // Auto-build with the selected mode
-        const persona = await personasApi.autoBuild({
-          project_id: projectId,
-          name: state.name,
-          description: state.description,
-          entry_function: state.mode === 'entry_point' ? state.entryFunction : undefined,
-          depth: state.mode === 'entry_point' ? state.depth : undefined,
-          file_pattern: state.mode === 'file_pattern' ? state.filePattern : state.mode === 'community' ? state.communityId : undefined,
-        })
-        toast.success(`Persona "${state.name}" created`)
-        navigate(workspacePath(wsSlug, `/personas/${persona.id}`))
-      }
+      const persona =
+        state.mode === 'manual'
+          ? await personasApi.create({ project_id: projectId, name: state.name, description: state.description })
+          : await personasApi.autoBuild({
+              project_id: projectId,
+              name: state.name,
+              description: state.description,
+              entry_function: state.mode === 'entry_point' ? state.entryFunction : undefined,
+              depth: state.mode === 'entry_point' ? state.depth : undefined,
+              file_pattern:
+                state.mode === 'file_pattern' ? state.filePattern : state.mode === 'community' ? state.communityId : undefined,
+            })
+      toast.success(`Persona “${state.name}” created`)
+      navigate(workspacePath(wsSlug, `/personas/${persona.id}`))
       onClose()
     } catch {
       toast.error('Failed to create persona')
@@ -112,216 +113,185 @@ export function PersonaBuilder({ projectId, onClose }: PersonaBuilderProps) {
     }
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Step indicator */}
-      <div className="flex items-center gap-2 text-sm">
-        {['Mode', 'Configure', 'Preview', 'Create'].map((label, i) => (
-          <div key={label} className="flex items-center gap-2">
-            {i > 0 && <div className="h-px w-6 bg-zinc-700" />}
-            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-              state.step === i
-                ? 'bg-indigo-500/20 text-indigo-400'
-                : state.step > i
-                  ? 'bg-emerald-500/20 text-emerald-400'
-                  : 'bg-zinc-800 text-zinc-500'
-            }`}>
-              {state.step > i ? <Check className="h-3 w-3" /> : <span>{i + 1}</span>}
-              <span className="hidden sm:inline">{label}</span>
-            </div>
-          </div>
-        ))}
-      </div>
+  const back = (step: WizardState['step']) => (
+    <Button variant="ghost" size="sm" onClick={() => update({ step })}>
+      <ArrowLeft className="w-4 h-4 mr-1" aria-hidden="true" />
+      Back
+    </Button>
+  )
 
-      {/* Step 0: Choose mode */}
+  return (
+    <div className="space-y-4">
+      {/* Step indicator */}
+      <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" aria-label="Steps">
+        {STEPS.map((label, i) => {
+          const done = state.step > i
+          const current = state.step === i
+          return (
+            <li key={label} className="flex items-center gap-2" aria-current={current ? 'step' : undefined}>
+              {i > 0 && <span className="h-px w-4 bg-white/[0.1]" aria-hidden="true" />}
+              <span className={`inline-flex items-center gap-1 ${current ? 'text-indigo-300' : done ? 'text-emerald-400' : 'text-gray-500'}`}>
+                {done ? <Check className="w-3 h-3" aria-hidden="true" /> : <span className="tabular-nums">{i + 1}</span>}
+                {label}
+              </span>
+            </li>
+          )
+        })}
+      </ol>
+
+      {/* Step 0: mode — one row per option (no cards), chevron = drill-down */}
       {state.step === 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <EntityList aria-label="Build mode">
           {modes.map(({ key, label, description, icon: ModeIcon }) => (
-            <button
+            <EntityRow
               key={key}
+              title={label}
+              description={description}
               onClick={() => update({ mode: key, step: 1 })}
-              className={`text-left p-4 rounded-lg border transition-colors ${
-                state.mode === key
-                  ? 'border-indigo-500 bg-indigo-500/10'
-                  : 'border-zinc-700 bg-zinc-900/50 hover:border-zinc-600 hover:bg-zinc-800/50'
-              }`}
-            >
-              <ModeIcon className="h-5 w-5 mb-2 text-indigo-400" />
-              <div className="font-medium text-sm">{label}</div>
-              <div className="text-xs text-zinc-500 mt-1">{description}</div>
-            </button>
+              selected={state.mode === key}
+              leading={<ModeIcon className="w-4 h-4 text-indigo-400" aria-hidden="true" />}
+              chevron
+            />
           ))}
+        </EntityList>
+      )}
+
+      {/* Step 1: configure */}
+      {state.step === 1 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-gray-200">Configure — {modeLabel}</h3>
+
+          {state.mode === 'entry_point' && (
+            <>
+              <Input
+                label="Entry function"
+                value={state.entryFunction}
+                onChange={(e) => update({ entryFunction: e.target.value })}
+                placeholder="e.g. handle_request, main"
+              />
+              <Input
+                label="Traversal depth"
+                type="number"
+                min={1}
+                max={10}
+                value={state.depth}
+                onChange={(e) => update({ depth: Number(e.target.value) })}
+              />
+            </>
+          )}
+
+          {state.mode === 'file_pattern' && (
+            <Input
+              label="Glob pattern"
+              className="font-mono"
+              value={state.filePattern}
+              onChange={(e) => update({ filePattern: e.target.value })}
+              placeholder="e.g. src/api/**/*.rs"
+            />
+          )}
+
+          {state.mode === 'community' && (
+            <div>
+              <Input
+                label="Community ID"
+                value={state.communityId}
+                onChange={(e) => update({ communityId: e.target.value })}
+                placeholder="Community ID from code analysis"
+              />
+              <p className="mt-1 text-xs text-gray-500">Run community detection from the Code page to see available clusters.</p>
+            </div>
+          )}
+
+          {state.mode === 'manual' && (
+            <p className="text-sm text-gray-400">A manual persona starts empty. Link files, notes and skills after creation.</p>
+          )}
+
+          <div className="flex flex-wrap justify-between gap-2 pt-1">
+            {back(0)}
+            <Button
+              size="sm"
+              onClick={() => (state.mode === 'manual' ? update({ step: 3 }) : handlePreview())}
+              loading={state.loadingPreview}
+            >
+              {state.mode === 'manual' ? 'Skip to create' : 'Preview'}
+              <ArrowRight className="w-4 h-4 ml-1" aria-hidden="true" />
+            </Button>
+          </div>
         </div>
       )}
 
-      {/* Step 1: Mode-specific configuration */}
-      {state.step === 1 && (
-        <Card>
-          <CardContent className="p-4 space-y-4">
-            <h3 className="text-sm font-medium text-zinc-300">
-              Configure — {modes.find((m) => m.key === state.mode)?.label}
-            </h3>
-
-            {state.mode === 'entry_point' && (
-              <>
-                <div>
-                  <label className="text-xs text-zinc-500">Entry Function</label>
-                  <input
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm mt-1"
-                    value={state.entryFunction}
-                    onChange={(e) => update({ entryFunction: e.target.value })}
-                    placeholder="e.g. handle_request, main, process_event"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-zinc-500">Traversal Depth</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={10}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm mt-1"
-                    value={state.depth}
-                    onChange={(e) => update({ depth: Number(e.target.value) })}
-                  />
-                </div>
-              </>
-            )}
-
-            {state.mode === 'file_pattern' && (
-              <div>
-                <label className="text-xs text-zinc-500">Glob Pattern</label>
-                <input
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm mt-1"
-                  value={state.filePattern}
-                  onChange={(e) => update({ filePattern: e.target.value })}
-                  placeholder="e.g. src/api/**/*.rs, src/services/*.ts"
-                />
-              </div>
-            )}
-
-            {state.mode === 'community' && (
-              <div>
-                <label className="text-xs text-zinc-500">Community ID</label>
-                <input
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm mt-1"
-                  value={state.communityId}
-                  onChange={(e) => update({ communityId: e.target.value })}
-                  placeholder="Community ID from code analysis"
-                />
-                <p className="text-xs text-zinc-600 mt-1">
-                  Run community detection from the Code page to see available clusters.
-                </p>
-              </div>
-            )}
-
-            {state.mode === 'manual' && (
-              <p className="text-sm text-zinc-500">
-                A manual persona starts empty. You can add files, notes, and skills after creation.
-              </p>
-            )}
-
-            <div className="flex justify-between pt-2">
-              <Button variant="ghost" size="sm" onClick={() => update({ step: 0 })}>
-                <ArrowLeft className="h-4 w-4 mr-1" />
-                Back
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  if (state.mode === 'manual') {
-                    update({ step: 3 })
-                  } else {
-                    handlePreview()
-                  }
-                }}
-                loading={state.loadingPreview}
-              >
-                {state.mode === 'manual' ? 'Skip to Create' : 'Preview'}
-                <ArrowRight className="h-4 w-4 ml-1" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Step 2: Preview */}
+      {/* Step 2: preview */}
       {state.step === 2 && (
-        <Card>
-          <CardContent className="p-4 space-y-4">
-            <h3 className="text-sm font-medium text-zinc-300">Preview — Detected Proposals</h3>
-            {state.proposals.length === 0 ? (
-              <p className="text-sm text-zinc-500 py-4 text-center">
-                No proposals detected. Try a different configuration or create manually.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {state.proposals.map((p, i) => (
-                  <div key={i} className="p-3 rounded-lg bg-zinc-900/50 border border-zinc-800">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium">{p.suggested_name}</span>
-                      <span className="text-xs text-zinc-500">
-                        {p.file_count} files · {(p.confidence * 100).toFixed(0)}% confidence
-                      </span>
-                    </div>
-                    {p.sample_files && p.sample_files.length > 0 && (
-                      <div className="text-xs text-zinc-600 font-mono mt-1">
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-gray-200">Detected proposals</h3>
+          <p className="text-xs text-gray-500">Tap a proposal to reuse its suggested name.</p>
+          {state.proposals.length === 0 ? (
+            <p className="text-sm text-gray-500 py-4 text-center">No proposal detected. Try another configuration or create manually.</p>
+          ) : (
+            <EntityList aria-label="Detected proposals">
+              {state.proposals.map((p, i) => (
+                <EntityRow
+                  key={`${p.community_id}-${i}`}
+                  title={p.suggested_name}
+                  onClick={() => update({ name: p.suggested_name, step: 3 })}
+                  trailing={<span title="Confidence">{(p.confidence * 100).toFixed(0)}%</span>}
+                  meta={[pluralize(p.file_count, 'file'), `community ${p.community_id}`]}
+                  context={
+                    p.sample_files?.length > 0 ? (
+                      <p className="text-[11px] leading-4 text-gray-500 font-mono break-all" title={p.sample_files.join('\n')}>
                         {p.sample_files.slice(0, 3).join(', ')}
                         {p.sample_files.length > 3 && ` +${p.sample_files.length - 3} more`}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex justify-between pt-2">
-              <Button variant="ghost" size="sm" onClick={() => update({ step: 1 })}>
-                <ArrowLeft className="h-4 w-4 mr-1" />
-                Back
-              </Button>
-              <Button size="sm" onClick={() => update({ step: 3 })}>
-                Configure
-                <ArrowRight className="h-4 w-4 ml-1" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+                      </p>
+                    ) : undefined
+                  }
+                  chevron
+                />
+              ))}
+            </EntityList>
+          )}
+          <div className="flex flex-wrap justify-between gap-2 pt-1">
+            {back(1)}
+            <Button size="sm" onClick={() => update({ step: 3 })}>
+              Continue
+              <ArrowRight className="w-4 h-4 ml-1" aria-hidden="true" />
+            </Button>
+          </div>
+        </div>
       )}
 
-      {/* Step 3: Final config + create */}
+      {/* Step 3: create */}
       {state.step === 3 && (
-        <Card>
-          <CardContent className="p-4 space-y-4">
-            <h3 className="text-sm font-medium text-zinc-300">Create Persona</h3>
-            <div>
-              <label className="text-xs text-zinc-500">Name *</label>
-              <input
-                className="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm mt-1"
-                value={state.name}
-                onChange={(e) => update({ name: e.target.value })}
-                placeholder="e.g. API Layer Expert, Auth Module"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-zinc-500">Description</label>
-              <textarea
-                className="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm h-20 mt-1"
-                value={state.description}
-                onChange={(e) => update({ description: e.target.value })}
-                placeholder="What this persona specializes in..."
-              />
-            </div>
-            <div className="flex justify-between pt-2">
-              <Button variant="ghost" size="sm" onClick={() => update({ step: state.mode === 'manual' ? 1 : 2 })}>
-                <ArrowLeft className="h-4 w-4 mr-1" />
-                Back
-              </Button>
-              <Button size="sm" onClick={handleCreate} loading={creating}>
-                <Check className="h-4 w-4 mr-1" />
-                Create Persona
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-gray-200">Create persona</h3>
+          {projects.length > 1 && (
+            <Select
+              label="Project"
+              options={projects.map((p) => ({ value: p.id, label: p.name }))}
+              value={projectId}
+              onChange={setProjectId}
+            />
+          )}
+          <Input
+            label="Name *"
+            value={state.name}
+            onChange={(e) => update({ name: e.target.value })}
+            placeholder="e.g. API layer expert"
+          />
+          <Textarea
+            label="Description"
+            rows={3}
+            value={state.description}
+            onChange={(e) => update({ description: e.target.value })}
+            placeholder="What this persona specialises in…"
+          />
+          <div className="flex flex-wrap justify-between gap-2 pt-1">
+            {back(state.mode === 'manual' ? 1 : 2)}
+            <Button size="sm" onClick={handleCreate} loading={creating}>
+              {!creating && <Check className="w-4 h-4 mr-1" aria-hidden="true" />}
+              Create persona
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   )

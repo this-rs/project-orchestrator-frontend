@@ -45,7 +45,7 @@ export class FocusSplitScene implements ParticleScene {
   readonly name = 'focus-split';
   readonly title = 'FOCUS';
   readonly description =
-    'Même énergie, résultat radicalement différent — dispersé vs focalisé';
+    'Same energy, radically different result — dispersed vs focused';
 
   private leftPool!: ParticlePool;
   private leftEngine!: ParticleEngine;
@@ -168,7 +168,7 @@ export class FocusSplitScene implements ParticleScene {
     });
     ctx.shadowBlur = 0;
     ctx.globalAlpha = 1;
-    renderLabel(ctx, { text: 'dispersé', x: halfW / 2, y: height - 30, opacity: 0.5, size: 11 });
+    renderLabel(ctx, { text: 'dispersed', x: halfW / 2, y: height - 30, opacity: 0.5, size: 11 });
     ctx.restore();
 
     // ── Right: focused ──
@@ -188,7 +188,7 @@ export class FocusSplitScene implements ParticleScene {
       renderGlowDot(ctx, rp.trail[0].x, rp.trail[0].y, 1.5 + ep * 0.5, 0.6 + ep * 0.3, '#ffffff', 6);
     }
 
-    renderLabel(ctx, { text: 'focalisé', x: halfW + halfW / 2, y: height - 30, opacity: 0.5, size: 11 });
+    renderLabel(ctx, { text: 'focused', x: halfW + halfW / 2, y: height - 30, opacity: 0.5, size: 11 });
     ctx.restore();
 
     renderTitle(ctx, 'FOCUS', width, 0.5);
@@ -220,7 +220,7 @@ interface BurstDot {
 export class PromptOutputPhaseScene implements ParticleScene {
   readonly name = 'prompt-output-phase';
   readonly title = 'PROMPT → OUTPUT';
-  readonly description = '3 mots en entrée, un monde en sortie — input amplification';
+  readonly description = '3 words in, a world out — input amplification';
 
   private burst: BurstDot[] = [];
   private progress = 0;
@@ -367,7 +367,7 @@ interface Spiral {
 export class HumanAISplitScene implements ParticleScene {
   readonly name = 'human-ai-split';
   readonly title = 'HUMAN + AI';
-  readonly description = 'Même personne, output multiplié par 50';
+  readonly description = 'Same person, output multiplied by 50';
 
   private spirals: Spiral[] = [];
   private spawnAngle = 0;
@@ -490,7 +490,7 @@ const AGENTS = 6;
 export class DelegationSplitScene implements ParticleScene {
   readonly name = 'delegation-split';
   readonly title = 'DELEGATION';
-  readonly description = 'Un cerveau délègue — séquentiel vs parallèle';
+  readonly description = 'One brain delegates — sequential vs parallel';
 
   private progress = 0;
 
@@ -534,7 +534,7 @@ export class DelegationSplitScene implements ParticleScene {
       if (on) renderLine(ctx, seqCx, topY + 8, ax, botY - 8, 0.4, 1.5, '#22d3ee');
       renderGlowDot(ctx, ax, botY, on ? 6 : 4, on ? 1 : 0.3, on ? '#ffffff' : '#666666', on ? 10 : 4);
     }
-    renderLabel(ctx, { text: 'séquentiel', x: seqCx, y: height - 24, opacity: 0.5, size: 10 });
+    renderLabel(ctx, { text: 'sequential', x: seqCx, y: height - 24, opacity: 0.5, size: 10 });
     ctx.restore();
 
     // ── Right: Parallel ──
@@ -556,7 +556,7 @@ export class DelegationSplitScene implements ParticleScene {
       const ao = smoothstep(0.3 + i * 0.02, 0.35 + i * 0.02, p);
       renderGlowDot(ctx, ax, botY, ao > 0.5 ? 6 : 4, Math.max(0.3, ao), ao > 0.5 ? '#ffffff' : '#666666', ao > 0.5 ? 10 : 4);
     }
-    renderLabel(ctx, { text: 'parallèle', x: parCx, y: height - 24, opacity: 0.5, size: 10 });
+    renderLabel(ctx, { text: 'parallel', x: parCx, y: height - 24, opacity: 0.5, size: 10 });
     ctx.restore();
 
     renderTitle(ctx, 'DELEGATION', width, 0.5);

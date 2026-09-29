@@ -16,8 +16,5 @@ export { mapRunNodeToGantt, flattenRunTree } from './runHelpers'
 
 export { RfcStatusBadge } from './RfcStatusBadge'
 
-export { RfcCard } from './RfcCard'
-
 export { RfcDashboardPage } from './RfcDashboardPage'
 
-export { ProtocolCard } from './ProtocolCard'

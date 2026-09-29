@@ -21,7 +21,8 @@
 import { useCallback } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
 import { useAtom, useAtomValue } from 'jotai'
-import { ArrowLeft, Settings } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
+import { Button, PageContainer, PageHeader, Section, surface } from '@/components/ui'
 import { isTauri } from '@/services/env'
 import { PermissionSettingsPanel } from '@/components/chat/PermissionSettingsPanel'
 import { settingsReturnUrlAtom } from '@/atoms/setup'
@@ -65,38 +66,30 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="flex h-dvh flex-col bg-[var(--bg-primary)]">
-      {/* ── Page header ── */}
-      <header className="flex items-center gap-3 border-b border-white/[0.06] px-6 py-4 shrink-0">
-        <button
-          onClick={handleBack}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] transition-colors"
-          title="Go back"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
-        <div className="flex items-center gap-2">
-          <Settings className="w-5 h-5 text-gray-400" />
-          <h1 className="text-lg font-semibold text-gray-200">Settings</h1>
-        </div>
-      </header>
+    <div className="h-dvh overflow-y-auto bg-[var(--bg-primary)]">
+      {/* Not inside MainLayout → provide the standard 16px / 24px gutters here */}
+      <div className="px-4 md:px-6">
+        <PageContainer width="narrow" className="space-y-6">
+          <div className="space-y-1">
+            <Button variant="ghost" size="sm" onClick={handleBack} className="-ml-3 text-gray-400">
+              <ArrowLeft className="w-4 h-4 mr-1.5" aria-hidden="true" />
+              Back
+            </Button>
+            <PageHeader
+              title="Settings"
+              description="Desktop app settings. They apply to every conversation with the agents."
+            />
+          </div>
 
-      {/* ── Content area ── */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-2xl px-6 py-6 space-y-6">
-          {/* Chat & AI Configuration section */}
-          <section className="rounded-xl border border-white/[0.06] bg-white/[0.01] overflow-hidden">
-            <div className="px-5 py-3 border-b border-white/[0.06] bg-white/[0.02]">
-              <h2 className="text-sm font-semibold text-gray-300">Chat & AI Configuration</h2>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Permission mode, tool patterns, environment, and Claude Code CLI settings.
-              </p>
-            </div>
-            <div className="[&>div]:border-none">
+          <Section
+            title="Chat & AI"
+            description="Permission mode, allowed and denied tools, environment variables and the Claude Code CLI used by the agents."
+          >
+            <div className={`${surface} overflow-hidden [&>div]:border-none`}>
               <PermissionSettingsPanel />
             </div>
-          </section>
-        </div>
+          </Section>
+        </PageContainer>
       </div>
     </div>
   )

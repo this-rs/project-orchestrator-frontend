@@ -1,5 +1,5 @@
 import { Shield, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react'
-import { Tooltip } from '@/components/ui'
+import { TONE_CLASSES, type StatusTone } from '@/components/ui'
 import type { TrustLevel } from '@/types'
 
 // ── Trust level config ────────────────────────────────────────────────────
@@ -7,53 +7,25 @@ import type { TrustLevel } from '@/types'
 interface TrustConfig {
   label: string
   icon: typeof Shield
-  barColor: string
-  textColor: string
-  bgColor: string
-  ringColor: string
-  glowClass: string
+  tone: StatusTone
 }
 
 const trustConfigs: Record<TrustLevel, TrustConfig> = {
-  high: {
-    label: 'High Trust',
-    icon: ShieldCheck,
-    barColor: 'bg-emerald-500',
-    textColor: 'text-emerald-400',
-    bgColor: 'bg-emerald-900/50',
-    ringColor: 'ring-emerald-500/20',
-    glowClass: 'glow-success',
-  },
-  medium: {
-    label: 'Medium Trust',
-    icon: Shield,
-    barColor: 'bg-amber-500',
-    textColor: 'text-amber-400',
-    bgColor: 'bg-amber-900/50',
-    ringColor: 'ring-amber-500/20',
-    glowClass: 'glow-warning',
-  },
-  low: {
-    label: 'Low Trust',
-    icon: ShieldAlert,
-    barColor: 'bg-orange-500',
-    textColor: 'text-orange-400',
-    bgColor: 'bg-orange-900/50',
-    ringColor: 'ring-orange-500/20',
-    glowClass: '',
-  },
-  untrusted: {
-    label: 'Untrusted',
-    icon: ShieldX,
-    barColor: 'bg-red-500',
-    textColor: 'text-red-400',
-    bgColor: 'bg-red-900/50',
-    ringColor: 'ring-red-500/20',
-    glowClass: 'glow-danger',
-  },
+  high: { label: 'High trust', icon: ShieldCheck, tone: 'success' },
+  medium: { label: 'Medium trust', icon: Shield, tone: 'warning' },
+  low: { label: 'Low trust', icon: ShieldAlert, tone: 'warning' },
+  untrusted: { label: 'Untrusted', icon: ShieldX, tone: 'danger' },
 }
 
-// ── Compact badge (inline) ────────────────────────────────────────────────
+function configFor(level: TrustLevel): TrustConfig {
+  return trustConfigs[level] ?? trustConfigs.untrusted
+}
+
+/** Plain-language one-liner explaining the trust score (catalog / import wizard). */
+const TRUST_HINT =
+  'Trust score computed from the energy, cohesion, activations and success rate of the skill in its project of origin.'
+
+// ── Compact inline value (meta lines) ─────────────────────────────────────
 
 interface TrustBadgeProps {
   trustScore: number
@@ -62,27 +34,24 @@ interface TrustBadgeProps {
 }
 
 /**
- * Compact trust badge showing shield icon + score.
- * Used inline in skill cards and search results.
+ * Inline trust value — shield icon + `High trust 82%` in the tone colour.
+ * No filled pill, no glow (DESIGN §4); the level is spelled out, not
+ * hidden in a tooltip.
  */
 export function TrustBadge({ trustScore, trustLevel, className = '' }: TrustBadgeProps) {
-  const config = trustConfigs[trustLevel]
+  const config = configFor(trustLevel)
   const Icon = config.icon
   const pct = (trustScore * 100).toFixed(0)
 
   return (
-    <Tooltip content={`${config.label} (${pct}%)`}>
-      <span
-        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ring-inset ${config.bgColor} ${config.textColor} ${config.ringColor} ${config.glowClass} ${className}`}
-      >
-        <Icon className="w-3 h-3" />
-        {pct}%
-      </span>
-    </Tooltip>
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap ${TONE_CLASSES[config.tone].text} ${className}`}>
+      <Icon className="w-3 h-3 shrink-0" aria-hidden="true" />
+      {config.label} <span className="tabular-nums">{pct}%</span>
+    </span>
   )
 }
 
-// ── Detailed trust bar (for detail views / import wizard) ─────────────────
+// ── Detailed trust bar (import wizard) ────────────────────────────────────
 
 interface TrustScoreBarProps {
   trustScore: number
@@ -90,30 +59,26 @@ interface TrustScoreBarProps {
   className?: string
 }
 
-/**
- * Horizontal trust score bar with label and percentage.
- * Used in detail/import views for a more visual representation.
- */
+/** Trust label + percentage + thin static meter + explanation. */
 export function TrustScoreBar({ trustScore, trustLevel, className = '' }: TrustScoreBarProps) {
-  const config = trustConfigs[trustLevel]
+  const config = configFor(trustLevel)
   const Icon = config.icon
   const pct = trustScore * 100
+  const tone = TONE_CLASSES[config.tone]
 
   return (
     <div className={className}>
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex items-center justify-between gap-3 mb-1">
         <span className="flex items-center gap-1.5 text-xs text-gray-400">
-          <Icon className={`w-3.5 h-3.5 ${config.textColor}`} />
+          <Icon className={`w-3.5 h-3.5 ${tone.text}`} aria-hidden="true" />
           {config.label}
         </span>
-        <span className={`text-xs font-medium ${config.textColor}`}>{pct.toFixed(0)}%</span>
+        <span className={`text-xs tabular-nums ${tone.text}`}>{pct.toFixed(0)}%</span>
       </div>
-      <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-500 ${config.barColor}`}
-          style={{ width: `${Math.max(pct, 1)}%` }}
-        />
+      <div className="h-1 bg-white/[0.06] rounded-full overflow-hidden" aria-hidden="true">
+        <div className={`h-full rounded-full ${tone.dot}`} style={{ width: `${Math.max(pct, 1)}%` }} />
       </div>
+      <p className="mt-1 text-xs leading-4 text-gray-500">{TRUST_HINT}</p>
     </div>
   )
 }

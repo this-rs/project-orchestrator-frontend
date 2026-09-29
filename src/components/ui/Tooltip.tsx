@@ -1,4 +1,5 @@
 import { useRef, useEffect, useId, type ReactNode, type CSSProperties } from 'react'
+import { positionFloating, supportsAnchorPositioning } from './menuPosition'
 
 type TooltipPosition = 'top' | 'bottom' | 'left' | 'right'
 
@@ -55,6 +56,8 @@ export function Tooltip({ content, position = 'top', children, delay = 400 }: To
         } catch {
           /* already open */
         }
+        // iOS Safari < 26 / WKWebView: no CSS anchor positioning → place in JS
+        if (!supportsAnchorPositioning) positionFloating(wrapper, tooltip, { align: 'start' })
       }, delay)
     }
 

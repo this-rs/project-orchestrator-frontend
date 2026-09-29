@@ -62,7 +62,7 @@ function rectPerimeterPos(
 
 export class SystemScene implements ParticleScene {
   readonly name = 'system';
-  readonly title = 'SYST\u00C8ME';
+  readonly title = 'SYSTEM';
   readonly description = 'Manual sequential vs self-sustaining system.';
 
   private w = 0;
@@ -160,7 +160,7 @@ export class SystemScene implements ParticleScene {
 
     // Subtitle
     renderLabel(ctx, {
-      text: 'construis une fois, tourne pour toujours',
+      text: 'build once, runs forever',
       x: width / 2,
       y: height - 24,
       opacity: 0.35,
@@ -210,7 +210,7 @@ export class SystemScene implements ParticleScene {
 
     // Label
     renderLabel(ctx, {
-      text: 'MANUEL',
+      text: 'MANUAL',
       x: leftCx,
       y: centerY + rectH / 2 + 24 * scale,
       opacity: 0.35,
@@ -278,7 +278,7 @@ export class SystemScene implements ParticleScene {
 
     // Label
     renderLabel(ctx, {
-      text: 'SYST\u00C8ME',
+      text: 'SYSTEM',
       x: rightCx,
       y: centerY + orbitRadius + 24 * scale,
       opacity: 0.35,

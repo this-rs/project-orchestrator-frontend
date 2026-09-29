@@ -1,13 +1,16 @@
 /**
- * Shared helpers and config constants for runner components.
+ * Shared helpers and status metadata for runner components (runner
+ * dashboard, pipeline list, plan run history).
  */
 
-import type { ActiveAgentSnapshot } from '@/services/runner'
+import type { ActiveAgentSnapshot, PlanRun } from '@/services/runner'
+import type { StatusTone } from '@/components/ui/statusMeta'
 
 // ---------------------------------------------------------------------------
 // Format helpers
 // ---------------------------------------------------------------------------
 
+/** `mm:ss` live timer of an agent / run. */
 export function formatElapsed(secs: number | undefined | null): string {
   const v = secs ?? 0
   const m = Math.floor(v / 60)
@@ -19,20 +22,27 @@ export function formatCost(usd: number | undefined | null): string {
   return `$${(usd ?? 0).toFixed(2)}`
 }
 
-// ---------------------------------------------------------------------------
-// Run status config
-// ---------------------------------------------------------------------------
+/** Elapsed seconds of a plan run (until now while it is still running). */
+export function planRunElapsedSecs(run: Pick<PlanRun, 'started_at' | 'completed_at'>, now = Date.now()): number {
+  const start = new Date(run.started_at).getTime()
+  const end = run.completed_at ? new Date(run.completed_at).getTime() : now
+  return Math.max(0, (end - start) / 1000)
+}
 
-export const runStatusConfig: Record<string, { label: string; bg: string; text: string; dot: string }> = {
-  running:          { label: 'Running',          bg: 'bg-blue-500/15',   text: 'text-blue-400',   dot: 'bg-blue-400' },
-  completed:        { label: 'Completed',        bg: 'bg-green-500/15',  text: 'text-green-400',  dot: 'bg-green-400' },
-  failed:           { label: 'Failed',           bg: 'bg-red-500/15',    text: 'text-red-400',    dot: 'bg-red-400' },
-  cancelled:        { label: 'Cancelled',        bg: 'bg-gray-500/15',   text: 'text-gray-400',   dot: 'bg-gray-400' },
-  budget_exceeded:  { label: 'Budget Exceeded',  bg: 'bg-yellow-500/15', text: 'text-yellow-400', dot: 'bg-yellow-400' },
+/** `Manual` · `Chat` · `Schedule` · `Webhook` · `Event` — how a plan run was started. */
+export function planRunTriggerLabel(triggered_by: PlanRun['triggered_by']): string {
+  if (typeof triggered_by === 'string') {
+    return triggered_by ? triggered_by.charAt(0).toUpperCase() + triggered_by.slice(1) : 'Unknown'
+  }
+  if ('chat' in triggered_by) return 'Chat'
+  if ('schedule' in triggered_by) return 'Schedule'
+  if ('webhook' in triggered_by) return 'Webhook'
+  if ('event' in triggered_by) return 'Event'
+  return 'Unknown'
 }
 
 // ---------------------------------------------------------------------------
-// Agent status config
+// Agent status config (legacy, still used by InlineConversation)
 // ---------------------------------------------------------------------------
 
 type AgentStatus = ActiveAgentSnapshot['status']
@@ -55,7 +65,7 @@ export const agentStatusBadgeVariant: Record<AgentStatus, 'default' | 'success' 
 }
 
 // ---------------------------------------------------------------------------
-// Wave status types & config
+// Wave status
 // ---------------------------------------------------------------------------
 
 export type WaveStatus = 'active' | 'completed' | 'failed' | 'pending' | 'partial'
@@ -73,18 +83,50 @@ export function getWaveStatus(agents: ActiveAgentSnapshot[]): WaveStatus {
   return 'partial'
 }
 
-export const waveStatusStyles: Record<WaveStatus, { border: string; bg: string; badge: string; badgeText: string }> = {
-  active:    { border: 'border-indigo-500/30', bg: 'bg-indigo-500/[0.02]', badge: 'bg-indigo-500/15', badgeText: 'text-indigo-400' },
-  completed: { border: 'border-green-500/20',  bg: 'bg-green-500/[0.01]',  badge: 'bg-green-500/15',  badgeText: 'text-green-400' },
-  failed:    { border: 'border-red-500/30',    bg: 'bg-red-500/[0.02]',    badge: 'bg-red-500/15',    badgeText: 'text-red-400' },
-  pending:   { border: 'border-border-subtle',  bg: 'bg-white/[0.01]',     badge: 'bg-white/[0.08]',  badgeText: 'text-gray-500' },
-  partial:   { border: 'border-yellow-500/20', bg: 'bg-yellow-500/[0.01]', badge: 'bg-yellow-500/15', badgeText: 'text-yellow-400' },
+// ---------------------------------------------------------------------------
+// Design-system status meta (dot + text, see components/ui/DESIGN.md §4)
+// ---------------------------------------------------------------------------
+
+export interface ToneMeta {
+  label: string
+  tone: StatusTone
+  /** Something is still going on → the dot pulses (temporal motion). */
+  live?: boolean
 }
 
-export const waveStatusLabels: Record<WaveStatus, string> = {
-  active: 'Active',
-  completed: 'Completed',
-  failed: 'Failed',
-  pending: 'Pending',
-  partial: 'Partial',
+const RUN_META: Record<string, ToneMeta> = {
+  running: { label: 'Running', tone: 'progress', live: true },
+  completed: { label: 'Completed', tone: 'success' },
+  failed: { label: 'Failed', tone: 'danger' },
+  cancelled: { label: 'Cancelled', tone: 'muted' },
+  budget_exceeded: { label: 'Budget exceeded', tone: 'warning' },
+}
+
+const AGENT_META: Record<string, ToneMeta> = {
+  spawning: { label: 'Starting', tone: 'progress', live: true },
+  running: { label: 'Running', tone: 'progress', live: true },
+  verifying: { label: 'Verifying', tone: 'progress', live: true },
+  completed: { label: 'Completed', tone: 'success' },
+  failed: { label: 'Failed', tone: 'danger' },
+}
+
+const WAVE_META: Record<WaveStatus, ToneMeta> = {
+  active: { label: 'Running', tone: 'progress', live: true },
+  completed: { label: 'Completed', tone: 'success' },
+  failed: { label: 'Has failures', tone: 'danger' },
+  pending: { label: 'Waiting', tone: 'neutral' },
+  partial: { label: 'Partial', tone: 'warning' },
+}
+
+/** Plan run / runner run status (`running`, `completed`, `failed`, `cancelled`, `budget_exceeded`). */
+export function runStateMeta(status: string | null | undefined): ToneMeta {
+  return RUN_META[status ?? ''] ?? { label: status ? status.replace(/_/g, ' ') : 'Unknown', tone: 'neutral' }
+}
+
+export function agentStateMeta(status: string | null | undefined): ToneMeta {
+  return AGENT_META[status ?? ''] ?? { label: status ?? 'Unknown', tone: 'neutral' }
+}
+
+export function waveStateMeta(status: WaveStatus): ToneMeta {
+  return WAVE_META[status]
 }

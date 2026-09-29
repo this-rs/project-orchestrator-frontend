@@ -1,29 +1,28 @@
 import { useState, useEffect, useCallback } from 'react'
+import { CheckCircle2, ChevronLeft, ChevronRight, XCircle } from 'lucide-react'
 import {
-  Shield,
-  ShieldCheck,
-  ShieldOff,
-  ScrollText,
-  Skull,
-  RefreshCw,
-  AlertTriangle,
-  Trash2,
-  Clock,
-  Eye,
-  Lightbulb,
-  BarChart3,
-  CheckCircle2,
-  XCircle,
-} from 'lucide-react'
-import {
-  Badge,
   Button,
-  Select,
-  Input,
   ConfirmDialog,
-  PageShell,
-  CollapsibleSection,
+  EmptyState,
+  EntityList,
+  EntityListSkeleton,
+  EntityRow,
+  Facts,
+  Input,
+  PageContainer,
+  PageHeader,
+  RelativeTime,
+  Section,
+  Select,
+  SkeletonCard,
+  StatusText,
+  Switch,
+  guessTone,
+  humanizeStatus,
+  type StatusTone,
+  ToneText,
 } from '@/components/ui'
+import { Notice, SettingRow, SettingsList } from '@/components/settings/SettingRow'
 import { sharingApi, workspacesApi } from '@/services'
 import { useConfirmDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import type {
@@ -31,26 +30,43 @@ import type {
   SharingEvent,
   SignedTombstone,
   SharingMode,
-  SharingConsent,
   SharingPreviewItem,
   SharingSuggestionItem,
   ConsentStats,
 } from '@/types'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 // ============================================================================
-// STAT BOX
+// LABELS
 // ============================================================================
 
-function StatBox({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <div className="px-3 py-2.5 rounded-lg bg-white/[0.04] border border-white/[0.06]">
-      <span className="text-[10px] uppercase tracking-wider text-gray-500 block mb-0.5">{label}</span>
-      <span className={`text-sm font-semibold ${highlight ? 'text-amber-400' : 'text-gray-200'}`}>
-        {value}
-      </span>
-    </div>
-  )
+const CONSENT: Record<string, { label: string; tone: StatusTone }> = {
+  explicit_allow: { label: 'Allowed', tone: 'success' },
+  explicit_deny: { label: 'Denied', tone: 'danger' },
+  policy_auto: { label: 'Auto (policy)', tone: 'info' },
+  not_set: { label: 'Not set', tone: 'neutral' },
 }
+
+function ConsentText({ consent }: { consent: string }) {
+  const c = CONSENT[consent] ?? { label: humanizeStatus(consent), tone: guessTone(consent) }
+  return <ToneText tone={c.tone} label={c.label} />
+}
+
+const OVERRIDE_TONE: Record<string, StatusTone> = { never: 'danger', auto: 'success', review: 'warning' }
+
+const MODE_HELP: Record<SharingMode, string> = {
+  manual: 'Nothing leaves without your explicit approval, note by note.',
+  suggest: 'Notes above the threshold are suggested to you; you approve each one.',
+  auto: 'Notes above the threshold are shared automatically.',
+}
+
+const modeOptions = [
+  { value: 'manual', label: 'Manual' },
+  { value: 'suggest', label: 'Suggest' },
+  { value: 'auto', label: 'Auto' },
+]
+
+const shortId = (id: string) => id.slice(0, 8)
 
 // ============================================================================
 // MAIN PAGE
@@ -58,10 +74,11 @@ function StatBox({ label, value, highlight }: { label: string; value: string; hi
 
 export function SharingPage() {
   const wsSlug = useWorkspaceSlug()
-
-  // Load workspace projects for the selector (same pattern as CodePage)
   const [projects, setProjects] = useState<{ slug: string; name: string }[]>([])
+  const [projectsLoaded, setProjectsLoaded] = useState(false)
   const [selectedProject, setSelectedProject] = useState<string>('')
+  /** Bumped when the policy changes so preview / suggestions / report refetch. */
+  const [policyVersion, setPolicyVersion] = useState(0)
 
   useEffect(() => {
     async function loadProjects() {
@@ -69,12 +86,11 @@ export function SharingPage() {
         const wsProjects = await workspacesApi.listProjects(wsSlug)
         const mapped = wsProjects.map((p) => ({ slug: p.slug, name: p.name }))
         setProjects(mapped)
-        // Auto-select first project if none selected
-        if (!selectedProject && mapped.length > 0) {
-          setSelectedProject(mapped[0].slug)
-        }
+        if (!selectedProject && mapped.length > 0) setSelectedProject(mapped[0].slug)
       } catch {
         // No projects available
+      } finally {
+        setProjectsLoaded(true)
       }
     }
     loadProjects()
@@ -82,67 +98,64 @@ export function SharingPage() {
   }, [wsSlug])
 
   const projectSlug = selectedProject
-  const selectedProjectName = projects.find((p) => p.slug === selectedProject)?.name
-
-  const projectOptions = projects.map((p) => ({ value: p.slug, label: p.name }))
-
-  if (projects.length === 0) {
-    return (
-      <PageShell
-        title="Sharing & Privacy"
-        description="Manage sharing policies, consent, and data retraction for your project"
-      >
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-amber-500/[0.08] border border-amber-500/20">
-          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-          <p className="text-xs text-amber-300">
-            No projects found in this workspace. Add a project first.
-          </p>
-        </div>
-      </PageShell>
-    )
-  }
+  const projectName = projects.find((p) => p.slug === selectedProject)?.name
 
   return (
-    <PageShell
-      title="Sharing & Privacy"
-      description={`Manage sharing policies, consent, and data retraction${selectedProjectName ? ` for ${selectedProjectName}` : ''}`}
-      actions={
-        projectOptions.length > 1 ? (
-          <Select
-            options={projectOptions}
-            value={selectedProject}
-            onChange={(v) => setSelectedProject(v)}
-            className="w-56"
-          />
-        ) : undefined
-      }
-    >
-      {!projectSlug ? (
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-amber-500/[0.08] border border-amber-500/20">
-          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-          <p className="text-xs text-amber-300">
-            Select a project above to configure sharing settings.
-          </p>
-        </div>
+    <PageContainer width="narrow" className="space-y-6">
+      <PageHeader
+        title={NOMENCLATURE.sharing.plural}
+        description="Decide which notes of a project may be shared with other instances, see what would leave, and retract a share with a signed tombstone."
+      />
+
+      {!projectsLoaded ? (
+        <SkeletonCard lines={4} />
+      ) : projects.length === 0 ? (
+        <EmptyState title="No project in this workspace" description="Add a project to the workspace to configure sharing." />
       ) : (
-        <div className="space-y-3">
-          <PolicySection slug={projectSlug} />
-          <LastReportSection slug={projectSlug} />
-          <PreviewSection slug={projectSlug} />
-          <SuggestSection slug={projectSlug} />
-          <AuditTrailSection slug={projectSlug} />
-          <TombstonesSection slug={projectSlug} />
-        </div>
+        <>
+          {/* Scope: the whole page is configured per project (a scope selector, not a header action — §6). */}
+          <SettingsList>
+            <SettingRow
+              label="Project"
+              description="Sharing is configured per project."
+              control={
+                projects.length > 1 ? (
+                  <Select
+                    options={projects.map((p) => ({ value: p.slug, label: p.name }))}
+                    value={selectedProject}
+                    onChange={setSelectedProject}
+                    className="w-44"
+                  />
+                ) : (
+                  <span className="text-sm text-gray-300">{projectName}</span>
+                )
+              }
+            />
+          </SettingsList>
+
+          {!projectSlug ? (
+            <Notice tone="warning">Choose a project to configure sharing.</Notice>
+          ) : (
+            <>
+              <PolicySection slug={projectSlug} onChanged={() => setPolicyVersion((v) => v + 1)} />
+              <SuggestSection slug={projectSlug} version={policyVersion} />
+              <LastReportSection slug={projectSlug} version={policyVersion} />
+              <PreviewSection slug={projectSlug} version={policyVersion} />
+              <AuditTrailSection slug={projectSlug} />
+              <TombstonesSection slug={projectSlug} />
+            </>
+          )}
+        </>
       )}
-    </PageShell>
+    </PageContainer>
   )
 }
 
 // ============================================================================
-// SECTION 1: STATUS & POLICY
+// POLICY
 // ============================================================================
 
-function PolicySection({ slug }: { slug: string }) {
+function PolicySection({ slug, onChanged }: { slug: string; onChanged: () => void }) {
   const [policy, setPolicy] = useState<SharingPolicy | null>(null)
   const [enabled, setEnabled] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -174,24 +187,23 @@ function PolicySection({ slug }: { slug: string }) {
   }, [fetchStatus])
 
   const handleToggle = () => {
-    const action = enabled ? 'disable' : 'enable'
+    const enabling = !enabled
     confirmDialog.open({
-      title: `${action === 'enable' ? 'Enable' : 'Disable'} Sharing`,
-      description: action === 'enable'
-        ? 'This will allow notes to be shared according to the policy. You can disable it at any time.'
-        : 'This will stop sharing any notes from this project. Existing shares are not retracted.',
-      variant: action === 'enable' ? 'info' : 'warning',
-      confirmLabel: action === 'enable' ? 'Enable' : 'Disable',
+      title: enabling ? 'Enable sharing' : 'Disable sharing',
+      description: enabling
+        ? 'Notes may be shared according to the policy below. You can disable this at any time.'
+        : 'No more notes from this project will be shared. Existing shares are not retracted.',
+      variant: enabling ? 'info' : 'warning',
+      confirmLabel: enabling ? 'Enable' : 'Disable',
       onConfirm: async () => {
         try {
-          const res = action === 'enable'
-            ? await sharingApi.enable(slug)
-            : await sharingApi.disable(slug)
+          const res = enabling ? await sharingApi.enable(slug) : await sharingApi.disable(slug)
           setEnabled(res.enabled)
           setPolicy(res.policy)
           toast.success(`Sharing ${res.enabled ? 'enabled' : 'disabled'}`)
+          onChanged()
         } catch (err) {
-          toast.error(err instanceof Error ? err.message : `Failed to ${action} sharing`)
+          toast.error(err instanceof Error ? err.message : `Failed to ${enabling ? 'enable' : 'disable'} sharing`)
         }
       },
     })
@@ -205,12 +217,10 @@ function PolicySection({ slug }: { slug: string }) {
     }
     setSaving(true)
     try {
-      const updated = await sharingApi.setPolicy(slug, {
-        mode,
-        min_shareability_score: score,
-      })
+      const updated = await sharingApi.setPolicy(slug, { mode, min_shareability_score: score })
       setPolicy(updated)
       toast.success('Policy updated')
+      onChanged()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update policy')
     } finally {
@@ -218,556 +228,100 @@ function PolicySection({ slug }: { slug: string }) {
     }
   }
 
-  const modeOptions = [
-    { value: 'manual', label: 'Manual' },
-    { value: 'suggest', label: 'Suggest' },
-    { value: 'auto', label: 'Auto' },
-  ]
+  const dirty = !!policy && (mode !== policy.mode || threshold !== String(policy.min_shareability_score))
+  const overrides = Object.entries(policy?.type_overrides ?? {})
 
   return (
-    <CollapsibleSection
-      title="Status & Policy"
-      icon={<Shield className="w-4 h-4" />}
-      description="Control how notes are shared from this project."
-      headerRight={
-        !loading && (
-          <Badge variant={enabled ? 'success' : 'default'}>
-            <span className="flex items-center gap-1.5">
-              {enabled ? <ShieldCheck className="w-3 h-3" /> : <ShieldOff className="w-3 h-3" />}
-              {enabled ? 'Enabled' : 'Disabled'}
-            </span>
-          </Badge>
-        )
+    <Section
+      title="Policy"
+      action={
+        policy ? (
+          <Button size="sm" onClick={handleSavePolicy} loading={saving} disabled={!dirty}>
+            Save
+          </Button>
+        ) : undefined
       }
-      defaultOpen
     >
       {loading ? (
-        <p className="text-xs text-gray-500">Loading...</p>
+        <SkeletonCard lines={3} />
       ) : (
-        <>
-          {/* Toggle */}
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h4 className="text-sm font-medium text-gray-200">Sharing</h4>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {enabled
-                  ? 'Notes can be shared according to the policy below.'
-                  : 'Sharing is disabled. No notes will be shared.'}
-              </p>
-            </div>
-            <Button
-              variant={enabled ? 'danger' : 'primary'}
-              size="sm"
-              onClick={handleToggle}
-            >
-              {enabled ? 'Disable' : 'Enable'}
-            </Button>
-          </div>
-
-          {/* Policy fields */}
+        <SettingsList>
+          <SettingRow
+            label="Sharing"
+            description={
+              enabled
+                ? 'Enabled: notes may be shared according to the policy below.'
+                : 'Disabled: no note leaves this project.'
+            }
+            control={<Switch checked={enabled} onChange={handleToggle} ariaLabel="Sharing" />}
+          />
           {policy && (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-                <StatBox label="Mode" value={policy.mode} />
-                <StatBox label="Min Score" value={policy.min_shareability_score.toFixed(2)} />
-                <StatBox label="L3 Scan" value={policy.l3_scan_enabled ? 'On' : 'Off'} />
-                <StatBox
-                  label="Overrides"
-                  value={Object.keys(policy.type_overrides ?? {}).length.toString()}
-                />
-              </div>
-
-              <h4 className="text-xs uppercase tracking-wider text-gray-500 mb-2">Edit Policy</h4>
-              <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
-                <div className="flex items-center gap-3">
-                  <label className="text-xs text-gray-400 w-24 shrink-0">Mode</label>
-                  <Select
-                    options={modeOptions}
-                    value={mode}
-                    onChange={(v) => setMode(v as SharingMode)}
-                    className="w-40"
-                  />
-                </div>
-                <div className="flex items-center gap-3">
-                  <label className="text-xs text-gray-400 w-24 shrink-0">Min Score</label>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    value={threshold}
-                    onChange={(e) => setThreshold(e.target.value)}
-                    className="w-40"
-                  />
-                </div>
-
-                {/* Type overrides display */}
-                {Object.keys(policy.type_overrides ?? {}).length > 0 && (
-                  <div>
-                    <label className="text-xs text-gray-400 block mb-1.5">Type Overrides</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {Object.entries(policy.type_overrides ?? {}).map(([type, action]) => (
-                        <Badge key={type} variant={action === 'never' ? 'error' : action === 'auto' ? 'success' : 'warning'}>
-                          {type}: {action}
-                        </Badge>
-                      ))}
-                    </div>
+              <SettingRow
+                label="Mode"
+                description={MODE_HELP[mode]}
+                control={
+                  <Select options={modeOptions} value={mode} onChange={(v) => setMode(v as SharingMode)} className="w-32" />
+                }
+              />
+              <SettingRow
+                label="Min score"
+                description="Shareability score (0 to 1) below which a note is never suggested."
+                control={
+                  <div className="w-24">
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={threshold}
+                      onChange={(e) => setThreshold(e.target.value)}
+                      aria-label="Min score"
+                      className="h-9 py-1.5 text-right tabular-nums"
+                    />
+                  </div>
+                }
+              />
+              <SettingRow
+                label="L3 scan"
+                description="Deep content check before anything is shared."
+                control={<StatusText status={policy.l3_scan_enabled ? 'enabled' : 'disabled'} label={policy.l3_scan_enabled ? 'On' : 'Off'} />}
+              />
+              <SettingRow
+                label="Type overrides"
+                description={
+                  overrides.length > 0
+                    ? 'Forced rules for some note types, taking precedence over the mode.'
+                    : 'No per-type rule: the mode applies to every note.'
+                }
+                control={<span className="text-sm tabular-nums text-gray-400">{overrides.length}</span>}
+              >
+                {overrides.length > 0 && (
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                    {overrides.map(([type, action]) => (
+                      <span key={type} className="inline-flex items-center gap-1 text-gray-400">
+                        {type}
+                        <ToneText tone={OVERRIDE_TONE[action] ?? 'neutral'} label={action} />
+                      </span>
+                    ))}
                   </div>
                 )}
-
-                <div className="pt-1">
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={handleSavePolicy}
-                    disabled={saving}
-                  >
-                    {saving && <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
-                    Save Policy
-                  </Button>
-                </div>
-              </div>
+              </SettingRow>
             </>
           )}
-        </>
+        </SettingsList>
       )}
-
       <ConfirmDialog {...confirmDialog.dialogProps} />
-    </CollapsibleSection>
+    </Section>
   )
 }
 
 // ============================================================================
-// SECTION 2: AUDIT TRAIL
+// SUGGESTIONS (notes recommended for sharing)
 // ============================================================================
 
-function AuditTrailSection({ slug }: { slug: string }) {
-  const [events, setEvents] = useState<SharingEvent[]>([])
-  const [loading, setLoading] = useState(false)
-  const [offset, setOffset] = useState(0)
-  const limit = 20
-
-  const fetchEvents = useCallback(async () => {
-    if (!slug) return
-    setLoading(true)
-    try {
-      const data = await sharingApi.getHistory(slug, { limit, offset })
-      setEvents(data)
-    } catch {
-      setEvents([])
-    } finally {
-      setLoading(false)
-    }
-  }, [slug, offset])
-
-  useEffect(() => {
-    fetchEvents()
-  }, [fetchEvents])
-
-  const consentColor = (consent: SharingConsent) => {
-    switch (consent) {
-      case 'explicit_allow': return 'success'
-      case 'explicit_deny': return 'error'
-      case 'policy_auto': return 'info'
-      default: return 'default'
-    }
-  }
-
-  return (
-    <CollapsibleSection
-      title="Audit Trail"
-      icon={<ScrollText className="w-4 h-4" />}
-      description="Paginated history of sharing events for this project."
-      headerRight={
-        events.length > 0 ? (
-          <Badge variant="default">{events.length} events</Badge>
-        ) : undefined
-      }
-    >
-      {loading && events.length === 0 ? (
-        <p className="text-xs text-gray-500">Loading...</p>
-      ) : events.length === 0 ? (
-        <p className="text-xs text-gray-500">No sharing events recorded yet.</p>
-      ) : (
-        <>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-left text-gray-500 border-b border-white/[0.06]">
-                  <th className="pb-2 pr-3 font-medium">Timestamp</th>
-                  <th className="pb-2 pr-3 font-medium">Action</th>
-                  <th className="pb-2 pr-3 font-medium">Type</th>
-                  <th className="pb-2 pr-3 font-medium">Consent</th>
-                  <th className="pb-2 pr-3 font-medium">Source</th>
-                  <th className="pb-2 font-medium">Reason</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/[0.04]">
-                {events.map((ev) => (
-                  <tr key={ev.id} className="text-gray-300">
-                    <td className="py-2 pr-3 whitespace-nowrap">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-gray-500" />
-                        {new Date(ev.timestamp).toLocaleString()}
-                      </span>
-                    </td>
-                    <td className="py-2 pr-3">
-                      <Badge variant={ev.action === 'retracted' ? 'error' : 'info'}>
-                        {ev.action}
-                      </Badge>
-                    </td>
-                    <td className="py-2 pr-3 text-gray-400">{ev.artifact_type}</td>
-                    <td className="py-2 pr-3">
-                      <Badge variant={consentColor(ev.consent as SharingConsent)}>
-                        {ev.consent}
-                      </Badge>
-                    </td>
-                    <td className="py-2 pr-3 text-gray-500 font-mono truncate max-w-[120px]" title={ev.source_did}>
-                      {ev.source_did.length > 20 ? `${ev.source_did.slice(0, 20)}...` : ev.source_did}
-                    </td>
-                    <td className="py-2 text-gray-500">{ev.reason || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/[0.06]">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setOffset(Math.max(0, offset - limit))}
-              disabled={offset === 0}
-            >
-              Previous
-            </Button>
-            <span className="text-xs text-gray-500">
-              Showing {offset + 1}–{offset + events.length}
-            </span>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setOffset(offset + limit)}
-              disabled={events.length < limit}
-            >
-              Next
-            </Button>
-          </div>
-        </>
-      )}
-    </CollapsibleSection>
-  )
-}
-
-// ============================================================================
-// SECTION 3: TOMBSTONES
-// ============================================================================
-
-function TombstonesSection({ slug }: { slug: string }) {
-  const [tombstones, setTombstones] = useState<SignedTombstone[]>([])
-  const [loading, setLoading] = useState(false)
-  const [retractReason, setRetractReason] = useState('')
-  const [retractNoteId, setRetractNoteId] = useState('')
-  const [retracting, setRetracting] = useState(false)
-  const toast = useToast()
-  const confirmDialog = useConfirmDialog()
-
-  const fetchTombstones = useCallback(async () => {
-    if (!slug) return
-    setLoading(true)
-    try {
-      const data = await sharingApi.listTombstones(slug)
-      setTombstones(data)
-    } catch {
-      setTombstones([])
-    } finally {
-      setLoading(false)
-    }
-  }, [slug])
-
-  useEffect(() => {
-    fetchTombstones()
-  }, [fetchTombstones])
-
-  const handleRetract = () => {
-    if (!retractNoteId.trim()) {
-      toast.error('Please enter a Note ID to retract')
-      return
-    }
-    confirmDialog.open({
-      title: 'Retract Shared Artifact',
-      description: `This will create a tombstone for note "${retractNoteId}" and set its consent to ExplicitDeny. This action cannot be undone.`,
-      variant: 'danger',
-      confirmLabel: 'Retract',
-      onConfirm: async () => {
-        setRetracting(true)
-        try {
-          await sharingApi.retract(slug, {
-            note_id: retractNoteId.trim(),
-            reason: retractReason.trim() || undefined,
-          })
-          toast.success('Artifact retracted successfully')
-          setRetractNoteId('')
-          setRetractReason('')
-          fetchTombstones()
-        } catch (err) {
-          toast.error(err instanceof Error ? err.message : 'Failed to retract')
-        } finally {
-          setRetracting(false)
-        }
-      },
-    })
-  }
-
-  return (
-    <CollapsibleSection
-      title="Tombstones & Retraction"
-      icon={<Skull className="w-4 h-4" />}
-      description="Retracted artifacts and their cryptographic tombstones."
-      headerRight={
-        tombstones.length > 0 ? (
-          <Badge variant="error">{tombstones.length} tombstones</Badge>
-        ) : undefined
-      }
-    >
-      {/* Retract form */}
-      <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4 mb-4">
-        <h4 className="text-xs uppercase tracking-wider text-gray-500 mb-2">Retract an Artifact</h4>
-        <p className="text-xs text-gray-500 mb-3 leading-relaxed">
-          Enter a note ID to retract. This creates a tombstone and marks the note with ExplicitDeny consent.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Input
-            placeholder="Note UUID"
-            value={retractNoteId}
-            onChange={(e) => setRetractNoteId(e.target.value)}
-            className="flex-1"
-          />
-          <Input
-            placeholder="Reason (optional)"
-            value={retractReason}
-            onChange={(e) => setRetractReason(e.target.value)}
-            className="flex-1"
-          />
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={handleRetract}
-            disabled={retracting || !retractNoteId.trim()}
-            className="shrink-0"
-          >
-            {retracting ? (
-              <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-            )}
-            Retract
-          </Button>
-        </div>
-      </div>
-
-      {/* Tombstones list */}
-      {loading ? (
-        <p className="text-xs text-gray-500">Loading...</p>
-      ) : tombstones.length === 0 ? (
-        <p className="text-xs text-gray-500">No tombstones recorded. Retracted artifacts will appear here.</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-left text-gray-500 border-b border-white/[0.06]">
-                <th className="pb-2 pr-3 font-medium">Content Hash</th>
-                <th className="pb-2 pr-3 font-medium">Issuer</th>
-                <th className="pb-2 pr-3 font-medium">Issued At</th>
-                <th className="pb-2 font-medium">Reason</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/[0.04]">
-              {tombstones.map((t) => (
-                <tr key={t.content_hash} className="text-gray-300">
-                  <td className="py-2 pr-3 font-mono text-gray-400 truncate max-w-[180px]" title={t.content_hash}>
-                    {t.content_hash.length > 30 ? `${t.content_hash.slice(0, 30)}...` : t.content_hash}
-                  </td>
-                  <td className="py-2 pr-3 font-mono text-gray-500 truncate max-w-[120px]" title={t.issuer_did}>
-                    {t.issuer_did.length > 20 ? `${t.issuer_did.slice(0, 20)}...` : t.issuer_did}
-                  </td>
-                  <td className="py-2 pr-3 whitespace-nowrap">
-                    {new Date(t.issued_at).toLocaleString()}
-                  </td>
-                  <td className="py-2 text-gray-500">{t.reason || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <ConfirmDialog {...confirmDialog.dialogProps} />
-    </CollapsibleSection>
-  )
-}
-
-// ============================================================================
-// SECTION 4: LAST REPORT
-// ============================================================================
-
-function LastReportSection({ slug }: { slug: string }) {
-  const [stats, setStats] = useState<ConsentStats | null>(null)
-  const [generatedAt, setGeneratedAt] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  const fetchReport = useCallback(async () => {
-    if (!slug) return
-    setLoading(true)
-    try {
-      const report = await sharingApi.getLastReport(slug)
-      setStats(report.stats)
-      setGeneratedAt(report.generated_at)
-    } catch {
-      setStats(null)
-    } finally {
-      setLoading(false)
-    }
-  }, [slug])
-
-  useEffect(() => {
-    fetchReport()
-  }, [fetchReport])
-
-  return (
-    <CollapsibleSection
-      title="Privacy Report"
-      icon={<BarChart3 className="w-4 h-4" />}
-      description="Latest consent statistics for this project."
-      defaultOpen
-    >
-      {loading ? (
-        <p className="text-xs text-gray-500">Loading...</p>
-      ) : !stats ? (
-        <p className="text-xs text-gray-500">No report available. Enable sharing and set consent on notes to generate stats.</p>
-      ) : (
-        <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-            <StatBox label="Allowed" value={String(stats.consent_allowed)} />
-            <StatBox label="Denied" value={String(stats.consent_denied)} highlight={stats.consent_denied > 0} />
-            <StatBox label="Pending" value={String(stats.consent_pending)} highlight={stats.consent_pending > 0} />
-            <StatBox label="Denied Reasons" value={String(stats.denied_reasons.length)} />
-          </div>
-          {generatedAt && (
-            <p className="text-[10px] text-gray-500">
-              Generated at {new Date(generatedAt).toLocaleString()}
-            </p>
-          )}
-        </>
-      )}
-    </CollapsibleSection>
-  )
-}
-
-// ============================================================================
-// SECTION 5: PREVIEW (what would be shared)
-// ============================================================================
-
-function PreviewSection({ slug }: { slug: string }) {
-  const [items, setItems] = useState<SharingPreviewItem[]>([])
-  const [loading, setLoading] = useState(false)
-
-  const fetchPreview = useCallback(async () => {
-    if (!slug) return
-    setLoading(true)
-    try {
-      const data = await sharingApi.preview(slug)
-      setItems(data)
-    } catch {
-      setItems([])
-    } finally {
-      setLoading(false)
-    }
-  }, [slug])
-
-  useEffect(() => {
-    fetchPreview()
-  }, [fetchPreview])
-
-  const decisionColor = (d: string) => d === 'allow' ? 'success' as const : 'error' as const
-  const consentColor = (c: string) => {
-    switch (c) {
-      case 'explicit_allow': return 'success' as const
-      case 'explicit_deny': return 'error' as const
-      case 'policy_auto': return 'info' as const
-      default: return 'default' as const
-    }
-  }
-
-  return (
-    <CollapsibleSection
-      title="Sharing Preview"
-      icon={<Eye className="w-4 h-4" />}
-      description="Preview which notes would be shared under the current policy."
-      headerRight={
-        items.length > 0 ? (
-          <Badge variant="info">{items.length} notes</Badge>
-        ) : undefined
-      }
-    >
-      {loading ? (
-        <p className="text-xs text-gray-500">Loading...</p>
-      ) : items.length === 0 ? (
-        <p className="text-xs text-gray-500">No notes to preview. The project may have no notes or sharing is disabled.</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-left text-gray-500 border-b border-white/[0.06]">
-                <th className="pb-2 pr-3 font-medium">Note</th>
-                <th className="pb-2 pr-3 font-medium">Score</th>
-                <th className="pb-2 pr-3 font-medium">Consent</th>
-                <th className="pb-2 font-medium">Decision</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/[0.04]">
-              {items.map((item) => (
-                <tr key={item.note_id} className="text-gray-300">
-                  <td className="py-2 pr-3 max-w-[360px]">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-[10px] font-mono text-gray-500" title={item.note_id}>
-                        {item.note_id.slice(0, 8)}
-                      </span>
-                      <Badge variant="default">{item.note_type}</Badge>
-                    </div>
-                    {item.content_preview && (
-                      <p className="text-[11px] text-gray-400 truncate leading-relaxed">{item.content_preview}</p>
-                    )}
-                  </td>
-                  <td className="py-2 pr-3 text-gray-400">{item.shareability_score.toFixed(2)}</td>
-                  <td className="py-2 pr-3">
-                    <Badge variant={consentColor(item.consent)}>{item.consent}</Badge>
-                  </td>
-                  <td className="py-2">
-                    <Badge variant={decisionColor(item.decision)}>
-                      {item.decision === 'allow' ? (
-                        <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> allow</span>
-                      ) : (
-                        <span className="flex items-center gap-1"><XCircle className="w-3 h-3" /> deny</span>
-                      )}
-                    </Badge>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </CollapsibleSection>
-  )
-}
-
-// ============================================================================
-// SECTION 6: SUGGEST (notes recommended for sharing)
-// ============================================================================
-
-function SuggestSection({ slug }: { slug: string }) {
+function SuggestSection({ slug, version }: { slug: string; version: number }) {
   const [suggestions, setSuggestions] = useState<SharingSuggestionItem[]>([])
   const [loading, setLoading] = useState(false)
   const toast = useToast()
@@ -776,14 +330,14 @@ function SuggestSection({ slug }: { slug: string }) {
     if (!slug) return
     setLoading(true)
     try {
-      const data = await sharingApi.suggest(slug)
-      setSuggestions(data)
+      setSuggestions(await sharingApi.suggest(slug))
     } catch {
       setSuggestions([])
     } finally {
       setLoading(false)
     }
-  }, [slug])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- version triggers a refetch
+  }, [slug, version])
 
   useEffect(() => {
     fetchSuggestions()
@@ -800,61 +354,371 @@ function SuggestSection({ slug }: { slug: string }) {
   }
 
   return (
-    <CollapsibleSection
-      title="Sharing Suggestions"
-      icon={<Lightbulb className="w-4 h-4" />}
-      description="Notes that score above the threshold but don't have consent set yet."
-      headerRight={
-        suggestions.length > 0 ? (
-          <Badge variant="warning">{suggestions.length} pending</Badge>
-        ) : undefined
-      }
+    <Section
+      title="Suggestions"
+      count={suggestions.length || undefined}
+      description="Notes above the threshold with no consent yet: allow or deny their sharing."
+      collapsible
+      defaultOpen={false}
     >
       {loading ? (
-        <p className="text-xs text-gray-500">Loading...</p>
+        <EntityListSkeleton rows={3} />
       ) : suggestions.length === 0 ? (
-        <p className="text-xs text-gray-500">No suggestions. All eligible notes already have consent set, or none score above threshold.</p>
+        <EmptyState size="sm" title="Nothing to review" description="Every eligible note already has a consent, or none scores above the threshold." />
       ) : (
-        <div className="space-y-2">
+        <EntityList>
           {suggestions.map((s) => (
-            <div
+            <EntityRow
               key={s.note_id}
-              className="flex items-center gap-3 px-4 py-3 rounded-lg border border-white/[0.06] bg-white/[0.02]"
+              title={s.content_preview || `Note ${shortId(s.note_id)}`}
+              trailing={<span title="Shareability score">{s.shareability_score.toFixed(2)}</span>}
+              meta={[s.note_type, <span key="id" className="font-mono" title={s.note_id}>{shortId(s.note_id)}</span>, s.reason]}
             >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-[10px] font-mono text-gray-500" title={s.note_id}>
-                    {s.note_id.slice(0, 8)}
-                  </span>
-                  <Badge variant="default">{s.note_type}</Badge>
-                  <Badge variant="info">score: {s.shareability_score.toFixed(2)}</Badge>
-                </div>
-                {s.content_preview && (
-                  <p className="text-[11px] text-gray-400 truncate leading-relaxed">{s.content_preview}</p>
-                )}
-              </div>
-              <div className="flex gap-1.5 shrink-0">
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => handleConsent(s.note_id, 'explicit_allow')}
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+              {/* Allow / Deny are the row's purpose (a review queue), so they stay visible. */}
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="secondary" onClick={() => handleConsent(s.note_id, 'explicit_allow')}>
+                  <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-emerald-400" aria-hidden="true" />
                   Allow
                 </Button>
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={() => handleConsent(s.note_id, 'explicit_deny')}
-                >
-                  <XCircle className="w-3.5 h-3.5 mr-1" />
+                <Button size="sm" variant="secondary" onClick={() => handleConsent(s.note_id, 'explicit_deny')}>
+                  <XCircle className="w-3.5 h-3.5 mr-1.5 text-red-400" aria-hidden="true" />
                   Deny
                 </Button>
               </div>
-            </div>
+            </EntityRow>
           ))}
+        </EntityList>
+      )}
+    </Section>
+  )
+}
+
+// ============================================================================
+// PRIVACY REPORT
+// ============================================================================
+
+function LastReportSection({ slug, version }: { slug: string; version: number }) {
+  const [stats, setStats] = useState<ConsentStats | null>(null)
+  const [generatedAt, setGeneratedAt] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const fetchReport = useCallback(async () => {
+    if (!slug) return
+    setLoading(true)
+    try {
+      const report = await sharingApi.getLastReport(slug)
+      setStats(report.stats)
+      setGeneratedAt(report.generated_at)
+    } catch {
+      setStats(null)
+    } finally {
+      setLoading(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- version triggers a refetch
+  }, [slug, version])
+
+  useEffect(() => {
+    fetchReport()
+  }, [fetchReport])
+
+  return (
+    <Section
+      title="Privacy report"
+      description={generatedAt && stats ? <RelativeTime date={generatedAt} prefix="generated " /> : undefined}
+    >
+      {loading ? (
+        <SkeletonCard lines={2} />
+      ) : !stats ? (
+        <EmptyState size="sm" title="No report yet" description="Enable sharing and set a consent on some notes to get one." />
+      ) : (
+        <Facts
+          columns={2}
+          items={[
+            { label: 'Allowed', value: <Count n={stats.consent_allowed} hint="notes allowed" /> },
+            { label: 'Denied', value: <Count n={stats.consent_denied} hint="notes denied" warn /> },
+            { label: 'Pending', value: <Count n={stats.consent_pending} hint="awaiting a decision" warn /> },
+            { label: 'Denial reasons', value: <Count n={stats.denied_reasons.length} hint="distinct reasons" /> },
+          ]}
+        />
+      )}
+    </Section>
+  )
+}
+
+function Count({ n, hint, warn }: { n: number; hint: string; warn?: boolean }) {
+  return (
+    <span>
+      <span className={`tabular-nums ${warn && n > 0 ? 'text-amber-400' : ''}`}>{n}</span>
+      <span className="text-gray-500"> {hint}</span>
+    </span>
+  )
+}
+
+// ============================================================================
+// PREVIEW (what would be shared)
+// ============================================================================
+
+function PreviewSection({ slug, version }: { slug: string; version: number }) {
+  const [items, setItems] = useState<SharingPreviewItem[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const fetchPreview = useCallback(async () => {
+    if (!slug) return
+    setLoading(true)
+    try {
+      setItems(await sharingApi.preview(slug))
+    } catch {
+      setItems([])
+    } finally {
+      setLoading(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- version triggers a refetch
+  }, [slug, version])
+
+  useEffect(() => {
+    fetchPreview()
+  }, [fetchPreview])
+
+  const allowed = items.filter((i) => i.decision === 'allow').length
+
+  return (
+    <Section
+      title="Preview"
+      count={items.length || undefined}
+      description={
+        items.length > 0
+          ? `With the current policy: ${allowed} would be shared, ${items.length - allowed} blocked.`
+          : 'What would be shared with the current policy.'
+      }
+      collapsible
+      defaultOpen={false}
+    >
+      {loading ? (
+        <EntityListSkeleton rows={3} />
+      ) : items.length === 0 ? (
+        <EmptyState size="sm" title="Nothing to preview" description="The project has no notes, or sharing is disabled." />
+      ) : (
+        <EntityList>
+          {items.map((item) => {
+            const allow = item.decision === 'allow'
+            const decision = allow ? 'Would be shared' : 'Blocked'
+            return (
+              <EntityRow
+                key={item.note_id}
+                title={item.content_preview || `Note ${shortId(item.note_id)}`}
+                trailing={<span title="Shareability score">{item.shareability_score.toFixed(2)}</span>}
+                muted={!allow}
+                meta={[
+                  <ToneText key="d" tone={allow ? 'success' : 'danger'} label={decision} />,
+                  <ConsentText key="c" consent={item.consent} />,
+                  item.note_type,
+                  <span key="id" className="font-mono" title={item.note_id}>{shortId(item.note_id)}</span>,
+                ]}
+              />
+            )
+          })}
+        </EntityList>
+      )}
+    </Section>
+  )
+}
+
+// ============================================================================
+// AUDIT TRAIL
+// ============================================================================
+
+const PAGE = 20
+
+function AuditTrailSection({ slug }: { slug: string }) {
+  const [events, setEvents] = useState<SharingEvent[]>([])
+  const [loading, setLoading] = useState(false)
+  const [offset, setOffset] = useState(0)
+
+  const fetchEvents = useCallback(async () => {
+    if (!slug) return
+    setLoading(true)
+    try {
+      setEvents(await sharingApi.getHistory(slug, { limit: PAGE, offset }))
+    } catch {
+      setEvents([])
+    } finally {
+      setLoading(false)
+    }
+  }, [slug, offset])
+
+  useEffect(() => {
+    fetchEvents()
+  }, [fetchEvents])
+
+  return (
+    <Section
+      title="Audit trail"
+      description="Every share or retraction, with the consent that applied."
+      collapsible
+      defaultOpen={false}
+    >
+      {loading && events.length === 0 ? (
+        <EntityListSkeleton rows={3} />
+      ) : events.length === 0 && offset === 0 ? (
+        <EmptyState size="sm" title="No sharing event yet" />
+      ) : (
+        <div className="space-y-2">
+          <EntityList>
+            {events.map((ev) => {
+              const retracted = ev.action === 'retracted'
+              const action = humanizeStatus(ev.action)
+              return (
+                <EntityRow
+                  key={ev.id}
+                  title={action}
+                  trailing={<RelativeTime date={ev.timestamp} />}
+                  description={ev.reason}
+                  meta={[
+                    <ToneText key="a" tone={retracted ? 'danger' : 'info'} label={action} />,
+                    <ConsentText key="c" consent={ev.consent} />,
+                    ev.artifact_type,
+                    <span key="src" className="font-mono truncate max-w-[12rem]" title={ev.source_did}>
+                      {ev.source_did}
+                    </span>,
+                  ]}
+                />
+              )
+            })}
+          </EntityList>
+          {/* Offset-based history without a total: prev / next only (the Pagination primitive needs a page count). */}
+          <div className="flex items-center justify-between gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setOffset(Math.max(0, offset - PAGE))} disabled={offset === 0}>
+              <ChevronLeft className="w-4 h-4 mr-1" aria-hidden="true" />
+              Previous
+            </Button>
+            <span className="text-[11px] tabular-nums text-gray-500">
+              {events.length > 0 ? `${offset + 1}–${offset + events.length}` : 'No more events'}
+            </span>
+            <Button variant="ghost" size="sm" onClick={() => setOffset(offset + PAGE)} disabled={events.length < PAGE}>
+              Next
+              <ChevronRight className="w-4 h-4 ml-1" aria-hidden="true" />
+            </Button>
+          </div>
         </div>
       )}
-    </CollapsibleSection>
+    </Section>
+  )
+}
+
+// ============================================================================
+// TOMBSTONES & RETRACTION
+// ============================================================================
+
+function TombstonesSection({ slug }: { slug: string }) {
+  const [tombstones, setTombstones] = useState<SignedTombstone[]>([])
+  const [loading, setLoading] = useState(false)
+  const [retractReason, setRetractReason] = useState('')
+  const [retractNoteId, setRetractNoteId] = useState('')
+  const [retracting, setRetracting] = useState(false)
+  const toast = useToast()
+  const confirmDialog = useConfirmDialog()
+
+  const fetchTombstones = useCallback(async () => {
+    if (!slug) return
+    setLoading(true)
+    try {
+      setTombstones(await sharingApi.listTombstones(slug))
+    } catch {
+      setTombstones([])
+    } finally {
+      setLoading(false)
+    }
+  }, [slug])
+
+  useEffect(() => {
+    fetchTombstones()
+  }, [fetchTombstones])
+
+  const handleRetract = () => {
+    if (!retractNoteId.trim()) return
+    confirmDialog.open({
+      title: 'Retract shared note',
+      description: `Creates a signed tombstone for note “${retractNoteId.trim()}” and sets its consent to Denied. This cannot be undone.`,
+      variant: 'danger',
+      confirmLabel: 'Retract',
+      onConfirm: async () => {
+        setRetracting(true)
+        try {
+          await sharingApi.retract(slug, { note_id: retractNoteId.trim(), reason: retractReason.trim() || undefined })
+          toast.success('Note retracted')
+          setRetractNoteId('')
+          setRetractReason('')
+          fetchTombstones()
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : 'Failed to retract')
+        } finally {
+          setRetracting(false)
+        }
+      },
+    })
+  }
+
+  return (
+    <Section
+      title="Retraction"
+      count={tombstones.length || undefined}
+      description="Take back a note that was already shared: a signed tombstone asks the other instances to delete it."
+      collapsible
+      defaultOpen={false}
+    >
+      <div className="space-y-3">
+        <SettingsList>
+          <SettingRow label="Retract a note" description="Irreversible — the note can no longer be shared.">
+            <div className="flex flex-wrap gap-2">
+              <div className="flex-[1_1_12rem] min-w-0">
+                <Input
+                  placeholder="Note UUID"
+                  aria-label="Note UUID"
+                  value={retractNoteId}
+                  onChange={(e) => setRetractNoteId(e.target.value)}
+                  className="h-9 py-1.5 font-mono"
+                />
+              </div>
+              <div className="flex-[1_1_12rem] min-w-0">
+                <Input
+                  placeholder="Reason (optional)"
+                  aria-label="Reason"
+                  value={retractReason}
+                  onChange={(e) => setRetractReason(e.target.value)}
+                  className="h-9 py-1.5"
+                />
+              </div>
+              <Button variant="danger" size="sm" onClick={handleRetract} loading={retracting} disabled={!retractNoteId.trim()}>
+                Retract
+              </Button>
+            </div>
+          </SettingRow>
+        </SettingsList>
+
+        {loading ? (
+          <EntityListSkeleton rows={2} />
+        ) : tombstones.length === 0 ? (
+          <EmptyState size="sm" title="No tombstone" description="Retracted notes will appear here." />
+        ) : (
+          <EntityList aria-label="Tombstones">
+            {tombstones.map((t) => (
+              <EntityRow
+                key={t.content_hash}
+                title={<span className="font-mono text-xs break-all">{t.content_hash}</span>}
+                ariaLabel={`Tombstone ${t.content_hash}`}
+                trailing={<RelativeTime date={t.issued_at} />}
+                description={t.reason}
+                meta={[
+                  <span key="iss" className="font-mono truncate max-w-[14rem]" title={t.issuer_did}>
+                    {t.issuer_did}
+                  </span>,
+                ]}
+              />
+            ))}
+          </EntityList>
+        )}
+      </div>
+      <ConfirmDialog {...confirmDialog.dialogProps} />
+    </Section>
   )
 }

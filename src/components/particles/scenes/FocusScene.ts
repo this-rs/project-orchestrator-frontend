@@ -279,14 +279,14 @@ export class FocusScene implements ParticleScene {
 
     // ── Labels ──
     renderLabel(ctx, {
-      text: 'DISPERSÉ',
+      text: 'DISPERSED',
       x: width * 0.25,
       y: height - 28,
       opacity: 0.4,
       size: 10,
     });
     renderLabel(ctx, {
-      text: 'FOCALISÉ',
+      text: 'FOCUSED',
       x: width * 0.75,
       y: height - 28,
       opacity: 0.4,
