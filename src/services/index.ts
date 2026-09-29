@@ -3,6 +3,8 @@ export { authApi, getAuthMode, getAuthToken, setAuthToken, setAuthMode } from '.
 export { workspacesApi } from './workspaces'
 export { projectsApi } from './projects'
 export { plansApi } from './plans'
+export { progressApi } from './progress'
+export type { ProgressKind, TaskCounts } from './progress'
 export { tasksApi } from './tasks'
 export { notesApi } from './notes'
 export { codeApi } from './code'

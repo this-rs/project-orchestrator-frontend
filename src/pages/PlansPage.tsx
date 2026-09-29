@@ -19,6 +19,7 @@ import {
   RelativeTime,
   Select,
   StatusMenu,
+  TaskProgress,
   getStatusOptions,
   hitArea,
   textLink,
@@ -36,6 +37,7 @@ import {
   useWorkspaceSlug,
   useViewTransition,
   useProjectFilter,
+  useTaskProgress,
 } from '@/hooks'
 import { CreatePlanForm, EditPlanForm } from '@/components/forms'
 import type { EditPlanFormData } from '@/components/forms/EditPlanForm'
@@ -286,6 +288,8 @@ export function PlansPage() {
   }
 
   const multiSelect = useMultiSelect(plans, (p) => p.id)
+  const planIds = useMemo(() => plans.map((p) => p.id), [plans])
+  const progress = useTaskProgress('plan', planIds, planRefresh)
 
   const handleBulkDelete = () => {
     const count = multiSelect.selectionCount
@@ -438,6 +442,7 @@ export function PlansPage() {
                 }
                 trailing={<RelativeTime date={plan.created_at} />}
                 description={plan.description}
+                context={<TaskProgress counts={progress[plan.id]} />}
                 meta={[
                   <StatusMenu
                     key="status"

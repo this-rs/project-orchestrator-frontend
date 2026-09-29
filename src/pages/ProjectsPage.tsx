@@ -20,9 +20,11 @@ import {
   RelativeTime,
   focusRing,
   RowCheckbox,
+  TaskProgress,
   ToneText,
 } from '@/components/ui'
-import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useWorkspaceSlug, useWorkspace } from '@/hooks'
+import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useWorkspaceSlug, useWorkspace, useTaskProgress } from '@/hooks'
+import type { TaskCounts } from '@/services/progress'
 import { CreateProjectForm, EditProjectForm } from '@/components/forms'
 import { workspacePath } from '@/utils/paths'
 import type { Project } from '@/types'
@@ -116,6 +118,8 @@ export function ProjectsPage() {
 
   const visible = useMemo(() => projects.filter((p) => matches(p, search)), [projects, search])
   const multiSelect = useMultiSelect(visible, (p) => p.slug)
+  const projectIds = useMemo(() => projects.map((p) => p.id), [projects])
+  const progress = useTaskProgress('project', projectIds)
 
   const handleBulkDelete = () => {
     const count = multiSelect.selectionCount
@@ -205,6 +209,7 @@ export function ProjectsPage() {
             <ProjectRow
               key={project.id}
               project={project}
+              counts={progress[project.id]}
               wsSlug={wsSlug}
               selected={multiSelect.isSelected(project.slug)}
               onToggleSelect={(shiftKey) => multiSelect.toggle(project.slug, shiftKey)}
@@ -231,6 +236,7 @@ export function ProjectsPage() {
 
 function ProjectRow({
   project,
+  counts,
   wsSlug,
   selected,
   onToggleSelect,
@@ -238,6 +244,7 @@ function ProjectRow({
   onDelete,
 }: {
   project: Project
+  counts?: TaskCounts
   wsSlug: string
   selected: boolean
   onToggleSelect: (shiftKey: boolean) => void
@@ -251,6 +258,7 @@ function ProjectRow({
       selected={selected}
       leading={<RowCheckbox checked={selected} onToggle={onToggleSelect} label={`Select ${project.name}`} />}
       description={project.description || undefined}
+      context={<TaskProgress counts={counts} />}
       trailing={project.last_synced ? <RelativeTime date={project.last_synced} prefix="synced " /> : undefined}
       meta={[
         project.last_synced ? null : <ToneText key="never" tone="warning" label="Never synced" />,
