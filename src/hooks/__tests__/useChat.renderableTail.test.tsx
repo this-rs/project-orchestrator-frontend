@@ -133,9 +133,8 @@ describe('useChat (regression: a conversation whose tail renders nothing must no
     serveSession(50) // exactly the reported case: the last 50 events are all orphans
     const { result } = await openChat()
 
-    // The load-bearing assertion: the history renders instead of collapsing to
-    // the welcome screen.
-    expect(result.current.messages.length).toBeGreaterThan(0)
+    // The load-bearing assertion: the user's conversation is on screen, not a
+    // welcome screen (pre-F10) nor a lone background-activity block (post-F10).
     const texts = result.current.messages.flatMap((m) => m.blocks).map((b) => b.content)
     expect(texts).toContain('Ma question')
     expect(texts).toContain('Ma réponse')
@@ -153,6 +152,18 @@ describe('useChat (regression: a conversation whose tail renders nothing must no
       .filter((q) => q.limit > 1)
     expect(windows.some((q) => q.limit > 50)).toBe(true)
     for (const q of windows) expect(q.offset + q.limit).toBeGreaterThanOrEqual(TOTAL)
+  })
+
+  it('does not widen when the real exchange sits inside the tail next to orphans', async () => {
+    serveSession(10) // exchange at the tail's start, then 10 orphan ticks (F10 renders them)
+    const { result } = await openChat()
+
+    const texts = result.current.messages.flatMap((m) => m.blocks).map((b) => b.content)
+    expect(texts).toContain('Ma réponse')
+    const windows = getMessages.mock.calls
+      .map((c) => c[1] as { limit: number; offset: number })
+      .filter((q) => q.limit > 1)
+    expect(windows).toHaveLength(1)
   })
 
   it('does not over-fetch when the plain tail already renders', async () => {

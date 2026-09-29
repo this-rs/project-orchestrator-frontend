@@ -5,7 +5,13 @@
  * useChat (main conversation) and useConversationWs (inline runner conversations).
  */
 
-import type { ChatMessage } from '@/types'
+import type {
+  BackgroundActivityMetadata,
+  BackgroundOutputEntry,
+  ChatMessage,
+  ContentBlock,
+} from '@/types'
+import { BACKGROUND_ACTIVITY_MAX_ENTRIES } from '@/types'
 
 // ---------------------------------------------------------------------------
 // ID generators
@@ -58,6 +64,142 @@ function withCreatedAt(
 ): Record<string, unknown> | undefined {
   if (!createdAt) return metadata
   return { ...metadata, created_at: createdAt }
+}
+
+// ---------------------------------------------------------------------------
+// Background output — attach to parent, or fall back to a grouped
+// `background_activity` block (F6 + F10 of plan 5985a7c4)
+// ---------------------------------------------------------------------------
+
+/** A background tick normalised from a `background_output` or `workflow` event. */
+export interface BackgroundTick extends BackgroundOutputEntry {
+  correlation_id?: string
+  subagent_type?: string
+  description?: string
+}
+
+/**
+ * Normalise a `workflow` event (emitted by the Workflow tool, e.g.
+ * `{type:'workflow', subtype:'task_progress', data:{description,
+ * last_tool_name, task_id, tool_use_id, usage, subagent_type}}`) into
+ * the same shape as a `background_output` tick so both share one
+ * attach/fallback path. `data.tool_use_id` is the correlation key.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function workflowEventToTick(evt: any, fallbackReceivedAt: string): BackgroundTick {
+  const data = (evt.data ?? {}) as Record<string, unknown>
+  const subtype = (evt.subtype as string | undefined) ?? 'workflow'
+  const description = typeof data.description === 'string' ? data.description : undefined
+  const subagentType = typeof data.subagent_type === 'string' ? data.subagent_type : undefined
+  const lastTool = typeof data.last_tool_name === 'string' ? data.last_tool_name : undefined
+  const usage = (data.usage ?? {}) as Record<string, unknown>
+  const parts: string[] = [subtype]
+  if (description) parts.push(description)
+  if (lastTool) parts.push(`last tool: ${lastTool}`)
+  if (typeof usage.tool_uses === 'number') parts.push(`${usage.tool_uses} tool uses`)
+  const correlationId = typeof data.tool_use_id === 'string'
+    ? data.tool_use_id
+    : typeof data.task_id === 'string' ? data.task_id : undefined
+  const receivedAt = typeof evt.received_at === 'string'
+    ? evt.received_at
+    : typeof data.received_at === 'string' ? data.received_at : fallbackReceivedAt
+  return {
+    correlation_id: correlationId,
+    source: 'Workflow',
+    content: parts.join(' · '),
+    received_at: receivedAt,
+    subagent_type: subagentType,
+    description,
+  }
+}
+
+/**
+ * Try to attach a tick to the `tool_use` block whose `tool_call_id`
+ * equals the tick's `correlation_id` (searching backwards through
+ * `messages`), appending it to that block's `child_outputs` so
+ * MonitorCard renders it nested. Blocks are replaced immutably.
+ * Returns true when a parent was found.
+ */
+export function attachToParentToolUse(messages: ChatMessage[], tick: BackgroundTick): boolean {
+  const correlationId = tick.correlation_id
+  if (!correlationId) return false
+  for (let mi = messages.length - 1; mi >= 0; mi--) {
+    const msg = messages[mi]
+    for (let bi = 0; bi < msg.blocks.length; bi++) {
+      const block = msg.blocks[bi]
+      if (block.type === 'tool_use' && block.metadata?.tool_call_id === correlationId) {
+        const existing =
+          (block.metadata?.child_outputs as BackgroundOutputEntry[] | undefined) ?? []
+        msg.blocks[bi] = {
+          ...block,
+          metadata: {
+            ...block.metadata,
+            child_outputs: [
+              ...existing,
+              { source: tick.source, content: tick.content, received_at: tick.received_at },
+            ],
+          },
+        }
+        return true
+      }
+    }
+  }
+  return false
+}
+
+/**
+ * F10 fallback: fold an orphan tick into a `background_activity` block
+ * on `msg`. Orphans sharing a `correlation_id` within the same assistant
+ * message merge into one block (count + last-N entries) so 50 ticks
+ * never become 50 rows; a different (or missing) correlation_id starts
+ * a new block. The updated block is replaced immutably in `msg.blocks`.
+ */
+export function appendBackgroundActivity(msg: ChatMessage, tick: BackgroundTick): void {
+  const key = tick.correlation_id ?? null
+  const entry: BackgroundOutputEntry = {
+    source: tick.source,
+    content: tick.content,
+    received_at: tick.received_at,
+  }
+  for (let bi = msg.blocks.length - 1; bi >= 0; bi--) {
+    const block = msg.blocks[bi]
+    if (block.type !== 'background_activity') continue
+    const meta = block.metadata as unknown as BackgroundActivityMetadata
+    if ((meta.correlation_id ?? null) !== key) continue
+    const entries = [...meta.entries, entry].slice(-BACKGROUND_ACTIVITY_MAX_ENTRIES)
+    const merged: BackgroundActivityMetadata = {
+      ...meta,
+      source: tick.source,
+      count: meta.count + 1,
+      last_received_at: tick.received_at,
+      subagent_type: tick.subagent_type ?? meta.subagent_type,
+      description: tick.description ?? meta.description,
+      entries,
+    }
+    msg.blocks[bi] = {
+      ...block,
+      content: tick.content,
+      metadata: merged as unknown as Record<string, unknown>,
+    }
+    return
+  }
+  const meta: BackgroundActivityMetadata = {
+    correlation_id: tick.correlation_id,
+    source: tick.source,
+    count: 1,
+    first_received_at: tick.received_at,
+    last_received_at: tick.received_at,
+    subagent_type: tick.subagent_type,
+    description: tick.description,
+    entries: [entry],
+  }
+  const block: ContentBlock = {
+    id: nextBlockId(),
+    type: 'background_activity',
+    content: tick.content,
+    metadata: meta as unknown as Record<string, unknown>,
+  }
+  msg.blocks.push(block)
 }
 
 // ---------------------------------------------------------------------------
@@ -466,46 +608,25 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
         break
       }
 
-      case 'background_output': {
-        // Plan 5985a7c4 (F6): if this tick carries a correlation_id
-        // matching a previously-emitted Monitor / Bash bg tool_use
-        // block, append it to that block's `child_outputs` metadata —
-        // MonitorCard will render the events nested under their
-        // parent. Without a match the event is dropped for now;
-        // F10 (orphan tolerance) will buffer + fall back later.
-        const correlationId = (evt as { correlation_id?: string }).correlation_id
-        if (correlationId) {
-          let attached = false
-          for (let mi = messages.length - 1; mi >= 0 && !attached; mi--) {
-            const msg = messages[mi]
-            for (let bi = 0; bi < msg.blocks.length && !attached; bi++) {
-              const block = msg.blocks[bi]
-              if (
-                block.type === 'tool_use' &&
-                block.metadata?.tool_call_id === correlationId
-              ) {
-                const existing =
-                  (block.metadata?.child_outputs as
-                    | Array<{ source: string; content: string; received_at: string }>
-                    | undefined) ?? []
-                msg.blocks[bi] = {
-                  ...block,
-                  metadata: {
-                    ...block.metadata,
-                    child_outputs: [
-                      ...existing,
-                      {
-                        source: evt.source,
-                        content: evt.content,
-                        received_at: evt.received_at,
-                      },
-                    ],
-                  },
-                }
-                attached = true
-              }
+      case 'background_output':
+      case 'workflow': {
+        // Plan 5985a7c4 (F6 + F10): a tick whose correlation_id matches a
+        // previously-emitted Monitor / Bash bg tool_use block is appended
+        // to that block's `child_outputs` (MonitorCard renders it nested).
+        // Without a match — parent outside the loaded window, or no
+        // correlation_id at all — the tick is never dropped: it folds
+        // into a grouped `background_activity` block on the current
+        // assistant message (F10 orphan tolerance).
+        const tick: BackgroundTick = type === 'workflow'
+          ? workflowEventToTick(evt, createdAt.toISOString())
+          : {
+              correlation_id: (evt as { correlation_id?: string }).correlation_id,
+              source: (evt.source as string) ?? 'background',
+              content: (evt.content as string) ?? '',
+              received_at: (evt.received_at as string) ?? createdAt.toISOString(),
             }
-          }
+        if (!attachToParentToolUse(messages, tick)) {
+          appendBackgroundActivity(lastAssistant(createdAt), tick)
         }
         lastEventWasMaxTurns = false
         break
