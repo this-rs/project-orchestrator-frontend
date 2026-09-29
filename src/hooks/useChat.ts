@@ -21,6 +21,76 @@ import type { BackgroundActivityMetadata, BackgroundOutputEntry } from '@/types'
 const PAGE_SIZE = 50
 
 /**
+ * Upper bound for the tail widening in `fetchRenderableTail`. 16 pages is
+ * enough to clear a long burst of non-renderable events, and small enough not
+ * to drag a whole multi-thousand-event conversation over the wire on open.
+ */
+const MAX_RENDERABLE_TAIL = PAGE_SIZE * 16
+
+/** One loaded window of history, assembled and with its raw-event bookkeeping. */
+interface LoadedWindow {
+  messages: ChatMessage[]
+  /** Raw events in the window — the pagination cursor advances by this, NOT by `messages.length`. */
+  rawCount: number
+  offset: number
+  totalCount: number
+  /** Last raw event, to tell a finished turn from a live one. */
+  lastEvent?: { type?: string }
+}
+
+/** Whether a window shows the user any conversation, not only background-activity noise. */
+function hasConversation(messages: ReadonlyArray<ChatMessage>): boolean {
+  return messages.some((m) => m.blocks.some((b) => b.type !== 'background_activity'))
+}
+
+/** Fetch one window of raw events and assemble it. */
+async function fetchWindow(sid: string, offset: number, limit: number): Promise<LoadedWindow> {
+  const data = await chatApi.getMessages(sid, { limit, offset })
+  return {
+    messages: historyEventsToMessages(data.messages),
+    rawCount: data.messages.length,
+    offset,
+    totalCount: data.total_count,
+    lastEvent: data.messages[data.messages.length - 1] as { type?: string } | undefined,
+  }
+}
+
+/**
+ * Load the tail of a conversation as messages that actually render.
+ *
+ * A page of raw events does not necessarily render anything. `background_output`
+ * ticks attach to the `tool_use` block they belong to and are DROPPED when that
+ * parent sits outside the loaded window (see chatAssembly), and internal types
+ * render nothing at all. A long run of background subagents therefore fills the
+ * whole last PAGE_SIZE with events that assemble to zero messages — and an empty
+ * `messages` makes ChatMessages show the "new conversation" welcome screen over
+ * a conversation holding thousands of events. That screen REPLACES the scroll
+ * container, so "load older" can never be reached: the history is then
+ * unrecoverable from the UI, which is why this is worth a retry loop.
+ *
+ * Since F10, orphan ticks are no longer dropped but rendered as
+ * `background_activity` blocks — so a window of nothing but ticks is not
+ * empty anymore, yet it still shows the user none of their conversation. A
+ * window therefore counts as renderable only when it carries something other
+ * than background activity: the last real exchange, with the activity block
+ * after it.
+ *
+ * So when a window assembles to no conversation and older events exist, widen
+ * it — keeping the END anchored on the tail rather than walking backwards, so
+ * the caller still holds a true tail window (`isAtTail`, no "newer" page) and
+ * live events keep appending normally.
+ */
+async function fetchRenderableTail(sid: string, total: number): Promise<LoadedWindow> {
+  let limit = PAGE_SIZE
+  let win = await fetchWindow(sid, Math.max(0, total - limit), limit)
+  while (!hasConversation(win.messages) && win.offset > 0 && limit < MAX_RENDERABLE_TAIL) {
+    limit = Math.min(limit * 4, MAX_RENDERABLE_TAIL)
+    win = await fetchWindow(sid, Math.max(0, total - limit), limit)
+  }
+  return win
+}
+
+/**
  * Decide how to apply a REPLAYED text segment (assistant_text / partial_text /
  * thinking) against what is already rendered — without ever destroying content.
  *
@@ -1129,20 +1199,19 @@ export function useChat() {
       .getMessages(sid, { limit: 1, offset: 0 })
       .then(async (meta) => {
         const total = meta.total_count
-        const loadOffset = Math.max(0, total - PAGE_SIZE)
-        const data =
+        const win: LoadedWindow =
           total === 0
-            ? { messages: [], total_count: 0 }
-            : await chatApi.getMessages(sid, { limit: PAGE_SIZE, offset: loadOffset })
+            ? { messages: [], rawCount: 0, offset: 0, totalCount: 0 }
+            : await fetchRenderableTail(sid, total)
         if (gen !== resyncGenRef.current) return
 
-        setMessages(historyEventsToMessages(data.messages))
+        setMessages(win.messages)
         paginationRef.current = {
-          offset: loadOffset,
-          tailOffset: loadOffset + data.messages.length,
-          totalCount: data.total_count,
+          offset: win.offset,
+          tailOffset: win.offset + win.rawCount,
+          totalCount: win.totalCount,
         }
-        setHasOlderMessages(loadOffset > 0)
+        setHasOlderMessages(win.offset > 0)
         setHasNewerMessages(false)
         isAtTailRef.current = true
 
@@ -1150,8 +1219,7 @@ export function useChat() {
         // is streaming: clears an optimistic typing indicator whose `result`
         // was missed. A stream that starts later announces itself with a
         // live streaming_status.
-        const last = data.messages[data.messages.length - 1] as { type?: string } | undefined
-        if (last?.type === 'result') setIsStreaming(false)
+        if (win.lastEvent?.type === 'result') setIsStreaming(false)
       })
       .catch(() => {
         // Keep what is on screen; the next reconnect retries.
@@ -1375,26 +1443,27 @@ export function useChat() {
           })
         }
 
-        return loadOffsetPromise.then(({ loadOffset }) =>
-        chatApi.getMessages(sessionId, { limit: PAGE_SIZE, offset: loadOffset })
-          .then((data) => {
+        return loadOffsetPromise.then(async ({ loadOffset, isCentered }) => {
+            // A centered window (jumped to a search hit) must stay where it is;
+            // only a tail window may widen to find something renderable.
+            const win = isCentered
+              ? await fetchWindow(sessionId, loadOffset, PAGE_SIZE)
+              : await fetchRenderableTail(sessionId, total)
             if (cancelled) return
 
-            const historyMessages = historyEventsToMessages(data.messages)
-            setMessages(historyMessages)
+            setMessages(win.messages)
 
-            const loadedCount = data.messages.length
-            const endOffset = loadOffset + loadedCount
+            const endOffset = win.offset + win.rawCount
 
             // Track the loaded window boundaries
             paginationRef.current = {
-              offset: loadOffset,
+              offset: win.offset,
               tailOffset: endOffset,
-              totalCount: data.total_count,
+              totalCount: win.totalCount,
             }
-            setHasOlderMessages(loadOffset > 0)
-            setHasNewerMessages(endOffset < data.total_count)
-            isAtTailRef.current = endOffset >= data.total_count
+            setHasOlderMessages(win.offset > 0)
+            setHasNewerMessages(endOffset < win.totalCount)
+            isAtTailRef.current = endOffset >= win.totalCount
             setIsLoadingHistory(false)
             setIsReplaying(false)
 
@@ -1407,8 +1476,7 @@ export function useChat() {
             for (const evt of pending) {
               handleEvent(evt)
             }
-          })
-        )
+        })
       })
       .catch(() => {
         if (cancelled) return
@@ -1543,25 +1611,18 @@ export function useChat() {
   const jumpToTail = useCallback(async () => {
     if (!sessionId) return
     try {
-      const data = await chatApi.getMessages(sessionId, { limit: PAGE_SIZE, offset: 0 })
-      const total = data.total_count
-      const tailOffset = Math.max(0, total - PAGE_SIZE)
+      const meta = await chatApi.getMessages(sessionId, { limit: 1, offset: 0 })
+      const win = await fetchRenderableTail(sessionId, meta.total_count)
 
-      const tailData = tailOffset > 0
-        ? await chatApi.getMessages(sessionId, { limit: PAGE_SIZE, offset: tailOffset })
-        : data
+      setMessages(win.messages)
 
-      const historyMessages = historyEventsToMessages(tailData.messages)
-      setMessages(historyMessages)
-
-      const loadedCount = tailData.messages.length
-      const endOffset = tailOffset + loadedCount
+      const endOffset = win.offset + win.rawCount
       paginationRef.current = {
-        offset: tailOffset,
+        offset: win.offset,
         tailOffset: endOffset,
-        totalCount: tailData.total_count,
+        totalCount: win.totalCount,
       }
-      setHasOlderMessages(tailOffset > 0)
+      setHasOlderMessages(win.offset > 0)
       setHasNewerMessages(false)
       isAtTailRef.current = true
 
