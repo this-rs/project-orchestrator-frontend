@@ -76,7 +76,7 @@ export function SkillBrowser({ onImport }: SkillBrowserProps) {
     [],
   )
 
-  const { items: skills, loading, loadingMore, hasMore, total, sentinelRef } = useInfiniteList({
+  const { items: skills, loading, total, sentinelProps } = useInfiniteList({
     fetcher,
     filters,
     enabled: true,
@@ -133,7 +133,7 @@ export function SkillBrowser({ onImport }: SkillBrowserProps) {
               <PublishedSkillRow key={skill.id} skill={skill} onImport={() => onImport(skill)} />
             ))}
           </EntityList>
-          <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
+          <LoadMoreSentinel {...sentinelProps} />
         </>
       )}
     </div>

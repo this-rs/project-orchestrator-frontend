@@ -131,10 +131,8 @@ export function PlansPage() {
   const {
     items: plans,
     loading,
-    loadingMore,
-    hasMore,
     total,
-    sentinelRef,
+    sentinelProps,
     reset,
     removeItems,
     updateItem,
@@ -479,7 +477,7 @@ export function PlansPage() {
               />
             ))}
           </EntityList>
-          <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
+          <LoadMoreSentinel {...sentinelProps} />
         </>
       )}
 

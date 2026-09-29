@@ -27,10 +27,23 @@ interface UseInfiniteListReturn<T> {
   loadingMore: boolean
   /** Whether there are more items to fetch */
   hasMore: boolean
+  /** True when the last page failed to load. Auto-loading pauses until `loadMore` is called. */
+  error: boolean
+  /** Fetch the next page now (manual fallback + retry after an error) */
+  loadMore: () => void
   /** Total count from the API */
   total: number
   /** Ref callback — attach to a sentinel element at the bottom of your list */
   sentinelRef: (node: HTMLDivElement | null) => void
+  /** Spread onto <LoadMoreSentinel {...sentinelProps} />: ref, state, retry and remaining count */
+  sentinelProps: {
+    sentinelRef: (node: HTMLDivElement | null) => void
+    loadingMore: boolean
+    hasMore: boolean
+    error: boolean
+    onLoadMore: () => void
+    remaining: number
+  }
   /** Manually reset and re-fetch from scratch */
   reset: () => void
   /** Replace an item in-place (e.g. after status update) */
@@ -56,6 +69,7 @@ export function useInfiniteList<T, F = Record<string, unknown>>(
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [total, setTotal] = useState(0)
+  const [error, setError] = useState(false)
 
   // Track current offset for next fetch
   const offsetRef = useRef(0)
@@ -73,6 +87,7 @@ export function useInfiniteList<T, F = Record<string, unknown>>(
       if (fetchingRef.current) return
       fetchingRef.current = true
 
+      setError(false)
       if (isFirstPage) {
         setLoading(true)
       } else {
@@ -105,9 +120,10 @@ export function useInfiniteList<T, F = Record<string, unknown>>(
           })
         }
       } catch {
-        // On error, stop trying to load more
+        // Keep `hasMore` so the user can retry; auto-loading pauses via `error`.
+        // (Silently dropping `hasMore` made the list look complete after a failed page.)
         if (generation === generationRef.current) {
-          setHasMore(false)
+          setError(true)
         }
       } finally {
         if (generation === generationRef.current) {
@@ -131,6 +147,7 @@ export function useInfiniteList<T, F = Record<string, unknown>>(
     setItems([])
     setHasMore(true)
     setTotal(0)
+    setError(false)
     fetchPage(0, gen, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersKey, pageSize, enabled])
@@ -157,9 +174,10 @@ export function useInfiniteList<T, F = Record<string, unknown>>(
 
   // --- Intersection Observer (reuses pattern from useInfiniteScroll) ---
   const observerRef = useRef<IntersectionObserver | null>(null)
-  const stableFlags = useRef({ hasMore, loading: loading || loadingMore })
+  const nodeRef = useRef<HTMLDivElement | null>(null)
+  const stableFlags = useRef({ hasMore, loading: loading || loadingMore, error })
   useEffect(() => {
-    stableFlags.current = { hasMore, loading: loading || loadingMore }
+    stableFlags.current = { hasMore, loading: loading || loadingMore, error }
   })
   const stableLoadMore = useRef(loadMore)
   useEffect(() => {
@@ -172,6 +190,7 @@ export function useInfiniteList<T, F = Record<string, unknown>>(
         observerRef.current.disconnect()
         observerRef.current = null
       }
+      nodeRef.current = node
       if (!node) return
 
       observerRef.current = new IntersectionObserver(
@@ -180,7 +199,8 @@ export function useInfiniteList<T, F = Record<string, unknown>>(
           if (
             entry?.isIntersecting &&
             stableFlags.current.hasMore &&
-            !stableFlags.current.loading
+            !stableFlags.current.loading &&
+            !stableFlags.current.error
           ) {
             stableLoadMore.current()
           }
@@ -191,6 +211,17 @@ export function useInfiniteList<T, F = Record<string, unknown>>(
     },
     [threshold],
   )
+
+  // An IntersectionObserver only reports *changes*. If the sentinel is still in view after a
+  // page lands (tall screen, short rows), no event fires and loading stalls. Re-observing after
+  // each page forces a fresh notification with the current state.
+  useEffect(() => {
+    const node = nodeRef.current
+    const observer = observerRef.current
+    if (!node || !observer || loading || loadingMore || !hasMore || error) return
+    observer.unobserve(node)
+    observer.observe(node)
+  }, [items.length, loading, loadingMore, hasMore, error])
 
   // Cleanup observer on unmount
   useEffect(() => {
@@ -221,8 +252,18 @@ export function useInfiniteList<T, F = Record<string, unknown>>(
     loading,
     loadingMore,
     hasMore,
+    error,
+    loadMore,
     total,
     sentinelRef,
+    sentinelProps: {
+      sentinelRef,
+      loadingMore,
+      hasMore,
+      error,
+      onLoadMore: loadMore,
+      remaining: Math.max(0, total - items.length),
+    },
     reset,
     updateItem,
     removeItems,

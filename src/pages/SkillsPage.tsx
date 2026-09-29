@@ -132,10 +132,8 @@ export function SkillsPage() {
   const {
     items: skills,
     loading: listLoading,
-    loadingMore,
-    hasMore,
     total,
-    sentinelRef,
+    sentinelProps,
     reset,
     removeItems,
     updateItem,
@@ -373,7 +371,7 @@ export function SkillsPage() {
                       ))}
                     </ListGroup>
                   ))}
-                  <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
+                  <LoadMoreSentinel {...sentinelProps} />
                 </div>
               )}
             </>

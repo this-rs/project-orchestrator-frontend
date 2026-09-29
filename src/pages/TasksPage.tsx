@@ -94,10 +94,8 @@ export function TasksPage() {
   const {
     items: tasks,
     loading,
-    loadingMore,
-    hasMore,
     total,
-    sentinelRef,
+    sentinelProps,
     removeItems,
     updateItem,
   } = useInfiniteList({
@@ -351,7 +349,7 @@ export function TasksPage() {
               />
             ))}
           </EntityList>
-          <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
+          <LoadMoreSentinel {...sentinelProps} />
         </>
       )}
 

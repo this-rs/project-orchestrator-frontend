@@ -101,7 +101,7 @@ export function NotesPage() {
     [wsSlug],
   )
 
-  const { items: notes, loading, loadingMore, hasMore, total, sentinelRef, reset, removeItems, updateItem } =
+  const { items: notes, loading, total, sentinelProps, reset, removeItems, updateItem } =
     useInfiniteList({ fetcher, filters })
 
   const noteForm = CreateNoteForm({
@@ -418,7 +418,7 @@ export function NotesPage() {
             </button>
           </div>
           <EntityList aria-label="Notes">{filteredNotes.map((note) => renderRow(note))}</EntityList>
-          <LoadMoreSentinel sentinelRef={sentinelRef} loadingMore={loadingMore} hasMore={hasMore} />
+          <LoadMoreSentinel {...sentinelProps} />
         </>
       )}
 

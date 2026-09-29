@@ -107,9 +107,7 @@ export function PersonasPage() {
   const {
     items: personas,
     loading: listLoading,
-    loadingMore,
-    hasMore,
-    sentinelRef,
+    sentinelProps,
     removeItems,
     updateItem,
   } = useInfiniteList<Persona>({ fetcher, filters, enabled: projects.length > 0 })
@@ -305,7 +303,7 @@ export function PersonasPage() {
                 ))}
               </ListGroup>
             ))}
-            <LoadMoreSentinel sentinelRef={sentinelRef} hasMore={hasMore} loadingMore={loadingMore} />
+            <LoadMoreSentinel {...sentinelProps} />
           </div>
         )}
       </div>
