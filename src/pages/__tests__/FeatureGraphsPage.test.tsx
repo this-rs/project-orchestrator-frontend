@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within, configure } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { FeatureGraph } from '@/types'
 import { installMatchMedia } from './testEnv'
@@ -26,6 +26,9 @@ vi.mock('@/hooks', async (importOriginal) => ({
 }))
 
 installMatchMedia()
+// Large-list tests render hundreds of rows: stay green when the whole suite loads the CPU.
+configure({ asyncUtilTimeout: 10_000 })
+vi.setConfig({ testTimeout: 30_000 })
 
 import { FeatureGraphsPage } from '../FeatureGraphsPage'
 
@@ -102,5 +105,72 @@ describe('FeatureGraphsPage', () => {
     list.mockResolvedValue({ feature_graphs: [] })
     fireEvent.click(screen.getByRole('button', { name: /try again/i }))
     expect(await screen.findByText('No feature graphs yet')).toBeTruthy()
+  })
+
+  it('explains what a feature graph is and how Auto-build works', async () => {
+    renderPage()
+    await screen.findByText('Auth flow')
+    expect(screen.getByText('What is a feature graph?')).toBeTruthy()
+    expect(screen.getByText(/follows its calls/)).toBeTruthy()
+  })
+
+  it('explains the empty state and offers both creation paths', async () => {
+    list.mockResolvedValue({ feature_graphs: [] })
+    renderPage()
+    expect(await screen.findByText('No feature graphs yet')).toBeTruthy()
+    expect(screen.getByText(/gathers the files, functions and types/)).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: /Auto-build/ }).length).toBeGreaterThan(1)
+  })
+
+  it('filters by project through the API', async () => {
+    renderPage()
+    await screen.findByText('Auth flow')
+    fireEvent.click(screen.getByRole('button', { name: /^Filters/ }))
+    fireEvent.click(screen.getAllByRole('combobox')[0])
+    fireEvent.click(await screen.findByRole('option', { name: 'Backend', hidden: true }))
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith({ project_id: 'p1' }))
+  })
+
+  describe('huge list (400 graphs)', () => {
+    const many: FeatureGraph[] = Array.from({ length: 400 }, (_, i) => ({
+      id: `g${i}`,
+      name: `Graph ${String(i).padStart(3, '0')}`,
+      project_id: 'p1',
+      created_at: new Date(now - i * 3600_000).toISOString(),
+      entity_count: i % 97,
+    }))
+    beforeEach(() => list.mockResolvedValue({ feature_graphs: many }))
+
+    it('renders at most one page of rows and loads more on demand', async () => {
+      renderPage()
+      await screen.findByText('Graph 000')
+      expect(screen.getAllByRole('listitem').length).toBe(50)
+      expect(screen.getByText('Showing 50 of 400')).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: 'Load 350 more' }))
+      expect(screen.getAllByRole('listitem').length).toBe(100)
+      expect(screen.getByText('Showing 100 of 400')).toBeTruthy()
+    })
+
+    it('searches the full list and resets paging', async () => {
+      renderPage()
+      await screen.findByText('Graph 000')
+      fireEvent.click(screen.getByRole('button', { name: 'Load 350 more' }))
+      fireEvent.change(screen.getByRole('searchbox', { name: 'Search feature graphs' }), { target: { value: 'Graph 399' } })
+      expect(screen.getAllByRole('listitem').length).toBe(1)
+      expect(screen.getByText('Showing 1 of 1')).toBeTruthy()
+    })
+
+    it('sorts by name and by entity count', async () => {
+      renderPage()
+      await screen.findByText('Graph 000')
+      fireEvent.click(screen.getByRole('button', { name: /^Filters/ }))
+      fireEvent.click(screen.getAllByRole('combobox')[0])
+      fireEvent.click(await screen.findByRole('option', { name: 'Most entities', hidden: true }))
+      // entity_count 96 comes first (i = 96, 193, 290, 387 → Graph 096 is the most recent of them)
+      await waitFor(() => expect(screen.getAllByRole('link')[0].textContent).toBe('Graph 096'))
+      fireEvent.click(screen.getAllByRole('combobox')[0])
+      fireEvent.click(await screen.findByRole('option', { name: 'Name (A–Z)', hidden: true }))
+      await waitFor(() => expect(screen.getAllByRole('link')[0].textContent).toBe('Graph 000'))
+    })
   })
 })

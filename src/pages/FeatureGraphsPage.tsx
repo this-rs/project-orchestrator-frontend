@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Boxes, Folder, FolderKanban, GitGraph, Layers, Play, Plus, Sparkles, Trash2 } from 'lucide-react'
+import { ArrowDownUp, Boxes, Folder, FolderKanban, GitGraph, Layers, Play, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { featureGraphsApi, workspacesApi } from '@/services'
 import {
   Button,
@@ -12,17 +12,31 @@ import {
   FilterBar,
   FormDialog,
   ListGroup,
+  LoadMoreSentinel,
   PageShell,
   RelativeTime,
   Select,
   groupByRecency,
   pluralize,
 } from '@/components/ui'
-import { useFormDialog, useToast, useWorkspaceSlug } from '@/hooks'
+import { useFormDialog, useIncrementalList, useToast, useWorkspaceSlug } from '@/hooks'
+import { FeatureGraphListHelp } from '@/components/featureGraphs/FeatureGraphHelp'
 import { CreateFeatureGraphForm, AutoBuildFeatureGraphForm } from '@/components/forms'
 import type { FeatureGraph } from '@/types'
 import { workspacePath } from '@/utils/paths'
 import { NOMENCLATURE } from '@/constants/nomenclature'
+
+type SortKey = 'recent' | 'name' | 'entities'
+
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: 'recent', label: 'Most recent' },
+  { value: 'name', label: 'Name (A–Z)' },
+  { value: 'entities', label: 'Most entities' },
+]
+
+/** Rows rendered at once: the API returns every graph in one response (no server pagination). */
+const PAGE_SIZE = 50
+const noopRef = () => {}
 
 // ── Main page ───────────────────────────────────────────────────────────
 
@@ -36,6 +50,7 @@ export function FeatureGraphsPage() {
   const [projects, setProjects] = useState<{ id: string; name: string; slug: string }[]>([])
   const [selectedProject, setSelectedProject] = useState('all')
   const [search, setSearch] = useState('')
+  const [sort, setSort] = useState<SortKey>('recent')
   const [graphs, setGraphs] = useState<FeatureGraph[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -77,7 +92,22 @@ export function FeatureGraphsPage() {
       [g.name, g.description, g.entry_function].some((v) => v?.toLowerCase().includes(q)),
     )
   }, [graphs, search])
-  const groups = useMemo(() => groupByRecency(filtered, (g) => g.created_at), [filtered])
+  const sorted = useMemo(() => {
+    const list = [...filtered]
+    if (sort === 'name') list.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+    else if (sort === 'entities') list.sort((a, b) => (b.entity_count ?? -1) - (a.entity_count ?? -1))
+    else list.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+    return list
+  }, [filtered, sort])
+  const { visible, hasMore, remaining, showMore } = useIncrementalList(
+    sorted,
+    PAGE_SIZE,
+    `${search}|${selectedProject}|${sort}`,
+  )
+  const groups = useMemo(
+    () => (sort === 'recent' ? groupByRecency(visible, (g) => g.created_at) : [{ group: 'All', items: visible }]),
+    [visible, sort],
+  )
 
   // Forms
   const createForm = CreateFeatureGraphForm({
@@ -117,6 +147,7 @@ export function FeatureGraphsPage() {
   const clearAll = () => {
     setSearch('')
     setSelectedProject('all')
+    setSort('recent')
   }
 
   // Same two actions in the header and in the "nothing yet" empty state.
@@ -136,7 +167,7 @@ export function FeatureGraphsPage() {
   return (
     <PageShell
       title={NOMENCLATURE.featureGraphs.plural}
-      description="A feature graph groups the code (files, functions, types) that implements one feature. Auto-build assembles it by following calls from an entry function."
+      description={NOMENCLATURE.featureGraphs.description}
       count={loading ? undefined : filtered.length}
       width="wide"
       actions={createActions}
@@ -145,22 +176,40 @@ export function FeatureGraphsPage() {
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="Search feature graphs…"
-          activeCount={projectFilterActive ? 1 : 0}
-          activeLabels={[projectFilterActive ? projectNameById[selectedProject] ?? '' : '']}
-          onClear={() => setSelectedProject('all')}
+          activeCount={(projectFilterActive ? 1 : 0) + (sort !== 'recent' ? 1 : 0)}
+          activeLabels={[
+            projectFilterActive ? projectNameById[selectedProject] ?? '' : '',
+            sort !== 'recent' ? SORT_OPTIONS.find((o) => o.value === sort)?.label ?? '' : '',
+          ]}
+          onClear={() => {
+            setSelectedProject('all')
+            setSort('recent')
+          }}
           filters={
-            showProjectFilter ? (
+            <>
+              {showProjectFilter && (
+                <Select
+                  options={[{ value: 'all', label: 'All projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
+                  value={selectedProject}
+                  onChange={setSelectedProject}
+                  icon={<Folder className="w-3 h-3" />}
+                />
+              )}
               <Select
-                options={[{ value: 'all', label: 'All projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
-                value={selectedProject}
-                onChange={setSelectedProject}
-                icon={<Folder className="w-3 h-3" />}
+                options={SORT_OPTIONS}
+                value={sort}
+                onChange={(v) => setSort(v as SortKey)}
+                icon={<ArrowDownUp className="w-3 h-3" />}
               />
-            ) : undefined
+            </>
           }
         />
       }
     >
+      <div className="mb-3 md:mb-4">
+        <FeatureGraphListHelp />
+      </div>
+
       {loading ? (
         <EntityListSkeleton rows={4} />
       ) : error ? (
@@ -171,7 +220,7 @@ export function FeatureGraphsPage() {
           title={isPristine ? 'No feature graphs yet' : 'No matching feature graphs'}
           description={
             isPristine
-              ? 'Create one by hand, or let Auto-build assemble it from an entry function in your code.'
+              ? 'A feature graph gathers the files, functions and types behind one feature. Let Auto-build assemble one from an entry function, or create an empty one and add entities by hand.'
               : 'Try another search, or clear the search and the project filter.'
           }
           action={
@@ -234,6 +283,10 @@ export function FeatureGraphsPage() {
               ))}
             </ListGroup>
           ))}
+          <p className="mt-2 text-center text-xs text-gray-500 tabular-nums" role="status">
+            Showing {visible.length.toLocaleString()} of {filtered.length.toLocaleString()}
+          </p>
+          <LoadMoreSentinel sentinelRef={noopRef} loadingMore={false} hasMore={hasMore} remaining={remaining} onLoadMore={showMore} />
         </div>
       )}
 
