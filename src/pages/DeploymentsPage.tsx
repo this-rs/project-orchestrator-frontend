@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, GitCommitHorizontal, Layers, Tag } from 'lucide-react'
 import {
   EmptyState,
   EntityList,
   EntityListSkeleton,
   EntityRow,
   ErrorState,
+  Fact,
   ListGroup,
   PageShell,
   RelativeTime,
+  ToneText,
+  type StatusTone,
   hitArea,
   inlineLink,
   rowInteractive,
@@ -26,12 +29,12 @@ import type { Project } from '@/types'
 import { NOMENCLATURE } from '@/constants/nomenclature'
 import { workspacePath } from '@/utils/paths'
 
-const STATUS: Record<DeploymentStatus, { label: string; dot: string; text: string }> = {
-  succeeded: { label: 'Succeeded', dot: 'bg-emerald-400', text: 'text-emerald-400' },
-  running: { label: 'Running', dot: 'bg-indigo-400', text: 'text-indigo-400' },
-  pending: { label: 'Pending', dot: 'bg-gray-500', text: 'text-gray-400' },
-  failed: { label: 'Failed', dot: 'bg-red-400', text: 'text-red-400' },
-  rolled_back: { label: 'Rolled back', dot: 'bg-amber-400', text: 'text-amber-400' },
+const STATUS: Record<DeploymentStatus, { label: string; tone: StatusTone; dot: string }> = {
+  succeeded: { label: 'Succeeded', tone: 'success', dot: 'bg-emerald-400' },
+  running: { label: 'Running', tone: 'progress', dot: 'bg-indigo-400' },
+  pending: { label: 'Pending', tone: 'neutral', dot: 'bg-gray-500' },
+  failed: { label: 'Failed', tone: 'danger', dot: 'bg-red-400' },
+  rolled_back: { label: 'Rolled back', tone: 'warning', dot: 'bg-amber-400' },
 }
 
 const KIND_ORDER: Record<EnvironmentKind, number> = { dev: 0, staging: 1, production: 2, other: 3 }
@@ -119,24 +122,29 @@ export function DeploymentsPage() {
                         key={env.id}
                         title={env.name}
                         description={env.description || undefined}
-                        leading={
-                          <span
-                            className={`h-2 w-2 rounded-full ${st ? st.dot : 'bg-gray-700'}`}
-                            aria-hidden="true"
-                          />
-                        }
+                        tone={st?.tone}
                         trailing={dep ? <RelativeTime date={dep.finished_at ?? dep.started_at} /> : undefined}
-                        meta={[
+                        status={[
                           st ? (
-                            <span key="st" className={st.text}>
-                              {st.label}
-                            </span>
+                            <ToneText key="st" tone={st.tone} icon pulse={dep?.status === 'running'} label={st.label} />
                           ) : (
-                            <span key="st">Never deployed</span>
+                            <ToneText key="st" tone="neutral" icon label="Never deployed" />
                           ),
-                          dep?.version ? <span key="v" className="tabular-nums">{dep.version}</span> : null,
-                          dep?.commit_sha ? <code key="c" className="text-[11px]">{dep.commit_sha.slice(0, 7)}</code> : null,
-                          KIND_LABEL[env.kind],
+                        ]}
+                        meta={[
+                          dep?.version ? (
+                            <Fact key="v" icon={Tag} title="Version">
+                              <span className="tabular-nums">{dep.version}</span>
+                            </Fact>
+                          ) : null,
+                          dep?.commit_sha ? (
+                            <Fact key="c" icon={GitCommitHorizontal} title="Commit" mono>
+                              {dep.commit_sha.slice(0, 7)}
+                            </Fact>
+                          ) : null,
+                          <Fact key="k" icon={Layers} title="Environment kind">
+                            {KIND_LABEL[env.kind]}
+                          </Fact>,
                           <History key="h" statuses={recent_statuses} />,
                           env.url ? (
                             <a

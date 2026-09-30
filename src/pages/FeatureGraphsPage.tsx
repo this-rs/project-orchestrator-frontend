@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Folder, GitGraph, Plus, Sparkles, Trash2 } from 'lucide-react'
+import { Boxes, Folder, FolderKanban, GitGraph, Layers, Play, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { featureGraphsApi, workspacesApi } from '@/services'
 import {
   Button,
@@ -8,6 +8,7 @@ import {
   EntityListSkeleton,
   EntityRow,
   ErrorState,
+  Fact,
   FilterBar,
   FormDialog,
   ListGroup,
@@ -195,14 +196,26 @@ export function FeatureGraphsPage() {
                   description={graph.description}
                   trailing={<RelativeTime date={graph.created_at} />}
                   meta={[
-                    selectedProject === 'all' ? projectNameById[graph.project_id] : null,
-                    graph.entry_function ? (
-                      <code key="entry" className="font-mono text-gray-400 truncate max-w-[14rem]" title={`Entry: ${graph.entry_function}`}>
-                        {graph.entry_function}
-                      </code>
+                    selectedProject === 'all' && projectNameById[graph.project_id] ? (
+                      <Fact key="project" icon={FolderKanban} title="Project" truncateAt="max-w-[12rem]">
+                        {projectNameById[graph.project_id]}
+                      </Fact>
                     ) : null,
-                    graph.build_depth != null ? `depth ${graph.build_depth}` : null,
-                    graph.entity_count != null ? pluralize(graph.entity_count, 'entity', 'entities') : null,
+                    graph.entry_function ? (
+                      <Fact key="entry" icon={Play} mono title={`Entry: ${graph.entry_function}`} truncateAt="max-w-[14rem]">
+                        {graph.entry_function}
+                      </Fact>
+                    ) : null,
+                    graph.build_depth != null ? (
+                      <Fact key="depth" icon={Layers} title="Build depth">
+                        {`depth ${graph.build_depth}`}
+                      </Fact>
+                    ) : null,
+                    graph.entity_count != null ? (
+                      <Fact key="entities" icon={Boxes}>
+                        {pluralize(graph.entity_count, 'entity', 'entities')}
+                      </Fact>
+                    ) : null,
                   ]}
                   actions={[
                     {

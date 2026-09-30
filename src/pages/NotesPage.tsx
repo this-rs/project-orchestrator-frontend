@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
-import { AlertTriangle, Brain, Check, Trash2, X, XCircle } from 'lucide-react'
+import { AlertTriangle, Brain, Check, FileCode, Link2, Tag, Trash2, X, XCircle } from 'lucide-react'
 import { noteTypeFilterAtom, noteStatusFilterAtom, noteRefreshAtom } from '@/atoms'
 import { notesApi } from '@/services'
 import {
@@ -11,6 +11,7 @@ import {
   EntityList,
   EntityListSkeleton,
   EntityRow,
+  Fact,
   FilterBar,
   FormDialog,
   LoadMoreSentinel,
@@ -22,6 +23,7 @@ import {
   StatusText,
   TONE_CLASSES,
   focusRing,
+  getStatusMeta,
   getStatusOptions,
   textLink,
   pluralize,
@@ -471,12 +473,12 @@ function NoteRow({ note, href, score, selectable, selected, onToggleSelect, onSt
         )
       }
       description={preview || undefined}
-      meta={[
-        <StatusMenu key="status" kind="note" status={note.status} onChange={onStatusChange} />,
+      tone={note.importance === 'critical' ? getStatusMeta('importance', 'critical').tone : getStatusMeta('note', note.status).tone}
+      status={[
+        <StatusMenu key="status" kind="note" icon status={note.status} onChange={onStatusChange} />,
         <StatusText key="imp" kind="importance" status={note.importance} dot={false} />,
-        <NoteTypeLabel key="type" type={note.note_type} />,
         staleness > 0.5 ? (
-          <StatusText key="stale" status="stale" label={`stale ${pct(staleness)}`} dot={false} />
+          <StatusText key="stale" status="stale" icon label={`stale ${pct(staleness)}`} />
         ) : null,
         note.superseded_by ? (
           <span key="sup" className={`inline-flex items-center gap-1 ${TONE_CLASSES.warning.text}`}>
@@ -484,20 +486,27 @@ function NoteRow({ note, href, score, selectable, selected, onToggleSelect, onSt
             superseded
           </span>
         ) : null,
+      ]}
+      meta={[
+        <NoteTypeLabel key="type" type={note.note_type} className="text-gray-300" />,
         scope ? (
-          <span key="scope" className="font-mono truncate max-w-[12rem]" title={scope.path || scope.type}>
+          <Fact key="scope" icon={FileCode} mono title={scope.path || scope.type} truncateAt="max-w-[12rem]">
             {scope.path || scope.type}
-          </span>
+          </Fact>
         ) : null,
-        note.anchors?.length ? pluralize(note.anchors.length, 'link') : null,
+        note.anchors?.length ? (
+          <Fact key="anchors" icon={Link2}>
+            {pluralize(note.anchors.length, 'link')}
+          </Fact>
+        ) : null,
         tags.length > 0 ? (
-          <span key="tags" className="truncate max-w-[14rem]" title={tags.map((t) => `#${t}`).join(' ')}>
+          <Fact key="tags" icon={Tag} title={tags.map((t) => `#${t}`).join(' ')} truncateAt="max-w-[14rem]">
             {tags
               .slice(0, 3)
               .map((t) => `#${t}`)
               .join(' ')}
             {tags.length > 3 ? ` +${tags.length - 3}` : ''}
-          </span>
+          </Fact>
         ) : null,
         score !== undefined ? <RelativeTime key="date" date={note.created_at} /> : null,
       ]}

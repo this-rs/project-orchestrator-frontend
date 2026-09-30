@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  FolderKanban,
   ExternalLink,
   File as FileIcon,
   FileSpreadsheet,
@@ -16,6 +17,7 @@ import {
   EntityListSkeleton,
   EntityRow,
   ErrorState,
+  Fact,
   PageShell,
   RelativeTime,
 } from '@/components/ui'
@@ -137,21 +139,23 @@ export function DocumentsPage() {
       description={NOMENCLATURE.documents.description}
       width="wide"
       count={loading ? undefined : docs.length}
+      filters={
+        <select
+          aria-label="Filter by project"
+          value={projectId}
+          onChange={(e) => setProjectId(e.target.value)}
+          className="h-9 md:h-8 rounded-md border border-gray-700 bg-gray-900 px-2 text-base md:text-sm text-gray-200"
+        >
+          <option value="">All projects</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      }
       actions={
         <>
-          <select
-            aria-label="Filter by project"
-            value={projectId}
-            onChange={(e) => setProjectId(e.target.value)}
-            className="h-8 rounded-md border border-gray-700 bg-gray-900 px-2 text-sm text-gray-200"
-          >
-            <option value="">All projects</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
           <input
             ref={inputRef}
             type="file"
@@ -203,10 +207,16 @@ export function DocumentsPage() {
                 leading={<Icon className="w-4 h-4 text-indigo-400" aria-hidden="true" />}
                 trailing={doc.created_at ? <RelativeTime date={doc.created_at} /> : undefined}
                 meta={[
-                  k.label,
+                  <Fact key="kind" title="Type">
+                    {k.label}
+                  </Fact>,
                   pages,
                   formatBytes(doc.size_bytes),
-                  doc.project_id ? projectName.get(doc.project_id) ?? null : null,
+                  doc.project_id && projectName.get(doc.project_id) ? (
+                    <Fact key="project" icon={FolderKanban} title="Project" truncateAt="max-w-[12rem]">
+                      {projectName.get(doc.project_id)}
+                    </Fact>
+                  ) : null,
                 ]}
                 actions={[
                   {

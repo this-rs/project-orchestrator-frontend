@@ -34,8 +34,8 @@ describe('EntityRow', () => {
     expect(screen.getByText('backend')).toBeTruthy()
     expect(screen.getByText('3 tasks')).toBeTruthy()
     expect(screen.getByText('ctx')).toBeTruthy()
-    // null meta item skipped → exactly one separator
-    expect(screen.getAllByText('·')).toHaveLength(1)
+    // null meta item skipped; the facts line carries no separators
+    expect(screen.queryByText('·')).toBeNull()
   })
 
   it('navigates via its stretched link', () => {

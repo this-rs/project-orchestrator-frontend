@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { Link } from 'react-router-dom'
-import { ClipboardList, Folder, Pencil, Trash2 } from 'lucide-react'
+import { ClipboardList, Folder, Pencil, Tag, Trash2, User } from 'lucide-react'
 import { tasksAtom, tasksLoadingAtom, taskStatusFilterAtom, taskRefreshAtom } from '@/atoms'
 import { tasksApi } from '@/services'
 import {
@@ -11,6 +11,7 @@ import {
   EntityList,
   EntityListSkeleton,
   EntityRow,
+  Fact,
   FilterBar,
   FormDialog,
   LoadMoreSentinel,
@@ -19,6 +20,7 @@ import {
   RelativeTime,
   Select,
   StatusMenu,
+  getStatusMeta,
   getStatusOptions,
   hitArea,
   inlineLink,
@@ -395,9 +397,12 @@ function TaskRow({ task, wsSlug, selected, onToggleSelect, onEdit, onStatusChang
       leading={<RowCheckbox checked={selected} onToggle={onToggleSelect} label={`Select ${title}`} />}
       trailing={<RelativeTime date={task.updated_at ?? task.created_at} />}
       description={task.title ? task.description : undefined}
-      meta={[
-        <StatusMenu key="status" kind="task" status={task.status} onChange={onStatusChange} />,
+      tone={getStatusMeta('task', task.status).tone}
+      status={[
+        <StatusMenu key="status" kind="task" icon status={task.status} onChange={onStatusChange} />,
         <PriorityText key="p" priority={task.priority} />,
+      ]}
+      meta={[
         task.plan_id && task.plan_title ? (
           <Link
             key="plan"
@@ -410,14 +415,14 @@ function TaskRow({ task, wsSlug, selected, onToggleSelect, onEdit, onStatusChang
           </Link>
         ) : null,
         task.assigned_to ? (
-          <span key="assignee" className="truncate max-w-[10rem]" title={`Assigned to ${task.assigned_to}`}>
+          <Fact key="assignee" icon={User} title={`Assigned to ${task.assigned_to}`} truncateAt="max-w-[10rem]">
             @{task.assigned_to}
-          </span>
+          </Fact>
         ) : null,
         tags.length > 0 ? (
-          <span key="tags" className="break-words">
+          <Fact key="tags" icon={Tag}>
             {tags.map((t) => `#${t}`).join(' ')}
-          </span>
+          </Fact>
         ) : null,
       ]}
       actions={[

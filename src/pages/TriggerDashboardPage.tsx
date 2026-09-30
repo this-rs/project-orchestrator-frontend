@@ -13,7 +13,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { RefreshCw, Trash2, Workflow, Zap, ZapOff } from 'lucide-react'
+import { FolderKanban, RefreshCw, Timer, Trash2, Workflow, Zap, ZapOff } from 'lucide-react'
 import { triggersApi } from '@/services/triggers'
 import type { EventTrigger, TriggerStats } from '@/services/triggers'
 import { protocolApi } from '@/services'
@@ -23,13 +23,14 @@ import {
   EntityListSkeleton,
   EntityRow,
   ErrorState,
+  Fact,
   FilterBar,
   ListGroup,
   MetaLine,
   PageShell,
   RelativeTime,
   Select,
-  StatusDot,
+  ToneText,
   focusRing,
   groupBy,
   inlineLink,
@@ -324,17 +325,25 @@ function TriggerRow({ trigger, protocol, protocolHref, busy, onToggle, onDelete 
     <EntityRow
       title={trigger.name}
       muted={!trigger.enabled}
-      leading={<StatusDot tone={trigger.enabled ? 'success' : 'muted'} label={trigger.enabled ? 'Enabled' : 'Disabled'} />}
+      tone={trigger.enabled ? 'success' : 'muted'}
       trailing={<RelativeTime date={trigger.updated_at} />}
+      status={[<ToneText key="s" tone={trigger.enabled ? 'success' : 'muted'} icon label={trigger.enabled ? 'Enabled' : 'Disabled'} />]}
       meta={[
-        <span key="s" className={trigger.enabled ? 'text-emerald-400' : 'text-gray-500'}>{trigger.enabled ? 'Enabled' : 'Disabled'}</span>,
         <span key="on" className="break-words">
           on <span className="text-gray-300">{patternLabel(trigger.entity_type_pattern)}</span>
           {' · '}
           <span className="font-mono text-gray-300">{patternLabel(trigger.action_pattern)}</span>
         </span>,
-        trigger.project_scope ? <span key="scope" className="break-all">scope {trigger.project_scope}</span> : null,
-        trigger.cooldown_secs > 0 ? `${trigger.cooldown_secs}s cooldown` : null,
+        trigger.project_scope ? (
+          <Fact key="scope" icon={FolderKanban} title="Project scope">
+            {`scope ${trigger.project_scope}`}
+          </Fact>
+        ) : null,
+        trigger.cooldown_secs > 0 ? (
+          <Fact key="cd" icon={Timer} title="Cooldown">
+            {`${trigger.cooldown_secs}s cooldown`}
+          </Fact>
+        ) : null,
         conditions > 0 ? pluralize(conditions, 'condition') : null,
       ]}
       context={

@@ -116,3 +116,38 @@ export function Meter({ value, label, display, tone, hint, size = 'block', class
     </div>
   )
 }
+
+/**
+ * `Energy ▬▬▬ High` - a named gauge for a card's facts line. The bar shows the
+ * magnitude at a glance, the word states it (never colour alone), `title`
+ * carries the exact value.
+ */
+export function Gauge({
+  label,
+  value,
+  level,
+  tone,
+  title,
+}: {
+  label: string
+  /** 0-1. */
+  value: number
+  /** Plain-language reading (e.g. `High`). Default: the percentage. */
+  level?: string
+  tone?: StatusTone
+  title?: string
+}) {
+  return (
+    <span className="inline-flex items-center gap-1.5" title={title}>
+      <span className="text-gray-500">{label}</span>
+      <Meter
+        size="inline"
+        value={value}
+        label={`${label} ${level ?? Math.round(value * 100) + '%'}`}
+        display={level}
+        tone={tone}
+        className="text-gray-300"
+      />
+    </span>
+  )
+}

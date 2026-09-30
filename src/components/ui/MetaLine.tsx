@@ -1,4 +1,5 @@
 import { Children, Fragment, isValidElement, type ReactNode } from 'react'
+import type { LucideIcon } from 'lucide-react'
 import { formatAbsolute, formatRelativeShort } from './format'
 
 /** Decorative middle-dot separator. */
@@ -17,6 +18,13 @@ interface MetaLineProps {
   children?: ReactNode
   /** `xs` = 11px (rows, default), `sm` = 12px (page headers / key facts). */
   size?: 'xs' | 'sm'
+  /**
+   * `dots` (default) joins items with `·`. `facts` is the list-card style: no
+   * separators, 12px, roomy gaps — pair every item with an icon (`Fact`) so the
+   * eye can tell them apart. Items that render nothing (e.g. a `PriorityText`
+   * with no priority) collapse instead of leaving a stray gap.
+   */
+  variant?: 'dots' | 'facts'
   className?: string
 }
 
@@ -28,9 +36,23 @@ function isEmpty(node: ReactNode): boolean {
  * One muted metadata line: `scope · 3 tasks · P8 · 2d`. Wraps on small
  * screens instead of truncating (items stay whole); keep each item short.
  */
-export function MetaLine({ items, children, size = 'xs', className = '' }: MetaLineProps) {
+export function MetaLine({ items, children, size = 'xs', variant = 'dots', className = '' }: MetaLineProps) {
   const list = (items ?? Children.toArray(children)).filter((n) => !isEmpty(n))
   if (list.length === 0) return null
+  if (variant === 'facts') {
+    return (
+      <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 text-xs leading-4 text-gray-400 ${className}`}>
+        {list.map((item, i) => (
+          <span
+            key={isValidElement(item) && item.key != null ? item.key : i}
+            className="inline-flex items-center gap-1 min-w-0 max-w-full empty:hidden"
+          >
+            {item}
+          </span>
+        ))}
+      </div>
+    )
+  }
   const text = size === 'sm' ? 'text-xs leading-5' : 'text-[11px] leading-4'
   return (
     <div className={`flex flex-wrap items-center gap-y-0.5 min-w-0 text-gray-500 ${text} ${className}`}>
@@ -62,5 +84,34 @@ export function RelativeTime({ date, prefix = '', className = '' }: RelativeTime
       {prefix}
       {short}
     </time>
+  )
+}
+
+interface FactProps {
+  /** Leading glyph (decorative) — gives each fact its own visual anchor. */
+  icon?: LucideIcon
+  /** Tooltip naming the fact (`Project`, `Assignee`…), also read by assistive tech when there is no label. */
+  title?: string
+  /** Truncate long values (paths, names) at this max width; the full value stays in `title`. */
+  truncateAt?: string
+  mono?: boolean
+  className?: string
+  children: ReactNode
+}
+
+/**
+ * One fact of a list card: `▣ Frontend`, `@ claude`, `⏱ due 12 Oct`. Muted
+ * icon, readable value (gray-300), optional truncation for long values.
+ */
+export function Fact({ icon: Icon, title, truncateAt, mono, className = '', children }: FactProps) {
+  return (
+    <span className={`inline-flex items-center gap-1 min-w-0 max-w-full ${className}`} title={title}>
+      {Icon && <Icon className="w-3 h-3 shrink-0 text-gray-500" aria-hidden="true" />}
+      <span
+        className={`min-w-0 text-gray-300 ${mono ? 'font-mono' : ''} ${truncateAt ? `truncate ${truncateAt}` : 'break-words'}`}
+      >
+        {children}
+      </span>
+    </span>
   )
 }

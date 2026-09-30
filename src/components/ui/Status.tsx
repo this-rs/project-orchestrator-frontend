@@ -1,5 +1,18 @@
 import { useCallback, useId, useRef, useState, type ReactNode } from 'react'
-import { Check, ChevronDown, Loader2 } from 'lucide-react'
+import {
+  Check,
+  ChevronDown,
+  CircleAlert,
+  CircleCheck,
+  CircleDashed,
+  CircleDot,
+  CircleMinus,
+  CirclePlay,
+  CircleX,
+  Loader2,
+  Sparkles,
+  type LucideIcon,
+} from 'lucide-react'
 import { FloatingMenu } from './FloatingMenu'
 import { menuItemClass } from './menuPosition'
 import { focusRing, hitArea } from './classes'
@@ -48,6 +61,27 @@ export function StatusDot({ tone, kind, status, size = 'sm', pulse, label, class
 }
 
 // ============================================================================
+// StatusIcon — a shape per tone, so a status never relies on colour alone
+// ============================================================================
+
+/** One glyph per tone: dashed = not started, play = moving, check = done, alert = needs you, x = failed… */
+export const TONE_ICONS: Record<StatusTone, LucideIcon> = {
+  neutral: CircleDashed,
+  info: CircleDot,
+  progress: CirclePlay,
+  success: CircleCheck,
+  warning: CircleAlert,
+  danger: CircleX,
+  muted: CircleMinus,
+  special: Sparkles,
+}
+
+export function StatusIcon({ tone, className = '' }: { tone: StatusTone; className?: string }) {
+  const Icon = TONE_ICONS[tone]
+  return <Icon className={`w-3.5 h-3.5 shrink-0 ${className}`} aria-hidden="true" />
+}
+
+// ============================================================================
 // StatusText — dot + label in the tone colour (the default status display)
 // ============================================================================
 
@@ -56,17 +90,19 @@ interface StatusTextProps {
   status: string | null | undefined
   /** Hide the dot (e.g. when the row already shows a leading StatusDot). */
   dot?: boolean
+  /** Use the tone's glyph instead of the dot (list cards): shape + colour + label. */
+  icon?: boolean
   pulse?: boolean
   /** Override the label (e.g. `Done`). */
   label?: string
   className?: string
 }
 
-export function StatusText({ kind, status, dot = true, pulse, label, className = '' }: StatusTextProps) {
+export function StatusText({ kind, status, dot = true, icon, pulse, label, className = '' }: StatusTextProps) {
   const meta = getStatusMeta(kind, status)
   return (
     <span className={`inline-flex items-center gap-1.5 whitespace-nowrap ${TONE_CLASSES[meta.tone].text} ${className}`}>
-      {dot && <StatusDot tone={meta.tone} pulse={pulse} />}
+      {icon ? <StatusIcon tone={meta.tone} /> : dot && <StatusDot tone={meta.tone} pulse={pulse} />}
       {label ?? meta.label}
     </span>
   )
@@ -83,6 +119,8 @@ interface ToneTextProps {
   dot?: boolean
   /** Soft pulse for live states (running, reconnecting…). Idle states stay still. */
   pulse?: boolean
+  /** Tone-shaped icon instead of the dot (list cards: legible without colour). */
+  icon?: boolean
   className?: string
 }
 
@@ -91,10 +129,10 @@ interface ToneTextProps {
  * have no registry kind — consent, circuit breaker, connection state,
  * runner/wave states.
  */
-export function ToneText({ tone, label, dot = true, pulse, className = '' }: ToneTextProps) {
+export function ToneText({ tone, label, dot = true, pulse, icon, className = '' }: ToneTextProps) {
   return (
     <span className={`inline-flex items-center gap-1.5 whitespace-nowrap ${TONE_CLASSES[tone].text} ${className}`}>
-      {dot && <StatusDot tone={tone} pulse={pulse} />}
+      {icon ? <StatusIcon tone={tone} /> : dot && <StatusDot tone={tone} pulse={pulse} />}
       {label}
     </span>
   )
@@ -131,6 +169,8 @@ interface StatusMenuProps<K extends StatusKind> {
   disabled?: boolean
   /** Accessible name, default `Status: <label>. Change status`. */
   label?: string
+  /** Show the tone's glyph instead of the dot (list cards). */
+  icon?: boolean
   className?: string
 }
 
@@ -146,6 +186,7 @@ export function StatusMenu<K extends StatusKind>({
   options,
   disabled,
   label,
+  icon,
   className = '',
 }: StatusMenuProps<K>) {
   const [open, setOpen] = useState(false)
@@ -189,7 +230,13 @@ export function StatusMenu<K extends StatusKind>({
         aria-label={label ?? `Status: ${meta.label}. Change status`}
         className={`${hitArea} -mx-1 px-1 inline-flex items-center gap-1.5 rounded whitespace-nowrap transition-colors hover:bg-white/[0.05] ${focusRing} disabled:cursor-not-allowed ${TONE_CLASSES[meta.tone].text}`}
       >
-        {busy ? <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" /> : <StatusDot tone={meta.tone} />}
+        {busy ? (
+          <Loader2 className="w-3 h-3 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+        ) : icon ? (
+          <StatusIcon tone={meta.tone} />
+        ) : (
+          <StatusDot tone={meta.tone} />
+        )}
         <span>{meta.label}</span>
         {!disabled && <ChevronDown className={`w-3 h-3 opacity-60 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />}
       </button>

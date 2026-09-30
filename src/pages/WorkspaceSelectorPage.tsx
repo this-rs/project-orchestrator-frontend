@@ -1,11 +1,11 @@
 import { useEffect, useState, useRef, useCallback, type ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
-import { AlertTriangle, Plus } from 'lucide-react'
+import { AlertTriangle, Hash, Plus } from 'lucide-react'
 import { workspacesAtom } from '@/atoms'
 import { workspacesApi } from '@/services/workspaces'
 import { workspacePath } from '@/utils/paths'
-import { Button, EntityList, EntityListSkeleton, EntityRow, ErrorState, Input, RelativeTime, focusRing } from '@/components/ui'
+import { Button, EntityList, EntityListSkeleton, EntityRow, ErrorState, Fact, Input, RelativeTime, focusRing } from '@/components/ui'
 import type { Workspace } from '@/types'
 
 /** Full-screen centred column (this page renders outside MainLayout: it owns its gutters). */
@@ -117,9 +117,9 @@ export function WorkspaceSelectorPage() {
             description={ws.description || undefined}
             trailing={ws.updated_at ? <RelativeTime date={ws.updated_at} prefix="updated " /> : undefined}
             meta={[
-              <span key="slug" className="font-mono">
+              <Fact key="slug" icon={Hash} mono>
                 {ws.slug}
-              </span>,
+              </Fact>,
             ]}
             chevron
           />

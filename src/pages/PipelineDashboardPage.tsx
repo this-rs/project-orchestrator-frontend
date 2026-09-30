@@ -299,10 +299,10 @@ export function PipelineDashboardPage() {
                   key={plan.id}
                   title={plan.title}
                   href={workspacePath(wsSlug, `/plans/${plan.id}`)}
-                  leading={<StatusDot kind="plan" status={plan.status} label={getStatusMeta('plan', plan.status).label} />}
+                  tone={getStatusMeta('plan', plan.status).tone}
                   description={plan.description}
-                  meta={[
-                    <StatusText key="s" kind="plan" status={plan.status} dot={false} />,
+                  status={[
+                    <StatusText key="s" kind="plan" icon status={plan.status} />,
                     <PriorityText key="p" priority={plan.priority} />,
                   ]}
                   trailing={<RelativeTime date={plan.created_at} />}

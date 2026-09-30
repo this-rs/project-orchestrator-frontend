@@ -76,9 +76,9 @@ export { WatcherToggle } from './WatcherToggle'
 // ── Design-system foundation (see DESIGN.md) ─────────────────────────────
 export { EntityRow, EntityList, ListGroup } from './EntityRow'
 export type { EntityRowProps } from './EntityRow'
-export { MetaLine, Sep, RelativeTime } from './MetaLine'
-export { StatusDot, StatusText, StatusMenu, PriorityText, ToneText } from './Status'
-export { Meter, StatTiles, ratioTone } from './Metrics'
+export { MetaLine, Fact, Sep, RelativeTime } from './MetaLine'
+export { StatusDot, StatusIcon, StatusText, StatusMenu, PriorityText, ToneText, TONE_ICONS } from './Status'
+export { Meter, Gauge, StatTiles, ratioTone } from './Metrics'
 export type { StatTile } from './Metrics'
 export {
   STATUS_REGISTRY,
