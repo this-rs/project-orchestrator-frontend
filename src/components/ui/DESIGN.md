@@ -138,6 +138,9 @@ cue: the status has a tone-shaped glyph (`icon`) and a word, the rail is redunda
 - `selected` = current item (indigo inset bar). `muted` = done/archived items.
 - Grouping: by recency (`groupByRecency(items, i => i.updated_at)`) or by status (`groupBy(items, i => i.status, ORDER)`), rendered with `ListGroup` (header + count; `collapsible` + `defaultOpen={false}` for "Completed"-like groups).
 - Pagination: keep `LoadMoreSentinel` / `Pagination` below the list.
+- **Huge lists / no server pagination**: never render the whole array. `useIncrementalList(items, pageSize, resetKey)` (`@/hooks`) returns the first page plus `hasMore` / `remaining` / `showMore`; pair it with `LoadMoreSentinel` (`onLoadMore`, `remaining`, a no-op `sentinelRef`) and a muted "Showing N of M" line. Search/sort/filter go on the **full** array before slicing. Applies equally to groups inside a detail page (one hook per `ListGroup`).
+- **Explaining a concept**: a closed-by-default `<details>` intro under the header (see `components/featureGraphs/FeatureGraphHelp.tsx`) — plain language, one paragraph per idea, never a wall of text on the page itself. Legends for colours/edge styles sit under the canvas, colour is never the only cue.
+- **Canvases (React Flow)**: bound the work, not just the DOM. Pick the top-N items (`selectSubgraph`), lay them out once per selection in a macrotask behind a skeleton (`layoutSubgraph`), show "Showing N of M" with a "Show more" step and a hard ceiling, pass `onlyRenderVisibleElements`, draw edge labels only on small graphs, and offer a retry on layout errors.
 - Bulk selection: put a `RowCheckbox` (36px target, keyboard, `label="Select …"`) in `leading` (it sits above the stretched link).
 - Rows that expand inline content pass `expanded` (→ `aria-expanded` on the title control) and keep `ariaLabel` free of verbs; `menuLabel` names the `⋯` menu when the title is not plain text.
 

@@ -68,7 +68,11 @@ export function AutoBuildFeatureGraphForm({ projects, onSubmit }: Props) {
         />
 
         <div className="border-t border-white/[0.06] pt-4">
-          <h4 className="text-sm font-medium text-gray-300 mb-3">Build Configuration</h4>
+          <h4 className="text-sm font-medium text-gray-300 mb-1">Build Configuration</h4>
+          <p className="text-xs text-gray-500 mb-3">
+            Auto-build starts from one function of the project and follows its calls (callers and callees), then adds
+            the related types and traits.
+          </p>
 
           <Input
             label="Entry Function"
@@ -77,6 +81,10 @@ export function AutoBuildFeatureGraphForm({ projects, onSubmit }: Props) {
             onChange={(e) => setEntryFunction(e.target.value)}
             error={errors.entry_function}
           />
+          <p className="mt-1 text-xs text-gray-500">
+            Exact name of a function already indexed in the project (case-sensitive, without its file path). Sync the
+            project first if it was never analysed.
+          </p>
 
           <div className="mt-3">
             <label className="block text-sm font-medium text-gray-300 mb-1">
@@ -94,6 +102,13 @@ export function AutoBuildFeatureGraphForm({ projects, onSubmit }: Props) {
               <span>1 (focused)</span>
               <span>5 (broad)</span>
             </div>
+            <p className="mt-1 text-xs text-gray-500" data-testid="depth-hint">
+              {depth <= 2
+                ? 'How many call hops to follow from the entry function. Usually a few dozen entities.'
+                : depth === 3
+                  ? 'Follows calls three hops away: can reach a few hundred entities.'
+                  : 'Deep builds can pull in hundreds or thousands of entities, and the graph becomes hard to read. Prefer 2 or 3 unless you need the full reach.'}
+            </p>
           </div>
 
           <div className="mt-4">

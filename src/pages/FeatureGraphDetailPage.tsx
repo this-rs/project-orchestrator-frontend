@@ -13,16 +13,17 @@ import {
   Position,
   MarkerType,
 } from '@xyflow/react'
-import dagre from 'dagre'
 import { Zap, File, Database, Link as LinkIcon, Package, FolderKanban, Plus, X, Trash2, GitGraph as GitGraphIcon } from 'lucide-react'
 import {
   Button,
   EmptyState,
   EntityRow,
   ErrorState,
+  FilterBar,
   FormDialog,
   Input,
   ListGroup,
+  LoadMoreSentinel,
   MetaLine,
   PageContainer,
   PageHeader,
@@ -32,65 +33,31 @@ import {
   SkeletonCard,
   SkeletonLine,
   EntityListSkeleton,
-  pluralize,
 } from '@/components/ui'
 import { glass, popIn } from '@/components/ui/classes'
 import type { ParentLink } from '@/components/ui/PageHeader'
+import { FeatureGraphDetailHelp, GraphLegend } from '@/components/featureGraphs/FeatureGraphHelp'
 import { featureGraphsApi, projectsApi } from '@/services'
-import { useFormDialog, useToast, useWorkspaceSlug } from '@/hooks'
+import { useFormDialog, useIncrementalList, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
-import type { FeatureGraphDetail, FeatureGraphEntity, FeatureGraphRelation, FeatureGraphRole, Project } from '@/types'
+import {
+  INITIAL_NODE_LIMIT,
+  MAX_NODE_LIMIT,
+  NODE_LIMIT_STEP,
+  ROLE_ORDER,
+  entityColors,
+  layoutSubgraph,
+  relationStyle,
+  roleLabel,
+  selectSubgraph,
+  type GraphLayout,
+  type GraphNodeData,
+} from '@/utils/featureGraphModel'
+import type { FeatureGraphDetail, FeatureGraphEntity, FeatureGraphRole, Project } from '@/types'
 import '@xyflow/react/dist/style.css'
 
-// ============================================================================
-// ROLE CONFIG
-// ============================================================================
-
-const ROLE_ORDER = [
-  'entry_point',
-  'core_logic',
-  'data_model',
-  'trait_contract',
-  'api_surface',
-  'support',
-] as const
-
-/** Group titles (roles are grouping only — no colour, per DESIGN.md §3). */
-const ROLE_LABELS: Record<string, string> = {
-  entry_point: 'Entry Points',
-  core_logic: 'Core Logic',
-  data_model: 'Data Models',
-  trait_contract: 'Trait Contracts',
-  api_surface: 'API Surface',
-  support: 'Support',
-}
-
-const roleLabel = (role: string | undefined) => (role && ROLE_LABELS[role]) || 'Other'
-
-// ============================================================================
-// ENTITY TYPE COLORS (for graph nodes)
-// ============================================================================
-
-const entityTypeColors: Record<string, { bg: string; border: string; text: string; minimap: string }> = {
-  function: { bg: '#052e16', border: '#22c55e', text: '#86efac', minimap: '#22c55e' },
-  file: { bg: '#172554', border: '#3b82f6', text: '#93c5fd', minimap: '#3b82f6' },
-  struct: { bg: '#2e1065', border: '#a855f7', text: '#d8b4fe', minimap: '#a855f7' },
-  trait: { bg: '#431407', border: '#f97316', text: '#fdba74', minimap: '#f97316' },
-  enum: { bg: '#022c22', border: '#10b981', text: '#6ee7b7', minimap: '#10b981' },
-}
-
-const relationColors: Record<string, { stroke: string; dashed: boolean; label: string }> = {
-  CALLS: { stroke: '#6b7280', dashed: false, label: 'Calls' },
-  IMPORTS: { stroke: '#60a5fa', dashed: true, label: 'Imports' },
-  EXTENDS: { stroke: '#a855f7', dashed: false, label: 'Extends' },
-  IMPLEMENTS: { stroke: '#f97316', dashed: false, label: 'Implements' },
-  IMPLEMENTS_TRAIT: { stroke: '#f97316', dashed: false, label: 'Impl Trait' },
-  IMPLEMENTS_FOR: { stroke: '#f59e0b', dashed: true, label: 'Impl For' },
-}
-
-const defaultRelationColor = { stroke: '#4b5563', dashed: false, label: 'Related' }
-
-const defaultEntityColors = { bg: '#1f2937', border: '#6b7280', text: '#d1d5db', minimap: '#6b7280' }
+/** Rows rendered per role group before "Load more" (the API returns the whole graph at once). */
+const ROLE_PAGE_SIZE = 40
 
 // ============================================================================
 // ENTITY TYPE ICONS
@@ -116,18 +83,12 @@ function EntityIcon({ type, className = 'w-4 h-4 shrink-0' }: { type: string; cl
 // GRAPH NODE COMPONENT
 // ============================================================================
 
-interface EntityNodeData extends Record<string, unknown> {
-  label: string
-  entityType: string
-  role: string
-}
-
-function EntityNodeComponent({ data }: NodeProps<Node<EntityNodeData>>) {
-  const colors = entityTypeColors[data.entityType] || defaultEntityColors
+function EntityNodeComponent({ data }: NodeProps<Node<GraphNodeData>>) {
+  const colors = entityColors(data.entityType)
 
   return (
     <div
-      className="cursor-pointer transition-transform duration-150 ease-out hover:scale-105"
+      className="cursor-pointer"
       style={{
         background: colors.bg,
         border: `1.5px solid ${colors.border}`,
@@ -140,11 +101,7 @@ function EntityNodeComponent({ data }: NodeProps<Node<EntityNodeData>>) {
       <Handle type="target" position={Position.Top} style={{ background: colors.border, width: 6, height: 6 }} />
       <div className="flex items-center gap-2">
         <EntityIcon type={data.entityType} className="w-3.5 h-3.5 shrink-0" />
-        <span
-          className="text-xs font-medium truncate"
-          style={{ color: colors.text }}
-          title={data.label}
-        >
+        <span className="text-xs font-medium truncate" style={{ color: colors.text }} title={data.label}>
           {data.label}
         </span>
       </div>
@@ -155,169 +112,29 @@ function EntityNodeComponent({ data }: NodeProps<Node<EntityNodeData>>) {
 
 const nodeTypes = { entityNode: EntityNodeComponent }
 
-// ============================================================================
-// DAGRE LAYOUT
-// ============================================================================
-
-function layoutEntities(
-  entities: FeatureGraphEntity[],
-  relations: FeatureGraphRelation[] = [],
-): { nodes: Node<EntityNodeData>[]; edges: Edge[]; height: number } {
-  const g = new dagre.graphlib.Graph()
-  g.setDefaultEdgeLabel(() => ({}))
-  g.setGraph({ rankdir: 'TB', nodesep: 40, ranksep: 90, marginx: 20, marginy: 20 })
-
-  const nodeWidth = 200
-  const nodeHeight = 40
-
-  // Build entity_id → node_id mapping (entity_id is the canonical identifier from backend)
-  const entityIdToNodeId = new Map<string, string>()
-
-  // Create nodes
-  const rfNodes: Node<EntityNodeData>[] = entities.map((entity, idx) => {
-    const nodeId = `${entity.entity_type}-${entity.entity_id}-${idx}`
-    entityIdToNodeId.set(entity.entity_id, nodeId)
-    g.setNode(nodeId, { width: nodeWidth, height: nodeHeight })
-    return {
-      id: nodeId,
-      type: 'entityNode',
-      position: { x: 0, y: 0 },
-      data: {
-        label: entity.name || entity.entity_id,
-        entityType: entity.entity_type,
-        role: entity.role || 'unknown',
-      },
-    }
-  })
-
-  // Create real edges from relations
-  const rfEdges: Edge[] = []
-  for (const rel of relations) {
-    const sourceId = entityIdToNodeId.get(rel.source_id)
-    const targetId = entityIdToNodeId.get(rel.target_id)
-    if (!sourceId || !targetId) continue
-
-    const color = relationColors[rel.relation_type] || defaultRelationColor
-    g.setEdge(sourceId, targetId)
-    rfEdges.push({
-      id: `rel-${rel.source_id}-${rel.relation_type}-${rel.target_id}`,
-      source: sourceId,
-      target: targetId,
-      style: {
-        stroke: color.stroke,
-        strokeWidth: 1.5,
-        strokeDasharray: color.dashed ? '6 3' : undefined,
-      },
-      markerEnd: { type: MarkerType.ArrowClosed, color: color.stroke, width: 14, height: 14 },
-      label: color.label,
-      labelStyle: { fill: color.stroke, fontSize: 10, fontWeight: 500 },
-      labelBgStyle: { fill: '#111827', fillOpacity: 0.8 },
-      labelBgPadding: [4, 2] as [number, number],
-    })
-  }
-
-  // If no real edges, add virtual tier edges so dagre still produces a nice hierarchical layout
-  if (rfEdges.length === 0) {
-    const roleGroups = new Map<string, string[]>()
-    for (const entity of entities) {
-      const role = entity.role || 'unknown'
-      const nodeId = entityIdToNodeId.get(entity.entity_id)
-      if (!nodeId) continue
-      const group = roleGroups.get(role) || []
-      group.push(nodeId)
-      roleGroups.set(role, group)
-    }
-
-    const orderedRoles: string[] = []
-    for (const role of ROLE_ORDER) {
-      if (roleGroups.has(role)) orderedRoles.push(role)
-    }
-    for (const role of roleGroups.keys()) {
-      if (!orderedRoles.includes(role)) orderedRoles.push(role)
-    }
-
-    let prevNodes: string[] = []
-    for (const role of orderedRoles) {
-      const current = roleGroups.get(role) || []
-      if (prevNodes.length > 0 && current.length > 0) {
-        g.setEdge(prevNodes[0], current[0])
-        rfEdges.push({
-          id: `virtual-${role}`,
-          source: prevNodes[0],
-          target: current[0],
-          style: { stroke: 'transparent' },
-          hidden: true,
-        })
+/** Laid-out model → React Flow props (styles only; no layout work here). */
+function toFlow(layout: GraphLayout): { nodes: Node<GraphNodeData>[]; edges: Edge[] } {
+  return {
+    nodes: layout.nodes,
+    edges: layout.edges.map((e) => {
+      const style = relationStyle(e.relationType)
+      return {
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        style: { stroke: style.stroke, strokeWidth: 1.5, strokeDasharray: style.dashed ? '6 3' : undefined },
+        markerEnd: { type: MarkerType.ArrowClosed, color: style.stroke, width: 14, height: 14 },
+        ...(e.label
+          ? {
+              label: e.label,
+              labelStyle: { fill: style.stroke, fontSize: 10, fontWeight: 500 },
+              labelBgStyle: { fill: '#111827', fillOpacity: 0.8 },
+              labelBgPadding: [4, 2] as [number, number],
+            }
+          : {}),
       }
-      prevNodes = current
-    }
+    }),
   }
-
-  dagre.layout(g)
-
-  const layoutedNodes = rfNodes.map((node) => {
-    const pos = g.node(node.id)
-    return {
-      ...node,
-      position: {
-        x: pos.x - nodeWidth / 2,
-        y: pos.y - nodeHeight / 2,
-      },
-    }
-  })
-
-  const maxY = layoutedNodes.reduce((max, n) => Math.max(max, n.position.y), 0)
-  const height = Math.max(400, Math.min(700, maxY + 120))
-
-  return { nodes: layoutedNodes, edges: rfEdges, height }
-}
-
-// ============================================================================
-// LEGEND (static, under the canvas — never covers the graph on phones)
-// ============================================================================
-
-const legendTypes = [
-  { label: 'File', color: '#3b82f6' },
-  { label: 'Function', color: '#22c55e' },
-  { label: 'Struct', color: '#a855f7' },
-  { label: 'Trait', color: '#f97316' },
-  { label: 'Enum', color: '#10b981' },
-]
-
-const legendEdges = [
-  { label: 'Calls', color: '#6b7280', dashed: false },
-  { label: 'Imports', color: '#60a5fa', dashed: true },
-  { label: 'Extends', color: '#a855f7', dashed: false },
-  { label: 'Implements', color: '#f97316', dashed: false },
-]
-
-function GraphLegend({ hasRelations }: { hasRelations: boolean }) {
-  return (
-    <div className="space-y-1" aria-label="Legend">
-      <MetaLine
-        items={legendTypes.map((t) => (
-          <span key={t.label} className="inline-flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-sm" style={{ background: t.color }} aria-hidden="true" />
-            {t.label}
-          </span>
-        ))}
-      />
-      {hasRelations && (
-        <MetaLine
-          items={legendEdges.map((e) => (
-            <span key={e.label} className="inline-flex items-center gap-1.5">
-              <span
-                className="w-3.5 h-0 border-t-2"
-                style={{ borderColor: e.color, borderStyle: e.dashed ? 'dashed' : 'solid' }}
-                aria-hidden="true"
-              />
-              {e.label}
-            </span>
-          ))}
-        />
-      )}
-    </div>
-  )
 }
 
 // ============================================================================
@@ -418,6 +235,178 @@ function useAddEntityForm({ graphId, onSuccess }: { graphId: string; onSuccess: 
 }
 
 // ============================================================================
+// ENTITIES OF ONE ROLE (incremental: never thousands of rows in the DOM)
+// ============================================================================
+
+function RoleGroup({ role, entities, resetKey }: { role: string; entities: FeatureGraphEntity[]; resetKey: string }) {
+  const { visible, hasMore, remaining, showMore } = useIncrementalList(entities, ROLE_PAGE_SIZE, resetKey)
+  return (
+    <ListGroup title={roleLabel(role)} count={entities.length} collapsible>
+      {visible.map((entity, idx) => {
+        const label = entity.name || entity.entity_id
+        return (
+          <EntityRow
+            key={`${entity.entity_type}-${entity.entity_id}-${idx}`}
+            title={<span className="font-mono text-[13px]">{label}</span>}
+            ariaLabel={label}
+            leading={<EntityIcon type={entity.entity_type} className="w-3.5 h-3.5 shrink-0" />}
+            description={
+              entity.name && entity.name !== entity.entity_id ? (
+                <code className="font-mono break-all">{entity.entity_id}</code>
+              ) : undefined
+            }
+            meta={[<span key="t" className="capitalize">{entity.entity_type}</span>]}
+          />
+        )
+      })}
+      <LoadMoreSentinel sentinelRef={noopRef} loadingMore={false} hasMore={hasMore} remaining={remaining} onLoadMore={showMore} />
+    </ListGroup>
+  )
+}
+
+const noopRef = () => {}
+
+// ============================================================================
+// GRAPH CANVAS (bounded: top-N entities, layout computed off the first paint)
+// ============================================================================
+
+type LayoutResult = { for: unknown; attempt: number } & ({ layout: GraphLayout } | { failed: true })
+
+function GraphCanvas({ detail }: { detail: FeatureGraphDetail }) {
+  const [nodeLimit, setNodeLimit] = useState(INITIAL_NODE_LIMIT)
+  const [attempt, setAttempt] = useState(0)
+  const [result, setResult] = useState<LayoutResult | null>(null)
+  const [selected, setSelected] = useState<FeatureGraphEntity | null>(null)
+
+  const total = detail.entities.length
+  const limit = Math.min(nodeLimit, MAX_NODE_LIMIT, total)
+  const subgraph = useMemo(
+    () => selectSubgraph(detail.entities, detail.relations ?? [], limit),
+    [detail.entities, detail.relations, limit],
+  )
+
+  // Layout runs in a macrotask so the skeleton paints first; it is bounded by the node/edge caps.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        setResult({ for: subgraph, attempt, layout: layoutSubgraph(subgraph) })
+      } catch (err) {
+        console.error('Feature graph layout failed:', err)
+        setResult({ for: subgraph, attempt, failed: true })
+      }
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [subgraph, attempt])
+
+  const current = result && result.for === subgraph && result.attempt === attempt ? result : null
+  const layout = current && 'layout' in current ? current.layout : null
+  const failed = !!current && 'failed' in current
+  const flow = useMemo(() => (layout ? toFlow(layout) : null), [layout])
+
+  const relationTypes = useMemo(() => {
+    const types = new Set<string>()
+    for (const r of subgraph.relations) types.add(r.relation_type)
+    return [...types]
+  }, [subgraph])
+
+  const onNodeClick: NodeMouseHandler = useCallback(
+    (_event, node) => setSelected(detail.entities[(node.data as GraphNodeData).entityIndex] ?? null),
+    [detail.entities],
+  )
+  const minimapNodeColor = useCallback((node: Node) => entityColors((node.data as GraphNodeData).entityType).minimap, [])
+
+  const canShowMore = limit < Math.min(total, MAX_NODE_LIMIT)
+  const capped = total > MAX_NODE_LIMIT && limit >= MAX_NODE_LIMIT
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-400">
+        <span role="status" className="tabular-nums">
+          Showing {subgraph.nodes.length.toLocaleString()} of {total.toLocaleString()} entities
+          {' · '}
+          {subgraph.relations.length.toLocaleString()} of {subgraph.totalRelations.toLocaleString()} relations
+        </span>
+        {total > subgraph.nodes.length && (
+          <span className="text-gray-500">Most important first: by role, then by number of links.</span>
+        )}
+        <span className="ml-auto flex items-center gap-2">
+          {limit > INITIAL_NODE_LIMIT && (
+            <Button size="sm" variant="ghost" onClick={() => setNodeLimit(INITIAL_NODE_LIMIT)}>
+              Reset
+            </Button>
+          )}
+          {canShowMore && (
+            <Button size="sm" variant="secondary" onClick={() => setNodeLimit(limit + NODE_LIMIT_STEP)}>
+              Show {Math.min(NODE_LIMIT_STEP, Math.min(total, MAX_NODE_LIMIT) - limit).toLocaleString()} more
+            </Button>
+          )}
+        </span>
+      </div>
+      {capped && (
+        <p className="text-xs text-amber-400/90">
+          The canvas stops at {MAX_NODE_LIMIT} entities to stay responsive. Use the list above to browse the remaining{' '}
+          {(total - MAX_NODE_LIMIT).toLocaleString()}.
+        </p>
+      )}
+
+      {failed ? (
+        <ErrorState
+          title="The graph could not be drawn"
+          description="Computing the layout failed. The entity list above is unaffected."
+          onRetry={() => setAttempt((a) => a + 1)}
+        />
+      ) : !flow ? (
+        <div
+          role="status"
+          aria-label="Computing layout"
+          style={{ height: 400 }}
+          className="animate-pulse rounded-xl border border-white/[0.06] bg-white/[0.03] flex items-center justify-center text-xs text-gray-500"
+        >
+          Laying out {subgraph.nodes.length.toLocaleString()} entities…
+        </div>
+      ) : (
+        <div
+          style={{ height: flow ? layout!.height : 400 }}
+          className="relative max-h-[70vh] rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden"
+        >
+          <ReactFlow
+            nodes={flow.nodes}
+            edges={flow.edges}
+            nodeTypes={nodeTypes}
+            fitView
+            fitViewOptions={{ padding: 0.3 }}
+            minZoom={0.1}
+            maxZoom={2}
+            onlyRenderVisibleElements
+            proOptions={{ hideAttribution: true }}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            elementsSelectable
+            onNodeClick={onNodeClick}
+            panOnDrag
+            zoomOnScroll
+            zoomOnPinch
+          >
+            <Background color="#374151" gap={20} size={1} />
+            <Controls showInteractive={false} className="dep-graph-controls" />
+            <MiniMap
+              nodeColor={minimapNodeColor}
+              maskColor="rgba(0,0,0,0.6)"
+              style={{ background: '#111827' }}
+              className="!hidden sm:!block"
+              pannable
+              zoomable
+            />
+          </ReactFlow>
+          {selected && <EntityPanel entity={selected} onClose={() => setSelected(null)} />}
+        </div>
+      )}
+      <GraphLegend relationTypes={relationTypes} />
+    </div>
+  )
+}
+
+// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
@@ -440,7 +429,7 @@ export function FeatureGraphDetailPage() {
   const [parentProject, setParentProject] = useState<Project | null>(null)
   /** Heavy React Flow canvas: mounted only on demand (phones first). */
   const [showGraph, setShowGraph] = useState(false)
-  const [selectedEntity, setSelectedEntity] = useState<FeatureGraphEntity | null>(null)
+  const [query, setQuery] = useState('')
 
   const fetchData = useCallback(async () => {
     if (!id) return
@@ -484,17 +473,24 @@ export function FeatureGraphDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail?.project_id])
 
+  const matching = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const all = detail?.entities ?? []
+    if (!q) return all
+    return all.filter((e) => [e.name, e.entity_id, e.entity_type].some((v) => v?.toLowerCase().includes(q)))
+  }, [detail, query])
+
   // Group entities by role
   const groupedEntities = useMemo(() => {
     const groups = new Map<string, FeatureGraphEntity[]>()
-    for (const entity of detail?.entities ?? []) {
+    for (const entity of matching) {
       const role = entity.role || 'unknown'
       const group = groups.get(role) || []
       group.push(entity)
       groups.set(role, group)
     }
     return groups
-  }, [detail])
+  }, [matching])
 
   const orderedRoles = useMemo(() => {
     const roles: string[] = ROLE_ORDER.filter((r) => groupedEntities.has(r))
@@ -502,36 +498,12 @@ export function FeatureGraphDetailPage() {
     return roles
   }, [groupedEntities])
 
-  // Graph layout — computed only when the canvas is shown
-  const layout = useMemo(() => {
-    if (!showGraph || !detail?.entities?.length) return null
-    return layoutEntities(detail.entities, detail.relations || [])
-  }, [detail, showGraph])
-
-  const onNodeClick: NodeMouseHandler = useCallback(
-    (_event, node) => {
-      if (!detail?.entities) return
-      const nodeData = node.data as EntityNodeData
-      const entity = detail.entities.find(
-        (e) => (e.name || e.entity_id) === nodeData.label && e.entity_type === nodeData.entityType,
-      )
-      setSelectedEntity(entity || null)
-    },
-    [detail],
-  )
-
   const addEntityForm = useAddEntityForm({
     graphId: id || '',
     onSuccess: () => {
       fetchData()
-      setSelectedEntity(null)
     },
   })
-
-  const minimapNodeColor = useCallback((node: Node) => {
-    const data = node.data as EntityNodeData
-    return (entityTypeColors[data.entityType] || defaultEntityColors).minimap
-  }, [])
 
   if (error) {
     return (
@@ -586,8 +558,8 @@ export function FeatureGraphDetailPage() {
             </span>
           ) : null,
           detail.build_depth != null ? `depth ${detail.build_depth}` : null,
-          pluralize(totalEntities, 'entity', 'entities'),
-          relationCount > 0 ? pluralize(relationCount, 'relation') : null,
+          `${totalEntities.toLocaleString()} ${totalEntities === 1 ? 'entity' : 'entities'}`,
+          relationCount > 0 ? `${relationCount.toLocaleString()} ${relationCount === 1 ? 'relation' : 'relations'}` : null,
           <RelativeTime key="c" date={detail.created_at} prefix="created " />,
         ]}
         actions={
@@ -619,6 +591,8 @@ export function FeatureGraphDetailPage() {
         ]}
       />
 
+      <FeatureGraphDetailHelp />
+
       {/* ── Entities, grouped by role ── */}
       <Section
         title="Entities"
@@ -630,7 +604,7 @@ export function FeatureGraphDetailPage() {
             size="sm"
             icon={<Package />}
             title="No entities yet"
-            description="Add files or functions by hand, or rebuild the graph with Auto-build."
+            description="This graph is empty. Add files or functions by hand, or create a new one with Auto-build from an entry function."
             action={
               <Button size="sm" variant="secondary" onClick={openAddEntity}>
                 Add entity
@@ -638,31 +612,34 @@ export function FeatureGraphDetailPage() {
             }
           />
         ) : (
-          <div>
-            {orderedRoles.map((role) => {
-              const entities = groupedEntities.get(role) || []
-              return (
-                <ListGroup key={role} title={roleLabel(role)} count={entities.length} collapsible>
-                  {entities.map((entity, idx) => {
-                    const label = entity.name || entity.entity_id
-                    return (
-                      <EntityRow
-                        key={`${entity.entity_type}-${entity.entity_id}-${idx}`}
-                        title={<span className="font-mono text-[13px]">{label}</span>}
-                        ariaLabel={label}
-                        leading={<EntityIcon type={entity.entity_type} className="w-3.5 h-3.5 shrink-0" />}
-                        description={
-                          entity.name && entity.name !== entity.entity_id ? (
-                            <code className="font-mono break-all">{entity.entity_id}</code>
-                          ) : undefined
-                        }
-                        meta={[<span key="t" className="capitalize">{entity.entity_type}</span>]}
-                      />
-                    )
-                  })}
-                </ListGroup>
-              )
-            })}
+          <div className="space-y-3">
+            {totalEntities > 12 && (
+              <FilterBar search={query} onSearchChange={setQuery} searchPlaceholder="Search entities…" />
+            )}
+            {matching.length === 0 ? (
+              <EmptyState
+                size="sm"
+                icon={<Package />}
+                title="No matching entities"
+                description="Try another name, path or type."
+                action={
+                  <Button size="sm" variant="secondary" onClick={() => setQuery('')}>
+                    Clear
+                  </Button>
+                }
+              />
+            ) : (
+              <div>
+                {query.trim() && (
+                  <p className="mb-1 text-xs text-gray-500 tabular-nums">
+                    {matching.length.toLocaleString()} of {totalEntities.toLocaleString()} entities match
+                  </p>
+                )}
+                {orderedRoles.map((role) => (
+                  <RoleGroup key={role} role={role} entities={groupedEntities.get(role) || []} resetKey={query} />
+                ))}
+              </div>
+            )}
           </div>
         )}
       </Section>
@@ -671,57 +648,14 @@ export function FeatureGraphDetailPage() {
       {totalEntities > 0 && (
         <Section
           title="Graph"
-          description="Interactive diagram of the entities and their calls. Drag to pan, pinch or scroll to zoom, tap a node for its details."
+          description="Interactive diagram of the entities and their relations. Drag to pan, pinch or scroll to zoom, tap a node for its details."
           action={
-            <Button
-              size="sm"
-              variant="ghost"
-              aria-expanded={showGraph}
-              onClick={() => {
-                setShowGraph((v) => !v)
-                setSelectedEntity(null)
-              }}
-            >
+            <Button size="sm" variant="ghost" aria-expanded={showGraph} onClick={() => setShowGraph((v) => !v)}>
               {showGraph ? 'Hide graph' : 'Show graph'}
             </Button>
           }
         >
-          {showGraph && layout && (
-            <div className="space-y-2">
-              <div
-                style={{ height: layout.height }}
-                className="relative max-h-[70vh] rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden"
-              >
-                <ReactFlow
-                  nodes={layout.nodes}
-                  edges={layout.edges}
-                  nodeTypes={nodeTypes}
-                  fitView
-                  fitViewOptions={{ padding: 0.3 }}
-                  minZoom={0.2}
-                  maxZoom={2}
-                  proOptions={{ hideAttribution: true }}
-                  nodesDraggable
-                  nodesConnectable={false}
-                  onNodeClick={onNodeClick}
-                  panOnDrag
-                  zoomOnScroll
-                  zoomOnPinch
-                >
-                  <Background color="#374151" gap={20} size={1} />
-                  <Controls showInteractive={false} className="dep-graph-controls" />
-                  <MiniMap
-                    nodeColor={minimapNodeColor}
-                    maskColor="rgba(0,0,0,0.6)"
-                    style={{ background: '#111827' }}
-                    className="!hidden sm:!block"
-                  />
-                </ReactFlow>
-                {selectedEntity && <EntityPanel entity={selectedEntity} onClose={() => setSelectedEntity(null)} />}
-              </div>
-              <GraphLegend hasRelations={relationCount > 0} />
-            </div>
-          )}
+          {showGraph && <GraphCanvas detail={detail} />}
         </Section>
       )}
 
