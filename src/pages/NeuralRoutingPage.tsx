@@ -8,7 +8,6 @@ import {
   Input,
   PageContainer,
   PageHeader,
-  RelativeTime,
   Section,
   Select,
   SkeletonCard,
@@ -26,7 +25,9 @@ const modeOptions = [
   { value: 'full', label: 'Full (policy net + NN)' },
 ]
 
-const ms = (us: number) => `${(us / 1000).toFixed(1)} ms`
+/** A 0–1 fraction as a percentage; « — » when the backend sent nothing usable. */
+const pct = (fraction: number | undefined) => (Number.isFinite(fraction) ? `${((fraction as number) * 100).toFixed(1)}%` : '—')
+const num = (value: number | undefined) => (Number.isFinite(value) ? (value as number).toLocaleString() : '—')
 
 // ============================================================================
 // MAIN PAGE
@@ -189,7 +190,6 @@ export function NeuralRoutingPage() {
 
   const metrics = status?.metrics
   const hasQueries = !!metrics && metrics.total_queries > 0
-  const hitRate = hasQueries ? ((metrics.hits / metrics.total_queries) * 100).toFixed(1) : '0.0'
 
   const numberInput = (value: string, onChange: (v: string) => void, label: string, placeholder: string, step?: string) => (
     <div className="w-24">
@@ -248,7 +248,7 @@ export function NeuralRoutingPage() {
               config
                 ? [
                     `buffer ${config.collection.buffer_size} entries`,
-                    `flush every ${config.collection.flush_interval_secs}s`,
+                    `idle sessions closed after ${config.collection.stale_session_timeout_secs}s`,
                   ]
                 : undefined
             }
@@ -272,28 +272,16 @@ export function NeuralRoutingPage() {
             items={[
               {
                 label: 'Queries',
-                value: <span className="tabular-nums">{metrics.total_queries.toLocaleString()}</span>,
+                value: <span className="tabular-nums">{num(metrics.total_queries)}</span>,
               },
               {
                 label: 'Hit rate',
                 value: (
                   <span>
-                    <span className="tabular-nums">{hitRate}%</span>
+                    <span className="tabular-nums">{pct(metrics.hit_rate)}</span>
                     <span className="text-gray-500">
                       {' '}
-                      — {metrics.hits} routed by a known neighbour, {metrics.misses} without a match
-                    </span>
-                  </span>
-                ),
-              },
-              {
-                label: 'Latency',
-                value: (
-                  <span>
-                    <span className="tabular-nums">{ms(metrics.avg_latency_us)}</span>
-                    <span className="text-gray-500">
-                      {' '}
-                      on average{metrics.p99_latency_us ? `, ${ms(metrics.p99_latency_us)} worst case (p99)` : ''}
+                      — {num(metrics.hits)} routed by a known neighbour, {num(metrics.total_queries - metrics.hits)} without a match
                     </span>
                   </span>
                 ),
@@ -302,13 +290,20 @@ export function NeuralRoutingPage() {
                 label: 'Cache',
                 value: (
                   <span>
-                    <span className="tabular-nums">{metrics.cache_size.toLocaleString()}</span>
-                    <span className="text-gray-500"> routes in memory · </span>
-                    {metrics.last_invalidated_at ? (
-                      <RelativeTime date={metrics.last_invalidated_at} prefix="cleared " className="text-gray-500" />
-                    ) : (
-                      <span className="text-gray-500">never cleared</span>
-                    )}
+                    <span className="tabular-nums">{pct(metrics.cache_hit_rate)}</span>
+                    <span className="text-gray-500"> — {num(metrics.cache_hits)} answered from memory</span>
+                  </span>
+                ),
+              },
+              {
+                label: 'Match quality',
+                value: (
+                  <span>
+                    <span className="tabular-nums">{pct(metrics.avg_similarity)}</span>
+                    <span className="text-gray-500">
+                      {' '}
+                      average similarity · reward <span className="tabular-nums">{Number.isFinite(metrics.avg_reward) ? metrics.avg_reward.toFixed(2) : '—'}</span>
+                    </span>
                   </span>
                 ),
               },

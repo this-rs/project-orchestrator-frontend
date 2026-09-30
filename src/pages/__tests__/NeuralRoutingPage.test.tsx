@@ -28,19 +28,19 @@ const status = {
   metrics: {
     total_queries: 200,
     hits: 150,
-    misses: 50,
-    avg_latency_us: 2500,
-    p99_latency_us: 9000,
-    cache_size: 42,
-    last_invalidated_at: null,
+    cache_hits: 40,
+    hit_rate: 0.75,
+    cache_hit_rate: 0.2,
+    avg_similarity: 0.88,
+    avg_reward: 0.5,
   },
 }
 const config = {
   enabled: true,
   mode: 'nn' as const,
   inference: { timeout_ms: 15, nn_fallback: true },
-  collection: { enabled: false, buffer_size: 100, flush_interval_secs: 30 },
-  nn: { top_k: 5, min_similarity: 0.65, max_route_age_days: 90 },
+  collection: { enabled: false, buffer_size: 100, stale_session_timeout_secs: 60 },
+  nn: { top_k: 5, min_similarity: 0.65, max_route_age_days: 90, cache_capacity: 1000, cache_ttl_secs: 300 },
 }
 
 describe('NeuralRoutingPage', () => {
@@ -59,13 +59,21 @@ describe('NeuralRoutingPage', () => {
     expect(screen.getByText('Enabled')).toBeTruthy()
     expect(screen.getByText('Mode NN')).toBeTruthy()
     expect(screen.getByText('200')).toBeTruthy()
-    expect(screen.getByText(/150 routed by a known neighbour/)).toBeTruthy()
-    expect(screen.getByText('2.5 ms')).toBeTruthy()
-    expect(screen.getByText(/9.0 ms worst case/)).toBeTruthy()
-    expect(screen.getByText('never cleared')).toBeTruthy()
-    // collection buffer / flush facts kept
+    expect(screen.getByText(/150 routed by a known neighbour, 50 without a match/)).toBeTruthy()
+    expect(screen.getByText('20.0%')).toBeTruthy()
+    expect(screen.getByText(/40 answered from memory/)).toBeTruthy()
+    expect(screen.getByText('88.0%')).toBeTruthy()
     expect(screen.getByText('buffer 100 entries')).toBeTruthy()
-    expect(screen.getByText('flush every 30s')).toBeTruthy()
+    expect(screen.getByText('idle sessions closed after 60s')).toBeTruthy()
+  })
+
+  it('does not crash when the backend omits a metric', async () => {
+    // Guards the regression where the page read fields the backend never sends
+    // (cache_size, avg_latency_us…) and threw as soon as one query was recorded.
+    api.getStatus.mockResolvedValue({ ...status, metrics: { total_queries: 5, hits: 2 } })
+    render(<NeuralRoutingPage />)
+    expect(await screen.findByText('Queries')).toBeTruthy()
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0)
   })
 
   it('toggles routing and boolean settings with switches', async () => {

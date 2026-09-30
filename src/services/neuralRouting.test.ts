@@ -57,11 +57,11 @@ describe('NeuralRoutingStatus type', () => {
       metrics: {
         total_queries: 100,
         hits: 80,
-        misses: 20,
-        avg_latency_us: 1500,
-        p99_latency_us: 5000,
-        cache_size: 42,
-        last_invalidated_at: null,
+        cache_hits: 30,
+        hit_rate: 0.8,
+        cache_hit_rate: 0.3,
+        avg_similarity: 0.91,
+        avg_reward: 0.62,
       },
     }
     expect(status.enabled).toBe(true)
