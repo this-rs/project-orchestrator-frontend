@@ -13,18 +13,13 @@ import {
   Position,
   MarkerType,
 } from '@xyflow/react'
-import { Zap, File, Database, Link as LinkIcon, Package, FolderKanban, Plus, X, Trash2, GitGraph as GitGraphIcon } from 'lucide-react'
+import { Package, FolderKanban, Plus, Trash2, GitGraph as GitGraphIcon } from 'lucide-react'
 import {
   Button,
   EmptyState,
-  EntityRow,
   ErrorState,
-  FilterBar,
   FormDialog,
   Input,
-  ListGroup,
-  LoadMoreSentinel,
-  MetaLine,
   PageContainer,
   PageHeader,
   RelativeTime,
@@ -34,64 +29,39 @@ import {
   SkeletonLine,
   EntityListSkeleton,
 } from '@/components/ui'
-import { glass, popIn } from '@/components/ui/classes'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { FeatureGraphDetailHelp, GraphLegend } from '@/components/featureGraphs/FeatureGraphHelp'
 import { featureGraphsApi, projectsApi } from '@/services'
-import { useFormDialog, useIncrementalList, useToast, useWorkspaceSlug } from '@/hooks'
+import { EntityBrowser, EntityIcon } from '@/components/featureGraphs/EntityBrowser'
+import { EntityDetailPanel } from '@/components/featureGraphs/EntityDetailPanel'
+import { useFormDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import {
-  INITIAL_NODE_LIMIT,
-  MAX_NODE_LIMIT,
-  NODE_LIMIT_STEP,
-  ROLE_ORDER,
   entityColors,
   layoutSubgraph,
   relationStyle,
-  roleLabel,
   selectSubgraph,
   type GraphLayout,
   type GraphNodeData,
 } from '@/utils/featureGraphModel'
-import type { FeatureGraphDetail, FeatureGraphEntity, FeatureGraphRole, Project } from '@/types'
+import { buildEntityViews, buildNeighbourIndex, type EntityNeighbours, type EntityView } from '@/utils/featureGraphReadable'
+import type { FeatureGraphDetail, FeatureGraphRole, Project } from '@/types'
 import '@xyflow/react/dist/style.css'
-
-/** Rows rendered per role group before "Load more" (the API returns the whole graph at once). */
-const ROLE_PAGE_SIZE = 40
-
-// ============================================================================
-// ENTITY TYPE ICONS
-// ============================================================================
-
-function EntityIcon({ type, className = 'w-4 h-4 shrink-0' }: { type: string; className?: string }) {
-  switch (type) {
-    case 'function':
-      return <Zap className={`${className} text-green-400`} />
-    case 'file':
-      return <File className={`${className} text-blue-400`} />
-    case 'struct':
-    case 'enum':
-      return <Database className={`${className} text-purple-400`} />
-    case 'trait':
-      return <LinkIcon className={`${className} text-orange-400`} />
-    default:
-      return <Package className={`${className} text-gray-500`} />
-  }
-}
 
 // ============================================================================
 // GRAPH NODE COMPONENT
 // ============================================================================
 
-function EntityNodeComponent({ data }: NodeProps<Node<GraphNodeData>>) {
+function EntityNodeComponent({ data, selected }: NodeProps<Node<GraphNodeData>>) {
   const colors = entityColors(data.entityType)
 
   return (
     <div
       className="cursor-pointer"
+      title={data.codeName}
       style={{
         background: colors.bg,
-        border: `1.5px solid ${colors.border}`,
+        border: `${selected ? 2.5 : 1.5}px solid ${colors.border}`,
         borderRadius: 8,
         padding: '8px 12px',
         minWidth: 160,
@@ -101,10 +71,11 @@ function EntityNodeComponent({ data }: NodeProps<Node<GraphNodeData>>) {
       <Handle type="target" position={Position.Top} style={{ background: colors.border, width: 6, height: 6 }} />
       <div className="flex items-center gap-2">
         <EntityIcon type={data.entityType} className="w-3.5 h-3.5 shrink-0" />
-        <span className="text-xs font-medium truncate" style={{ color: colors.text }} title={data.label}>
+        <span className="text-xs font-medium truncate" style={{ color: colors.text }}>
           {data.label}
         </span>
       </div>
+      {selected && <div className="mt-0.5 truncate font-mono text-[10px] text-gray-400">{data.codeName}</div>}
       <Handle type="source" position={Position.Bottom} style={{ background: colors.border, width: 6, height: 6 }} />
     </div>
   )
@@ -135,35 +106,6 @@ function toFlow(layout: GraphLayout): { nodes: Node<GraphNodeData>[]; edges: Edg
       }
     }),
   }
-}
-
-// ============================================================================
-// SELECTED NODE PANEL (floating layer over the canvas → glass)
-// ============================================================================
-
-function EntityPanel({ entity, onClose }: { entity: FeatureGraphEntity; onClose: () => void }) {
-  return (
-    <div className={`absolute top-2 right-2 left-2 sm:left-auto sm:w-80 z-20 rounded-xl p-3 ${glass} ${popIn}`}>
-      <div className="flex items-start gap-2">
-        <EntityIcon type={entity.entity_type} className="w-4 h-4 shrink-0 mt-0.5" />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm text-gray-100 break-words">{entity.name || entity.entity_id}</p>
-          <MetaLine items={[<span key="t" className="capitalize">{entity.entity_type}</span>, entity.role ? roleLabel(entity.role) : null]} />
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close entity details"
-          className="shrink-0 -m-1 w-9 h-9 md:w-8 md:h-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/[0.06]"
-        >
-          <X className="w-4 h-4" aria-hidden="true" />
-        </button>
-      </div>
-      <code className="mt-2 block text-xs text-gray-300 font-mono break-all bg-white/[0.04] px-2 py-1.5 rounded-md">
-        {entity.entity_id}
-      </code>
-    </div>
-  )
 }
 
 // ============================================================================
@@ -234,58 +176,34 @@ function useAddEntityForm({ graphId, onSuccess }: { graphId: string; onSuccess: 
   }
 }
 
-// ============================================================================
-// ENTITIES OF ONE ROLE (incremental: never thousands of rows in the DOM)
-// ============================================================================
-
-function RoleGroup({ role, entities, resetKey }: { role: string; entities: FeatureGraphEntity[]; resetKey: string }) {
-  const { visible, hasMore, remaining, showMore } = useIncrementalList(entities, ROLE_PAGE_SIZE, resetKey)
-  return (
-    <ListGroup title={roleLabel(role)} count={entities.length} collapsible>
-      {visible.map((entity, idx) => {
-        const label = entity.name || entity.entity_id
-        return (
-          <EntityRow
-            key={`${entity.entity_type}-${entity.entity_id}-${idx}`}
-            title={<span className="font-mono text-[13px]">{label}</span>}
-            ariaLabel={label}
-            leading={<EntityIcon type={entity.entity_type} className="w-3.5 h-3.5 shrink-0" />}
-            description={
-              entity.name && entity.name !== entity.entity_id ? (
-                <code className="font-mono break-all">{entity.entity_id}</code>
-              ) : undefined
-            }
-            meta={[<span key="t" className="capitalize">{entity.entity_type}</span>]}
-          />
-        )
-      })}
-      <LoadMoreSentinel sentinelRef={noopRef} loadingMore={false} hasMore={hasMore} remaining={remaining} onLoadMore={showMore} />
-    </ListGroup>
-  )
-}
-
-const noopRef = () => {}
-
-// ============================================================================
-// GRAPH CANVAS (bounded: top-N entities, layout computed off the first paint)
-// ============================================================================
-
 type LayoutResult = { for: unknown; attempt: number } & ({ layout: GraphLayout } | { failed: true })
 
-function GraphCanvas({ detail }: { detail: FeatureGraphDetail }) {
-  const [nodeLimit, setNodeLimit] = useState(INITIAL_NODE_LIMIT)
+// ============================================================================
+// GRAPH CANVAS (every node is drawn; layout computed off the first paint)
+// ============================================================================
+
+function GraphCanvas({
+  detail,
+  neighbours,
+  viewById,
+  views,
+}: {
+  detail: FeatureGraphDetail
+  neighbours: Map<string, EntityNeighbours>
+  viewById: Map<string, EntityView>
+  views: EntityView[]
+}) {
   const [attempt, setAttempt] = useState(0)
   const [result, setResult] = useState<LayoutResult | null>(null)
-  const [selected, setSelected] = useState<FeatureGraphEntity | null>(null)
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
 
   const total = detail.entities.length
-  const limit = Math.min(nodeLimit, MAX_NODE_LIMIT, total)
   const subgraph = useMemo(
-    () => selectSubgraph(detail.entities, detail.relations ?? [], limit),
-    [detail.entities, detail.relations, limit],
+    () => selectSubgraph(detail.entities, detail.relations ?? [], total),
+    [detail.entities, detail.relations, total],
   )
 
-  // Layout runs in a macrotask so the skeleton paints first; it is bounded by the node/edge caps.
+  // Layout runs in a macrotask so the skeleton paints first; big graphs use a linear layered layout.
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
@@ -302,6 +220,10 @@ function GraphCanvas({ detail }: { detail: FeatureGraphDetail }) {
   const layout = current && 'layout' in current ? current.layout : null
   const failed = !!current && 'failed' in current
   const flow = useMemo(() => (layout ? toFlow(layout) : null), [layout])
+  const flowNodes = useMemo(
+    () => (flow ? flow.nodes.map((n) => (n.data.entityIndex === selectedIndex ? { ...n, selected: true } : n)) : []),
+    [flow, selectedIndex],
+  )
 
   const relationTypes = useMemo(() => {
     const types = new Set<string>()
@@ -310,44 +232,24 @@ function GraphCanvas({ detail }: { detail: FeatureGraphDetail }) {
   }, [subgraph])
 
   const onNodeClick: NodeMouseHandler = useCallback(
-    (_event, node) => setSelected(detail.entities[(node.data as GraphNodeData).entityIndex] ?? null),
-    [detail.entities],
+    (_event, node) => setSelectedIndex((node.data as GraphNodeData).entityIndex),
+    [],
   )
   const minimapNodeColor = useCallback((node: Node) => entityColors((node.data as GraphNodeData).entityType).minimap, [])
-
-  const canShowMore = limit < Math.min(total, MAX_NODE_LIMIT)
-  const capped = total > MAX_NODE_LIMIT && limit >= MAX_NODE_LIMIT
+  const selectedView = selectedIndex != null ? views[selectedIndex] : undefined
+  const droppedEdges = subgraph.totalRelations - subgraph.relations.length
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-400">
-        <span role="status" className="tabular-nums">
-          Showing {subgraph.nodes.length.toLocaleString()} of {total.toLocaleString()} entities
-          {' · '}
-          {subgraph.relations.length.toLocaleString()} of {subgraph.totalRelations.toLocaleString()} relations
-        </span>
-        {total > subgraph.nodes.length && (
-          <span className="text-gray-500">Most important first: by role, then by number of links.</span>
+      <p role="status" className="text-xs text-gray-400 tabular-nums">
+        {subgraph.nodes.length.toLocaleString()} entities · {subgraph.relations.length.toLocaleString()} relations drawn
+        {droppedEdges > 0 && (
+          <span className="text-amber-400/90">
+            {' '}
+            ({droppedEdges.toLocaleString()} more relations are not drawn to keep panning smooth; every entity is shown)
+          </span>
         )}
-        <span className="ml-auto flex items-center gap-2">
-          {limit > INITIAL_NODE_LIMIT && (
-            <Button size="sm" variant="ghost" onClick={() => setNodeLimit(INITIAL_NODE_LIMIT)}>
-              Reset
-            </Button>
-          )}
-          {canShowMore && (
-            <Button size="sm" variant="secondary" onClick={() => setNodeLimit(limit + NODE_LIMIT_STEP)}>
-              Show {Math.min(NODE_LIMIT_STEP, Math.min(total, MAX_NODE_LIMIT) - limit).toLocaleString()} more
-            </Button>
-          )}
-        </span>
-      </div>
-      {capped && (
-        <p className="text-xs text-amber-400/90">
-          The canvas stops at {MAX_NODE_LIMIT} entities to stay responsive. Use the list above to browse the remaining{' '}
-          {(total - MAX_NODE_LIMIT).toLocaleString()}.
-        </p>
-      )}
+      </p>
 
       {failed ? (
         <ErrorState
@@ -366,16 +268,16 @@ function GraphCanvas({ detail }: { detail: FeatureGraphDetail }) {
         </div>
       ) : (
         <div
-          style={{ height: flow ? layout!.height : 400 }}
+          style={{ height: layout!.height }}
           className="relative max-h-[70vh] rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden"
         >
           <ReactFlow
-            nodes={flow.nodes}
+            nodes={flowNodes}
             edges={flow.edges}
             nodeTypes={nodeTypes}
             fitView
             fitViewOptions={{ padding: 0.3 }}
-            minZoom={0.1}
+            minZoom={0.05}
             maxZoom={2}
             onlyRenderVisibleElements
             proOptions={{ hideAttribution: true }}
@@ -398,7 +300,19 @@ function GraphCanvas({ detail }: { detail: FeatureGraphDetail }) {
               zoomable
             />
           </ReactFlow>
-          {selected && <EntityPanel entity={selected} onClose={() => setSelected(null)} />}
+          {selectedView && (
+            <EntityDetailPanel
+              floating
+              view={selectedView}
+              neighbours={neighbours.get(selectedView.entity.entity_id)}
+              viewById={viewById}
+              onSelectId={(id) => {
+                const v = viewById.get(id)
+                if (v) setSelectedIndex(v.index)
+              }}
+              onClose={() => setSelectedIndex(null)}
+            />
+          )}
         </div>
       )}
       <GraphLegend relationTypes={relationTypes} />
@@ -429,7 +343,6 @@ export function FeatureGraphDetailPage() {
   const [parentProject, setParentProject] = useState<Project | null>(null)
   /** Heavy React Flow canvas: mounted only on demand (phones first). */
   const [showGraph, setShowGraph] = useState(false)
-  const [query, setQuery] = useState('')
 
   const fetchData = useCallback(async () => {
     if (!id) return
@@ -473,30 +386,13 @@ export function FeatureGraphDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail?.project_id])
 
-  const matching = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    const all = detail?.entities ?? []
-    if (!q) return all
-    return all.filter((e) => [e.name, e.entity_id, e.entity_type].some((v) => v?.toLowerCase().includes(q)))
-  }, [detail, query])
-
-  // Group entities by role
-  const groupedEntities = useMemo(() => {
-    const groups = new Map<string, FeatureGraphEntity[]>()
-    for (const entity of matching) {
-      const role = entity.role || 'unknown'
-      const group = groups.get(role) || []
-      group.push(entity)
-      groups.set(role, group)
-    }
-    return groups
-  }, [matching])
-
-  const orderedRoles = useMemo(() => {
-    const roles: string[] = ROLE_ORDER.filter((r) => groupedEntities.has(r))
-    for (const role of groupedEntities.keys()) if (!roles.includes(role)) roles.push(role)
-    return roles
-  }, [groupedEntities])
+  const views = useMemo(() => buildEntityViews(detail?.entities ?? []), [detail])
+  const viewById = useMemo(() => {
+    const m = new Map<string, EntityView>()
+    for (const v of views) if (!m.has(v.entity.entity_id)) m.set(v.entity.entity_id, v)
+    return m
+  }, [views])
+  const neighbours = useMemo(() => buildNeighbourIndex(detail?.relations ?? []), [detail])
 
   const addEntityForm = useAddEntityForm({
     graphId: id || '',
@@ -597,7 +493,7 @@ export function FeatureGraphDetailPage() {
       <Section
         title="Entities"
         count={totalEntities}
-        description="The code that implements this feature, grouped by role: entry points, core logic, data models, contracts, API surface, support."
+        description="The code that implements this feature. Each entry has a readable title, the exact code name and a one-line explanation. Group by role, file or type; scroll to see them all."
       >
         {totalEntities === 0 ? (
           <EmptyState
@@ -612,35 +508,7 @@ export function FeatureGraphDetailPage() {
             }
           />
         ) : (
-          <div className="space-y-3">
-            {totalEntities > 12 && (
-              <FilterBar search={query} onSearchChange={setQuery} searchPlaceholder="Search entities…" />
-            )}
-            {matching.length === 0 ? (
-              <EmptyState
-                size="sm"
-                icon={<Package />}
-                title="No matching entities"
-                description="Try another name, path or type."
-                action={
-                  <Button size="sm" variant="secondary" onClick={() => setQuery('')}>
-                    Clear
-                  </Button>
-                }
-              />
-            ) : (
-              <div>
-                {query.trim() && (
-                  <p className="mb-1 text-xs text-gray-500 tabular-nums">
-                    {matching.length.toLocaleString()} of {totalEntities.toLocaleString()} entities match
-                  </p>
-                )}
-                {orderedRoles.map((role) => (
-                  <RoleGroup key={role} role={role} entities={groupedEntities.get(role) || []} resetKey={query} />
-                ))}
-              </div>
-            )}
-          </div>
+          <EntityBrowser views={views} neighbours={neighbours} viewById={viewById} />
         )}
       </Section>
 
@@ -655,7 +523,7 @@ export function FeatureGraphDetailPage() {
             </Button>
           }
         >
-          {showGraph && <GraphCanvas detail={detail} />}
+          {showGraph && <GraphCanvas detail={detail} neighbours={neighbours} viewById={viewById} views={views} />}
         </Section>
       )}
 

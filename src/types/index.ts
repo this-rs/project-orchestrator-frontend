@@ -1074,6 +1074,14 @@ export interface FeatureGraphEntity {
   entity_id: string
   name?: string
   role?: FeatureGraphRole | string
+  /** 0-1 (a 0-100 scale is tolerated by the UI). */
+  importance_score?: number
+  // Enrichment (optional: older backends do not send these — the UI degrades gracefully).
+  file_path?: string
+  docstring?: string
+  signature?: string
+  line_start?: number
+  visibility?: string
 }
 
 export interface FeatureGraphRelation {
