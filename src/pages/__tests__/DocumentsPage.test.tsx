@@ -119,4 +119,67 @@ describe('DocumentsPage', () => {
     renderPage()
     await waitFor(() => expect(screen.getByText('Failed to load documents')).toBeTruthy())
   })
+  describe('against the real backend contract', () => {
+    // The API answers 400 to any listing without a scope (project_id / session_id / entity).
+    const scoped = (byProject: Record<string, ReturnType<typeof doc>[]>) =>
+      list.mockImplementation(async (params: { project_id?: string; limit?: number }) => {
+        if (!params?.project_id) throw new Error('400 Bad Request: documents listing requires a scope')
+        if ((params.limit ?? 0) > 100) throw new Error('400 Bad Request: limit > 100')
+        const items = byProject[params.project_id] ?? []
+        return { items, total: items.length }
+      })
+
+    it('"All projects" reads each project and merges the documents, newest first', async () => {
+      listProjects.mockResolvedValue([
+        { id: 'p1', name: 'Budget 2027' },
+        { id: 'p2', name: 'Voyage' },
+      ])
+      scoped({
+        p1: [doc('1', 'old.xlsx', 'xlsx', { project_id: 'p1', created_at: '2026-01-01T00:00:00Z' })],
+        p2: [doc('2', 'new.pdf', 'pdf', { project_id: 'p2', created_at: '2026-06-01T00:00:00Z' })],
+      })
+      renderPage()
+      await waitFor(() => expect(screen.getByText('new.pdf')).toBeTruthy())
+      const names = screen.getAllByRole('listitem').map((li) => li.textContent ?? '')
+      expect(names.findIndex((t) => t.includes('new.pdf'))).toBeLessThan(names.findIndex((t) => t.includes('old.xlsx')))
+      expect(screen.queryByText('Failed to load documents')).toBeNull()
+    })
+
+    it('never lists without a scope', async () => {
+      listProjects.mockResolvedValue([{ id: 'p1', name: 'Budget 2027' }])
+      scoped({ p1: [] })
+      renderPage()
+      await waitFor(() => expect(screen.getByText('No documents yet')).toBeTruthy())
+      for (const [params] of list.mock.calls) expect(params.project_id).toBeTruthy()
+    })
+
+    it('disables upload until a project is chosen when there are several', async () => {
+      listProjects.mockResolvedValue([
+        { id: 'p1', name: 'Budget 2027' },
+        { id: 'p2', name: 'Voyage' },
+      ])
+      scoped({})
+      renderPage()
+      await waitFor(() => expect(screen.getByText('No documents yet')).toBeTruthy())
+      const btn = screen.getAllByRole('button', { name: /upload/i })[0] as HTMLButtonElement
+      expect(btn.disabled).toBe(true)
+      fireEvent.change(screen.getByLabelText('Filter by project'), { target: { value: 'p2' } })
+      await waitFor(() => expect((screen.getAllByRole('button', { name: /upload/i })[0] as HTMLButtonElement).disabled).toBe(false))
+    })
+
+    it('uploads into the chosen project', async () => {
+      listProjects.mockResolvedValue([
+        { id: 'p1', name: 'Budget 2027' },
+        { id: 'p2', name: 'Voyage' },
+      ])
+      scoped({})
+      upload.mockResolvedValue(doc('9', 'a.pdf', 'pdf'))
+      renderPage()
+      await waitFor(() => expect(screen.getByText('No documents yet')).toBeTruthy())
+      fireEvent.change(screen.getByLabelText('Filter by project'), { target: { value: 'p2' } })
+      await waitFor(() => expect(list).toHaveBeenCalledWith(expect.objectContaining({ project_id: 'p2' })))
+      fireEvent.change(screen.getByLabelText('Choose files to upload'), { target: { files: [new File(['x'], 'a.pdf')] } })
+      await waitFor(() => expect(upload).toHaveBeenCalledWith(expect.anything(), { projectId: 'p2' }))
+    })
+  })
 })

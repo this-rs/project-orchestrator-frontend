@@ -64,11 +64,17 @@ export function DocumentsPage() {
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [list, proj] = await Promise.all([
-        fetchAllPages((page) => documentsApi.list({ project_id: projectId || undefined, ...page })),
-        workspacesApi.listProjects(wsSlug).catch(() => [] as Project[]),
-      ])
-      setDocs(list.items ?? [])
+      const proj = await workspacesApi.listProjects(wsSlug).catch(() => [] as Project[])
+      // The API never lists documents without a scope, so "All projects" is the
+      // union of each project's documents, newest first.
+      const scopes = projectId ? [projectId] : proj.map((p) => p.id)
+      const lists = await Promise.all(
+        scopes.map((id) => fetchAllPages((page) => documentsApi.list({ project_id: id, ...page }))),
+      )
+      const byId = new Map<string, DocumentSummary>()
+      for (const l of lists) for (const d of l.items ?? []) byId.set(d.id, d)
+      const merged = [...byId.values()].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+      setDocs(merged)
       setProjects(proj)
     } catch {
       setError('Failed to load documents')
@@ -82,6 +88,11 @@ export function DocumentsPage() {
     load()
   }, [load])
 
+  // A document must belong to a project to be listed again: upload into the
+  // selected project, or the only one there is.
+  const uploadProjectId = projectId || (projects.length === 1 ? projects[0].id : '')
+  const canUpload = uploadProjectId !== ''
+
   const projectName = useMemo(() => new Map(projects.map((p) => [p.id, p.name])), [projects])
 
   const onFiles = useCallback(
@@ -91,7 +102,7 @@ export function DocumentsPage() {
       let ok = 0
       for (const file of Array.from(files)) {
         try {
-          await documentsApi.upload(file, { projectId: projectId || undefined })
+          await documentsApi.upload(file, { projectId: uploadProjectId })
           ok++
         } catch {
           toast.error(`Could not upload ${file.name}`)
@@ -104,7 +115,7 @@ export function DocumentsPage() {
         await load()
       }
     },
-    [load, projectId, toast],
+    [load, uploadProjectId, toast],
   )
 
   const remove = useCallback(
@@ -149,7 +160,12 @@ export function DocumentsPage() {
             aria-label="Choose files to upload"
             onChange={(e) => onFiles(e.target.files)}
           />
-          <Button size="sm" disabled={uploading} onClick={() => inputRef.current?.click()}>
+          <Button
+            size="sm"
+            disabled={uploading || !canUpload}
+            title={canUpload ? undefined : 'Choose a project first — documents are filed under a project'}
+            onClick={() => inputRef.current?.click()}
+          >
             <Upload className="w-4 h-4" aria-hidden="true" />
             {uploading ? 'Uploading…' : 'Upload'}
           </Button>
@@ -163,9 +179,13 @@ export function DocumentsPage() {
       ) : docs.length === 0 ? (
         <EmptyState
           title="No documents yet"
-          description="Upload a spreadsheet, a deck, a PDF or a note. The agent can read it and use it in your plans."
+          description={
+            canUpload
+              ? 'Upload a spreadsheet, a deck, a PDF or a note. The agent can read it and use it in your plans.'
+              : 'Choose a project, then upload a spreadsheet, a deck, a PDF or a note. The agent can read it and use it in your plans.'
+          }
           action={
-            <Button size="sm" variant="secondary" onClick={() => inputRef.current?.click()}>
+            <Button size="sm" variant="secondary" disabled={!canUpload} onClick={() => inputRef.current?.click()}>
               Upload
             </Button>
           }
