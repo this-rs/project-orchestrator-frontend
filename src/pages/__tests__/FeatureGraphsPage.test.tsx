@@ -79,6 +79,24 @@ describe('FeatureGraphsPage', () => {
     expect(screen.getByText('1 entity')).toBeTruthy()
   })
 
+  it('makes identifiers speak: humanized title, code name secondary, plain sentence', async () => {
+    list.mockResolvedValue({
+      feature_graphs: [
+        { id: 'g9', name: 'build_system_prompt', project_id: 'p1', created_at: new Date(now).toISOString(), entry_function: 'ChatManager', build_depth: 2 },
+        { id: 'g8', name: 'Plain name', project_id: 'p1', created_at: new Date(now - 1000).toISOString(), entry_function: 'go', build_depth: 1 },
+      ],
+    })
+    renderPage()
+    const link = await screen.findByRole('link', { name: 'Build system prompt' })
+    const row = link.closest('li')!
+    expect(within(row).getByText('build_system_prompt')).toBeTruthy() // exact name stays, secondary
+    expect(within(row).getByText(/Starts from “Chat manager” and follows its calls 2 levels deep\./)).toBeTruthy()
+    expect(within(row).getByText('ChatManager')).toBeTruthy()
+    const plain = screen.getByRole('link', { name: 'Plain name' }).closest('li')!
+    expect(within(plain).getByText(/follows its calls 1 level deep/)).toBeTruthy()
+    expect(within(plain).queryByText('Plain_name')).toBeNull()
+  })
+
   it('filters client-side by search', async () => {
     renderPage()
     await screen.findByText('Auth flow')

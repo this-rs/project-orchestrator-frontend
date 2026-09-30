@@ -75,6 +75,7 @@ export { WatcherToggle } from './WatcherToggle'
 
 // ── Design-system foundation (see DESIGN.md) ─────────────────────────────
 export { EntityRow, EntityList, ListGroup } from './EntityRow'
+export { WindowedList, type WindowedItem } from './WindowedList'
 export type { EntityRowProps } from './EntityRow'
 export { MetaLine, Fact, Sep, RelativeTime } from './MetaLine'
 export { StatusDot, StatusIcon, StatusText, StatusMenu, PriorityText, ToneText, TONE_ICONS } from './Status'

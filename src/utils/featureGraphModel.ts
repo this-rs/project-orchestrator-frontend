@@ -1,5 +1,6 @@
 import dagre from 'dagre'
 import type { FeatureGraphEntity, FeatureGraphRelation } from '@/types'
+import { entityCodeName, entityTitle } from './featureGraphReadable'
 
 // ============================================================================
 // Vocabulary (single source for the page, the legend and the help text)
@@ -68,16 +69,17 @@ export const relationStyle = (type: string) => RELATION_META[type] ?? DEFAULT_RE
 // Bounded subgraph selection
 // ============================================================================
 
-/** Nodes shown the first time the canvas opens. */
-export const INITIAL_NODE_LIMIT = 120
-/** Extra nodes added by each "Show more". */
-export const NODE_LIMIT_STEP = 120
-/** Hard ceiling: beyond this a canvas is unreadable and slow — use the list. */
-export const MAX_NODE_LIMIT = 480
-/** Edges beyond this are dropped from the canvas (the count stays visible). */
-export const MAX_EDGES = 900
+/**
+ * Edges beyond this are dropped from the canvas (the count stays visible). This is the only
+ * canvas cap: React Flow keeps one SVG path per edge, and past ~1.5k of them pan/zoom gets janky
+ * even with off-screen culling. Every entity is drawn; the list shows them all regardless.
+ */
+export const MAX_EDGES = 1500
 /** Edge labels are only drawn on small graphs (text per edge is costly and unreadable when dense). */
 export const EDGE_LABEL_MAX = 40
+/** Dagre is O(n·e)-ish: above these sizes the cheap layered layout takes over. */
+export const DAGRE_MAX_NODES = 250
+export const DAGRE_MAX_EDGES = 600
 
 export interface RankedEntity {
   entity: FeatureGraphEntity
@@ -147,7 +149,10 @@ export function selectSubgraph(
 // ============================================================================
 
 export interface GraphNodeData extends Record<string, unknown> {
+  /** Human title ("Build system prompt"). */
   label: string
+  /** Exact code name, shown on hover / when selected. */
+  codeName: string
   entityType: string
   role: string
   /** Index of the entity in the source array (click → details without a linear search). */
@@ -201,8 +206,61 @@ function gridLayout(nodes: LaidOutNode[]): void {
 }
 
 /**
- * Lays out an already-capped subgraph. Dagre runs only when the graph is bounded by
- * `selectSubgraph` (≤ MAX_NODE_LIMIT nodes / MAX_EDGES edges), so it stays in the tens of ms.
+ * Cheap layered layout for big graphs, O(n + e): each node goes one layer below its deepest
+ * parent (BFS from the roots, cycles are broken by the visit order), layers wrap into rows
+ * of at most `perRow` nodes. No crossing minimisation — it only has to be readable and instant.
+ */
+function layeredLayout(nodes: LaidOutNode[], edges: LaidOutEdge[]): void {
+  const indexOf = new Map<string, number>()
+  nodes.forEach((n, i) => indexOf.set(n.id, i))
+  const out: number[][] = nodes.map(() => [])
+  const indeg = new Array<number>(nodes.length).fill(0)
+  for (const e of edges) {
+    const s = indexOf.get(e.source)!
+    const t = indexOf.get(e.target)!
+    out[s].push(t)
+    indeg[t]++
+  }
+  const layer = new Array<number>(nodes.length).fill(-1)
+  const queue: number[] = []
+  const enqueueRoots = () => {
+    for (let i = 0; i < nodes.length; i++) if (layer[i] < 0 && indeg[i] === 0) { layer[i] = 0; queue.push(i) }
+  }
+  enqueueRoots()
+  let head = 0
+  const drain = () => {
+    while (head < queue.length) {
+      const u = queue[head++]
+      for (const v of out[u]) {
+        if (layer[v] < 0) { layer[v] = layer[u] + 1; queue.push(v) }
+      }
+    }
+  }
+  drain()
+  // Pure cycles have no root: seed from the first unvisited node.
+  for (let i = 0; i < nodes.length; i++) {
+    if (layer[i] < 0) { layer[i] = 0; queue.push(i); drain() }
+  }
+  const layers = new Map<number, number[]>()
+  nodes.forEach((_, i) => {
+    const l = layers.get(layer[i]) ?? []
+    l.push(i)
+    layers.set(layer[i], l)
+  })
+  const perRow = 12
+  let y = 0
+  for (const l of [...layers.keys()].sort((a, b) => a - b)) {
+    const members = layers.get(l)!
+    members.forEach((idx, k) => {
+      nodes[idx].position = { x: (k % perRow) * (NODE_W + 30), y: y + Math.floor(k / perRow) * (NODE_H + 30) }
+    })
+    y += Math.ceil(members.length / perRow) * (NODE_H + 30) + 50
+  }
+}
+
+/**
+ * Lays out a subgraph. Small graphs use dagre (nicer edges, tens of ms); big ones use the
+ * linear layered layout so 3000 nodes never freeze the tab.
  */
 export function layoutSubgraph(sub: Subgraph): GraphLayout {
   const idByEntityId = new Map<string, string>()
@@ -214,7 +272,8 @@ export function layoutSubgraph(sub: Subgraph): GraphLayout {
       type: 'entityNode',
       position: { x: 0, y: 0 },
       data: {
-        label: entity.name || entity.entity_id,
+        label: entityTitle(entity),
+        codeName: entityCodeName(entity),
         entityType: entity.entity_type,
         role: entity.role || 'unknown',
         entityIndex: index,
@@ -239,6 +298,8 @@ export function layoutSubgraph(sub: Subgraph): GraphLayout {
 
   if (edges.length === 0) {
     gridLayout(nodes)
+  } else if (nodes.length > DAGRE_MAX_NODES || edges.length > DAGRE_MAX_EDGES) {
+    layeredLayout(nodes, edges)
   } else {
     const g = new dagre.graphlib.Graph()
     g.setDefaultEdgeLabel(() => ({}))

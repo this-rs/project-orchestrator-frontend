@@ -24,7 +24,12 @@ vi.mock('@xyflow/react', () => ({
   }) => {
     flowMounted(nodes.length, edges.length)
     return (
-      <div data-testid="react-flow" data-nodes={nodes.length} data-edges={edges.length}>
+      <div
+        data-testid="react-flow"
+        data-nodes={nodes.length}
+        data-edges={edges.length}
+        data-first-label={(nodes[0]?.data as { label?: string } | undefined)?.label}
+      >
         <button type="button" onClick={() => onNodeClick?.({}, nodes[0])}>
           click first node
         </button>
@@ -79,6 +84,39 @@ const detail: FeatureGraphDetail = {
   relations: [{ source_id: 'src/ws.rs::handle_ws', target_id: 'ChatEvent', relation_type: 'CALLS' }],
 }
 
+/** Enriched backend shape: docstring, signature, file_path, line_start, importance. */
+const enriched: FeatureGraphDetail = {
+  ...detail,
+  entities: [
+    {
+      entity_type: 'function',
+      entity_id: 'src/chat/manager.rs::build_system_prompt',
+      name: 'build_system_prompt',
+      role: 'entry_point',
+      importance_score: 0.92,
+      file_path: 'src/chat/manager.rs',
+      line_start: 42,
+      signature: 'pub async fn build_system_prompt(session: &Session) -> String',
+      docstring: '/// Assembles the system prompt for a chat session. It also caches the result.\n/// Second line.',
+      visibility: 'pub',
+    },
+    {
+      entity_type: 'function',
+      entity_id: 'src/chat/manager.rs::send',
+      name: 'send',
+      role: 'support',
+      importance_score: 0.1,
+      file_path: 'src/chat/manager.rs',
+      line_start: 90,
+    },
+    { entity_type: 'struct', entity_id: 'ChatManager', role: 'data_model', importance_score: 0.5, file_path: 'src/chat/mod.rs' },
+  ],
+  relations: [
+    { source_type: 'Function', source_id: 'src/chat/manager.rs::send', target_type: 'Function', target_id: 'src/chat/manager.rs::build_system_prompt', relation_type: 'CALLS' },
+    { source_type: 'Function', source_id: 'src/chat/manager.rs::build_system_prompt', target_type: 'Struct', target_id: 'ChatManager', relation_type: 'CALLS' },
+  ],
+}
+
 const renderPage = () =>
   render(
     <MemoryRouter initialEntries={['/workspace/ws/feature-graphs/g1']}>
@@ -116,19 +154,81 @@ describe('FeatureGraphDetailPage', () => {
     remove.mockResolvedValue({})
   })
 
-  it('shows key facts and the entities grouped by role, with the full id visible', async () => {
+  it('shows key facts and each entity speaking: human title, code name, plain sentence (old shape)', async () => {
     renderPage()
     expect(await screen.findByRole('heading', { level: 1, name: 'Chat streaming' })).toBeTruthy()
     expect(screen.getByText('3 entities')).toBeTruthy()
     expect(screen.getByText('1 relation')).toBeTruthy()
     expect(screen.getByText('depth 3')).toBeTruthy()
-    const entry = screen.getByRole('region', { name: /Entry Points/ })
-    expect(within(entry).getByText('handle_ws')).toBeTruthy()
-    // full identifier stays visible (was only in the side panel before)
-    expect(within(entry).getByText('src/ws.rs::handle_ws')).toBeTruthy()
-    expect(screen.getByRole('region', { name: /Data Models/ })).toBeTruthy()
-    expect(screen.getByRole('region', { name: /Core Logic/ })).toBeTruthy()
+    const list = screen.getByRole('region', { name: 'Entities grouped by role' })
+    const row = within(list).getByRole('article', { name: 'Handle ws' })
+    expect(within(row).getByText('handle_ws')).toBeTruthy() // exact code name, secondary
+    expect(within(row).getByText('Function in src/ws.rs · entry point of the feature')).toBeTruthy()
+    expect(within(row).getByText('Entry point').getAttribute('title')).toMatch(/Where the feature starts/)
+    expect(within(row).getByRole('meter', { name: 'Importance Key' })).toBeTruthy()
+    expect(within(row).getByText('src/ws.rs')).toBeTruthy() // file derived from the entity id
+    // a bare struct without any file still gets a title + sentence
+    const evt = within(list).getByRole('article', { name: 'Chat event' })
+    expect(within(evt).getByText('Data structure · data carried by the feature')).toBeTruthy()
+    expect(within(list).getByRole('heading', { name: /Entry Points/ })).toBeTruthy()
+    expect(within(list).getByRole('heading', { name: /Data Models/ })).toBeTruthy()
     await waitFor(() => expect(screen.getByRole('link', { name: /Orchestrator/ })).toBeTruthy())
+  })
+
+  it('uses the enriched fields: docstring sentence, file:line, importance word', async () => {
+    get.mockResolvedValue(enriched)
+    renderPage()
+    const list = await screen.findByRole('region', { name: 'Entities grouped by role' })
+    const row = within(list).getByRole('article', { name: 'Build system prompt' })
+    expect(within(row).getByText('Assembles the system prompt for a chat session.')).toBeTruthy()
+    expect(within(row).getByText('src/chat/manager.rs:42')).toBeTruthy()
+    expect(within(row).getByRole('meter', { name: 'Importance Key' })).toBeTruthy()
+    const minor = within(list).getByRole('article', { name: 'Send' })
+    expect(within(minor).getByRole('meter', { name: 'Importance Minor' })).toBeTruthy()
+  })
+
+  it('switches grouping between role, file and type', async () => {
+    get.mockResolvedValue(enriched)
+    renderPage()
+    await screen.findByRole('region', { name: 'Entities grouped by role' })
+    fireEvent.click(screen.getByRole('tab', { name: 'File' }))
+    const byFile = screen.getByRole('region', { name: 'Entities grouped by file' })
+    const header = within(byFile).getByRole('heading', { name: /manager\.rs/ })
+    expect(header.textContent).toContain('src')
+    expect(header.textContent).toContain('chat')
+    expect(header.textContent).toContain('2') // two entities in that file
+    expect(within(byFile).getByRole('heading', { name: /mod\.rs/ })).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: 'Type' }))
+    const byType = screen.getByRole('region', { name: 'Entities grouped by type' })
+    expect(within(byType).getByRole('heading', { name: /Functions/ })).toBeTruthy()
+    expect(within(byType).getByRole('heading', { name: /Structs/ })).toBeTruthy()
+  })
+
+  it('groups by file from the entity id alone on the old shape', async () => {
+    renderPage()
+    await screen.findByText('3 entities')
+    fireEvent.click(screen.getByRole('tab', { name: 'File' }))
+    const byFile = screen.getByRole('region', { name: 'Entities grouped by file' })
+    expect(within(byFile).getByRole('heading', { name: /ws\.rs/ })).toBeTruthy()
+    expect(within(byFile).getByRole('heading', { name: /No file information/ })).toBeTruthy()
+  })
+
+  it('opens a detail panel from a row with signature, location, callers and callees', async () => {
+    get.mockResolvedValue(enriched)
+    renderPage()
+    const list = await screen.findByRole('region', { name: 'Entities grouped by role' })
+    fireEvent.click(within(within(list).getByRole('article', { name: 'Build system prompt' })).getByRole('button', { name: 'Build system prompt' }))
+    const panel = screen.getByRole('complementary', { name: 'Details of Build system prompt' })
+    expect(within(panel).getByText(/Assembles the system prompt for a chat session\. It also caches/)).toBeTruthy()
+    expect(within(panel).getByLabelText('Signature').textContent).toContain('pub async fn build_system_prompt')
+    expect(within(panel).getByText('src/chat/manager.rs:42')).toBeTruthy()
+    expect(within(panel).getByText('Called by')).toBeTruthy()
+    expect(within(panel).getByRole('button', { name: /Send/ })).toBeTruthy()
+    // follow a callee
+    fireEvent.click(within(panel).getByRole('button', { name: /Chat manager/ }))
+    expect(screen.getByRole('complementary', { name: 'Details of Chat manager' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Close entity details' }))
+    expect(screen.queryByRole('complementary')).toBeNull()
   })
 
   it('does not mount the heavy canvas until asked', async () => {
@@ -139,6 +239,8 @@ describe('FeatureGraphDetailPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show graph' }))
     expect(await screen.findByTestId('react-flow')).toBeTruthy()
     expect(flowMounted).toHaveBeenCalledWith(3, 1)
+    // node labels are humanized, not raw identifiers
+    expect(screen.getByTestId('react-flow').dataset.firstLabel).toBe('Handle ws')
     expect(screen.getByLabelText('Legend')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Hide graph' }))
     expect(screen.queryByTestId('react-flow')).toBeNull()
@@ -165,65 +267,49 @@ describe('FeatureGraphDetailPage', () => {
   describe('large graph (3000 entities, 6000 relations)', () => {
     beforeEach(() => get.mockResolvedValue(bigDetail(3000)))
 
-    it('renders only a capped, most-important-first subset of rows', async () => {
+    it('lists ALL 3000 entities in an internal scroller, windowed (not capped, no Load more)', async () => {
+      const t0 = performance.now()
       renderPage()
       await screen.findByRole('heading', { level: 1, name: 'Huge feature' })
-      // 4 role groups x at most 40 rows each, never the 3000 entities
-      const rows = screen.getAllByRole('listitem')
-      expect(rows.length).toBeLessThanOrEqual(4 * 40 + 10)
-      expect(screen.getAllByRole('button', { name: /Load .* more/ }).length).toBeGreaterThan(0)
+      expect(screen.queryByRole('button', { name: /Load .* more/ })).toBeNull()
+      const list = screen.getByRole('region', { name: 'Entities grouped by role' })
+      expect(screen.getByText(/3,000 entities — scroll the list/)).toBeTruthy()
+      // only the window is in the DOM...
+      expect(within(list).getAllByRole('article').length).toBeLessThan(40)
+      // ...but scrolling to the bottom reaches the very last one
+      list.scrollTop = 1e9
+      fireEvent.scroll(list)
+      const last = within(list).getAllByRole('article').at(-1)!
+      expect(last.getAttribute('aria-posinset')).toBe('3000')
+      expect(last.getAttribute('aria-setsize')).toBe('3000')
+      expect(performance.now() - t0).toBeLessThan(5000)
     })
 
-    it('mounts the canvas with at most 120 nodes and says how many are hidden', async () => {
+    it('searches across everything: an entity at index 2900 is found', async () => {
+      renderPage()
+      await screen.findByText('3,000 entities')
+      fireEvent.change(screen.getByRole('searchbox', { name: 'Search entities' }), { target: { value: 'f2900' } })
+      expect(screen.getByText('1 of 3,000 entities match')).toBeTruthy()
+      expect(screen.getByRole('article', { name: 'F2900' })).toBeTruthy()
+      fireEvent.change(screen.getByRole('searchbox', { name: 'Search entities' }), { target: { value: 'zzz' } })
+      expect(screen.getByText('No matching entities')).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+      expect(screen.getByText(/3,000 entities — scroll the list/)).toBeTruthy()
+    })
+
+    it('draws every entity on the canvas (no 120/480 cap), after a loading skeleton', async () => {
       const t0 = performance.now()
       renderPage()
       await screen.findByText('3,000 entities')
       fireEvent.click(screen.getByRole('button', { name: 'Show graph' }))
-      // loading skeleton first, then the canvas
       expect(screen.getByLabelText('Computing layout')).toBeTruthy()
       const flow = await screen.findByTestId('react-flow')
-      expect(Number(flow.dataset.nodes)).toBe(120)
-      expect(Number(flow.dataset.edges)).toBeLessThanOrEqual(900)
-      expect(screen.getByText(/Showing 120 of 3,000 entities/)).toBeTruthy()
-      // the entry point always survives the cap
-      expect(flowMounted).not.toHaveBeenCalledWith(3000, expect.anything())
-      expect(performance.now() - t0).toBeLessThan(5000)
-    })
-
-    it('reveals more nodes progressively up to a hard ceiling, then resets', async () => {
-      renderPage()
-      await screen.findByText('3,000 entities')
-      fireEvent.click(screen.getByRole('button', { name: 'Show graph' }))
-      await screen.findByTestId('react-flow')
-      fireEvent.click(screen.getByRole('button', { name: /Show 120 more/ }))
-      await waitFor(() => expect(screen.getByTestId('react-flow').dataset.nodes).toBe('240'))
-      fireEvent.click(screen.getByRole('button', { name: /Show 120 more/ }))
-      await waitFor(() => expect(screen.getByTestId('react-flow').dataset.nodes).toBe('360'))
-      fireEvent.click(screen.getByRole('button', { name: /Show 120 more/ }))
-      await waitFor(() => expect(screen.getByTestId('react-flow').dataset.nodes).toBe('480'))
+      expect(Number(flow.dataset.nodes)).toBe(3000)
+      expect(Number(flow.dataset.edges)).toBeLessThanOrEqual(1500)
+      expect(screen.getByText(/3,000 entities · /)).toBeTruthy()
+      expect(screen.getByText(/more relations are not drawn/)).toBeTruthy()
       expect(screen.queryByRole('button', { name: /Show .* more/ })).toBeNull()
-      expect(screen.getByText(/stops at 480 entities/)).toBeTruthy()
-      fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
-      await waitFor(() => expect(screen.getByTestId('react-flow').dataset.nodes).toBe('120'))
-    })
-
-    it('searches the whole list, not just the visible rows', async () => {
-      renderPage()
-      await screen.findByText('3,000 entities')
-      fireEvent.change(screen.getByRole('searchbox', { name: 'Search entities' }), { target: { value: 'f2999' } })
-      expect(screen.getByText('1 of 3,000 entities match')).toBeTruthy()
-      fireEvent.change(screen.getByRole('searchbox', { name: 'Search entities' }), { target: { value: 'zzz' } })
-      expect(screen.getByText('No matching entities')).toBeTruthy()
-      fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
-      expect(screen.getAllByRole('button', { name: /Load .* more/ }).length).toBeGreaterThan(0)
-    })
-
-    it('loads more rows inside a role group on demand', async () => {
-      renderPage()
-      await screen.findByText('3,000 entities')
-      const before = screen.getAllByRole('listitem').length
-      fireEvent.click(screen.getAllByRole('button', { name: /Load .* more/ })[0])
-      expect(screen.getAllByRole('listitem').length).toBe(before + 40)
+      expect(performance.now() - t0).toBeLessThan(5000)
     })
   })
 
@@ -233,6 +319,7 @@ describe('FeatureGraphDetailPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show graph' }))
     await screen.findByTestId('react-flow')
     fireEvent.click(screen.getByRole('button', { name: 'click first node' }))
+    expect(screen.getByRole('complementary', { name: /Details of/ })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Close entity details' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Close entity details' }))
     expect(screen.queryByRole('button', { name: 'Close entity details' })).toBeNull()

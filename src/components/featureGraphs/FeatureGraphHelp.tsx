@@ -54,9 +54,9 @@ export function FeatureGraphDetailHelp() {
         ))}
       </dl>
       <p>
-        Large graphs are shown progressively: the most important entities (by role, then by number of links) come
-        first, and you can reveal more.
-      </p>
+        Every entity shows a readable title, its exact code name and a one-line explanation (the first sentence of its
+        documentation when it has one). Group them by role, file or type, and search across all of them. The importance
+        gauge reads Key, Supporting or Minor — how central the entity is to this feature</p>
     </HelpDisclosure>
   )
 }

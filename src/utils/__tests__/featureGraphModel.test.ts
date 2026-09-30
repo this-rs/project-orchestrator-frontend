@@ -95,6 +95,32 @@ describe('layoutSubgraph', () => {
   })
 })
 
+describe('layered layout (big graphs)', () => {
+  it('lays 2000 connected nodes out fast, without overlap, layering by depth, even with a cycle', () => {
+    const n = 2000
+    const entities = Array.from({ length: n }, (_, i) => ent(i))
+    const relations = Array.from({ length: n - 1 }, (_, i) => rel(i, i + 1))
+    relations.push(rel(n - 1, 0)) // cycle: no root at all
+    relations.push(rel(5, 1000))
+    const t0 = performance.now()
+    const layout = layoutSubgraph(selectSubgraph(entities, relations, n))
+    expect(performance.now() - t0).toBeLessThan(1500)
+    expect(layout.nodes).toHaveLength(n)
+    const pos = new Set(layout.nodes.map((x) => `${x.position.x},${x.position.y}`))
+    expect(pos.size).toBe(n)
+    const y = (id: string) => layout.nodes.find((x) => x.id === id)!.position.y
+    expect(y('n1')).toBeGreaterThan(y('n0'))
+  })
+
+  it('carries a human label and the exact code name on every node', () => {
+    const layout = layoutSubgraph(
+      selectSubgraph([{ entity_type: 'function', entity_id: 'a.rs::build_system_prompt', name: 'build_system_prompt' }], [], 1),
+    )
+    expect(layout.nodes[0].data.label).toBe('Build system prompt')
+    expect(layout.nodes[0].data.codeName).toBe('build_system_prompt')
+  })
+})
+
 describe('vocabulary helpers', () => {
   it('falls back gracefully for unknown values', () => {
     expect(roleLabel(undefined)).toBe('Other')

@@ -25,6 +25,7 @@ import { CreateFeatureGraphForm, AutoBuildFeatureGraphForm } from '@/components/
 import type { FeatureGraph } from '@/types'
 import { workspacePath } from '@/utils/paths'
 import { NOMENCLATURE } from '@/constants/nomenclature'
+import { humanize, humanizeIfCode, looksLikeIdentifier } from '@/utils/featureGraphReadable'
 
 type SortKey = 'recent' | 'name' | 'entities'
 
@@ -37,6 +38,14 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
 /** Rows rendered at once: the API returns every graph in one response (no server pagination). */
 const PAGE_SIZE = 50
 const noopRef = () => {}
+
+/** One plain sentence when the graph has no description of its own. */
+function graphSentence(g: FeatureGraph): string | undefined {
+  if (g.description) return g.description
+  if (!g.entry_function) return undefined
+  const depth = g.build_depth != null ? ` and follows its calls ${g.build_depth} ${g.build_depth === 1 ? 'level' : 'levels'} deep` : ''
+  return `Starts from “${humanize(g.entry_function)}”${depth}.`
+}
 
 // ── Main page ───────────────────────────────────────────────────────────
 
@@ -240,9 +249,16 @@ export function FeatureGraphsPage() {
               {items.map((graph) => (
                 <EntityRow
                   key={graph.id}
-                  title={graph.name}
+                  title={humanizeIfCode(graph.name)}
+                  titleSuffix={
+                    looksLikeIdentifier(graph.name) ? (
+                      <code className="font-mono text-[11px] font-normal text-gray-500">{graph.name}</code>
+                    ) : undefined
+                  }
+                  ariaLabel={humanizeIfCode(graph.name)}
+                  menuLabel={humanizeIfCode(graph.name)}
                   href={workspacePath(wsSlug, `/feature-graphs/${graph.id}`)}
-                  description={graph.description}
+                  description={graphSentence(graph)}
                   trailing={<RelativeTime date={graph.created_at} />}
                   meta={[
                     selectedProject === 'all' && projectNameById[graph.project_id] ? (
@@ -251,8 +267,9 @@ export function FeatureGraphsPage() {
                       </Fact>
                     ) : null,
                     graph.entry_function ? (
-                      <Fact key="entry" icon={Play} mono title={`Entry: ${graph.entry_function}`} truncateAt="max-w-[14rem]">
-                        {graph.entry_function}
+                      <Fact key="entry" icon={Play} title={`Entry function: ${graph.entry_function}`} truncateAt="max-w-[20rem]">
+                        {humanize(graph.entry_function)}{' '}
+                        <code className="font-mono text-[11px] text-gray-500">{graph.entry_function}</code>
                       </Fact>
                     ) : null,
                     graph.build_depth != null ? (
