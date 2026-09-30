@@ -359,9 +359,11 @@ export const ChatMessages = memo(function ChatMessages({
           key={msg.id}
           data-msg-index={index}
           className={
+            // Jump-to-turn highlight — transition family: colour + ring only,
+            // in 200ms ease-out, out 150ms ease-in (DESIGN.md § Mouvement).
             highlightedIndex === index
-              ? 'rounded-lg bg-amber-400/[0.06] ring-1 ring-amber-400/40 -mx-2 px-2 py-0.5 transition-all duration-500'
-              : '-mx-2 px-2 py-0.5 transition-all duration-1000'
+              ? 'rounded-lg -mx-2 px-2 py-0.5 transition-[background-color,box-shadow] bg-amber-400/[0.06] ring-1 ring-amber-400/40 duration-(--motion-transition) ease-(--ease-out-soft)'
+              : 'rounded-lg -mx-2 px-2 py-0.5 transition-[background-color,box-shadow] duration-(--motion-exit) ease-(--ease-in-soft)'
           }
         >
           <ChatMessageBubble

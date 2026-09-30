@@ -23,6 +23,10 @@ const sizeStyles: Record<ButtonSize, string> = {
   lg: 'px-6 py-3 text-base',
 }
 
+// Feedback motion (DESIGN.md § Mouvement): explicit properties, 120ms.
+// The `!` is required: `.input-focus-glow` / `.btn-glow-*` (index.css) are
+// unlayered and set the `transition` shorthand, which otherwise beats every
+// Tailwind utility (layered) — `transition-all` here used to be dead code.
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ variant = 'primary', size = 'md', loading, disabled, className = '', children, ...props }, ref) => {
     return (
@@ -31,8 +35,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || loading}
         className={`
           inline-flex items-center justify-center font-medium rounded-lg
-          transition-all duration-150 focus:outline-none input-focus-glow
-          active:scale-[0.97] active:transition-transform active:duration-100
+          focus:outline-none input-focus-glow
+          transition-[scale,background-color,color,border-color,box-shadow]! duration-(--motion-feedback)! ease-out!
+          active:scale-[0.97] motion-reduce:active:scale-100
           disabled:opacity-50 disabled:cursor-not-allowed
           ${variantStyles[variant]}
           ${sizeStyles[size]}

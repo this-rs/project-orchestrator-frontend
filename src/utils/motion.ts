@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Variants, Transition } from 'motion/react'
+import type { Variants, Transition, TargetAndTransition } from 'motion/react'
 
 // ---- Reduced motion hook ----
 
@@ -57,24 +57,51 @@ export const backdropVariants: Variants = {
   exit: { opacity: 0, transition: { duration: 0.1 } },
 }
 
-// ---- Static variants (for reduced motion) ----
+/** Variants of a modal dialog: panel + backdrop. */
+export const DIALOG_MOTION = { dialog: dialogVariants, backdrop: backdropVariants }
 
-const noOp: Variants = {
-  hidden: {},
-  visible: {},
-  exit: {},
+// ---- Reduced motion: keep the fade, drop the movement ----
+
+/** Short tween replacing springs under reduced motion (transition family, in). */
+const reducedTransition: Transition = { duration: 0.2, ease: 'easeOut' }
+
+const reducedCache = new WeakMap<Variants, Variants>()
+
+/**
+ * Reduced-motion version of `variants` (DESIGN.md § Mouvement): opacity is
+ * kept so the state change stays legible; x/y/scale/rotate are dropped and
+ * springs become a short tween (a spring on opacity can overshoot). Cached per
+ * input so the returned object is stable across renders.
+ */
+export function stripMovement(variants: Variants): Variants {
+  const cached = reducedCache.get(variants)
+  if (cached) return cached
+  const out: Variants = {}
+  for (const [name, target] of Object.entries(variants)) {
+    if (typeof target !== 'object' || target === null) {
+      out[name] = target
+      continue
+    }
+    const kept: TargetAndTransition = {}
+    if ('opacity' in target) kept.opacity = target.opacity
+    const t = target.transition as Transition | undefined
+    if (t) kept.transition = t.type === 'spring' ? reducedTransition : t
+    out[name] = kept
+  }
+  reducedCache.set(variants, out)
+  return out
 }
 
-/** Returns static (no-op) variants if reduced motion is preferred */
+/** Returns opacity-only variants when reduced motion is preferred. */
 export function useVariants<T extends Record<string, Variants>>(
   variants: T,
 ): T {
   const reduced = useReducedMotion()
   if (!reduced) return variants
 
-  const static_: Record<string, Variants> = {}
+  const faded: Record<string, Variants> = {}
   for (const key of Object.keys(variants)) {
-    static_[key] = noOp
+    faded[key] = stripMovement(variants[key])
   }
-  return static_ as T
+  return faded as T
 }

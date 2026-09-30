@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { Search, Link2 } from 'lucide-react'
 import { Button } from './Button'
 import { Spinner } from './Spinner'
-import { dialogVariants, backdropVariants, useReducedMotion } from '@/utils/motion'
+import { DIALOG_MOTION, useVariants } from '@/utils/motion'
 import type { LinkOption } from '@/hooks/useLinkDialog'
 
 export interface LinkEntityDialogProps {
@@ -37,7 +37,7 @@ export function LinkEntityDialog({
   onSearchChange,
 }: LinkEntityDialogProps) {
   const searchRef = useRef<HTMLInputElement>(null)
-  const reducedMotion = useReducedMotion()
+  const variants = useVariants(DIALOG_MOTION)
 
   useEffect(() => {
     if (open) {
@@ -75,7 +75,7 @@ export function LinkEntityDialog({
           {/* Overlay */}
           <motion.div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            variants={reducedMotion ? undefined : backdropVariants}
+            variants={variants.backdrop}
             initial="hidden"
             animate="visible"
             exit="exit"
@@ -85,7 +85,7 @@ export function LinkEntityDialog({
           {/* Modal */}
           <motion.div
             className="relative glass-medium rounded-xl shadow-xl max-w-lg w-full"
-            variants={reducedMotion ? undefined : dialogVariants}
+            variants={variants.dialog}
             initial="hidden"
             animate="visible"
             exit="exit"

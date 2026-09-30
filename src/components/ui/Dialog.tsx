@@ -2,7 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { X } from 'lucide-react'
-import { dialogVariants, backdropVariants, useReducedMotion } from '@/utils/motion'
+import { DIALOG_MOTION, useVariants } from '@/utils/motion'
 
 export interface DialogProps {
   open: boolean
@@ -20,7 +20,7 @@ const sizeClasses = {
 
 export function Dialog({ open, onClose, title, children, size = 'sm' }: DialogProps) {
   const closeRef = useRef<HTMLButtonElement>(null)
-  const reducedMotion = useReducedMotion()
+  const variants = useVariants(DIALOG_MOTION)
 
   // Auto-focus close button
   useEffect(() => {
@@ -58,7 +58,7 @@ export function Dialog({ open, onClose, title, children, size = 'sm' }: DialogPr
         >
           <motion.div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            variants={reducedMotion ? undefined : backdropVariants}
+            variants={variants.backdrop}
             initial="hidden"
             animate="visible"
             exit="exit"
@@ -67,7 +67,7 @@ export function Dialog({ open, onClose, title, children, size = 'sm' }: DialogPr
 
           <motion.div
             className={`relative glass-medium rounded-xl shadow-xl ${sizeClasses[size]} w-full`}
-            variants={reducedMotion ? undefined : dialogVariants}
+            variants={variants.dialog}
             initial="hidden"
             animate="visible"
             exit="exit"
