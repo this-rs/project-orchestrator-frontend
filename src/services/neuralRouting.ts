@@ -4,14 +4,21 @@ import { api } from './api'
 
 export type RoutingMode = 'nn' | 'full'
 
+/** Mirrors `neural_routing_nn::NNMetricsSnapshot` — the backend is the source of truth. */
 export interface NNMetricsSnapshot {
   total_queries: number
+  /** Queries answered by a known neighbour. */
   hits: number
-  misses: number
-  avg_latency_us: number
-  p99_latency_us: number
-  cache_size: number
-  last_invalidated_at: string | null
+  /** Queries answered from the in-memory route cache. */
+  cache_hits: number
+  /** hits / total_queries, as a 0–1 fraction. */
+  hit_rate: number
+  /** cache_hits / total_queries, as a 0–1 fraction. */
+  cache_hit_rate: number
+  /** Mean similarity of the neighbours that answered, 0–1. */
+  avg_similarity: number
+  /** Mean reward of the routes that answered. */
+  avg_reward: number
 }
 
 export interface NeuralRoutingStatus {
@@ -31,12 +38,14 @@ export interface NeuralRoutingConfig {
   collection: {
     enabled: boolean
     buffer_size: number
-    flush_interval_secs: number
+    stale_session_timeout_secs: number
   }
   nn: {
     top_k: number
     min_similarity: number
     max_route_age_days: number
+    cache_capacity: number
+    cache_ttl_secs: number
   }
 }
 
