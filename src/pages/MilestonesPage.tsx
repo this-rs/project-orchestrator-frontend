@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useAtomValue } from 'jotai'
-import { Trash2 } from 'lucide-react'
+import { CalendarClock, Flag, FolderKanban, Tag, Trash2 } from 'lucide-react'
 import { milestoneRefreshAtom, workspaceRefreshAtom } from '@/atoms'
 import {
   BulkActionBar,
@@ -8,6 +8,7 @@ import {
   EmptyState,
   EntityListSkeleton,
   EntityRow,
+  Fact,
   ErrorState,
   FilterBar,
   ListGroup,
@@ -22,7 +23,8 @@ import {
   textLink,
   RowCheckbox,
   ViewToggle,
-  ProgressLine,
+  RelativeTime,
+  TaskProgress,
   Button,
   pluralize,
 } from '@/components/ui'
@@ -382,41 +384,35 @@ function MilestoneRow({ milestone, wsSlug, now, selected, onToggleSelect, onStat
       selected={selected}
       muted={status === 'completed' || status === 'closed'}
       leading={<RowCheckbox checked={selected} onToggle={onToggleSelect} label={`Select ${milestone.title}`} />}
-      trailing={
-        progress && progress.total > 0 ? (
-          <span title={`${progress.completed} of ${progress.total} tasks completed`}>
-            {progress.completed}/{progress.total}
-          </span>
-        ) : undefined
-      }
+      trailing={<RelativeTime date={milestone.created_at} />}
       description={milestone.description}
+      tone={overdue ? 'warning' : getStatusMeta('milestone', status).tone}
+      status={[<StatusMenu key="status" kind="milestone" icon status={status} onChange={onStatusChange} />]}
       meta={[
-        <StatusMenu key="status" kind="milestone" status={status} onChange={onStatusChange} />,
-        <span key="source" className="truncate max-w-[14rem]" title={milestone.workspace_name}>
+        <Fact key="source" icon={isProject ? FolderKanban : Flag} title={milestone.workspace_name} truncateAt="max-w-[14rem]">
           {isProject ? 'Project' : 'Workspace'}
           {milestone.workspace_name ? ` · ${milestone.workspace_name}` : ''}
-        </span>,
+        </Fact>,
         milestone.target_date ? (
-          <span key="due" className={overdue ? 'text-amber-400' : undefined} title={new Date(milestone.target_date).toLocaleDateString()}>
-            {overdue ? 'overdue ' : 'due '}
-            {formatDay(milestone.target_date)}
+          <span
+            key="due"
+            className={`inline-flex items-center gap-1 ${overdue ? 'text-amber-400 font-medium' : 'text-gray-300'}`}
+            title={new Date(milestone.target_date).toLocaleDateString()}
+          >
+            <CalendarClock className={`w-3 h-3 shrink-0 ${overdue ? '' : 'text-gray-500'}`} aria-hidden="true" />
+            <span>
+              {overdue ? 'overdue ' : 'due '}
+              {formatDay(milestone.target_date)}
+            </span>
           </span>
         ) : null,
         tags.length > 0 ? (
-          <span key="tags" className="break-words">
+          <Fact key="tags" icon={Tag}>
             {tags.map((t) => `#${t}`).join(' ')}
-          </span>
+          </Fact>
         ) : null,
       ]}
-      context={
-        progress && progress.total > 0 ? (
-          <ProgressLine
-            value={progress.percentage}
-            label={`${Math.round(progress.percentage)}% complete`}
-            className="max-w-xs"
-          />
-        ) : undefined
-      }
+      context={<TaskProgress counts={progress ? { blocked: 0, failed: 0, ...progress } : undefined} />}
       actions={[
         {
           label: 'Delete',

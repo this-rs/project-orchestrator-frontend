@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSetAtom } from 'jotai'
-import { CheckSquare, Pencil, Trash2 } from 'lucide-react'
+import { CheckSquare, Folder, Hash, Pencil, Trash2 } from 'lucide-react'
 import { projectRefreshAtom } from '@/atoms'
 import { projectsApi } from '@/services'
 import { workspacesApi } from '@/services/workspaces'
@@ -13,6 +13,7 @@ import {
   EntityList,
   EntityListSkeleton,
   EntityRow,
+  Fact,
   ErrorState,
   FilterBar,
   FormDialog,
@@ -260,15 +261,16 @@ function ProjectRow({
       description={project.description || undefined}
       context={<TaskProgress counts={counts} />}
       trailing={project.last_synced ? <RelativeTime date={project.last_synced} prefix="synced " /> : undefined}
+      tone={project.last_synced ? undefined : 'warning'}
+      status={project.last_synced ? undefined : [<ToneText key="never" tone="warning" icon label="Never synced" />]}
       meta={[
-        project.last_synced ? null : <ToneText key="never" tone="warning" label="Never synced" />,
-        <span key="slug" className="font-mono">
+        <Fact key="slug" icon={Hash} mono>
           {project.slug}
-        </span>,
+        </Fact>,
         project.root_path ? (
-          <span key="path" className="font-mono truncate max-w-[16rem]" title={project.root_path}>
+          <Fact key="path" icon={Folder} mono title={project.root_path} truncateAt="max-w-[16rem]">
             {project.root_path}
-          </span>
+          </Fact>
         ) : null,
       ]}
       actions={[

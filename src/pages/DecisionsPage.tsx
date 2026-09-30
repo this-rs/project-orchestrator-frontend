@@ -5,12 +5,14 @@ import {
   EmptyState,
   EntityListSkeleton,
   EntityRow,
+  Fact,
   FilterBar,
   ListGroup,
   PageShell,
   RelativeTime,
   Select,
   StatusMenu,
+  getStatusMeta,
   getStatusOptions,
   groupByRecency,
   pluralize,
@@ -225,13 +227,13 @@ function DecisionRow({ decision, wsSlug, onStatusChange, onDelete }: DecisionRow
       muted={decision.status === 'superseded'}
       trailing={<RelativeTime date={decision.decided_at} />}
       description={decisionPreview(decision.description) || undefined}
+      tone={getStatusMeta('decision', decision.status).tone}
+      status={[<StatusMenu key="status" kind="decision" icon status={decision.status} onChange={onStatusChange} />]}
       meta={[
-        <StatusMenu key="status" kind="decision" status={decision.status} onChange={onStatusChange} />,
         decision.chosen_option ? (
-          <span key="chosen" className="inline-flex items-center gap-1 min-w-0 text-gray-400" title={`Chosen: ${decision.chosen_option}`}>
-            <CheckCircle2 className="w-3 h-3 shrink-0 text-emerald-400" aria-label="Chosen option" />
-            <span className="truncate max-w-[16rem]">{decision.chosen_option}</span>
-          </span>
+          <Fact key="chosen" icon={CheckCircle2} title={`Chosen: ${decision.chosen_option}`} truncateAt="max-w-[16rem]">
+            {decision.chosen_option}
+          </Fact>
         ) : null,
         alternatives > 0 ? pluralize(alternatives, 'alternative') : null,
       ]}

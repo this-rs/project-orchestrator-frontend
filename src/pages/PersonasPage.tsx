@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import { Trash2, Plus, Folder, FileCode } from 'lucide-react'
+import { Brain, CircleCheck, Trash2, Plus, Folder, FileCode, FolderKanban, Zap } from 'lucide-react'
 import { personasApi, workspacesApi } from '@/services'
 import {
   Button,
@@ -7,14 +7,15 @@ import {
   EmptyState,
   EntityListSkeleton,
   EntityRow,
+  Fact,
   FilterBar,
+  Gauge,
   ListGroup,
   LoadMoreSentinel,
   PageShell,
   RelativeTime,
   Select,
   StatusMenu,
-  TONE_CLASSES,
   getStatusMeta,
   getStatusOptions,
   groupBy,
@@ -342,19 +343,44 @@ function PersonaRow({ persona, subgraph, href, projectLabel, onStatusChange, onD
       description={persona.description || undefined}
       muted={persona.status === 'archived'}
       trailing={persona.last_activated ? <RelativeTime date={persona.last_activated} /> : <span>never used</span>}
+      tone={getStatusMeta('persona', persona.status).tone}
+      status={[<StatusMenu key="status" kind="persona" icon status={persona.status} onChange={onStatusChange} />]}
       meta={[
-        <StatusMenu key="status" kind="persona" status={persona.status} onChange={onStatusChange} />,
-        projectLabel,
-        <span key="energy" title={`Energy ${Math.round((persona.energy ?? 0) * 100)}% — recent vitality`}>
-          <span className={TONE_CLASSES[energy.tone].text}>{energy.label}</span> energy
-        </span>,
-        <span key="cohesion" title={`Cohesion ${Math.round((persona.cohesion ?? 0) * 100)}%`}>
-          <span className={TONE_CLASSES[cohesion.tone].text}>{cohesion.label}</span> cohesion
-        </span>,
-        `${Math.round((persona.success_rate ?? 0) * 100)}% success`,
-        pluralize(persona.activation_count ?? 0, 'activation'),
-        subgraph ? pluralize(files.length, 'file') : null,
-        subgraph && skills > 0 ? pluralize(skills, 'skill') : null,
+        projectLabel ? (
+          <Fact key="project" icon={FolderKanban} title="Project" truncateAt="max-w-[12rem]">
+            {projectLabel}
+          </Fact>
+        ) : null,
+        <Gauge
+          key="energy"
+          label="Energy"
+          value={persona.energy ?? 0}
+          level={energy.label}
+          tone={energy.tone}
+          title={`Energy ${Math.round((persona.energy ?? 0) * 100)}% — recent vitality`}
+        />,
+        <Gauge
+          key="cohesion"
+          label="Cohesion"
+          value={persona.cohesion ?? 0}
+          level={cohesion.label}
+          tone={cohesion.tone}
+          title={`Cohesion ${Math.round((persona.cohesion ?? 0) * 100)}%`}
+        />,
+        <Fact key="success" icon={CircleCheck}>{`${Math.round((persona.success_rate ?? 0) * 100)}% success`}</Fact>,
+        <Fact key="act" icon={Zap}>
+          {pluralize(persona.activation_count ?? 0, 'activation')}
+        </Fact>,
+        subgraph ? (
+          <Fact key="files" icon={FileCode}>
+            {pluralize(files.length, 'file')}
+          </Fact>
+        ) : null,
+        subgraph && skills > 0 ? (
+          <Fact key="skills" icon={Brain}>
+            {pluralize(skills, 'skill')}
+          </Fact>
+        ) : null,
       ]}
       context={
         files.length > 0 ? (

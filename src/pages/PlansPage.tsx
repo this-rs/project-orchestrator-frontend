@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
-import { Folder, FolderKanban, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Folder, FolderKanban, Pencil, Plus, Trash2, User } from 'lucide-react'
 import { plansAtom, plansLoadingAtom, planStatusFilterAtom, planRefreshAtom } from '@/atoms'
 import { plansApi } from '@/services'
 import {
@@ -11,6 +11,7 @@ import {
   EntityList,
   EntityListSkeleton,
   EntityRow,
+  Fact,
   FilterBar,
   FormDialog,
   LoadMoreSentinel,
@@ -20,6 +21,7 @@ import {
   Select,
   StatusMenu,
   TaskProgress,
+  getStatusMeta,
   getStatusOptions,
   hitArea,
   textLink,
@@ -441,24 +443,27 @@ export function PlansPage() {
                 trailing={<RelativeTime date={plan.created_at} />}
                 description={plan.description}
                 context={<TaskProgress counts={progress[plan.id]} />}
-                meta={[
+                tone={getStatusMeta('plan', plan.status).tone}
+                status={[
                   <StatusMenu
                     key="status"
                     kind="plan"
+                    icon
                     status={plan.status}
                     onChange={(s) => handlePlanStatusChange(plan.id, s)}
                   />,
                   <PriorityText key="p" priority={plan.priority} />,
+                ]}
+                meta={[
                   plan.project_id ? (
-                    <span key="project" className="inline-flex items-center gap-1 min-w-0" title="Project">
-                      <FolderKanban className="w-3 h-3 shrink-0" aria-hidden="true" />
-                      <span className="truncate max-w-[12rem]">{projectNames.get(plan.project_id) ?? 'Project'}</span>
-                    </span>
+                    <Fact key="project" icon={FolderKanban} title="Project" truncateAt="max-w-[12rem]">
+                      {projectNames.get(plan.project_id) ?? 'Project'}
+                    </Fact>
                   ) : null,
                   plan.created_by ? (
-                    <span key="by" className="truncate max-w-[10rem]" title={`Created by ${plan.created_by}`}>
+                    <Fact key="by" icon={User} title={`Created by ${plan.created_by}`} truncateAt="max-w-[10rem]">
                       {plan.created_by}
-                    </span>
+                    </Fact>
                   ) : null,
                 ]}
                 actions={[

@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react'
-import { Folder, GitBranch, RefreshCw } from 'lucide-react'
+import { Folder, GitBranch, RefreshCw, Shapes, Tag } from 'lucide-react'
 
 import { protocolApi, workspacesApi } from '@/services'
 import { RecentRunsPanel } from '@/components/protocols/RecentRunsPanel'
@@ -19,12 +19,13 @@ import {
   EntityListSkeleton,
   EntityRow,
   ErrorState,
+  Fact,
   FilterBar,
   ListGroup,
   PageShell,
   RelativeTime,
   Select,
-  StatusDot,
+  StatusText,
   focusRing,
   getStatusMeta,
   getStatusOptions,
@@ -296,31 +297,34 @@ function ProtocolRow({ protocol, href }: { protocol: Protocol; href: string }) {
       title={protocol.name}
       href={href}
       muted={status === 'archived'}
-      leading={<StatusDot kind="protocol" status={status} label={getStatusMeta('protocol', status).label} />}
+      tone={getStatusMeta('protocol', status).tone}
+      status={[<StatusText key="status" kind="protocol" icon status={status} />]}
       description={protocol.description}
       trailing={<RelativeTime date={protocol.updated_at ?? protocol.created_at} />}
       meta={[
-        protocol.protocol_category ? <span key="cat" className="text-gray-400">{protocol.protocol_category}</span> : null,
+        protocol.protocol_category ? (
+          <Fact key="cat" icon={Shapes} title="Category">
+            {protocol.protocol_category}
+          </Fact>
+        ) : null,
         auto ? (
-          <span key="auto" className="inline-flex items-center gap-1">
-            <auto.icon className="w-3 h-3" aria-hidden="true" />
+          <Fact key="auto" icon={auto.icon} title="Trigger">
             {auto.label}
-          </span>
+          </Fact>
         ) : null,
         // State counts are only present when the API includes the FSM (detail payload)
         states ? pluralize(states, 'state') : null,
         transitions ? pluralize(transitions, 'transition') : null,
         hasMacro ? (
-          <span key="macro" className="inline-flex items-center gap-1">
-            <GitBranch className="w-3 h-3" aria-hidden="true" />
+          <Fact key="macro" icon={GitBranch}>
             sub-protocols
-          </span>
+          </Fact>
         ) : null,
         tags.length > 0 ? (
-          <span key="tags" className="break-words">
+          <Fact key="tags" icon={Tag}>
             {tags.slice(0, 3).map((t) => `#${t}`).join(' ')}
             {tags.length > 3 ? ` +${tags.length - 3}` : ''}
-          </span>
+          </Fact>
         ) : null,
       ]}
     />

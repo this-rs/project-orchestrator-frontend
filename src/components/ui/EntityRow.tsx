@@ -4,6 +4,10 @@ import { ChevronRight } from 'lucide-react'
 import { MetaLine } from './MetaLine'
 import { OverflowMenu, type OverflowMenuAction } from './OverflowMenu'
 import { focusRing } from './classes'
+import { TONE_CLASSES, type StatusTone } from './statusMeta'
+
+/** Tones that earn a left rail: things moving or needing you. Done / idle / archived stay quiet. */
+const RAIL_TONES: StatusTone[] = ['progress', 'info', 'warning', 'danger', 'special']
 
 // ============================================================================
 // EntityRow
@@ -24,7 +28,15 @@ export interface EntityRowProps {
   trailing?: ReactNode
   /** Optional one/two-line secondary text (description, preview). */
   description?: ReactNode
-  /** Metadata line: an array is rendered as a <MetaLine/>, a node as-is. */
+  /**
+   * Status line, right under the description: the row's state (`StatusMenu` /
+   * `StatusText icon`) followed by priority / importance. Rendered at 12px
+   * medium weight so the state reads before the facts do.
+   */
+  status?: ReactNode[] | ReactNode
+  /** Tone of the status: draws a thin left rail on active / attention rows (colour is never the only cue, `status` spells it out). */
+  tone?: StatusTone
+  /** Facts line: an array is rendered as a <MetaLine variant="facts"/> (use `Fact`), a node as-is. */
   meta?: ReactNode[] | ReactNode
   /** Extra line under the meta (linked entities, cwd, progress bar…). */
   context?: ReactNode
@@ -79,6 +91,8 @@ export function EntityRow({
   titleSuffix,
   trailing,
   description,
+  status,
+  tone,
   meta,
   context,
   actions,
@@ -96,7 +110,9 @@ export function EntityRow({
 }: EntityRowProps) {
   const menuName = menuLabel ?? ariaLabel ?? (typeof title === 'string' ? title : undefined)
   const clamp = titleLines === 1 ? 'truncate' : 'line-clamp-2 break-words'
-  const titleColor = selected ? 'text-gray-50 font-medium' : muted ? 'text-gray-400' : 'text-gray-200'
+  const titleColor = selected ? 'text-gray-50 font-medium' : muted ? 'text-gray-400' : 'text-gray-100 font-medium'
+  const hasStatus = Array.isArray(status) ? status.some((n) => n) : Boolean(status)
+  const hasMeta = Array.isArray(meta) ? meta.some((n) => n) : meta != null && meta !== false
   // Stretched activation area + focus ring drawn on the whole row.
   const stretched =
     "text-left outline-none after:absolute after:inset-0 after:content-[''] focus-visible:after:ring-1 focus-visible:after:ring-inset focus-visible:after:ring-indigo-500/60"
@@ -122,7 +138,7 @@ export function EntityRow({
 
   return (
     <Tag
-      className={`relative flex items-start gap-2.5 px-3 py-2.5 md:px-4 transition-colors ${
+      className={`relative flex items-start gap-2.5 px-3 py-3 md:px-4 transition-colors ${
         selected
           ? 'bg-indigo-500/[0.08] shadow-[inset_2px_0_0_var(--color-indigo-500)]'
           : interactive
@@ -130,6 +146,9 @@ export function EntityRow({
             : ''
       } ${className}`}
     >
+      {tone && !selected && RAIL_TONES.includes(tone) && (
+        <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-[3px] ${TONE_CLASSES[tone].dot} opacity-80`} />
+      )}
       {leading && <div className="relative z-10 shrink-0 flex items-center min-h-5">{leading}</div>}
 
       <div className="flex-1 min-w-0">
@@ -144,15 +163,24 @@ export function EntityRow({
           {trailing && (
             <>
               {' '}
-              <div className="shrink-0 text-[11px] leading-5 tabular-nums text-gray-500">{trailing}</div>
+              <div className="shrink-0 text-xs leading-5 tabular-nums text-gray-500">{trailing}</div>
             </>
           )}
         </div>
-        {description && <div className="mt-0.5 text-xs leading-4 text-gray-500 line-clamp-2 break-words">{description}</div>}
-        {meta != null && meta !== false && (
-          <div className="mt-1">{Array.isArray(meta) ? <MetaLine items={meta} /> : meta}</div>
+        {description && <div className="mt-1 text-xs leading-[1.125rem] text-gray-400 line-clamp-2 break-words">{description}</div>}
+        {(hasStatus || hasMeta) && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 min-w-0">
+            {hasStatus && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-4 font-medium">
+                {Array.isArray(status)
+                  ? status.map((n, i) => (n ? <span key={i} className="inline-flex items-center empty:hidden">{n}</span> : null))
+                  : status}
+              </div>
+            )}
+            {hasMeta && (Array.isArray(meta) ? <MetaLine items={meta} variant="facts" /> : meta)}
+          </div>
         )}
-        {context && <div className="mt-1 min-w-0">{context}</div>}
+        {context && <div className="mt-2 min-w-0">{context}</div>}
         {children && <div className="relative z-10 mt-2">{children}</div>}
       </div>
 
@@ -179,7 +207,7 @@ interface EntityListProps {
 export function EntityList({ children, variant = 'card', className = '', ...rest }: EntityListProps) {
   const base =
     variant === 'card'
-      ? 'rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.05]'
+      ? 'rounded-xl border border-white/[0.07] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.06]'
       : 'divide-y divide-white/[0.05]'
   return (
     <ul role="list" aria-label={rest['aria-label']} className={`${base} ${className}`}>

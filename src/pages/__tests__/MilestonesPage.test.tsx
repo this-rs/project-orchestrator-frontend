@@ -78,7 +78,7 @@ describe('MilestonesPage (list)', () => {
     expect(screen.getByRole('link', { name: 'Old goal' })).toBeTruthy()
 
     expect(within(row).getByText('3/8')).toBeTruthy()
-    expect(within(row).getByRole('progressbar', { name: '38% complete' })).toBeTruthy()
+    expect(within(row).getByRole('progressbar', { name: '38% of tasks completed' })).toBeTruthy()
     expect(within(row).getByText(/overdue/)).toBeTruthy()
     expect(within(row).getByText('Public beta')).toBeTruthy()
     expect(within(row).getByText('#release')).toBeTruthy()

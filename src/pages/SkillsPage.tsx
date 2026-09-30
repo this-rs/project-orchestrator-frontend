@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { Brain, Trash2, Upload, Sparkles, FileText, Globe, Folder, Plus } from 'lucide-react'
+import { Brain, Trash2, Upload, Sparkles, FileText, Globe, Folder, FolderKanban, Network, Plus, Tag, Zap } from 'lucide-react'
 import { skillRefreshAtom } from '@/atoms/events'
 import { skillsApi, adminApi, notesApi, workspacesApi } from '@/services'
 import {
@@ -19,8 +19,10 @@ import {
   EmptyState,
   EntityListSkeleton,
   EntityRow,
+  Fact,
   FilterBar,
   FormDialog,
+  Gauge,
   ListGroup,
   LoadMoreSentinel,
   PageShell,
@@ -499,18 +501,43 @@ function SkillRow({ skill, wsSlug, projectName, onStatusChange, onDelete }: Skil
       description={skill.description || undefined}
       muted={skill.status === 'archived'}
       trailing={<RelativeTime date={skill.created_at} />}
+      tone={getStatusMeta('skill', skill.status).tone}
+      status={[<StatusMenu key="status" kind="skill" icon status={skill.status} onChange={onStatusChange} />]}
       meta={[
-        <StatusMenu key="status" kind="skill" status={skill.status} onChange={onStatusChange} />,
-        projectName,
-        pluralize(members, 'member'),
-        <span key="energy" title={`Energy ${Math.round(skill.energy * 100)}% — recent activity`}>
-          <span className={TONE_CLASSES[energy.tone].text}>{energy.label}</span> energy
-        </span>,
-        <span key="cohesion" title={`Cohesion ${Math.round(skill.cohesion * 100)}%`}>
-          <span className={TONE_CLASSES[cohesion.tone].text}>{cohesion.label}</span> cohesion
-        </span>,
-        skill.activation_count > 0 ? pluralize(skill.activation_count, 'activation') : null,
-        tagSummary(skill.tags),
+        projectName ? (
+          <Fact key="project" icon={FolderKanban} title="Project" truncateAt="max-w-[12rem]">
+            {projectName}
+          </Fact>
+        ) : null,
+        <Fact key="members" icon={Network}>
+          {pluralize(members, 'member')}
+        </Fact>,
+        <Gauge
+          key="energy"
+          label="Energy"
+          value={skill.energy}
+          level={energy.label}
+          tone={energy.tone}
+          title={`Energy ${Math.round(skill.energy * 100)}% — recent activity`}
+        />,
+        <Gauge
+          key="cohesion"
+          label="Cohesion"
+          value={skill.cohesion}
+          level={cohesion.label}
+          tone={cohesion.tone}
+          title={`Cohesion ${Math.round(skill.cohesion * 100)}%`}
+        />,
+        skill.activation_count > 0 ? (
+          <Fact key="act" icon={Zap}>
+            {pluralize(skill.activation_count, 'activation')}
+          </Fact>
+        ) : null,
+        skill.tags?.length ? (
+          <Fact key="tags" icon={Tag}>
+            {tagSummary(skill.tags ?? [])}
+          </Fact>
+        ) : null,
       ]}
       actions={[
         {

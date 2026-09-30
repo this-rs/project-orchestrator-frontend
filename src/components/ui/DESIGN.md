@@ -98,9 +98,14 @@ Every entity list is `EntityList` / `ListGroup` of `EntityRow`s. No per-page car
 ```
 [leading] Title (≤ 2 lines) ····················· trailing  [⋯]
           description (optional, ≤ 2 lines, muted)
-          meta · meta · meta                (MetaLine, wraps)
-          context line (optional)
+          ◔ Status  P8    ▣ Project  @ owner  ⏱ due …   (status line, then facts — one wrapping line)
+          context line (optional: TaskProgress, links…)
 ```
+
+Row anatomy (list cards): `status` is the row's state (12px medium, tone colour), `meta` is the facts line
+(`MetaLine variant="facts"`, 12px, no `·` separators, every fact carries a `Fact` icon), `tone` draws a 3px left rail on rows that
+are moving or need attention (`progress info warning danger special`; done/idle/archived stay quiet). Colour is never the only
+cue: the status has a tone-shaped glyph (`icon`) and a word, the rail is redundant with it.
 
 ```tsx
 <ListGroup title="Today" count={items.length}>
@@ -123,10 +128,12 @@ Every entity list is `EntityList` / `ListGroup` of `EntityRow`s. No per-page car
 </ListGroup>
 ```
 
-- Title = the one thing that identifies the item. Everything else goes in **one** meta line; falsy items are skipped automatically. Content without a title (notes, decisions) uses `noteTitle` / `decisionTitle` (first meaningful line) everywhere — list rows, detail header, timelines.
+- Title = the one thing that identifies the item. Everything else goes in **one** status line + **one** facts line; falsy items are skipped automatically. Content without a title (notes, decisions) uses `noteTitle` / `decisionTitle` (first meaningful line) everywhere — list rows, detail header, timelines.
+- **Status line (`status`)**: `StatusMenu icon` (editable) / `StatusText icon` / `ToneText icon` (read-only), then `PriorityText`. Pass `tone={getStatusMeta(kind, s).tone}` for the rail. No leading dot when the status is here (avoid double marks).
+- **Facts (`meta`)**: wrap each in `<Fact icon={…} title="Project">`; `truncateAt="max-w-[12rem]"` for long names, `mono` for shas/paths. Plain strings still work (counters: `pluralize(n, 'task')`). Gauges: `<Gauge label="Energy" value={0.8} level="High" tone />` (bar + word + title, never colour alone).
 - **Meta order:** status → priority / importance → attribution (project, plan, assignee, author, source) → counters (tasks, steps, cost, duration) → tags. The date goes in `trailing`, never in meta (a *due* date is a fact, not a timestamp — it sits with the counters).
 - Trailing = date (`RelativeTime`: `3h` / `12 Sep`, full date in tooltip) or one short value (progress `3/8`, cost).
-- Editable status → `StatusMenu` as **first meta item**, and then no leading dot (avoid double dots). Read-only → leading `StatusDot` with `label`.
+- Editable status → `StatusMenu icon` in the `status` line. Read-only → `StatusText icon` in the `status` line (a leading `StatusDot` with `label` remains fine for compact/legacy rows, but then leave `status` empty).
 - Links / buttons inside `meta`/`context` must carry `rowInteractive` (`relative z-10`) so they sit above the row's stretched link. `StatusMenu` and the `actions` slot already do.
 - `selected` = current item (indigo inset bar). `muted` = done/archived items.
 - Grouping: by recency (`groupByRecency(items, i => i.updated_at)`) or by status (`groupBy(items, i => i.status, ORDER)`), rendered with `ListGroup` (header + count; `collapsible` + `defaultOpen={false}` for "Completed"-like groups).
@@ -174,7 +181,7 @@ Anatomy: **PageHeader → key facts line → sections**.
 - Parent entities = muted breadcrumb links above the title (built in).
 - Key facts = status first, then 2–5 short facts. Long properties → a `Facts` list in a section.
 - Sections: `Section` (title · count · one action). Use `SectionNav`/`TabLayout` only when there are ≥ 4 long sections; `TabLayout`'s strip scrolls horizontally on its own. Secondary view switches inside a page/section (Protocols · Runs · Scheduled) use the segmented `ViewTabs`; list/board uses the icon-only `ViewToggle` in `FilterBar.trailing`.
-- Progress / metrics: `ProgressLine` (static 0–100 progressbar, rows and progress blocks), `Meter` (0–1 ratio with tone, `block` / `inline` / bare `bar`), `StatTiles` (grid of numbers). Never `ProgressBar` (animated) on list data.
+- Progress / metrics: `ProgressLine` (static 0–100 progressbar, rows and progress blocks; `segments` splits the track into done / active / blocked / failed), `TaskProgress` (the ready-made task block for `EntityRow.context`: segmented bar + `3/8 done (38%)` + non-zero blocked/failed with icons), `Meter` (0–1 ratio with tone, `block` / `inline` / bare `bar`), `Gauge` (named `Meter` for a facts line), `StatTiles` (grid of numbers). Never `ProgressBar` (animated) on list data.
 - `metadata={[{label, value}]}` still works (rendered as `label value` in the facts line) but prefer `meta`.
 
 ## 8. Empty / loading / error
@@ -223,8 +230,9 @@ Anatomy: **PageHeader → key facts line → sections**.
 - Dates: `formatRelativeShort`, `formatAbsolute`, `formatDay`, `formatElapsed`, `formatDurationMs`, `RelativeTime`.
 - Numbers/text: `pluralize`, `formatCost`, `formatCompactNumber`.
 - Grouping: `groupByRecency`, `groupBy`, `RECENCY_GROUP_ORDER`.
-- Status: `getStatusMeta`, `getStatusOptions(kind)` (→ Select / StatusMenu options), `getPriorityMeta`, `TONE_CLASSES`; `ToneText` for values outside the registry (consent, circuit breaker, runner/wave states).
-- Controls: `TabLayout` (page tabs), `ViewTabs` (segmented views), `ViewToggle` (list/board), `RowCheckbox` (bulk selection), `ProgressLine`, `Meter`, `StatTiles`.
+- Status: `getStatusMeta`, `getStatusOptions(kind)` (→ Select / StatusMenu options), `getPriorityMeta`, `TONE_CLASSES`, `StatusIcon` / `TONE_ICONS` (one glyph per tone; `icon` prop on `StatusText` / `ToneText` / `StatusMenu`); `ToneText` for values outside the registry (consent, circuit breaker, runner/wave/deployment states).
+- Controls: `TabLayout` (page tabs), `ViewTabs` (segmented views), `ViewToggle` (list/board), `RowCheckbox` (bulk selection), `ProgressLine`, `TaskProgress`, `Meter`, `Gauge`, `StatTiles`.
+- List cards: `EntityRow` (`status`, `tone`, `meta`, `context`), `MetaLine variant="facts"`, `Fact`.
 - Classes: `focusRing`, `focusRingInset`, `hitArea`, `rowInteractive`, `metaText`, `textLink`, `inlineLink`, `surface`.
 - Menus: `OverflowMenu`, `StatusMenu`, `useFloatingFallback`, `positionFloating`.
 
