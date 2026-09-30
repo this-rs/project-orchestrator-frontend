@@ -29,6 +29,22 @@ import { NOMENCLATURE } from '@/constants/nomenclature'
 const DONE_PLAN = ['completed', 'cancelled']
 const norm = (s: string | undefined) => (s || '').toLowerCase()
 
+/** The API answers 400 to any `limit` above 100, so a bigger list is read page by page. */
+const PLAN_PAGE_SIZE = 100
+const PLAN_MAX_PAGES = 20
+
+/** Every plan of the workspace — never a single oversized request, never silently truncated. */
+async function listAllPlans(workspaceSlug: string): Promise<Plan[]> {
+  const byId = new Map<string, Plan>()
+  for (let page = 0; page < PLAN_MAX_PAGES; page++) {
+    const res = await plansApi.list({ workspace_slug: workspaceSlug, limit: PLAN_PAGE_SIZE, offset: page * PLAN_PAGE_SIZE })
+    const items = res.items ?? []
+    for (const plan of items) byId.set(plan.id, plan)
+    if (items.length < PLAN_PAGE_SIZE || byId.size >= (res.total ?? Infinity)) break
+  }
+  return [...byId.values()]
+}
+
 /**
  * Trajectory — objectives on top, then projects → plans → tasks, each level
  * with the same progress line. Active work is open; what is finished stays
@@ -48,9 +64,9 @@ export function TrajectoryPage() {
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [proj, planPage, ms] = await Promise.all([
+      const [proj, allPlans, ms] = await Promise.all([
         workspacesApi.listProjects(wsSlug),
-        plansApi.list({ workspace_slug: wsSlug, limit: 200 }),
+        listAllPlans(wsSlug),
         workspacesApi.listMilestones(wsSlug, { limit: 50 }).catch(() => ({ items: [] as WorkspaceMilestone[] })),
       ])
       const msList = Array.isArray(ms) ? ms : (ms.items ?? [])
@@ -58,10 +74,10 @@ export function TrajectoryPage() {
         msList.map(async (m) => ({ ...m, progress: await workspacesApi.getMilestoneProgress(m.id).catch(() => undefined) })),
       )
       setProjects(proj)
-      setPlans(planPage.items ?? [])
+      setPlans(allPlans)
       setObjectives(withProgress)
       // Open projects that have live work by default.
-      const live = new Set((planPage.items ?? []).filter((p) => !DONE_PLAN.includes(p.status) && p.project_id).map((p) => p.project_id!))
+      const live = new Set(allPlans.filter((p) => !DONE_PLAN.includes(p.status) && p.project_id).map((p) => p.project_id!))
       setOpenProjects(live)
     } catch {
       setError('Failed to load the trajectory')
