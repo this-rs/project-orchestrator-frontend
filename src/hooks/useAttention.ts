@@ -111,7 +111,7 @@ export interface UseAttentionOptions {
 }
 
 /**
- * Data layer of the Today cockpit.
+ * Data layer of the Today view.
  *
  * - One `GET /api/attention`, re-run on `attention_changed` (debounced) — never a
  *   WebSocket per session.

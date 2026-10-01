@@ -1,22 +1,43 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Skeleton, SkeletonLine, EntityListSkeleton, EmptyState, Button, focusRing, surface } from '@/components/ui'
-import type { AttentionResponse, AttentionThread, Band, WaitingRequest } from '@/types/attention'
+import type {
+  AttentionResponse,
+  AttentionThread,
+  Band,
+  WaitingRequest,
+} from '@/types/attention'
 import { workspacePath } from '@/utils/paths'
 import { AttentionCard, type AnswerResult } from './AttentionCard'
-import { ThinkingList } from './ThinkingList'
+import { PlanRunRow } from './PlanRunRow'
+import { ThinkingList, useThinkingCollapsed } from './ThinkingList'
 import { ThreadRow, ThreadRowList } from './ThreadRow'
-import { BAND_ORDER, BAND_TEXT, TODAY_TEXT, buildBands, linkNames, type LaneGroup } from './bands'
+import {
+  BAND_ORDER,
+  BAND_TEXT,
+  TODAY_TEXT,
+  buildBands,
+  linkNames,
+  type StuckEntry,
+  type WaitingEntry,
+} from './bands'
+import { recommendStart } from './startHere'
 
 /**
- * The four bands of the cockpit, assembled. Presentation only: data and actions come
- * from a `TodaySource` (the live `useAttention`).
+ * The day's view, assembled. Presentation only: data and actions come from a
+ * `TodaySource` (the live `useAttention`).
+ *
+ * Structure: a header (title above, one summary line of clickable counters, the
+ * workspace chips), "Commence par ça" (ONE recommendation, see `startHere.ts`), then
+ * four sections: À traiter, En cours (grouped by plan), À reprendre, À suivre (folded).
  *
  * Rules kept here (DESIGN.md §8):
- * - fixed band order; an empty band shrinks to ONE line, it is never hidden;
- * - first load: skeletons with the final shape of each band, no centred spinner;
- * - a failed source degrades ITS band only; the others stay usable;
- * - no entrance animation on bands or rows.
+ * - fixed section order: DOM order = tab order = phone order (À traiter, À reprendre,
+ *   En cours, À suivre); from 1024 px "En cours" sits on the right of the first two;
+ * - an empty section shrinks to ONE soft line, it is never hidden;
+ * - first load: skeletons with the final shape of each section, no centred spinner;
+ * - a failed source degrades ITS section only; the others stay usable;
+ * - no entrance animation on sections or rows.
  */
 
 export interface TodaySource {
@@ -36,7 +57,7 @@ export interface TodaySource {
 }
 
 // ---------------------------------------------------------------------------
-// Band frame
+// Section frame
 // ---------------------------------------------------------------------------
 
 function ErrorLine({ children, onRetry }: { children: ReactNode; onRetry: () => void }) {
@@ -53,7 +74,7 @@ function ErrorLine({ children, onRetry }: { children: ReactNode; onRetry: () => 
 interface BandFrameProps {
   band: Band
   count: number | null
-  /** Whole-band load state. */
+  /** Whole-section load state. */
   state: 'loading' | 'error' | 'ready'
   errorText?: string
   /** A partial failure: the content below is real but incomplete. */
@@ -69,8 +90,8 @@ function BandFrame({ band, count, state, errorText, degraded, onRetry, skeleton,
   const { title, empty: emptyText } = BAND_TEXT[band]
   const showEmptyLine = state === 'ready' && empty && !degraded
   return (
-    <section aria-label={title} data-band={band} data-state={state} className={`min-w-0 ${className}`}>
-      {/* An empty band is ONE line: its title, its count and "nothing" side by side. */}
+    <section aria-label={title} id={`today-${band}`} data-band={band} data-state={state} className={`min-w-0 scroll-mt-4 ${className}`}>
+      {/* An empty section is ONE line: its title, its count and "nothing" side by side. */}
       <div className={`flex flex-wrap items-baseline gap-x-3 ${showEmptyLine ? 'py-1' : 'mb-1'}`}>
         <h2 className="flex items-baseline gap-2 text-sm font-semibold text-gray-200">
           <span>{title}</span>
@@ -130,40 +151,87 @@ function ThreadRowsSkeleton({ rows = 2 }: { rows?: number }) {
 }
 
 // ---------------------------------------------------------------------------
-// The view
+// Header: the one-line summary
 // ---------------------------------------------------------------------------
 
-export interface TodayViewProps {
-  source: TodaySource
-  /** Active lane slug (filter) or null for every lane. */
-  lane: string | null
-  /** Where "plans" leads: any workspace slug the user can reach. */
-  plansSlug: string | null
-  onClearLane: () => void
+/** Scrolls to a section without animation (the page has none), moving focus to it for keyboard users. */
+function goToSection(band: Band) {
+  const el = document.getElementById(`today-${band}`)
+  if (!el) return
+  el.scrollIntoView?.({ block: 'start' })
 }
 
-export function TodayCounters({ counts }: { counts: Record<Band, number> | null }) {
+/**
+ * « 2 à traiter · 3 en cours · 2 à reprendre · 4 à suivre »: each count is a button that
+ * brings its section into view (and opens "À suivre", which is folded by default).
+ */
+export function TodaySummary({
+  counts,
+  onGo = goToSection,
+}: {
+  counts: Record<Band, number> | null
+  onGo?: (band: Band) => void
+}) {
   return (
-    <ul aria-label="Résumé par bande" className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400">
-      {BAND_ORDER.map((b) => (
-        <li key={b} className="flex items-baseline gap-1.5" data-counter={b}>
-          <span>{BAND_TEXT[b].title}</span>
-          {counts ? (
-            <span className="tabular-nums font-medium text-gray-200">{counts[b]}</span>
-          ) : (
-            <Skeleton className="h-3 w-4" />
+    <ul aria-label={TODAY_TEXT.summaryLabel} className="flex flex-wrap items-center gap-x-1 text-sm text-gray-400">
+      {BAND_ORDER.map((b, i) => (
+        <li key={b} className="flex items-center gap-x-1" data-counter={b}>
+          {i > 0 && (
+            <span aria-hidden="true" className="text-gray-600">
+              ·
+            </span>
           )}
+          <button
+            type="button"
+            onClick={() => onGo(b)}
+            className={`inline-flex min-h-9 items-baseline gap-1.5 rounded-lg px-2 hover:bg-white/[0.06] hover:text-gray-200 ${focusRing}`}
+          >
+            {counts ? (
+              <span className="tabular-nums font-medium text-gray-100">{counts[b]}</span>
+            ) : (
+              <Skeleton className="h-3 w-4 self-center" />
+            )}{' '}
+            <span>{BAND_TEXT[b].summary}</span>
+          </button>
         </li>
       ))}
     </ul>
   )
 }
 
-export function TodayView({ source, lane, plansSlug, onClearLane }: TodayViewProps) {
+// ---------------------------------------------------------------------------
+// The view
+// ---------------------------------------------------------------------------
+
+export const START_TEXT = {
+  title: 'Commence par ça',
+  why: 'Pourquoi',
+} as const
+
+export interface TodayViewProps {
+  source: TodaySource
+  /** Active workspace slug (filter) or null for all. */
+  lane: string | null
+  /** Where "plans" leads: any workspace slug the user can reach. */
+  plansSlug: string | null
+  onClearLane: () => void
+  /** The workspace chips, placed under the summary. */
+  lanePicker?: ReactNode
+  /** Note under the chips when a workspace is selected. */
+  laneNote?: string | null
+  /**
+   * Slot for the discussions of a plan's thread ("En cours"). The "Discussions" button of a
+   * row exists only when this is provided.
+   */
+  renderDiscussions?: (thread: AttentionThread) => ReactNode
+}
+
+export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, laneNote, renderDiscussions }: TodayViewProps) {
   const { status, data, error, refresh } = source
   const bands = data ? buildBands(data) : null
   const errors = data?.source_errors ?? []
   const laneName = (slug: string) => data?.lanes.find((l) => l.slug === slug)?.name ?? slug
+  const thinkingFold = useThinkingCollapsed()
 
   const state: 'loading' | 'error' | 'ready' = status
   const fatalText = error ? `${TODAY_TEXT.bandError} ${error.message}` : undefined
@@ -180,11 +248,32 @@ export function TodayView({ source, lane, plansSlug, onClearLane }: TodayViewPro
     onRetry: refresh,
   })
 
+  const go = (b: Band) => {
+    if (b === 'thinking') thinkingFold.setCollapsed(false)
+    goToSection(b)
+  }
+
+  const summary = (
+    <div className="space-y-2">
+      <TodaySummary counts={bands ? bands.counts : null} onGo={go} />
+      {lanePicker}
+      {laneNote && <p className="text-xs text-gray-500">{laneNote}</p>}
+      {status === 'ready' && error && (
+        <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-amber-300">
+          <span>{TODAY_TEXT.staleRefresh}</span>
+          <Button variant="secondary" size="sm" onClick={refresh}>
+            {TODAY_TEXT.retry}
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+
   // Truly nothing anywhere (and no source failed): one composed empty state.
   if (state === 'ready' && bands?.empty && errors.length === 0) {
     return (
       <div className="space-y-6">
-        <TodayCounters counts={bands.counts} />
+        {summary}
         {lane ? (
           <EmptyState
             title={TODAY_TEXT.noMatch}
@@ -216,32 +305,111 @@ export function TodayView({ source, lane, plansSlug, onClearLane }: TodayViewPro
 
   const names = data ? linkNames(data) : undefined
 
-  const laneGroups = <T,>(groups: LaneGroup<T>[], render: (entry: T) => ReactNode) =>
-    groups.map((g) => (
-      <div key={g.slug} data-lane={g.slug} className="min-w-0">
-        {!lane && <h3 className="pt-2 text-[11px] font-medium text-gray-500">{g.name}</h3>}
-        <ThreadRowList label={g.name}>{g.items.map(render)}</ThreadRowList>
-      </div>
-    ))
+  // The same card for a request wherever it is shown (recommendation or section).
+  const renderWaiting = ({ request, thread, unattached }: WaitingEntry) => {
+    const session =
+      thread?.sessions.find((s) => s.id === request.session_id) ??
+      (unattached ? { title: unattached.title, state: unattached.state } : null)
+    return (
+      <AttentionCard
+        request={request}
+        lane={laneName(request.workspace)}
+        threadTitle={thread?.title ?? null}
+        session={session}
+        links={thread ? (thread.sessions.find((s) => s.id === request.session_id)?.links ?? null) : null}
+        names={names}
+        notice={source.notices[request.request_id]}
+        onPermission={(r, allow): Promise<AnswerResult> => source.answerPermission(r, allow)}
+        onReply={(r, content): Promise<AnswerResult> => source.sendReply(r, content)}
+        draft={source.drafts[request.request_id]}
+        onDraftChange={(t) => source.setDraft(request.request_id, t)}
+      />
+    )
+  }
+
+  const renderStuck = (e: StuckEntry) => {
+    if (!data) return null
+    if (e.kind === 'stuck') {
+      return (
+        <ThreadRow
+          key={e.thread.id}
+          variant="stuck"
+          thread={e.thread}
+          runner={data.runner}
+          laneName={laneName(e.thread.workspace)}
+          onResume={async (t) => {
+            if (!(await source.resumeRun(t))) throw new Error('Reprise impossible')
+          }}
+        />
+      )
+    }
+    if (e.kind === 'orphan') {
+      return (
+        <ThreadRow
+          key={`${e.thread.id}:${e.orphan.request_id}`}
+          variant="orphan"
+          thread={e.thread}
+          orphan={e.orphan}
+          laneName={laneName(e.thread.workspace)}
+          onSendMessage={source.sendMessage}
+        />
+      )
+    }
+    return (
+      <ThreadRow
+        key={e.session.id}
+        variant="unattached"
+        session={e.session}
+        laneName={laneName(e.session.workspace_slug)}
+        onSendMessage={source.sendMessage}
+      />
+    )
+  }
+
+  const incomplete = errors.flatMap((e) => e.bands)
+  const start = bands && state === 'ready' ? recommendStart(bands, incomplete) : null
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <TodayCounters counts={bands ? bands.counts : null} />
-        {status === 'ready' && error && (
-          <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-amber-300">
-            <span>{TODAY_TEXT.staleRefresh}</span>
-            <Button variant="secondary" size="sm" onClick={refresh}>
-              {TODAY_TEXT.retry}
-            </Button>
-          </div>
-        )}
-      </div>
+      {summary}
 
-      {/* DOM order = visual order = tab order. */}
-      <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+      {/* "Commence par ça": one recommendation, and why. Plain section, the item keeps its own card. */}
+      {(state === 'loading' || start) && (
+        <section aria-label={START_TEXT.title} data-start={start?.kind ?? 'loading'} className="min-w-0 space-y-2">
+          <h2 className="text-sm font-semibold text-gray-200">{START_TEXT.title}</h2>
+          {!start ? (
+            <div role="status" aria-label="Chargement" className="space-y-2">
+              <SkeletonLine width="60%" className="h-4" />
+              <SkeletonLine width="80%" className="h-3" />
+            </div>
+          ) : (
+            <>
+              {(start.kind === 'calm' || start.kind === 'incomplete' || start.kind === 'empty') && (
+                <p data-testid="start-title" className="text-sm text-gray-100">
+                  {start.title}
+                </p>
+              )}
+              <p data-testid="start-why" className="text-xs text-gray-400">
+                {START_TEXT.why} : {start.why}
+              </p>
+              {start.kind === 'waiting' && (
+                <ul aria-label="Demande recommandée" className="space-y-3">
+                  <li>{renderWaiting(start.entry)}</li>
+                </ul>
+              )}
+              {start.kind === 'stuck' && (
+                <ThreadRowList label="Fil recommandé">{renderStuck(start.entry)}</ThreadRowList>
+              )}
+            </>
+          )}
+        </section>
+      )}
+
+      {/* DOM order = visual order = tab order. Phone: one column in this order. */}
+      <div data-testid="sections" className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
         <BandFrame
           {...common('waiting')}
+          className="lg:col-start-1 lg:row-start-1"
           count={bands ? bands.counts.waiting : null}
           skeleton={
             <div className="space-y-3">
@@ -251,111 +419,71 @@ export function TodayView({ source, lane, plansSlug, onClearLane }: TodayViewPro
           }
           empty={!bands || bands.waiting.length === 0}
         >
-          <ul aria-label="Demandes en attente" className="space-y-3">
-            {bands?.waiting.map(({ request, thread, unattached }) => {
-              const session =
-                thread?.sessions.find((s) => s.id === request.session_id) ??
-                (unattached ? { title: unattached.title, state: unattached.state } : null)
-              return (
-                <li key={request.request_id}>
-                  <AttentionCard
-                    request={request}
-                    lane={laneName(request.workspace)}
-                    threadTitle={thread?.title ?? null}
-                    session={session}
-                    links={thread ? (thread.sessions.find((s) => s.id === request.session_id)?.links ?? null) : null}
-                    names={names}
-                    notice={source.notices[request.request_id]}
-                    onPermission={(r, allow): Promise<AnswerResult> => source.answerPermission(r, allow)}
-                    onReply={(r, content): Promise<AnswerResult> => source.sendReply(r, content)}
-                    draft={source.drafts[request.request_id]}
-                    onDraftChange={(t) => source.setDraft(request.request_id, t)}
-                  />
-                </li>
-              )
-            })}
+          <ul aria-label="Demandes à traiter" className="space-y-3">
+            {bands?.waiting.map((entry) => (
+              <li key={entry.request.request_id}>{renderWaiting(entry)}</li>
+            ))}
           </ul>
         </BandFrame>
 
         <BandFrame
-          {...common('running')}
-          count={bands ? bands.counts.running : null}
-          skeleton={<ThreadRowsSkeleton />}
-          empty={!bands || bands.running.length === 0}
-        >
-          {bands &&
-            laneGroups(bands.running, (e) =>
-              e.kind === 'running' ? (
-                <ThreadRow key={e.thread.id} variant="running" thread={e.thread} laneName={laneName(e.thread.workspace)} />
-              ) : (
-                <ThreadRow
-                  key={e.session.id}
-                  variant="unattached"
-                  session={e.session}
-                  laneName={laneName(e.session.workspace_slug)}
-                  onSendMessage={source.sendMessage}
-                />
-              ),
-            )}
-        </BandFrame>
-
-        <BandFrame
           {...common('stuck')}
-          className="lg:col-span-2"
+          className="lg:col-start-1 lg:row-start-2"
           count={bands ? bands.counts.stuck : null}
           skeleton={<ThreadRowsSkeleton />}
           empty={!bands || bands.stuck.length === 0}
         >
-          {bands &&
-            data &&
-            laneGroups(bands.stuck, (e) => {
-              if (e.kind === 'stuck') {
-                return (
-                  <ThreadRow
-                    key={e.thread.id}
-                    variant="stuck"
+          {bands && <ThreadRowList label="Fils à reprendre">{bands.stuck.map(renderStuck)}</ThreadRowList>}
+        </BandFrame>
+
+        <BandFrame
+          {...common('running')}
+          className="lg:col-start-2 lg:row-span-2 lg:row-start-1"
+          count={bands ? bands.counts.running : null}
+          skeleton={<ThreadRowsSkeleton />}
+          empty={!bands || bands.running.length === 0}
+        >
+          {bands && (
+            <ThreadRowList label="Plans en cours">
+              {bands.running.map((e) =>
+                e.kind === 'plan' ? (
+                  <PlanRunRow
+                    key={e.key}
                     thread={e.thread}
-                    runner={data.runner}
+                    others={e.others.length}
                     laneName={laneName(e.thread.workspace)}
-                    onResume={async (t) => {
-                      if (!(await source.resumeRun(t))) throw new Error('Reprise impossible')
-                    }}
+                    renderDiscussions={renderDiscussions}
                   />
-                )
-              }
-              if (e.kind === 'orphan') {
-                return (
+                ) : (
                   <ThreadRow
-                    key={`${e.thread.id}:${e.orphan.request_id}`}
-                    variant="orphan"
-                    thread={e.thread}
-                    orphan={e.orphan}
-                    laneName={laneName(e.thread.workspace)}
+                    key={e.session.id}
+                    variant="unattached"
+                    session={e.session}
+                    laneName={laneName(e.session.workspace_slug)}
                     onSendMessage={source.sendMessage}
                   />
-                )
-              }
-              return (
-                <ThreadRow
-                  key={e.session.id}
-                  variant="unattached"
-                  session={e.session}
-                  laneName={laneName(e.session.workspace_slug)}
-                  onSendMessage={source.sendMessage}
-                />
-              )
-            })}
+                ),
+              )}
+            </ThreadRowList>
+          )}
         </BandFrame>
 
         {state === 'ready' && bands && bands.thinking.length > 0 ? (
-          <div className="min-w-0 lg:col-span-2">
+          <div className="min-w-0 lg:col-span-2 lg:row-start-3">
             {degradedFor('thinking') && <ErrorLine onRetry={refresh}>{degradedFor('thinking')}</ErrorLine>}
-            <ThinkingList items={bands.thinking} onChanged={refresh} title={BAND_TEXT.thinking.title} className="" />
+            <ThinkingList
+              items={bands.thinking}
+              onChanged={refresh}
+              title={BAND_TEXT.thinking.title}
+              collapsed={thinkingFold.collapsed}
+              onCollapsedChange={thinkingFold.setCollapsed}
+              className=""
+            />
           </div>
         ) : (
           <BandFrame
             {...common('thinking')}
-            className="lg:col-span-2"
+            className="lg:col-span-2 lg:row-start-3"
             count={bands ? bands.counts.thinking : null}
             skeleton={<EntityListSkeleton rows={2} />}
             empty={!bands || bands.thinking.length === 0}

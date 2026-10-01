@@ -1,14 +1,13 @@
-import { useCallback } from 'react'
+import { useCallback, type ComponentProps } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { Layers } from 'lucide-react'
 import { workspacesAtom } from '@/atoms'
-import { FilterBar, PageShell, Select } from '@/components/ui'
+import { PageShell } from '@/components/ui'
 import { TodayView, type TodaySource } from '@/components/today/TodayView'
 import { useAttention } from '@/hooks/useAttention'
 import { attentionApi } from '@/services/attention'
 import { workspacePath } from '@/utils/paths'
-import { NOMENCLATURE } from '@/constants/nomenclature'
+import { LaneChips } from '@/components/today/LaneChips'
 import { TODAY_TEXT } from '@/components/today/bands'
 
 /** Query parameter holding the lane filter on the cross-workspace entry. */
@@ -82,7 +81,7 @@ function useLiveSource(lane: string | null): TodaySource {
   }
 }
 
-function LiveToday(props: { lane: string | null; plansSlug: string | null; onClearLane: () => void }) {
+function LiveToday(props: Omit<ComponentProps<typeof TodayView>, 'source'>) {
   const source = useLiveSource(props.lane)
   return <TodayView source={source} {...props} />
 }
@@ -92,44 +91,27 @@ function LiveToday(props: { lane: string | null; plansSlug: string | null; onCle
 // ---------------------------------------------------------------------------
 
 /**
- * Today: the cross-workspace cockpit. Four bands in a fixed order (waiting on you,
- * running, stuck, thoughts), threads grouped by lane. Replaces the former task lists.
+ * Today: the day's view across every workspace. A summary line, one recommendation
+ * ("Commence par ça"), then À traiter, À reprendre, En cours (by plan) and À suivre.
+ * The workspace is a filter (chips, kept in the URL), not the axis of the page.
  */
 export function TodayPage() {
   const { lane, setLane, workspaces } = useLaneFilter()
   const clearLane = useCallback(() => setLane(ALL_LANES), [setLane])
 
-  const laneOptions = [
-    { value: ALL_LANES, label: 'All workspaces' },
-    ...workspaces.map((w) => ({ value: w.slug, label: w.name })),
-  ]
   const laneName = lane ? (workspaces.find((w) => w.slug === lane)?.name ?? lane) : null
   const plansSlug = lane ?? workspaces[0]?.slug ?? null
 
   return (
-    <PageShell
-      title={NOMENCLATURE.today.plural}
-      description={laneName ? TODAY_TEXT.laneDescription(laneName) : TODAY_TEXT.pageDescription}
-      width="full"
-      filters={
-        <FilterBar
-          filters={
-            <Select
-              label="Workspace"
-              options={laneOptions}
-              value={lane ?? ALL_LANES}
-              onChange={setLane}
-              icon={<Layers className="w-3 h-3" />}
-            />
-          }
-          activeCount={lane ? 1 : 0}
-          activeLabels={laneName ? [laneName] : []}
-          onClear={clearLane}
-          defaultOpen
-        />
-      }
-    >
-      <LiveToday key={lane ?? ALL_LANES} lane={lane} plansSlug={plansSlug} onClearLane={clearLane} />
+    <PageShell title={TODAY_TEXT.title} width="full">
+      <LiveToday
+        key={lane ?? ALL_LANES}
+        lane={lane}
+        plansSlug={plansSlug}
+        onClearLane={clearLane}
+        lanePicker={<LaneChips lanes={workspaces} active={lane} onSelect={setLane} />}
+        laneNote={laneName ? TODAY_TEXT.laneNote(laneName) : null}
+      />
     </PageShell>
   )
 }

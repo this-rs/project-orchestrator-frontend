@@ -11,7 +11,7 @@ import { workspacePath } from '@/utils/paths'
 import { ReplyAction } from './ThreadRow'
 
 /**
- * Band 1 — "T'attend": a LIVE agent is stopped on the user.
+ * Section "À traiter": a LIVE agent is stopped on the user.
  *
  * The one card of the page that is deliberately NOT a graph: to decide, the user
  * must READ what is asked.

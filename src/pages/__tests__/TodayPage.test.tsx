@@ -1,6 +1,6 @@
 /**
- * TodayPage — the cross-workspace cockpit: four bands, lanes, and the loading / empty /
- * error states of each band. Data: the shared contract fixtures, through the real
+ * TodayPage — the day's view across workspaces: summary, "Commence par ça", four sections,
+ * workspace chips, and the loading / empty / error states of each section. Data: the shared contract fixtures, through the real
  * `useAttention` (only the HTTP layer is mocked).
  */
 import { readFileSync } from 'node:fs'
@@ -45,7 +45,8 @@ function setViewport(width: number) {
 }
 
 import { TodayPage } from '../TodayPage'
-import { BAND_TEXT, TODAY_TEXT } from '@/components/today/bands'
+import { BAND_TEXT, SECTION_ORDER, TODAY_TEXT } from '@/components/today/bands'
+import { START_TEXT } from '@/components/today/TodayView'
 
 const DIR = join(__dirname, '../../services/__fixtures__/attention')
 const fixture = (name: string): AttentionResponse => JSON.parse(readFileSync(join(DIR, `${name}.json`), 'utf8'))
@@ -91,21 +92,25 @@ beforeEach(() => {
   post.mockReset()
   Object.values(toast).forEach((f) => f.mockReset())
   setViewport(1440)
+  try {
+    window.localStorage.clear()
+  } catch {
+    /* no storage in this environment */
+  }
 })
 
 describe('TodayPage: structure', () => {
-  it('shows the four labelled bands in a fixed order, counters in the header', async () => {
+  it('shows the four labelled sections in a fixed order, counters in the header', async () => {
     get.mockResolvedValue(fixture('four_bands'))
     renderPage()
     await waitFor(() => expect(screen.getAllByRole('region', { name: BAND_TEXT.waiting.title }).length).toBe(1))
     await waitFor(() => expect(within(band('waiting')).getAllByRole('region').length).toBeGreaterThan(0))
-    const order = ['waiting', 'running', 'stuck', 'thinking'] as const
-    const nodes = order.map((b) => band(b))
+    const nodes = SECTION_ORDER.map((b) => band(b))
     for (let i = 1; i < nodes.length; i++) {
       expect(nodes[i - 1].compareDocumentPosition(nodes[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     }
-    const counters = screen.getByRole('list', { name: 'Résumé par bande' })
-    expect(within(counters).getByText(BAND_TEXT.waiting.title)).toBeTruthy()
+    const counters = screen.getByRole('list', { name: TODAY_TEXT.summaryLabel })
+    expect(within(counters).getByText(BAND_TEXT.waiting.summary)).toBeTruthy()
     // 2 waiting requests in the fixture
     expect(counters.querySelector('[data-counter="waiting"]')!.textContent).toContain('2')
   })
@@ -121,10 +126,12 @@ describe('TodayPage: structure', () => {
     }
   })
 
-  it('the page subtitle is in French like the rest of the cockpit', async () => {
+  it('the title is short, and no visible text keeps the former jargon', async () => {
     get.mockResolvedValue(fixture('four_bands'))
     renderPage()
-    await waitFor(() => expect(screen.getByText(TODAY_TEXT.pageDescription)).toBeTruthy())
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe("Aujourd'hui")
+    await waitFor(() => expect(band('waiting').getAttribute('data-state')).toBe('ready'))
+    expect(document.body.textContent).not.toMatch(/T['’]attend|Tourne|Coincé|Pensée/i) // (fixture titles are data, not interface)
     expect(screen.queryByText(/What is moving/)).toBeNull()
   })
 
@@ -154,6 +161,7 @@ describe('TodayPage: states', () => {
     let resolve!: (v: unknown) => void
     get.mockReturnValue(new Promise((r) => (resolve = r)))
     renderPage()
+    expect(screen.getByRole('region', { name: START_TEXT.title }).getAttribute('data-start')).toBe('loading')
     for (const b of ['waiting', 'running', 'stuck', 'thinking'] as const) {
       expect(band(b).getAttribute('data-state')).toBe('loading')
       expect(within(band(b)).getAllByRole('status').length).toBeGreaterThan(0)
@@ -230,23 +238,30 @@ describe('TodayPage: states', () => {
   })
 })
 
-describe('TodayPage: lanes and sessions without a thread', () => {
-  it('threads are grouped by lane, with the lane name', async () => {
+describe('TodayPage: plans, workspaces and sessions without a thread', () => {
+  it('"En cours" is grouped by plan: one row per plan, with its progress and its workspace as a label', async () => {
     const data = fixture('forty_threads')
     get.mockResolvedValue(data)
     renderPage()
-    await waitFor(() => expect(band('running').querySelectorAll('[data-lane]').length).toBeGreaterThan(0))
-    const lanes = [...band('running').querySelectorAll('[data-lane]')].map((e) => e.getAttribute('data-lane'))
-    expect(new Set(lanes).size).toBe(lanes.length)
+    await waitFor(() => expect(band('running').querySelectorAll('li[data-variant="running"]').length).toBeGreaterThan(0))
+    const rows = [...band('running').querySelectorAll('li[data-variant="running"]')]
+    const planIds = new Set(data.threads.filter((t) => t.band === 'running').map((t) => t.plan?.id ?? t.id))
+    expect(rows.length).toBe(planIds.size)
+    expect(band('running').querySelectorAll('[data-lane]').length).toBe(0) // the workspace is not the axis
+    for (const row of rows) {
+      expect(within(row as HTMLElement).getByTestId('lane-label').textContent).toBeTruthy()
+      expect(within(row as HTMLElement).queryByTestId('progress-text')?.textContent ?? '0/0 faites').toMatch(/^\d+\/\d+ faites$/)
+    }
   })
 
-  it('a lane filter hides the lane headings and asks the server for that lane', async () => {
+  it('a workspace chip asks the server for that workspace, and there are no workspace headings', async () => {
     get.mockResolvedValue(fixture('runner_busy'))
     renderPage('/today?workspace=project-orchestrator')
     await waitFor(() => expect(get).toHaveBeenCalled())
     expect(get.mock.calls[0][0]).toBe('/attention?workspace_slug=project-orchestrator')
     await waitFor(() => expect(band('running').getAttribute('data-state')).toBe('ready'))
     expect(band('running').querySelectorAll('h3').length).toBe(0)
+    expect(band('stuck').querySelectorAll('h3').length).toBe(0)
   })
 
   it('unattached sessions are shown in their lane, labelled "sans fil", with their pending requests', async () => {
@@ -297,16 +312,16 @@ describe('TodayPage: lane filter in the URL', () => {
     renderPage('/workspace/acme-freelance/today')
     await waitFor(() => expect(get).toHaveBeenCalled())
     expect(get.mock.calls[0][0]).toBe('/attention?workspace_slug=acme-freelance')
-    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    fireEvent.click(screen.getByRole('button', { name: TODAY_TEXT.allLanes }))
     expect(screen.getByTestId('where').textContent).toBe('/today')
   })
 
-  it('a filtered page no longer claims to cover every workspace, and says the badge is global', async () => {
+  it('a filtered page says which workspace it shows and that the badge is global', async () => {
     get.mockResolvedValue(fixture('four_bands'))
     renderPage('/workspace/acme-freelance/today')
     await waitFor(() => expect(get).toHaveBeenCalled())
-    expect(screen.queryByText(TODAY_TEXT.pageDescription)).toBeNull()
-    expect(screen.getByText(/seulement\. La pastille de la barre compte tous les workspaces/)).toBeTruthy()
+    expect(screen.getByText(TODAY_TEXT.laneNote('Acme'))).toBeTruthy()
+    expect(screen.getByText(/La pastille de la barre compte tous les workspaces/)).toBeTruthy()
   })
 
   it('narrowing on /today is reflected in the query string and widening clears it', async () => {
@@ -314,7 +329,7 @@ describe('TodayPage: lane filter in the URL', () => {
     renderPage('/today?workspace=project-orchestrator')
     await waitFor(() => expect(get).toHaveBeenCalled())
     expect(get.mock.calls[0][0]).toBe('/attention?workspace_slug=project-orchestrator')
-    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    fireEvent.click(screen.getByRole('button', { name: TODAY_TEXT.allLanes }))
     expect(screen.getByTestId('where').textContent).toBe('/today')
   })
 
@@ -357,7 +372,9 @@ describe.each([360, 1440])('TodayPage: the %ipx rendering of every contract fixt
       // four bands, fixed order, tab order = DOM order
       const labels = screen.getAllByRole('region').map((r) => r.getAttribute('aria-label'))
       const bandLabels = labels.filter((l) => Object.values(BAND_TEXT).some((t) => t.title === l))
-      expect(bandLabels.slice(0, 4)).toEqual(["T'attend", 'Tourne', 'Coincé', 'Pensée'])
+      expect(bandLabels.slice(0, 4)).toEqual(SECTION_ORDER.map((b) => BAND_TEXT[b].title))
+      // "Commence par ça" comes first, before the sections
+      expect(labels[0]).toBe(START_TEXT.title)
     }
     const root = document.body
     // A phone is one column; the two-column grid is opt-in at the lg breakpoint only.
@@ -388,7 +405,7 @@ describe('TodayPage: no entrance animation', () => {
 })
 
 describe('TodayPage: a dead free session with a pending request', () => {
-  it('has no Autoriser/Refuser in "T\'attend" and is reachable through "Reprendre la session" in "Coincé"', async () => {
+  it('has no Autoriser/Refuser in "À traiter" and is reachable through "Reprendre la session" in "À reprendre"', async () => {
     const base = fixture('unattached_waiting')
     const live = base.unattached.find((u) => u.state === 'live' && u.pending.length > 0)!
     const dead = {
@@ -400,10 +417,141 @@ describe('TodayPage: a dead free session with a pending request', () => {
     }
     get.mockResolvedValue({ ...base, waiting: [], unattached: [dead] })
     renderPage('/today')
-    const stuck = await screen.findByRole('region', { name: new RegExp(BAND_TEXT.stuck.title) })
+    const stuck = await screen.findByRole('region', { name: BAND_TEXT.stuck.title })
     expect(within(stuck).getByRole('button', { name: 'Reprendre la session' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Autoriser' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Refuser' })).toBeNull()
     expect(screen.queryByTestId('attention-card')).toBeNull()
+  })
+})
+
+describe('TodayPage: the day, in order', () => {
+  it('one column on a phone in the order À traiter, À reprendre, En cours, À suivre; two columns from 1024 px', async () => {
+    get.mockResolvedValue(fixture('four_bands'))
+    renderPage()
+    await waitFor(() => expect(band('waiting').getAttribute('data-state')).toBe('ready'))
+    const grid = screen.getByTestId('sections')
+    expect(grid.className).toContain('grid-cols-1')
+    expect(grid.className).toContain('lg:grid-cols-2')
+    // phone order = DOM order
+    expect(SECTION_ORDER.map((b) => BAND_TEXT[b].title)).toEqual(['À traiter', 'À reprendre', 'En cours', 'À suivre'])
+    const nodes = SECTION_ORDER.map((b) => band(b))
+    for (let i = 1; i < nodes.length; i++) {
+      expect(nodes[i - 1].compareDocumentPosition(nodes[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+    // large screens: what asks for the user stacks on the left, "En cours" on the right, "À suivre" spans both
+    expect(band('waiting').className).toContain('lg:col-start-1')
+    expect(band('stuck').className).toContain('lg:col-start-1')
+    expect(band('running').className).toContain('lg:col-start-2')
+    expect(band('thinking').parentElement!.className).toContain('lg:col-span-2')
+    // nothing is two columns on a phone
+    for (const b of ['waiting', 'stuck', 'running'] as const) expect(band(b).className).not.toMatch(/(^|\s)col-(start|span)-/)
+  })
+
+  it('"Commence par ça" comes before the sections and says why', async () => {
+    const data = fixture('four_bands')
+    get.mockResolvedValue(data)
+    renderPage()
+    await waitFor(() => expect(screen.getByRole('region', { name: START_TEXT.title }).getAttribute('data-start')).toBe('waiting'))
+    const start = screen.getByRole('region', { name: START_TEXT.title })
+    expect(screen.getByTestId('start-why').textContent).toMatch(/^Pourquoi : un agent vivant attend ta réponse depuis /)
+    // the oldest request, with the buttons of its card
+    const oldest = [...data.waiting].sort((a, b) => b.age_secs - a.age_secs)[0]
+    expect(within(start).getAllByText(snippet(oldest.text), { exact: false }).length).toBeGreaterThan(0)
+    expect(within(start).getAllByRole('button').length).toBeGreaterThan(0)
+    expect(start.compareDocumentPosition(band('waiting')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('with nothing to answer or resume, it says nothing blocks and how many threads advance alone', async () => {
+    const data = fixture('four_bands')
+    get.mockResolvedValue({
+      ...data,
+      waiting: [],
+      orphans: [],
+      unattached: [],
+      thinking: [],
+      threads: data.threads.filter((t) => t.band === 'running'),
+    })
+    renderPage()
+    await waitFor(() => expect(screen.getByRole('region', { name: START_TEXT.title }).getAttribute('data-start')).toBe('calm'))
+    expect(screen.getByTestId('start-title').textContent).toMatch(/^Rien ne te bloque : \d+ (fil avance seul|fils avancent seuls)$/)
+  })
+
+  it('a failed source never lets it claim that nothing blocks', async () => {
+    const data = fixture('four_bands')
+    get.mockResolvedValue({
+      ...data,
+      waiting: [],
+      orphans: [],
+      unattached: [],
+      thinking: [],
+      threads: data.threads.filter((t) => t.band === 'running'),
+      source_errors: [{ source: 'chat', bands: ['waiting'], message: 'chat down' }],
+    })
+    renderPage()
+    await waitFor(() => expect(screen.getByRole('region', { name: START_TEXT.title }).getAttribute('data-start')).toBe('incomplete'))
+  })
+
+  it('"À suivre" is folded by default with a discreet count, and its header counter opens it', async () => {
+    get.mockResolvedValue(fixture('four_bands'))
+    renderPage()
+    await waitFor(() => expect(within(band('thinking')).getByRole('button', { name: /À suivre/ })).toBeTruthy())
+    const toggle = within(band('thinking')).getByRole('button', { name: /À suivre/ })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(document.getElementById('today-thinking-body')!.hidden).toBe(true)
+    fireEvent.click(within(screen.getByRole('list', { name: TODAY_TEXT.summaryLabel })).getByRole('button', { name: /à suivre/ }))
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('every summary counter is a button that brings its section into view', async () => {
+    get.mockResolvedValue(fixture('four_bands'))
+    renderPage()
+    await waitFor(() => expect(band('waiting').getAttribute('data-state')).toBe('ready'))
+    const scrolled: string[] = []
+    const original = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this.id)
+    }
+    try {
+      const summary = screen.getByRole('list', { name: TODAY_TEXT.summaryLabel })
+      for (const b of ['waiting', 'running', 'stuck', 'thinking'] as const) {
+        fireEvent.click(within(summary).getByRole('button', { name: new RegExp(BAND_TEXT[b].summary) }))
+      }
+    } finally {
+      Element.prototype.scrollIntoView = original
+    }
+    expect(scrolled).toEqual(['today-waiting', 'today-running', 'today-stuck', 'today-thinking'])
+    // the summary reads "2 à traiter · 3 en cours · ..."
+    expect(screen.getByRole('list', { name: TODAY_TEXT.summaryLabel }).textContent!.replace(/\s+/g, ' ').trim()).toMatch(/^\d+ à traiter ?· ?\d+ en cours ?· ?\d+ à reprendre ?· ?\d+ à suivre$/)
+  })
+})
+
+describe('TodayPage: workspace chips', () => {
+  it('are a row of compact chips under the summary, not a big selector', async () => {
+    get.mockResolvedValue(fixture('four_bands'))
+    renderPage()
+    await waitFor(() => expect(band('waiting').getAttribute('data-state')).toBe('ready'))
+    const chips = screen.getByRole('group', { name: TODAY_TEXT.laneFilterLabel })
+    expect(within(chips).getAllByRole('button').map((b) => b.textContent)).toEqual(['Tous', 'Acme', 'PO'])
+    expect(within(chips).getByRole('button', { name: 'Tous' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.queryByRole('combobox')).toBeNull()
+    expect(screen.queryByRole('button', { name: /filter/i })).toBeNull()
+    // under the summary
+    const summary = screen.getByRole('list', { name: TODAY_TEXT.summaryLabel })
+    expect(summary.compareDocumentPosition(chips) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    for (const b of within(chips).getAllByRole('button')) expect(b.className).toContain('min-h-9')
+  })
+
+  it('a chip filters, is reflected in the URL, and "Tous" clears it', async () => {
+    get.mockResolvedValue(fixture('four_bands'))
+    renderPage()
+    await waitFor(() => expect(band('waiting').getAttribute('data-state')).toBe('ready'))
+    fireEvent.click(screen.getByRole('button', { name: 'PO' }))
+    expect(screen.getByTestId('where').textContent).toBe('/today?workspace=project-orchestrator')
+    await waitFor(() => expect(get.mock.calls.at(-1)![0]).toBe('/attention?workspace_slug=project-orchestrator'))
+    expect(screen.getByRole('button', { name: 'PO' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Tous' }).getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(screen.getByRole('button', { name: 'Tous' }))
+    expect(screen.getByTestId('where').textContent).toBe('/today')
   })
 })

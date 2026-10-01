@@ -244,7 +244,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
   today: {
     singular: 'Today',
     plural: 'Today',
-    description: 'What is moving, what is stuck and what is waiting on you, across your workspaces.',
+    description: 'Tout ce qui est en cours, et par quoi commencer.',
     icon: Sun,
     segment: 'today',
     profile: 'all',

@@ -1,5 +1,5 @@
 /**
- * Contract of `GET /api/attention` — the cross-workspace Today cockpit.
+ * Contract of `GET /api/attention` — the cross-workspace Today view.
  *
  * Mirror of the backend DTOs (`src/api/attention.rs`). Everything is
  * snake_case on the wire; `Option` fields are always present (`null`), never
@@ -105,7 +105,7 @@ export interface ThreadSession {
   links: SessionLink[]
 }
 
-/** The unit of the cockpit: plan + run + sessions. */
+/** The unit of Today: plan + run + sessions. */
 export interface AttentionThread {
   id: string
   title: string
