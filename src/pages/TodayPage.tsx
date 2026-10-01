@@ -109,7 +109,7 @@ export function TodayPage() {
   return (
     <PageShell
       title={NOMENCLATURE.today.plural}
-      description={TODAY_TEXT.pageDescription}
+      description={laneName ? TODAY_TEXT.laneDescription(laneName) : TODAY_TEXT.pageDescription}
       width="full"
       filters={
         <FilterBar

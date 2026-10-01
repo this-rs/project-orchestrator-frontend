@@ -35,4 +35,9 @@ describe('Breadcrumb: Today is the root', () => {
     expect(screen.getAllByRole('link').map((a) => a.textContent)).toEqual(['Today', 'Studio', 'Plans'])
     expect(screen.getByRole('link', { name: 'Studio' }).getAttribute('href')).toBe('/workspace/ws')
   })
+
+  it('every crumb link is as tall as a navigation entry (40px line box), not 20px', () => {
+    renderCrumb('/workspace/ws/plans', 'Studio')
+    for (const a of screen.getAllByRole('link')) expect(a.className).toContain('leading-10')
+  })
 })

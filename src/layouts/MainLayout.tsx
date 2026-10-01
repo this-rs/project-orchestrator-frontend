@@ -385,7 +385,8 @@ export function MainLayout() {
             <div className="flex-1" />
             <button
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors"
+              className="flex h-10 w-10 items-center justify-center text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors"
+              aria-label="Fermer le menu"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
@@ -402,7 +403,7 @@ export function MainLayout() {
         <header className="h-16 flex items-center px-4 md:px-6 border-b border-border-subtle bg-surface-raised/80 backdrop-blur-sm" style={{ viewTransitionName: 'header' }} onMouseDown={onDragMouseDown}>
           {/* Hamburger button (mobile only) */}
           <button
-            className="relative mr-3 p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors md:hidden"
+            className="relative mr-3 flex h-10 w-10 items-center justify-center text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors md:hidden"
             onClick={() => setMobileMenuOpen(true)}
             aria-label="Menu"
           >
@@ -500,7 +501,7 @@ export function Breadcrumb({ pathname, workspaceName }: { pathname: string; work
       {/* Today, the application root, as first segment */}
       <NavLink
         to="/today"
-        className={`shrink-0 ${rootIsLast ? 'text-gray-200 font-medium' : 'text-gray-400 hover:text-gray-200'}`}
+        className={`shrink-0 leading-10 ${rootIsLast ? 'text-gray-200 font-medium' : 'text-gray-400 hover:text-gray-200'}`}
       >
         {NOMENCLATURE.today.plural}
       </NavLink>
@@ -509,7 +510,7 @@ export function Breadcrumb({ pathname, workspaceName }: { pathname: string; work
           <span className="text-gray-600 shrink-0">/</span>
           <NavLink
             to={isLaneToday ? `${basePath}/today` : basePath}
-            className={`truncate max-w-[120px] sm:max-w-[200px] ${displayParts.length === 0 ? 'text-gray-200 font-medium' : 'text-gray-400 hover:text-gray-200'}`}
+            className={`block leading-10 truncate max-w-[120px] sm:max-w-[200px] ${displayParts.length === 0 ? 'text-gray-200 font-medium' : 'text-gray-400 hover:text-gray-200'}`}
           >
             {workspaceName || parts[1]}
           </NavLink>
@@ -536,7 +537,7 @@ export function Breadcrumb({ pathname, workspaceName }: { pathname: string; work
             <span className="text-gray-600 shrink-0">/</span>
             <NavLink
               to={fullPath}
-              className={`truncate max-w-[120px] sm:max-w-[200px] md:max-w-none ${
+              className={`block leading-10 truncate max-w-[120px] sm:max-w-[200px] md:max-w-none ${
                 isLast
                   ? 'text-gray-200 font-medium'
                   : 'text-gray-400 hover:text-gray-200'

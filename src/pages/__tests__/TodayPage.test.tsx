@@ -301,6 +301,14 @@ describe('TodayPage: lane filter in the URL', () => {
     expect(screen.getByTestId('where').textContent).toBe('/today')
   })
 
+  it('a filtered page no longer claims to cover every workspace, and says the badge is global', async () => {
+    get.mockResolvedValue(fixture('four_bands'))
+    renderPage('/workspace/acme-freelance/today')
+    await waitFor(() => expect(get).toHaveBeenCalled())
+    expect(screen.queryByText(TODAY_TEXT.pageDescription)).toBeNull()
+    expect(screen.getByText(/seulement\. La pastille de la barre compte tous les workspaces/)).toBeTruthy()
+  })
+
   it('narrowing on /today is reflected in the query string and widening clears it', async () => {
     get.mockResolvedValue(fixture('four_bands'))
     renderPage('/today?workspace=project-orchestrator')
