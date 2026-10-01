@@ -25,6 +25,7 @@ import type { ParentLink } from '@/components/ui/PageHeader'
 import { tasksApi, plansApi, projectsApi, workspacesApi, decisionsApi } from '@/services'
 import { useFormDialog, useLinkDialog, useToast, useWorkspaceSlug, useViewTransition, useViewMode } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
+import { computeStepRefreshKey } from '@/utils/stepRefreshKey'
 import { taskRefreshAtom, projectRefreshAtom, planRefreshAtom, chatPanelModeAtom, chatSessionIdAtom } from '@/atoms'
 import { CreateStepForm, CreateDecisionForm, EditTaskForm, EditStepForm } from '@/components/forms'
 import { CommitList } from '@/components/commits'
@@ -314,7 +315,7 @@ export function TaskDetailPage() {
     [stepFetchFn, handleStepStatusChange],
   )
 
-  const stepKanbanRefreshKey = useMemo(() => steps.length + steps.reduce((acc, s) => acc + s.status, '').length, [steps])
+  const stepKanbanRefreshKey = useMemo(() => computeStepRefreshKey(steps), [steps])
 
   const editStepForm = EditStepForm({
     initialValues: { description: editingStep?.description ?? '', verification: editingStep?.verification },
