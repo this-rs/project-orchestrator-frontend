@@ -1,10 +1,9 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useLocation } from 'react-router-dom'
-import { useAtomValue, useSetAtom } from 'jotai'
+import { useAtomValue } from 'jotai'
 import { ClipboardList, FileCode2, Flag, FolderKanban, Link2, Pencil, Plus, Trash2, Unlink } from 'lucide-react'
 import {
   EntityList,
-  EntityListSkeleton,
   EntityRow,
   ErrorState,
   Facts,
@@ -22,10 +21,11 @@ import {
   ViewToggle,
 } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
+import { LinkedDiscussions } from '@/components/discussions/LinkedDiscussions'
 import { tasksApi, plansApi, projectsApi, workspacesApi, decisionsApi } from '@/services'
 import { useFormDialog, useLinkDialog, useToast, useWorkspaceSlug, useViewTransition, useViewMode } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
-import { taskRefreshAtom, projectRefreshAtom, planRefreshAtom, chatPanelModeAtom, chatSessionIdAtom } from '@/atoms'
+import { taskRefreshAtom, projectRefreshAtom, planRefreshAtom } from '@/atoms'
 import { CreateStepForm, CreateDecisionForm, EditTaskForm, EditStepForm } from '@/components/forms'
 import { CommitList } from '@/components/commits'
 import { UniversalKanban, createStepKanbanConfig } from '@/components/kanban'
@@ -35,10 +35,9 @@ import {
   DetailSkeleton,
   EmptyLine,
   SectionAddButton,
-  SessionRow,
   StepRow,
 } from '@/components/tasks/DetailRows'
-import type { Task, Step, Decision, Commit, TaskStatus, StepStatus, DecisionStatus, Project, SessionWithLinks } from '@/types'
+import type { Task, Step, Decision, Commit, TaskStatus, StepStatus, DecisionStatus, Project } from '@/types'
 
 // The API response structure
 interface TaskApiResponse {
@@ -74,8 +73,6 @@ export function TaskDetailPage() {
   const taskRefresh = useAtomValue(taskRefreshAtom)
   const projectRefresh = useAtomValue(projectRefreshAtom)
   const planRefresh = useAtomValue(planRefreshAtom)
-  const setChatPanelMode = useSetAtom(chatPanelModeAtom)
-  const setChatSessionId = useSetAtom(chatSessionIdAtom)
   const [task, setTask] = useState<Task | null>(null)
   const [steps, setSteps] = useState<Step[]>([])
   const [decisions, setDecisions] = useState<Decision[]>([])
@@ -85,9 +82,8 @@ export function TaskDetailPage() {
   const [commitShaInput, setCommitShaInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  // Chat sessions linked to this task
-  const [chatSessions, setChatSessions] = useState<SessionWithLinks[]>([])
-  const [chatSessionsLoading, setChatSessionsLoading] = useState(false)
+  // Discussions linked to this task (counted by <LinkedDiscussions>)
+  const [discussionCount, setDiscussionCount] = useState<number | undefined>(undefined)
 
   // Parent resolution state
   const [parentPlanId, setParentPlanId] = useState<string | null>(null)
@@ -134,27 +130,6 @@ export function TaskDetailPage() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
-
-  // Linked chat sessions (was lazy-loaded with the old "Chat" tab; the page is now one scroll)
-  useEffect(() => {
-    if (!taskId) return
-    let cancelled = false
-    setChatSessionsLoading(true)
-    tasksApi
-      .getSessions(taskId)
-      .then((data) => {
-        if (!cancelled) setChatSessions(data || [])
-      })
-      .catch(() => {
-        if (!cancelled) setChatSessions([])
-      })
-      .finally(() => {
-        if (!cancelled) setChatSessionsLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [taskId])
 
   // Resolve parent plan & project
   useEffect(() => {
@@ -615,25 +590,14 @@ export function TaskDetailPage() {
       </Section>
 
       {/* ── Conversations ── */}
-      <Section title="Conversations" count={chatSessionsLoading ? undefined : chatSessions.length}>
-        {chatSessionsLoading ? (
-          <EntityListSkeleton rows={2} />
-        ) : chatSessions.length === 0 ? (
-          <EmptyLine>No chat sessions linked — they are linked automatically when the task runs via the runner.</EmptyLine>
-        ) : (
-          <EntityList aria-label="Conversations">
-            {chatSessions.map((sw) => (
-              <SessionRow
-                key={sw.session.id}
-                item={sw}
-                onOpen={() => {
-                  setChatSessionId(sw.session.id)
-                  setChatPanelMode('open')
-                }}
-              />
-            ))}
-          </EntityList>
-        )}
+      <Section title="Conversations" count={discussionCount}>
+        <LinkedDiscussions
+          entity={{ type: 'task', id: task.id }}
+          projectId={parentProject?.id}
+          projectSlug={parentProject?.slug}
+          onCountChange={setDiscussionCount}
+          resume={{ planId: parentPlanId, taskStatuses: { [task.id]: task.status } }}
+        />
       </Section>
 
       {/* ── Details ── */}

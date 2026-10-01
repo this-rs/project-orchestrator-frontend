@@ -62,7 +62,7 @@ describe('buildLinkedForest', () => {
     expect(countNodes(f.roots)).toBe(2)
   })
 
-  it('keeps run / task / parent run facts and the listed title, source and cost', () => {
+  it('keeps run / task facts and the listed title, source and cost', () => {
     const f = buildLinkedForest(
       [{ id: 'r', title: 'Run root', source: 'runner', costUsd: 1.5, messageCount: 4 }],
       new Map([['r', [row('r', null, { run_id: 'run1', task_id: 't1' }), row('r1', 'r', { run_id: 'run1', task_id: 't2' })]]]),
@@ -71,7 +71,7 @@ describe('buildLinkedForest', () => {
     expect(root.title).toBe('Run root')
     expect(root.cost_usd).toBe(1.5)
     expect(root.metadata).toMatchObject({ run_id: 'run1', task_id: 't1', source: 'runner', linked: true })
-    expect(root.children[0].metadata).toMatchObject({ parent_run_id: 'run1', parent_task_id: 't1', linked: false })
+    expect(root.children[0].metadata).toMatchObject({ run_id: 'run1', task_id: 't2', linked: false })
     expect(root.children[0].title).toBe('Session r1')
   })
 

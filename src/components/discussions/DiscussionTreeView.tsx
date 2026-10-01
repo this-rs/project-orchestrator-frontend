@@ -6,7 +6,7 @@
  * is selected).
  */
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { GitBranch, RefreshCw, Loader2 } from 'lucide-react'
 import { useDiscussionTree } from '@/hooks/useDiscussionTree'
 import { DiscussionNodeRow } from './DiscussionNode'
@@ -25,22 +25,7 @@ interface DiscussionTreeViewProps {
 
 export function DiscussionTreeView({ sessionId, onNavigate }: DiscussionTreeViewProps) {
   const { tree, isLoading, error, refresh } = useDiscussionTree(sessionId)
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
 
-  // Resolve selected node title for the panel header
-  const selectedTitle = selectedNodeId ? findNodeTitle(tree, selectedNodeId) : null
-
-  const handleSelectNode = (nodeSessionId: string) => {
-    if (onNavigate) {
-      onNavigate(nodeSessionId)
-      return
-    }
-    setSelectedNodeId((prev) => (prev === nodeSessionId ? null : nodeSessionId))
-  }
-
-  // -------------------------------------------------------------------------
-  // Loading state
-  // -------------------------------------------------------------------------
   if (isLoading && !tree) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -50,9 +35,6 @@ export function DiscussionTreeView({ sessionId, onNavigate }: DiscussionTreeView
     )
   }
 
-  // -------------------------------------------------------------------------
-  // Error state
-  // -------------------------------------------------------------------------
   if (error && !tree) {
     return (
       <div className="rounded-lg border border-red-500/20 bg-red-500/[0.04] px-4 py-6 text-center">
@@ -72,19 +54,57 @@ export function DiscussionTreeView({ sessionId, onNavigate }: DiscussionTreeView
 
   if (!tree) return null
 
-  // -------------------------------------------------------------------------
-  // Render
-  // -------------------------------------------------------------------------
+  return <DiscussionForestView roots={[tree]} isLoading={isLoading} onRefresh={refresh} onNavigate={onNavigate} />
+}
+
+// ---------------------------------------------------------------------------
+// Forest view: one or several roots, same rows, same inline panel
+// ---------------------------------------------------------------------------
+
+interface DiscussionForestViewProps {
+  roots: import('@/services/discussions').DiscussionNode[]
+  isLoading?: boolean
+  onRefresh: () => void
+  onNavigate?: (sessionId: string) => void
+  /** Buttons under each node (attach, resume...) */
+  renderActions?: (node: import('@/services/discussions').DiscussionNode) => ReactNode
+  /** Extra header content (counts, hints) */
+  headerExtra?: ReactNode
+  /** The panel sits under the tree on a phone: no fixed height needed */
+  title?: string
+}
+
+export function DiscussionForestView({
+  roots,
+  isLoading = false,
+  onRefresh,
+  onNavigate,
+  renderActions,
+  headerExtra,
+  title = 'Discussion Tree',
+}: DiscussionForestViewProps) {
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const selectedTitle = selectedNodeId ? roots.map((r) => findNodeTitle(r, selectedNodeId)).find(Boolean) ?? null : null
+
+  const handleSelectNode = (nodeSessionId: string) => {
+    if (onNavigate) {
+      onNavigate(nodeSessionId)
+      return
+    }
+    setSelectedNodeId((prev) => (prev === nodeSessionId ? null : nodeSessionId))
+  }
+
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Header */}
       <div className="flex items-center justify-between px-1 pb-3 flex-shrink-0">
         <div className="flex items-center gap-2 text-sm text-gray-400">
           <GitBranch className="w-4 h-4 text-gray-500" />
-          <span className="font-medium text-gray-300">Discussion Tree</span>
+          <span className="font-medium text-gray-300">{title}</span>
+          {headerExtra}
         </div>
         <button
-          onClick={refresh}
+          onClick={onRefresh}
           className="p-1.5 rounded-md text-gray-500 hover:text-gray-300 hover:bg-white/[0.06]
                      transition-colors cursor-pointer"
           title="Refresh tree"
@@ -94,24 +114,28 @@ export function DiscussionTreeView({ sessionId, onNavigate }: DiscussionTreeView
       </div>
 
       {/* Content: tree + panel */}
-      <div className="flex flex-1 min-h-0 gap-0">
+      <div className="flex flex-1 min-h-0 gap-0 flex-col md:flex-row">
         {/* Tree */}
         <div
           className={`overflow-y-auto space-y-0.5 pb-4 ${
-            selectedNodeId ? 'w-1/2 flex-shrink-0' : 'flex-1'
+            selectedNodeId ? 'md:w-1/2 flex-shrink-0' : 'flex-1'
           }`}
         >
-          <DiscussionNodeRow
-            node={tree}
-            depth={0}
-            selectedSessionId={selectedNodeId}
-            onSelectNode={handleSelectNode}
-          />
+          {roots.map((root) => (
+            <DiscussionNodeRow
+              key={root.session_id}
+              node={root}
+              depth={0}
+              selectedSessionId={selectedNodeId}
+              onSelectNode={handleSelectNode}
+              renderActions={renderActions}
+            />
+          ))}
         </div>
 
         {/* Inline conversation panel */}
         {selectedNodeId && (
-          <div className="w-1/2 flex-shrink-0 border-l border-border-subtle ml-2">
+          <div className="w-full h-[60dvh] md:h-auto md:w-1/2 flex-shrink-0 border-t md:border-t-0 md:border-l border-border-subtle md:ml-2 mt-2 md:mt-0">
             <InlineConversationPanel
               sessionId={selectedNodeId}
               title={selectedTitle || 'Session'}

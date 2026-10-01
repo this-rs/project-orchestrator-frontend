@@ -108,7 +108,6 @@ export function buildLinkedForest(
   const nodes = new Map<string, DiscussionNode>()
   for (const d of [...drafts.values()].sort((a, b) => a.order - b.order)) {
     const l = listed.get(d.id)
-    const parentDraft = d.parent ? drafts.get(d.parent) : undefined
     nodes.set(d.id, {
       session_id: d.id,
       title: l?.title || d.title || `Session ${d.id.slice(0, 8)}`,
@@ -121,8 +120,6 @@ export function buildLinkedForest(
         type: d.spawn ?? (d.parent && drafts.has(d.parent) ? 'conversation' : 'root'),
         run_id: d.runId ?? undefined,
         task_id: d.taskId ?? undefined,
-        parent_run_id: parentDraft?.runId ?? undefined,
-        parent_task_id: parentDraft?.taskId ?? undefined,
         source: l?.source,
         linked: Boolean(l),
         detail: l?.detail,

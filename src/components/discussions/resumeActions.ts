@@ -5,7 +5,7 @@
  * - `session`: the session is DEAD (CLI stopped) with an unanswered request. The
  *   only action is a message (ContinueSheet/ReplyAction): never "Autoriser".
  * - `run`: the run stopped before the end (failed / budget exceeded / cancelled),
- *   shown once, on the topmost node of that run.
+ *   shown once, on the first node of that run (see `computeOwners`).
  * - `task`: the node's task failed or is blocked.
  * - run and task actions need the runner: held by another plan => disabled, with
  *   the reason and a link to that plan.
@@ -69,10 +69,33 @@ function busyReason(runner: RunnerState | null): BusyReason | null {
   }
 }
 
+/**
+ * Who carries the run / task button: the FIRST node (depth first, in display order)
+ * of each run and each task, so the button appears once even when a run's sessions
+ * are several roots.
+ */
+export interface Owners {
+  run: Record<string, string>
+  task: Record<string, string>
+}
+
+export function computeOwners(roots: DiscussionNode[]): Owners {
+  const owners: Owners = { run: {}, task: {} }
+  const walk = (n: DiscussionNode) => {
+    const { run_id, task_id } = n.metadata
+    if (run_id && !(run_id in owners.run)) owners.run[run_id] = n.session_id
+    if (task_id && !(task_id in owners.task)) owners.task[task_id] = n.session_id
+    n.children.forEach(walk)
+  }
+  roots.forEach(walk)
+  return owners
+}
+
 export function resumeActionsFor(
   node: DiscussionNode,
   ctx: ResumeContext,
   facts: DeadSessionFacts,
+  owners: Owners,
 ): ResumeAction[] {
   const out: ResumeAction[] = []
 
@@ -88,7 +111,7 @@ export function resumeActionsFor(
     runId &&
     ctx.run &&
     ctx.run.id === runId &&
-    node.metadata.parent_run_id !== runId &&
+    owners.run[runId] === node.session_id &&
     (RESUMABLE_RUN_STATUSES as readonly (string | null)[]).includes(ctx.run.status)
   ) {
     out.push({ kind: 'run', label: 'Reprendre le run', planId, disabled })
@@ -96,7 +119,7 @@ export function resumeActionsFor(
 
   const taskId = node.metadata.task_id
   const taskStatus = taskId ? ctx.taskStatuses?.[taskId] : undefined
-  if (taskId && node.metadata.parent_task_id !== taskId && taskStatus && (RETRYABLE_TASK_STATUSES as readonly string[]).includes(taskStatus)) {
+  if (taskId && owners.task[taskId] === node.session_id && taskStatus && (RETRYABLE_TASK_STATUSES as readonly string[]).includes(taskStatus)) {
     out.push({ kind: 'task', label: 'Relancer la tâche', planId, taskId, disabled })
   }
   return out
