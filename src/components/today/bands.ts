@@ -91,9 +91,16 @@ export function buildBands(data: AttentionResponse): Bands {
     thread: request.thread_id ? (threadById.get(request.thread_id) ?? null) : null,
     unattached: null,
   }))
+  // A live thread-less session's pending request lives only in `unattached[].pending`;
+  // it is shown here (it waits on someone) unless `waiting[]` already carries it.
+  const seen = new Set(data.waiting.map((r) => r.request_id))
   for (const u of data.unattached) {
     if (u.state !== 'live') continue
-    for (const request of u.pending) waiting.push({ request, thread: null, unattached: u })
+    for (const request of u.pending) {
+      if (seen.has(request.request_id)) continue
+      seen.add(request.request_id)
+      waiting.push({ request, thread: null, unattached: u })
+    }
   }
   waiting.sort((a, b) => byAgeDesc(a.request, b.request))
 
