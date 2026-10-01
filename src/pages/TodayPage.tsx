@@ -1,44 +1,24 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { ClipboardList, Layers } from 'lucide-react'
+import { Layers } from 'lucide-react'
 import { workspacesAtom } from '@/atoms'
-import { tasksApi } from '@/services'
-import {
-  EmptyState,
-  EntityListSkeleton,
-  EntityRow,
-  ErrorState,
-  FilterBar,
-  ListGroup,
-  PageShell,
-  PriorityText,
-  RelativeTime,
-  Select,
-  StatusDot,
-  StatusMenu,
-  hitArea,
-  inlineLink,
-  rowInteractive,
-} from '@/components/ui'
-import { useToast } from '@/hooks'
-import type { TaskStatus, TaskWithPlan } from '@/types'
+import { FilterBar, PageShell, Select, focusRing, metaText } from '@/components/ui'
+import { TodayView, type TodaySource } from '@/components/today/TodayView'
+import { DEMO_NAMES, filterLane, loadDemo } from '@/components/today/demo'
+import { useAttention } from '@/hooks/useAttention'
+import { attentionApi } from '@/services/attention'
+import type { AttentionResponse } from '@/types/attention'
 import { workspacePath } from '@/utils/paths'
 import { NOMENCLATURE } from '@/constants/nomenclature'
 
-/** Sections in reading order: what moves, what is stuck, what to pick up. */
-const SECTIONS: { key: TaskStatus; title: string; limit: number }[] = [
-  { key: 'in_progress', title: 'In progress', limit: 50 },
-  { key: 'blocked', title: 'Blocked', limit: 50 },
-  { key: 'pending', title: 'Up next', limit: 12 },
-]
-
-/** A task and the workspace (lane) it belongs to: tasks carry no slug of their own. */
-type LaneTask = { task: TaskWithPlan; ws: string }
-type Buckets = Record<string, { items: LaneTask[]; total: number }>
-
 /** Query parameter holding the lane filter on the cross-workspace entry. */
 export const LANE_PARAM = 'workspace'
+/**
+ * `/today?demo=<name>` renders a simulated data set (a shared contract fixture) instead
+ * of calling the API. Names: see `DEMO_NAMES` (components/today/demo.ts). No action is sent.
+ */
+export const DEMO_PARAM = 'demo'
 const ALL_LANES = ''
 
 /**
@@ -47,6 +27,7 @@ const ALL_LANES = ''
  *   widening goes to /today, picking another lane to that lane's entry.
  * - /today                 : `?workspace=<slug>`, absent = every workspace.
  * Unknown slugs (once workspaces are loaded) are ignored, i.e. every workspace.
+ * The `demo` parameter is carried through every change.
  */
 function useLaneFilter() {
   const { slug: pathSlug } = useParams<{ slug: string }>()
@@ -57,101 +38,151 @@ function useLaneFilter() {
   const requested = pathSlug ?? searchParams.get(LANE_PARAM) ?? null
   const known = !requested || workspaces.length === 0 || workspaces.some((w) => w.slug === requested)
   const lane = known ? requested : null
+  const demo = searchParams.get(DEMO_PARAM)
 
   const setLane = useCallback(
     (next: string) => {
       if (pathSlug) {
-        navigate(next ? workspacePath(next, '/today') : '/today')
-      } else if (next) {
-        setSearchParams({ [LANE_PARAM]: next })
+        const base = next ? workspacePath(next, '/today') : '/today'
+        navigate(demo ? `${base}?${DEMO_PARAM}=${encodeURIComponent(demo)}` : base)
       } else {
-        setSearchParams({})
+        setSearchParams((prev) => {
+          const n = new URLSearchParams(prev)
+          if (next) n.set(LANE_PARAM, next)
+          else n.delete(LANE_PARAM)
+          return n
+        })
       }
     },
-    [pathSlug, navigate, setSearchParams],
+    [pathSlug, demo, navigate, setSearchParams],
   )
 
-  return { lane, setLane, workspaces }
+  const clearDemo = useCallback(
+    () =>
+      setSearchParams((prev) => {
+        const n = new URLSearchParams(prev)
+        n.delete(DEMO_PARAM)
+        return n
+      }),
+    [setSearchParams],
+  )
+
+  return { lane, setLane, workspaces, demo, clearDemo }
 }
 
-/**
- * Today — the one screen to open in the morning.
- * Not a new data model: it is the task list cut by what needs a decision now.
- */
-export function TodayPage() {
-  const { lane, setLane, workspaces } = useLaneFilter()
-  const toast = useToast()
-  const [buckets, setBuckets] = useState<Buckets>({})
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+// ---------------------------------------------------------------------------
+// Sources: live API, or a demo set
+// ---------------------------------------------------------------------------
 
-  // Lanes to read: the filtered one, or every workspace.
-  const laneKey = lane ?? workspaces.map((w) => w.slug).join('\n')
+/** Live: `GET /api/attention` + realtime refetch + optimistic actions (useAttention). */
+function useLiveSource(lane: string | null): TodaySource {
+  const a = useAttention({ workspace: lane })
+  const { refresh } = a
+  const sendMessage = useCallback(
+    async (sessionId: string, text: string) => {
+      await attentionApi.sendMessage(sessionId, text)
+      void refresh()
+    },
+    [refresh],
+  )
+  return {
+    status: a.status,
+    data: a.data,
+    error: a.error,
+    refresh: () => void refresh(),
+    notices: a.notices,
+    drafts: a.drafts,
+    setDraft: a.setDraft,
+    answerPermission: a.answerPermission,
+    sendReply: a.sendReply,
+    resumeRun: a.resumeRun,
+    sendMessage,
+  }
+}
 
-  const load = useCallback(async () => {
-    setError(null)
-    const slugs = laneKey ? laneKey.split('\n') : []
-    try {
-      const next: Buckets = {}
-      const perSection = await Promise.all(
-        SECTIONS.map((s) =>
-          Promise.all(
-            slugs.map(async (ws) => {
-              const res = await tasksApi.list({
-                workspace_slug: ws,
-                status: s.key,
-                limit: s.limit,
-                sort_by: 'priority',
-                sort_order: 'desc',
-              })
-              return { ws, items: res.items ?? [], total: res.total ?? res.items?.length ?? 0 }
-            }),
-          ),
-        ),
-      )
-      SECTIONS.forEach((s, i) => {
-        const lanes = perSection[i]
-        const merged: LaneTask[] = lanes
-          .flatMap((l) => l.items.map((task) => ({ task, ws: l.ws })))
-          .sort((a, b) => (b.task.priority ?? 0) - (a.task.priority ?? 0))
-        next[s.key] = { items: merged.slice(0, s.limit), total: lanes.reduce((n, l) => n + l.total, 0) }
-      })
-      setBuckets(next)
-    } catch {
-      setError('Failed to load tasks')
-    } finally {
-      setLoading(false)
-    }
-  }, [laneKey])
+/** Demo: a fixture, filtered by lane locally. Every action resolves without any request. */
+function useDemoSource(name: string, lane: string | null): TodaySource {
+  const [loaded, setLoaded] = useState<{ name: string; data: AttentionResponse | null; error: Error | null } | null>(null)
+  const [attempt, setAttempt] = useState(0)
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    setLoading(true)
-    load()
-  }, [load])
+    let live = true
+    loadDemo(name).then(
+      (data) => live && setLoaded({ name, data, error: null }),
+      (error: unknown) => live && setLoaded({ name, data: null, error: error instanceof Error ? error : new Error(String(error)) }),
+    )
+    return () => {
+      live = false
+    }
+  }, [name, attempt])
 
-  const changeStatus = useCallback(
-    async (task: TaskWithPlan, status: TaskStatus) => {
-      try {
-        await tasksApi.update(task.id, { status })
-        toast.success('Status updated')
-        await load()
-      } catch {
-        toast.error('Failed to update status')
-      }
-    },
-    [load, toast],
+  const current = loaded && loaded.name === name ? loaded : null
+  const data = useMemo(() => (current?.data ? filterLane(current.data, lane) : null), [current, lane])
+  const noop = useCallback(async () => true, [])
+  return {
+    status: data ? 'ready' : current?.error ? 'error' : 'loading',
+    data,
+    error: current?.error ?? null,
+    refresh: () => setAttempt((n) => n + 1),
+    notices: {},
+    drafts,
+    setDraft: (id, text) => setDrafts((d) => ({ ...d, [id]: text })),
+    answerPermission: noop,
+    sendReply: noop,
+    resumeRun: noop,
+    sendMessage: async () => {},
+  }
+}
+
+function LiveToday(props: { lane: string | null; plansSlug: string | null; onClearLane: () => void }) {
+  const source = useLiveSource(props.lane)
+  return <TodayView source={source} {...props} />
+}
+
+function DemoToday(props: { name: string; lane: string | null; plansSlug: string | null; onClearLane: () => void; onExit: () => void }) {
+  const { name, onExit, ...rest } = props
+  const source = useDemoSource(name, rest.lane)
+  return (
+    <div className="space-y-4">
+      <p role="note" data-testid="demo-banner" className={`${metaText} flex flex-wrap items-center gap-x-3 gap-y-1`}>
+        <span>
+          Démo : jeu « {name} ». Données simulées, aucune action n’est envoyée.
+        </span>
+        <button type="button" onClick={onExit} className={`inline-flex min-h-9 items-center rounded px-1 text-indigo-300 hover:text-indigo-200 ${focusRing}`}>
+          Quitter la démo
+        </button>
+        <span className="sr-only">Jeux disponibles : {DEMO_NAMES.join(', ')}</span>
+      </p>
+      <TodayView source={source} {...rest} />
+    </div>
   )
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
+/**
+ * Today: the cross-workspace cockpit. Four bands in a fixed order (waiting on you,
+ * running, stuck, thoughts), threads grouped by lane. Replaces the former task lists.
+ */
+export function TodayPage() {
+  const { lane, setLane, workspaces, demo, clearDemo } = useLaneFilter()
+  const clearLane = useCallback(() => setLane(ALL_LANES), [setLane])
 
   const laneOptions = [
     { value: ALL_LANES, label: 'All workspaces' },
     ...workspaces.map((w) => ({ value: w.slug, label: w.name })),
   ]
   const laneName = lane ? (workspaces.find((w) => w.slug === lane)?.name ?? lane) : null
-
-  const empty = SECTIONS.every((s) => (buckets[s.key]?.items.length ?? 0) === 0)
+  const plansSlug = lane ?? workspaces[0]?.slug ?? null
 
   return (
-    <PageShell title={NOMENCLATURE.today.plural} description={NOMENCLATURE.today.description} width="wide"
+    <PageShell
+      title={NOMENCLATURE.today.plural}
+      description={NOMENCLATURE.today.description}
+      width="full"
       filters={
         <FilterBar
           filters={
@@ -165,61 +196,15 @@ export function TodayPage() {
           }
           activeCount={lane ? 1 : 0}
           activeLabels={laneName ? [laneName] : []}
-          onClear={() => setLane(ALL_LANES)}
+          onClear={clearLane}
           defaultOpen
         />
       }
     >
-      {loading || (!lane && workspaces.length === 0) ? (
-        <EntityListSkeleton rows={6} />
-      ) : error ? (
-        <ErrorState description={error} onRetry={load} />
-      ) : empty ? (
-        <EmptyState
-          title="Nothing on your plate"
-          description="No task is in progress, blocked or waiting. Create a plan to get started."
-        />
+      {demo ? (
+        <DemoToday name={demo} lane={lane} plansSlug={plansSlug} onClearLane={clearLane} onExit={clearDemo} />
       ) : (
-        <div className="space-y-6">
-          {SECTIONS.map((s) => {
-            const bucket = buckets[s.key]
-            if (!bucket || bucket.items.length === 0) return null
-            return (
-              <ListGroup key={s.key} title={s.title} count={bucket.total}>
-                  {bucket.items.map(({ task, ws }) => (
-                    <EntityRow
-                      key={task.id}
-                      title={task.title || task.description}
-                      href={workspacePath(ws, `/tasks/${task.id}`)}
-                      leading={<StatusDot kind="task" status={task.status} />}
-                      trailing={<RelativeTime date={task.updated_at ?? task.created_at} />}
-                      meta={[
-                        <StatusMenu
-                          key="status"
-                          kind="task"
-                          status={task.status}
-                          onChange={(next) => changeStatus(task, next)}
-                        />,
-                        <PriorityText key="p" priority={task.priority} />,
-                        task.plan_id && task.plan_title ? (
-                          <Link
-                            key="plan"
-                            to={workspacePath(ws, `/plans/${task.plan_id}`)}
-                            title={`Plan: ${task.plan_title}`}
-                            className={`${rowInteractive} ${hitArea} ${inlineLink} inline-flex items-center gap-1 min-w-0`}
-                          >
-                            <ClipboardList className="w-3 h-3 shrink-0" aria-hidden="true" />
-                            <span className="truncate max-w-[14rem]">{task.plan_title}</span>
-                          </Link>
-                        ) : null,
-                        task.assigned_to ? <span key="who">@{task.assigned_to}</span> : null,
-                      ]}
-                    />
-                  ))}
-              </ListGroup>
-            )
-          })}
-        </div>
+        <LiveToday key={lane ?? ALL_LANES} lane={lane} plansSlug={plansSlug} onClearLane={clearLane} />
       )}
     </PageShell>
   )
