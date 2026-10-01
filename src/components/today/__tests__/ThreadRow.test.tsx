@@ -321,6 +321,12 @@ describe('ThreadRow — orphan (band 3)', () => {
     })
   })
 
+  it('falls back to "sans fil" when the session is not among the thread sessions', () => {
+    const stray = { ...orphan, session_id: 'ffffffff-0000-0000-0000-000000000000' }
+    renderRow(<ThreadRow variant="orphan" thread={thread} orphan={stray} onSendMessage={vi.fn()} />)
+    expect(screen.getByTestId('provenance').textContent).toBe('sans fil')
+  })
+
   it('states where the session is attached (provenance), never computing membership', () => {
     send()
     expect(screen.getByTestId('provenance').textContent).toBe(`rattachée au run ${thread.run!.id.slice(0, 8)}`)
@@ -332,14 +338,26 @@ describe('ThreadRow — orphan (band 3)', () => {
   })
 })
 
+describe('StuckThreadRow — blocked tasks without a resume preview', () => {
+  const blocked = fixture('blocked_task')
+  const thread = blocked.threads.find((t) => t.stuck_reason === 'task_blocked')!
+
+  it('names the thread blocked_tasks even when resume is absent', () => {
+    renderRow(
+      <ThreadRow variant="stuck" thread={{ ...thread, resume: null }} runner={blocked.runner} onResume={noResume} />,
+    )
+    expect(screen.getByTestId('blocked-tasks').textContent).toContain(thread.blocked_tasks[0].title)
+  })
+})
+
 describe('linkProvenance', () => {
   const thread = fixture('resumed_run').threads[0]
   const links = thread.sessions.flatMap((s) => s.links)
 
-  it('tells an OLD run from the current one after a resume', () => {
+  it('never infers "précédent": every run link reads the same, via + id only', () => {
     const texts = links.filter((l) => l.via === 'runner_run').map((l) => linkProvenance(l, thread))
-    expect(texts.some((x) => x.includes('précédent'))).toBe(true)
-    expect(texts.some((x) => x.startsWith('rattachée au run ') && !x.includes('précédent'))).toBe(true)
+    expect(texts.length).toBeGreaterThan(1)
+    for (const x of texts) expect(x).toMatch(/^rattachée au run [0-9a-f]{8}$/)
   })
 
   it('words each mechanism', () => {

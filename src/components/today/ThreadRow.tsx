@@ -108,9 +108,10 @@ export function linkProvenance(link: SessionLink, thread?: AttentionThread): str
   switch (link.via) {
     case 'runner_run':
     case 'spawned_by_json': {
-      const old = !!link.run_id && !!thread?.run && link.run_id !== thread.run.id
+      // Neutral: the contract gives `via` + ids only. Whether a run is the current
+      // one is the backend's to say, never inferred here (requirement 07909b4a).
       const who = link.via === 'runner_run' ? 'rattachée au run' : 'créée par le run'
-      return link.run_id ? `${who}${old ? ' précédent' : ''} ${shortId(link.run_id)}` : who
+      return link.run_id ? `${who} ${shortId(link.run_id)}` : who
     }
     case 'task_association':
       return link.task_id ? `rattachée à la tâche ${shortId(link.task_id)}` : 'rattachée à une tâche'
@@ -241,7 +242,9 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
   const noteId = useId()
 
   const busy = runner.status === 'busy' ? runner.busy_with : null
-  const blocked = thread.resume?.skipped_blocked ?? []
+  // Most complete list the contract gives, taken as-is: the thread's own blocked tasks,
+  // else the resume preview's (no front-side computation; works when `resume` is absent).
+  const blocked = thread.blocked_tasks.length > 0 ? thread.blocked_tasks : (thread.resume?.skipped_blocked ?? [])
   const reason = thread.stuck_reason
   const cause = reason ? STUCK_LABEL[reason] : 'Coincé'
 
@@ -492,11 +495,11 @@ export function OrphanThreadRow({ thread, orphan, onSendMessage, laneName, class
       }
     >
       <RequestText req={orphan} />
-      {session && (
-        <p data-testid="provenance" className="mt-1 text-[11px] leading-4 text-gray-500">
-          {session.links.map((l) => linkProvenance(l, thread)).join(' · ')}
-        </p>
-      )}
+      <p data-testid="provenance" className="mt-1 text-[11px] leading-4 text-gray-500">
+        {session && session.links.length > 0
+          ? session.links.map((l) => linkProvenance(l, thread)).join(' · ')
+          : ROW_TEXT.noThread}
+      </p>
       <ReplyAction req={orphan} sessionId={orphan.session_id} dead onSendMessage={onSendMessage} />
     </Frame>
   )
