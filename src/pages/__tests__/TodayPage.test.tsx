@@ -128,6 +128,18 @@ describe('TodayPage: structure', () => {
     expect(screen.queryByText(/What is moving/)).toBeNull()
   })
 
+  it('an empty band is ONE line: title, count and "nothing" side by side', async () => {
+    get.mockResolvedValue(fixture('one_band'))
+    renderPage()
+    await waitFor(() => expect(within(band('running')).getAllByRole('listitem').length).toBeGreaterThan(0))
+    for (const b of ['waiting', 'stuck', 'thinking'] as const) {
+      const el = band(b)
+      const line = within(el).getByText(BAND_TEXT[b].empty).parentElement!
+      expect(line).not.toBe(el)
+      expect(line.contains(el.querySelector('h2'))).toBe(true)
+    }
+  })
+
   it('the waiting band holds the full request text and the answer buttons', async () => {
     const data = fixture('four_bands')
     get.mockResolvedValue(data)

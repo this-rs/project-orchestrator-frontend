@@ -67,12 +67,17 @@ interface BandFrameProps {
 
 function BandFrame({ band, count, state, errorText, degraded, onRetry, skeleton, empty, className = '', children }: BandFrameProps) {
   const { title, empty: emptyText } = BAND_TEXT[band]
+  const showEmptyLine = state === 'ready' && empty && !degraded
   return (
     <section aria-label={title} data-band={band} data-state={state} className={`min-w-0 ${className}`}>
-      <h2 className="mb-1 flex items-baseline gap-2 text-sm font-semibold text-gray-200">
-        <span>{title}</span>
-        {count !== null && <span className="text-xs font-normal tabular-nums text-gray-500">{count}</span>}
-      </h2>
+      {/* An empty band is ONE line: its title, its count and "nothing" side by side. */}
+      <div className={`flex flex-wrap items-baseline gap-x-3 ${showEmptyLine ? 'py-1' : 'mb-1'}`}>
+        <h2 className="flex items-baseline gap-2 text-sm font-semibold text-gray-200">
+          <span>{title}</span>
+          {count !== null && <span className="text-xs font-normal tabular-nums text-gray-500">{count}</span>}
+        </h2>
+        {showEmptyLine && <p className="text-sm text-gray-400">{emptyText}</p>}
+      </div>
       {state === 'loading' ? (
         skeleton
       ) : state === 'error' ? (
@@ -80,7 +85,7 @@ function BandFrame({ band, count, state, errorText, degraded, onRetry, skeleton,
       ) : (
         <>
           {degraded && <ErrorLine onRetry={onRetry}>{degraded}</ErrorLine>}
-          {empty ? <p className="py-2 text-sm text-gray-500">{emptyText}</p> : children}
+          {empty ? (degraded ? <p className="py-1 text-sm text-gray-400">{emptyText}</p> : null) : children}
         </>
       )}
     </section>
