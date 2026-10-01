@@ -23,6 +23,7 @@ import {
   ToneText,
 } from '@/components/ui'
 import { Notice, SettingRow, SettingsList } from '@/components/settings/SettingRow'
+import { VaultPanel } from './VaultPage'
 import { sharingApi, workspacesApi } from '@/services'
 import { useConfirmDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import type {
@@ -106,6 +107,21 @@ export function SharingPage() {
         title={NOMENCLATURE.sharing.plural}
         description="Decide which notes of a project may be shared with other instances, see what would leave, and retract a share with a signed tombstone."
       />
+
+      {/* Secrets vault — instance-wide, so above the per-project scope below. */}
+      <section aria-labelledby="vault-heading" className="space-y-3">
+        <div>
+          <h2 id="vault-heading" className="text-base font-semibold text-gray-100">
+            Secrets vault
+          </h2>
+          <p className="text-sm text-gray-400">
+            Passwords and keys agents can use without ever seeing them. Applies to the whole instance, not to one project.
+          </p>
+        </div>
+        <VaultPanel />
+      </section>
+
+      <h2 className="pt-2 text-base font-semibold text-gray-100">Note sharing</h2>
 
       {!projectsLoaded ? (
         <SkeletonCard lines={4} />
