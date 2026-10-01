@@ -128,7 +128,8 @@ export function PlanDetailPage() {
   // Chat sessions linked to this plan
   const [chatSessions, setChatSessions] = useState<SessionWithLinks[]>([])
   const [chatSessionsLoading, setChatSessionsLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState('tasks')
+  // `#graph` (the Today cockpit's mini graph links here) opens the Graph tab directly.
+  const [activeTab, setActiveTab] = useState(() => (window.location.hash === '#graph' ? 'graph' : 'tasks'))
   // Detect active pipeline run — used to hide/disable implement button + runner tab
   const { isRunning: hasPipelineRunning, snapshot: runnerSnapshot } = useRunnerStatus(planId)
   // Plan graph data for UnifiedGraphSection
