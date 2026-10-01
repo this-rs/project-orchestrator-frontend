@@ -45,7 +45,6 @@ function setViewport(width: number) {
 }
 
 import { TodayPage } from '../TodayPage'
-import { DEMO_NAMES } from '@/components/today/demo'
 import { BAND_TEXT, TODAY_TEXT } from '@/components/today/bands'
 
 const DIR = join(__dirname, '../../services/__fixtures__/attention')
@@ -292,43 +291,27 @@ describe('TodayPage: lane filter in the URL', () => {
   })
 })
 
-describe('TodayPage: ?demo=<name>', () => {
-  it('lists the documented sets (every contract payload, not the vocabulary)', () => {
-    expect(DEMO_NAMES).toEqual([...ALL_SETS].sort())
-  })
-
-  it('renders the set without any request, says so, and does not send actions', async () => {
-    const data = fixture('four_bands')
+describe('TodayPage: no simulated data path', () => {
+  it('ignores ?demo=: it still calls the API and shows no demo banner', async () => {
+    get.mockResolvedValue(fixture('empty'))
     renderPage('/today?demo=four_bands')
-    await waitFor(() => expect(hasText(data.waiting[0].text)).toBe(true))
-    expect(get).not.toHaveBeenCalled()
-    expect(screen.getByTestId('demo-banner').textContent).toContain('four_bands')
-    fireEvent.click(within(band('waiting')).getAllByRole('button')[0])
-    await waitFor(() => expect(post).not.toHaveBeenCalled())
+    await waitFor(() => expect(get).toHaveBeenCalled())
+    expect(get.mock.calls[0][0]).toBe('/attention')
+    expect(screen.queryByTestId('demo-banner')).toBeNull()
   })
 
-  it('an unknown set is an explicit error that names the available sets', async () => {
-    renderPage('/today?demo=nope')
-    await waitFor(() => expect(band('waiting').getAttribute('data-state')).toBe('error'))
-    expect(within(band('waiting')).getByRole('alert').textContent).toContain('four_bands')
-  })
-
-  it('keeps the demo while the lane changes, and can be left', async () => {
-    renderPage('/workspace/acme-freelance/today?demo=four_bands')
-    await waitFor(() => expect(screen.getByTestId('demo-banner')).toBeTruthy())
-    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
-    expect(screen.getByTestId('where').textContent).toBe('/today?demo=four_bands')
-    fireEvent.click(screen.getByRole('button', { name: 'Quitter la démo' }))
-    expect(screen.getByTestId('where').textContent).toBe('/today')
+  it('does not ship a demo module nor a fixture glob in the page code', () => {
+    const src = readFileSync(join(__dirname, '../TodayPage.tsx'), 'utf8')
+    expect(src).not.toMatch(/demo|__fixtures__|import\.meta\.glob/i)
   })
 })
 
-describe.each([360, 1440])('TodayPage: the %ipx rendering of every simulated set', (width) => {
+describe.each([360, 1440])('TodayPage: the %ipx rendering of every contract fixture', (width) => {
   it.each(ALL_SETS)('%s renders its bands without a fixed width or a horizontal scroller', async (name) => {
     setViewport(width)
-    renderPage(`/today?demo=${name}`)
-    await waitFor(() => expect(screen.getByTestId('demo-banner')).toBeTruthy())
     const data = fixture(name)
+    get.mockResolvedValue(data)
+    renderPage('/today')
     const isEmpty =
       data.threads.length + data.waiting.length + data.orphans.length + data.thinking.length + data.unattached.length === 0
     await waitFor(() => {

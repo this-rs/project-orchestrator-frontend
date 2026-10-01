@@ -10,7 +10,7 @@ import { BAND_ORDER, BAND_TEXT, TODAY_TEXT, buildBands, linkNames, type LaneGrou
 
 /**
  * The four bands of the cockpit, assembled. Presentation only: data and actions come
- * from a `TodaySource` (the live `useAttention`, or a demo fixture).
+ * from a `TodaySource` (the live `useAttention`).
  *
  * Rules kept here (DESIGN.md §8):
  * - fixed band order; an empty band shrinks to ONE line, it is never hidden;
