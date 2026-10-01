@@ -10,7 +10,7 @@ import { useToast } from './useToast'
 export const ATTENTION_DEBOUNCE_MS = 500
 
 export const ORPHAN_NOTICE =
-  "L'agent n'est plus là : son CLI s'est arrêté. Tu peux le relancer avec « Continuer »."
+  "L'agent n'est plus là : son CLI s'est arrêté. Tu peux le relancer avec « Reprendre la session »."
 
 /** The relay of `attention_changed` on `/ws/events` (tolerates the CRUD-envelope variants). */
 export function isAttentionChanged(e: CrudEvent): boolean {

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError } from '@/services/api'
+import { ORPHAN_NOTICE } from '@/hooks/useAttention'
 import { Button } from '@/components/ui/Button'
 import { RelativeTime } from '@/components/ui/MetaLine'
 import { StatusDot } from '@/components/ui/Status'
@@ -119,7 +120,9 @@ export function AttentionCard({
     ? `Permission demandée par la session ${sessionName}`
     : `Question posée par la session ${sessionName}`
 
-  const orphaned = phase === 'orphaned' || Boolean(notice)
+  // A dead session can never be authorized: same as an orphan (resume the session instead).
+  const dead = session?.state === 'dead'
+  const orphaned = phase === 'orphaned' || Boolean(notice) || dead
   const locked = phase !== 'idle' || orphaned
   const text = draft ?? localDraft
   const setText = (t: string) => (onDraftChange ? onDraftChange(t) : setLocalDraft(t))
@@ -216,7 +219,7 @@ export function AttentionCard({
       {/* Status messages */}
       {orphaned && (
         <p role="status" className="text-sm text-amber-300 break-words">
-          {notice ?? "L'agent n'est plus là : son CLI s'est arrêté. La demande passe en reprise."}
+          {notice ?? ORPHAN_NOTICE}
         </p>
       )}
       {phase === 'decided' && (
@@ -229,7 +232,7 @@ export function AttentionCard({
           Réponse envoyée.
         </p>
       )}
-      {error && (
+      {error && !orphaned && (
         <p role="alert" className="text-sm text-red-400 break-words">
           {error}
         </p>

@@ -161,6 +161,35 @@ describe('AttentionCard — permission', () => {
     expect(screen.getByRole('link', { name: 'Ouvrir la session' })).toBeTruthy()
   })
 
+  it('a DEAD session never offers Autoriser/Refuser and says to resume the session', () => {
+    setup({ session: { title: 'Agent billing', state: 'dead' } })
+    expect(screen.queryByRole('button', { name: 'Autoriser' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Refuser' })).toBeNull()
+    expect(screen.getByRole('status').textContent).toContain('Reprendre la session')
+    expect(screen.getByRole('link', { name: 'Ouvrir la session' })).toBeTruthy()
+  })
+
+  it('a DEAD session asking a question has no free answer field and disabled options', () => {
+    setup({ request: question, session: { title: 'Agent billing', state: 'dead' } })
+    expect(screen.queryByLabelText('Autre réponse')).toBeNull()
+    expect((screen.getByRole('button', { name: /PostgreSQL/ }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('410 shows ONE coherent message: the orphan notice, not "Réponse non envoyée" too', async () => {
+    const onPermission = vi.fn().mockResolvedValue(false) // the hook turned the 410 into a notice
+    const props: AttentionCardProps = {
+      request: permission, lane: 'Acme', threadTitle: null, session: { title: 'A', state: 'live' },
+      onPermission, onReply: vi.fn(),
+    }
+    const { rerender } = render(<MemoryRouter><AttentionCard {...props} /></MemoryRouter>)
+    fireEvent.click(screen.getByRole('button', { name: 'Autoriser' }))
+    await waitFor(() => expect(onPermission).toHaveBeenCalled())
+    rerender(<MemoryRouter><AttentionCard {...props} notice="L'agent n'est plus là : reprendre la session." /></MemoryRouter>)
+    expect(screen.getAllByRole('status').length).toBe(1)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByText(/Réponse non envoyée/)).toBeNull()
+  })
+
   it('410 -> orphan also from the hook notice prop', () => {
     setup({ notice: "L'agent n'est plus là : son CLI s'est arrêté." })
     expect(screen.getByRole('status').textContent).toMatch(/CLI/)

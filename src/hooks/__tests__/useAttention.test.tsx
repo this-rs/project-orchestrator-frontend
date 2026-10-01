@@ -197,6 +197,17 @@ describe('useAttention: optimistic mutations', () => {
     expect(toast.error).toHaveBeenCalled()
   })
 
+  it('resumes through the real route POST /plans/{id}/run, never an invented /run/resume', async () => {
+    const { result } = await mount('blocked_task')
+    const t = result.current.data!.threads[0]
+    post.mockResolvedValueOnce({})
+    await act(async () => {
+      expect(await result.current.resumeRun(t)).toBe(true)
+    })
+    expect(post).toHaveBeenCalledTimes(1)
+    expect(post.mock.calls[0][0]).toBe(`/plans/${t.plan!.id}/run`)
+  })
+
   it('never calls resume while the runner is busy', async () => {
     const { result } = await mount('runner_busy')
     const stuck = result.current.data!.threads.find((t) => t.band === 'stuck')!
@@ -218,6 +229,8 @@ describe('useAttention: 410 = orphan', () => {
     })
     expect(toast.error).not.toHaveBeenCalled()
     expect(result.current.notices[req.request_id]).toBe(ORPHAN_NOTICE)
+    expect(ORPHAN_NOTICE).toContain('Reprendre la session')
+    expect(ORPHAN_NOTICE).not.toContain('Continuer')
     expect(result.current.data!.waiting.some((w) => w.request_id === req.request_id)).toBe(false)
     expect(result.current.data!.orphans.some((o) => o.request_id === req.request_id)).toBe(true)
     post.mockClear()
