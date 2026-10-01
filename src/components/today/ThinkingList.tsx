@@ -11,9 +11,9 @@ import type { ThinkingItem, ThinkingKind } from '@/types/attention'
 import { workspacePath } from '@/utils/paths'
 
 /**
- * Band 4 of the Today cockpit: the thinking threads. Nobody is blocked here — this is
- * where you DECIDE, not where you execute. It is the least urgent band and looks it:
- * last on the page, dense, collapsible, a quiet counter. It is never hidden for good,
+ * Section "À suivre" of Today: RFCs, decisions, notes to re-read, alerts. Nobody is blocked here — this is
+ * where you DECIDE, not where you execute. It is the least urgent section and looks it:
+ * last on the page, dense, FOLDED by default, a quiet counter. It is never hidden for good,
  * though: an undecided RFC silently blocks a future plan.
  *
  * - Existing primitives only (`EntityRow` + `ListGroup`).
@@ -22,21 +22,22 @@ import { workspacePath } from '@/utils/paths'
  *   the item.
  * - Optimistic: the row leaves at once and comes back with an error toast if the call
  *   fails. Only rejecting an RFC asks for confirmation (hard to undo).
- * - The collapsed state is remembered in localStorage (guarded: it can throw).
+ * - The folded state is remembered in localStorage (guarded: it can throw); folded when nothing is stored.
  */
 
 const THINKING_COLLAPSED_KEY = 'today.thinking.collapsed'
 
-/** Reason recorded when a note is invalidated from the cockpit (the API requires one). */
+/** Reason recorded when a note is invalidated from Today (the API requires one). */
 const INVALIDATE_REASON = 'Invalidated from Today' // stored data, sent to the API as is
-/** Who acknowledges an alert from the cockpit (the API requires one). */
+/** Who acknowledges an alert from Today (the API requires one). */
 const ACKNOWLEDGED_BY = 'today'
 
+/** Folded by default: nothing here blocks anyone. Only an explicit "open" is remembered as open. */
 function readCollapsed(): boolean {
   try {
-    return window.localStorage.getItem(THINKING_COLLAPSED_KEY) === '1'
+    return window.localStorage.getItem(THINKING_COLLAPSED_KEY) !== '0'
   } catch {
-    return false
+    return true
   }
 }
 function writeCollapsed(v: boolean) {
@@ -45,6 +46,16 @@ function writeCollapsed(v: boolean) {
   } catch {
     /* storage unavailable: the band still works, it just forgets */
   }
+}
+
+/** Folded state of the section, remembered; shared with the page so a header counter can open it. */
+export function useThinkingCollapsed() {
+  const [collapsed, setCollapsedState] = useState(readCollapsed)
+  const setCollapsed = useCallback((v: boolean) => {
+    writeCollapsed(v)
+    setCollapsedState(v)
+  }, [])
+  return { collapsed, setCollapsed }
 }
 
 const GROUPS: { kind: ThinkingKind; title: string; noun: string }[] = [
@@ -92,24 +103,32 @@ export interface ThinkingListProps {
   items: ThinkingItem[]
   /** Called after a successful action (typically `refresh`). */
   onChanged?: () => void
-  /** Label of the band (the page names it in its own language). */
+  /** Label of the section. */
   title?: string
+  /** Controlled fold state (the page owns it); omitted = the list keeps its own. */
+  collapsed?: boolean
+  onCollapsedChange?: (collapsed: boolean) => void
   /** Outer spacing; the page lays the band out itself. */
   className?: string
 }
 
-export function ThinkingList({ items, onChanged, title = 'Pensée', className = 'mt-8' }: ThinkingListProps) {
+export function ThinkingList({
+  items,
+  onChanged,
+  title = 'À suivre',
+  collapsed: collapsedProp,
+  onCollapsedChange,
+  className = 'mt-8',
+}: ThinkingListProps) {
   const toast = useToast()
-  const [collapsed, setCollapsed] = useState(readCollapsed)
+  const own = useThinkingCollapsed()
+  const collapsed = collapsedProp ?? own.collapsed
+  const setCollapsed = onCollapsedChange ?? own.setCollapsed
   // Optimistic overlay: rows gone locally until the server settles.
   const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set())
   const [rejecting, setRejecting] = useState<ThinkingItem | null>(null)
 
-  const toggle = () =>
-    setCollapsed((c) => {
-      writeCollapsed(!c)
-      return !c
-    })
+  const toggle = () => setCollapsed(!collapsed)
 
   const perform = useCallback(
     async (item: ThinkingItem, act: Act) => {
@@ -156,7 +175,7 @@ export function ThinkingList({ items, onChanged, title = 'Pensée', className = 
   }
 
   return (
-    <section aria-label={title} data-band="thinking" className={className}>
+    <section id="today-thinking" aria-label={title} data-band="thinking" className={`scroll-mt-4 ${className}`}>
       <h2 id="today-thinking-title" className="text-xs font-medium text-gray-500">
         <button
           type="button"
@@ -173,7 +192,7 @@ export function ThinkingList({ items, onChanged, title = 'Pensée', className = 
 
       <div id={bodyId} hidden={collapsed}>
         {visible.length === 0 ? (
-          <p className="px-1 py-2 text-xs text-gray-500">Rien à trancher.</p>
+          <p className="px-1 py-2 text-xs text-gray-500">Rien à suivre</p>
         ) : (
           GROUPS.map(({ kind, title }) => {
             const rows = visible.filter((i) => i.kind === kind)

@@ -49,6 +49,8 @@ beforeEach(() => {
   m.invalidate.mockResolvedValue({})
   m.post.mockResolvedValue({})
   window.localStorage.clear()
+  // Folded by default: the action tests start from an opened section.
+  window.localStorage.setItem(KEY, '0')
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -56,12 +58,12 @@ describe('ThinkingList', () => {
   it('groups by nature with a quiet count', () => {
     setup()
     for (const g of ['RFC', 'Décisions', 'Notes à relire', 'Alertes']) expect(screen.getByRole('region', { name: new RegExp(g) })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Pensée/ }).textContent).toContain('4')
+    expect(screen.getByRole('button', { name: /À suivre/ }).textContent).toContain('4')
   })
 
   it('shows an empty state when nothing is left to decide', () => {
     setup([])
-    expect(screen.getByText('Rien à trancher.')).toBeTruthy()
+    expect(screen.getByText('Rien à suivre')).toBeTruthy()
   })
 
   it('title opens the item (RFC, decision, note); an alert has no page', () => {
@@ -122,7 +124,7 @@ describe('ThinkingList', () => {
 
   it('collapses and remembers it in localStorage', () => {
     const { unmount } = setup()
-    const toggle = screen.getByRole('button', { name: /Pensée/ })
+    const toggle = screen.getByRole('button', { name: /À suivre/ })
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
     fireEvent.click(toggle)
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
@@ -130,7 +132,7 @@ describe('ThinkingList', () => {
     expect(screen.queryByRole('region', { name: /RFC/ })).toBeNull()
     unmount()
     setup()
-    expect(screen.getByRole('button', { name: /Pensée/ }).getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByRole('button', { name: /À suivre/ }).getAttribute('aria-expanded')).toBe('false')
   })
 
   it('still works when localStorage throws', () => {
@@ -141,9 +143,34 @@ describe('ThinkingList', () => {
       throw new Error('denied')
     })
     setup()
-    const toggle = screen.getByRole('button', { name: /Pensée/ })
-    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    const toggle = screen.getByRole('button', { name: /À suivre/ })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false') // unreadable storage: folded
     fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('is FOLDED by default (nothing stored), with a discreet count, and opening is remembered', () => {
+    window.localStorage.clear()
+    const { unmount } = setup()
+    const toggle = screen.getByRole('button', { name: /À suivre/ })
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(toggle.textContent).toContain('4')
+    expect(document.getElementById('today-thinking-body')!.hidden).toBe(true)
+    fireEvent.click(toggle)
+    expect(window.localStorage.getItem(KEY)).toBe('0')
+    unmount()
+    setup()
+    expect(screen.getByRole('button', { name: /À suivre/ }).getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('can be driven by the page (controlled fold state)', () => {
+    const onCollapsedChange = vi.fn()
+    render(
+      <MemoryRouter>
+        <ThinkingList items={ITEMS} collapsed onCollapsedChange={onCollapsedChange} />
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /À suivre/ }))
+    expect(onCollapsedChange).toHaveBeenCalledWith(false)
   })
 })
