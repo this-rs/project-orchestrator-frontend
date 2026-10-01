@@ -54,8 +54,35 @@ function describeSecrets(s: SecretSelector): string {
   return s.kind === 'all' ? 'all secrets' : s.names.join(', ')
 }
 
+/** Stand-alone page (`/vault`, linked from chat cards): page chrome + panel. */
 export function VaultPage() {
   const navigate = useNavigate()
+  return (
+    <div className="h-dvh overflow-y-auto bg-[var(--bg-primary)]">
+      <div className="px-4 md:px-6">
+        <PageContainer width="narrow" className="space-y-6">
+          <div className="space-y-1">
+            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="-ml-3 text-gray-400">
+              <ArrowLeft className="w-4 h-4 mr-1.5" aria-hidden="true" />
+              Back
+            </Button>
+            <PageHeader
+              title="Vault"
+              description="Secrets agents can use without ever seeing them. Values are encrypted with your passphrase and are never displayed again."
+            />
+          </div>
+          <VaultPanel />
+        </PageContainer>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The whole vault UI without page chrome — embedded in "Sharing & privacy"
+ * (where users look for it) and in the stand-alone `/vault` page.
+ */
+export function VaultPanel() {
   const [overview, setOverview] = useState<VaultOverview | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -87,20 +114,7 @@ export function VaultPage() {
   const canChange = unlocked && hasUnlockProof()
 
   return (
-    <div className="h-dvh overflow-y-auto bg-[var(--bg-primary)]">
-      <div className="px-4 md:px-6">
-        <PageContainer width="narrow" className="space-y-6">
-          <div className="space-y-1">
-            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="-ml-3 text-gray-400">
-              <ArrowLeft className="w-4 h-4 mr-1.5" aria-hidden="true" />
-              Back
-            </Button>
-            <PageHeader
-              title="Vault"
-              description="Secrets agents can use without ever seeing them. Values are encrypted with your passphrase and are never displayed again."
-            />
-          </div>
-
+    <div className="space-y-6">
           {loadError && (
             <p className="text-sm text-red-400" role="alert">
               {loadError}
@@ -121,8 +135,6 @@ export function VaultPage() {
               <GrantsPanel overview={overview} canChange={canChange} onChange={refresh} />
             </>
           )}
-        </PageContainer>
-      </div>
     </div>
   )
 }
@@ -426,7 +438,7 @@ function GrantsPanel({
 
   return (
     <Section
-      title="Access"
+      title="Agent access"
       count={overview.grants.length}
       description="Who may use what, until when. Grants also work while you are away — as long as the vault is unlocked."
     >

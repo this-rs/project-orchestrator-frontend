@@ -212,7 +212,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
   sharing: {
     singular: 'Sharing',
     plural: 'Sharing & privacy',
-    description: 'What leaves this workspace, and under which policy.',
+    description: 'What leaves this workspace, under which policy — and the secrets agents may use.',
     icon: Share2,
     segment: 'sharing',
     profile: 'all',

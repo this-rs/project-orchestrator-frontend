@@ -19,6 +19,13 @@ const listProjects = vi.hoisted(() => vi.fn())
 const toast = { success: vi.fn(), error: vi.fn() }
 
 vi.mock('@/services', () => ({ sharingApi: sharing, workspacesApi: { listProjects } }))
+vi.mock('@/services/vault', async (orig) => ({
+  ...(await orig<typeof import('@/services/vault')>()),
+  vaultApi: {
+    overview: () =>
+      Promise.resolve({ initialized: false, unlocked_until: null, secret_count: 0, unavailable: null, secrets: [], grants: [], requests: [] }),
+  },
+}))
 vi.mock('@/hooks', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/hooks')>()),
   useToast: () => toast,
@@ -51,6 +58,13 @@ describe('SharingPage', () => {
     sharing.suggest.mockResolvedValue([
       { note_id: 'n2bbbbbbbb', note_type: 'tip', content_preview: 'Cache the graph', shareability_score: 0.8, reason: 'high score' },
     ])
+  })
+
+  it('hosts the secrets vault, instance-wide, above the per-project sharing', async () => {
+    render(<SharingPage />)
+    expect(await screen.findByRole('heading', { name: 'Secrets vault' })).toBeTruthy()
+    // No vault yet: the page offers to create it right here.
+    expect(await screen.findByLabelText('Confirm passphrase')).toBeTruthy()
   })
 
   it('shows the project scope, policy rows, overrides and the privacy report with meaning', async () => {
