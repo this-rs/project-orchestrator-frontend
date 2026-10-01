@@ -170,6 +170,13 @@ describe('AttentionCard — permission', () => {
     expect(screen.getByRole('link', { name: 'Ouvrir la session' })).toBeTruthy()
   })
 
+  it('a session of UNKNOWN state (session=null) is not actionable: no Autoriser, resume instead', () => {
+    setup({ session: null })
+    expect(screen.queryByRole('button', { name: /Autoriser/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Refuser/i })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Reprendre la session' })).toBeTruthy()
+  })
+
   it('a DEAD session asking a question has no free answer field, no one-click answer, and a way back', () => {
     const { onReply } = setup({ request: question, session: { title: 'Agent billing', state: 'dead' } })
     expect(screen.queryByLabelText('Autre réponse')).toBeNull()

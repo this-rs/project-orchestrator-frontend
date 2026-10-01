@@ -124,8 +124,9 @@ export function AttentionCard({
     ? `Permission demandée par la session ${sessionName}`
     : `Question posée par la session ${sessionName}`
 
-  // A dead session can never be authorized: same as an orphan (resume the session instead).
-  const dead = session?.state === 'dead'
+  // A dead session can never be authorized, and neither can one whose state we do not know
+  // (session === null): same as an orphan (resume the session instead).
+  const dead = session?.state !== 'live'
   const orphaned = phase === 'orphaned' || Boolean(notice) || dead
   const locked = phase !== 'idle' || orphaned
   const text = draft ?? localDraft
@@ -179,7 +180,7 @@ export function AttentionCard({
   }
 
   const sending = phase === 'sending'
-  const live = session ? session.state === 'live' : true
+  const live = session?.state === 'live'
   const provenance = provenanceLabels(links, names)
   const btn = 'min-h-9'
 
@@ -197,7 +198,7 @@ export function AttentionCard({
         <RelativeTime date={request.requested_at} prefix="depuis " />
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
           <StatusDot tone={live ? 'success' : 'muted'} />
-          <span className={live ? 'text-emerald-300' : 'text-gray-400'}>{live ? 'vivant' : 'arrêté'}</span>
+          <span className={live ? 'text-emerald-300' : 'text-gray-400'}>{live ? 'vivant' : session ? 'arrêté' : 'état inconnu'}</span>
         </span>
       </div>
 

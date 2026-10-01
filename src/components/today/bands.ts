@@ -71,7 +71,10 @@ export interface Bands {
   empty: boolean
 }
 
-const byAgeDesc = <T extends { age_secs: number }>(a: T, b: T) => b.age_secs - a.age_secs
+/** The waiting entries, oldest first, ties by request id (one rule for the list AND the recommendation). */
+export function compareWaiting(a: WaitingEntry, b: WaitingEntry): number {
+  return b.request.age_secs - a.request.age_secs || a.request.request_id.localeCompare(b.request.request_id)
+}
 
 /** Age (seconds) and identity of a stuck entry: what orders band "À reprendre". */
 export function stuckAge(e: StuckEntry): number {
@@ -107,7 +110,10 @@ export function buildBands(data: AttentionResponse): Bands {
   const sessionState = new Map<string, SessionState>()
   for (const t of data.threads) for (const s of t.sessions) sessionState.set(s.id, s.state)
   for (const u of data.unattached) sessionState.set(u.id, u.state)
-  const isDead = (sessionId: string) => sessionState.get(sessionId) === 'dead'
+  // Only a session KNOWN to be live can be answered: an unknown state is treated like a dead
+  // one (resume it), never "Autoriser" on a session whose state we do not know.
+  const isLive = (sessionId: string) => sessionState.get(sessionId) === 'live'
+  const isDead = (sessionId: string) => !isLive(sessionId)
 
   const orphanIds = new Set(data.orphans.map((o) => o.request_id))
   const deadPendingIds = new Set(
@@ -147,7 +153,7 @@ export function buildBands(data: AttentionResponse): Bands {
       waiting.push({ request, thread: null, unattached: u })
     }
   }
-  waiting.sort((a, b) => byAgeDesc(a.request, b.request))
+  waiting.sort(compareWaiting)
 
   // ---- band 2: what runs, one entry per plan ----
   const running: RunningEntry[] = []

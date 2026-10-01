@@ -2,6 +2,7 @@ import type { Band } from '@/types/attention'
 import {
   STUCK_LABEL,
   compareStuck,
+  compareWaiting,
   type Bands,
   type StuckEntry,
   type WaitingEntry,
@@ -41,11 +42,6 @@ export function ageText(secs: number): string {
   if (s < 3600) return `${Math.floor(s / 60)} min`
   if (s < 86400) return `${Math.floor(s / 3600)} h`
   return `${Math.floor(s / 86400)} j`
-}
-
-/** The waiting entries, oldest first, ties by request id. Exported for the tests. */
-export function compareWaiting(a: WaitingEntry, b: WaitingEntry): number {
-  return b.request.age_secs - a.request.age_secs || a.request.request_id.localeCompare(b.request.request_id)
 }
 
 function stuckWhy(e: StuckEntry): string {

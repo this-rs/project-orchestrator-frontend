@@ -96,6 +96,30 @@ describe('buildBands — a dead session never waits on the user (band 1), its re
   })
 })
 
+describe('buildBands — a session whose state is unknown is NOT actionable', () => {
+  it('a waiting[] request of a session found nowhere goes to band 3 (resume), never to band 1', () => {
+    const base = fixture('four_bands')
+    const known = base.waiting[0]
+    const ghost = { ...known, request_id: 'req_ghost', session_id: 'ghost-session', thread_id: null }
+    const b = buildBands({ ...base, waiting: [ghost] })
+    expect(b.waiting.map((w) => w.request.request_id)).not.toContain('req_ghost')
+    const inBand3 = b.stuck.some((e) => e.kind === 'unattached' && e.session.pending.some((r) => r.request_id === 'req_ghost'))
+    expect(inBand3).toBe(true)
+  })
+})
+
+describe('buildBands — band 1 ties on age are ordered by request id, like the recommendation', () => {
+  it('equal ages: smallest request id first, whatever the payload order', () => {
+    const base = fixture('four_bands')
+    const live = buildBands(base).waiting[0].request
+    const mk = (id: string) => ({ ...live, request_id: id, age_secs: 999999 })
+    const a = buildBands({ ...base, waiting: [mk('req_b'), mk('req_a')] }).waiting.map((w) => w.request.request_id)
+    const b = buildBands({ ...base, waiting: [mk('req_a'), mk('req_b')] }).waiting.map((w) => w.request.request_id)
+    expect(a.slice(0, 2)).toEqual(['req_a', 'req_b'])
+    expect(b.slice(0, 2)).toEqual(['req_a', 'req_b'])
+  })
+})
+
 describe('buildBands: "En cours" is grouped by plan', () => {
   const data = fixture('four_bands')
   const running = data.threads.filter((t) => t.band === 'running')
