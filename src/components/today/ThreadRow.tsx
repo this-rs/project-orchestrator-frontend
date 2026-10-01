@@ -1,6 +1,6 @@
 import { useId, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { StatusDot, StatusIcon } from '@/components/ui/Status'
+import { StatusIcon } from '@/components/ui/Status'
 import { RelativeTime } from '@/components/ui/MetaLine'
 import { focusRing, inlineLink, metaText, provenanceText } from '@/components/ui/classes'
 import { formatCost, formatDurationMs } from '@/components/ui/format'
@@ -11,23 +11,20 @@ import type {
   ResumePreview,
   RunnerState,
   SessionLink,
-  StuckReason,
   UnattachedSession,
   WaitingRequest,
 } from '@/types/attention'
 import { MiniThreadGraph } from './MiniThreadGraph'
 import { ContinueSheet } from './ContinueSheet'
+import { STUCK_LABEL } from './bands'
 
 /**
- * One row per thread of work (bands 2 and 3 of Today). Rows, not cards: they
+ * One row per thread to take back up (section "À reprendre" of Today). Rows, not cards: they
  * sit in a `ThreadRowList` (`divide-y`), no surface, no border, no shadow —
  * elevation carries no hierarchy here (today-ux). The body is the thread's
  * `MiniThreadGraph`.
  *
  * Variants:
- * - `running`  : title, lane, duration, cost (updated IN PLACE, never tweened),
- *                a status dot that pulses only while the run is running; the
- *                title and the graph open the full plan graph.
  * - `stuck`    : the cause in clear, the resume preview EXACTLY as the backend
  *                sent it (`resume`, no computation here), the blocked tasks by
  *                name with a link to unblock them, and "Reprendre". When the
@@ -67,18 +64,10 @@ export const ROW_TEXT = {
   helpQuestion:
     "La session s'est interrompue avant ta réponse. Choisis une option : elle sera envoyée comme message à la reprise.",
   helpLive: 'La session attend ta réponse : elle sera envoyée comme message.',
-  livePermissionElsewhere: 'Cette autorisation se donne dans « T’attend ».',
+  livePermissionElsewhere: 'Cette autorisation se donne dans « À traiter ».',
   /** What the sheet opens with when no option was chosen. */
   defaultMessage: 'Continue.',
 } as const
-
-const STUCK_LABEL: Record<StuckReason, string> = {
-  failed: 'Run échoué',
-  budget_exceeded: 'Budget dépassé',
-  task_blocked: 'Tâche bloquée',
-  session_error: 'Erreur de session',
-  orphan_request: 'Demande restée sans réponse',
-}
 
 /** Message sent on resume once the user picked an option of an orphan question (spike 0.1). */
 export function questionAnswerMessage(question: string, option: string): string {
@@ -196,39 +185,6 @@ function Frame({
 }
 
 // ---------------------------------------------------------------------------
-// Running (band 2)
-// ---------------------------------------------------------------------------
-
-export function RunningThreadRow({ thread, laneName, className }: { thread: AttentionThread } & CommonProps) {
-  const run = thread.run
-  const running = run?.status === 'running'
-  return (
-    <Frame
-      thread={thread}
-      variant="running"
-      className={className}
-      lead={<StatusDot tone="progress" pulse={running} size="md" label={running ? 'En cours' : 'Arrêté'} />}
-      meta={
-        <>
-          <span>{laneName ?? thread.workspace}</span>
-          {run && (
-            // Updated in place: plain text nodes, no key, no tween, no transition.
-            <>
-              <span data-testid="run-duration" className="tabular-nums">
-                {formatDurationMs(run.duration_secs * 1000)}
-              </span>
-              <span data-testid="run-cost" className="tabular-nums">
-                {formatCost(run.cost_usd) ?? '$0.00'}
-              </span>
-            </>
-          )}
-        </>
-      }
-    />
-  )
-}
-
-// ---------------------------------------------------------------------------
 // Stuck (band 3)
 // ---------------------------------------------------------------------------
 
@@ -254,7 +210,7 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
   // else the resume preview's (no front-side computation; works when `resume` is absent).
   const blocked = thread.blocked_tasks.length > 0 ? thread.blocked_tasks : (thread.resume?.skipped_blocked ?? [])
   const reason = thread.stuck_reason
-  const cause = reason ? STUCK_LABEL[reason] : 'Coincé'
+  const cause = reason ? STUCK_LABEL[reason] : 'À reprendre'
 
   // Why the button cannot be used — said before the click.
   let disabledReason: ReactNode = null
@@ -563,15 +519,12 @@ export function UnattachedThreadRow({ session, onSendMessage, laneName, classNam
 // ---------------------------------------------------------------------------
 
 export type ThreadRowProps =
-  | ({ variant: 'running'; thread: AttentionThread } & CommonProps)
   | ({ variant: 'stuck' } & StuckThreadRowProps)
   | ({ variant: 'orphan' } & OrphanThreadRowProps)
   | ({ variant: 'unattached' } & UnattachedThreadRowProps)
 
 export function ThreadRow(props: ThreadRowProps) {
   switch (props.variant) {
-    case 'running':
-      return <RunningThreadRow {...props} />
     case 'stuck':
       return <StuckThreadRow {...props} />
     case 'orphan':

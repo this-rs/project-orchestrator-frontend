@@ -31,65 +31,7 @@ const noSend = async () => {}
 
 const ALLOW = /autoriser|allow|approuver|approve/i
 
-describe('ThreadRow — running (band 2)', () => {
-  const data = fixture('four_bands')
-  const thread = data.threads.find((t) => t.band === 'running')!
-
-  it('shows title, lane, duration and cost, with a graph and a link to the full plan graph', () => {
-    const { container } = renderRow(<ThreadRow variant="running" thread={thread} laneName="Mon couloir" />)
-    expect(screen.getByRole('link', { name: thread.title }).getAttribute('href')).toBe(
-      `/workspace/${thread.workspace}/plans/${thread.plan!.id}#graph`,
-    )
-    expect(screen.getByText('Mon couloir')).toBeTruthy()
-    expect(screen.getByTestId('run-duration').textContent).toBeTruthy()
-    expect(screen.getByTestId('run-cost').textContent).toMatch(/^\$\d+\.\d{2}$/)
-    expect(container.querySelector('[data-state]')).toBeTruthy() // MiniThreadGraph marks
-    expect(screen.queryByRole('button')).toBeNull()
-  })
-
-  it('pulses only while the run runs', () => {
-    const { rerender } = renderRow(<ThreadRow variant="running" thread={thread} />)
-    expect(screen.getByRole('img', { name: 'En cours' }).innerHTML).toContain('animate-ping')
-    const stopped: AttentionThread = { ...thread, run: { ...thread.run!, status: 'failed' } }
-    rerender(
-      <MemoryRouter>
-        <ThreadRowList label="Fils">
-          <ThreadRow variant="running" thread={stopped} />
-        </ThreadRowList>
-      </MemoryRouter>,
-    )
-    expect(screen.getByRole('img', { name: 'Arrêté' }).innerHTML).not.toContain('animate-ping')
-  })
-
-  it('updates cost and duration IN PLACE: same nodes, new text, no transition', () => {
-    const ui = (cost: number, secs: number) => (
-      <MemoryRouter>
-        <ThreadRowList label="Fils">
-          <ThreadRow variant="running" thread={{ ...thread, run: { ...thread.run!, cost_usd: cost, duration_secs: secs } }} />
-        </ThreadRowList>
-      </MemoryRouter>
-    )
-    const { rerender, container } = render(ui(1.0, 60))
-    const cost = screen.getByTestId('run-cost')
-    const dur = screen.getByTestId('run-duration')
-    rerender(ui(1.37, 125))
-    expect(screen.getByTestId('run-cost')).toBe(cost) // not remounted, not tweened
-    expect(screen.getByTestId('run-duration')).toBe(dur)
-    expect(cost.textContent).toBe('$1.37')
-    expect(dur.textContent).toBe('2m')
-    for (const el of [cost, dur]) expect(el.className).not.toMatch(/transition|animate|duration-/)
-    expect(container.innerHTML).not.toMatch(/AnimatedCounter|countup/i)
-  })
-
-  it('is a row, not a card: no surface, border, shadow or rounded box', () => {
-    renderRow(<ThreadRow variant="running" thread={thread} />)
-    const li = document.querySelector('li[data-variant]')!
-    expect(li.className).not.toMatch(/\b(border|shadow|rounded|bg-)/)
-    expect(screen.getByRole('list', { name: 'Fils' }).className).toContain('divide-y')
-  })
-})
-
-describe('ThreadRow — stuck (band 3)', () => {
+describe('ThreadRow — stuck (À reprendre)', () => {
   const blocked = fixture('blocked_task')
   const thread = blocked.threads.find((t) => t.band === 'stuck')!
 
@@ -226,7 +168,7 @@ describe('resumePreviewText (wording of the backend fields, singular and plural)
   })
 })
 
-describe('ThreadRow — orphan (band 3)', () => {
+describe('ThreadRow — orphan (À reprendre)', () => {
   const data = fixture('orphan')
   const thread = data.threads[0]
   const orphan = data.orphans[0]
@@ -456,19 +398,5 @@ describe('layout (360 px, no horizontal scroll)', () => {
     expect(container.innerHTML).not.toMatch(/\bw-\[\d+px\]|\bmin-w-\[\d+px\]|whitespace-nowrap(?!.*tabular)/)
     expect(container.querySelector('li[data-variant]')!.className).toContain('min-w-0')
     expect(container.querySelector('.break-words')).toBeTruthy()
-  })
-
-  it('renders the 40-thread fixture rows without throwing', () => {
-    const data = fixture('forty_threads')
-    renderRow(
-      <>
-        {data.threads
-          .filter((t) => t.band === 'running')
-          .map((t) => (
-            <ThreadRow key={t.id} variant="running" thread={t} />
-          ))}
-      </>,
-    )
-    expect(document.querySelectorAll('li[data-variant]').length).toBeGreaterThan(0)
   })
 })
