@@ -49,12 +49,17 @@ import { ATTENTION_DEBOUNCE_MS } from '@/hooks/useAttention'
 const fixture = (name: string): AttentionResponse =>
   JSON.parse(readFileSync(join(__dirname, '../../services/__fixtures__/attention', `${name}.json`), 'utf8'))
 
-/** A payload whose band 1 holds exactly `n` live pending requests. */
+/**
+ * A payload whose band 1 holds exactly `n` live pending requests. Each request's session is
+ * declared live (a session of unknown state is never actionable, so it would not count).
+ */
 function withWaiting(n: number): AttentionResponse {
   const base = fixture('empty')
   const tpl = fixture('four_bands').waiting[0]
+  const sessionTpl = fixture('unattached_waiting').unattached[0]
   return {
     ...base,
+    unattached: Array.from({ length: n }, (_, i) => ({ ...sessionTpl, id: `s${i}`, state: 'live' as const, pending: [] })),
     waiting: Array.from({ length: n }, (_, i) => ({ ...tpl, request_id: `r${i}`, session_id: `s${i}`, thread_id: null })),
   }
 }
