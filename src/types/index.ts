@@ -53,6 +53,10 @@ export type ComponentType =
   | 'cache'
   | 'gateway'
   | 'external'
+  /** Library or framework — consumed at build time, never deployed alone. */
+  | 'library'
+  /** Command-line tool — an entry point into the system, like a frontend. */
+  | 'cli'
   | 'other'
 
 // ============================================================================
