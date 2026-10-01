@@ -21,13 +21,15 @@ import { WaveSection } from '@/components/runner/WaveSection'
 import { getWaveStatus } from '@/components/runner/shared'
 import { ViewTabs } from '@/components/ui'
 import { Explainer } from '@/components/protocols/Explainer'
-import { DiscussionTreeView } from '@/components/discussions/DiscussionTreeView'
+import { LinkedDiscussions } from '@/components/discussions/LinkedDiscussions'
 import { runnerApi, useRunnerStatus } from '@/services/runner'
 import type { ActiveAgentSnapshot, RunSnapshot } from '@/services/runner'
 import { plansApi } from '@/services/plans'
+import { projectsApi } from '@/services/projects'
+import type { Project } from '@/types'
 import { useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
-import { useAgentExecutionsMap, useLatestPlanRun, useRunRootSession, useWavesData } from '@/hooks/runner'
+import { useAgentExecutionsMap, useLatestPlanRun, useWavesData } from '@/hooks/runner'
 
 type DashboardTab = 'waves' | 'discussions'
 
@@ -41,13 +43,20 @@ export function RunnerDashboard() {
 
   // Plan title (the snapshot only carries the current *task* title)
   const [planTitle, setPlanTitle] = useState<string | null>(null)
+  // The plan's project: where a resumed run starts, and which plans/tasks "Rattacher à…" offers.
+  const [project, setProject] = useState<Project | null>(null)
   useEffect(() => {
     if (!planId) return
     let cancelled = false
     plansApi
       .get(planId)
-      .then((p) => {
-        if (!cancelled) setPlanTitle(p.title)
+      .then(async (p) => {
+        if (cancelled) return
+        setPlanTitle(p.title)
+        if (p.project_id) {
+          const found = ((await projectsApi.list()).items || []).find((x) => x.id === p.project_id) ?? null
+          if (!cancelled) setProject(found)
+        }
       })
       .catch(() => {})
     return () => {
@@ -81,7 +90,6 @@ export function RunnerDashboard() {
 
   const effectiveRunId = effectiveSnapshot?.run_id ?? null
   const executionsMap = useAgentExecutionsMap(effectiveRunId, isRunning)
-  const { rootSessionId, loading: rootSessionLoading } = useRunRootSession(effectiveRunId)
 
   const [activeTab, setActiveTab] = useState<DashboardTab>('waves')
   const [selectedConversation, setSelectedConversation] = useState<{ sessionId: string; taskTitle: string } | null>(null)
@@ -202,6 +210,13 @@ export function RunnerDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable (Jotai setter)
   }, [planId, retryingRun, effectiveSnapshot?.max_cost_usd, refresh])
 
+  const runTaskStatuses = useMemo(() => {
+    const out: Record<string, string> = {}
+    for (const id of latestRun?.failed_tasks ?? []) out[id] = 'failed'
+    for (const a of resolvedAgents) if (a.status === 'failed') out[a.task_id] = 'failed'
+    return out
+  }, [latestRun, resolvedAgents])
+
   // ── Loading / error ──────────────────────────────────────────────────
   if (error && !snapshot && !latestRun) {
     return (
@@ -286,10 +301,19 @@ export function RunnerDashboard() {
               />
             )}
           </>
-        ) : rootSessionId ? (
-          <DiscussionTreeView sessionId={rootSessionId} />
-        ) : rootSessionLoading ? (
-          <EntityListSkeleton rows={3} />
+        ) : effectiveRunId ? (
+          <LinkedDiscussions
+            entity={{ type: 'run', id: effectiveRunId }}
+            projectId={project?.id}
+            projectSlug={project?.slug}
+            onChanged={refresh}
+            resume={{
+              planId,
+              project,
+              run: { id: effectiveRunId, status: effectiveSnapshot.status },
+              taskStatuses: runTaskStatuses,
+            }}
+          />
         ) : (
           <EmptyState title="No discussion sessions" description="No conversation was recorded for this run." />
         )}

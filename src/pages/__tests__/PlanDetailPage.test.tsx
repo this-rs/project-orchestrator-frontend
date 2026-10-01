@@ -12,7 +12,8 @@ const taskList = vi.fn()
 const listSteps = vi.fn()
 const listConstraints = vi.fn()
 const getCommits = vi.fn()
-const getSessions = vi.fn()
+const getPlanSessions = vi.fn()
+const getSessionTree = vi.fn()
 const deleteConstraint = vi.fn()
 const taskUpdate = vi.fn()
 const unlinkFromProject = vi.fn()
@@ -24,7 +25,6 @@ vi.mock('@/services', () => ({
     listConstraints: (...a: unknown[]) => listConstraints(...a),
     getDependencyGraph: vi.fn().mockResolvedValue(null),
     getCommits: (...a: unknown[]) => getCommits(...a),
-    getSessions: (...a: unknown[]) => getSessions(...a),
     deleteConstraint: (...a: unknown[]) => deleteConstraint(...a),
     unlinkFromProject: (...a: unknown[]) => unlinkFromProject(...a),
     updateStatus: vi.fn().mockResolvedValue({}),
@@ -49,6 +49,15 @@ vi.mock('@/services', () => ({
   decisionsApi: { update: vi.fn(), delete: vi.fn() },
   commitsApi: { getCommitFiles: vi.fn().mockResolvedValue({ items: [] }) },
   getEventBus: () => eventBusStub(),
+}))
+vi.mock('@/services/chat', () => ({
+  chatApi: {
+    getPlanSessions: (...a: unknown[]) => getPlanSessions(...a),
+    getTaskSessions: vi.fn(),
+    getRunSessions: vi.fn(),
+    getSessionTree: (...a: unknown[]) => getSessionTree(...a),
+    associateSession: vi.fn(),
+  },
 }))
 vi.mock('@/services/api', () => ({ ApiError: class ApiError extends Error { status = 0 } }))
 vi.mock('@/services/runner', () => ({
@@ -102,7 +111,8 @@ describe('PlanDetailPage', () => {
     ])
     listConstraints.mockResolvedValue([{ id: 'c1', constraint_type: 'security', description: 'No plaintext tokens', severity: 'high' }])
     getCommits.mockResolvedValue({ items: [] })
-    getSessions.mockResolvedValue([])
+    getPlanSessions.mockResolvedValue([])
+    getSessionTree.mockResolvedValue([])
     deleteConstraint.mockResolvedValue({})
     taskUpdate.mockResolvedValue({})
     unlinkFromProject.mockResolvedValue({})
@@ -191,16 +201,23 @@ describe('PlanDetailPage', () => {
     expect(screen.getByTestId('run-history')).toBeTruthy()
   })
 
-  it('lazy-loads conversations on the Conversations tab', async () => {
-    getSessions.mockResolvedValue([
+  it('lazy-loads the discussion TREE of the plan on the Conversations tab (a session attached without parent is a root)', async () => {
+    getPlanSessions.mockResolvedValue([
       { session: { id: 'sess-1234567890', title: 'Plan chat', message_count: 3, created_at: now }, links: { linked_tasks: [{ id: 't1', title: 'Write login form' }], linked_rfcs: [], linked_plans: [] }, source: 'manual' },
+    ])
+    getSessionTree.mockResolvedValue([
+      { session_id: 'sess-1234567890', parent_session_id: 'elsewhere', depth: 1, is_streaming: false },
+      { session_id: 'child-1', parent_session_id: 'sess-1234567890', depth: 1, is_streaming: false, title: 'Sub agent' },
     ])
     renderPage()
     await screen.findByRole('heading', { level: 1, name: 'Auth flow' })
-    expect(getSessions).not.toHaveBeenCalled()
+    expect(getPlanSessions).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('tab', { name: /Conversations/ }))
-    const row = (await screen.findByRole('button', { name: 'Plan chat' })).closest('li')!
-    expect(within(row).getByText('3 msgs')).toBeTruthy()
-    expect(within(row).getByText('Write login form')).toBeTruthy()
+    const root = (await screen.findByText('Plan chat')).closest('[style]') as HTMLElement
+    expect(getPlanSessions).toHaveBeenCalledWith('p1')
+    expect(root.style.paddingLeft).toBe('12px')
+    expect(screen.getByText('Sub agent')).toBeTruthy()
+    expect(screen.getByText(/Write login form/)).toBeTruthy() // the flat list's linked tasks line survives
+    expect(screen.getByTestId('linked-limits')).toBeTruthy()
   })
 })

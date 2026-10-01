@@ -13,7 +13,8 @@ const listSteps = vi.fn()
 const getBlockers = vi.fn()
 const getBlocking = vi.fn()
 const getCommits = vi.fn()
-const getSessions = vi.fn()
+const getTaskSessions = vi.fn()
+const getSessionTree = vi.fn()
 const update = vi.fn()
 const updateStep = vi.fn()
 const deleteStep = vi.fn()
@@ -27,7 +28,6 @@ vi.mock('@/services', () => ({
     getBlockers: (...a: unknown[]) => getBlockers(...a),
     getBlocking: (...a: unknown[]) => getBlocking(...a),
     getCommits: (...a: unknown[]) => getCommits(...a),
-    getSessions: (...a: unknown[]) => getSessions(...a),
     update: (...a: unknown[]) => update(...a),
     updateStep: (...a: unknown[]) => updateStep(...a),
     deleteStep: (...a: unknown[]) => deleteStep(...a),
@@ -45,6 +45,16 @@ vi.mock('@/services', () => ({
   decisionsApi: { update: vi.fn(), delete: vi.fn() },
   commitsApi: { getCommitFiles: vi.fn().mockResolvedValue({ items: [] }) },
   getEventBus: () => eventBusStub(),
+}))
+
+vi.mock('@/services/chat', () => ({
+  chatApi: {
+    getPlanSessions: vi.fn(),
+    getTaskSessions: (...a: unknown[]) => getTaskSessions(...a),
+    getRunSessions: vi.fn(),
+    getSessionTree: (...a: unknown[]) => getSessionTree(...a),
+    associateSession: vi.fn(),
+  },
 }))
 
 installDomStubs()
@@ -94,7 +104,8 @@ describe('TaskDetailPage', () => {
     getBlockers.mockResolvedValue({ items: [{ id: 'tb', description: 'Design tokens', status: 'pending', priority: 2, tags: [], acceptance_criteria: [], affected_files: [], created_at: now }] })
     getBlocking.mockResolvedValue({ items: [{ id: 'tk', title: 'Deploy', status: 'blocked', tags: [], acceptance_criteria: [], affected_files: [], created_at: now }] })
     getCommits.mockResolvedValue({ items: [{ sha: 'abcdef1234567', message: 'feat: login', author: 'theo', timestamp: now, files_changed: ['a', 'b'] }] })
-    getSessions.mockResolvedValue([
+    getSessionTree.mockResolvedValue([])
+    getTaskSessions.mockResolvedValue([
       { session: { id: 'sess-1234567890', title: 'Implement login', message_count: 12, model: 'opus', total_cost_usd: 0.5, created_at: now, cwd: '/Users/me/repo' }, links: { linked_tasks: [], linked_rfcs: [], linked_plans: [] }, source: 'runner' },
     ])
     planGet.mockResolvedValue({ plan: { id: 'p1', title: 'Auth flow' } })
@@ -124,10 +135,14 @@ describe('TaskDetailPage', () => {
     expect(screen.getByRole('link', { name: 'Deploy' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Use react-hook-form' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'feat: login' })).toBeTruthy()
-    const session = screen.getByRole('button', { name: 'Implement login' }).closest('li')!
-    expect(within(session).getByText('12 msgs')).toBeTruthy()
-    expect(within(session).getByText('$0.50')).toBeTruthy()
-    expect(within(session).getByText('~/repo')).toBeTruthy()
+    // Conversations: the discussion tree of the task, with the old row's useful facts
+    const node = (await screen.findByText('Implement login')).closest('[style]')!.parentElement!
+    expect(getTaskSessions).toHaveBeenCalledWith('t1')
+    expect(within(node).getByText('12')).toBeTruthy()
+    expect(within(node).getByText('$0.50')).toBeTruthy()
+    expect(within(node).getByText(/~\/repo/)).toBeTruthy()
+    expect(within(node).getByText('runner')).toBeTruthy()
+    expect(screen.getByTestId('linked-limits')).toBeTruthy()
     // Details facts
     expect(screen.getByText('Actual complexity')).toBeTruthy()
     expect(screen.getByText('t1')).toBeTruthy()

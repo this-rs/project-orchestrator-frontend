@@ -6,7 +6,7 @@
  * Clickable to select and view the inline conversation.
  */
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   ChevronRight,
   ChevronDown,
@@ -80,6 +80,8 @@ interface DiscussionNodeRowProps {
   depth: number
   selectedSessionId: string | null
   onSelectNode: (sessionId: string) => void
+  /** Buttons shown under the node (attach, resume...). Return null for none. */
+  renderActions?: (node: DiscussionNode) => ReactNode
 }
 
 export function DiscussionNodeRow({
@@ -87,6 +89,7 @@ export function DiscussionNodeRow({
   depth,
   selectedSessionId,
   onSelectNode,
+  renderActions,
 }: DiscussionNodeRowProps) {
   const [expanded, setExpanded] = useState(true)
   const children = node.children ?? []
@@ -96,6 +99,9 @@ export function DiscussionNodeRow({
   const StatusIcon = cfg.icon
 
   const title = node.title || node.metadata?.task_id || 'Untitled session'
+  const actions = renderActions?.(node)
+  const { source, detail } = node.metadata ?? {}
+  const indent = { paddingLeft: `${12 + depth * 20 + 44}px` }
 
   return (
     <div>
@@ -170,6 +176,18 @@ export function DiscussionNodeRow({
         </div>
       </div>
 
+      {(source || detail) && (
+        <p className="pr-3 text-[11px] leading-4 text-gray-500 break-words" style={indent} data-testid="node-detail">
+          {source && <span className="mr-2 text-gray-400">{source}</span>}
+          {detail}
+        </p>
+      )}
+      {actions && (
+        <div className="flex flex-wrap items-start gap-x-2 gap-y-1 pb-1 pr-3" style={indent} data-testid="node-actions">
+          {actions}
+        </div>
+      )}
+
       {/* Children */}
       {hasChildren && expanded && (
         <div>
@@ -180,6 +198,7 @@ export function DiscussionNodeRow({
               depth={depth + 1}
               selectedSessionId={selectedSessionId}
               onSelectNode={onSelectNode}
+              renderActions={renderActions}
             />
           ))}
         </div>
