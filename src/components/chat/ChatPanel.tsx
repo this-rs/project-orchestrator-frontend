@@ -8,6 +8,7 @@ import { ChatMessages } from './ChatMessages'
 import { ChatSessionProvider } from './ChatSessionContext'
 import { ChatInput, type PrefillPayload } from './ChatInput'
 import { CompactionBanner } from './CompactionBanner'
+import { SecretRequestTray } from './SecretRequestTray'
 import { DetachedRunsPanel } from './DetachedRunsPanel'
 import { AgenticModeBanner } from './AgenticModeBanner'
 import { AgenticModePill } from './AgenticModePill'
@@ -531,6 +532,7 @@ export function ChatPanel() {
                   selectedProject={selectedProject}
                 />
                 <CompactionBanner visible={chat.isCompacting} />
+                <SecretRequestTray sessionId={chat.sessionId} />
                 <ChatInput
                   onSend={handleSend}
                   onInterrupt={chat.interrupt}
@@ -762,6 +764,7 @@ export function ChatPanel() {
             selectedProject={selectedProject}
           />
           <CompactionBanner visible={chat.isCompacting} />
+          <SecretRequestTray sessionId={chat.sessionId} />
           <ChatInput
             onSend={handleSend}
             onInterrupt={chat.interrupt}

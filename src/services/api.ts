@@ -162,6 +162,9 @@ export const api = {
     request<T>(endpoint, { method: 'DELETE', signal }),
 }
 
+/** Low-level request, for the rare call that needs extra headers. */
+export const apiRequest = request
+
 // Query string builder
 export function buildQuery(params: object): string {
   const searchParams = new URLSearchParams()
