@@ -349,7 +349,7 @@ export function MainLayout() {
  *
  * /workspace/my-ws/plans/abc → My Workspace / Plans / Auth flow (title published by PageHeader)
  */
-function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceName?: string }) {
+export function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceName?: string }) {
   const parts = pathname.split('/').filter(Boolean)
 
   // Strip "workspace" and the slug from the display
