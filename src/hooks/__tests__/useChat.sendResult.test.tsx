@@ -123,24 +123,29 @@ describe('useChat (regression: a failed ws.send must not apply optimistic effect
     expect(askBlock(result)).toBeDefined()
 
     FakeWS.sendResult = false
+    let ok: boolean | void = true
     await act(async () => {
-      await result.current.respondInput('q1', 'yes')
+      ok = await result.current.respondInput('q1', 'yes')
     })
+    expect(ok).toBe(false)
     expect(askBlock(result)?.metadata?.submitted).not.toBe(true)
 
     FakeWS.sendResult = true
     await act(async () => {
-      await result.current.respondInput('q1', 'yes')
+      ok = await result.current.respondInput('q1', 'yes')
     })
+    expect(ok).toBe(true)
     expect(askBlock(result)?.metadata?.submitted).toBe(true)
   })
 
   it('respondPermission does not remember the tool when send fails', async () => {
     const { result, store } = await setup()
     FakeWS.sendResult = false
+    let ok: boolean | void = true
     await act(async () => {
-      await result.current.respondPermission('t1', true, { toolName: 'Bash' })
+      ok = await result.current.respondPermission('t1', true, { toolName: 'Bash' })
     })
+    expect(ok).toBe(false)
     expect(store.get(chatAutoApprovedToolsAtom).has('Bash')).toBe(false)
 
     FakeWS.sendResult = true
@@ -166,5 +171,27 @@ describe('useChat (regression: a failed ws.send must not apply optimistic effect
       result.current.sendContinue()
     })
     expect(store.get(chatStreamingAtom)).toBe(true)
+  })
+
+  it('a remembered tool is not shown as auto-approved when the auto-response was not delivered', async () => {
+    const { result, store, ws } = await setup()
+    await act(async () => {
+      await result.current.respondPermission('t0', true, { toolName: 'Bash' }) // remember Bash
+    })
+    expect(store.get(chatAutoApprovedToolsAtom).has('Bash')).toBe(true)
+    const permBlock = () =>
+      result.current.messages.flatMap((m) => m.blocks).find((b) => b.type === 'permission_request')
+
+    FakeWS.sendResult = false
+    act(() => {
+      ws.callbacks.onEvent({ type: 'permission_request', id: 'p1', tool: 'Bash', input: {} })
+    })
+    expect(permBlock()?.metadata?.auto_approved).not.toBe(true)
+
+    FakeWS.sendResult = true
+    act(() => {
+      ws.callbacks.onEvent({ type: 'permission_request', id: 'p2', tool: 'Bash', input: {} })
+    })
+    expect(result.current.messages.flatMap((m) => m.blocks).some((b) => b.metadata?.auto_approved === true)).toBe(true)
   })
 })

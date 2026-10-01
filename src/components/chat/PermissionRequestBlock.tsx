@@ -159,7 +159,7 @@ function CategoryIcon({ category, className }: { category: ToolCategory; classNa
 
 interface PermissionRequestBlockProps {
   block: ContentBlock
-  onRespond: (toolCallId: string, allowed: boolean, remember?: { toolName: string }) => void
+  onRespond: (toolCallId: string, allowed: boolean, remember?: { toolName: string }) => boolean | void
   disabled?: boolean
 }
 
@@ -188,6 +188,7 @@ export function PermissionRequestBlock({
   const [decision, setDecision] = useState<'allowed' | 'denied' | null>(initialDecision)
   const [rememberChecked, setRememberChecked] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
+  const [sendFailed, setSendFailed] = useState(false)
 
   // Sync with persisted decision arriving via broadcast after initial render
   if (persistedDecision && !responded) {
@@ -205,10 +206,16 @@ export function PermissionRequestBlock({
 
   const handleRespond = (allowed: boolean) => {
     if (responded) return
+    const remember = rememberChecked && allowed ? { toolName } : undefined
+    // Only show the decision once it was actually delivered: on a dead socket
+    // onRespond returns false and the agent is still waiting for an answer.
+    if (onRespond(toolCallId, allowed, remember) === false) {
+      setSendFailed(true)
+      return
+    }
+    setSendFailed(false)
     setResponded(true)
     setDecision(allowed ? 'allowed' : 'denied')
-    const remember = rememberChecked && allowed ? { toolName } : undefined
-    onRespond(toolCallId, allowed, remember)
   }
 
   const isPending = !responded && !disabled
@@ -330,6 +337,11 @@ export function PermissionRequestBlock({
             <span className="text-[10px] text-gray-500">Remember</span>
           </label>
         </div>
+        {sendFailed && (
+          <p role="alert" className="mt-1.5 text-[10px] text-red-400">
+            Not sent: connection lost. Try again once reconnected.
+          </p>
+        )}
       </div>
     </div>
   )

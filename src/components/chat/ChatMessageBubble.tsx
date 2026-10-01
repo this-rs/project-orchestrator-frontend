@@ -143,8 +143,8 @@ function formatDuration(ms: number): string {
 interface ChatMessageBubbleProps {
   message: ChatMessage
   isStreaming?: boolean
-  onRespondPermission: (toolCallId: string, allowed: boolean, remember?: { toolName: string }) => void
-  onRespondInput: (requestId: string, response: string) => void
+  onRespondPermission: (toolCallId: string, allowed: boolean, remember?: { toolName: string }) => boolean | void
+  onRespondInput: (requestId: string, response: string) => boolean | void
   onContinue?: () => void
 }
 

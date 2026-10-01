@@ -4,7 +4,7 @@ import { Check } from 'lucide-react'
 
 interface AskUserQuestionBlockProps {
   block: ContentBlock
-  onRespond: (requestId: string, response: string) => void
+  onRespond: (requestId: string, response: string) => boolean | void
   disabled?: boolean
 }
 
@@ -18,6 +18,7 @@ export function AskUserQuestionBlock({ block, onRespond, disabled }: AskUserQues
   const [selections, setSelections] = useState<Map<number, Set<number>>>(() => new Map())
   const [freeText, setFreeText] = useState('')
   const [submitted, setSubmitted] = useState(persistedSubmitted)
+  const [sendFailed, setSendFailed] = useState(false)
 
   const toggleOption = useCallback((questionIndex: number, optionIndex: number, multiSelect: boolean) => {
     setSelections((prev) => {
@@ -75,9 +76,15 @@ export function AskUserQuestionBlock({ block, onRespond, disabled }: AskUserQues
     const response = formatResponse()
     if (!response) return
 
-    setSubmitted(true)
     const toolCallId = (block.metadata?.tool_call_id as string) || block.id
-    onRespond(toolCallId, response)
+    // Only flip to "submitted" once the answer actually left: a dead socket
+    // makes onRespond return false and the question must stay answerable.
+    if (onRespond(toolCallId, response) === false) {
+      setSendFailed(true)
+      return
+    }
+    setSendFailed(false)
+    setSubmitted(true)
   }, [formatResponse, onRespond, block.id, block.metadata?.tool_call_id])
 
   // Check if at least one option is selected or free text is provided
@@ -249,6 +256,12 @@ export function AskUserQuestionBlock({ block, onRespond, disabled }: AskUserQues
             Submit
           </button>
         </div>
+      )}
+
+      {sendFailed && !submitted && (
+        <p role="alert" className="text-xs text-red-400">
+          Not sent: connection lost. Your answer is kept, try again once reconnected.
+        </p>
       )}
 
       {/* Just-submitted summary (before metadata is persisted) */}
