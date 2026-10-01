@@ -1,4 +1,4 @@
-import type { Band } from '@/types/attention'
+import type { Band, RunnerState } from '@/types/attention'
 import {
   STUCK_LABEL,
   compareStuck,
@@ -23,9 +23,13 @@ import {
  * string order), so the answer never depends on the order of the payload.
  * "Oldest" is the backend's `age_secs`, taken as is.
  *
- * Honesty: when a source of the payload failed for "À traiter" or "À reprendre",
- * (c) and (d) would claim something unknown ("rien ne te bloque"): the result is then
- * `incomplete`, which says so instead.
+ * Only POSSIBLE actions are recommended: a stopped thread whose "Reprendre" is disabled
+ * (the runner is busy with another plan, or the thread has no plan to run) is skipped for
+ * the next one; when none can be resumed, the result is `blocked` and says so.
+ *
+ * Honesty: when a source of the payload failed for "À traiter", "À reprendre" or "En cours",
+ * (c) and (d) would claim something unknown ("rien ne te bloque", "rien n'est en cours"):
+ * the result is then `incomplete`, which says so instead.
  */
 
 export type StartHere =
@@ -33,6 +37,8 @@ export type StartHere =
   | { kind: 'stuck'; entry: StuckEntry; why: string }
   | { kind: 'calm'; running: number; title: string; why: string }
   | { kind: 'incomplete'; title: string; why: string }
+  /** Something is stopped, but nothing of it can be resumed right now (the runner is busy). */
+  | { kind: 'blocked'; title: string; why: string }
   | { kind: 'empty'; title: string; why: string }
 
 /** Age in words: "moins d'une minute", "12 min", "7 h", "3 j". */
@@ -57,7 +63,17 @@ function stuckWhy(e: StuckEntry): string {
   }
 }
 
-export function recommendStart(bands: Bands, incomplete: readonly Band[] = []): StartHere {
+/** Can the user act on this stuck entry now? A thread needs the runner (and a plan); a request needs only a message. */
+function canAct(e: StuckEntry, runner: RunnerState | null): boolean {
+  if (e.kind !== 'stuck') return true
+  return runner?.status !== 'busy' && e.thread.plan !== null
+}
+
+export function recommendStart(
+  bands: Bands,
+  incomplete: readonly Band[] = [],
+  runner: RunnerState | null = null,
+): StartHere {
   if (bands.waiting.length > 0) {
     const entry = [...bands.waiting].sort(compareWaiting)[0]
     const n = bands.waiting.length
@@ -69,14 +85,23 @@ export function recommendStart(bands: Bands, incomplete: readonly Band[] = []): 
     }
   }
   if (bands.stuck.length > 0) {
-    const entry = [...bands.stuck].sort(compareStuck)[0]
-    return { kind: 'stuck', entry, why: stuckWhy(entry) }
+    const entry = [...bands.stuck].sort(compareStuck).find((e) => canAct(e, runner))
+    if (entry) return { kind: 'stuck', entry, why: stuckWhy(entry) }
+    const n = bands.stuck.length
+    const holder = runner?.status === 'busy' ? runner.busy_with?.plan_title : null
+    return {
+      kind: 'blocked',
+      title: 'Rien que tu puisses reprendre maintenant',
+      why: `${n === 1 ? 'un fil est à reprendre' : `${n} fils sont à reprendre`}, mais ${
+        holder ? `le runner est occupé par le plan « ${holder} »` : 'aucune reprise n\'est possible pour le moment'
+      }`,
+    }
   }
-  if (incomplete.includes('waiting') || incomplete.includes('stuck')) {
+  if (incomplete.includes('waiting') || incomplete.includes('stuck') || incomplete.includes('running')) {
     return {
       kind: 'incomplete',
       title: 'Je ne peux pas dire par quoi commencer',
-      why: "une source n'a pas répondu : ce qui demande ta réponse ou s'est arrêté n'est peut-être pas affiché",
+      why: "une source n'a pas répondu : ce qui demande ta réponse, s'est arrêté ou est en cours n'est peut-être pas affiché",
     }
   }
   const n = bands.counts.running

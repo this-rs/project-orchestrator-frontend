@@ -419,7 +419,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
   }
 
   const incomplete = errors.flatMap((e) => e.bands)
-  const start = bands && state === 'ready' ? recommendStart(bands, incomplete) : null
+  const start = bands && state === 'ready' ? recommendStart(bands, incomplete, data?.runner ?? null) : null
 
   return (
     <div className="space-y-6">
@@ -437,7 +437,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
             </div>
           ) : (
             <>
-              {(start.kind === 'calm' || start.kind === 'incomplete' || start.kind === 'empty') && (
+              {(start.kind === 'calm' || start.kind === 'incomplete' || start.kind === 'blocked' || start.kind === 'empty') && (
                 <p data-testid="start-title" className="text-sm text-gray-100">
                   {start.title}
                 </p>

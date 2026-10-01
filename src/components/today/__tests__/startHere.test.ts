@@ -114,6 +114,36 @@ describe('recommendStart (b) the oldest stuck or resumable item', () => {
   })
 })
 
+describe('recommendStart (b) only recommends actions that are possible', () => {
+  const base = fixture('blocked_task')
+  const stuckThread = base.threads.find((t) => t.band === 'stuck')!
+  const busy = {
+    status: 'busy' as const,
+    busy_with: { plan_id: 'other', plan_title: 'Autre plan', run_id: 'r9', workspace: 'studio', since: '2026-10-01T10:00:00Z' },
+  }
+
+  it('busy runner: skips the older thread (Reprendre disabled) for an orphan request, which only needs a message', () => {
+    const o = fixture('orphan')
+    const older = { ...stuckThread, id: 'older', age_secs: 900000 }
+    const bands = buildBands({ ...nothing(o), threads: [older, ...o.threads], orphans: o.orphans })
+    const r = recommendStart(bands, [], busy)
+    expect(r.kind).toBe('stuck')
+    expect(r.kind === 'stuck' && r.entry.kind).not.toBe('stuck')
+  })
+
+  it('busy runner, only stuck threads: says honestly nothing can be resumed now, and why', () => {
+    const bands = buildBands({ ...nothing(base), threads: [stuckThread] })
+    const r = recommendStart(bands, [], busy)
+    expect(r.kind).toBe('blocked')
+    expect(r.why).toContain('Autre plan')
+  })
+
+  it('free runner: the oldest thread is still recommended', () => {
+    const bands = buildBands({ ...nothing(base), threads: [stuckThread] })
+    expect(recommendStart(bands, [], { status: 'free', busy_with: null }).kind).toBe('stuck')
+  })
+})
+
 describe('recommendStart (c) nothing blocks, some threads advance alone', () => {
   const four = fixture('four_bands')
   const running = four.threads.filter((t) => t.band === 'running')
@@ -133,6 +163,11 @@ describe('recommendStart (c) nothing blocks, some threads advance alone', () => 
     const one = buildBands({ ...nothing(four), threads: [running[0]] })
     const r = recommendStart(one)
     expect(r.kind === 'calm' && r.title).toBe('Rien ne te bloque : 1 fil avance seul')
+  })
+
+  it('does NOT claim calm or empty when the "En cours" source failed', () => {
+    expect(recommendStart(calm, ['running']).kind).toBe('incomplete')
+    expect(recommendStart(buildBands(nothing(four)), ['running']).kind).toBe('incomplete')
   })
 
   it('does NOT claim calm when the source of "À traiter" or "À reprendre" failed', () => {
