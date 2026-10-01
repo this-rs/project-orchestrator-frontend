@@ -354,7 +354,8 @@ export function DeploymentsPage() {
   }
 
   /** Close an in-flight deployment without opening a form. */
-  const settle = async (deploymentId: string, status: DeploymentStatus) => {
+  const settle = async (deploymentId: string | undefined, status: DeploymentStatus) => {
+    if (!deploymentId) return
     try {
       await environmentsApi.updateDeployment(deploymentId, { status })
       toast.success(`Marked ${STATUS[status].label.toLowerCase()}`)
@@ -407,20 +408,21 @@ export function DeploymentsPage() {
                   .sort((a, b) => KIND_ORDER[a.environment.kind] - KIND_ORDER[b.environment.kind])
                   .map(({ environment: env, latest_deployment: dep, recent_statuses }) => {
                     const st = dep ? STATUS[dep.status] : null
-                    const inFlight = dep && (dep.status === 'pending' || dep.status === 'running')
+                    // The deployment still open, if any — settling needs its id.
+                    const inFlight = dep && (dep.status === 'pending' || dep.status === 'running') ? dep : null
                     const actions: OverflowMenuAction[] = [
                       { label: 'Record a deployment', icon: Rocket, onClick: () => setDeployTarget(env) },
                       {
                         label: 'Mark succeeded',
                         icon: CheckCircle2,
                         hidden: !inFlight,
-                        onClick: () => dep && settle(dep.id, 'succeeded'),
+                        onClick: () => settle(inFlight?.id, 'succeeded'),
                       },
                       {
                         label: 'Mark failed',
                         icon: XCircle,
                         hidden: !inFlight,
-                        onClick: () => dep && settle(dep.id, 'failed'),
+                        onClick: () => settle(inFlight?.id, 'failed'),
                       },
                       {
                         label: 'Edit',
