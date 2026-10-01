@@ -1,0 +1,429 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import { parseAttentionResponse } from '@/services/attention'
+import type { AttentionResponse, AttentionThread } from '@/types/attention'
+import {
+  ThreadRow,
+  ThreadRowList,
+  linkProvenance,
+  questionAnswerMessage,
+  resumePreviewText,
+  ROW_TEXT,
+} from '../ThreadRow'
+
+const fixture = (name: string): AttentionResponse =>
+  parseAttentionResponse(
+    JSON.parse(readFileSync(join(__dirname, '../../../services/__fixtures__/attention', `${name}.json`), 'utf8')),
+  )
+
+const renderRow = (ui: React.ReactNode) =>
+  render(
+    <MemoryRouter>
+      <ThreadRowList label="Fils">{ui}</ThreadRowList>
+    </MemoryRouter>,
+  )
+
+const noResume = async () => {}
+const noSend = async () => {}
+
+const ALLOW = /autoriser|allow|approuver|approve/i
+
+describe('ThreadRow — running (band 2)', () => {
+  const data = fixture('four_bands')
+  const thread = data.threads.find((t) => t.band === 'running')!
+
+  it('shows title, lane, duration and cost, with a graph and a link to the full plan graph', () => {
+    const { container } = renderRow(<ThreadRow variant="running" thread={thread} laneName="Mon couloir" />)
+    expect(screen.getByRole('link', { name: thread.title }).getAttribute('href')).toBe(
+      `/workspace/${thread.workspace}/plans/${thread.plan!.id}#graph`,
+    )
+    expect(screen.getByText('Mon couloir')).toBeTruthy()
+    expect(screen.getByTestId('run-duration').textContent).toBeTruthy()
+    expect(screen.getByTestId('run-cost').textContent).toMatch(/^\$\d+\.\d{2}$/)
+    expect(container.querySelector('[data-state]')).toBeTruthy() // MiniThreadGraph marks
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('pulses only while the run runs', () => {
+    const { rerender } = renderRow(<ThreadRow variant="running" thread={thread} />)
+    expect(screen.getByRole('img', { name: 'En cours' }).innerHTML).toContain('animate-ping')
+    const stopped: AttentionThread = { ...thread, run: { ...thread.run!, status: 'failed' } }
+    rerender(
+      <MemoryRouter>
+        <ThreadRowList label="Fils">
+          <ThreadRow variant="running" thread={stopped} />
+        </ThreadRowList>
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('img', { name: 'Arrêté' }).innerHTML).not.toContain('animate-ping')
+  })
+
+  it('updates cost and duration IN PLACE: same nodes, new text, no transition', () => {
+    const ui = (cost: number, secs: number) => (
+      <MemoryRouter>
+        <ThreadRowList label="Fils">
+          <ThreadRow variant="running" thread={{ ...thread, run: { ...thread.run!, cost_usd: cost, duration_secs: secs } }} />
+        </ThreadRowList>
+      </MemoryRouter>
+    )
+    const { rerender, container } = render(ui(1.0, 60))
+    const cost = screen.getByTestId('run-cost')
+    const dur = screen.getByTestId('run-duration')
+    rerender(ui(1.37, 125))
+    expect(screen.getByTestId('run-cost')).toBe(cost) // not remounted, not tweened
+    expect(screen.getByTestId('run-duration')).toBe(dur)
+    expect(cost.textContent).toBe('$1.37')
+    expect(dur.textContent).toBe('2m')
+    for (const el of [cost, dur]) expect(el.className).not.toMatch(/transition|animate|duration-/)
+    expect(container.innerHTML).not.toMatch(/AnimatedCounter|countup/i)
+  })
+
+  it('is a row, not a card: no surface, border, shadow or rounded box', () => {
+    renderRow(<ThreadRow variant="running" thread={thread} />)
+    const li = document.querySelector('li[data-variant]')!
+    expect(li.className).not.toMatch(/\b(border|shadow|rounded|bg-)/)
+    expect(screen.getByRole('list', { name: 'Fils' }).className).toContain('divide-y')
+  })
+})
+
+describe('ThreadRow — stuck (band 3)', () => {
+  const blocked = fixture('blocked_task')
+  const thread = blocked.threads.find((t) => t.band === 'stuck')!
+
+  it('says the cause, names the blocked task with a link to unblock it, and shows the backend preview as is', () => {
+    renderRow(<ThreadRow variant="stuck" thread={thread} runner={blocked.runner} onResume={noResume} />)
+    expect(screen.getByText('Tâche bloquée')).toBeTruthy()
+    const box = screen.getByTestId('blocked-tasks')
+    const link = within(box).getByRole('link', { name: 'Configurer le webhook de paiement' })
+    expect(link.getAttribute('href')).toBe(`/workspace/${thread.workspace}/tasks/${thread.resume!.skipped_blocked[0].id}`)
+    expect(box.textContent).toContain(ROW_TEXT.unblockFirst)
+    expect(screen.getByTestId('resume-preview').textContent).toBe('2 faites et 1 bloquée seront sautées, 1 relancée')
+  })
+
+  it('shows the preview from the backend numbers without computing anything', () => {
+    const t: AttentionThread = {
+      ...thread,
+      resume: { done_count: 4, skipped_blocked: [{ id: 'a', title: 'A' }], rerun_count: 2 },
+    }
+    renderRow(<ThreadRow variant="stuck" thread={t} runner={blocked.runner} onResume={noResume} />)
+    expect(screen.getByTestId('resume-preview').textContent).toBe('4 faites et 1 bloquée seront sautées, 2 relancées')
+  })
+
+  it('names the blocked tasks BEFORE the click: the list precedes the Reprendre button in the DOM', () => {
+    renderRow(<ThreadRow variant="stuck" thread={thread} runner={blocked.runner} onResume={noResume} />)
+    const names = screen.getByTestId('blocked-tasks')
+    const button = screen.getByRole('button', { name: ROW_TEXT.resume })
+    expect(names.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('Reprendre calls onResume once with the thread (the page does POST /run)', async () => {
+    const onResume = vi.fn().mockResolvedValue(undefined)
+    renderRow(<ThreadRow variant="stuck" thread={thread} runner={blocked.runner} onResume={onResume} />)
+    fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resume }))
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe(ROW_TEXT.resumeStarted))
+    expect(onResume).toHaveBeenCalledTimes(1)
+    expect(onResume).toHaveBeenCalledWith(thread)
+    // No double start.
+    expect((screen.getByRole('button', { name: ROW_TEXT.resume }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('a failed resume says why and stays retryable', async () => {
+    const onResume = vi.fn().mockRejectedValue(new Error('boom'))
+    renderRow(<ThreadRow variant="stuck" thread={thread} runner={blocked.runner} onResume={onResume} />)
+    fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resume }))
+    expect((await screen.findByRole('alert')).textContent).toBe('boom')
+    expect((screen.getByRole('button', { name: ROW_TEXT.resume }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  describe('runner busy', () => {
+    const busy = fixture('runner_busy')
+    const stuck = busy.threads.find((t) => t.band === 'stuck')!
+
+    it('disables the button, says who holds the runner, links to that plan, and never calls onResume', () => {
+      const onResume = vi.fn()
+      renderRow(<ThreadRow variant="stuck" thread={stuck} runner={busy.runner} onResume={onResume} />)
+      const button = screen.getByRole('button', { name: ROW_TEXT.resume }) as HTMLButtonElement
+      expect(button.disabled).toBe(true)
+      const reason = screen.getByTestId('resume-disabled-reason')
+      expect(reason.textContent).toBe(`${ROW_TEXT.runnerBusy} ${busy.runner.busy_with!.plan_title}`)
+      expect(within(reason).getByRole('link').getAttribute('href')).toBe(
+        `/workspace/${busy.runner.busy_with!.workspace}/plans/${busy.runner.busy_with!.plan_id}`,
+      )
+      fireEvent.click(button)
+      expect(onResume).not.toHaveBeenCalled()
+    })
+
+    it('stays enabled when the runner is free', () => {
+      renderRow(<ThreadRow variant="stuck" thread={stuck} runner={{ status: 'free', busy_with: null }} onResume={noResume} />)
+      expect((screen.getByRole('button', { name: ROW_TEXT.resume }) as HTMLButtonElement).disabled).toBe(false)
+      expect(screen.queryByTestId('resume-disabled-reason')).toBeNull()
+    })
+  })
+
+  it('disables with a reason when there is no plan or no preview', () => {
+    const noPlan: AttentionThread = { ...thread, plan: null }
+    const { unmount } = renderRow(<ThreadRow variant="stuck" thread={noPlan} runner={blocked.runner} onResume={noResume} />)
+    expect((screen.getByRole('button', { name: ROW_TEXT.resume }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByTestId('resume-disabled-reason').textContent).toBe(ROW_TEXT.noPlan)
+    unmount()
+    renderRow(<ThreadRow variant="stuck" thread={{ ...thread, resume: null }} runner={blocked.runner} onResume={noResume} />)
+    expect(screen.getByTestId('resume-disabled-reason').textContent).toBe(ROW_TEXT.noPreview)
+    expect(screen.queryByTestId('resume-preview')).toBeNull()
+  })
+
+  it('says each stuck cause in clear', () => {
+    const cases = { failed: 'Run échoué', budget_exceeded: 'Budget dépassé', session_error: 'Erreur de session' } as const
+    for (const [reason, text] of Object.entries(cases)) {
+      const { unmount } = renderRow(
+        <ThreadRow
+          variant="stuck"
+          thread={{ ...thread, stuck_reason: reason as keyof typeof cases, blocked_tasks: [], resume: { done_count: 0, skipped_blocked: [], rerun_count: 3 } }}
+          runner={blocked.runner}
+          onResume={noResume}
+        />,
+      )
+      expect(screen.getByText(text)).toBeTruthy()
+      expect(screen.queryByTestId('blocked-tasks')).toBeNull()
+      expect(screen.getByTestId('resume-preview').textContent).toBe('3 relancées')
+      unmount()
+    }
+  })
+
+  it('has no Allow button', () => {
+    renderRow(<ThreadRow variant="stuck" thread={thread} runner={blocked.runner} onResume={noResume} />)
+    expect(screen.queryByRole('button', { name: ALLOW })).toBeNull()
+  })
+})
+
+describe('resumePreviewText (wording of the backend fields, singular and plural)', () => {
+  const t = (id: string) => ({ id, title: id })
+  it.each([
+    [{ done_count: 4, skipped_blocked: [t('a')], rerun_count: 2 }, '4 faites et 1 bloquée seront sautées, 2 relancées'],
+    [{ done_count: 1, skipped_blocked: [t('a'), t('b')], rerun_count: 1 }, '1 faite et 2 bloquées seront sautées, 1 relancée'],
+    [{ done_count: 0, skipped_blocked: [t('a')], rerun_count: 0 }, '1 bloquée sera sautée, aucune relancée'],
+    [{ done_count: 1, skipped_blocked: [], rerun_count: 2 }, '1 faite sera sautée, 2 relancées'],
+    [{ done_count: 5, skipped_blocked: [], rerun_count: 0 }, '5 faites seront sautées, aucune relancée'],
+    [{ done_count: 0, skipped_blocked: [], rerun_count: 4 }, '4 relancées'],
+  ])('%j', (preview, text) => {
+    expect(resumePreviewText(preview)).toBe(text)
+  })
+})
+
+describe('ThreadRow — orphan (band 3)', () => {
+  const data = fixture('orphan')
+  const thread = data.threads[0]
+  const orphan = data.orphans[0]
+  const send = (onSendMessage = vi.fn().mockResolvedValue(undefined)) => {
+    renderRow(<ThreadRow variant="orphan" thread={thread} orphan={orphan} onSendMessage={onSendMessage} />)
+    return onSendMessage
+  }
+
+  it('shows what was asked in full, since when the CLI stopped, and the spike help text', () => {
+    send()
+    expect(screen.getByTestId('request-text').textContent).toBe(orphan.text)
+    expect(screen.getByText(/Permission demandée \(Bash\)/)).toBeTruthy()
+    expect(screen.getByText(/CLI arrêté depuis/)).toBeTruthy()
+    expect(screen.getByText(ROW_TEXT.helpPermission)).toBeTruthy()
+  })
+
+  it('says when the stop date is unknown', () => {
+    renderRow(
+      <ThreadRow variant="orphan" thread={thread} orphan={{ ...orphan, cli_stopped_at: null }} onSendMessage={noSend} />,
+    )
+    expect(screen.getByText('CLI arrêté (date inconnue)')).toBeTruthy()
+  })
+
+  it('NEVER offers an Allow / Autoriser button — row, permission or question, sheet open or closed', () => {
+    for (const o of [orphan, { ...orphan, kind: 'question' as const, tool_name: null, options: [{ label: 'Oui', description: null }] }]) {
+      const { unmount } = renderRow(<ThreadRow variant="orphan" thread={thread} orphan={o} onSendMessage={noSend} />)
+      expect(screen.queryByRole('button', { name: ALLOW })).toBeNull()
+      expect(screen.queryByText(ALLOW)).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resumeSession }))
+      expect(screen.queryByRole('button', { name: ALLOW })).toBeNull()
+      unmount()
+    }
+  })
+
+  it('"Reprendre la session" opens the field with a short editable "Continue." and sends a message to THAT session', async () => {
+    const onSendMessage = send()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resumeSession }))
+    const field = screen.getByRole('textbox') as HTMLTextAreaElement
+    expect(field.value).toBe(ROW_TEXT.defaultMessage)
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: ROW_TEXT.resumeSession }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(onSendMessage).toHaveBeenCalledTimes(1)
+    expect(onSendMessage).toHaveBeenCalledWith(orphan.session_id, 'Continue.')
+  })
+
+  it('a permission never pre-fills an answer (no option picker either)', () => {
+    send()
+    expect(screen.queryByRole('group', { name: 'Options de la question' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resumeSession }))
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('Continue.')
+  })
+
+  it('even a permission carrying options (should not happen) offers no picker and no answer pre-fill', () => {
+    const odd = { ...orphan, options: [{ label: 'Oui', description: null }] }
+    renderRow(<ThreadRow variant="orphan" thread={thread} orphan={odd} onSendMessage={noSend} />)
+    expect(screen.queryByRole('button', { name: 'Oui' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resumeSession }))
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('Continue.')
+  })
+
+  describe('orphan question', () => {
+    const question = {
+      ...orphan,
+      kind: 'question' as const,
+      tool_name: null,
+      text: 'Quelle couleur ?',
+      options: [
+        { label: 'Bleu', description: 'le froid' },
+        { label: 'Rouge', description: null },
+      ],
+    }
+    const open = () => {
+      const onSendMessage = vi.fn().mockResolvedValue(undefined)
+      renderRow(<ThreadRow variant="orphan" thread={thread} orphan={question} onSendMessage={onSendMessage} />)
+      return onSendMessage
+    }
+
+    it('without a chosen option the field opens with the plain "Continue."', () => {
+      open()
+      expect(screen.getByText(ROW_TEXT.helpQuestion)).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resumeSession }))
+      expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('Continue.')
+    })
+
+    it('a chosen option pre-fills the answer message (spike wording) and is sent as a message', async () => {
+      const onSendMessage = open()
+      const blue = screen.getByRole('button', { name: 'Bleu' })
+      expect(blue.getAttribute('aria-pressed')).toBe('false')
+      fireEvent.click(blue)
+      expect(blue.getAttribute('aria-pressed')).toBe('true')
+      fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resumeSession }))
+      const expected = questionAnswerMessage('Quelle couleur ?', 'Bleu')
+      expect(expected).toBe('Ma réponse à ta question précédente (« Quelle couleur ? ») : Bleu. Ne la repose pas, continue.')
+      expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(expected)
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: ROW_TEXT.resumeSession }))
+      await waitFor(() => expect(onSendMessage).toHaveBeenCalledWith(orphan.session_id, expected))
+    })
+
+    it('un-choosing the option goes back to "Continue."', () => {
+      open()
+      fireEvent.click(screen.getByRole('button', { name: 'Bleu' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Bleu' }))
+      fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resumeSession }))
+      expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('Continue.')
+    })
+  })
+
+  it('states where the session is attached (provenance), never computing membership', () => {
+    send()
+    expect(screen.getByTestId('provenance').textContent).toBe(`rattachée au run ${thread.run!.id.slice(0, 8)}`)
+  })
+
+  it('gives the resume button a ≥ 36px target', () => {
+    send()
+    expect(screen.getByRole('button', { name: ROW_TEXT.resumeSession }).className).toContain('min-h-9')
+  })
+})
+
+describe('linkProvenance', () => {
+  const thread = fixture('resumed_run').threads[0]
+  const links = thread.sessions.flatMap((s) => s.links)
+
+  it('tells an OLD run from the current one after a resume', () => {
+    const texts = links.filter((l) => l.via === 'runner_run').map((l) => linkProvenance(l, thread))
+    expect(texts.some((x) => x.includes('précédent'))).toBe(true)
+    expect(texts.some((x) => x.startsWith('rattachée au run ') && !x.includes('précédent'))).toBe(true)
+  })
+
+  it('words each mechanism', () => {
+    const link = { run_id: null, task_id: 'abcdef123456', plan_id: null }
+    expect(linkProvenance({ via: 'task_association', ...link }, thread)).toBe('rattachée à la tâche abcdef12')
+    expect(linkProvenance({ via: 'plan_association', ...link }, thread)).toBe(`rattachée au plan ${thread.plan!.title}`)
+    expect(linkProvenance({ via: 'spawned_by_json', ...link, run_id: 'r1234567890' }, undefined)).toBe('créée par le run r1234567')
+  })
+})
+
+describe('ThreadRow — unattached session (no thread)', () => {
+  const data = fixture('unattached_waiting')
+  const live = data.unattached.filter((u) => u.state === 'live')
+  const question = live.find((u) => u.pending[0]?.kind === 'question')!
+  const permission = live.find((u) => u.pending[0]?.kind === 'permission')!
+  const dead = data.unattached.find((u) => u.state === 'dead')!
+
+  it('is the same row, labelled "sans fil", in its lane', () => {
+    renderRow(<ThreadRow variant="unattached" session={question} onSendMessage={noSend} laneName="Lane X" />)
+    expect(screen.getByTestId('no-thread-label').textContent).toBe('sans fil')
+    expect(screen.getByText('Lane X')).toBeTruthy()
+    expect(screen.getByText(question.title)).toBeTruthy()
+    expect(screen.getByTestId('request-text').textContent).toBe(question.pending[0].text)
+  })
+
+  it('a LIVE question is answered by a message (Répondre…), pre-filled with the chosen option', async () => {
+    const onSendMessage = vi.fn().mockResolvedValue(undefined)
+    renderRow(<ThreadRow variant="unattached" session={question} onSendMessage={onSendMessage} />)
+    const opt = question.pending[0].options[0]
+    fireEvent.click(screen.getByRole('button', { name: opt.label }))
+    fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.reply }))
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(opt.label)
+    fireEvent.click(screen.getByRole('button', { name: 'Envoyer' }))
+    await waitFor(() => expect(onSendMessage).toHaveBeenCalledWith(question.id, opt.label))
+  })
+
+  it('a LIVE permission has no Autoriser here (that is band 1) and no message button', () => {
+    renderRow(<ThreadRow variant="unattached" session={permission} onSendMessage={noSend} />)
+    expect(screen.queryByRole('button', { name: ALLOW })).toBeNull()
+    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.getByText(ROW_TEXT.livePermissionElsewhere)).toBeTruthy()
+  })
+
+  it('a DEAD session is resumed with "Reprendre la session" (user_message), never Autoriser', async () => {
+    const withPending = {
+      ...dead,
+      pending: [{ ...permission.pending[0], session_id: dead.id }],
+    }
+    const onSendMessage = vi.fn().mockResolvedValue(undefined)
+    renderRow(<ThreadRow variant="unattached" session={withPending} onSendMessage={onSendMessage} />)
+    expect(screen.queryByRole('button', { name: ALLOW })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resumeSession }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: ROW_TEXT.resumeSession }))
+    await waitFor(() => expect(onSendMessage).toHaveBeenCalledWith(dead.id, 'Continue.'))
+  })
+
+  it('a session without pending request still renders its row', () => {
+    renderRow(<ThreadRow variant="unattached" session={dead} onSendMessage={noSend} />)
+    expect(screen.getByTestId('no-thread-label')).toBeTruthy()
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+})
+
+describe('layout (360 px, no horizontal scroll)', () => {
+  it('wraps and shrinks: min-w-0 everywhere, no fixed width, titles break', () => {
+    const blocked = fixture('blocked_task')
+    const stuck = blocked.threads.find((t) => t.band === 'stuck')!
+    const { container } = renderRow(<ThreadRow variant="stuck" thread={stuck} runner={blocked.runner} onResume={noResume} />)
+    expect(container.innerHTML).not.toMatch(/\bw-\[\d+px\]|\bmin-w-\[\d+px\]|whitespace-nowrap(?!.*tabular)/)
+    expect(container.querySelector('li[data-variant]')!.className).toContain('min-w-0')
+    expect(container.querySelector('.break-words')).toBeTruthy()
+  })
+
+  it('renders the 40-thread fixture rows without throwing', () => {
+    const data = fixture('forty_threads')
+    renderRow(
+      <>
+        {data.threads
+          .filter((t) => t.band === 'running')
+          .map((t) => (
+            <ThreadRow key={t.id} variant="running" thread={t} />
+          ))}
+      </>,
+    )
+    expect(document.querySelectorAll('li[data-variant]').length).toBeGreaterThan(0)
+  })
+})
