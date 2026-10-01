@@ -17,6 +17,8 @@ interface SessionBreadcrumbProps {
   rootSessionId: string
   /** Called when a breadcrumb segment is clicked */
   onNavigate: (sessionId: string) => void
+  /** Changes when chat activity starts/stops, to refresh the tree */
+  isStreaming?: boolean
 }
 
 /**
@@ -45,8 +47,8 @@ function buildPath(tree: SessionTreeNode[], targetId: string): SessionTreeNode[]
   return path
 }
 
-export function SessionBreadcrumb({ sessionId, rootSessionId, onNavigate }: SessionBreadcrumbProps) {
-  const { tree } = useSessionTree(rootSessionId)
+export function SessionBreadcrumb({ sessionId, rootSessionId, onNavigate, isStreaming }: SessionBreadcrumbProps) {
+  const { tree } = useSessionTree(rootSessionId, isStreaming)
 
   if (tree.length === 0) return null
 

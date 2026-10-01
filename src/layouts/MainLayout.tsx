@@ -15,6 +15,7 @@ import { isTauri } from '@/services/env'
 import { workspacesApi } from '@/services/workspaces'
 import { workspacePath } from '@/utils/paths'
 import type { Project } from '@/types'
+import { RouteErrorBoundary } from './RouteErrorBoundary'
 
 /** Today, the root of the application (above every workspace). */
 const GLOBAL_TODAY_PATH = '/today'
@@ -443,7 +444,9 @@ export function MainLayout() {
             {/* Key on slug forces page remount on workspace switch,
                 clearing all stale useState (workspace data, loading flags, etc.).
                 Sidebar + ChatPanel stay mounted — only the page resets. */}
-            <Outlet key={currentSlug} />
+            <RouteErrorBoundary resetKey={location.pathname}>
+              <Outlet key={currentSlug} />
+            </RouteErrorBoundary>
           </div>
 
           {/* Branding */}

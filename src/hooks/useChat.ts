@@ -1773,6 +1773,16 @@ export function useChat() {
     if (continueDebounceRef.current) return
     continueDebounceRef.current = setTimeout(() => { continueDebounceRef.current = null }, 300)
 
+    // Send via WS as a normal user_message. `send()` returns false on a dead
+    // socket (and schedules a reconnect): nothing was delivered, so do not
+    // show the indicator nor latch isStreaming, and let the user retry.
+    const ws = getWs()
+    if (!ws.sendUserMessage('Continue')) {
+      clearTimeout(continueDebounceRef.current)
+      continueDebounceRef.current = null
+      return
+    }
+
     // Add a discreet continue_indicator block to the last assistant message (not a user bubble)
     setMessages((prev) => {
       const updated = [...prev]
@@ -1793,10 +1803,7 @@ export function useChat() {
       return updated
     })
 
-    // Send via WS as a normal user_message
-    const ws = getWs()
     setIsStreaming(true)
-    ws.sendUserMessage('Continue')
   }, [sessionId, getWs, setIsStreaming])
 
   /** Toggle auto-continue on the backend (sends WS message, atom synced from backend event) */
@@ -1815,7 +1822,8 @@ export function useChat() {
   ) => {
     if (!sessionId) return
     const ws = getWs()
-    ws.sendPermissionResponse(toolCallId, allowed)
+    // Not delivered (dead socket): skip the local side effects.
+    if (!ws.sendPermissionResponse(toolCallId, allowed)) return
     // If "Remember for this session" was checked and user clicked Allow,
     // add the tool name to the auto-approved set.
     if (remember && allowed) {
@@ -1830,7 +1838,8 @@ export function useChat() {
   const respondInput = useCallback(async (requestId: string, response: string) => {
     if (!sessionId) return
     const ws = getWs()
-    ws.sendInputResponse(requestId, response)
+    // Not delivered (dead socket): leave the question open so it can be re-answered.
+    if (!ws.sendInputResponse(requestId, response)) return
 
     // Stamp the block's metadata with the response so it persists across
     // page reloads and renders as read-only in history/replay.

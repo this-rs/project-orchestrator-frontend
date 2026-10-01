@@ -1,4 +1,4 @@
-import { api, apiRequest, ApiError } from './api'
+import { api, apiRequest, ApiError, apiErrorMessage } from './api'
 
 /**
  * Secrets vault API. No call here ever RECEIVES a secret value: values only go
@@ -134,18 +134,7 @@ export const vaultApi = {
 }
 
 /** The server answers `{"error": "..."}`; show the sentence, not the JSON. */
-export function vaultErrorMessage(err: unknown): string {
-  if (err instanceof ApiError) {
-    try {
-      const parsed = JSON.parse(err.message) as { error?: string }
-      if (parsed.error) return parsed.error
-    } catch {
-      /* not JSON */
-    }
-    return err.message
-  }
-  return err instanceof Error ? err.message : String(err)
-}
+export const vaultErrorMessage = apiErrorMessage
 
 /** Durations offered everywhere, so choices stay consistent. */
 export const DURATION_CHOICES: { label: string; minutes: number }[] = [

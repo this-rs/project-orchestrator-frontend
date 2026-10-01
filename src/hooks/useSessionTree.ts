@@ -31,7 +31,15 @@ interface UseSessionTreeResult {
 
 const POLL_INTERVAL_MS = 3_000
 
-export function useSessionTree(sessionId: string | undefined): UseSessionTreeResult {
+/**
+ * `refreshSignal` is any value that changes when new activity may have
+ * started (e.g. the chat streaming flag). Each change re-fetches the tree and
+ * re-arms polling, which otherwise stops once no node is streaming.
+ */
+export function useSessionTree(
+  sessionId: string | undefined,
+  refreshSignal?: unknown,
+): UseSessionTreeResult {
   const [tree, setTree] = useState<SessionTreeNode[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -81,7 +89,7 @@ export function useSessionTree(sessionId: string | undefined): UseSessionTreeRes
         timerRef.current = null
       }
     }
-  }, [sessionId, fetchTree])
+  }, [sessionId, fetchTree, refreshSignal])
 
   const hasStreamingNodes = tree.some((n) => n.is_streaming)
 
