@@ -10,7 +10,7 @@ import {
   closestCenter,
 } from '@dnd-kit/core'
 import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core'
-import { useKanbanColumnData, useIsMobile } from '@/hooks'
+import { useKanbanColumnData, useIsMobile, useToast } from '@/hooks'
 import type { ColumnData } from '@/hooks'
 import { useCrudEventSync } from '@/hooks/useCrudEventSync'
 import { UniversalKanbanCard } from './UniversalKanbanCard'
@@ -34,6 +34,7 @@ export function UniversalKanban<T extends { id: string; status: string }>({
 }: UniversalKanbanProps<T>) {
   const [activeItem, setActiveItem] = useState<T | null>(null)
   const isMobile = useIsMobile()
+  const toast = useToast()
   const visibleColumns = useMemo(
     () => config.columns.filter((col) => !hiddenStatuses.includes(col.status)),
     [config.columns, hiddenStatuses],
@@ -99,8 +100,13 @@ export function UniversalKanban<T extends { id: string; status: string }>({
       const cols = columnDataRef.current
       if (!cols[oldStatus] || !cols[newStatus]) {
         // Target column not loaded (hidden) — persist without local move.
-        await config.onStatusChange(item.id, newStatus)
-        cols[oldStatus]?.removeItem(item.id)
+        try {
+          await config.onStatusChange(item.id, newStatus)
+          cols[oldStatus]?.removeItem(item.id)
+        } catch (error) {
+          console.error(`Failed to update ${config.entityType} status:`, error)
+          toast.error(`Failed to update ${config.entityType} status`)
+        }
         return
       }
 
@@ -118,9 +124,10 @@ export function UniversalKanban<T extends { id: string; status: string }>({
         cols[newStatus].removeItem(item.id)
         cols[oldStatus].addItem(item)
         console.error(`Failed to update ${config.entityType} status:`, error)
+        toast.error(`Failed to update ${config.entityType} status`)
       }
     },
-    [config, markOptimistic],
+    [config, markOptimistic, toast],
   )
 
   const handleDragEnd = useCallback(
