@@ -4,10 +4,10 @@ import type {
   Band,
   OrphanRequest,
   SessionState,
+  StuckReason,
   ThinkingItem,
   UnattachedSession,
   WaitingRequest,
-  WorkspaceRef,
 } from '@/types/attention'
 import type { LinkNames } from './AttentionCard'
 
@@ -17,8 +17,24 @@ import type { LinkNames } from './AttentionCard'
  * classified (a thread's `band`, a request's liveness) to the right component.
  */
 
-/** Display order of the bands (fixed). */
+/** Order of the bands in the summary line and in the counts (fixed). */
 export const BAND_ORDER: readonly Band[] = ['waiting', 'running', 'stuck', 'thinking']
+
+/**
+ * Order of the sections in the page (DOM order = tab order = phone order): what asks
+ * for the user first, then what to take back up, then what advances alone, then what
+ * to follow. From 1024 px the first two stack on the left, "En cours" sits on the right.
+ */
+export const SECTION_ORDER: readonly Band[] = ['waiting', 'stuck', 'running', 'thinking']
+
+/** What a stuck thread says about itself, in plain words. */
+export const STUCK_LABEL: Record<StuckReason, string> = {
+  failed: 'Run échoué',
+  budget_exceeded: 'Budget dépassé',
+  task_blocked: 'Tâche bloquée',
+  session_error: 'Erreur de session',
+  orphan_request: 'Demande restée sans réponse',
+}
 
 /** A live agent stopped on the user: a request of a thread, or of a session with no thread. */
 export interface WaitingEntry {
@@ -28,26 +44,27 @@ export interface WaitingEntry {
   unattached: UnattachedSession | null
 }
 
-/** Band 3 items, in display order inside a lane. */
+/** Band 3 items ("À reprendre"). */
 export type StuckEntry =
   | { kind: 'stuck'; thread: AttentionThread }
   | { kind: 'orphan'; thread: AttentionThread; orphan: OrphanRequest }
   | { kind: 'unattached'; session: UnattachedSession }
 
+/**
+ * "En cours" is grouped BY PLAN: one row per plan. `thread` is the thread the row
+ * speaks for (the one whose run is running, else the first); `others` are further
+ * threads of the same plan, which the row only mentions.
+ */
 export type RunningEntry =
-  | { kind: 'running'; thread: AttentionThread }
+  | { kind: 'plan'; key: string; thread: AttentionThread; others: AttentionThread[] }
   | { kind: 'unattached'; session: UnattachedSession }
-
-export interface LaneGroup<T> {
-  slug: string
-  name: string
-  items: T[]
-}
 
 export interface Bands {
   waiting: WaitingEntry[]
-  running: LaneGroup<RunningEntry>[]
-  stuck: LaneGroup<StuckEntry>[]
+  /** One entry per plan (or per thread-less live session). */
+  running: RunningEntry[]
+  /** Oldest first (ties: by id), whatever the lane. */
+  stuck: StuckEntry[]
   thinking: ThinkingItem[]
   counts: Record<Band, number>
   /** True when all four bands are empty. */
@@ -55,6 +72,18 @@ export interface Bands {
 }
 
 const byAgeDesc = <T extends { age_secs: number }>(a: T, b: T) => b.age_secs - a.age_secs
+
+/** Age (seconds) and identity of a stuck entry: what orders band "À reprendre". */
+export function stuckAge(e: StuckEntry): number {
+  return e.kind === 'stuck' ? e.thread.age_secs : e.kind === 'orphan' ? e.orphan.age_secs : e.session.age_secs
+}
+export function stuckId(e: StuckEntry): string {
+  return e.kind === 'stuck' ? e.thread.id : e.kind === 'orphan' ? e.orphan.request_id : e.session.id
+}
+/** Oldest first; equal ages are ordered by id so the result never depends on the payload order. */
+export function compareStuck(a: StuckEntry, b: StuckEntry): number {
+  return stuckAge(b) - stuckAge(a) || stuckId(a).localeCompare(stuckId(b))
+}
 
 /** An orphan whose thread is unknown still has to be shown: it becomes a thread-less dead session. */
 function orphanAsSession(o: OrphanRequest): UnattachedSession {
@@ -67,19 +96,6 @@ function orphanAsSession(o: OrphanRequest): UnattachedSession {
     since: o.requested_at,
     age_secs: o.age_secs,
   }
-}
-
-function groupByLane<T>(
-  entries: { lane: string; entry: T }[],
-  lanes: WorkspaceRef[],
-): LaneGroup<T>[] {
-  const order = new Map(lanes.map((l, i) => [l.slug, i]))
-  const names = new Map(lanes.map((l) => [l.slug, l.name]))
-  const groups = new Map<string, T[]>()
-  for (const { lane, entry } of entries) groups.set(lane, [...(groups.get(lane) ?? []), entry])
-  return [...groups.entries()]
-    .sort(([a], [b]) => (order.get(a) ?? Infinity) - (order.get(b) ?? Infinity) || a.localeCompare(b))
-    .map(([slug, items]) => ({ slug, name: names.get(slug) ?? slug, items }))
 }
 
 export function buildBands(data: AttentionResponse): Bands {
@@ -133,19 +149,24 @@ export function buildBands(data: AttentionResponse): Bands {
   }
   waiting.sort((a, b) => byAgeDesc(a.request, b.request))
 
-  // ---- band 2: what runs ----
-  const running: { lane: string; entry: RunningEntry }[] = []
+  // ---- band 2: what runs, one entry per plan ----
+  const running: RunningEntry[] = []
+  const byPlan = new Map<string, AttentionThread[]>()
   for (const thread of data.threads) {
-    if (thread.band === 'running') running.push({ lane: thread.workspace, entry: { kind: 'running', thread } })
+    if (thread.band !== 'running') continue
+    const key = thread.plan?.id ?? `thread:${thread.id}`
+    byPlan.set(key, [...(byPlan.get(key) ?? []), thread])
+  }
+  for (const [key, threads] of byPlan) {
+    const primary = threads.find((t) => t.run?.status === 'running') ?? threads[0]
+    running.push({ kind: 'plan', key, thread: primary, others: threads.filter((t) => t !== primary) })
   }
   for (const session of data.unattached) {
-    if (session.state === 'live' && session.pending.length === 0) {
-      running.push({ lane: session.workspace_slug, entry: { kind: 'unattached', session } })
-    }
+    if (session.state === 'live' && session.pending.length === 0) running.push({ kind: 'unattached', session })
   }
 
   // ---- band 3: stuck threads, orphan requests, dead thread-less sessions ----
-  const stuck: { lane: string; entry: StuckEntry }[] = []
+  const stuck: StuckEntry[] = []
   const orphansOfThread = new Map<string, OrphanRequest[]>()
   const strayOrphans: OrphanRequest[] = []
   for (const o of orphans) {
@@ -156,13 +177,13 @@ export function buildBands(data: AttentionResponse): Bands {
   for (const thread of data.threads) {
     const orphans = orphansOfThread.get(thread.id) ?? []
     if (thread.band === 'stuck' && !(thread.stuck_reason === 'orphan_request' && orphans.length > 0)) {
-      stuck.push({ lane: thread.workspace, entry: { kind: 'stuck', thread } })
+      stuck.push({ kind: 'stuck', thread })
     }
-    for (const orphan of orphans) stuck.push({ lane: thread.workspace, entry: { kind: 'orphan', thread, orphan } })
+    for (const orphan of orphans) stuck.push({ kind: 'orphan', thread, orphan })
   }
   for (const o of strayOrphans) {
     if (deadPendingIds.has(o.request_id)) continue // the dead session's own row shows it
-    stuck.push({ lane: o.workspace, entry: { kind: 'unattached', session: orphanAsSession(o) } })
+    stuck.push({ kind: 'unattached', session: orphanAsSession(o) })
   }
   const threadOrphanIds = new Set(
     orphans.filter((o) => o.thread_id && threadById.has(o.thread_id)).map((o) => o.request_id),
@@ -172,11 +193,10 @@ export function buildBands(data: AttentionResponse): Bands {
     // A request already shown under its thread is not repeated on the thread-less row.
     const pending = u.pending.filter((r) => !threadOrphanIds.has(r.request_id))
     const session = pending.length === u.pending.length ? u : { ...u, pending }
-    stuck.push({ lane: u.workspace_slug, entry: { kind: 'unattached', session } })
+    stuck.push({ kind: 'unattached', session })
   }
 
-  const runningGroups = groupByLane(running, data.lanes)
-  const stuckGroups = groupByLane(stuck, data.lanes)
+  stuck.sort(compareStuck)
   const counts: Record<Band, number> = {
     waiting: waiting.length,
     running: running.length,
@@ -185,8 +205,8 @@ export function buildBands(data: AttentionResponse): Bands {
   }
   return {
     waiting,
-    running: runningGroups,
-    stuck: stuckGroups,
+    running,
+    stuck,
     thinking: data.thinking,
     counts,
     empty: BAND_ORDER.every((b) => counts[b] === 0),
@@ -206,29 +226,30 @@ export function linkNames(data: AttentionResponse): LinkNames {
 }
 
 // ---------------------------------------------------------------------------
-// Texts (French, as the rest of the cockpit)
+// Texts (plain French: no jargon, no internal band names)
 // ---------------------------------------------------------------------------
 
-export const BAND_TEXT: Record<Band, { title: string; empty: string }> = {
-  waiting: { title: "T'attend", empty: "Rien ne t'attend" },
-  running: { title: 'Tourne', empty: 'Rien ne tourne' },
-  stuck: { title: 'Coincé', empty: "Rien n'est coincé" },
-  thinking: { title: 'Pensée', empty: 'Rien à trancher' },
+export const BAND_TEXT: Record<Band, { title: string; empty: string; summary: string }> = {
+  waiting: { title: 'À traiter', empty: 'Rien à traiter', summary: 'à traiter' },
+  running: { title: 'En cours', empty: 'Rien en cours', summary: 'en cours' },
+  stuck: { title: 'À reprendre', empty: 'Rien à reprendre', summary: 'à reprendre' },
+  thinking: { title: 'À suivre', empty: 'Rien à suivre', summary: 'à suivre' },
 }
 
 export const TODAY_TEXT = {
-  pageDescription: 'Ce qui tourne, ce qui est coincé et ce qui t’attend, sur tous tes workspaces.',
-  laneDescription: (name: string) =>
-    `Ce qui tourne, ce qui est coincé et ce qui t’attend dans ${name} seulement. La pastille de la barre compte tous les workspaces.`,
-  bandError: 'Cette bande n’a pas pu être chargée.',
+  title: "Aujourd'hui",
+  summaryLabel: 'Résumé du jour',
+  laneFilterLabel: 'Filtrer par workspace',
+  allLanes: 'Tous',
+  laneNote: (name: string) => `Filtré sur ${name}. La pastille de la barre compte tous les workspaces.`,
+  bandError: 'Cette section n’a pas pu être chargée.',
   retry: 'Réessayer',
   staleRefresh: 'Actualisation impossible : les données affichées peuvent être périmées.',
-  emptyAll: "Rien ne t'attend, rien ne tourne",
-  emptyAllHint: 'Aucun agent ne demande ta réponse, aucun fil n’est en cours ni coincé.',
+  emptyAll: 'Rien à traiter, rien en cours',
+  emptyAllHint: 'Aucun agent ne demande ta réponse, aucun fil n’est en cours ni à reprendre.',
   plans: 'Voir les plans',
   createWorkspace: 'Choisir ou créer un workspace',
-  noMatch: 'Aucun résultat pour ce couloir',
-  noMatchHint: 'Ce couloir n’a rien en attente, en cours ni coincé.',
+  noMatch: 'Aucun résultat pour ce workspace',
+  noMatchHint: 'Ce workspace n’a rien à traiter, rien en cours, rien à reprendre.',
   clearFilter: 'Effacer le filtre',
 } as const
-

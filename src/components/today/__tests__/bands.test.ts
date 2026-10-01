@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import { parseAttentionResponse } from '@/services/attention'
 import type { AttentionResponse } from '@/types/attention'
-import { buildBands } from '../bands'
+import { BAND_ORDER, BAND_TEXT, SECTION_ORDER, buildBands } from '../bands'
 
 const fixture = (name: string): AttentionResponse =>
   parseAttentionResponse(
@@ -44,14 +44,8 @@ describe('buildBands — a dead session never waits on the user (band 1), its re
   const base = fixture('unattached_waiting')
   const ids = (b: ReturnType<typeof buildBands>) => ({
     band1: b.waiting.map((w) => w.request.request_id),
-    band3: b.stuck.flatMap((g) =>
-      g.items.flatMap((e) =>
-        e.kind === 'orphan'
-          ? [e.orphan.request_id]
-          : e.kind === 'unattached'
-            ? e.session.pending.map((r) => r.request_id)
-            : [],
-      ),
+    band3: b.stuck.flatMap((e) =>
+      e.kind === 'orphan' ? [e.orphan.request_id] : e.kind === 'unattached' ? e.session.pending.map((r) => r.request_id) : [],
     ),
   })
 
@@ -62,7 +56,7 @@ describe('buildBands — a dead session never waits on the user (band 1), its re
     const { band1, band3 } = ids(b)
     expect(band1).not.toContain('req_dead')
     expect(band3).toContain('req_dead')
-    const row = b.stuck.flatMap((g) => g.items).find((e) => e.kind === 'unattached' && e.session.id === 'dead-session')
+    const row = b.stuck.find((e) => e.kind === 'unattached' && e.session.id === 'dead-session')
     expect(row).toBeDefined()
     expect(b.counts.waiting).toBe(0)
   })
@@ -99,5 +93,66 @@ describe('buildBands — a dead session never waits on the user (band 1), its re
     const { band1, band3 } = ids(b)
     expect(band1).not.toContain(r.request_id)
     expect(band3.filter((id) => id === r.request_id)).toHaveLength(1)
+  })
+})
+
+describe('buildBands: "En cours" is grouped by plan', () => {
+  const data = fixture('four_bands')
+  const running = data.threads.filter((t) => t.band === 'running')
+
+  it('one row per plan, whatever the workspace', () => {
+    const b = buildBands(data)
+    const plans = b.running.filter((e) => e.kind === 'plan')
+    expect(plans.length).toBeGreaterThan(0)
+    expect(new Set(plans.map((e) => (e.kind === 'plan' ? e.key : ''))).size).toBe(plans.length)
+    expect(b.counts.running).toBe(b.running.length)
+  })
+
+  it('two threads of the same plan make ONE row, the running one speaks for it', () => {
+    const base = running[0]
+    const stopped = { ...base, id: 'stopped-thread', run: { ...base.run!, status: 'failed' as const } }
+    const live = { ...base, id: 'live-thread', run: { ...base.run!, status: 'running' as const } }
+    const b = buildBands({ ...data, threads: [stopped, live], waiting: [], orphans: [], thinking: [], unattached: [] })
+    expect(b.running).toHaveLength(1)
+    const row = b.running[0]
+    expect(row.kind === 'plan' && row.thread.id).toBe('live-thread')
+    expect(row.kind === 'plan' && row.others.map((t) => t.id)).toEqual(['stopped-thread'])
+  })
+
+  it('threads of different plans stay apart, even in one workspace', () => {
+    const a = { ...running[0], id: 'ta', plan: { id: 'plan-a', title: 'A' } }
+    const c = { ...running[0], id: 'tc', plan: { id: 'plan-c', title: 'C' } }
+    const b = buildBands({ ...data, threads: [a, c], waiting: [], orphans: [], thinking: [], unattached: [] })
+    expect(b.running).toHaveLength(2)
+  })
+
+  it('a thread without a plan is its own row', () => {
+    const a = { ...running[0], id: 'ta', plan: null }
+    const c = { ...running[0], id: 'tc', plan: null }
+    const b = buildBands({ ...data, threads: [a, c], waiting: [], orphans: [], thinking: [], unattached: [] })
+    expect(b.running).toHaveLength(2)
+  })
+})
+
+describe('buildBands: "À reprendre" is one list, oldest first, tie by id', () => {
+  it('is not cut by workspace', () => {
+    const data = fixture('unattached_waiting')
+    const b = buildBands(data)
+    const age = (e: (typeof b.stuck)[number]) =>
+      e.kind === 'stuck' ? e.thread.age_secs : e.kind === 'orphan' ? e.orphan.age_secs : e.session.age_secs
+    const ages = b.stuck.map(age)
+    expect(ages).toEqual([...ages].sort((x, y) => y - x))
+  })
+})
+
+describe('section texts and order', () => {
+  it('uses plain words, none of the former band names', () => {
+    expect(Object.values(BAND_TEXT).map((t) => t.title)).toEqual(['À traiter', 'En cours', 'À reprendre', 'À suivre'])
+    const all = JSON.stringify(BAND_TEXT)
+    expect(all).not.toMatch(/T.attend|Tourne|Coincé|Pensée|cockpit/i)
+  })
+  it('the summary keeps the band order, the page puts what asks for the user first', () => {
+    expect(BAND_ORDER).toEqual(['waiting', 'running', 'stuck', 'thinking'])
+    expect(SECTION_ORDER).toEqual(['waiting', 'stuck', 'running', 'thinking'])
   })
 })
