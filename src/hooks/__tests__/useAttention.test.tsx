@@ -46,7 +46,7 @@ afterEach(() => vi.useRealTimers())
 describe('useAttention: fetch', () => {
   it('loads a contract fixture, with the lane filter in the query', async () => {
     const { result } = await mount('four_bands', 'acme')
-    expect(get.mock.calls[0][0]).toBe('/attention?workspace=acme')
+    expect(get.mock.calls[0][0]).toBe('/attention?workspace_slug=acme')
     expect(result.current.data!.waiting.map((w) => w.request_id)).toEqual(['req_p1', 'req_q1'])
   })
 

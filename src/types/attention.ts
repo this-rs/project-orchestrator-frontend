@@ -194,6 +194,13 @@ export interface UnattachedSession {
   age_secs: number
 }
 
+/** A source the aggregator could not read; the bands that depend on it are incomplete. */
+export interface SourceError {
+  source: string
+  bands: Band[]
+  message: string
+}
+
 export interface AttentionResponse {
   generated_at: string
   lanes: WorkspaceRef[]
@@ -206,4 +213,6 @@ export interface AttentionResponse {
   thinking: ThinkingItem[]
   /** Sessions without any link, grouped by lane (lane order, then oldest first). */
   unattached: UnattachedSession[]
+  /** Present ONLY when a source failed; absent = every source answered. */
+  source_errors?: SourceError[]
 }

@@ -82,9 +82,25 @@ function request(r: Rec, p: string) {
 
 /** Parse and validate an `/api/attention` payload. Throws on any divergence. */
 export function parseAttentionResponse(input: unknown): AttentionResponse {
-  const r = obj(input, '$', ['generated_at', 'lanes', 'threads', 'waiting', 'orphans', 'runner', 'thinking', 'unattached'])
+  // `source_errors` is emitted by the backend ONLY when a source failed (absent = healthy).
+  const withErrors = typeof input === 'object' && input !== null && 'source_errors' in input
+  const r = obj(input, '$', [
+    'generated_at', 'lanes', 'threads', 'waiting', 'orphans', 'runner', 'thinking', 'unattached',
+    ...(withErrors ? ['source_errors'] : []),
+  ])
+  const sourceErrors = withErrors
+    ? list(r.source_errors, '$.source_errors', (v, p) => {
+        const x = obj(v, p, ['source', 'bands', 'message'])
+        return {
+          source: str(x.source, `${p}.source`),
+          bands: list(x.bands, `${p}.bands`, oneOf(BANDS)),
+          message: str(x.message, `${p}.message`),
+        }
+      })
+    : undefined
   return {
     generated_at: str(r.generated_at, '$.generated_at'),
+    ...(sourceErrors ? { source_errors: sourceErrors } : {}),
     lanes: list(r.lanes, '$.lanes', (v, p) => {
       const x = obj(v, p, ['id', 'slug', 'name'])
       return { id: str(x.id, `${p}.id`), slug: str(x.slug, `${p}.slug`), name: str(x.name, `${p}.name`) }
@@ -214,7 +230,7 @@ export const attentionApi = {
    * throws: the cockpit shows an error state rather than garbage.
    */
   fetch: async (workspace?: string | null, signal?: AbortSignal): Promise<AttentionResponse> =>
-    parseAttentionResponse(await api.get<unknown>(`/attention${buildQuery({ workspace })}`, signal)),
+    parseAttentionResponse(await api.get<unknown>(`/attention${buildQuery({ workspace_slug: workspace })}`, signal)),
 
   /**
    * Answer a permission asked by a LIVE session. Same path as the WS

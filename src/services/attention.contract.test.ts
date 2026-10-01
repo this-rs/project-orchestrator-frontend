@@ -175,4 +175,21 @@ describe('attention contract (shared fixtures)', () => {
       expect(() => parseAttentionResponse(r)).toThrow()
     })
   })
+  describe('source_errors (present only when a source failed)', () => {
+    it('a healthy payload has no key and the parsed value has none either', () => {
+      expect('source_errors' in parseAttentionResponse(read('four_bands'))).toBe(false)
+    })
+    it('reads the failed sources and the bands they degrade', () => {
+      const r = JSON.parse(JSON.stringify(read('four_bands')))
+      r.source_errors = [{ source: 'runs', bands: ['running', 'stuck'], message: 'timeout' }]
+      expect(parseAttentionResponse(r).source_errors).toEqual(r.source_errors)
+    })
+    it('rejects an unknown band or field inside an entry', () => {
+      const r = JSON.parse(JSON.stringify(read('four_bands')))
+      r.source_errors = [{ source: 'runs', bands: ['nope'], message: 'x' }]
+      expect(() => parseAttentionResponse(r)).toThrow(/unknown value/)
+      r.source_errors = [{ source: 'runs', bands: [], message: 'x', extra: 1 }]
+      expect(() => parseAttentionResponse(r)).toThrow(/unknown field "extra"/)
+    })
+  })
 })
