@@ -22,6 +22,11 @@ describe('ContinueSheet', () => {
     expect(field.className).toContain('md:text-sm')
   })
 
+  it('has no entrance animation (only the running dot moves, per the PO motion constraint)', () => {
+    render(<ContinueSheet open onClose={() => {}} onSend={async () => {}} {...base} />)
+    expect(screen.getByTestId('continue-sheet').className).not.toContain('ui-pop-in')
+  })
+
   it('is a bottom sheet padded by the bottom safe area, glass (floating layer), dimmed not blurred backdrop', () => {
     render(<ContinueSheet open onClose={() => {}} onSend={async () => {}} {...base} />)
     const panel = screen.getByTestId('continue-sheet')

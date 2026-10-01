@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Loader2 } from 'lucide-react'
-import { focusRing, glass, popIn } from '@/components/ui/classes'
+import { focusRing, glass } from '@/components/ui/classes'
 
 /**
  * The message field of an orphan request ("Reprendre la session") or of a
@@ -106,7 +106,7 @@ function SheetBody({ onClose, title, help, initialText = '', submitLabel, onSend
         aria-labelledby={titleId}
         aria-describedby={help ? helpId : undefined}
         data-testid="continue-sheet"
-        className={`${glass} ${popIn} relative flex max-h-[85dvh] w-full flex-col gap-3 overflow-y-auto rounded-t-2xl px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:max-w-lg md:rounded-2xl md:pb-4`}
+        className={`${glass} relative flex max-h-[85dvh] w-full flex-col gap-3 overflow-y-auto rounded-t-2xl px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:max-w-lg md:rounded-2xl md:pb-4`}
       >
         <h2 id={titleId} className="text-sm font-semibold text-gray-100">
           {title}
