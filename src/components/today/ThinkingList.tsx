@@ -92,9 +92,13 @@ export interface ThinkingListProps {
   items: ThinkingItem[]
   /** Called after a successful action (typically `refresh`). */
   onChanged?: () => void
+  /** Label of the band (the page names it in its own language). */
+  title?: string
+  /** Outer spacing; the page lays the band out itself. */
+  className?: string
 }
 
-export function ThinkingList({ items, onChanged }: ThinkingListProps) {
+export function ThinkingList({ items, onChanged, title = 'Threads of thought', className = 'mt-8' }: ThinkingListProps) {
   const toast = useToast()
   const [collapsed, setCollapsed] = useState(readCollapsed)
   // Optimistic overlay: rows gone locally until the server settles.
@@ -152,7 +156,7 @@ export function ThinkingList({ items, onChanged }: ThinkingListProps) {
   }
 
   return (
-    <section aria-labelledby="today-thinking-title" className="mt-8">
+    <section aria-label={title} data-band="thinking" className={className}>
       <h2 id="today-thinking-title" className="text-xs font-medium text-gray-500">
         <button
           type="button"
@@ -162,7 +166,7 @@ export function ThinkingList({ items, onChanged }: ThinkingListProps) {
           className={`inline-flex items-center gap-1.5 min-h-9 -mx-1 px-1 rounded hover:text-gray-300 ${focusRing}`}
         >
           <ChevronRight className={`w-3 h-3 shrink-0 transition-transform ${collapsed ? '' : 'rotate-90'}`} aria-hidden="true" />
-          <span>Threads of thought</span>
+          <span>{title}</span>
           <span className="tabular-nums font-normal text-gray-600">{visible.length}</span>
         </button>
       </h2>
