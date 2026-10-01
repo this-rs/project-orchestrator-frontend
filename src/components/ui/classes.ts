@@ -53,7 +53,9 @@ export const popIn = 'ui-pop-in'
 /**
  * Press feedback for tappable controls: an immediate, tiny scale-down that
  * confirms the tap landed. Feedback motion — never longer than ~120ms.
+ * Tailwind v4 `scale-*` writes the `scale` property (not `transform`), so
+ * `scale` is what must be transitioned.
  */
 export const pressFeedback =
-  'transition-[transform,background-color,color] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100'
+  'transition-[scale,background-color,color] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100'
 

@@ -3,7 +3,7 @@
  */
 
 import { api, buildQuery } from './api'
-import type { Protocol, ProtocolRun, RunNode, RunStateHistory } from '@/types/protocol'
+import type { Protocol, ProtocolRun, RunNode } from '@/types/protocol'
 
 // ---------------------------------------------------------------------------
 // List params
@@ -50,15 +50,15 @@ export const protocolApi = {
   getRunTree: (runId: string) =>
     api.get<RunNode>(`/protocols/runs/${runId}/tree`),
 
-  getRunHistory: (runId: string) =>
-    api.get<RunStateHistory[]>(`/protocols/runs/${runId}/history`),
-
   getRunChildren: (runId: string) =>
     api.get<ProtocolRun[]>(`/protocols/runs/${runId}/children`),
 
-  /** Trigger a transition event on a run */
-  triggerEvent: (runId: string, event: string) =>
-    api.post<ProtocolRun>(`/protocols/runs/${runId}/transition`, { event }),
+  /**
+   * Fire a transition on a run. The backend body is `FireTransitionBody { trigger }`
+   * (protocol_handlers.rs) — sending `{ event }` is rejected with 422.
+   */
+  triggerEvent: (runId: string, trigger: string) =>
+    api.post<ProtocolRun>(`/protocols/runs/${runId}/transition`, { trigger }),
 
   /** Cancel an active run */
   cancelRun: (runId: string) =>

@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { buildArchitecture, groupByTier, normalizeComponentType } from '../architecture'
+import {
+  buildArchitecture,
+  formatProvenance,
+  groupByTier,
+  normalizeComponentType,
+  readProvenance,
+} from '../architecture'
 import type { TopologyResponse } from '@/services/workspaces'
 
 const comp = (id: string, type: string, deps: string[] = []) => ({
@@ -51,5 +57,41 @@ describe('buildArchitecture', () => {
   it('groups by tier, edge first', () => {
     const groups = groupByTier(buildArchitecture(topo).nodes)
     expect(groups.map((g) => g.nodes[0].id)).toEqual(['web', 'api', 'db'])
+  })
+})
+
+describe('provenance', () => {
+  it('reads what the backend stored under derived_from', () => {
+    const p = readProvenance({
+      derived_from: { method: 'manifest', file: 'Cargo.toml', line: 24, package: 'neo4rs' },
+    })
+    expect(p).toEqual({ method: 'manifest', file: 'Cargo.toml', line: 24, package: 'neo4rs' })
+  })
+
+  it('treats a hand-entered component as having no provenance', () => {
+    // Components predating derivation carry no such key, and must not be
+    // presented as if the machine vouched for them.
+    expect(readProvenance({})).toBeUndefined()
+    expect(readProvenance(undefined)).toBeUndefined()
+    expect(readProvenance(null)).toBeUndefined()
+    expect(readProvenance('nonsense')).toBeUndefined()
+  })
+
+  it('ignores a malformed provenance rather than rendering half of it', () => {
+    expect(readProvenance({ derived_from: { file: 'Cargo.toml' } })).toBeUndefined()
+    expect(readProvenance({ derived_from: 42 })).toBeUndefined()
+  })
+
+  it('formats a source the reader can go and check', () => {
+    expect(
+      formatProvenance({ method: 'manifest', file: 'Cargo.toml', line: 24, package: 'neo4rs' }),
+    ).toBe('Cargo.toml:24 · neo4rs')
+  })
+
+  it('omits a line number it could not determine', () => {
+    // Better to name the file alone than to point at line zero.
+    expect(
+      formatProvenance({ method: 'compose', file: 'docker-compose.yml', line: 0, package: 'neo4j' }),
+    ).toBe('docker-compose.yml · neo4j')
   })
 })
