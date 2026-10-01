@@ -26,8 +26,8 @@ const OPEN: VaultOverview = {
   unavailable: null,
   secrets: [
     {
-      name: 'mermaid',
-      description: 'mermaid.ffs.dev, vault default',
+      name: 'demo-secret',
+      description: 'demo service, vault default',
       created_at: '2026-10-01T00:00:00Z',
       updated_at: '2026-10-01T00:00:00Z',
     },
@@ -35,7 +35,7 @@ const OPEN: VaultOverview = {
   grants: [
     {
       id: 'g1',
-      secrets: { kind: 'names', names: ['mermaid'] },
+      secrets: { kind: 'names', names: ['demo-secret'] },
       scope: { kind: 'project', value: 'po' },
       created_at: '2026-10-01T00:00:00Z',
       expires_at: '2099-01-02T00:00:00Z',
@@ -63,7 +63,7 @@ describe('VaultPage', () => {
     overview.mockResolvedValue(OPEN)
     mount()
     expect(screen.getByRole('button', { name: /Back/ })).toBeTruthy()
-    expect(await screen.findByText('mermaid.ffs.dev, vault default')).toBeTruthy()
+    expect(await screen.findByText('demo service, vault default')).toBeTruthy()
     expect(screen.getByText('Agent access')).toBeTruthy()
     expect(screen.getByText(/→ project po/)).toBeTruthy()
     expect(screen.getByText(/Open until/)).toBeTruthy()

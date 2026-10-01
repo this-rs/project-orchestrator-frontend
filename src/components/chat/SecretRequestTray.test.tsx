@@ -45,7 +45,7 @@ function state(partial: Partial<VaultOverview>): VaultOverview {
 
 const REQ = {
   id: 'r1',
-  name: 'mermaid',
+  name: 'demo-secret',
   reason: 'publish diagrams',
   session_id: 'session-1',
   project_slug: 'po',
@@ -85,7 +85,7 @@ describe('SecretRequestTray', () => {
       state({ requests: [REQ, { ...REQ, id: 'r2', name: 'other', session_id: 'session-2' }] }),
     )
     mount()
-    expect(await screen.findByText('mermaid')).toBeTruthy()
+    expect(await screen.findByText('demo-secret')).toBeTruthy()
     expect(screen.queryByText('other')).toBeNull()
   })
 
@@ -97,14 +97,14 @@ describe('SecretRequestTray', () => {
       return { outcome: 'provided', grant: null }
     })
     const store = mount()
-    const field = await screen.findByLabelText('Value of secret mermaid')
+    const field = await screen.findByLabelText('Value of secret demo-secret')
     expect(field.getAttribute('type')).toBe('password')
-    fireEvent.change(field, { target: { value: 'the-mermaid-passphrase' } })
+    fireEvent.change(field, { target: { value: 'the-demo-passphrase' } })
     fireEvent.click(screen.getByRole('button', { name: 'Provide' }))
     await waitFor(() => expect(answer).toHaveBeenCalledTimes(1))
     expect(answer).toHaveBeenCalledWith('r1', expect.objectContaining({
       action: 'provide',
-      value: 'the-mermaid-passphrase',
+      value: 'the-demo-passphrase',
       scope: { kind: 'session', value: 'session-1' },
       passphrase: undefined,
     }))
@@ -117,8 +117,8 @@ describe('SecretRequestTray', () => {
     fireEvent.change(await screen.findByLabelText('Vault passphrase'), {
       target: { value: 'correct horse battery staple' },
     })
-    fireEvent.change(screen.getByLabelText('Value of secret mermaid'), {
-      target: { value: 'the-mermaid-passphrase' },
+    fireEvent.change(screen.getByLabelText('Value of secret demo-secret'), {
+      target: { value: 'the-demo-passphrase' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Provide' }))
     await waitFor(() =>
@@ -149,7 +149,7 @@ describe('SecretRequestTray', () => {
     await waitFor(() =>
       expect(answer).toHaveBeenCalledWith('r1', expect.objectContaining({ action: 'grant', value: undefined })),
     )
-    expect(screen.queryByLabelText('Value of secret mermaid')).toBeNull()
+    expect(screen.queryByLabelText('Value of secret demo-secret')).toBeNull()
   })
 
   it('keeps the card and shows the reason when the answer is refused', async () => {
@@ -158,9 +158,9 @@ describe('SecretRequestTray', () => {
     answer.mockRejectedValue(new ApiError(403, '{"error":"wrong passphrase"}'))
     mount()
     fireEvent.change(await screen.findByLabelText('Vault passphrase'), { target: { value: 'nope-nope-nope' } })
-    fireEvent.change(screen.getByLabelText('Value of secret mermaid'), { target: { value: 'the-mermaid-passphrase' } })
+    fireEvent.change(screen.getByLabelText('Value of secret demo-secret'), { target: { value: 'the-demo-passphrase' } })
     fireEvent.click(screen.getByRole('button', { name: 'Provide' }))
     expect((await screen.findByRole('alert')).textContent).toContain('wrong passphrase')
-    expect(screen.getByText('mermaid')).toBeTruthy()
+    expect(screen.getByText('demo-secret')).toBeTruthy()
   })
 })
