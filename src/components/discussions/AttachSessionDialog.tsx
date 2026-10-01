@@ -6,6 +6,7 @@ import { chatApi } from '@/services/chat'
 import { plansApi } from '@/services/plans'
 import { tasksApi } from '@/services/tasks'
 import { projectsApi } from '@/services/projects'
+import { workspacesApi } from '@/services/workspaces'
 
 /**
  * "Rattacher à…": link a session to a plan or a task OF THE SAME PROJECT
@@ -36,6 +37,11 @@ export interface AttachSessionDialogProps {
   projectId?: string | null
   /** ... or its slug, resolved through the project list. */
   projectSlug?: string | null
+  /**
+   * ... or, when the project is unknown (a session without a thread, a plan reference that
+   * carries no project), the workspace: the plans and tasks of ALL its projects are offered.
+   */
+  workspaceSlug?: string | null
   /** Called once the link exists: the caller refreshes its tree and the attention count. */
   onAttached: () => void
 }
@@ -45,7 +51,7 @@ interface Choice {
   label: string
 }
 
-export function AttachSessionDialog({ open, onClose, sessionId, projectId, projectSlug, onAttached }: AttachSessionDialogProps) {
+export function AttachSessionDialog({ open, onClose, sessionId, projectId, projectSlug, workspaceSlug, onAttached }: AttachSessionDialogProps) {
   const [kind, setKind] = useState<'Plan' | 'Task'>('Plan')
   const [plans, setPlans] = useState<Choice[]>([])
   const [tasks, setTasks] = useState<Choice[]>([])
@@ -68,15 +74,25 @@ export function AttachSessionDialog({ open, onClose, sessionId, projectId, proje
     setTargetId('')
     setKind('Plan')
     ;(async () => {
-      let pid = projectId ?? null
-      if (!pid && projectSlug) {
-        pid = ((await projectsApi.list()).items || []).find((p) => p.slug === projectSlug)?.id ?? null
+      let pids: string[] = projectId ? [projectId] : []
+      if (pids.length === 0 && projectSlug) {
+        const found = ((await projectsApi.list()).items || []).find((p) => p.slug === projectSlug)?.id
+        if (found) pids = [found]
       }
-      if (!pid) {
+      if (pids.length === 0 && workspaceSlug) {
+        pids = ((await workspacesApi.listProjects(workspaceSlug)) || []).map((p) => p.id)
+      }
+      if (pids.length === 0) {
         if (!cancelled) setUnknownProject(true)
         return
       }
-      const [p, t] = await Promise.all([plansApi.list({ project_id: pid, limit: 100 }), tasksApi.list({ project_id: pid, limit: 100 })])
+      const perProject = await Promise.all(
+        pids.map((pid) =>
+          Promise.all([plansApi.list({ project_id: pid, limit: 100 }), tasksApi.list({ project_id: pid, limit: 100 })]),
+        ),
+      )
+      const p = { items: perProject.flatMap(([pl]) => pl.items || []) }
+      const t = { items: perProject.flatMap(([, tk]) => tk.items || []) }
       if (cancelled) return
       setPlans((p.items || []).map((x) => ({ id: x.id, label: x.title })))
       setTasks((t.items || []).map((x) => ({ id: x.id, label: `${x.title || x.id.slice(0, 8)} — ${x.plan_title}` })))
@@ -90,7 +106,7 @@ export function AttachSessionDialog({ open, onClose, sessionId, projectId, proje
     return () => {
       cancelled = true
     }
-  }, [open, projectId, projectSlug])
+  }, [open, projectId, projectSlug, workspaceSlug])
 
   const choices = kind === 'Plan' ? plans : tasks
 
@@ -153,7 +169,7 @@ export function AttachSessionDialog({ open, onClose, sessionId, projectId, proje
             ) : (
               <div>
                 <label htmlFor={selectId} className="mb-1 block text-xs text-gray-400">
-                  {kind === 'Plan' ? 'Plan' : 'Tâche'} du même projet
+                  {kind === 'Plan' ? 'Plan' : 'Tâche'} {projectId || projectSlug ? 'du même projet' : 'du même espace de travail'}
                 </label>
                 <select
                   id={selectId}

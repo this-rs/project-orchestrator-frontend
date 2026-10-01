@@ -44,6 +44,8 @@ export interface LinkedDiscussionsProps {
   /** Project of the entity: the "Rattacher à…" picker offers plans and tasks of THIS project. */
   projectId?: string | null
   projectSlug?: string | null
+  /** Used by the picker when the project is unknown (plans of every project of the workspace). */
+  workspaceSlug?: string | null
   /** What the resume buttons need (plan, folder, run state, task states). */
   resume?: ResumeContext
   /** Number of nodes, whenever it changes (tab counts). */
@@ -123,7 +125,7 @@ function ActionButton({
   )
 }
 
-export function LinkedDiscussions({ entity, projectId, projectSlug, resume, onCountChange, onChanged }: LinkedDiscussionsProps) {
+export function LinkedDiscussions({ entity, projectId, projectSlug, workspaceSlug, resume, onCountChange, onChanged }: LinkedDiscussionsProps) {
   const { forest, isLoading, error, treeErrors, refresh } = useLinkedForest(entity)
   const digest = useAttentionDigest()
   const requestAttentionRefresh = useRequestAttentionRefresh()
@@ -170,13 +172,14 @@ export function LinkedDiscussions({ entity, projectId, projectSlug, resume, onCo
             sessionId={node.session_id}
             projectId={projectId}
             projectSlug={projectSlug}
+            workspaceSlug={workspaceSlug}
             onAttached={refresh}
           />
         </>
       )
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ctx is rebuilt each render by pages; its fields are what matter
-    [ctx.planId, ctx.project, ctx.run?.id, ctx.run?.status, ctx.taskStatuses, facts, owners, sendMessage, changed, projectId, projectSlug, refresh],
+    [ctx.planId, ctx.project, ctx.run?.id, ctx.run?.status, ctx.taskStatuses, facts, owners, sendMessage, changed, projectId, projectSlug, workspaceSlug, refresh],
   )
 
   if (error && !forest) {

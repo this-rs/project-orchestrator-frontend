@@ -13,12 +13,15 @@ export function AttachSessionButton({
   sessionId,
   projectId,
   projectSlug,
+  workspaceSlug,
   onAttached,
   variant = 'text',
 }: {
   sessionId: string
   projectId?: string | null
   projectSlug?: string | null
+  /** Fallback scope when the project is unknown. */
+  workspaceSlug?: string | null
   onAttached?: () => void
   /** `icon`: compact, for a header; `text`: for a tree node. */
   variant?: 'text' | 'icon'
@@ -50,6 +53,7 @@ export function AttachSessionButton({
         sessionId={sessionId}
         projectId={projectId}
         projectSlug={projectSlug}
+        workspaceSlug={workspaceSlug}
         onAttached={() => {
           requestAttentionRefresh()
           onAttached?.()

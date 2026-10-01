@@ -32,6 +32,12 @@ vi.mock('@/services/plans', () => ({ plansApi: { list: plansList } }))
 vi.mock('@/services/tasks', () => ({ tasksApi: { list: tasksList } }))
 vi.mock('@/services/projects', () => ({ projectsApi: { list: vi.fn(async () => ({ items: [{ id: 'proj1', slug: 'alpha' }] })) } }))
 
+const wsProjects = vi.hoisted(() => vi.fn())
+vi.mock('@/services/workspaces', async () => {
+  const actual = await vi.importActual<typeof import('@/services/workspaces')>('@/services/workspaces')
+  return { ...actual, workspacesApi: { ...actual.workspacesApi, listProjects: wsProjects } }
+})
+
 import { LinkedDiscussions } from '../LinkedDiscussions'
 import { attentionDigestAtom, attentionRefreshRequestAtom, EMPTY_DIGEST, type AttentionDigest } from '@/atoms/attentionDigest'
 
@@ -184,6 +190,22 @@ describe('LinkedDiscussions — Rattacher à…', () => {
     fireEvent.click(within(node).getByRole('button', { name: /Rattacher à…/ }))
     expect((await screen.findByRole('alert')).textContent).toContain('projet de cette session est inconnu')
     expect(plansList).not.toHaveBeenCalled()
+  })
+})
+
+describe('LinkedDiscussions — Rattacher à… when only the workspace is known', () => {
+  it('offers the plans and tasks of EVERY project of the workspace', async () => {
+    wsProjects.mockResolvedValue([{ id: 'pA' }, { id: 'pB' }])
+    plansList.mockImplementation(async ({ project_id }: { project_id: string }) => ({ items: [{ id: `plan-${project_id}`, title: `Plan ${project_id}` }], total: 1 }))
+    setup({ projectId: null, projectSlug: null, workspaceSlug: 'acme' })
+    await screen.findByText('Discussion manuelle')
+    const node = screen.getByText('Discussion manuelle').closest('[style]')!.parentElement!
+    fireEvent.click(within(node).getByRole('button', { name: /Rattacher à…/ }))
+    const dialog = await screen.findByTestId('attach-dialog')
+    await waitFor(() => expect(wsProjects).toHaveBeenCalledWith('acme'))
+    const select = await within(dialog).findByLabelText(/Plan du même espace de travail/)
+    expect(within(select).getByRole('option', { name: 'Plan pA' })).toBeTruthy()
+    expect(within(select).getByRole('option', { name: 'Plan pB' })).toBeTruthy()
   })
 })
 
