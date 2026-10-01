@@ -117,6 +117,19 @@ export interface StartRunResponse {
   total_tasks: number
 }
 
+/**
+ * Where a plan's run starts: the linked project's folder and slug. The backend
+ * validates `cwd` against the project's `root_path`, so a plan run must always be
+ * started with these two (shared by the plan page and the Today cockpit).
+ * `cwd` falls back to '.' only for a plan with no folder to run in.
+ */
+export function planRunTarget(project?: { root_path?: string; slug: string } | null): {
+  cwd: string
+  projectSlug?: string
+} {
+  return { cwd: project?.root_path || '.', projectSlug: project?.slug }
+}
+
 export const runnerApi = {
   /**
    * Start a plan run. The backend spawns agents and executes tasks in wave order.

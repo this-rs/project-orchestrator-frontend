@@ -64,7 +64,7 @@ import { usePlanGraphData } from '@/hooks/usePlanGraphData'
 import { CommitList } from '@/components/commits'
 import { PlanRunHistory } from '@/components/runner/PlanRunHistory'
 import { StatsRow } from '@/components/runner/StatsRow'
-import { runnerApi, useRunnerStatus } from '@/services/runner'
+import { planRunTarget, runnerApi, useRunnerStatus } from '@/services/runner'
 import {
   CommitShaField,
   CompactStepList,
@@ -878,8 +878,8 @@ export function PlanDetailPage() {
         onConfirm={async (maxCostUsd: number) => {
           setImplementLoading(true)
           try {
-            const cwd = linkedProject?.root_path || '.'
-            await runnerApi.startRun(plan.id, cwd, linkedProject?.slug, maxCostUsd)
+            const { cwd, projectSlug } = planRunTarget(linkedProject)
+            await runnerApi.startRun(plan.id, cwd, projectSlug, maxCostUsd)
             navigate(runnerPath, { type: 'card-click' })
           } catch (err) {
             // 409 = already running — go to the dashboard anyway

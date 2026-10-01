@@ -29,6 +29,16 @@ const fixture = (name: string): AttentionResponse =>
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x))
 const changed = { entity_type: 'attention', action: 'updated', entity_id: 'x', payload: {}, timestamp: '' } as unknown as CrudEvent
 
+/** `GET /plans/{id}` and `GET /projects` as the plan page reads them, on top of the attention payload. */
+function mockPlanProject(planId: string) {
+  const attention = clone(fixture('blocked_task'))
+  get.mockImplementation(async (url: string) => {
+    if (url === `/plans/${planId}`) return { id: planId, project_id: 'p-a' }
+    if (url.startsWith('/projects')) return { items: [{ id: 'p-a', name: 'A', slug: 'proj-a', root_path: '/work/proj-a' }], total: 1 }
+    return attention
+  })
+}
+
 async function mount(name = 'four_bands', workspace?: string) {
   get.mockResolvedValue(clone(fixture(name)))
   const hook = renderHook(() => useAttention({ workspace }))
@@ -200,12 +210,39 @@ describe('useAttention: optimistic mutations', () => {
   it('resumes through the real route POST /plans/{id}/run, never an invented /run/resume', async () => {
     const { result } = await mount('blocked_task')
     const t = result.current.data!.threads[0]
+    mockPlanProject(t.plan!.id)
     post.mockResolvedValueOnce({})
     await act(async () => {
       expect(await result.current.resumeRun(t)).toBe(true)
     })
     expect(post).toHaveBeenCalledTimes(1)
     expect(post.mock.calls[0][0]).toBe(`/plans/${t.plan!.id}/run`)
+  })
+
+  it('starts the run with the project folder and slug (the backend validates cwd), never cwd="."', async () => {
+    const { result } = await mount('blocked_task')
+    const t = result.current.data!.threads[0]
+    mockPlanProject(t.plan!.id)
+    post.mockResolvedValueOnce({})
+    await act(async () => {
+      await result.current.resumeRun(t)
+    })
+    expect(post.mock.calls[0][1]).toMatchObject({ cwd: '/work/proj-a', project_slug: 'proj-a' })
+  })
+
+  it('refuses to start a run (no POST) when the plan has no project folder', async () => {
+    const { result } = await mount('blocked_task')
+    const t = result.current.data!.threads[0]
+    const base = get.getMockImplementation()
+    get.mockImplementation(async (url: string) => {
+      if (url === `/plans/${t.plan!.id}`) return { id: t.plan!.id }
+      return base ? base(url) : clone(fixture('blocked_task'))
+    })
+    await act(async () => {
+      expect(await result.current.resumeRun(t)).toBe(false)
+    })
+    expect(post).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalled()
   })
 
   it('never calls resume while the runner is busy', async () => {

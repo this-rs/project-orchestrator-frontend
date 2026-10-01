@@ -11,7 +11,9 @@ import {
   type AttentionResponse,
 } from '@/types/attention'
 import { api, buildQuery } from './api'
-import { runnerApi } from './runner'
+import { planRunTarget, runnerApi } from './runner'
+import { plansApi } from './plans'
+import { projectsApi } from './projects'
 import { rfcApi } from './rfcApi'
 import { decisionsApi } from './decisions'
 
@@ -252,7 +254,19 @@ export const attentionApi = {
    * Resume a stopped run: the real route is `POST /plans/{id}/run` (same call as the
    * runner dashboard's retry); the runner itself skips the done and the blocked tasks.
    */
-  resumeRun: (planId: string) => runnerApi.startRun(planId, '.'),
+  resumeRun: async (planId: string) => {
+    // The backend validates `cwd` against the project's root_path: start the run
+    // exactly as the plan page does (project folder + slug). The contract's PlanRef
+    // carries no project: the aggregator could provide `plan.project_slug` /
+    // `root_path` to save these two reads.
+    const plan = await plansApi.get(planId)
+    const project = plan.project_id
+      ? ((await projectsApi.list()).items || []).find((p) => p.id === plan.project_id)
+      : undefined
+    if (!project?.root_path) throw new Error("Le plan n'a pas de projet avec un dossier : reprise impossible d'ici.")
+    const { cwd, projectSlug } = planRunTarget(project)
+    return runnerApi.startRun(planId, cwd, projectSlug)
+  },
 
   /** Accept / reject an RFC (FSM transition) or a decision (status). */
   decide: (kind: 'rfc' | 'decision', id: string, verdict: Verdict): Promise<unknown> =>
