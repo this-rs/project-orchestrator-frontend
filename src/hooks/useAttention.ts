@@ -9,6 +9,13 @@ import { useToast } from './useToast'
 /** Coalesces a burst of `attention_changed` into one refetch. */
 export const ATTENTION_DEBOUNCE_MS = 500
 
+/** What a toast says the answer was about: the tool and the start of the command, so a card that leaves is still named. */
+export function describeRequest(req: WaitingRequest): string {
+  const text = req.text.replace(/\s+/g, ' ').trim()
+  const short = text.length > 60 ? `${text.slice(0, 57)}…` : text
+  return req.tool_name ? `${req.tool_name} ${short}`.trim() : short
+}
+
 export const ORPHAN_NOTICE =
   "L'agent n'est plus là : son CLI s'est arrêté. Tu peux le relancer avec « Reprendre la session »."
 
@@ -126,6 +133,8 @@ export interface UseAttentionOptions {
 export function useAttention({ workspace = null }: UseAttentionOptions = {}) {
   const toast = useToast()
   const [raw, setRaw] = useState<AttentionResponse | null>(null)
+  /** Lane the CURRENT `raw` was fetched for: lets the page keep the old data (dimmed) while a new lane loads. */
+  const [dataWorkspace, setDataWorkspace] = useState<string | null>(workspace)
   const [error, setError] = useState<Error | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [entries, setEntries] = useState<Entry[]>([])
@@ -148,6 +157,7 @@ export function useAttention({ workspace = null }: UseAttentionOptions = {}) {
       const next = await attentionApi.fetch(workspace, ctrl.signal)
       if (!alive.current || n !== fetchSeq.current) return
       setRaw((prev) => (prev ? share(prev, next) : next))
+      setDataWorkspace(workspace)
       setError(null)
       setEntries((es) => es.filter((e) => e.settledAfter === null || e.settledAfter >= n))
     } catch (err) {
@@ -236,7 +246,7 @@ export function useAttention({ workspace = null }: UseAttentionOptions = {}) {
       const ok = await run(
         { kind: 'drop_request', id: req.request_id },
         () => attentionApi.answerPermission(req.session_id, req.request_id, allow),
-        { ok: allow ? 'Autorisé' : 'Refusé', fail: 'Réponse non envoyée' },
+        { ok: `${allow ? 'Autorisé' : 'Refusé'} : ${describeRequest(req)}`, fail: 'Réponse non envoyée' },
         () => {
           gone = true
           setNotices((n) => ({ ...n, [req.request_id]: ORPHAN_NOTICE }))
@@ -253,7 +263,7 @@ export function useAttention({ workspace = null }: UseAttentionOptions = {}) {
       const ok = await run(
         { kind: 'drop_request', id: req.request_id },
         () => attentionApi.sendMessage(req.session_id, content),
-        { ok: 'Réponse envoyée', fail: 'Réponse non envoyée' },
+        { ok: `Réponse envoyée : ${describeRequest(req)}`, fail: 'Réponse non envoyée' },
       )
       if (ok) clearDraft(req.request_id)
       return ok
@@ -269,7 +279,7 @@ export function useAttention({ workspace = null }: UseAttentionOptions = {}) {
       return run(
         { kind: 'resume_thread', id: thread.id },
         () => attentionApi.resumeRun(planId),
-        { ok: 'Run repris', fail: 'Reprise impossible' },
+        { ok: `Run repris : ${thread.plan.title}`, fail: 'Reprise impossible' },
       )
     },
     [raw, run],
@@ -282,7 +292,7 @@ export function useAttention({ workspace = null }: UseAttentionOptions = {}) {
       return run(
         { kind: 'drop_thinking', id: item.id },
         () => attentionApi.decide(kind, item.id, verdict),
-        { ok: verdict === 'accept' ? 'Accepté' : 'Rejeté', fail: 'Décision non enregistrée' },
+        { ok: `${verdict === 'accept' ? 'Accepté' : 'Rejeté'} : ${item.title}`, fail: 'Décision non enregistrée' },
       )
     },
     [run],
@@ -304,6 +314,8 @@ export function useAttention({ workspace = null }: UseAttentionOptions = {}) {
     /** Set when a refetch failed; with `status === 'ready'` the stale page stays up. */
     error,
     refreshing,
+    /** True while the shown data belongs to another lane than the requested one (a lane chip was just tapped). */
+    switchingLane: raw !== null && dataWorkspace !== workspace,
     refresh,
     /** request_id -> notice, for requests found orphaned by a 410. */
     notices,

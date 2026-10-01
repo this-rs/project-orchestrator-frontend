@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Skeleton, SkeletonLine, EntityListSkeleton, EmptyState, Button, focusRing, surface } from '@/components/ui'
+import { pressFeedback } from '@/components/ui/classes'
 import type {
   AttentionResponse,
   AttentionThread,
@@ -9,19 +10,20 @@ import type {
 } from '@/types/attention'
 import { workspacePath } from '@/utils/paths'
 import { AttentionCard, type AnswerResult } from './AttentionCard'
+import { MiniGraphLegend } from './MiniThreadGraph'
 import { PlanRunRow } from './PlanRunRow'
 import { ThinkingList, useThinkingCollapsed } from './ThinkingList'
 import { ThreadRow, ThreadRowList } from './ThreadRow'
 import {
-  BAND_ORDER,
   BAND_TEXT,
+  SECTION_ORDER,
   TODAY_TEXT,
   buildBands,
   linkNames,
   type StuckEntry,
   type WaitingEntry,
 } from './bands'
-import { recommendStart } from './startHere'
+import { recommendStart, type StartHere } from './startHere'
 
 /**
  * The day's view, assembled. Presentation only: data and actions come from a
@@ -46,6 +48,8 @@ export interface TodaySource {
   /** Why the page could not load, or why the last refresh failed. */
   error: Error | null
   refresh: () => void
+  /** The data on screen is the previous lane's: dim it and make it inert until the new one arrives. */
+  switching?: boolean
   notices: Record<string, string>
   drafts: Record<string, string>
   setDraft: (id: string, text: string) => void
@@ -95,7 +99,7 @@ function BandFrame({ band, count, state, errorText, degraded, onRetry, skeleton,
       <div className={`flex flex-wrap items-baseline gap-x-3 ${showEmptyLine ? 'py-1' : 'mb-1'}`}>
         <h2 className="flex items-baseline gap-2 text-sm font-semibold text-gray-200">
           <span>{title}</span>
-          {count !== null && <span className="text-xs font-normal tabular-nums text-gray-500">{count}</span>}
+          {count !== null && <span className="text-xs font-normal tabular-nums text-gray-400">{count}</span>}
         </h2>
         {showEmptyLine && <p className="text-sm text-gray-400">{emptyText}</p>}
       </div>
@@ -174,17 +178,17 @@ export function TodaySummary({
 }) {
   return (
     <ul aria-label={TODAY_TEXT.summaryLabel} className="flex flex-wrap items-center gap-x-1 text-sm text-gray-400">
-      {BAND_ORDER.map((b, i) => (
+      {SECTION_ORDER.map((b, i) => (
         <li key={b} className="flex items-center gap-x-1" data-counter={b}>
           {i > 0 && (
-            <span aria-hidden="true" className="text-gray-600">
+            <span aria-hidden="true" className="text-gray-500">
               ·
             </span>
           )}
           <button
             type="button"
             onClick={() => onGo(b)}
-            className={`inline-flex min-h-9 items-baseline gap-1.5 rounded-lg px-2 hover:bg-white/[0.06] hover:text-gray-200 ${focusRing}`}
+            className={`inline-flex min-h-9 items-baseline gap-1.5 rounded-lg px-2 hover:bg-white/[0.06] hover:text-gray-200 ${pressFeedback} ${focusRing}`}
           >
             {counts ? (
               <span className="tabular-nums font-medium text-gray-100">{counts[b]}</span>
@@ -206,7 +210,47 @@ export function TodaySummary({
 export const START_TEXT = {
   title: 'Commence par ça',
   why: 'Pourquoi',
+  noThread: 'Sans fil',
+  go: (section: string) => `Voir en haut de « ${section} »`,
 } as const
+
+/**
+ * The recommendation is a POINTER, not a second copy of the card: the item itself lives, once, at
+ * the top of its section (both sections are ordered oldest first, and so is the recommendation).
+ */
+function StartPointer({
+  start,
+  laneName,
+  onGo,
+}: {
+  start: Extract<StartHere, { kind: 'waiting' | 'stuck' }>
+  laneName: (slug: string) => string
+  onGo: (band: Band) => void
+}) {
+  const band: Band = start.kind === 'waiting' ? 'waiting' : 'stuck'
+  let what: string
+  if (start.kind === 'waiting') {
+    const { request, thread } = start.entry
+    what = `${laneName(request.workspace)} · ${thread?.title ?? START_TEXT.noThread}`
+  } else {
+    const e = start.entry
+    what = e.kind === 'unattached' ? e.session.title : e.thread.title
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <p data-testid="start-what" className="min-w-0 break-words text-sm text-gray-100">
+        {what}
+      </p>
+      <button
+        type="button"
+        onClick={() => onGo(band)}
+        className={`inline-flex min-h-9 items-center rounded-lg border border-white/[0.12] bg-white/[0.06] px-3 text-sm text-gray-100 hover:bg-white/[0.1] ${pressFeedback} ${focusRing}`}
+      >
+        {START_TEXT.go(BAND_TEXT[band].title)}
+      </button>
+    </div>
+  )
+}
 
 export interface TodayViewProps {
   source: TodaySource
@@ -262,7 +306,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
     <div className="space-y-2">
       <TodaySummary counts={bands ? bands.counts : null} onGo={go} />
       {lanePicker}
-      {laneNote && <p className="text-xs text-gray-500">{laneNote}</p>}
+      {laneNote && <p className="text-xs text-gray-400">{laneNote}</p>}
       {status === 'ready' && error && (
         <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-amber-300">
           <span>{TODAY_TEXT.staleRefresh}</span>
@@ -381,6 +425,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
     <div className="space-y-6">
       {summary}
 
+      <div aria-busy={source.switching || undefined} className={`space-y-6 ${source.switching ? 'pointer-events-none opacity-60' : ''}`}>
       {/* "Commence par ça": one recommendation, and why. Plain section, the item keeps its own card. */}
       {(state === 'loading' || start) && (
         <section aria-label={START_TEXT.title} data-start={start?.kind ?? 'loading'} className="min-w-0 space-y-2">
@@ -397,16 +442,11 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
                   {start.title}
                 </p>
               )}
-              <p data-testid="start-why" className="text-xs text-gray-400">
+              <p data-testid="start-why" className="text-xs text-gray-300">
                 {START_TEXT.why} : {start.why}
               </p>
-              {start.kind === 'waiting' && (
-                <ul aria-label="Demande recommandée" className="space-y-3">
-                  <li>{renderWaiting(start.entry)}</li>
-                </ul>
-              )}
-              {start.kind === 'stuck' && (
-                <ThreadRowList label="Fil recommandé">{renderStuck(start.entry)}</ThreadRowList>
+              {(start.kind === 'waiting' || start.kind === 'stuck') && (
+                <StartPointer start={start} laneName={laneName} onGo={go} />
               )}
             </>
           )}
@@ -441,7 +481,12 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
           skeleton={<ThreadRowsSkeleton />}
           empty={!bands || bands.stuck.length === 0}
         >
-          {bands && <ThreadRowList label="Fils à reprendre">{bands.stuck.map(renderStuck)}</ThreadRowList>}
+          {bands && (
+            <>
+              <ThreadRowList label="Fils à reprendre">{bands.stuck.map(renderStuck)}</ThreadRowList>
+              {bands.stuck.some((e) => e.kind !== 'unattached') && <MiniGraphLegend />}
+            </>
+          )}
         </BandFrame>
 
         <BandFrame
@@ -452,6 +497,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
           empty={!bands || bands.running.length === 0}
         >
           {bands && (
+            <>
             <ThreadRowList label="Plans en cours">
               {bands.running.map((e) =>
                 e.kind === 'plan' ? (
@@ -474,6 +520,8 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
                 ),
               )}
             </ThreadRowList>
+            {bands.running.some((e) => e.kind === 'plan') && <MiniGraphLegend />}
+            </>
           )}
         </BandFrame>
 
@@ -500,6 +548,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
             {null}
           </BandFrame>
         )}
+      </div>
       </div>
     </div>
   )

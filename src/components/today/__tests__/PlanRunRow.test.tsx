@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { parseAttentionResponse } from '@/services/attention'
 import type { AttentionResponse, AttentionThread, WavePointStatus } from '@/types/attention'
 import { ThreadRowList } from '../ThreadRow'
-import { PlanRunRow, nowWorking, planProgress } from '../PlanRunRow'
+import { DISCUSSIONS_TEXT, PlanRunRow, nowWorking, planProgress } from '../PlanRunRow'
 
 const fixture = (name: string): AttentionResponse =>
   parseAttentionResponse(
@@ -117,21 +117,22 @@ describe('PlanRunRow', () => {
 
   it('has NO Discussions button without a slot', () => {
     renderRow(<PlanRunRow thread={thread} />)
-    expect(screen.queryByRole('button', { name: 'Discussions' })).toBeNull()
+    expect(screen.queryByRole('button', { name: DISCUSSIONS_TEXT.show })).toBeNull()
   })
 
   it('a thread WITHOUT a plan has no Discussions button even with a slot', () => {
     renderRow(<PlanRunRow thread={{ ...thread, plan: null }} renderDiscussions={() => <p>arbre</p>} />)
-    expect(screen.queryByRole('button', { name: 'Discussions' })).toBeNull()
+    expect(screen.queryByRole('button', { name: DISCUSSIONS_TEXT.show })).toBeNull()
   })
 
   it('with a slot, the Discussions button unfolds what the slot renders for THIS thread', () => {
     renderRow(<PlanRunRow thread={thread} renderDiscussions={(t) => <p>arbre de {t.id}</p>} />)
-    const btn = screen.getByRole('button', { name: 'Discussions' })
+    const btn = screen.getByRole('button', { name: DISCUSSIONS_TEXT.show })
     expect(btn.getAttribute('aria-expanded')).toBe('false')
     expect(screen.queryByText(`arbre de ${thread.id}`)).toBeNull()
     fireEvent.click(btn)
     expect(btn.getAttribute('aria-expanded')).toBe('true')
+    expect(btn.textContent).toBe(DISCUSSIONS_TEXT.hide) // the open state is written, not only implied
     expect(screen.getByText(`arbre de ${thread.id}`)).toBeTruthy()
     expect(btn.className).toContain('min-h-9')
   })

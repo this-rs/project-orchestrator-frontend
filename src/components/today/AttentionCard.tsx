@@ -197,7 +197,7 @@ export function AttentionCard({
         <RelativeTime date={request.requested_at} prefix="depuis " />
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
           <StatusDot tone={live ? 'success' : 'muted'} />
-          <span className={live ? 'text-emerald-300' : 'text-gray-500'}>{live ? 'vivant' : 'arrêté'}</span>
+          <span className={live ? 'text-emerald-300' : 'text-gray-400'}>{live ? 'vivant' : 'arrêté'}</span>
         </span>
       </div>
 
@@ -252,7 +252,7 @@ export function AttentionCard({
         </p>
       )}
       {error && (
-        <p role="alert" className="text-sm text-red-400 break-words">
+        <p role="alert" className="text-sm text-red-300 break-words">
           {error}
         </p>
       )}

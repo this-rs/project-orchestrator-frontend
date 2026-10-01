@@ -2,7 +2,7 @@ import { useId, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { StatusIcon } from '@/components/ui/Status'
 import { RelativeTime } from '@/components/ui/MetaLine'
-import { focusRing, inlineLink, metaText, provenanceText } from '@/components/ui/classes'
+import { focusRing, inlineLink, metaTextReadable as metaText, pressFeedback, provenanceText } from '@/components/ui/classes'
 import { formatCost, formatDurationMs } from '@/components/ui/format'
 import { workspacePath } from '@/utils/paths'
 import type {
@@ -56,6 +56,7 @@ export const ROW_TEXT = {
   noPreview: "L'aperçu de la reprise n'est pas disponible.",
   unblockFirst: 'Débloque-la avant de reprendre : le runner la saute.',
   resumeStarted: 'Reprise lancée.',
+  followRun: 'Suivre le run',
   resumeFailed: 'La reprise a échoué.',
   /** Help of an orphan PERMISSION (only valid for a request without decision). */
   helpPermission:
@@ -115,7 +116,7 @@ const shortId = (id: string) => id.slice(0, 8)
  * Buttons of the rows (bands 2 and 3). The ONE primary of the page is the answer to a
  * live agent (band 1): eight stuck threads must not stack eight identical primaries.
  */
-const BTN = 'inline-flex min-h-9 items-center justify-center rounded-lg px-4 text-sm font-medium'
+const BTN = `${pressFeedback} inline-flex min-h-9 items-center justify-center rounded-lg px-4 text-sm font-medium`
 const secondaryBtn = `${BTN} border border-white/[0.12] bg-white/[0.06] text-gray-100 hover:bg-white/[0.1]`
 const primaryBtn = `${BTN} bg-indigo-600 text-white hover:bg-indigo-500`
 
@@ -291,7 +292,7 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
           onClick={click}
           disabled={disabled}
           aria-describedby={noteId}
-          className={`${secondaryBtn} disabled:cursor-not-allowed disabled:border-dashed disabled:border-white/[0.12] disabled:bg-transparent disabled:text-gray-500 ${focusRing}`}
+          className={`${secondaryBtn} disabled:cursor-not-allowed disabled:border-dashed disabled:border-white/[0.12] disabled:bg-transparent disabled:text-gray-400 ${focusRing}`}
         >
           {pending ? 'Reprise…' : ROW_TEXT.resume}
         </button>
@@ -302,12 +303,23 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
         )}
       </div>
       {started && (
-        <p role="status" className="mt-1 text-xs text-emerald-400">
+        <p role="status" className="mt-1 text-xs text-emerald-300">
           {ROW_TEXT.resumeStarted}
+          {thread.plan && (
+            <>
+              {' '}
+              <Link
+                to={`${workspacePath(thread.workspace, `/plans/${thread.plan.id}`)}#runner`}
+                className={`inline-flex min-h-9 items-center underline underline-offset-2 ${focusRing}`}
+              >
+                {ROW_TEXT.followRun}
+              </Link>
+            </>
+          )}
         </p>
       )}
       {error && (
-        <p role="alert" className="mt-1 text-xs text-red-400">
+        <p role="alert" className="mt-1 text-xs text-red-300">
           {error}
         </p>
       )}
@@ -323,7 +335,7 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
 function RequestText({ req }: { req: WaitingRequest }) {
   return (
     <div className="mt-2 min-w-0">
-      <p className="text-[11px] leading-4 text-gray-500">
+      <p className="text-xs leading-4 text-gray-400">
         {req.kind === 'permission' ? `Permission demandée${req.tool_name ? ` (${req.tool_name})` : ''}` : 'Question posée'}
       </p>
       <pre
@@ -356,13 +368,14 @@ function OptionPicker({
             key={o.label}
             type="button"
             aria-pressed={on}
-            title={o.description ?? undefined}
+            aria-label={o.label}
             onClick={() => onSelect(on ? null : o.label)}
-            className={`min-h-9 rounded-lg border px-3 text-left text-xs ${focusRing} ${
+            className={`${pressFeedback} min-h-9 rounded-lg border px-3 py-1.5 text-left text-xs ${focusRing} ${
               on ? 'border-indigo-400/60 bg-indigo-500/15 text-gray-100' : 'border-white/[0.1] text-gray-300 hover:bg-white/[0.06]'
             }`}
           >
-            {o.label}
+            <span className="block">{o.label}</span>
+            {o.description && <span className="block font-normal text-gray-400">{o.description}</span>}
           </button>
         )
       })}

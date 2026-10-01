@@ -1,7 +1,8 @@
 import { useId, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { ChevronRight } from 'lucide-react'
 import { StatusDot } from '@/components/ui/Status'
-import { focusRing, metaText } from '@/components/ui/classes'
+import { focusRing, metaTextReadable as metaText, pressFeedback } from '@/components/ui/classes'
 import { formatCost, formatDurationMs } from '@/components/ui/format'
 import type { AttentionThread, WaveSummaryDto } from '@/types/attention'
 import { workspacePath } from '@/utils/paths'
@@ -20,6 +21,11 @@ import { MiniThreadGraph } from './MiniThreadGraph'
  * - a "Discussions" button that exists only when the parent provides
  *   `renderDiscussions` (the discussion tree is assembled later, it is not built here).
  */
+
+export const DISCUSSIONS_TEXT = {
+  show: 'Voir les discussions',
+  hide: 'Masquer les discussions',
+} as const
 
 export interface PlanProgress {
   done: number
@@ -140,7 +146,7 @@ export function PlanRunRow({ thread, others = 0, laneName, renderDiscussions, cl
             </span>
           </div>
         )}
-        <p data-testid="now-working" data-who={now.who} className={`mt-1 text-xs ${now.who === 'you' ? 'text-indigo-300' : 'text-gray-300'}`}>
+        <p data-testid="now-working" data-who={now.who} className={`mt-1 text-xs ${now.who === 'you' ? 'text-sky-300' : 'text-gray-300'}`}>
           {now.text}
         </p>
         <MiniThreadGraph waves={thread.waves} planId={thread.plan?.id} workspace={thread.workspace} />
@@ -156,9 +162,12 @@ export function PlanRunRow({ thread, others = 0, laneName, renderDiscussions, cl
               aria-expanded={open}
               aria-controls={panelId}
               onClick={() => setOpen((o) => !o)}
-              className={`inline-flex min-h-9 items-center rounded-lg border border-white/[0.12] bg-white/[0.06] px-3 text-sm text-gray-100 hover:bg-white/[0.1] ${focusRing}`}
+              className={`${pressFeedback} inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-sm text-gray-100 ${focusRing} ${
+                open ? 'border-indigo-400/60 bg-indigo-500/15' : 'border-white/[0.12] bg-white/[0.06] hover:bg-white/[0.1]'
+              }`}
             >
-              Discussions
+              <ChevronRight className={`h-4 w-4 shrink-0 ${open ? 'rotate-90' : ''}`} aria-hidden="true" />
+              {open ? DISCUSSIONS_TEXT.hide : DISCUSSIONS_TEXT.show}
             </button>
             <div id={panelId} hidden={!open} className="min-w-0">
               {open && renderDiscussions(thread)}

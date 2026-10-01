@@ -80,7 +80,7 @@ describe('ThinkingList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Accepter Adopt Rust' }))
     expect(screen.queryByText('Adopt Rust')).toBeNull() // gone before the server answers
     expect(screen.queryByRole('dialog')).toBeNull()
-    await waitFor(() => expect(m.success).toHaveBeenCalledWith('Accepté'))
+    await waitFor(() => expect(m.success).toHaveBeenCalledWith(expect.stringMatching(/^Accepté : /)))
     expect(m.decide).toHaveBeenCalledWith('rfc', 'r1', 'accept')
     expect(onChanged).toHaveBeenCalled()
   })

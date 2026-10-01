@@ -74,6 +74,7 @@ function useLiveSource(lane: string | null): TodaySource {
     data: a.data,
     error: a.error,
     refresh: () => void refresh(),
+    switching: a.switchingLane,
     notices: a.notices,
     drafts: a.drafts,
     setDraft: a.setDraft,
@@ -127,8 +128,8 @@ export function TodayPage() {
 
   return (
     <PageShell title={TODAY_TEXT.title} width="full">
+      {/* No `key` on the lane: remounting flashed every skeleton on each chip tap. The old data stays, dimmed and inert, until the new lane lands. */}
       <LiveToday
-        key={lane ?? ALL_LANES}
         lane={lane}
         plansSlug={plansSlug}
         onClearLane={clearLane}

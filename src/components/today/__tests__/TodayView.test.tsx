@@ -5,6 +5,7 @@ import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { parseAttentionResponse } from '@/services/attention'
 import type { AttentionResponse } from '@/types/attention'
+import { DISCUSSIONS_TEXT } from '../PlanRunRow'
 import { TodayView, type TodaySource } from '../TodayView'
 
 vi.mock('@/hooks/useToast', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }) }))
@@ -49,7 +50,7 @@ describe('TodayView: the discussions slot of "En cours"', () => {
 
   it('shows no "Discussions" button when the slot is not provided', () => {
     view(data)
-    expect(screen.queryByRole('button', { name: 'Discussions' })).toBeNull()
+    expect(screen.queryByRole('button', { name: DISCUSSIONS_TEXT.show })).toBeNull()
   })
 
   it('shows one per plan row when the slot is provided, and passes the row\'s thread', () => {
@@ -58,15 +59,15 @@ describe('TodayView: the discussions slot of "En cours"', () => {
     const running = screen.getByRole('region', { name: 'En cours' })
     const rows = running.querySelectorAll('li[data-variant="running"]')
     expect(rows.length).toBeGreaterThan(0)
-    expect(within(running).getAllByRole('button', { name: 'Discussions' })).toHaveLength(rows.length)
+    expect(within(running).getAllByRole('button', { name: DISCUSSIONS_TEXT.show })).toHaveLength(rows.length)
     // nothing is rendered before the user opens it
     expect(render_).not.toHaveBeenCalled()
   })
 
   it('the other sections never get one', () => {
     view(data, { renderDiscussions: () => <p>arbre</p> })
-    expect(within(screen.getByRole('region', { name: 'À reprendre' })).queryByRole('button', { name: 'Discussions' })).toBeNull()
-    expect(within(screen.getByRole('region', { name: 'À traiter' })).queryByRole('button', { name: 'Discussions' })).toBeNull()
+    expect(within(screen.getByRole('region', { name: 'À reprendre' })).queryByRole('button', { name: DISCUSSIONS_TEXT.show })).toBeNull()
+    expect(within(screen.getByRole('region', { name: 'À traiter' })).queryByRole('button', { name: DISCUSSIONS_TEXT.show })).toBeNull()
   })
 })
 

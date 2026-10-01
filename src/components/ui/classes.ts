@@ -26,6 +26,8 @@ export const rowInteractive = 'relative z-10'
 
 /** Muted secondary text, 11px — rows, counts, captions. */
 export const metaText = 'text-[11px] leading-4 text-gray-500'
+/** Same role as `metaText` but 12 px / gray-400 (>= 4.5:1): for what the reader must be able to read on a phone (Today). */
+export const metaTextReadable = 'text-xs leading-4 text-gray-400'
 /** Where a thing comes from (contract information, not decoration): 12px, readable grey. */
 export const provenanceText = 'text-xs leading-4 text-gray-400'
 

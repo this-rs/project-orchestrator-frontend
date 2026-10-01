@@ -90,4 +90,23 @@ describe('ContinueSheet', () => {
     render(<ContinueSheet open onClose={() => {}} onSend={async () => {}} {...base} />)
     expect(screen.queryByRole('button', { name: /autoriser|allow|approuver/i })).toBeNull()
   })
+
+  it('stays above the iOS keyboard (visual viewport shrunk) and does not chain scroll to the page', () => {
+    const listeners = new Map<string, () => void>()
+    const vv = {
+      height: 300,
+      offsetTop: 0,
+      addEventListener: (t: string, f: () => void) => listeners.set(t, f),
+      removeEventListener: vi.fn(),
+    }
+    Object.defineProperty(window, 'visualViewport', { value: vv, configurable: true })
+    try {
+      render(<ContinueSheet open onClose={() => {}} onSend={async () => {}} {...base} />)
+      const panel = screen.getByTestId('continue-sheet')
+      expect(panel.parentElement!.style.height).toBe('300px')
+      expect(panel.className).toContain('overscroll-contain')
+    } finally {
+      Object.defineProperty(window, 'visualViewport', { value: undefined, configurable: true })
+    }
+  })
 })

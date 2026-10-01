@@ -1,4 +1,4 @@
-import { focusRing } from '@/components/ui/classes'
+import { focusRing, pressFeedback } from '@/components/ui/classes'
 import { TODAY_TEXT } from './bands'
 
 /**
@@ -23,7 +23,7 @@ export function LaneChips({ lanes, active, onSelect }: LaneChipsProps) {
       aria-pressed={on}
       data-lane-chip={slug || 'all'}
       onClick={() => onSelect(slug)}
-      className={`inline-flex min-h-9 max-w-full items-center rounded-full border px-3 text-xs ${focusRing} ${
+      className={`${pressFeedback} inline-flex min-h-9 max-w-full items-center rounded-full border px-3 text-xs ${focusRing} ${
         on
           ? 'border-indigo-400/60 bg-indigo-500/15 text-gray-100'
           : 'border-white/[0.1] text-gray-300 hover:bg-white/[0.06]'

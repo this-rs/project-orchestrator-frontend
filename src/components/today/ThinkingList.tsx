@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { ConfirmDialog, EntityRow, ListGroup } from '@/components/ui'
 import { RelativeTime } from '@/components/ui/MetaLine'
-import { focusRing } from '@/components/ui/classes'
+import { focusRing, pressFeedback } from '@/components/ui/classes'
 import { useToast } from '@/hooks/useToast'
 import { api } from '@/services/api'
 import { attentionApi, type Verdict } from '@/services/attention'
@@ -97,7 +97,7 @@ function call(item: ThinkingItem, act: Act): Promise<unknown> {
 }
 
 const actionBtn =
-  'inline-flex items-center justify-center min-h-9 px-3 rounded-lg text-xs font-medium border border-white/[0.08] bg-white/[0.04] text-gray-200 hover:bg-white/[0.08] active:bg-white/[0.1]'
+  'inline-flex items-center justify-center min-h-9 px-3 rounded-lg text-xs font-medium border border-white/[0.08] bg-white/[0.04] text-gray-200 hover:bg-white/[0.08] active:bg-white/[0.1] ' + pressFeedback
 
 export interface ThinkingListProps {
   items: ThinkingItem[]
@@ -135,7 +135,7 @@ export function ThinkingList({
       setGone((s) => new Set(s).add(item.id))
       try {
         await call(item, act)
-        toast.success(DONE_TOAST[act])
+        toast.success(`${DONE_TOAST[act]} : ${item.title}`)
         onChanged?.()
       } catch (err) {
         setGone((s) => {
@@ -176,7 +176,7 @@ export function ThinkingList({
 
   return (
     <section id="today-thinking" aria-label={title} data-band="thinking" className={`scroll-mt-4 ${className}`}>
-      <h2 id="today-thinking-title" className="text-xs font-medium text-gray-500">
+      <h2 id="today-thinking-title" className="text-xs font-medium text-gray-400">
         <button
           type="button"
           onClick={toggle}
@@ -186,13 +186,13 @@ export function ThinkingList({
         >
           <ChevronRight className={`w-3 h-3 shrink-0 transition-transform ${collapsed ? '' : 'rotate-90'}`} aria-hidden="true" />
           <span>{title}</span>
-          <span className="tabular-nums font-normal text-gray-600">{visible.length}</span>
+          <span className="tabular-nums font-normal text-gray-400">{visible.length}</span>
         </button>
       </h2>
 
       <div id={bodyId} hidden={collapsed}>
         {visible.length === 0 ? (
-          <p className="px-1 py-2 text-xs text-gray-500">Rien à suivre</p>
+          <p className="px-1 py-2 text-xs text-gray-400">Rien à suivre</p>
         ) : (
           GROUPS.map(({ kind, title }) => {
             const rows = visible.filter((i) => i.kind === kind)

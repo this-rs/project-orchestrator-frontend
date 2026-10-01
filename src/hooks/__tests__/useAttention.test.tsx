@@ -22,7 +22,7 @@ const toast = { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn(
 vi.mock('@/hooks/useToast', () => ({ useToast: () => toast }))
 
 import { ApiError } from '@/services/api'
-import { ATTENTION_DEBOUNCE_MS, ORPHAN_NOTICE, applyOverlay, share, useAttention } from '../useAttention'
+import { ATTENTION_DEBOUNCE_MS, ORPHAN_NOTICE, applyOverlay, describeRequest, share, useAttention } from '../useAttention'
 
 const fixture = (name: string): AttentionResponse =>
   JSON.parse(readFileSync(join(__dirname, '../../services/__fixtures__/attention', `${name}.json`), 'utf8'))
@@ -297,5 +297,17 @@ describe('applyOverlay / share', () => {
     expect(s.x[0]).toBe(a.x[0])
     expect(s.x[1]).toEqual({ k: 3 })
     expect(share(a, clone(a))).toBe(a)
+  })
+})
+
+describe('describeRequest: a card that leaves is still named by its toast', () => {
+  const req = (text: string, tool_name: string | null) => ({ text, tool_name }) as never
+  it('says the tool and the start of the command, on one line', () => {
+    expect(describeRequest(req('rm -rf\n  target/debug', 'Bash'))).toBe('Bash rm -rf target/debug')
+  })
+  it('cuts a long command and works without a tool name', () => {
+    const out = describeRequest(req('x'.repeat(200), null))
+    expect(out.length).toBeLessThanOrEqual(58)
+    expect(out.endsWith('…')).toBe(true)
   })
 })

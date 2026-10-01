@@ -11,8 +11,8 @@ import { workspacePath } from '@/utils/paths'
  * No task text — the reader sees where the thread is and where it is stopped.
  *
  * - Light inline SVG / HTML (a canvas per thread would not survive 40 threads on a phone).
- * - State = shape AND colour (readable in greyscale): ● done, ◉ running, ○ pending,
- *   ◆ waiting on you, ✕ failed, ■ blocked.
+ * - State = shape AND colour (readable in greyscale): ● faite, ◉ en cours, ○ à venir,
+ *   ◆ attend ta réponse, ✕ échouée, ■ bloquée (see `MiniGraphLegend`).
  * - Only the running mark pulses (`.pulse-ring`, already disabled under
  *   prefers-reduced-motion); it is a different element once the state changes.
  * - Above COMPRESS_THRESHOLD tasks, each wave collapses to a count per state.
@@ -25,18 +25,19 @@ export const COMPRESS_THRESHOLD = 24
 
 interface StateMeta {
   tone: StatusTone
-  /** Singular noun phrase used in the accessible label ("5 done"). */
-  word: string
+  /** Singular and plural of the phrase used in labels and in the legend ("5 faites"). */
+  one: string
+  many: string
 }
 
 /** Reading order, also the order of counts in labels. Tones: existing status tones. */
 export const STATE_META: Record<WavePointStatus, StateMeta> = {
-  done: { tone: 'success', word: 'done' },
-  running: { tone: 'progress', word: 'running' },
-  waiting: { tone: 'info', word: 'waiting on you' },
-  pending: { tone: 'neutral', word: 'up next' },
-  blocked: { tone: 'warning', word: 'blocked' },
-  failed: { tone: 'danger', word: 'failed' },
+  done: { tone: 'success', one: 'faite', many: 'faites' },
+  running: { tone: 'progress', one: 'en cours', many: 'en cours' },
+  waiting: { tone: 'info', one: 'attend ta réponse', many: 'attendent ta réponse' },
+  pending: { tone: 'neutral', one: 'à venir', many: 'à venir' },
+  blocked: { tone: 'warning', one: 'bloquée', many: 'bloquées' },
+  failed: { tone: 'danger', one: 'échouée', many: 'échouées' },
 }
 const ORDER = Object.keys(STATE_META) as WavePointStatus[]
 
@@ -49,20 +50,23 @@ function countStates(wave: WaveSummaryDto): Counts {
 }
 
 function describe(counts: Counts): string {
-  const parts = ORDER.filter((s) => counts[s] > 0).map((s) => `${counts[s]} ${STATE_META[s].word}`)
-  return parts.length ? parts.join(', ') : 'empty'
+  const parts = ORDER.filter((s) => counts[s] > 0).map(
+    (s) => `${counts[s]} ${counts[s] === 1 ? STATE_META[s].one : STATE_META[s].many}`,
+  )
+  return parts.length ? parts.join(', ') : 'vide'
 }
 
-/** Full text label, e.g. "Plan graph, 3 waves: wave 1 of 3: 5 done; wave 2 of 3: 1 running, 2 up next". */
+/** Full text label, e.g. "Graphe du plan, 3 vagues : vague 1 sur 3 : 5 faites ; vague 2 sur 3 : 1 en cours, 2 à venir". */
 export function miniThreadGraphLabel(waves: WaveSummaryDto[]): string {
-  if (waves.length === 0) return 'Plan graph: no waves'
+  if (waves.length === 0) return 'Graphe du plan : aucune vague'
   const total = waves.length
-  const body = waves.map((w, i) => `wave ${i + 1} of ${total}: ${describe(countStates(w))}`).join('; ')
-  return `Plan graph, ${total} ${total === 1 ? 'wave' : 'waves'}: ${body}`
+  const body = waves.map((w, i) => `vague ${i + 1} sur ${total} : ${describe(countStates(w))}`).join(' ; ')
+  return `Graphe du plan, ${total} ${total === 1 ? 'vague' : 'vagues'} : ${body}`
 }
 
 /** One mark. 12px box, `currentColor` carries the tone, the shape carries the state. */
-function Glyph({ status }: { status: WavePointStatus }) {
+/** `pulse`: only ONE running mark per plan breathes, a row of pulsing dots is noise. */
+function Glyph({ status, pulse = false }: { status: WavePointStatus; pulse?: boolean }) {
   const shape = (() => {
     switch (status) {
       case 'done':
@@ -89,7 +93,7 @@ function Glyph({ status }: { status: WavePointStatus }) {
       data-state={status}
       className={`relative inline-flex h-3 w-3 shrink-0 ${TONE_CLASSES[STATE_META[status].tone].text}`}
     >
-      {status === 'running' && (
+      {status === 'running' && pulse && (
         <span
           data-testid="pulse"
           aria-hidden="true"
@@ -103,14 +107,14 @@ function Glyph({ status }: { status: WavePointStatus }) {
   )
 }
 
-function WaveColumn({ wave, compressed }: { wave: WaveSummaryDto; compressed: boolean }) {
+function WaveColumn({ wave, compressed, pulseTask }: { wave: WaveSummaryDto; compressed: boolean; pulseTask: string | null }) {
   if (compressed) {
     const counts = countStates(wave)
     return (
       <li data-wave={wave.wave_number} className="flex min-w-0 flex-col items-start gap-1">
         {ORDER.filter((s) => counts[s] > 0).map((s) => (
-          <span key={s} className="inline-flex items-center gap-1 text-[11px] leading-3 tabular-nums text-gray-400">
-            <Glyph status={s} />
+          <span key={s} className="inline-flex items-center gap-1 text-xs leading-3 tabular-nums text-gray-400">
+            <Glyph status={s} pulse={s === 'running' && pulseTask !== null && wave.points.some((p) => p.task_id === pulseTask)} />
             {counts[s]}
           </span>
         ))}
@@ -120,7 +124,7 @@ function WaveColumn({ wave, compressed }: { wave: WaveSummaryDto; compressed: bo
   return (
     <li data-wave={wave.wave_number} className="flex min-w-0 flex-wrap items-center gap-1">
       {wave.points.map((p) => (
-        <Glyph key={p.task_id} status={p.status} />
+        <Glyph key={p.task_id} status={p.status} pulse={p.task_id === pulseTask} />
       ))}
     </li>
   )
@@ -138,15 +142,16 @@ export function MiniThreadGraph({ waves, planId, workspace, className = '' }: Mi
   const label = miniThreadGraphLabel(waves)
   const total = waves.reduce((n, w) => n + w.points.length, 0)
   const compressed = total > COMPRESS_THRESHOLD
+  const pulseTask = waves.flatMap((w) => w.points).find((p) => p.status === 'running')?.task_id ?? null
 
   if (waves.length === 0) {
-    return <span className={`text-[11px] leading-4 text-gray-600 ${className}`}>No plan graph</span>
+    return <span className={`text-xs leading-4 text-gray-400 ${className}`}>Pas de graphe de plan</span>
   }
 
   const columns = (
     <ul className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1" data-compressed={compressed || undefined}>
       {waves.map((w) => (
-        <WaveColumn key={w.wave_number} wave={w} compressed={compressed} />
+        <WaveColumn key={w.wave_number} wave={w} compressed={compressed} pulseTask={pulseTask} />
       ))}
     </ul>
   )
@@ -167,5 +172,30 @@ export function MiniThreadGraph({ waves, planId, workspace, className = '' }: Mi
     <div role="img" aria-label={label} className={box}>
       {columns}
     </div>
+  )
+}
+
+/**
+ * What the marks mean, once per section: a disclosure, not a line repeated on every row.
+ * Each entry shows the very glyph the graphs use.
+ */
+export function MiniGraphLegend({ className = '' }: { className?: string }) {
+  return (
+    <details data-testid="graph-legend" className={`text-xs text-gray-400 ${className}`}>
+      <summary className={`inline-flex min-h-9 cursor-pointer items-center rounded hover:text-gray-200 ${focusRing}`}>
+        Que veulent dire les points ?
+      </summary>
+      <div className="pb-2">
+        <p>Chaque groupe de points est une vague de tâches ; un point est une tâche.</p>
+        <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+          {ORDER.map((st) => (
+            <li key={st} className="inline-flex items-center gap-1.5">
+              <Glyph status={st} />
+              <span>{STATE_META[st].one}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </details>
   )
 }

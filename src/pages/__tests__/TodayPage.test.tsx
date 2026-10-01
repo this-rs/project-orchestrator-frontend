@@ -46,6 +46,7 @@ function setViewport(width: number) {
 
 import { TodayPage } from '../TodayPage'
 import { BAND_TEXT, SECTION_ORDER, TODAY_TEXT } from '@/components/today/bands'
+import { DISCUSSIONS_TEXT } from '@/components/today/PlanRunRow'
 import { START_TEXT } from '@/components/today/TodayView'
 
 const DIR = join(__dirname, '../../services/__fixtures__/attention')
@@ -315,9 +316,9 @@ describe('TodayPage: discussions and "Rattacher à…" (assembly)', () => {
     route(data)
     renderPage()
     const running = data.threads.find((t) => t.band === 'running')!
-    await waitFor(() => expect(within(band('running')).getAllByRole('button', { name: 'Discussions' }).length).toBeGreaterThan(0))
+    await waitFor(() => expect(within(band('running')).getAllByRole('button', { name: DISCUSSIONS_TEXT.show }).length).toBeGreaterThan(0))
     expect(get.mock.calls.some((c) => String(c[0]).includes('/sessions'))).toBe(false) // nothing before the click
-    fireEvent.click(within(band('running')).getAllByRole('button', { name: 'Discussions' })[0])
+    fireEvent.click(within(band('running')).getAllByRole('button', { name: DISCUSSIONS_TEXT.show })[0])
     await waitFor(() => expect(get).toHaveBeenCalledWith(`/plans/${running.plan!.id}/sessions`))
   })
 
@@ -489,10 +490,14 @@ describe('TodayPage: the day, in order', () => {
     await waitFor(() => expect(screen.getByRole('region', { name: START_TEXT.title }).getAttribute('data-start')).toBe('waiting'))
     const start = screen.getByRole('region', { name: START_TEXT.title })
     expect(screen.getByTestId('start-why').textContent).toMatch(/^Pourquoi : un agent vivant attend ta réponse depuis /)
-    // the oldest request, with the buttons of its card
+    // a POINTER to the oldest request, not a second copy of its card: the text and the
+    // Autoriser buttons exist ONCE on the page, in "À traiter"
     const oldest = [...data.waiting].sort((a, b) => b.age_secs - a.age_secs)[0]
-    expect(within(start).getAllByText(snippet(oldest.text), { exact: false }).length).toBeGreaterThan(0)
-    expect(within(start).getAllByRole('button').length).toBeGreaterThan(0)
+    expect(within(start).queryByText(snippet(oldest.text), { exact: false })).toBeNull()
+    expect(within(start).queryByRole('button', { name: 'Autoriser' })).toBeNull()
+    expect(within(start).getByRole('button', { name: /Voir en haut de « À traiter »/ })).toBeTruthy()
+    expect(screen.getAllByText(snippet(oldest.text), { exact: false })).toHaveLength(1)
+    expect(screen.getAllByTestId('attention-card')).toHaveLength(data.waiting.length)
     expect(start.compareDocumentPosition(band('waiting')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
@@ -555,8 +560,8 @@ describe('TodayPage: the day, in order', () => {
       Element.prototype.scrollIntoView = original
     }
     expect(scrolled).toEqual(['today-waiting', 'today-running', 'today-stuck', 'today-thinking'])
-    // the summary reads "2 à traiter · 3 en cours · ..."
-    expect(screen.getByRole('list', { name: TODAY_TEXT.summaryLabel }).textContent!.replace(/\s+/g, ' ').trim()).toMatch(/^\d+ à traiter ?· ?\d+ en cours ?· ?\d+ à reprendre ?· ?\d+ à suivre$/)
+    // the summary reads in the SAME order as the sections: "2 à traiter · 1 à reprendre · 3 en cours · ..."
+    expect(screen.getByRole('list', { name: TODAY_TEXT.summaryLabel }).textContent!.replace(/\s+/g, ' ').trim()).toMatch(/^\d+ à traiter ?· ?\d+ à reprendre ?· ?\d+ en cours ?· ?\d+ à suivre$/)
   })
 })
 
@@ -574,6 +579,20 @@ describe('TodayPage: workspace chips', () => {
     const summary = screen.getByRole('list', { name: TODAY_TEXT.summaryLabel })
     expect(summary.compareDocumentPosition(chips) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     for (const b of within(chips).getAllByRole('button')) expect(b.className).toContain('min-h-9')
+  })
+
+  it('tapping a chip keeps the page up (no skeleton flash) while the other lane loads', async () => {
+    get.mockResolvedValue(fixture('four_bands'))
+    renderPage()
+    await waitFor(() => expect(band('waiting').getAttribute('data-state')).toBe('ready'))
+    const seen: (string | null)[] = []
+    const obs = new MutationObserver(() => seen.push(document.getElementById('today-waiting')?.getAttribute('data-state') ?? null))
+    obs.observe(document.body, { attributes: true, childList: true, subtree: true })
+    fireEvent.click(screen.getByRole('button', { name: 'PO' }))
+    await waitFor(() => expect(get.mock.calls.at(-1)![0]).toBe('/attention?workspace_slug=project-orchestrator'))
+    await waitFor(() => expect(band('waiting').getAttribute('data-state')).toBe('ready'))
+    obs.disconnect()
+    expect(seen).not.toContain('loading')
   })
 
   it('a chip filters, is reflected in the URL, and "Tous" clears it', async () => {

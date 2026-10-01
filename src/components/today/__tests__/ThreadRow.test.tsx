@@ -70,9 +70,11 @@ describe('ThreadRow — stuck (À reprendre)', () => {
     const onResume = vi.fn().mockResolvedValue(undefined)
     renderRow(<ThreadRow variant="stuck" thread={thread} runner={blocked.runner} onResume={onResume} />)
     fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resume }))
-    await waitFor(() => expect(screen.getByRole('status').textContent).toBe(ROW_TEXT.resumeStarted))
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain(ROW_TEXT.resumeStarted))
     expect(onResume).toHaveBeenCalledTimes(1)
     expect(onResume).toHaveBeenCalledWith(thread)
+    // the dead end is gone: the row points at the run it just started
+    expect(screen.getByRole('link', { name: ROW_TEXT.followRun }).getAttribute('href')).toContain('#runner')
     // No double start.
     expect((screen.getByRole('button', { name: ROW_TEXT.resume }) as HTMLButtonElement).disabled).toBe(true)
   })
@@ -109,7 +111,7 @@ describe('ThreadRow — stuck (À reprendre)', () => {
       expect(cls).not.toContain('bg-indigo')
       expect(cls).not.toContain('disabled:opacity-50')
       expect(cls).toContain('disabled:border-dashed')
-      expect(cls).toContain('disabled:text-gray-500')
+      expect(cls).toContain('disabled:text-gray-400')
     })
 
     it('stays enabled when the runner is free', () => {

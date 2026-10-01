@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Loader2 } from 'lucide-react'
-import { focusRing, glass } from '@/components/ui/classes'
+import { focusRing, glass, pressFeedback } from '@/components/ui/classes'
+import { useVisualViewportHeight } from '@/hooks/useVisualViewportHeight'
 
 /**
  * The message field of an orphan request ("Reprendre la session") or of a
@@ -49,6 +50,8 @@ function SheetBody({ onClose, title, help, initialText = '', submitLabel, onSend
   const [error, setError] = useState<string | null>(null)
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  // iOS keyboard: the sheet must end on top of the keyboard, not under it (shared hook, also used by the chat).
+  const keyboardBox = useVisualViewportHeight()
   const titleId = useId()
   const helpId = useId()
 
@@ -96,7 +99,7 @@ function SheetBody({ onClose, title, help, initialText = '', submitLabel, onSend
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center" onKeyDown={onKeyDown}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center" style={keyboardBox ? { height: keyboardBox.height } : undefined} onKeyDown={onKeyDown}>
       {/* Dimmed, not blurred: the page stays readable behind the sheet. */}
       <div data-testid="sheet-backdrop" className="absolute inset-0 bg-black/50" onClick={() => !sending && onClose()} />
       <div
@@ -106,7 +109,7 @@ function SheetBody({ onClose, title, help, initialText = '', submitLabel, onSend
         aria-labelledby={titleId}
         aria-describedby={help ? helpId : undefined}
         data-testid="continue-sheet"
-        className={`${glass} relative flex max-h-[85dvh] w-full flex-col gap-3 overflow-y-auto rounded-t-2xl px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:max-w-lg md:rounded-2xl md:pb-4`}
+        className={`${glass} relative flex max-h-[85dvh] w-full flex-col gap-3 overflow-y-auto overscroll-contain rounded-t-2xl px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:max-w-lg md:rounded-2xl md:pb-4`}
       >
         <h2 id={titleId} className="text-sm font-semibold text-gray-100">
           {title}
@@ -126,7 +129,7 @@ function SheetBody({ onClose, title, help, initialText = '', submitLabel, onSend
           className={`min-h-24 w-full resize-y rounded-lg border border-white/[0.1] bg-surface-base px-3 py-2 text-base text-gray-100 placeholder-gray-500 md:text-sm ${focusRing}`}
         />
         {error && (
-          <p role="alert" className="text-xs text-red-400">
+          <p role="alert" className="text-xs text-red-300">
             {error}
           </p>
         )}
@@ -135,7 +138,7 @@ function SheetBody({ onClose, title, help, initialText = '', submitLabel, onSend
             type="button"
             onClick={onClose}
             disabled={sending}
-            className={`min-h-9 rounded-lg px-3 text-sm text-gray-300 hover:bg-white/[0.06] disabled:opacity-50 ${focusRing}`}
+            className={`min-h-9 rounded-lg px-3 text-sm text-gray-300 hover:bg-white/[0.06] disabled:opacity-50 ${pressFeedback} ${focusRing}`}
           >
             Annuler
           </button>
@@ -143,7 +146,7 @@ function SheetBody({ onClose, title, help, initialText = '', submitLabel, onSend
             type="button"
             onClick={send}
             disabled={!canSend}
-            className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}
+            className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 ${pressFeedback} ${focusRing}`}
           >
             {sending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
             {submitLabel}
