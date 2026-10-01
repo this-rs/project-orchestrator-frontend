@@ -9,6 +9,15 @@ interface ThinkingBlockProps {
 export function ThinkingBlock({ content, isStreaming }: ThinkingBlockProps) {
   const [expanded, setExpanded] = useState(false)
 
+  // Recent models (Opus 4.7+, Sonnet 5+) return thinking blocks with an EMPTY text
+  // and only an encrypted signature: the API default is `display: "omitted"`, and the
+  // model emits one such block before every tool call. Measured on a real session:
+  // 114 of 117 blocks were empty. Rendering them produced stacks of
+  // "Thought process" toggles that expand onto nothing.
+  // While streaming, the "Thinking..." pulse is still useful feedback; once done,
+  // an empty block carries no information and is not shown.
+  if (!isStreaming && !content.trim()) return null
+
   return (
     <div className="my-2">
       <button
