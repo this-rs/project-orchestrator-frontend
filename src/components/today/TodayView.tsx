@@ -224,9 +224,14 @@ export interface TodayViewProps {
    * row exists only when this is provided.
    */
   renderDiscussions?: (thread: AttentionThread) => ReactNode
+  /**
+   * Slot of "Rattacher à…" for a session WITHOUT a thread ("sans fil") in À traiter and À reprendre
+   * (and the loose live sessions of En cours). No slot, no button.
+   */
+  renderAttach?: (target: { sessionId: string; workspace: string }) => ReactNode
 }
 
-export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, laneNote, renderDiscussions }: TodayViewProps) {
+export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, laneNote, renderDiscussions, renderAttach }: TodayViewProps) {
   const { status, data, error, refresh } = source
   const bands = data ? buildBands(data) : null
   const errors = data?.source_errors ?? []
@@ -323,6 +328,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
         onReply={(r, content): Promise<AnswerResult> => source.sendReply(r, content)}
         draft={source.drafts[request.request_id]}
         onDraftChange={(t) => source.setDraft(request.request_id, t)}
+        attachSlot={renderAttach?.({ sessionId: request.session_id, workspace: request.workspace })}
       />
     )
   }
@@ -351,6 +357,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
           thread={e.thread}
           orphan={e.orphan}
           laneName={laneName(e.thread.workspace)}
+          attachSlot={renderAttach?.({ sessionId: e.orphan.session_id, workspace: e.thread.workspace })}
           onSendMessage={source.sendMessage}
         />
       )
@@ -362,6 +369,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
         session={e.session}
         laneName={laneName(e.session.workspace_slug)}
         onSendMessage={source.sendMessage}
+        attachSlot={renderAttach?.({ sessionId: e.session.id, workspace: e.session.workspace_slug })}
       />
     )
   }
@@ -461,6 +469,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
                     session={e.session}
                     laneName={laneName(e.session.workspace_slug)}
                     onSendMessage={source.sendMessage}
+                    attachSlot={renderAttach?.({ sessionId: e.session.id, workspace: e.session.workspace_slug })}
                   />
                 ),
               )}

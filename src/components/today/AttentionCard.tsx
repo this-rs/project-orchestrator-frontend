@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError } from '@/services/api'
 import { ORPHAN_NOTICE } from '@/hooks/useAttention'
@@ -64,6 +64,8 @@ export interface AttentionCardProps {
   /** Free answer draft, kept by the parent so a refetch cannot lose it. Falls back to local state. */
   draft?: string
   onDraftChange?: (text: string) => void
+  /** "Rattacher à…" for a session with no link (shown only then). */
+  attachSlot?: ReactNode
 }
 
 const shortId = (id: string) => id.slice(0, 8)
@@ -108,6 +110,7 @@ export function AttentionCard({
   onReply,
   draft,
   onDraftChange,
+  attachSlot,
 }: AttentionCardProps) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -230,6 +233,7 @@ export function AttentionCard({
       <p className={`${provenanceText} break-words`} data-testid="attention-provenance">
         {provenance.join(' · ')}
       </p>
+      {attachSlot && (!links || links.length === 0) && <div>{attachSlot}</div>}
 
       {/* Status messages */}
       {orphaned && (

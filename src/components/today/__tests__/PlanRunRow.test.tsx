@@ -120,6 +120,11 @@ describe('PlanRunRow', () => {
     expect(screen.queryByRole('button', { name: 'Discussions' })).toBeNull()
   })
 
+  it('a thread WITHOUT a plan has no Discussions button even with a slot', () => {
+    renderRow(<PlanRunRow thread={{ ...thread, plan: null }} renderDiscussions={() => <p>arbre</p>} />)
+    expect(screen.queryByRole('button', { name: 'Discussions' })).toBeNull()
+  })
+
   it('with a slot, the Discussions button unfolds what the slot renders for THIS thread', () => {
     renderRow(<PlanRunRow thread={thread} renderDiscussions={(t) => <p>arbre de {t.id}</p>} />)
     const btn = screen.getByRole('button', { name: 'Discussions' })

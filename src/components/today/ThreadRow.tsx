@@ -439,9 +439,11 @@ export interface OrphanThreadRowProps extends CommonProps {
   orphan: OrphanRequest
   /** A `user_message` to the dead session (=> resume_session). NEVER permission_response / input_response. */
   onSendMessage: (sessionId: string, text: string) => Promise<void>
+  /** "Rattacher à…", shown only when the session has no link ("sans fil"). */
+  attachSlot?: ReactNode
 }
 
-export function OrphanThreadRow({ thread, orphan, onSendMessage, laneName, className }: OrphanThreadRowProps) {
+export function OrphanThreadRow({ thread, orphan, onSendMessage, attachSlot, laneName, className }: OrphanThreadRowProps) {
   const session = thread.sessions.find((s) => s.id === orphan.session_id)
   return (
     <Frame
@@ -467,6 +469,7 @@ export function OrphanThreadRow({ thread, orphan, onSendMessage, laneName, class
           ? session.links.map((l) => linkProvenance(l, thread)).join(' · ')
           : ROW_TEXT.noThread}
       </p>
+      {attachSlot && !(session && session.links.length > 0) && <div className="mt-1">{attachSlot}</div>}
       <ReplyAction req={orphan} sessionId={orphan.session_id} dead onSendMessage={onSendMessage} />
     </Frame>
   )
@@ -475,10 +478,12 @@ export function OrphanThreadRow({ thread, orphan, onSendMessage, laneName, class
 export interface UnattachedThreadRowProps extends CommonProps {
   session: UnattachedSession
   onSendMessage: (sessionId: string, text: string) => Promise<void>
+  /** "Rattacher à…": a session without a thread is exactly what it is for. */
+  attachSlot?: ReactNode
 }
 
 /** A session with no link: same row shape, labelled "sans fil", same reply actions. */
-export function UnattachedThreadRow({ session, onSendMessage, laneName, className = '' }: UnattachedThreadRowProps) {
+export function UnattachedThreadRow({ session, onSendMessage, attachSlot, laneName, className = '' }: UnattachedThreadRowProps) {
   const dead = session.state === 'dead'
   return (
     <li
@@ -503,6 +508,7 @@ export function UnattachedThreadRow({ session, onSendMessage, laneName, classNam
         </div>
       </div>
       <div className="min-w-0 pl-6">
+        {attachSlot && <div className="mt-1">{attachSlot}</div>}
         {session.pending.map((req) => (
           <div key={req.request_id} data-request={req.request_id}>
             <RequestText req={req} />

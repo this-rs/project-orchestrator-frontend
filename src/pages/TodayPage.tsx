@@ -9,6 +9,9 @@ import { attentionApi } from '@/services/attention'
 import { workspacePath } from '@/utils/paths'
 import { LaneChips } from '@/components/today/LaneChips'
 import { TODAY_TEXT } from '@/components/today/bands'
+import { LinkedDiscussions } from '@/components/discussions/LinkedDiscussions'
+import { AttachSessionButton } from '@/components/discussions/AttachSessionButton'
+import type { AttentionThread } from '@/types/attention'
 
 /** Query parameter holding the lane filter on the cross-workspace entry. */
 export const LANE_PARAM = 'workspace'
@@ -87,6 +90,26 @@ function LiveToday(props: Omit<ComponentProps<typeof TodayView>, 'source'>) {
 }
 
 // ---------------------------------------------------------------------------
+// Slots: the discussion tree of a plan's thread, "Rattacher à…" of a thread-less session
+// ---------------------------------------------------------------------------
+
+/** The thread's plan is the entity of the tree; without a plan there is nothing to show (no button). */
+function renderDiscussions(thread: AttentionThread) {
+  if (!thread.plan) return null
+  return (
+    <LinkedDiscussions
+      entity={{ type: 'plan', id: thread.plan.id }}
+      workspaceSlug={thread.workspace}
+      resume={{ planId: thread.plan.id, run: thread.run ? { id: thread.run.id, status: thread.run.status } : null }}
+    />
+  )
+}
+
+function renderAttach({ sessionId, workspace }: { sessionId: string; workspace: string }) {
+  return <AttachSessionButton sessionId={sessionId} workspaceSlug={workspace} />
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -111,6 +134,8 @@ export function TodayPage() {
         onClearLane={clearLane}
         lanePicker={<LaneChips lanes={workspaces} active={lane} onSelect={setLane} />}
         laneNote={laneName ? TODAY_TEXT.laneNote(laneName) : null}
+        renderDiscussions={renderDiscussions}
+        renderAttach={renderAttach}
       />
     </PageShell>
   )

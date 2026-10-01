@@ -72,7 +72,7 @@ export interface PlanRunRowProps {
   others?: number
   /** Display name of the workspace; falls back to its slug. */
   laneName?: string
-  /** Slot for the thread's discussions; the "Discussions" button exists only when provided. */
+  /** Slot for the thread's discussions; the "Discussions" button exists only when provided AND the thread has a plan. */
   renderDiscussions?: (thread: AttentionThread) => ReactNode
   className?: string
 }
@@ -149,7 +149,7 @@ export function PlanRunRow({ thread, others = 0, laneName, renderDiscussions, cl
             {others === 1 ? '+ 1 autre fil du même plan' : `+ ${others} autres fils du même plan`}
           </p>
         )}
-        {renderDiscussions && (
+        {renderDiscussions && thread.plan && (
           <div className="mt-1">
             <button
               type="button"

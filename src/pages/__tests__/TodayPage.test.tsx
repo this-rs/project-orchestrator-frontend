@@ -306,6 +306,40 @@ describe('TodayPage: plans, workspaces and sessions without a thread', () => {
   })
 })
 
+describe('TodayPage: discussions and "Rattacher à…" (assembly)', () => {
+  const route = (data: AttentionResponse) =>
+    get.mockImplementation(async (url: string) => (String(url).startsWith('/attention') ? data : []))
+
+  it('a plan row of "En cours" unfolds the discussion tree OF ITS PLAN', async () => {
+    const data = fixture('four_bands')
+    route(data)
+    renderPage()
+    const running = data.threads.find((t) => t.band === 'running')!
+    await waitFor(() => expect(within(band('running')).getAllByRole('button', { name: 'Discussions' }).length).toBeGreaterThan(0))
+    expect(get.mock.calls.some((c) => String(c[0]).includes('/sessions'))).toBe(false) // nothing before the click
+    fireEvent.click(within(band('running')).getAllByRole('button', { name: 'Discussions' })[0])
+    await waitFor(() => expect(get).toHaveBeenCalledWith(`/plans/${running.plan!.id}/sessions`))
+  })
+
+  it('"Rattacher à…" is on every thread-less row (À traiter, À reprendre) and on no threaded one', async () => {
+    const data = fixture('unattached_waiting')
+    route(data)
+    renderPage()
+    const dead = data.unattached.filter((u) => u.state === 'dead')
+    const live = data.unattached.filter((u) => u.state === 'live' && u.pending.length > 0)
+    await waitFor(() => expect(within(band('stuck')).getAllByTestId('no-thread-label').length).toBe(dead.length))
+    expect(within(band('stuck')).getAllByRole('button', { name: 'Rattacher à…' })).toHaveLength(dead.length)
+    expect(within(band('waiting')).getAllByRole('button', { name: 'Rattacher à…' })).toHaveLength(live.length)
+  })
+
+  it('a request whose session HAS a thread gets no "Rattacher à…"', async () => {
+    route(fixture('four_bands'))
+    renderPage()
+    await waitFor(() => expect(within(band('waiting')).getAllByTestId('attention-card').length).toBeGreaterThan(0))
+    expect(within(band('waiting')).queryByRole('button', { name: 'Rattacher à…' })).toBeNull()
+  })
+})
+
 describe('TodayPage: lane filter in the URL', () => {
   it('/workspace/:slug/today starts on that lane and widening lands on /today', async () => {
     get.mockResolvedValue(fixture('four_bands'))
