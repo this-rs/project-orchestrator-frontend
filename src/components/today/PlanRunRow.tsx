@@ -74,8 +74,8 @@ export function nowWorking(thread: AttentionThread): NowWorking {
 
 export interface PlanRunRowProps {
   thread: AttentionThread
-  /** Other threads of the same plan, only mentioned. */
-  others?: number
+  /** Other threads of the same plan: a mention that unfolds their list (state + discussions). */
+  others?: AttentionThread[]
   /** Display name of the workspace; falls back to its slug. */
   laneName?: string
   /** Slot for the thread's discussions; the "Discussions" button exists only when provided AND the thread has a plan. */
@@ -83,9 +83,7 @@ export interface PlanRunRowProps {
   className?: string
 }
 
-export function PlanRunRow({ thread, others = 0, laneName, renderDiscussions, className = '' }: PlanRunRowProps) {
-  const [open, setOpen] = useState(false)
-  const panelId = useId()
+export function PlanRunRow({ thread, others = [], laneName, renderDiscussions, className = '' }: PlanRunRowProps) {
   const run = thread.run
   const running = run?.status === 'running'
   const { done, total } = planProgress(thread.waves)
@@ -150,31 +148,78 @@ export function PlanRunRow({ thread, others = 0, laneName, renderDiscussions, cl
           {now.text}
         </p>
         <MiniThreadGraph waves={thread.waves} planId={thread.plan?.id} workspace={thread.workspace} />
-        {others > 0 && (
-          <p className={`mt-1 ${metaText}`}>
-            {others === 1 ? '+ 1 autre fil du même plan' : `+ ${others} autres fils du même plan`}
-          </p>
-        )}
-        {renderDiscussions && thread.plan && (
-          <div className="mt-1">
-            <button
-              type="button"
-              aria-expanded={open}
-              aria-controls={panelId}
-              onClick={() => setOpen((o) => !o)}
-              className={`${pressFeedback} inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-sm text-gray-100 ${focusRing} ${
-                open ? 'border-indigo-400/60 bg-indigo-500/15' : 'border-white/[0.12] bg-white/[0.06] hover:bg-white/[0.1]'
-              }`}
-            >
-              <ChevronRight className={`h-4 w-4 shrink-0 ${open ? 'rotate-90' : ''}`} aria-hidden="true" />
-              {open ? DISCUSSIONS_TEXT.hide : DISCUSSIONS_TEXT.show}
-            </button>
-            <div id={panelId} hidden={!open} className="min-w-0">
-              {open && renderDiscussions(thread)}
-            </div>
-          </div>
-        )}
+        {others.length > 0 && <OtherThreads threads={others} renderDiscussions={renderDiscussions} />}
+        {renderDiscussions && thread.plan && <DiscussionsToggle thread={thread} renderDiscussions={renderDiscussions} />}
       </div>
     </li>
+  )
+}
+
+function DiscussionsToggle({
+  thread,
+  renderDiscussions,
+}: {
+  thread: AttentionThread
+  renderDiscussions: (thread: AttentionThread) => ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  const panelId = useId()
+  return (
+    <div className="mt-1">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((o) => !o)}
+        className={`${pressFeedback} inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-sm text-gray-100 ${focusRing} ${
+          open ? 'border-indigo-400/60 bg-indigo-500/15' : 'border-white/[0.12] bg-white/[0.06] hover:bg-white/[0.1]'
+        }`}
+      >
+        <ChevronRight className={`h-4 w-4 shrink-0 ${open ? 'rotate-90' : ''}`} aria-hidden="true" />
+        {open ? DISCUSSIONS_TEXT.hide : DISCUSSIONS_TEXT.show}
+      </button>
+      <div id={panelId} hidden={!open} className="min-w-0">
+        {open && renderDiscussions(thread)}
+      </div>
+    </div>
+  )
+}
+
+/** "+ N autres fils du même plan", clickable: unfolds those threads with their state and discussions. */
+function OtherThreads({
+  threads,
+  renderDiscussions,
+}: {
+  threads: AttentionThread[]
+  renderDiscussions?: (thread: AttentionThread) => ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  const listId = useId()
+  const n = threads.length
+  return (
+    <div className="mt-1">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={listId}
+        onClick={() => setOpen((o) => !o)}
+        className={`inline-flex min-h-9 items-center gap-1 rounded ${metaText} hover:text-gray-100 ${focusRing}`}
+      >
+        <ChevronRight className={`h-3.5 w-3.5 shrink-0 ${open ? 'rotate-90' : ''}`} aria-hidden="true" />
+        {n === 1 ? '+ 1 autre fil du même plan' : `+ ${n} autres fils du même plan`}
+      </button>
+      <ul id={listId} hidden={!open} aria-label="Autres fils du même plan" className="m-0 min-w-0 list-none space-y-2 p-0">
+        {open &&
+          threads.map((t) => (
+            <li key={t.id} data-testid="other-thread" data-thread={t.id} className="min-w-0 border-l border-white/[0.08] pl-3">
+              <p className="min-w-0 break-words text-sm text-gray-200">{t.title}</p>
+              <p className={metaText}>
+                {t.run?.status === 'running' ? 'En cours' : 'Arrêté'} · {nowWorking(t).text}
+              </p>
+              {renderDiscussions && t.plan && <DiscussionsToggle thread={t} renderDiscussions={renderDiscussions} />}
+            </li>
+          ))}
+      </ul>
+    </div>
   )
 }

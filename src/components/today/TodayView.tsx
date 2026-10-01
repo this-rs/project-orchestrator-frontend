@@ -504,7 +504,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
                   <PlanRunRow
                     key={e.key}
                     thread={e.thread}
-                    others={e.others.length}
+                    others={e.others}
                     laneName={laneName(e.thread.workspace)}
                     renderDiscussions={renderDiscussions}
                   />

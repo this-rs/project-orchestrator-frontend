@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { parseAttentionResponse } from '@/services/attention'
 import type { AttentionResponse, AttentionThread, WavePointStatus } from '@/types/attention'
@@ -110,9 +110,21 @@ describe('PlanRunRow', () => {
     expect(document.querySelector('li[data-variant]')!.className).not.toMatch(/\b(border|shadow|rounded|bg-)/)
   })
 
-  it('mentions the other threads of the same plan', () => {
-    renderRow(<PlanRunRow thread={thread} others={2} />)
-    expect(screen.getByText('+ 2 autres fils du même plan')).toBeTruthy()
+  it('the mention of the other threads of the same plan unfolds them, with their state and their discussions', () => {
+    const o1 = { ...thread, id: 'o1', title: 'Autre fil un' }
+    const o2 = { ...thread, id: 'o2', title: 'Autre fil deux' }
+    renderRow(<PlanRunRow thread={thread} others={[o1, o2]} renderDiscussions={(t) => <p>arbre de {t.id}</p>} />)
+    const btn = screen.getByRole('button', { name: '+ 2 autres fils du même plan' })
+    expect(btn.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByText('Autre fil un')).toBeNull()
+    fireEvent.click(btn)
+    expect(btn.getAttribute('aria-expanded')).toBe('true')
+    const items = screen.getAllByTestId('other-thread')
+    expect(items.map((i) => i.getAttribute('data-thread'))).toEqual(['o1', 'o2'])
+    expect(items[0].textContent).toContain('Autre fil un')
+    expect(items[0].textContent).toContain('En cours')
+    fireEvent.click(within(items[1]).getByRole('button', { name: DISCUSSIONS_TEXT.show }))
+    expect(screen.getByText('arbre de o2')).toBeTruthy()
   })
 
   it('has NO Discussions button without a slot', () => {
