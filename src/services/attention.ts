@@ -10,6 +10,9 @@ import {
   WAVE_POINT_STATUSES,
   type AttentionResponse,
 } from '@/types/attention'
+import { api, buildQuery } from './api'
+import { rfcApi } from './rfcApi'
+import { decisionsApi } from './decisions'
 
 /**
  * Strict runtime reader for `GET /api/attention` payloads.
@@ -195,4 +198,48 @@ export function parseAttentionResponse(input: unknown): AttentionResponse {
       }
     }),
   }
+}
+
+// ---------------------------------------------------------------------------
+// Data + actions (hook `useAttention`)
+// ---------------------------------------------------------------------------
+
+/** Verdict of a Today "decide" button on a thinking item. */
+export type Verdict = 'accept' | 'reject'
+
+export const attentionApi = {
+  /**
+   * `GET /api/attention`, validated against the contract. `workspace` is the lane
+   * slug filter (omitted = every lane). A payload that diverges from the contract
+   * throws: the cockpit shows an error state rather than garbage.
+   */
+  fetch: async (workspace?: string | null, signal?: AbortSignal): Promise<AttentionResponse> =>
+    parseAttentionResponse(await api.get<unknown>(`/attention${buildQuery({ workspace })}`, signal)),
+
+  /**
+   * Answer a permission asked by a LIVE session. Same path as the WS
+   * `permission_response`. A dead CLI answers 410 (the caller turns the request
+   * into an orphan); an orphan must never reach this call.
+   */
+  answerPermission: (sessionId: string, requestId: string, allow: boolean) =>
+    api.post<void>(`/chat/sessions/${sessionId}/permissions/${requestId}`, { allow }),
+
+  /**
+   * Send a message to a session: answers a question of a live agent, and is also
+   * how an orphan is "continued" (the server resumes the CLI on a user message).
+   */
+  sendMessage: (sessionId: string, content: string) =>
+    api.post<void>(`/chat/sessions/${sessionId}/messages`, { content }),
+
+  /**
+   * Resume a stopped run (skips done AND blocked tasks, server side).
+   * ASSUMPTION: `POST /plans/{id}/run/resume` (route to be confirmed with the backend).
+   */
+  resumeRun: (planId: string) => api.post<void>(`/plans/${planId}/run/resume`, {}),
+
+  /** Accept / reject an RFC (FSM transition) or a decision (status). */
+  decide: (kind: 'rfc' | 'decision', id: string, verdict: Verdict): Promise<unknown> =>
+    kind === 'rfc'
+      ? rfcApi.transition(id, verdict)
+      : decisionsApi.update(id, { status: verdict === 'accept' ? 'accepted' : 'deprecated' }),
 }
