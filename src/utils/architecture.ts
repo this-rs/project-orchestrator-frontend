@@ -18,6 +18,8 @@ const KNOWN: ComponentType[] = [
   'cache',
   'gateway',
   'external',
+  'library',
+  'cli',
   'other',
 ]
 
@@ -38,20 +40,75 @@ export const COMPONENT_LABEL: Record<ComponentType, string> = {
   cache: 'Cache',
   gateway: 'Gateway',
   external: 'External',
+  library: 'Library',
+  cli: 'CLI',
   other: 'Other',
 }
 
-/** Architectural tier: 0 = edge (users reach it), higher = deeper infrastructure. */
+/**
+ * Architectural tier: 0 = where people enter, higher = deeper infrastructure.
+ *
+ * A CLI sits at tier 0 beside a frontend: both are how a human reaches the
+ * system. Typing one as `service` — as `this-cli` was — buries an entry point in
+ * the middle of the diagram and the left-to-right reading stops working.
+ *
+ * A library sits at tier 3: it is not deployed, it is consumed, so it belongs
+ * downstream of the services that build against it.
+ */
 export const COMPONENT_TIER: Record<ComponentType, number> = {
   frontend: 0,
+  cli: 0,
   gateway: 1,
   service: 2,
   worker: 2,
   message_queue: 3,
   cache: 3,
+  library: 3,
   database: 4,
   external: 4,
   other: 2,
+}
+
+/**
+ * Where a derived element came from.
+ *
+ * The topology is rebuilt from the source tree rather than typed in, so nobody
+ * can vouch for it from memory. Carrying the file and line that implied each
+ * node is what makes a generated diagram checkable instead of merely plausible.
+ */
+export interface Provenance {
+  /** How it was derived: "compose", "manifest", "runtime-config", "project". */
+  method: string
+  /** Path relative to the project root. */
+  file: string
+  /** 1-based line, or 0 when it could not be located. */
+  line: number
+  /** The package or service that implied it. */
+  package: string
+}
+
+/** Key under which the backend stores provenance inside `config`. */
+const DERIVED_KEY = 'derived_from'
+
+/** Read provenance out of a component's free-form config, if it is there. */
+export function readProvenance(config: unknown): Provenance | undefined {
+  if (!config || typeof config !== 'object') return undefined
+  const raw = (config as Record<string, unknown>)[DERIVED_KEY]
+  if (!raw || typeof raw !== 'object') return undefined
+  const p = raw as Record<string, unknown>
+  if (typeof p.method !== 'string' || typeof p.file !== 'string') return undefined
+  return {
+    method: p.method,
+    file: p.file,
+    line: typeof p.line === 'number' ? p.line : 0,
+    package: typeof p.package === 'string' ? p.package : '',
+  }
+}
+
+/** Human-readable source, e.g. "Cargo.toml:24 · neo4rs". */
+export function formatProvenance(p: Provenance): string {
+  const location = p.line > 0 ? `${p.file}:${p.line}` : p.file
+  return p.package ? `${location} · ${p.package}` : location
 }
 
 export interface ArchNode {
@@ -62,6 +119,8 @@ export interface ArchNode {
   project?: string
   description?: string
   tags: string[]
+  /** Set when this component was derived rather than entered by hand. */
+  provenance?: Provenance
   x: number
   y: number
 }
@@ -116,6 +175,7 @@ export function buildArchitecture(topology: TopologyResponse | null | undefined)
       project: i.project_name ?? undefined,
       description: i.component.description ?? undefined,
       tags: i.component.tags ?? [],
+      provenance: readProvenance(i.component.config),
       x: (pos?.x ?? 0) - NODE_W / 2,
       y: (pos?.y ?? 0) - NODE_H / 2,
     }
@@ -126,7 +186,13 @@ export function buildArchitecture(topology: TopologyResponse | null | undefined)
 
 /** Group by tier for the text view (same information as the graph, readable by screen readers). */
 export function groupByTier(nodes: ArchNode[]): { tier: number; label: string; nodes: ArchNode[] }[] {
-  const labels = ['Edge', 'Entry', 'Services', 'Messaging & cache', 'Data & external']
+  const labels = [
+    'Entry points',
+    'Gateway',
+    'Services',
+    'Libraries, messaging & cache',
+    'Data & external',
+  ]
   const map = new Map<number, ArchNode[]>()
   nodes.forEach((n) => {
     const t = COMPONENT_TIER[n.type]
