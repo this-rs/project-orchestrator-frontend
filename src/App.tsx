@@ -4,6 +4,7 @@ import { Provider, useAtomValue, useSetAtom } from 'jotai'
 import { MainLayout } from '@/layouts'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { SetupGuard } from '@/components/SetupGuard'
+import { GlobalRouteLayout } from '@/components/GlobalRouteLayout'
 import { WorkspaceRouteGuard } from '@/components/WorkspaceRouteGuard'
 import { UpdateBanner } from '@/components/UpdateBanner'
 import { WebUpdateBanner } from '@/components/ui/WebUpdateBanner'
@@ -186,6 +187,11 @@ function App() {
 
                     {/* Secrets vault (no sidebar, reachable from the user menu and chat cards) */}
                     <Route path="/vault" element={<VaultPage />} />
+
+                    {/* Cross-workspace pages (sidebar chrome borrows the last workspace) */}
+                    <Route element={<GlobalRouteLayout />}>
+                      <Route path="/today" element={<TodayPage />} />
+                    </Route>
 
                     {/* ===== Workspace-scoped routes ===== */}
                     <Route path="/workspace/:slug" element={<WorkspaceRouteGuard />}>

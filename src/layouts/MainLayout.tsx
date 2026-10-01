@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useContext } from 'react'
 import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Menu, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
@@ -8,12 +8,15 @@ import { ToastContainer, Branding } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher'
-import { useMediaQuery, useCrudEventRefresh, useModelCatalogEvents, useDragRegion, useWindowFullscreen, useViewTransition, useWorkspace } from '@/hooks'
+import { useMediaQuery, useCrudEventRefresh, useModelCatalogEvents, useDragRegion, useWindowFullscreen, useViewTransition, useWorkspace, ChromeWorkspaceSlugContext } from '@/hooks'
 import type { NavDirection } from '@/hooks'
 import { isTauri } from '@/services/env'
 import { workspacesApi } from '@/services/workspaces'
 import { workspacePath } from '@/utils/paths'
 import type { Project } from '@/types'
+
+/** Cross-workspace entry of Today; the sidebar's Today item stays lit on it. */
+const GLOBAL_TODAY_PATH = '/today'
 
 function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { collapsed: boolean; trafficLightPad?: boolean; wsSlug: string; onNavClick?: (href: string, direction: NavDirection) => void }) {
   const location = useLocation()
@@ -104,7 +107,7 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
                       title={collapsed ? item.name : undefined}
                       className={({ isActive }) =>
                         `flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${
-                          isActive || (item.key === 'projects' && isProjectsActive)
+                          isActive || (item.key === 'projects' && isProjectsActive) || (item.key === 'today' && location.pathname === GLOBAL_TODAY_PATH)
                             ? 'bg-indigo-500/15 text-indigo-400 font-medium border-l-[3px] border-indigo-500 -ml-[3px] glow-primary'
                             : 'text-gray-400 hover:bg-white/[0.06] hover:text-gray-200'
                         }`
@@ -147,7 +150,11 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
 }
 
 export function MainLayout() {
-  const { slug: wsSlug } = useParams<{ slug: string }>()
+  const { slug: urlSlug } = useParams<{ slug: string }>()
+  // Cross-workspace pages (/today) have no :slug: the sidebar and chat use the
+  // chrome slug, but the breadcrumb must not claim a workspace.
+  const chromeSlug = useContext(ChromeWorkspaceSlugContext)
+  const wsSlug = urlSlug ?? chromeSlug ?? undefined
   const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom)
   const [chatMode, setChatMode] = useAtom(chatPanelModeAtom)
   const [chatWidth] = useAtom(chatPanelWidthAtom)
@@ -160,6 +167,7 @@ export function MainLayout() {
   const isWindowFullscreen = useWindowFullscreen()
   const setWorkspaces = useSetAtom(workspacesAtom)
   const activeWorkspace = useWorkspace()
+  const breadcrumbWorkspaceName = urlSlug ? activeWorkspace?.name : undefined
   const wsRefresh = useAtomValue(workspaceRefreshAtom)
 
   // Show extra top padding on Tauri desktop (non-fullscreen) to clear native traffic lights
@@ -301,7 +309,7 @@ export function MainLayout() {
             title={`WebSocket: ${wsStatus}`}
           />
 
-          <Breadcrumb pathname={location.pathname} workspaceName={activeWorkspace?.name} />
+          <Breadcrumb pathname={location.pathname} workspaceName={breadcrumbWorkspaceName} />
 
           {/* Chat toggle (only icon in header right) */}
           <div className="ml-auto flex items-center">

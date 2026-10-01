@@ -1,18 +1,28 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useCallback, useMemo } from 'react'
+import { createContext, useCallback, useContext, useMemo } from 'react'
 import { useAtomValue } from 'jotai'
 import { workspacesAtom } from '@/atoms'
 import { workspacePath } from '@/utils/paths'
 import type { Workspace } from '@/types'
 
 /**
+ * Workspace slug used for the app chrome (sidebar, chat panel) on pages that
+ * live outside /workspace/:slug, like the cross-workspace /today. The URL
+ * slug always wins; the page itself must not read this to scope its data.
+ */
+export const ChromeWorkspaceSlugContext = createContext<string | null>(null)
+
+/**
  * Returns the active workspace slug from the URL (/workspace/:slug/...).
- * Must be used inside a route with a :slug param (under WorkspaceRouteGuard).
+ * Must be used inside a route with a :slug param (under WorkspaceRouteGuard),
+ * or under a ChromeWorkspaceSlugContext provider (cross-workspace pages).
  *
  * @throws Error if no :slug param is found in the URL
  */
 export function useWorkspaceSlug(): string {
-  const { slug } = useParams<{ slug: string }>()
+  const { slug: paramSlug } = useParams<{ slug: string }>()
+  const chromeSlug = useContext(ChromeWorkspaceSlugContext)
+  const slug = paramSlug ?? chromeSlug
   if (!slug) {
     throw new Error(
       'useWorkspaceSlug() must be used inside a route with :slug param (under WorkspaceRouteGuard)',

@@ -3,8 +3,10 @@
  * in progress, blocked, up next. Empty sections are not rendered.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { Provider, createStore } from 'jotai'
+import { workspacesAtom } from '@/atoms'
 
 const list = vi.fn()
 const update = vi.fn()
@@ -15,7 +17,6 @@ vi.mock('@/services', () => ({
 }))
 vi.mock('@/hooks', () => ({
   useToast: () => toast,
-  useWorkspaceSlug: () => 'ws',
 }))
 
 if (!window.matchMedia) {
@@ -47,11 +48,30 @@ const task = (id: string, title: string, status: string) => ({
   plan_title: 'Ship v1',
 })
 
-function renderPage() {
+const workspaces = [
+  { id: 'w1', slug: 'ws', name: 'Studio' },
+  { id: 'w2', slug: 'other', name: 'Client B' },
+] as never
+
+function Where() {
+  const loc = useLocation()
+  return <output data-testid="where">{loc.pathname + loc.search}</output>
+}
+
+/** Both entries mount the same component, as in App.tsx. */
+function renderPage(entry = '/workspace/ws/today') {
+  const store = createStore()
+  store.set(workspacesAtom, workspaces)
   return render(
-    <MemoryRouter>
-      <TodayPage />
-    </MemoryRouter>,
+    <Provider store={store}>
+      <MemoryRouter initialEntries={[entry]}>
+        <Where />
+        <Routes>
+          <Route path="/workspace/:slug/today" element={<TodayPage />} />
+          <Route path="/today" element={<TodayPage />} />
+        </Routes>
+      </MemoryRouter>
+    </Provider>,
   )
 }
 
@@ -79,5 +99,56 @@ describe('TodayPage', () => {
     list.mockResolvedValue({ items: [], total: 0 })
     renderPage()
     await waitFor(() => expect(screen.getByText('Nothing on your plate')).toBeTruthy())
+  })
+
+  describe('lane filter', () => {
+    const emptyList = async () => ({ items: [], total: 0 })
+    const slugsAsked = () => [...new Set(list.mock.calls.map((c) => (c[0] as { workspace_slug: string }).workspace_slug))].sort()
+
+    it('/workspace/:slug/today starts on that lane only', async () => {
+      list.mockImplementation(emptyList)
+      renderPage('/workspace/ws/today')
+      await waitFor(() => expect(list).toHaveBeenCalled())
+      expect(slugsAsked()).toEqual(['ws'])
+      expect(screen.getByText('Studio', { selector: 'span span' })).toBeTruthy()
+    })
+
+    it('/today reads every workspace and links each task to its own workspace', async () => {
+      list.mockImplementation(async (p: { status: string; workspace_slug: string }) =>
+        p.status === 'in_progress'
+          ? { items: [task(`t-${p.workspace_slug}`, `Task of ${p.workspace_slug}`, 'in_progress')], total: 1 }
+          : { items: [], total: 0 },
+      )
+      renderPage('/today')
+      await waitFor(() => expect(screen.getByText('Task of other')).toBeTruthy())
+      expect(slugsAsked()).toEqual(['other', 'ws'])
+      expect(screen.getByText('Task of ws').closest('a')?.getAttribute('href')).toBe('/workspace/ws/tasks/t-ws')
+      expect(screen.getByText('Task of other').closest('a')?.getAttribute('href')).toBe('/workspace/other/tasks/t-other')
+    })
+
+    it('widening from the workspace entry is one visible click and lands on /today', async () => {
+      list.mockImplementation(emptyList)
+      renderPage('/workspace/ws/today')
+      await waitFor(() => expect(list).toHaveBeenCalled())
+      fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+      expect(screen.getByTestId('where').textContent).toBe('/today')
+      await waitFor(() => expect(slugsAsked()).toEqual(['other', 'ws']))
+    })
+
+    it('narrowing on /today is reflected in the query string', async () => {
+      list.mockImplementation(emptyList)
+      renderPage('/today?workspace=other')
+      await waitFor(() => expect(list).toHaveBeenCalled())
+      expect(slugsAsked()).toEqual(['other'])
+      fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+      expect(screen.getByTestId('where').textContent).toBe('/today')
+    })
+
+    it('ignores an unknown workspace in the URL instead of showing nothing', async () => {
+      list.mockImplementation(emptyList)
+      renderPage('/today?workspace=ghost')
+      await waitFor(() => expect(list).toHaveBeenCalled())
+      expect(slugsAsked()).toEqual(['other', 'ws'])
+    })
   })
 })
