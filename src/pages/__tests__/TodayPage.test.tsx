@@ -121,6 +121,13 @@ describe('TodayPage: structure', () => {
     }
   })
 
+  it('the page subtitle is in French like the rest of the cockpit', async () => {
+    get.mockResolvedValue(fixture('four_bands'))
+    renderPage()
+    await waitFor(() => expect(screen.getByText(TODAY_TEXT.pageDescription)).toBeTruthy())
+    expect(screen.queryByText(/What is moving/)).toBeNull()
+  })
+
   it('the waiting band holds the full request text and the answer buttons', async () => {
     const data = fixture('four_bands')
     get.mockResolvedValue(data)

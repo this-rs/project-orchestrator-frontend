@@ -28,7 +28,7 @@ import { workspacePath } from '@/utils/paths'
 const THINKING_COLLAPSED_KEY = 'today.thinking.collapsed'
 
 /** Reason recorded when a note is invalidated from the cockpit (the API requires one). */
-const INVALIDATE_REASON = 'Invalidated from Today'
+const INVALIDATE_REASON = 'Invalidated from Today' // stored data, sent to the API as is
 /** Who acknowledges an alert from the cockpit (the API requires one). */
 const ACKNOWLEDGED_BY = 'today'
 
@@ -49,9 +49,9 @@ function writeCollapsed(v: boolean) {
 
 const GROUPS: { kind: ThinkingKind; title: string; noun: string }[] = [
   { kind: 'rfc', title: 'RFC', noun: 'RFC' },
-  { kind: 'decision', title: 'Decisions', noun: 'decision' },
-  { kind: 'note_review', title: 'Notes to review', noun: 'note' },
-  { kind: 'alert', title: 'Alerts', noun: 'alert' },
+  { kind: 'decision', title: 'Décisions', noun: 'décision' },
+  { kind: 'note_review', title: 'Notes à relire', noun: 'note' },
+  { kind: 'alert', title: 'Alertes', noun: 'alerte' },
 ]
 
 /** Page of the item, relative to its lane; null when it has none (or no lane). */
@@ -64,11 +64,11 @@ function thinkingHref(item: ThinkingItem): string | null {
 type Act = 'accept' | 'reject' | 'confirm' | 'invalidate' | 'acknowledge'
 
 const DONE_TOAST: Record<Act, string> = {
-  accept: 'Accepted',
-  reject: 'Rejected',
-  confirm: 'Note confirmed',
-  invalidate: 'Note invalidated',
-  acknowledge: 'Alert acknowledged',
+  accept: 'Accepté',
+  reject: 'Rejeté',
+  confirm: 'Note confirmée',
+  invalidate: 'Note invalidée',
+  acknowledge: 'Alerte acquittée',
 }
 
 function call(item: ThinkingItem, act: Act): Promise<unknown> {
@@ -98,7 +98,7 @@ export interface ThinkingListProps {
   className?: string
 }
 
-export function ThinkingList({ items, onChanged, title = 'Threads of thought', className = 'mt-8' }: ThinkingListProps) {
+export function ThinkingList({ items, onChanged, title = 'Pensée', className = 'mt-8' }: ThinkingListProps) {
   const toast = useToast()
   const [collapsed, setCollapsed] = useState(readCollapsed)
   // Optimistic overlay: rows gone locally until the server settles.
@@ -124,7 +124,7 @@ export function ThinkingList({ items, onChanged, title = 'Threads of thought', c
           n.delete(item.id)
           return n
         })
-        toast.error(`Not saved${err instanceof Error && err.message ? `: ${err.message}` : ''}`)
+        toast.error(`Non enregistré${err instanceof Error && err.message ? ` : ${err.message}` : ''}`)
       }
     },
     [toast, onChanged],
@@ -142,16 +142,16 @@ export function ThinkingList({ items, onChanged, title = 'Threads of thought', c
     )
     switch (item.kind) {
       case 'rfc':
-        return [btn('accept', 'Accept', () => void perform(item, 'accept')), btn('reject', 'Reject', () => setRejecting(item))]
+        return [btn('accept', 'Accepter', () => void perform(item, 'accept')), btn('reject', 'Rejeter', () => setRejecting(item))]
       case 'decision':
-        return [btn('accept', 'Accept', () => void perform(item, 'accept'))]
+        return [btn('accept', 'Accepter', () => void perform(item, 'accept'))]
       case 'note_review':
         return [
-          btn('confirm', 'Confirm', () => void perform(item, 'confirm')),
-          btn('invalidate', 'Invalidate', () => void perform(item, 'invalidate')),
+          btn('confirm', 'Confirmer', () => void perform(item, 'confirm')),
+          btn('invalidate', 'Invalider', () => void perform(item, 'invalidate')),
         ]
       case 'alert':
-        return [btn('acknowledge', 'Acknowledge', () => void perform(item, 'acknowledge'))]
+        return [btn('acknowledge', 'Acquitter', () => void perform(item, 'acknowledge'))]
     }
   }
 
@@ -173,7 +173,7 @@ export function ThinkingList({ items, onChanged, title = 'Threads of thought', c
 
       <div id={bodyId} hidden={collapsed}>
         {visible.length === 0 ? (
-          <p className="px-1 py-2 text-xs text-gray-500">Nothing to decide.</p>
+          <p className="px-1 py-2 text-xs text-gray-500">Rien à trancher.</p>
         ) : (
           GROUPS.map(({ kind, title }) => {
             const rows = visible.filter((i) => i.kind === kind)
@@ -207,10 +207,10 @@ export function ThinkingList({ items, onChanged, title = 'Threads of thought', c
           setRejecting(null)
           if (item) void perform(item, 'reject')
         }}
-        title="Reject this RFC?"
-        description={rejecting ? `"${rejecting.title}" will be rejected. This is hard to undo.` : undefined}
-        confirmLabel="Reject"
-        cancelLabel="Cancel"
+        title="Rejeter cette RFC ?"
+        description={rejecting ? `« ${rejecting.title} » sera rejetée. C’est difficile à annuler.` : undefined}
+        confirmLabel="Rejeter"
+        cancelLabel="Annuler"
         variant="danger"
       />
     </section>

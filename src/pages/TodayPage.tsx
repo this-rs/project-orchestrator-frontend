@@ -9,6 +9,7 @@ import { useAttention } from '@/hooks/useAttention'
 import { attentionApi } from '@/services/attention'
 import { workspacePath } from '@/utils/paths'
 import { NOMENCLATURE } from '@/constants/nomenclature'
+import { TODAY_TEXT } from '@/components/today/bands'
 
 /** Query parameter holding the lane filter on the cross-workspace entry. */
 export const LANE_PARAM = 'workspace'
@@ -108,7 +109,7 @@ export function TodayPage() {
   return (
     <PageShell
       title={NOMENCLATURE.today.plural}
-      description={NOMENCLATURE.today.description}
+      description={TODAY_TEXT.pageDescription}
       width="full"
       filters={
         <FilterBar

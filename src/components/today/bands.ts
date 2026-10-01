@@ -217,6 +217,7 @@ export const BAND_TEXT: Record<Band, { title: string; empty: string }> = {
 }
 
 export const TODAY_TEXT = {
+  pageDescription: 'Ce qui tourne, ce qui est coincé et ce qui t’attend, sur tous tes workspaces.',
   bandError: 'Cette bande n’a pas pu être chargée.',
   retry: 'Réessayer',
   staleRefresh: 'Actualisation impossible : les données affichées peuvent être périmées.',
