@@ -166,7 +166,7 @@ export function AttentionCard({
     if (res === false) throw new Error(ERROR_NOTICE)
   }
   const resumeAction = (
-    <ReplyAction req={request} sessionId={request.session_id} dead onSendMessage={resumeSession} />
+    <ReplyAction req={request} sessionId={request.session_id} dead emphasis="primary" onSendMessage={resumeSession} />
   )
 
   const allow = (v: boolean) => void send(() => onPermission(request, v))

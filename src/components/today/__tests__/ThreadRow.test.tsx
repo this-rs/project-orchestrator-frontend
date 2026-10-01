@@ -119,6 +119,11 @@ describe('ThreadRow — stuck (band 3)', () => {
     expect(names.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  it('Reprendre is a secondary button: eight stuck threads must not stack eight primaries', () => {
+    renderRow(<ThreadRow variant="stuck" thread={thread} runner={blocked.runner} onResume={noResume} />)
+    expect(screen.getByRole('button', { name: ROW_TEXT.resume }).className).not.toContain('bg-indigo-600')
+  })
+
   it('Reprendre calls onResume once with the thread (the page does POST /run)', async () => {
     const onResume = vi.fn().mockResolvedValue(undefined)
     renderRow(<ThreadRow variant="stuck" thread={thread} runner={blocked.runner} onResume={onResume} />)
@@ -154,6 +159,15 @@ describe('ThreadRow — stuck (band 3)', () => {
       )
       fireEvent.click(button)
       expect(onResume).not.toHaveBeenCalled()
+    })
+
+    it('the disabled Reprendre is visibly disabled: no indigo, dashed, grey text (not a dimmed primary)', () => {
+      renderRow(<ThreadRow variant="stuck" thread={stuck} runner={busy.runner} onResume={vi.fn()} />)
+      const cls = screen.getByRole('button', { name: ROW_TEXT.resume }).className
+      expect(cls).not.toContain('bg-indigo')
+      expect(cls).not.toContain('disabled:opacity-50')
+      expect(cls).toContain('disabled:border-dashed')
+      expect(cls).toContain('disabled:text-gray-500')
     })
 
     it('stays enabled when the runner is free', () => {
@@ -325,6 +339,11 @@ describe('ThreadRow — orphan (band 3)', () => {
     const stray = { ...orphan, session_id: 'ffffffff-0000-0000-0000-000000000000' }
     renderRow(<ThreadRow variant="orphan" thread={thread} orphan={stray} onSendMessage={vi.fn()} />)
     expect(screen.getByTestId('provenance').textContent).toBe('sans fil')
+  })
+
+  it('"Reprendre la session" of an orphan row is secondary (the page keeps one primary)', () => {
+    send()
+    expect(screen.getByRole('button', { name: 'Reprendre la session' }).className).not.toContain('bg-indigo-600')
   })
 
   it('the provenance of an orphan is 12px in a readable grey, set apart from the request', () => {

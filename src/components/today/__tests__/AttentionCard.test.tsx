@@ -191,6 +191,11 @@ describe('AttentionCard — permission', () => {
     expect(onPermission).not.toHaveBeenCalled()
   })
 
+  it('inside a band-1 card, "Reprendre la session" IS the primary action', () => {
+    setup({ session: { title: 'Agent billing', state: 'dead' } })
+    expect(screen.getByRole('button', { name: 'Reprendre la session' }).className).toContain('bg-indigo-600')
+  })
+
   it('a DEAD question card pre-fills the chosen option as the answer to the previous question (spike 0.1)', async () => {
     const { onReply } = setup({ request: question, session: { title: 'Agent billing', state: 'dead' } })
     fireEvent.click(screen.getByRole('button', { name: /SQLite/ }))

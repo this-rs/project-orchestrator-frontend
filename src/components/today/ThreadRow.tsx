@@ -122,6 +122,14 @@ export function linkProvenance(link: SessionLink, thread?: AttentionThread): str
 
 const shortId = (id: string) => id.slice(0, 8)
 
+/**
+ * Buttons of the rows (bands 2 and 3). The ONE primary of the page is the answer to a
+ * live agent (band 1): eight stuck threads must not stack eight identical primaries.
+ */
+const BTN = 'inline-flex min-h-9 items-center justify-center rounded-lg px-4 text-sm font-medium'
+const secondaryBtn = `${BTN} border border-white/[0.12] bg-white/[0.06] text-gray-100 hover:bg-white/[0.1]`
+const primaryBtn = `${BTN} bg-indigo-600 text-white hover:bg-indigo-500`
+
 // ---------------------------------------------------------------------------
 // Pieces
 // ---------------------------------------------------------------------------
@@ -327,7 +335,7 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
           onClick={click}
           disabled={disabled}
           aria-describedby={noteId}
-          className={`inline-flex min-h-9 items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}
+          className={`${secondaryBtn} disabled:cursor-not-allowed disabled:border-dashed disabled:border-white/[0.12] disabled:bg-transparent disabled:text-gray-500 ${focusRing}`}
         >
           {pending ? 'Reprise…' : ROW_TEXT.resume}
         </button>
@@ -411,11 +419,14 @@ export function ReplyAction({
   sessionId,
   dead,
   onSendMessage,
+  emphasis = 'secondary',
 }: {
   req: WaitingRequest
   sessionId: string
   dead: boolean
   onSendMessage: (sessionId: string, text: string) => Promise<void>
+  /** `primary` only where this is THE action of the card (a dead session inside a band-1 card). */
+  emphasis?: 'primary' | 'secondary'
 }) {
   const [open, setOpen] = useState(false)
   const [choice, setChoice] = useState<string | null>(null)
@@ -445,7 +456,7 @@ export function ReplyAction({
             <button
               type="button"
               onClick={() => setOpen(true)}
-              className={`inline-flex min-h-9 items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-500 ${focusRing}`}
+              className={`${emphasis === 'primary' ? primaryBtn : secondaryBtn} ${focusRing}`}
             >
               {dead ? ROW_TEXT.resumeSession : ROW_TEXT.reply}
             </button>
