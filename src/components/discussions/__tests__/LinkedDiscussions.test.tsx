@@ -203,9 +203,28 @@ describe('LinkedDiscussions — Rattacher à… when only the workspace is known
     fireEvent.click(within(node).getByRole('button', { name: /Rattacher à…/ }))
     const dialog = await screen.findByTestId('attach-dialog')
     await waitFor(() => expect(wsProjects).toHaveBeenCalledWith('acme'))
-    const select = await within(dialog).findByLabelText(/Plan du même espace de travail/)
+    const select = await within(dialog).findByLabelText(/Plan, par projet/)
     expect(within(select).getByRole('option', { name: 'Plan pA' })).toBeTruthy()
     expect(within(select).getByRole('option', { name: 'Plan pB' })).toBeTruthy()
+  })
+})
+
+describe('LinkedDiscussions — Rattacher à… groups by project when only the workspace is known', () => {
+  it('names the project of each plan, so two identical titles of two projects can be told apart', async () => {
+    wsProjects.mockResolvedValue([
+      { id: 'pA', name: 'Projet Alpha' },
+      { id: 'pB', name: 'Projet Beta' },
+    ])
+    plansList.mockImplementation(async ({ project_id }: { project_id: string }) => ({ items: [{ id: `plan-${project_id}`, title: 'Migration' }], total: 1 }))
+    setup({ projectId: null, projectSlug: null, workspaceSlug: 'acme' })
+    await screen.findByText('Discussion manuelle')
+    const node = screen.getByText('Discussion manuelle').closest('[style]')!.parentElement!
+    fireEvent.click(within(node).getByRole('button', { name: /Rattacher à…/ }))
+    const dialog = await screen.findByTestId('attach-dialog')
+    const select = await within(dialog).findByLabelText(/Plan, par projet/)
+    const groups = Array.from(select.querySelectorAll('optgroup')).map((g) => g.label)
+    expect(groups).toEqual(['Projet Alpha', 'Projet Beta'])
+    expect(within(dialog).queryByText(/du même projet/)).toBeNull()
   })
 })
 

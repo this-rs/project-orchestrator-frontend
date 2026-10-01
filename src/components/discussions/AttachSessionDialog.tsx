@@ -39,7 +39,8 @@ export interface AttachSessionDialogProps {
   projectSlug?: string | null
   /**
    * ... or, when the project is unknown (a session without a thread, a plan reference that
-   * carries no project), the workspace: the plans and tasks of ALL its projects are offered.
+   * carries no project), the workspace: the plans and tasks of ALL its projects are offered,
+   * grouped by project name (the dialog says so, it never claims "same project" then).
    */
   workspaceSlug?: string | null
   /** Called once the link exists: the caller refreshes its tree and the attention count. */
@@ -49,6 +50,8 @@ export interface AttachSessionDialogProps {
 interface Choice {
   id: string
   label: string
+  /** Set only when several projects are offered (workspace scope): the list is grouped by it. */
+  project: string | null
 }
 
 export function AttachSessionDialog({ open, onClose, sessionId, projectId, projectSlug, workspaceSlug, onAttached }: AttachSessionDialogProps) {
@@ -74,28 +77,36 @@ export function AttachSessionDialog({ open, onClose, sessionId, projectId, proje
     setTargetId('')
     setKind('Plan')
     ;(async () => {
-      let pids: string[] = projectId ? [projectId] : []
+      let pids: { id: string; name: string | null }[] = projectId ? [{ id: projectId, name: null }] : []
       if (pids.length === 0 && projectSlug) {
         const found = ((await projectsApi.list()).items || []).find((p) => p.slug === projectSlug)?.id
-        if (found) pids = [found]
+        if (found) pids = [{ id: found, name: null }]
       }
       if (pids.length === 0 && workspaceSlug) {
-        pids = ((await workspacesApi.listProjects(workspaceSlug)) || []).map((p) => p.id)
+        pids = ((await workspacesApi.listProjects(workspaceSlug)) || []).map((p) => ({ id: p.id, name: p.name || p.slug || p.id.slice(0, 8) }))
       }
       if (pids.length === 0) {
         if (!cancelled) setUnknownProject(true)
         return
       }
       const perProject = await Promise.all(
-        pids.map((pid) =>
-          Promise.all([plansApi.list({ project_id: pid, limit: 100 }), tasksApi.list({ project_id: pid, limit: 100 })]),
+        pids.map(({ id }) =>
+          Promise.all([plansApi.list({ project_id: id, limit: 100 }), tasksApi.list({ project_id: id, limit: 100 })]),
         ),
       )
-      const p = { items: perProject.flatMap(([pl]) => pl.items || []) }
-      const t = { items: perProject.flatMap(([, tk]) => tk.items || []) }
       if (cancelled) return
-      setPlans((p.items || []).map((x) => ({ id: x.id, label: x.title })))
-      setTasks((t.items || []).map((x) => ({ id: x.id, label: `${x.title || x.id.slice(0, 8)} — ${x.plan_title}` })))
+      setPlans(
+        perProject.flatMap(([pl], i) => (pl.items || []).map((x) => ({ id: x.id, label: x.title, project: pids[i].name }))),
+      )
+      setTasks(
+        perProject.flatMap(([, tk], i) =>
+          (tk.items || []).map((x) => ({
+            id: x.id,
+            label: `${x.title || x.id.slice(0, 8)} — ${x.plan_title}`,
+            project: pids[i].name,
+          })),
+        ),
+      )
     })()
       .catch(() => {
         if (!cancelled) setLoadError(true)
@@ -109,6 +120,13 @@ export function AttachSessionDialog({ open, onClose, sessionId, projectId, proje
   }, [open, projectId, projectSlug, workspaceSlug])
 
   const choices = kind === 'Plan' ? plans : tasks
+  const grouped = choices.some((c) => c.project !== null)
+  const projectNames = [...new Set(choices.map((c) => c.project).filter((n): n is string => n !== null))]
+  const option = (c: Choice) => (
+    <option key={c.id} value={c.id}>
+      {c.label}
+    </option>
+  )
 
   const submit = async () => {
     if (!targetId || sending) return
@@ -176,7 +194,8 @@ export function AttachSessionDialog({ open, onClose, sessionId, projectId, proje
             ) : (
               <div>
                 <label htmlFor={selectId} className="mb-1 block text-xs text-gray-400">
-                  {kind === 'Plan' ? 'Plan' : 'Tâche'} {projectId || projectSlug ? 'du même projet' : 'du même espace de travail'}
+                  {kind === 'Plan' ? 'Plan' : 'Tâche'}
+                  {grouped ? ', par projet (tous les projets du workspace)' : ' du même projet'}
                 </label>
                 <select
                   id={selectId}
@@ -185,11 +204,13 @@ export function AttachSessionDialog({ open, onClose, sessionId, projectId, proje
                   className={`min-h-10 w-full rounded-lg border border-white/[0.1] bg-surface-base px-3 text-base text-gray-100 md:text-sm ${focusRing}`}
                 >
                   <option value="">Choisir…</option>
-                  {choices.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.label}
-                    </option>
-                  ))}
+                  {grouped
+                    ? projectNames.map((name) => (
+                        <optgroup key={name} label={name}>
+                          {choices.filter((c) => c.project === name).map(option)}
+                        </optgroup>
+                      ))
+                    : choices.map(option)}
                 </select>
               </div>
             )}
