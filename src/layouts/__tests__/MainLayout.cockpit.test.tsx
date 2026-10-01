@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, act, within } from '@testing-library/react'
-import { MemoryRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { Provider } from 'jotai'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -71,8 +71,8 @@ function renderAt(entry: string) {
           <Route path="/workspace/:slug" element={<MainLayout />}>
             <Route path="plans" element={<div data-testid="page">plans page</div>} />
             <Route path="today" element={<div data-testid="page">lane today</div>} />
+            <Route path="overview" element={<div data-testid="page">overview page</div>} />
           </Route>
-          <Route path="*" element={<Navigate to="/today" />} />
         </Routes>
       </MemoryRouter>
     </Provider>,
