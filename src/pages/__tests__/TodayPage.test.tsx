@@ -351,3 +351,24 @@ describe('TodayPage: no entrance animation', () => {
     }
   })
 })
+
+describe('TodayPage: a dead free session with a pending request', () => {
+  it('has no Autoriser/Refuser in "T\'attend" and is reachable through "Reprendre la session" in "Coincé"', async () => {
+    const base = fixture('unattached_waiting')
+    const live = base.unattached.find((u) => u.state === 'live' && u.pending.length > 0)!
+    const dead = {
+      ...live,
+      id: 'dead-free-session',
+      title: 'Session libre arrêtée',
+      state: 'dead' as const,
+      pending: [{ ...live.pending[0], request_id: 'req_dead_free', kind: 'permission' as const, session_id: 'dead-free-session' }],
+    }
+    get.mockResolvedValue({ ...base, waiting: [], unattached: [dead] })
+    renderPage('/today')
+    const stuck = await screen.findByRole('region', { name: new RegExp(BAND_TEXT.stuck.title) })
+    expect(within(stuck).getByRole('button', { name: 'Reprendre la session' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Autoriser' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Refuser' })).toBeNull()
+    expect(screen.queryByTestId('attention-card')).toBeNull()
+  })
+})
