@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { LogOut, Settings } from 'lucide-react'
+import { KeyRound, LogOut, Settings } from 'lucide-react'
 import { authModeAtom, currentUserAtom } from '@/atoms'
 import { settingsReturnUrlAtom } from '@/atoms/setup'
 import { forceLogout } from '@/services/authManager'
@@ -130,6 +130,16 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
             <p className="truncate text-sm font-medium text-gray-200">{user.name}</p>
             <p className="truncate text-xs text-gray-500">{user.email}</p>
           </div>
+          <button
+            onClick={() => {
+              setOpen(false)
+              navigate('/vault')
+            }}
+            className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200"
+          >
+            <KeyRound className="h-4 w-4" />
+            Vault
+          </button>
           {isTauri && (
             <button
               onClick={handleSettings}

@@ -90,6 +90,20 @@ export const chatPermissionInteractiveAtom = atom((get) => {
 export const chatBackgroundTasksAtom = atom<BackgroundTaskInfo[]>([])
 
 /**
+ * Secrets the agent of the CURRENT session asked for and the user has not
+ * answered yet (vault `request_secret`). Fed live by `secret_request` /
+ * `secret_request_resolved` WS events and hydrated from `GET /api/vault` when a
+ * session opens — the events are ephemeral, the server keeps the list.
+ */
+export interface PendingSecretRequest {
+  id: string
+  name: string
+  reason: string
+  exists: boolean
+}
+export const chatSecretRequestsAtom = atom<PendingSecretRequest[]>([])
+
+/**
  * Messages composed while the agent was still answering, held client-side.
  *
  * Empty in the normal case. A send while `chatStreamingAtom` is true appends

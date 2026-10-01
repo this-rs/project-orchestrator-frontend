@@ -293,6 +293,8 @@ export type ChatEvent =
   | { type: 'session_error'; reason: string; message: string; received_at: string }
   | { type: 'tools_cancelled'; cli_pid?: number; killed_count: number; requested_by: string }
   | { type: 'active_tasks_update'; tasks: BackgroundTaskInfo[] }
+  | { type: 'secret_request'; id: string; name: string; reason: string; exists: boolean }
+  | { type: 'secret_request_resolved'; id: string; outcome: string }
 
 /**
  * How far an interrupt reaches.

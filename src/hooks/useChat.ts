@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useSetAtom, useStore } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom, chatDraftInputAtom, chatDraftsMapAtom, chatBackgroundTasksAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom, chatDraftInputAtom, chatDraftsMapAtom, chatBackgroundTasksAtom, chatSecretRequestsAtom } from '@/atoms'
 import { chatApi, ChatWebSocket } from '@/services'
 import type { ChatMessage, ChatEvent, PermissionMode } from '@/types'
 import {
@@ -333,6 +333,8 @@ export function useChat() {
    * snapshot hydration fills it earlier).
    */
   const setBackgroundTasks = useSetAtom(chatBackgroundTasksAtom)
+  /** Pending vault requests of this session — see `chatSecretRequestsAtom`. */
+  const setSecretRequests = useSetAtom(chatSecretRequestsAtom)
 
   // Debounce ref for sendContinue (prevents double-sends on manual Continue button)
   const continueDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1126,6 +1128,21 @@ export function useChat() {
           break
         }
 
+        case 'secret_request': {
+          // The agent asked for a secret: show the secure input tray. Same id
+          // twice (agent retried) → one card.
+          const req = { id: event.id, name: event.name, reason: event.reason, exists: event.exists }
+          setSecretRequests((current) =>
+            current.some((r) => r.id === req.id) ? current : [...current, req],
+          )
+          break
+        }
+
+        case 'secret_request_resolved': {
+          setSecretRequests((current) => current.filter((r) => r.id !== event.id))
+          break
+        }
+
         case 'background_output':
         case 'workflow': {
           // Plan 5985a7c4 (F6 live + F10 orphan tolerance) — live mirror
@@ -1160,7 +1177,7 @@ export function useChat() {
       return finalize(updated)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- tracked setters are stable (useCallback with stable deps)
-  }, [setIsStreaming, setPermissionOverride, setSessionModel, setAutoContinue, setIsCompacting, setBackgroundTasks])
+  }, [setIsStreaming, setPermissionOverride, setSessionModel, setAutoContinue, setIsCompacting, setBackgroundTasks, setSecretRequests])
 
   // ========================================================================
   // REST resync — after a reconnect that the server cannot replay
@@ -1323,6 +1340,7 @@ export function useChat() {
     // reconnect — F7 will refill from the REST snapshot, otherwise
     // the next active_tasks_update will repopulate it.
     setBackgroundTasks([])
+    setSecretRequests([])
     paginationRef.current = { offset: 0, tailOffset: 0, totalCount: 0 }
     setHasOlderMessages(false)
 
@@ -1890,6 +1908,7 @@ export function useChat() {
     setIsReplaying(false)
     setMessages([])
     setBackgroundTasks([])
+    setSecretRequests([])
     setSessionMeta(null)
     setHasOlderMessages(false)
     setHasNewerMessages(false)

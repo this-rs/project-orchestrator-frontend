@@ -55,6 +55,7 @@ import {
 
   NotFoundPage,
   SettingsPage,
+  VaultPage,
   SetupWizard,
 } from '@/pages'
 import { RfcDashboardPage } from '@/components/protocols'
@@ -182,6 +183,9 @@ function App() {
 
                     {/* Settings page (Tauri-only, no sidebar) */}
                     <Route path="/settings" element={<SettingsPage />} />
+
+                    {/* Secrets vault (no sidebar, reachable from the user menu and chat cards) */}
+                    <Route path="/vault" element={<VaultPage />} />
 
                     {/* ===== Workspace-scoped routes ===== */}
                     <Route path="/workspace/:slug" element={<WorkspaceRouteGuard />}>
