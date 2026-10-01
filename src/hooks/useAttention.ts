@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAtomValue } from 'jotai'
+import { attentionRefreshRequestAtom } from '@/atoms/attentionDigest'
 import { ApiError } from '@/services/api'
 import { attentionApi, type Verdict } from '@/services/attention'
 import type { AttentionResponse, AttentionThread, OrphanRequest, ThinkingItem, WaitingRequest } from '@/types/attention'
@@ -180,18 +182,30 @@ export function useAttention({ workspace = null }: UseAttentionOptions = {}) {
   }, [refresh])
 
   // attention_changed: one refetch per burst.
+  const scheduleRefresh = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(() => {
+      timer.current = null
+      void refresh()
+    }, ATTENTION_DEBOUNCE_MS)
+  }, [refresh])
   const onEvent = useCallback(
     (e: CrudEvent) => {
-      if (!isAttentionChanged(e)) return
-      if (timer.current) clearTimeout(timer.current)
-      timer.current = setTimeout(() => {
-        timer.current = null
-        void refresh()
-      }, ATTENTION_DEBOUNCE_MS)
+      if (isAttentionChanged(e)) scheduleRefresh()
     },
-    [refresh],
+    [scheduleRefresh],
   )
   useEventBus(onEvent)
+
+  // A page that changed something (attach, resume) asks every attention reader to refetch:
+  // the same debounce, so a burst of events and a request make ONE fetch.
+  const refreshRequest = useAtomValue(attentionRefreshRequestAtom)
+  const seenRequest = useRef(refreshRequest)
+  useEffect(() => {
+    if (refreshRequest === seenRequest.current) return
+    seenRequest.current = refreshRequest
+    scheduleRefresh()
+  }, [refreshRequest, scheduleRefresh])
 
   // ---- optimistic mutations ----
 

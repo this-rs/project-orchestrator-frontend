@@ -88,6 +88,22 @@ describe('useAttention: attention_changed', () => {
     expect(result.current.status).toBe('ready')
   })
 
+  it('a refresh request from a page (e.g. after "Rattacher à…") refetches the page ONCE, with the same debounce', async () => {
+    const { getDefaultStore } = await import('jotai')
+    const { attentionRefreshRequestAtom } = await import('@/atoms/attentionDigest')
+    await mount()
+    vi.useFakeTimers()
+    get.mockClear()
+    act(() => {
+      getDefaultStore().set(attentionRefreshRequestAtom, (n) => n + 1)
+      getDefaultStore().set(attentionRefreshRequestAtom, (n) => n + 1)
+    })
+    await act(() => vi.advanceTimersByTimeAsync(ATTENTION_DEBOUNCE_MS - 1))
+    expect(get).not.toHaveBeenCalled()
+    await act(() => vi.advanceTimersByTimeAsync(2))
+    expect(get).toHaveBeenCalledTimes(1)
+  })
+
   it('ignores unrelated events', async () => {
     await mount()
     vi.useFakeTimers()
