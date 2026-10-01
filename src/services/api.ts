@@ -165,6 +165,24 @@ export const api = {
 /** Low-level request, for the rare call that needs extra headers. */
 export const apiRequest = request
 
+/**
+ * The sentence to show a human. The API answers errors as `{"error": "..."}`
+ * and `ApiError.message` carries that raw body — never put it in a toast as is.
+ */
+export function apiErrorMessage(err: unknown, fallback = 'An error occurred'): string {
+  if (err instanceof ApiError) {
+    try {
+      const parsed = JSON.parse(err.message) as { error?: string }
+      if (parsed.error) return parsed.error
+    } catch {
+      /* not JSON — the message is already plain text */
+    }
+    return err.message || fallback
+  }
+  if (err instanceof Error && err.message) return err.message
+  return fallback
+}
+
 // Query string builder
 export function buildQuery(params: object): string {
   const searchParams = new URLSearchParams()
