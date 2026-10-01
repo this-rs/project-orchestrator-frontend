@@ -468,6 +468,7 @@ export function ChatPanel() {
               sessionId={chat.sessionId}
               rootSessionId={rootSessionId}
               onNavigate={handleTreeNavigate}
+              isStreaming={chat.isStreaming}
             />
           )}
 
@@ -692,6 +693,7 @@ export function ChatPanel() {
           sessionId={chat.sessionId}
           rootSessionId={rootSessionId}
           onNavigate={handleTreeNavigate}
+          isStreaming={chat.isStreaming}
         />
       )}
 
