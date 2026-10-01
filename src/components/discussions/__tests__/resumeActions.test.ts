@@ -60,10 +60,10 @@ describe('resumeActionsFor', () => {
     expect(kinds(top, { run: { id: 'run1', status: 'failed' } }, facts())).toEqual([])
   })
 
-  it('"Relancer la tâche" only for a failed or blocked task, once per task', () => {
+  it('"Relancer la tâche" only for a failed task, once per task; a blocked task only gets an explanation', () => {
     const n = node('s1', { task_id: 't1' })
     expect(kinds(n, { planId: 'p1', taskStatuses: { t1: 'failed' } }, facts())).toEqual(['task'])
-    expect(kinds(n, { planId: 'p1', taskStatuses: { t1: 'blocked' } }, facts())).toEqual(['task'])
+    expect(kinds(n, { planId: 'p1', taskStatuses: { t1: 'blocked' } }, facts())).toEqual(['blocked'])
     for (const s of ['pending', 'in_progress', 'completed']) {
       expect(kinds(n, { planId: 'p1', taskStatuses: { t1: s } }, facts())).toEqual([])
     }

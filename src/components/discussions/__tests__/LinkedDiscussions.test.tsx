@@ -249,13 +249,20 @@ describe('LinkedDiscussions — resume buttons', () => {
     expect(store.get(attentionRefreshRequestAtom)).toBe(1)
   })
 
-  it('"Relancer la tâche" uses the existing retry route, only for a failed/blocked task', async () => {
+  it('"Relancer la tâche" uses the existing retry route, only for a failed task', async () => {
     setup({ resume: { planId: 'plan1', taskStatuses: { t1: 'failed' } } })
     await screen.findByText('Session morte')
     const btn = within(nodeOf('Agent runner')).getByRole('button', { name: 'Relancer la tâche' })
     expect(screen.getAllByRole('button', { name: 'Relancer la tâche' })).toHaveLength(1)
     fireEvent.click(btn)
     await waitFor(() => expect(runner.retryTask).toHaveBeenCalledWith('plan1', 't1'))
+  })
+
+  it('a BLOCKED task gets the explanation, never a "Relancer la tâche" button', async () => {
+    setup({ resume: { planId: 'plan1', taskStatuses: { t1: 'blocked' } } })
+    await screen.findByText('Session morte')
+    expect(screen.queryByRole('button', { name: 'Relancer la tâche' })).toBeNull()
+    expect(within(nodeOf('Agent runner')).getByTestId('blocked-task-note').textContent).toContain('débloque-la')
   })
 
   it('runner busy: run and task buttons are disabled, say why, link to the occupant, and do not call the server', async () => {

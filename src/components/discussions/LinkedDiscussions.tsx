@@ -166,6 +166,10 @@ export function LinkedDiscussions({ entity, projectId, projectSlug, workspaceSlu
             a.kind === 'session' ? (
               // Dead session: a message is the only way back (never "Autoriser").
               <ReplyAction key="session" req={a.request} sessionId={node.session_id} dead onSendMessage={sendMessage} />
+            ) : a.kind === 'blocked' ? (
+              <p key="blocked" data-testid="blocked-task-note" className="text-xs text-amber-400">
+                {a.text}
+              </p>
             ) : (
               <ActionButton key={a.kind} action={a} resume={ctx} onDone={changed} />
             ),

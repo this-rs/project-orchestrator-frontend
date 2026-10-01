@@ -6,7 +6,8 @@
  *   only action is a message (ContinueSheet/ReplyAction): never "Autoriser".
  * - `run`: the run stopped before the end (failed / budget exceeded / cancelled),
  *   shown once, on the first node of that run (see `computeOwners`).
- * - `task`: the node's task failed or is blocked.
+ * - `task`: the node's task failed. A BLOCKED task gets `blocked` (an explanation, no button:
+ *   the runner skips blocked tasks).
  * - run and task actions need the runner: held by another plan => disabled, with
  *   the reason and a link to that plan.
  */
@@ -15,7 +16,8 @@ import type { DiscussionNode } from '@/services/discussions'
 import type { RunnerState, WaitingRequest } from '@/types/attention'
 
 export const RESUMABLE_RUN_STATUSES = ['failed', 'budget_exceeded', 'cancelled'] as const
-export const RETRYABLE_TASK_STATUSES = ['failed', 'blocked'] as const
+/** Only a FAILED task can be retried: the runner skips a blocked one, a button would do nothing. */
+export const RETRYABLE_TASK_STATUSES = ['failed'] as const
 
 export interface ResumeContext {
   /** The plan the runs / tasks of this view belong to (needed by the run and task buttons). */
@@ -49,6 +51,7 @@ export type ResumeAction =
       taskId: string
       disabled: BusyReason | null
     }
+  | { kind: 'blocked'; taskId: string; text: string }
 
 export interface BusyReason {
   text: string
@@ -57,6 +60,7 @@ export interface BusyReason {
 }
 
 export const RESUME_TEXT = {
+  blockedTask: 'Tâche bloquée : débloque-la avant de reprendre, le runner la saute.',
   runnerBusy: 'Runner occupé par le plan',
 }
 
@@ -121,6 +125,9 @@ export function resumeActionsFor(
   const taskStatus = taskId ? ctx.taskStatuses?.[taskId] : undefined
   if (taskId && owners.task[taskId] === node.session_id && taskStatus && (RETRYABLE_TASK_STATUSES as readonly string[]).includes(taskStatus)) {
     out.push({ kind: 'task', label: 'Relancer la tâche', planId, taskId, disabled })
+  }
+  if (taskId && owners.task[taskId] === node.session_id && taskStatus === 'blocked') {
+    out.push({ kind: 'blocked', taskId, text: RESUME_TEXT.blockedTask })
   }
   return out
 }
