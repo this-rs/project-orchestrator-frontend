@@ -262,7 +262,7 @@ describe('useAttention: 410 = orphan', () => {
     post.mockRejectedValueOnce(new ApiError(410, 'gone'))
     get.mockResolvedValue(clone(fixture('four_bands'))) // server still lists it as waiting
     await act(async () => {
-      expect(await result.current.answerPermission(req, true)).toBe(false)
+      expect(await result.current.answerPermission(req, true)).toBe('orphaned')
     })
     expect(toast.error).not.toHaveBeenCalled()
     expect(result.current.notices[req.request_id]).toBe(ORPHAN_NOTICE)
@@ -272,7 +272,7 @@ describe('useAttention: 410 = orphan', () => {
     expect(result.current.data!.orphans.some((o) => o.request_id === req.request_id)).toBe(true)
     post.mockClear()
     await act(async () => {
-      expect(await result.current.answerPermission(req, true)).toBe(false)
+      expect(await result.current.answerPermission(req, true)).toBe('orphaned')
     })
     expect(post).not.toHaveBeenCalled()
   })

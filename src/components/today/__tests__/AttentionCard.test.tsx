@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { ApiError } from '@/services/api'
+import { questionAnswerMessage } from '../ThreadRow'
 import { AttentionCard, linkLabel, provenanceLabels, type AttentionCardProps } from '../AttentionCard'
 import type { WaitingRequest } from '@/types/attention'
 
@@ -169,14 +170,61 @@ describe('AttentionCard — permission', () => {
     expect(screen.getByRole('link', { name: 'Ouvrir la session' })).toBeTruthy()
   })
 
-  it('a DEAD session asking a question has no free answer field and disabled options', () => {
-    setup({ request: question, session: { title: 'Agent billing', state: 'dead' } })
+  it('a DEAD session asking a question has no free answer field, no one-click answer, and a way back', () => {
+    const { onReply } = setup({ request: question, session: { title: 'Agent billing', state: 'dead' } })
     expect(screen.queryByLabelText('Autre réponse')).toBeNull()
-    expect((screen.getByRole('button', { name: /PostgreSQL/ }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.queryByRole('button', { name: 'Envoyer' })).toBeNull()
+    // Options only pre-select (aria-pressed); nothing is sent by choosing one.
+    fireEvent.click(screen.getByRole('button', { name: /PostgreSQL/ }))
+    expect(onReply).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Reprendre la session' })).toBeTruthy()
+  })
+
+  it('a DEAD permission card has "Reprendre la session": opens the sheet, sends a user_message via onReply, never onPermission', async () => {
+    const { onReply, onPermission } = setup({ session: { title: 'Agent billing', state: 'dead' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Reprendre la session' }))
+    const sheet = await screen.findByTestId('continue-sheet')
+    const field = within(sheet).getByLabelText('Message de reprise') as HTMLTextAreaElement
+    expect(field.value).toBe('Continue.') // permission: short editable message (spike 0.1)
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Reprendre la session' }))
+    await waitFor(() => expect(onReply).toHaveBeenCalledWith(permission, 'Continue.'))
+    expect(onPermission).not.toHaveBeenCalled()
+  })
+
+  it('a DEAD question card pre-fills the chosen option as the answer to the previous question (spike 0.1)', async () => {
+    const { onReply } = setup({ request: question, session: { title: 'Agent billing', state: 'dead' } })
+    fireEvent.click(screen.getByRole('button', { name: /SQLite/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reprendre la session' }))
+    const field = (await screen.findByLabelText('Message de reprise')) as HTMLTextAreaElement
+    expect(field.value).toBe(questionAnswerMessage(question.text, 'SQLite'))
+    fireEvent.click(within(screen.getByTestId('continue-sheet')).getByRole('button', { name: 'Reprendre la session' }))
+    await waitFor(() => expect(onReply).toHaveBeenCalledWith(question, questionAnswerMessage(question.text, 'SQLite')))
+  })
+
+  it('a failed resume keeps the sheet open and says so', async () => {
+    setup({ session: { title: 'A', state: 'dead' }, onReply: vi.fn().mockResolvedValue(false) })
+    fireEvent.click(screen.getByRole('button', { name: 'Reprendre la session' }))
+    const sheet = await screen.findByTestId('continue-sheet')
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Reprendre la session' }))
+    expect((await within(sheet).findByRole('alert')).textContent).toMatch(/non envoyée/)
+    expect(screen.getByTestId('continue-sheet')).toBeTruthy()
+  })
+
+  it('an orphan notice does not hide an unrelated failure of the answer', async () => {
+    const onPermission = vi.fn().mockResolvedValue(false) // a real failure (toasted by the hook)
+    const props: AttentionCardProps = {
+      request: permission, lane: 'Acme', threadTitle: null, session: { title: 'A', state: 'live' },
+      onPermission, onReply: vi.fn(),
+    }
+    const { rerender } = render(<MemoryRouter><AttentionCard {...props} /></MemoryRouter>)
+    fireEvent.click(screen.getByRole('button', { name: 'Autoriser' }))
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    rerender(<MemoryRouter><AttentionCard {...props} notice="L'agent n'est plus là." /></MemoryRouter>)
+    expect(screen.getByRole('alert').textContent).toMatch(/Réponse non envoyée/)
   })
 
   it('410 shows ONE coherent message: the orphan notice, not "Réponse non envoyée" too', async () => {
-    const onPermission = vi.fn().mockResolvedValue(false) // the hook turned the 410 into a notice
+    const onPermission = vi.fn().mockResolvedValue('orphaned') // the hook turned the 410 into a notice
     const props: AttentionCardProps = {
       request: permission, lane: 'Acme', threadTitle: null, session: { title: 'A', state: 'live' },
       onPermission, onReply: vi.fn(),

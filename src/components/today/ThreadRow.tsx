@@ -406,7 +406,7 @@ function OptionPicker({
   )
 }
 
-function ReplyAction({
+export function ReplyAction({
   req,
   sessionId,
   dead,

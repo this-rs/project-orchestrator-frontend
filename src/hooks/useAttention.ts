@@ -224,16 +224,25 @@ export function useAttention({ workspace = null }: UseAttentionOptions = {}) {
     [],
   )
 
-  /** Allow / deny a permission of a LIVE session. An orphan is refused here too. */
+  /**
+   * Allow / deny a permission of a LIVE session. An orphan is refused here too.
+   * Resolves `true` (sent), `false` (failed, toasted) or `'orphaned'` (the CLI is
+   * dead: 410 or already known dead, noticed on the card — not a failure).
+   */
   const answerPermission = useCallback(
-    async (req: WaitingRequest, allow: boolean) => {
-      if (raw?.orphans.some((o) => o.request_id === req.request_id) || notices[req.request_id]) return false
-      return run(
+    async (req: WaitingRequest, allow: boolean): Promise<boolean | 'orphaned'> => {
+      if (raw?.orphans.some((o) => o.request_id === req.request_id) || notices[req.request_id]) return 'orphaned'
+      let gone = false
+      const ok = await run(
         { kind: 'drop_request', id: req.request_id },
         () => attentionApi.answerPermission(req.session_id, req.request_id, allow),
         { ok: allow ? 'Autorisé' : 'Refusé', fail: 'Réponse non envoyée' },
-        () => setNotices((n) => ({ ...n, [req.request_id]: ORPHAN_NOTICE })),
+        () => {
+          gone = true
+          setNotices((n) => ({ ...n, [req.request_id]: ORPHAN_NOTICE }))
+        },
       )
+      return gone ? 'orphaned' : ok
     },
     [raw, notices, run],
   )

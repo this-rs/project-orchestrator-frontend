@@ -28,7 +28,7 @@ export interface TodaySource {
   notices: Record<string, string>
   drafts: Record<string, string>
   setDraft: (id: string, text: string) => void
-  answerPermission: (req: WaitingRequest, allow: boolean) => Promise<boolean>
+  answerPermission: (req: WaitingRequest, allow: boolean) => Promise<boolean | 'orphaned'>
   sendReply: (req: WaitingRequest, content: string) => Promise<boolean>
   resumeRun: (thread: AttentionThread) => Promise<boolean>
   /** A `user_message` to a session (resumes a dead one). Throws on failure. */

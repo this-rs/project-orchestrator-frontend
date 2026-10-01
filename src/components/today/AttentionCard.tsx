@@ -8,6 +8,7 @@ import { StatusDot } from '@/components/ui/Status'
 import { focusRing, inlineLink, metaText } from '@/components/ui/classes'
 import type { SessionLink, SessionState, WaitingRequest } from '@/types/attention'
 import { workspacePath } from '@/utils/paths'
+import { ReplyAction } from './ThreadRow'
 
 /**
  * Band 1 — "T'attend": a LIVE agent is stopped on the user.
@@ -138,11 +139,17 @@ export function AttentionCard({
         setPhase('idle')
         setError(ERROR_NOTICE)
       } else if (res === 'already_decided') setPhase('decided')
-      else if (res === 'orphaned') setPhase('orphaned')
-      else setPhase('sent')
+      else if (res === 'orphaned') {
+        // The orphan notice says it all: no extra error.
+        setError(null)
+        setPhase('orphaned')
+      } else setPhase('sent')
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) setPhase('decided')
-      else if (err instanceof ApiError && err.status === 410) setPhase('orphaned')
+      else if (err instanceof ApiError && err.status === 410) {
+        setError(null)
+        setPhase('orphaned')
+      }
       else {
         setPhase('idle')
         setError(ERROR_NOTICE)
@@ -151,6 +158,16 @@ export function AttentionCard({
       inFlight.current = false
     }
   }
+
+  // Resuming a dead session = a plain user_message (the server resumes the CLI); never
+  // permission_response / input_response, which a dead CLI cannot receive (spike 0.1).
+  const resumeSession = async (_sessionId: string, content: string) => {
+    const res = await onReply(request, content)
+    if (res === false) throw new Error(ERROR_NOTICE)
+  }
+  const resumeAction = (
+    <ReplyAction req={request} sessionId={request.session_id} dead onSendMessage={resumeSession} />
+  )
 
   const allow = (v: boolean) => void send(() => onPermission(request, v))
   const reply = (content: string) => {
@@ -232,7 +249,7 @@ export function AttentionCard({
           Réponse envoyée.
         </p>
       )}
-      {error && !orphaned && (
+      {error && (
         <p role="alert" className="text-sm text-red-400 break-words">
           {error}
         </p>
@@ -240,7 +257,8 @@ export function AttentionCard({
 
       {/* Actions */}
       {isPermission ? (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+          {orphaned && resumeAction}
           {!orphaned && (
             <>
               <Button size="sm" className={btn} disabled={locked} loading={sending} onClick={() => allow(true)}>
@@ -255,7 +273,7 @@ export function AttentionCard({
         </div>
       ) : (
         <div className="space-y-3">
-          {request.options.length > 0 && (
+          {request.options.length > 0 && !orphaned && (
             <ul className="m-0 list-none space-y-2 p-0" aria-label="Réponses proposées">
               {request.options.map((o) => (
                 <li key={o.label}>
@@ -304,7 +322,12 @@ export function AttentionCard({
               </div>
             </div>
           )}
-          {orphaned && <OpenSession request={request} />}
+          {orphaned && (
+            <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+              {resumeAction}
+              <OpenSession request={request} />
+            </div>
+          )}
         </div>
       )}
     </section>
