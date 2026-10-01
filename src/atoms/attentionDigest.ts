@@ -1,4 +1,5 @@
 import { atom } from 'jotai'
+import { buildBands } from '@/components/today/bands'
 import type { AttentionResponse, RunnerState, WaitingRequest } from '@/types/attention'
 
 /**
@@ -23,10 +24,15 @@ export const attentionDigestAtom = atom<AttentionDigest>(EMPTY_DIGEST)
 export const attentionRefreshRequestAtom = atom(0)
 
 export function buildAttentionDigest(data: AttentionResponse): AttentionDigest {
+  // Same cut as the Today page (`buildBands`): what its band "À reprendre" shows as a request
+  // left without answer (orphans[], dead sessions, waiting[] requests of dead/unknown sessions).
   const deadPending: Record<string, WaitingRequest> = {}
-  for (const o of data.orphans) if (!(o.session_id in deadPending)) deadPending[o.session_id] = o
-  for (const u of data.unattached) {
-    if (u.state === 'dead' && u.pending.length > 0 && !(u.id in deadPending)) deadPending[u.id] = u.pending[0]
+  for (const e of buildBands(data).stuck) {
+    if (e.kind === 'orphan') {
+      if (!(e.orphan.session_id in deadPending)) deadPending[e.orphan.session_id] = e.orphan
+    } else if (e.kind === 'unattached' && e.session.pending.length > 0 && !(e.session.id in deadPending)) {
+      deadPending[e.session.id] = e.session.pending[0]
+    }
   }
   return { status: 'ready', deadPending, runner: data.runner }
 }

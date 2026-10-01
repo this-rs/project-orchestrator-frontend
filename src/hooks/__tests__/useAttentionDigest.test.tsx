@@ -49,6 +49,14 @@ describe('attention digest (shared with the badge source)', () => {
     expect(buildAttentionDigest(fixture('unattached_waiting')).deadPending).toEqual({})
   })
 
+  it('buildAttentionDigest agrees with buildBands: a waiting[] request of a dead session is a resume candidate', () => {
+    const o = fixture('orphan')
+    const { cli_stopped_at: _drop, ...asWaiting } = o.orphans[0]
+    void _drop
+    const d = buildAttentionDigest({ ...o, orphans: [], waiting: [asWaiting] })
+    expect(Object.keys(d.deadPending)).toEqual([o.orphans[0].session_id])
+  })
+
   it('is fed by the SAME single fetch as the count, and a refresh request refetches that one source', async () => {
     const data = fixture('orphan')
     get.mockResolvedValue(data)
