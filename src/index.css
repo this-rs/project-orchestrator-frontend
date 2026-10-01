@@ -657,18 +657,10 @@ html.tauri * {
   border-bottom: none !important;
 }
 
-/* Toast animations */
-@keyframes slideInRight {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
+/* Toast animations — see .ui-toast-in / .ui-toast-countdown (Material & motion) */
 @keyframes fadeOut {
   from { opacity: 1; }
   to { opacity: 0; }
-}
-@keyframes shrinkWidth {
-  from { width: 100%; }
-  to { width: 0%; }
 }
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(12px); }
@@ -878,14 +870,45 @@ html.tauri * {
   --ease-in-soft: cubic-bezier(0.4, 0, 1, 1);
 }
 @keyframes ui-pop-in {
-  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  from { opacity: 0; transform: translateY(var(--pop-from-y, -4px)) scale(0.98); }
   to { opacity: 1; transform: none; }
 }
+/* Grows out of its trigger: below it by default; when positionFloating()
+   flips the menu above the trigger it writes data-placement="top", so the
+   menu scales from its bottom edge and rises instead of dropping. */
 .ui-pop-in {
+  --pop-from-y: -4px;
   animation: ui-pop-in var(--motion-transition) var(--ease-out-soft) both;
   transform-origin: top;
+}
+.ui-pop-in[data-placement="top"] {
+  --pop-from-y: 4px;
+  transform-origin: bottom;
+}
+/* Toast entrance — transition family (slides in from the edge it lives on).
+   The toast node is keyed by id, so this plays once per toast: a second toast
+   does not replay the first one's entrance. */
+@keyframes ui-toast-in {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: none; }
+}
+.ui-toast-in {
+  animation: ui-toast-in var(--motion-transition) var(--ease-out-soft) both;
+}
+/* Toast countdown — temporal family: represents the 4s before auto-dismiss and
+   stops with it. transform (compositor only), never width (layout + paint on
+   every frame). Kept under reduced motion: it is information, not decoration,
+   and moves no content. */
+@keyframes ui-toast-countdown {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+.ui-toast-countdown {
+  transform-origin: left;
+  animation: ui-toast-countdown 4s linear forwards;
 }
 @media (prefers-reduced-motion: reduce) {
   /* Keep the state change legible (opacity), drop the movement. */
   @keyframes ui-pop-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes ui-toast-in { from { opacity: 0; } to { opacity: 1; } }
 }

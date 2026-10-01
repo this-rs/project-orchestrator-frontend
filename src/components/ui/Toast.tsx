@@ -41,7 +41,7 @@ export function ToastContainer() {
         return (
           <div
             key={toast.id}
-            className="pointer-events-auto flex items-stretch glass-medium rounded-xl shadow-md overflow-hidden animate-[slideInRight_200ms_ease-out] min-w-[300px] max-w-[420px]"
+            className="relative pointer-events-auto flex items-stretch glass-medium rounded-xl shadow-md overflow-hidden ui-toast-in min-w-[300px] max-w-[420px]"
           >
             {/* Color bar */}
             <div className={`w-1 shrink-0 ${config.bar}`} />
@@ -61,7 +61,7 @@ export function ToastContainer() {
             {/* Progress bar */}
             <div className="absolute bottom-0 left-0 right-0 h-0.5">
               <div
-                className={`h-full ${config.bar} opacity-40 animate-[shrinkWidth_4s_linear_forwards]`}
+                className={`h-full ${config.bar} opacity-40 ui-toast-countdown`}
               />
             </div>
           </div>

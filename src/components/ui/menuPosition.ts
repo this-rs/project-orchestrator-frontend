@@ -66,6 +66,7 @@ export const supportsAnchorPositioning: boolean =
 /**
  * Imperatively place `menu` (position: fixed) next to `trigger`. Safe to call
  * repeatedly (on open, scroll, resize). Clears any CSS-anchor inset first.
+ * Writes `data-placement="top|bottom"` on the menu for the entrance motion.
  */
 export function positionFloating(
   trigger: HTMLElement,
@@ -88,6 +89,9 @@ export function positionFloating(
   menu.style.right = 'auto'
   menu.style.bottom = 'auto'
   menu.style.maxHeight = `${pos.maxHeight}px`
+  // Lets CSS grow the menu out of its trigger (`.ui-pop-in[data-placement]`):
+  // a menu flipped above must scale from its bottom edge and rise, not drop.
+  menu.dataset.placement = pos.placement
   return pos
 }
 

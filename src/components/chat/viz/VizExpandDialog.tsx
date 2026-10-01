@@ -8,7 +8,7 @@ import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { X, Minimize2 } from 'lucide-react'
-import { dialogVariants, backdropVariants, useReducedMotion } from '@/utils/motion'
+import { DIALOG_MOTION, useVariants } from '@/utils/motion'
 
 interface VizExpandDialogProps {
   open: boolean
@@ -19,7 +19,7 @@ interface VizExpandDialogProps {
 
 export function VizExpandDialog({ open, onClose, title, children }: VizExpandDialogProps) {
   const closeRef = useRef<HTMLButtonElement>(null)
-  const reducedMotion = useReducedMotion()
+  const variants = useVariants(DIALOG_MOTION)
 
   useEffect(() => {
     if (open) closeRef.current?.focus()
@@ -54,7 +54,7 @@ export function VizExpandDialog({ open, onClose, title, children }: VizExpandDia
         >
           <motion.div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            variants={reducedMotion ? undefined : backdropVariants}
+            variants={variants.backdrop}
             initial="hidden"
             animate="visible"
             exit="exit"
@@ -63,7 +63,7 @@ export function VizExpandDialog({ open, onClose, title, children }: VizExpandDia
 
           <motion.div
             className="relative glass-medium rounded-xl shadow-xl max-w-5xl w-full max-h-[85vh] flex flex-col"
-            variants={reducedMotion ? undefined : dialogVariants}
+            variants={variants.dialog}
             initial="hidden"
             animate="visible"
             exit="exit"

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { AlertCircle, Info } from 'lucide-react'
 import { Button } from './Button'
 import { ProgressBar } from './ProgressBar'
-import { dialogVariants, backdropVariants, useReducedMotion } from '@/utils/motion'
+import { DIALOG_MOTION, useVariants } from '@/utils/motion'
 
 export interface ConfirmDialogProps {
   open: boolean
@@ -31,7 +31,7 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const [loading, setLoading] = useState(false)
   const cancelRef = useRef<HTMLButtonElement>(null)
-  const reducedMotion = useReducedMotion()
+  const variants = useVariants(DIALOG_MOTION)
 
   // Focus cancel button on open
   useEffect(() => {
@@ -88,7 +88,7 @@ export function ConfirmDialog({
           {/* Overlay */}
           <motion.div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            variants={reducedMotion ? undefined : backdropVariants}
+            variants={variants.backdrop}
             initial="hidden"
             animate="visible"
             exit="exit"
@@ -98,7 +98,7 @@ export function ConfirmDialog({
           {/* Modal */}
           <motion.div
             className="relative glass-medium rounded-xl shadow-xl max-w-md w-full px-4 py-4 md:p-6"
-            variants={reducedMotion ? undefined : dialogVariants}
+            variants={variants.dialog}
             initial="hidden"
             animate="visible"
             exit="exit"
