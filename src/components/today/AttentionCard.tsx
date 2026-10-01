@@ -5,7 +5,7 @@ import { ORPHAN_NOTICE } from '@/hooks/useAttention'
 import { Button } from '@/components/ui/Button'
 import { RelativeTime } from '@/components/ui/MetaLine'
 import { StatusDot } from '@/components/ui/Status'
-import { focusRing, inlineLink, metaText } from '@/components/ui/classes'
+import { focusRing, inlineLink, metaText, provenanceText } from '@/components/ui/classes'
 import type { SessionLink, SessionState, WaitingRequest } from '@/types/attention'
 import { workspacePath } from '@/utils/paths'
 import { ReplyAction } from './ThreadRow'
@@ -186,14 +186,12 @@ export function AttentionCard({
       data-testid="attention-card"
       className="min-w-0 rounded-xl border border-white/[0.1] border-l-[3px] border-l-sky-400/70 bg-surface-base p-4 space-y-3"
     >
-      {/* Where: lane · thread · since · alive */}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-4 text-gray-400 min-w-0">
+      {/* Where: lane, thread, since, alive. No "·" separators: when the line wraps on a phone
+          a separator would be left dangling at the end of the first line. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-4 text-gray-400 min-w-0">
         <span className="min-w-0 break-words text-gray-300">{lane}</span>
-        <span aria-hidden="true" className="text-gray-700">·</span>
         <span className="min-w-0 break-words text-gray-200">{threadTitle ?? 'Sans fil'}</span>
-        <span aria-hidden="true" className="text-gray-700">·</span>
         <RelativeTime date={request.requested_at} prefix="depuis " />
-        <span aria-hidden="true" className="text-gray-700">·</span>
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
           <StatusDot tone={live ? 'success' : 'muted'} />
           <span className={live ? 'text-emerald-300' : 'text-gray-500'}>{live ? 'vivant' : 'arrêté'}</span>
@@ -229,7 +227,7 @@ export function AttentionCard({
       )}
 
       {/* Provenance, as the backend gave it */}
-      <p className={`${metaText} break-words`} data-testid="attention-provenance">
+      <p className={`${provenanceText} break-words`} data-testid="attention-provenance">
         {provenance.join(' · ')}
       </p>
 

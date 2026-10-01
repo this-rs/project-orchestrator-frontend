@@ -340,6 +340,23 @@ describe('AttentionCard — question', () => {
 })
 
 describe('AttentionCard — provenance of the attachment (as given by the backend)', () => {
+  it('the where line has no "·" separator that could dangle at the end of a wrapped line', () => {
+    setup()
+    const where = screen.getByTestId('attention-card').firstElementChild as HTMLElement
+    expect(where.textContent).toContain('Acme')
+    expect(where.textContent).toContain('vivant')
+    expect(where.textContent).not.toContain('·')
+  })
+
+  it('the provenance is 12px in a readable grey, not 11px dark grey', () => {
+    setup()
+    const cls = screen.getByTestId('attention-provenance').className
+    expect(cls).toContain('text-xs')
+    expect(cls).toContain('text-gray-400')
+    expect(cls).not.toContain('text-[11px]')
+    expect(cls).not.toContain('text-gray-500')
+  })
+
   it('says "sans fil" when the session has no link', () => {
     setup({ links: null, threadTitle: null })
     expect(screen.getByTestId('attention-provenance').textContent).toBe('sans fil')

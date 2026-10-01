@@ -327,6 +327,14 @@ describe('ThreadRow — orphan (band 3)', () => {
     expect(screen.getByTestId('provenance').textContent).toBe('sans fil')
   })
 
+  it('the provenance of an orphan is 12px in a readable grey, set apart from the request', () => {
+    send()
+    const cls = screen.getByTestId('provenance').className
+    expect(cls).toContain('text-xs')
+    expect(cls).toContain('text-gray-400')
+    expect(cls).toContain('mt-2')
+  })
+
   it('states where the session is attached (provenance), never computing membership', () => {
     send()
     expect(screen.getByTestId('provenance').textContent).toBe(`rattachée au run ${thread.run!.id.slice(0, 8)}`)

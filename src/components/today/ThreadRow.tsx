@@ -2,7 +2,7 @@ import { useId, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { StatusDot, StatusIcon } from '@/components/ui/Status'
 import { RelativeTime } from '@/components/ui/MetaLine'
-import { focusRing, inlineLink, metaText } from '@/components/ui/classes'
+import { focusRing, inlineLink, metaText, provenanceText } from '@/components/ui/classes'
 import { formatCost, formatDurationMs } from '@/components/ui/format'
 import { workspacePath } from '@/utils/paths'
 import type {
@@ -495,7 +495,7 @@ export function OrphanThreadRow({ thread, orphan, onSendMessage, laneName, class
       }
     >
       <RequestText req={orphan} />
-      <p data-testid="provenance" className="mt-1 text-[11px] leading-4 text-gray-500">
+      <p data-testid="provenance" className={`mt-2 ${provenanceText}`}>
         {session && session.links.length > 0
           ? session.links.map((l) => linkProvenance(l, thread)).join(' · ')
           : ROW_TEXT.noThread}
