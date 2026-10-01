@@ -34,6 +34,18 @@ export type RunnerStatus = (typeof RUNNER_STATUSES)[number]
 export const THINKING_KINDS = ['rfc', 'decision', 'note_review', 'alert'] as const
 export type ThinkingKind = (typeof THINKING_KINDS)[number]
 
+/**
+ * Which mechanism attaches a session to a thread. A session may carry several
+ * links (one per mechanism); the provenance is kept so the UI can say
+ * "rattache au run X" / "a la tache Y". The frontend never computes the
+ * membership itself.
+ */
+export const LINK_VIAS = ['runner_run', 'spawned_by_json', 'task_association', 'plan_association'] as const
+export type LinkVia = (typeof LINK_VIAS)[number]
+
+export const SESSION_STATES = ['live', 'dead'] as const
+export type SessionState = (typeof SESSION_STATES)[number]
+
 export interface WorkspaceRef {
   id: string
   slug: string
@@ -77,6 +89,22 @@ export interface ResumePreview {
   rerun_count: number
 }
 
+/** One link between a session and a thread (de-duplicated, provenance kept). */
+export interface SessionLink {
+  via: LinkVia
+  run_id: string | null
+  task_id: string | null
+  plan_id: string | null
+}
+
+/** A session of a thread; `links` is never empty. After a resume, old sessions keep the OLD run_id. */
+export interface ThreadSession {
+  id: string
+  title: string
+  state: SessionState
+  links: SessionLink[]
+}
+
 /** The unit of the cockpit: plan + run + sessions. */
 export interface AttentionThread {
   id: string
@@ -89,6 +117,8 @@ export interface AttentionThread {
   plan: PlanRef | null
   run: AttentionRunRef | null
   session_ids: string[]
+  /** Same sessions as `session_ids`, with their links. */
+  sessions: ThreadSession[]
   since: string
   age_secs: number
   waves: WaveSummaryDto[]
@@ -151,6 +181,19 @@ export interface ThinkingItem {
   age_secs: number
 }
 
+/** A session with NO link: never dropped, shown in its lane with its pending requests. */
+export interface UnattachedSession {
+  id: string
+  /** Slug of the lane (matches `lanes[].slug`). */
+  workspace_slug: string
+  title: string
+  state: SessionState
+  /** Pending requests (thread_id is null). Listed here only, not in waiting/orphans. */
+  pending: WaitingRequest[]
+  since: string
+  age_secs: number
+}
+
 export interface AttentionResponse {
   generated_at: string
   lanes: WorkspaceRef[]
@@ -161,4 +204,6 @@ export interface AttentionResponse {
   orphans: OrphanRequest[]
   runner: RunnerState
   thinking: ThinkingItem[]
+  /** Sessions without any link, grouped by lane (lane order, then oldest first). */
+  unattached: UnattachedSession[]
 }

@@ -1,5 +1,7 @@
 import {
   BANDS,
+  LINK_VIAS,
+  SESSION_STATES,
   ATTENTION_RUN_STATUSES,
   REQUEST_KINDS,
   RUNNER_STATUSES,
@@ -49,6 +51,9 @@ const ref = (keys: readonly string[]) => (v: unknown, p: string) => {
 const planRef = ref(['id', 'title'])
 const taskRef = ref(['id', 'title'])
 
+const LINK_KEYS = ['via', 'run_id', 'task_id', 'plan_id'] as const
+const optStr = (r: Rec, k: string, p: string) => nullable(r[k], `${p}.${k}`, str)
+
 const REQUEST_KEYS = [
   'request_id', 'kind', 'session_id', 'thread_id', 'workspace', 'tool_name', 'text', 'options', 'seq', 'requested_at', 'age_secs',
 ] as const
@@ -74,7 +79,7 @@ function request(r: Rec, p: string) {
 
 /** Parse and validate an `/api/attention` payload. Throws on any divergence. */
 export function parseAttentionResponse(input: unknown): AttentionResponse {
-  const r = obj(input, '$', ['generated_at', 'lanes', 'threads', 'waiting', 'orphans', 'runner', 'thinking'])
+  const r = obj(input, '$', ['generated_at', 'lanes', 'threads', 'waiting', 'orphans', 'runner', 'thinking', 'unattached'])
   return {
     generated_at: str(r.generated_at, '$.generated_at'),
     lanes: list(r.lanes, '$.lanes', (v, p) => {
@@ -83,7 +88,7 @@ export function parseAttentionResponse(input: unknown): AttentionResponse {
     }),
     threads: list(r.threads, '$.threads', (v, p) => {
       const x = obj(v, p, [
-        'id', 'title', 'workspace', 'band', 'stuck_reason', 'plan', 'run', 'session_ids', 'since', 'age_secs', 'waves', 'blocked_tasks', 'resume',
+        'id', 'title', 'workspace', 'band', 'stuck_reason', 'plan', 'run', 'session_ids', 'sessions', 'since', 'age_secs', 'waves', 'blocked_tasks', 'resume',
       ])
       return {
         id: str(x.id, `${p}.id`),
@@ -103,6 +108,23 @@ export function parseAttentionResponse(input: unknown): AttentionResponse {
           }
         }),
         session_ids: list(x.session_ids, `${p}.session_ids`, str),
+        sessions: list(x.sessions, `${p}.sessions`, (sv, sp) => {
+          const s = obj(sv, sp, ['id', 'title', 'state', 'links'])
+          return {
+            id: str(s.id, `${sp}.id`),
+            title: str(s.title, `${sp}.title`),
+            state: oneOf(SESSION_STATES)(s.state, `${sp}.state`),
+            links: list(s.links, `${sp}.links`, (lv, lp) => {
+              const l = obj(lv, lp, LINK_KEYS)
+              return {
+                via: oneOf(LINK_VIAS)(l.via, `${lp}.via`),
+                run_id: optStr(l, 'run_id', lp),
+                task_id: optStr(l, 'task_id', lp),
+                plan_id: optStr(l, 'plan_id', lp),
+              }
+            }),
+          }
+        }),
         since: str(x.since, `${p}.since`),
         age_secs: num(x.age_secs, `${p}.age_secs`),
         waves: list(x.waves, `${p}.waves`, (wv, wp) => {
@@ -156,6 +178,18 @@ export function parseAttentionResponse(input: unknown): AttentionResponse {
         workspace: nullable(x.workspace, `${p}.workspace`, str),
         status: str(x.status, `${p}.status`),
         thread_id: nullable(x.thread_id, `${p}.thread_id`, str),
+        since: str(x.since, `${p}.since`),
+        age_secs: num(x.age_secs, `${p}.age_secs`),
+      }
+    }),
+    unattached: list(r.unattached, '$.unattached', (v, p) => {
+      const x = obj(v, p, ['id', 'workspace_slug', 'title', 'state', 'pending', 'since', 'age_secs'])
+      return {
+        id: str(x.id, `${p}.id`),
+        workspace_slug: str(x.workspace_slug, `${p}.workspace_slug`),
+        title: str(x.title, `${p}.title`),
+        state: oneOf(SESSION_STATES)(x.state, `${p}.state`),
+        pending: list(x.pending, `${p}.pending`, (rv, rp) => request(obj(rv, rp, REQUEST_KEYS), rp)),
         since: str(x.since, `${p}.since`),
         age_secs: num(x.age_secs, `${p}.age_secs`),
       }
