@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { attentionCountAtom } from '@/atoms/attentionCount'
+import {
+  attentionDigestAtom,
+  attentionRefreshRequestAtom,
+  buildAttentionDigest,
+  EMPTY_DIGEST,
+} from '@/atoms/attentionDigest'
 import { buildBands } from '@/components/today/bands'
 import { attentionApi } from '@/services/attention'
 import type { CrudEvent } from '@/types'
@@ -18,6 +24,8 @@ import { useEventBus } from './useEventBus'
  */
 export function useAttentionCountSource() {
   const setState = useSetAtom(attentionCountAtom)
+  const setDigest = useSetAtom(attentionDigestAtom)
+  const refreshRequest = useAtomValue(attentionRefreshRequestAtom)
   const seq = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -31,11 +39,13 @@ export function useAttentionCountSource() {
       const data = await attentionApi.fetch(null, ctrl.signal)
       if (ctrl.signal.aborted || n !== seq.current) return
       setState({ status: 'ready', count: buildBands(data).counts.waiting })
+      setDigest(buildAttentionDigest(data))
     } catch {
       if (ctrl.signal.aborted || n !== seq.current) return
       setState({ status: 'error', count: null })
+      setDigest(EMPTY_DIGEST)
     }
-  }, [setState])
+  }, [setState, setDigest])
 
   useEffect(() => {
     void refresh()
@@ -44,6 +54,13 @@ export function useAttentionCountSource() {
       if (timer.current) clearTimeout(timer.current)
     }
   }, [refresh])
+
+  // A page that changed something (attach, resume) asks for a refetch of THIS source.
+  const firstRequest = useRef(refreshRequest)
+  useEffect(() => {
+    if (refreshRequest === firstRequest.current) return
+    void refresh()
+  }, [refreshRequest, refresh])
 
   const onEvent = useCallback(
     (e: CrudEvent) => {
@@ -62,4 +79,18 @@ export function useAttentionCountSource() {
 /** The shared count, or null when unknown (loading / source error): show nothing then. */
 export function useAttentionCount(): number | null {
   return useAtomValue(attentionCountAtom).count
+}
+
+/** What the discussion tree reads of the attention payload (dead sessions with a request, runner owner). */
+export function useAttentionDigest() {
+  return useAtomValue(attentionDigestAtom)
+}
+
+/**
+ * Ask the single attention source to refetch (the badge count follows). Never a
+ * second `GET /api/attention`: it only bumps an atom the source watches.
+ */
+export function useRequestAttentionRefresh(): () => void {
+  const set = useSetAtom(attentionRefreshRequestAtom)
+  return useCallback(() => set((n) => n + 1), [set])
 }
