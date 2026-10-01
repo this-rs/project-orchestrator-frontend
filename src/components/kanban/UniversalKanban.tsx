@@ -105,7 +105,7 @@ export function UniversalKanban<T extends { id: string; status: string }>({
       }
 
       // Mark as optimistic so CrudEvent echo is skipped
-      markOptimistic(item.id)
+      markOptimistic(item.id, newStatus)
 
       // Optimistic: remove from source, add to destination
       cols[oldStatus].removeItem(item.id)
