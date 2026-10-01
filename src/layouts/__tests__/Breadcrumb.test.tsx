@@ -14,17 +14,25 @@ function renderCrumb(pathname: string, workspaceName?: string) {
   )
 }
 
-describe('Breadcrumb on the two Today entries', () => {
-  it('workspace entry: Workspace / Today', () => {
-    renderCrumb('/workspace/ws/today', 'Studio')
-    expect(screen.getByRole('link', { name: 'Studio' }).getAttribute('href')).toBe('/workspace/ws')
-    expect(screen.getByRole('link', { name: 'Today' }).getAttribute('href')).toBe('/workspace/ws/today')
+describe('Breadcrumb: Today is the root', () => {
+  it('global entry: just "Today", no workspace claimed, never "Home"', () => {
+    renderCrumb('/today')
+    expect(screen.getAllByRole('link').map((a) => a.textContent)).toEqual(['Today'])
+    expect(screen.getByRole('link', { name: 'Today' }).getAttribute('href')).toBe('/today')
+    expect(screen.queryByText('Home')).toBeNull()
+    expect(screen.queryByText('Studio')).toBeNull()
   })
 
-  it('global entry: no workspace claimed, Home / Today', () => {
-    renderCrumb('/today')
-    expect(screen.getByRole('link', { name: 'Home' }).getAttribute('href')).toBe('/')
+  it('workspace entry (Today filtered on a lane): Today / <workspace>, with no second "Today"', () => {
+    renderCrumb('/workspace/ws/today', 'Studio')
+    expect(screen.getAllByRole('link').map((a) => a.textContent)).toEqual(['Today', 'Studio'])
     expect(screen.getByRole('link', { name: 'Today' }).getAttribute('href')).toBe('/today')
-    expect(screen.queryByText('Studio')).toBeNull()
+    expect(screen.getByRole('link', { name: 'Studio' }).getAttribute('href')).toBe('/workspace/ws/today')
+  })
+
+  it('a workspace page: Today / <workspace> / Section', () => {
+    renderCrumb('/workspace/ws/plans', 'Studio')
+    expect(screen.getAllByRole('link').map((a) => a.textContent)).toEqual(['Today', 'Studio', 'Plans'])
+    expect(screen.getByRole('link', { name: 'Studio' }).getAttribute('href')).toBe('/workspace/ws')
   })
 })

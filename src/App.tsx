@@ -100,15 +100,11 @@ function ModelCatalogLoader() {
 }
 
 /**
- * Redirects `/` to the last used workspace or to the workspace selector.
- * Reads the persisted slug from localStorage via activeWorkspaceSlugAtom.
+ * `/` opens Today, the root of the application (above every workspace). With no
+ * workspace yet, Today shows its empty state and the way to create one.
  */
-function RootRedirect() {
-  const lastSlug = useAtomValue(activeWorkspaceSlugAtom)
-  if (lastSlug) {
-    return <Navigate to={workspacePath(lastSlug, '/overview')} replace />
-  }
-  return <Navigate to="/workspace-selector" replace />
+export function RootRedirect() {
+  return <Navigate to="/today" replace />
 }
 
 /**
@@ -176,7 +172,7 @@ function App() {
                 <Route element={<SetupGuard />}>
                   {/* Protected routes (auth required) */}
                   <Route element={<ProtectedRoute />}>
-                    {/* Root → redirect to last workspace or selector */}
+                    {/* Root → Today, the application's landing page */}
                     <Route path="/" element={<RootRedirect />} />
 
                     {/* Workspace selector (no sidebar) */}
@@ -188,7 +184,7 @@ function App() {
                     {/* Secrets vault (no sidebar, reachable from the user menu and chat cards) */}
                     <Route path="/vault" element={<VaultPage />} />
 
-                    {/* Cross-workspace pages (sidebar chrome borrows the last workspace) */}
+                    {/* Application-level pages: global chrome, above the workspaces */}
                     <Route element={<GlobalRouteLayout />}>
                       <Route path="/today" element={<TodayPage />} />
                     </Route>

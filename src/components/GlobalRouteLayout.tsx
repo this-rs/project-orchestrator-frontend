@@ -1,47 +1,28 @@
-import { useEffect, useState } from 'react'
-import { Navigate } from 'react-router-dom'
-import { useAtomValue, useSetAtom } from 'jotai'
+import { useAtomValue } from 'jotai'
 import { activeWorkspaceSlugAtom, workspacesAtom } from '@/atoms'
 import { ChromeWorkspaceSlugContext } from '@/hooks'
 import { MainLayout } from '@/layouts'
-import { workspacesApi } from '@/services/workspaces'
 
 /**
- * Layout for pages that span every workspace (/today). They have no :slug, yet
- * the sidebar and chat panel need one: lend them the last-visited workspace
- * (validated against the loaded list, else the first one). Pages read the URL,
+ * Layout of the application-level pages (/today). MainLayout renders them in its
+ * GLOBAL chrome: Today as the root, the workspaces listed below, nothing that
+ * belongs to one workspace. The sidebar and the breadcrumb never use a workspace
+ * here.
+ *
+ * The only thing still lent is a slug for the chat panel, which cannot exist
+ * without a workspace (last visited, validated against the loaded list, else the
+ * first one). With no workspace at all (first launch) it is null: no chat, and
+ * Today shows its empty state with the way to create one. Pages read the URL,
  * never this slug, to scope their data.
  */
 export function GlobalRouteLayout() {
   const stored = useAtomValue(activeWorkspaceSlugAtom)
   const workspaces = useAtomValue(workspacesAtom)
-  const setWorkspaces = useSetAtom(workspacesAtom)
-  const loaded = workspaces.length > 0
-  const [fetchedEmpty, setFetchedEmpty] = useState(false)
-
-  useEffect(() => {
-    if (loaded) return
-    const controller = new AbortController()
-    workspacesApi
-      .list({ limit: 100, sort_by: 'name', sort_order: 'asc' }, controller.signal)
-      .then((data) => {
-        setWorkspaces(data.items || [])
-        setFetchedEmpty((data.items || []).length === 0)
-      })
-      .catch(() => {})
-    return () => controller.abort()
-  }, [loaded, setWorkspaces])
-
-  const chromeSlug = loaded
-    ? (workspaces.find((w) => w.slug === stored)?.slug ?? workspaces[0].slug)
-    : stored
-
-  // Not loaded yet and nothing remembered: wait for the list rather than
-  // mounting the chrome on an empty slug.
-  if (!chromeSlug) return loaded || fetchedEmpty ? <Navigate to="/workspace-selector" replace /> : null
+  const chatSlug =
+    workspaces.length > 0 ? (workspaces.find((w) => w.slug === stored)?.slug ?? workspaces[0].slug) : stored
 
   return (
-    <ChromeWorkspaceSlugContext.Provider value={chromeSlug}>
+    <ChromeWorkspaceSlugContext.Provider value={chatSlug}>
       <MainLayout />
     </ChromeWorkspaceSlugContext.Provider>
   )

@@ -64,9 +64,9 @@ function Where() {
   return <output data-testid="where">{loc.pathname + loc.search}</output>
 }
 
-function renderPage(entry = '/today') {
+function renderPage(entry = '/today', withWorkspaces = true) {
   const store = createStore()
-  store.set(workspacesAtom, workspaces)
+  store.set(workspacesAtom, withWorkspaces ? workspaces : [])
   return render(
     <Provider store={store}>
       <MemoryRouter initialEntries={[entry]}>
@@ -172,6 +172,14 @@ describe('TodayPage: states', () => {
     await waitFor(() => expect(screen.getByText(TODAY_TEXT.emptyAll)).toBeTruthy())
     expect(screen.getByRole('link', { name: TODAY_TEXT.plans }).getAttribute('href')).toBe('/workspace/acme-freelance/plans')
     expect(screen.queryByText(TODAY_TEXT.noMatch)).toBeNull()
+  })
+
+  it('first launch, no workspace yet: the empty state leads to the workspace selector', async () => {
+    get.mockResolvedValue(fixture('empty'))
+    renderPage('/today', false)
+    await waitFor(() => expect(screen.getByText(TODAY_TEXT.emptyAll)).toBeTruthy())
+    expect(screen.getByRole('link', { name: TODAY_TEXT.createWorkspace }).getAttribute('href')).toBe('/workspace-selector')
+    expect(screen.queryByRole('link', { name: TODAY_TEXT.plans })).toBeNull()
   })
 
   it('nothing for a lane: "no result" with a way to clear the filter, not the global empty state', async () => {

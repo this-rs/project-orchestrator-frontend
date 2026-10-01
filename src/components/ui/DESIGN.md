@@ -24,6 +24,18 @@ by hand in a page: `<PageShell title={NOMENCLATURE.plans.plural}>`.
   the breadcrumb shows it in place of the id.
 - New concept or new page = one entry in the registry, then it appears in the
   menu and the breadcrumb. Every route must be reachable from the sidebar.
+- **Today is the root of the application, above the workspaces.** It is not in
+  `NAV_GROUPS` (the sidebar of ONE workspace). The global chrome (`/`, `/today`)
+  lists Today first, then the workspaces, and holds nothing that belongs to a
+  workspace. Inside a workspace the sidebar starts with a persistent
+  `NAV_TEXT.backToToday` ("← Today"), above the workspace name. The breadcrumb
+  root is always "Today" (`Today / <workspace> / …`; the lane view
+  `/workspace/:slug/today` reads `Today / <workspace>`). `/` opens Today.
+- **Attention badge**: the count of band 1 (waiting on you) is shown on every
+  Today entry (global sidebar, "← Today", hamburger) by `<AttentionBadge>`,
+  read from `attentionCountAtom`. ONE source feeds it (`useAttentionCountSource`,
+  mounted once in `MainLayout`); a page never fetches it. 0 or an error: no badge;
+  above 99: "99+"; the aria-label always carries the full count.
 
 ---
 

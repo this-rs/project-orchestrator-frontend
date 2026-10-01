@@ -200,14 +200,13 @@ export function TodayView({ source, lane, plansSlug, onClearLane }: TodayViewPro
             title={TODAY_TEXT.emptyAll}
             description={TODAY_TEXT.emptyAllHint}
             action={
-              plansSlug ? (
-                <Link
-                  to={workspacePath(plansSlug, '/plans')}
-                  className={`inline-flex min-h-9 items-center rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 text-sm text-gray-200 hover:bg-white/[0.08] ${focusRing}`}
-                >
-                  {TODAY_TEXT.plans}
-                </Link>
-              ) : undefined
+              // No workspace to open plans in (first launch): the way to create one.
+              <Link
+                to={plansSlug ? workspacePath(plansSlug, '/plans') : '/workspace-selector'}
+                className={`inline-flex min-h-9 items-center rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 text-sm text-gray-200 hover:bg-white/[0.08] ${focusRing}`}
+              >
+                {plansSlug ? TODAY_TEXT.plans : TODAY_TEXT.createWorkspace}
+              </Link>
             }
           />
         )}

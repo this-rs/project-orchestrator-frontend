@@ -305,7 +305,7 @@ export interface NavGroup {
 }
 
 export const NAV_GROUPS: NavGroup[] = [
-  { label: 'Focus', items: ['overview', 'today', 'trajectory'] },
+  { label: 'Focus', items: ['overview', 'trajectory'] },
   { label: 'Plan', items: ['projects', 'objectives', 'plans', 'tasks'] },
   { label: 'Design', items: ['architecture', 'decisions', 'proposals', 'documents'] },
   { label: 'Build', items: ['code', 'featureGraphs'] },

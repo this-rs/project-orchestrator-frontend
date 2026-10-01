@@ -224,6 +224,7 @@ export const TODAY_TEXT = {
   emptyAll: "Rien ne t'attend, rien ne tourne",
   emptyAllHint: 'Aucun agent ne demande ta réponse, aucun fil n’est en cours ni coincé.',
   plans: 'Voir les plans',
+  createWorkspace: 'Choisir ou créer un workspace',
   noMatch: 'Aucun résultat pour ce couloir',
   noMatchHint: 'Ce couloir n’a rien en attente, en cours ni coincé.',
   clearFilter: 'Effacer le filtre',

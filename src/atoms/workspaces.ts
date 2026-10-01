@@ -9,7 +9,7 @@ export const workspacesLoadingAtom = atom<boolean>(false)
 
 /**
  * Last-visited workspace slug — persisted in localStorage.
- * Used ONLY for redirect memory (RootRedirect, LegacyRedirect, SettingsPage back button).
+ * Used ONLY for redirect memory (LegacyRedirect, SettingsPage back button, the chat panel's slug on /today).
  * NOT the source of truth — workspace-scoped components use useWorkspaceSlug() / useWorkspace()
  * which derive the slug from the URL (/workspace/:slug).
  */
@@ -19,7 +19,7 @@ export const activeWorkspaceSlugAtom = atomWithStorage<string | null>(
   undefined,
   // Read localStorage SYNCHRONOUSLY on first render. Without this, the first
   // read returns the initial value (null) and only hydrates after mount —
-  // RootRedirect then races its <Navigate> against the hydration: it can
+  // LegacyRedirect then races its <Navigate> against the hydration: it can
   // bounce to /workspace-selector (or the wrong workspace via the selector's
   // single-workspace auto-redirect) even though a valid last-visited slug was
   // stored. Symptom: "last selected workspace" memory erratically ignored.
