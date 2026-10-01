@@ -11,6 +11,7 @@ import {
   type AttentionResponse,
 } from '@/types/attention'
 import { api, buildQuery } from './api'
+import { runnerApi } from './runner'
 import { rfcApi } from './rfcApi'
 import { decisionsApi } from './decisions'
 
@@ -248,10 +249,10 @@ export const attentionApi = {
     api.post<void>(`/chat/sessions/${sessionId}/messages`, { content }),
 
   /**
-   * Resume a stopped run (skips done AND blocked tasks, server side).
-   * ASSUMPTION: `POST /plans/{id}/run/resume` (route to be confirmed with the backend).
+   * Resume a stopped run: the real route is `POST /plans/{id}/run` (same call as the
+   * runner dashboard's retry); the runner itself skips the done and the blocked tasks.
    */
-  resumeRun: (planId: string) => api.post<void>(`/plans/${planId}/run/resume`, {}),
+  resumeRun: (planId: string) => runnerApi.startRun(planId, '.'),
 
   /** Accept / reject an RFC (FSM transition) or a decision (status). */
   decide: (kind: 'rfc' | 'decision', id: string, verdict: Verdict): Promise<unknown> =>
