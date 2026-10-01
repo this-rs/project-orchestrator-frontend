@@ -26,8 +26,8 @@ interface ChatMessagesProps {
   hasLiveActivity?: boolean
   /** Jump directly to the tail of conversation (reloads last messages) */
   onJumpToTail?: () => Promise<void>
-  onRespondPermission: (toolCallId: string, allowed: boolean, remember?: { toolName: string }) => void
-  onRespondInput: (requestId: string, response: string) => void
+  onRespondPermission: (toolCallId: string, allowed: boolean, remember?: { toolName: string }) => boolean | void
+  onRespondInput: (requestId: string, response: string) => boolean | void
   onContinue?: () => void
   /** Quick action callback — inserts prompt into chat textarea */
   onQuickAction?: (prompt: string, cursorOffset?: number) => void

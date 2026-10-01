@@ -379,13 +379,14 @@ export function useChat() {
     // auto-respond Allow via WS and show the block as already-approved.
     if (event.type === 'permission_request' && !event.replaying) {
       const toolName = (event as { tool?: string }).tool ?? ''
-      if (autoApprovedToolsRef.current.has(toolName)) {
-        const toolCallId = (event as { id?: string }).id ?? ''
-        // Auto-respond via WS
-        const ws = wsRef.current
-        if (ws && toolCallId) {
-          ws.sendPermissionResponse(toolCallId, true)
-        }
+      const toolCallId = (event as { id?: string }).id ?? ''
+      // Auto-respond via WS. On a dead socket nothing was delivered: do not
+      // claim "Auto" approval, fall through so the card stays answerable.
+      const ws = wsRef.current
+      if (
+        autoApprovedToolsRef.current.has(toolName) &&
+        (!(ws && toolCallId) || ws.sendPermissionResponse(toolCallId, true))
+      ) {
         // Still add the block to messages but pre-mark as auto-approved
         // (by not passing through the normal flow — we add a special metadata flag)
         setMessages((prev) => {
@@ -1815,15 +1816,16 @@ export function useChat() {
     setAutoContinue(enabled)
   }, [sessionId, getWs, setAutoContinue])
 
-  const respondPermission = useCallback(async (
+  /** Returns true when the answer was handed to the socket, false otherwise. */
+  const respondPermission = useCallback((
     toolCallId: string,
     allowed: boolean,
     remember?: { toolName: string },
-  ) => {
-    if (!sessionId) return
+  ): boolean => {
+    if (!sessionId) return false
     const ws = getWs()
     // Not delivered (dead socket): skip the local side effects.
-    if (!ws.sendPermissionResponse(toolCallId, allowed)) return
+    if (!ws.sendPermissionResponse(toolCallId, allowed)) return false
     // If "Remember for this session" was checked and user clicked Allow,
     // add the tool name to the auto-approved set.
     if (remember && allowed) {
@@ -1833,13 +1835,15 @@ export function useChat() {
         return next
       })
     }
+    return true
   }, [sessionId, getWs, setAutoApprovedTools])
 
-  const respondInput = useCallback(async (requestId: string, response: string) => {
-    if (!sessionId) return
+  /** Returns true when the answer was handed to the socket, false otherwise. */
+  const respondInput = useCallback((requestId: string, response: string): boolean => {
+    if (!sessionId) return false
     const ws = getWs()
     // Not delivered (dead socket): leave the question open so it can be re-answered.
-    if (!ws.sendInputResponse(requestId, response)) return
+    if (!ws.sendInputResponse(requestId, response)) return false
 
     // Stamp the block's metadata with the response so it persists across
     // page reloads and renders as read-only in history/replay.
@@ -1861,6 +1865,7 @@ export function useChat() {
         return { ...msg, blocks: updatedBlocks }
       }),
     )
+    return true
   }, [sessionId, getWs])
 
   const interrupt = useCallback(async () => {
