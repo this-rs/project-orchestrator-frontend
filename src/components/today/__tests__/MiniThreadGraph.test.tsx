@@ -27,6 +27,16 @@ const renderIn = (ui: React.ReactNode) =>
   )
 
 describe('MiniThreadGraph', () => {
+  it('lays a wave out as a row of marks, not a column (a 5-task wave must not be 5 rows tall)', () => {
+    const { container } = renderIn(
+      <MiniThreadGraph waves={[wave(1, ['done', 'done', 'done', 'running', 'pending']), wave(2, ['pending', 'pending'])]} />,
+    )
+    const li = container.querySelector('[data-wave="1"]')!
+    expect(li.className).not.toContain('flex-col')
+    expect(li.className).toContain('flex-wrap')
+    expect(container.querySelector('ul')!.className).toContain('items-center')
+  })
+
   it.each(WAVE_POINT_STATUSES)('renders the %s state with its own shape and tone', (status) => {
     const { container } = renderIn(<MiniThreadGraph waves={[wave(1, [status])]} />)
     const glyph = container.querySelector(`[data-state="${status}"]`)!

@@ -5,7 +5,9 @@ import type { WavePointStatus, WaveSummaryDto } from '@/types/attention'
 import { workspacePath } from '@/utils/paths'
 
 /**
- * A thread's plan in one glance: the waves as columns, one mark per task.
+ * A thread's plan in one glance: the waves side by side on ONE line (wrapping only when
+ * the width runs out), one mark per task. A wave is a short run of marks, not a column:
+ * stacked columns made a 5-task wave five rows tall, and 40 threads a 7000 px page.
  * No task text — the reader sees where the thread is and where it is stopped.
  *
  * - Light inline SVG / HTML (a canvas per thread would not survive 40 threads on a phone).
@@ -14,7 +16,7 @@ import { workspacePath } from '@/utils/paths'
  * - Only the running mark pulses (`.pulse-ring`, already disabled under
  *   prefers-reduced-motion); it is a different element once the state changes.
  * - Above COMPRESS_THRESHOLD tasks, each wave collapses to a count per state.
- * - Never scrolls horizontally: columns wrap.
+ * - Never scrolls horizontally: waves wrap.
  * - Tap / Enter opens the existing plan graph (plan page, Graph tab).
  */
 
@@ -116,7 +118,7 @@ function WaveColumn({ wave, compressed }: { wave: WaveSummaryDto; compressed: bo
     )
   }
   return (
-    <li data-wave={wave.wave_number} className="flex min-w-0 flex-col items-center gap-1">
+    <li data-wave={wave.wave_number} className="flex min-w-0 flex-wrap items-center gap-1">
       {wave.points.map((p) => (
         <Glyph key={p.task_id} status={p.status} />
       ))}
@@ -142,7 +144,7 @@ export function MiniThreadGraph({ waves, planId, workspace, className = '' }: Mi
   }
 
   const columns = (
-    <ul className="flex min-w-0 flex-wrap items-start gap-x-3 gap-y-2" data-compressed={compressed || undefined}>
+    <ul className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1" data-compressed={compressed || undefined}>
       {waves.map((w) => (
         <WaveColumn key={w.wave_number} wave={w} compressed={compressed} />
       ))}
