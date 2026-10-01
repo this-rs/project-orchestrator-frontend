@@ -499,6 +499,18 @@ export function TaskDetailPage() {
         )}
       </Section>
 
+      {/* ── Discussions ── */}
+      <Section title="Discussions" count={discussionCount}>
+        <LinkedDiscussions
+          entity={{ type: 'task', id: task.id }}
+          projectId={parentProject?.id}
+          projectSlug={parentProject?.slug}
+          hideCount
+          onCountChange={setDiscussionCount}
+          resume={{ planId: parentPlanId, taskStatuses: { [task.id]: task.status } }}
+        />
+      </Section>
+
       {/* ── Acceptance criteria ── */}
       {acceptanceCriteria.length > 0 && (
         <Section title="Acceptance criteria" count={acceptanceCriteria.length}>
@@ -587,17 +599,6 @@ export function TaskDetailPage() {
       {/* ── Commits ── */}
       <Section title="Commits" count={commits.length} action={<SectionAddButton label="Link commit" icon={Link2} onClick={openLinkCommit} />}>
         <CommitList commits={commits} emptyMessage="No commits linked to this task yet" />
-      </Section>
-
-      {/* ── Conversations ── */}
-      <Section title="Conversations" count={discussionCount}>
-        <LinkedDiscussions
-          entity={{ type: 'task', id: task.id }}
-          projectId={parentProject?.id}
-          projectSlug={parentProject?.slug}
-          onCountChange={setDiscussionCount}
-          resume={{ planId: parentPlanId, taskStatuses: { [task.id]: task.status } }}
-        />
       </Section>
 
       {/* ── Details ── */}

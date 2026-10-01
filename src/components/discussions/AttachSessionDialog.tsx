@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Dialog } from '@/components/ui/Dialog'
-import { focusRing } from '@/components/ui/classes'
+import { focusRing, pressFeedback } from '@/components/ui/classes'
 import { chatApi } from '@/services/chat'
 import { plansApi } from '@/services/plans'
 import { tasksApi } from '@/services/tasks'
@@ -128,10 +128,17 @@ export function AttachSessionDialog({ open, onClose, sessionId, projectId, proje
   return (
     <Dialog open={open} onClose={onClose} title={ATTACH_TEXT.title} size="sm">
       <div className="space-y-3" data-testid="attach-dialog">
-        <p className="text-xs text-gray-400">{ATTACH_TEXT.limits}</p>
-        <p className="text-xs text-gray-400" data-testid="attach-no-detach">
-          {ATTACH_TEXT.noDetach}
-        </p>
+        {/* One plain sentence up front; the server's limits are a tap away, not a wall of text. */}
+        <p className="text-sm text-gray-300">Choisis le plan ou la tâche à laquelle cette discussion appartient.</p>
+        <details className="text-xs text-gray-400">
+          <summary className={`inline-flex min-h-9 cursor-pointer items-center rounded hover:text-gray-200 ${focusRing}`}>
+            Ce que le serveur permet
+          </summary>
+          <p>{ATTACH_TEXT.limits}</p>
+          <p className="pb-1" data-testid="attach-no-detach">
+            {ATTACH_TEXT.noDetach}
+          </p>
+        </details>
 
         {loading ? (
           <div className="flex items-center gap-2 py-2 text-sm text-gray-400">
@@ -198,7 +205,7 @@ export function AttachSessionDialog({ open, onClose, sessionId, projectId, proje
           <button
             type="button"
             onClick={onClose}
-            className={`min-h-9 rounded-lg px-3 text-sm text-gray-300 hover:bg-white/[0.06] ${focusRing}`}
+            className={`min-h-9 rounded-lg px-3 text-sm text-gray-300 hover:bg-white/[0.06] ${pressFeedback} ${focusRing}`}
           >
             Annuler
           </button>
@@ -206,7 +213,7 @@ export function AttachSessionDialog({ open, onClose, sessionId, projectId, proje
             type="button"
             onClick={submit}
             disabled={!targetId || sending}
-            className={`inline-flex min-h-9 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}
+            className={`inline-flex min-h-9 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 ${pressFeedback} ${focusRing}`}
           >
             {sending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
             Rattacher

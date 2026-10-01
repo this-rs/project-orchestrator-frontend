@@ -82,7 +82,7 @@ describe('RunnerDashboard discussions tab', () => {
     await screen.findByText('Run root')
     expect(getRunSessions).toHaveBeenCalledWith('run1')
     for (const t of ['Run root', 'Kid agent', 'Stray agent']) expect(screen.getByText(t)).toBeTruthy()
-    expect((screen.getByText('Stray agent').closest('[style]') as HTMLElement).style.paddingLeft).toBe('12px')
+    expect((screen.getByText('Stray agent').closest('[style]') as HTMLElement).style.paddingLeft).toBe('4px')
 
     const resume = screen.getAllByRole('button', { name: 'Reprendre le run' })
     expect(resume).toHaveLength(1)

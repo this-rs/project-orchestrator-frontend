@@ -125,7 +125,10 @@ export function PlanDetailPage() {
   // Discussions linked to this plan (counted by <LinkedDiscussions> once its tab is open)
   const [discussionCount, setDiscussionCount] = useState<number | undefined>(undefined)
   // `#graph` (the Today cockpit's mini graph links here) opens the Graph tab directly.
-  const [activeTab, setActiveTab] = useState(() => (window.location.hash === '#graph' ? 'graph' : 'tasks'))
+  const [activeTab, setActiveTab] = useState(() => {
+    const h = window.location.hash
+    return h === '#graph' ? 'graph' : h === '#runner' ? 'runner' : h === '#discussions' ? 'chat' : 'tasks'
+  })
   // Detect active pipeline run — used to hide/disable implement button + runner tab
   const { isRunning: hasPipelineRunning, snapshot: runnerSnapshot } = useRunnerStatus(planId)
   // Plan graph data for UnifiedGraphSection
@@ -439,7 +442,7 @@ export function PlanDetailPage() {
     { id: 'tasks', label: 'Tasks', icon: <ListChecks className="w-4 h-4" />, count: tasks.length },
     ...(hasGraphNodes ? [{ id: 'graph', label: 'Graph', icon: <GitFork className="w-4 h-4" />, count: (planGraphData.graph?.nodes || []).length }] : []),
     { id: 'runner', label: 'Runner', icon: <Play className="w-4 h-4" /> },
-    { id: 'chat', label: 'Conversations', icon: <MessageCircle className="w-4 h-4" />, count: discussionCount || undefined },
+    { id: 'chat', label: 'Discussions', icon: <MessageCircle className="w-4 h-4" />, count: discussionCount || undefined },
     { id: 'artefacts', label: 'Artefacts', icon: <Archive className="w-4 h-4" />, count: commits.length + decisions.length + constraints.length },
   ]
 
@@ -740,13 +743,14 @@ export function PlanDetailPage() {
           </div>
         )}
 
-        {/* ── Conversations ── */}
+        {/* ── Discussions ── */}
         {activeTab === 'chat' && (
-          <Section title="Conversations" count={discussionCount}>
+          <Section title="Discussions" count={discussionCount}>
             <LinkedDiscussions
               entity={{ type: 'plan', id: plan.id }}
               projectId={plan.project_id ?? linkedProject?.id}
               projectSlug={linkedProject?.slug}
+              hideCount
               onCountChange={setDiscussionCount}
               resume={{
                 planId: plan.id,

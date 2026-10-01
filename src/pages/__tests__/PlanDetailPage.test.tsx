@@ -201,7 +201,7 @@ describe('PlanDetailPage', () => {
     expect(screen.getByTestId('run-history')).toBeTruthy()
   })
 
-  it('lazy-loads the discussion TREE of the plan on the Conversations tab (a session attached without parent is a root)', async () => {
+  it('lazy-loads the discussion TREE of the plan on the Discussions tab (a session attached without parent is a root)', async () => {
     getPlanSessions.mockResolvedValue([
       { session: { id: 'sess-1234567890', title: 'Plan chat', message_count: 3, created_at: now }, links: { linked_tasks: [{ id: 't1', title: 'Write login form' }], linked_rfcs: [], linked_plans: [] }, source: 'manual' },
     ])
@@ -212,10 +212,10 @@ describe('PlanDetailPage', () => {
     renderPage()
     await screen.findByRole('heading', { level: 1, name: 'Auth flow' })
     expect(getPlanSessions).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('tab', { name: /Conversations/ }))
+    fireEvent.click(screen.getByRole('tab', { name: /Discussions/ }))
     const root = (await screen.findByText('Plan chat')).closest('[style]') as HTMLElement
     expect(getPlanSessions).toHaveBeenCalledWith('p1')
-    expect(root.style.paddingLeft).toBe('12px')
+    expect(root.style.paddingLeft).toBe('4px')
     expect(screen.getByText('Sub agent')).toBeTruthy()
     expect(screen.getByText(/Write login form/)).toBeTruthy() // the flat list's linked tasks line survives
     expect(screen.getByTestId('linked-limits')).toBeTruthy()

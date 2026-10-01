@@ -98,9 +98,9 @@ describe('LinkedDiscussions — one forest', () => {
     setup()
     await screen.findByText('Discussion manuelle')
     for (const t of ['Agent runner', 'Discussion manuelle', 'Session morte', 'Session run-kid']) expect(screen.getByText(t)).toBeTruthy()
-    expect(padding('Discussion manuelle')).toBe('12px') // depth 0: a root
-    expect(padding('Agent runner')).toBe('12px')
-    expect(padding('Session run-kid')).toBe('32px') // depth 1: under its parent
+    expect(padding('Discussion manuelle')).toBe('4px') // depth 0: a root
+    expect(padding('Agent runner')).toBe('4px')
+    expect(padding('Session run-kid')).toBe('18px') // depth 1 (14 px per level): under its parent
     // the former flat list's useful content survives (how it was linked)
     expect(screen.getByText('manual')).toBeTruthy()
   })

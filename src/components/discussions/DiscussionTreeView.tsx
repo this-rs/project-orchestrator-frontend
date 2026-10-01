@@ -9,6 +9,7 @@
 import { useState, type ReactNode } from 'react'
 import { GitBranch, RefreshCw, Loader2 } from 'lucide-react'
 import { useDiscussionTree } from '@/hooks/useDiscussionTree'
+import { focusRing, pressFeedback } from '@/components/ui/classes'
 import { DiscussionNodeRow } from './DiscussionNode'
 import { InlineConversationPanel } from './InlineConversationPanel'
 
@@ -30,7 +31,7 @@ export function DiscussionTreeView({ sessionId, onNavigate }: DiscussionTreeView
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
-        <span className="ml-2 text-sm text-gray-500">Loading discussion tree...</span>
+        <span className="ml-2 text-sm text-gray-400">Chargement de l'arbre de discussions…</span>
       </div>
     )
   }
@@ -41,12 +42,12 @@ export function DiscussionTreeView({ sessionId, onNavigate }: DiscussionTreeView
         <p className="text-sm text-red-400 mb-3">{error}</p>
         <button
           onClick={refresh}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium
-                     bg-white/[0.06] text-gray-400 hover:bg-white/[0.1] hover:text-gray-200
-                     transition-colors cursor-pointer"
+          className={`inline-flex min-h-9 items-center gap-1.5 px-3 rounded-lg text-xs font-medium
+                     bg-white/[0.06] text-gray-300 hover:bg-white/[0.1] hover:text-gray-200
+                     cursor-pointer ${pressFeedback} ${focusRing}`}
         >
           <RefreshCw className="w-3.5 h-3.5" />
-          Retry
+          Réessayer
         </button>
       </div>
     )
@@ -81,7 +82,7 @@ export function DiscussionForestView({
   onNavigate,
   renderActions,
   headerExtra,
-  title = 'Discussion Tree',
+  title = 'Arbre de discussions',
 }: DiscussionForestViewProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const selectedTitle = selectedNodeId ? roots.map((r) => findNodeTitle(r, selectedNodeId)).find(Boolean) ?? null : null
@@ -95,30 +96,32 @@ export function DiscussionForestView({
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="@container flex flex-col h-full min-h-0">
       {/* Header */}
       <div className="flex items-center justify-between px-1 pb-3 flex-shrink-0">
         <div className="flex items-center gap-2 text-sm text-gray-400">
-          <GitBranch className="w-4 h-4 text-gray-500" />
+          <GitBranch className="w-4 h-4 text-gray-400" aria-hidden="true" />
           <span className="font-medium text-gray-300">{title}</span>
           {headerExtra}
         </div>
         <button
           onClick={onRefresh}
-          className="p-1.5 rounded-md text-gray-500 hover:text-gray-300 hover:bg-white/[0.06]
-                     transition-colors cursor-pointer"
-          title="Refresh tree"
+          type="button"
+          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/[0.06]
+                     cursor-pointer ${pressFeedback} ${focusRing}`}
+          aria-label="Actualiser l'arbre"
+          title="Actualiser l'arbre"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
       {/* Content: tree + panel */}
-      <div className="flex flex-1 min-h-0 gap-0 flex-col md:flex-row">
+      <div className="flex flex-1 min-h-0 gap-0 flex-col @xl:flex-row">
         {/* Tree */}
         <div
-          className={`overflow-y-auto space-y-0.5 pb-4 ${
-            selectedNodeId ? 'md:w-1/2 flex-shrink-0' : 'flex-1'
+          className={`overflow-y-auto overscroll-contain space-y-0.5 pb-4 ${
+            selectedNodeId ? '@xl:w-1/2 flex-shrink-0' : 'flex-1'
           }`}
         >
           {roots.map((root) => (
@@ -135,7 +138,7 @@ export function DiscussionForestView({
 
         {/* Inline conversation panel */}
         {selectedNodeId && (
-          <div className="w-full h-[60dvh] md:h-auto md:w-1/2 flex-shrink-0 border-t md:border-t-0 md:border-l border-border-subtle md:ml-2 mt-2 md:mt-0">
+          <div className="w-full h-[60dvh] @xl:h-auto @xl:w-1/2 flex-shrink-0 border-t @xl:border-t-0 @xl:border-l border-border-subtle @xl:ml-2 mt-2 @xl:mt-0">
             <InlineConversationPanel
               sessionId={selectedNodeId}
               title={selectedTitle || 'Session'}

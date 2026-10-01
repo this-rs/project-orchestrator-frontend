@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { focusRing, pressFeedback } from '@/components/ui/classes'
 import {
   X,
   Wifi,
@@ -265,11 +266,11 @@ const typeStyles: Record<
   { label: string; border: string; bg: string; text: string }
 > = {
   text: { label: 'Assistant', border: 'border-blue-500/20', bg: 'bg-blue-500/[0.04]', text: 'text-blue-400' },
-  tool_use: { label: 'Tool Use', border: 'border-purple-500/20', bg: 'bg-purple-500/[0.04]', text: 'text-purple-400' },
-  tool_result: { label: 'Result', border: 'border-cyan-500/20', bg: 'bg-cyan-500/[0.04]', text: 'text-cyan-400' },
-  system: { label: 'System', border: 'border-gray-500/20', bg: 'bg-white/[0.02]', text: 'text-gray-500' },
-  error: { label: 'Error', border: 'border-red-500/20', bg: 'bg-red-500/[0.04]', text: 'text-red-400' },
-  unknown: { label: 'Event', border: 'border-gray-500/20', bg: 'bg-white/[0.02]', text: 'text-gray-500' },
+  tool_use: { label: 'Outil', border: 'border-purple-500/20', bg: 'bg-purple-500/[0.04]', text: 'text-purple-400' },
+  tool_result: { label: 'Résultat', border: 'border-cyan-500/20', bg: 'bg-cyan-500/[0.04]', text: 'text-cyan-400' },
+  system: { label: 'Système', border: 'border-gray-500/20', bg: 'bg-white/[0.02]', text: 'text-gray-400' },
+  error: { label: 'Erreur', border: 'border-red-500/20', bg: 'bg-red-500/[0.04]', text: 'text-red-400' },
+  unknown: { label: 'Évènement', border: 'border-gray-500/20', bg: 'bg-white/[0.02]', text: 'text-gray-400' },
 }
 
 function MessageBubble({ message }: { message: ConversationMessage }) {
@@ -277,7 +278,7 @@ function MessageBubble({ message }: { message: ConversationMessage }) {
   return (
     <div className={`border-l-2 ${style.border} ${style.bg} rounded-r-md px-3 py-2`}>
       <div className="flex items-center gap-2 mb-1">
-        <span className={`text-[10px] font-medium uppercase ${style.text}`}>{style.label}</span>
+        <span className={`text-[11px] font-medium uppercase ${style.text}`}>{style.label}</span>
       </div>
       <pre className="text-xs text-gray-300 whitespace-pre-wrap break-words font-mono leading-relaxed max-h-60 overflow-y-auto">
         {message.content}
@@ -295,7 +296,7 @@ function StatusIndicator({ status }: { status: WsStatus }) {
     return (
       <span className="flex items-center gap-1.5 text-[11px] text-green-400">
         <Wifi className="w-3 h-3" />
-        Live
+        En direct
       </span>
     )
   }
@@ -303,14 +304,14 @@ function StatusIndicator({ status }: { status: WsStatus }) {
     return (
       <span className="flex items-center gap-1.5 text-[11px] text-yellow-400">
         <Loader2 className="w-3 h-3 animate-spin" />
-        {status === 'connecting' ? 'Connecting...' : 'Reconnecting...'}
+        {status === 'connecting' ? 'Connexion…' : 'Reconnexion…'}
       </span>
     )
   }
   return (
-    <span className="flex items-center gap-1.5 text-[11px] text-gray-500">
+    <span className="flex items-center gap-1.5 text-[11px] text-gray-400">
       <WifiOff className="w-3 h-3" />
-      Disconnected
+      Déconnecté
     </span>
   )
 }
@@ -331,6 +332,8 @@ export function InlineConversationPanel({ sessionId, title, onClose }: InlineCon
   const navigate = useNavigate()
   const wsSlug = useWorkspaceSlug()
   const [stopping, setStopping] = useState(false)
+  const [confirmStop, setConfirmStop] = useState(false)
+  const [stopNote, setStopNote] = useState<string | null>(null)
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -346,15 +349,16 @@ export function InlineConversationPanel({ sessionId, title, onClose }: InlineCon
 
   const handleStop = async () => {
     setStopping(true)
+    setStopNote(null)
     try {
       const outcome = await chatApi.interruptSession(sessionId)
       if (!outcome?.delivered) {
-        // Not an error — the session may already have stopped — but worth
-        // saying out loud rather than looking like a successful stop.
-        console.warn('Stop: nothing was interrupted', sessionId, outcome)
+        // Not an error (the session may already have stopped), but never look like a successful stop.
+        setStopNote("Rien n'a été interrompu : la session était peut-être déjà arrêtée.")
       }
+      setConfirmStop(false)
     } catch (err) {
-      console.error('Stop failed', sessionId, err)
+      setStopNote(`L'arrêt a échoué${err instanceof Error && err.message ? ` : ${err.message}` : ''}. Réessaie.`)
     } finally {
       setStopping(false)
     }
@@ -365,58 +369,85 @@ export function InlineConversationPanel({ sessionId, title, onClose }: InlineCon
   return (
     <div className="flex flex-col h-full bg-surface-base">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle bg-white/[0.02]">
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-medium text-gray-200 truncate">{title}</h3>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 border-b border-border-subtle bg-white/[0.02]">
+        <div className="min-w-0 flex-1 basis-40">
+          <h3 className="text-sm font-medium text-gray-200 break-words">{title}</h3>
           <StatusIndicator status={status} />
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {/* Stop button (only when live) */}
-          {isLive && (
+        {/* Three separate 36 px targets with a real gap: Stop must never sit under a thumb aimed at Close. */}
+        <div className="flex items-center gap-3 flex-shrink-0">
+          {isLive && !confirmStop && (
             <button
-              onClick={handleStop}
-              disabled={stopping}
-              className="p-1.5 rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/[0.1]
-                         transition-colors cursor-pointer disabled:opacity-50"
-              title="Stop session"
+              type="button"
+              onClick={() => {
+                setStopNote(null)
+                setConfirmStop(true)
+              }}
+              className={`inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-red-300 hover:bg-red-500/[0.1] ${pressFeedback} ${focusRing}`}
+              aria-label="Arrêter l'agent de cette session"
             >
-              {stopping ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Square className="w-4 h-4" />
-              )}
+              <Square className="w-4 h-4" aria-hidden="true" />
+              Arrêter
             </button>
           )}
-          {/* View full */}
           <button
+            type="button"
             onClick={handleViewFull}
-            className="p-1.5 rounded-md text-gray-500 hover:text-gray-300 hover:bg-white/[0.06]
-                       transition-colors cursor-pointer"
-            title="View full conversation"
+            className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] ${pressFeedback} ${focusRing}`}
+            aria-label="Ouvrir la conversation complète"
+            title="Ouvrir la conversation complète"
           >
-            <ExternalLink className="w-4 h-4" />
+            <ExternalLink className="w-4 h-4" aria-hidden="true" />
           </button>
-          {/* Close */}
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 rounded-md text-gray-500 hover:text-gray-300 hover:bg-white/[0.06]
-                       transition-colors cursor-pointer"
+            className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] ${pressFeedback} ${focusRing}`}
+            aria-label="Fermer la conversation"
+            title="Fermer"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
+        {isLive && confirmStop && (
+          <div role="alertdialog" aria-label="Confirmer l'arrêt" className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-red-500/30 bg-red-500/[0.06] px-3 py-2">
+            <p className="min-w-0 flex-1 basis-48 text-sm text-gray-200">Arrêter l'agent ? Le travail en cours est interrompu.</p>
+            <button
+              type="button"
+              onClick={() => setConfirmStop(false)}
+              disabled={stopping}
+              className={`inline-flex h-9 items-center rounded-lg px-3 text-sm text-gray-300 hover:bg-white/[0.06] disabled:opacity-50 ${pressFeedback} ${focusRing}`}
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={handleStop}
+              disabled={stopping}
+              className={`inline-flex h-9 items-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50 ${pressFeedback} ${focusRing}`}
+            >
+              {stopping && <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
+              Arrêter l'agent
+            </button>
+          </div>
+        )}
+        {stopNote && (
+          <p role="alert" className="w-full text-sm text-amber-300 break-words">
+            {stopNote}
+          </p>
+        )}
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-2">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-2">
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-400">
               {status === 'connected'
-                ? 'Waiting for messages...'
+                ? 'En attente de messages…'
                 : status === 'connecting'
-                  ? 'Connecting to session...'
-                  : 'No messages yet'}
+                  ? 'Connexion à la session…'
+                  : 'Aucun message pour le moment'}
             </p>
           </div>
         ) : (

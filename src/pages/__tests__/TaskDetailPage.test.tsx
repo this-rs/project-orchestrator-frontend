@@ -126,7 +126,7 @@ describe('TaskDetailPage', () => {
     expect(screen.getByText('#frontend')).toBeTruthy()
     await screen.findByText('1/2 steps')
 
-    for (const name of ['Steps', 'Acceptance criteria', 'Affected files', 'Blocked by', 'Blocking', 'Decisions', 'Commits', 'Conversations', 'Details']) {
+    for (const name of ['Steps', 'Acceptance criteria', 'Affected files', 'Blocked by', 'Blocking', 'Decisions', 'Commits', 'Discussions', 'Details']) {
       expect(screen.getByRole('region', { name: new RegExp(`^${name}`) })).toBeTruthy()
     }
     expect(screen.getByText('Submits with Enter')).toBeTruthy()
@@ -135,7 +135,7 @@ describe('TaskDetailPage', () => {
     expect(screen.getByRole('link', { name: 'Deploy' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Use react-hook-form' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'feat: login' })).toBeTruthy()
-    // Conversations: the discussion tree of the task, with the old row's useful facts
+    // Discussions: the discussion tree of the task, with the old row's useful facts
     const node = (await screen.findByText('Implement login')).closest('[style]')!.parentElement!
     expect(getTaskSessions).toHaveBeenCalledWith('t1')
     expect(within(node).getByText('12')).toBeTruthy()

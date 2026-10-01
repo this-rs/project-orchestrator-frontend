@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { focusRing, inlineLink } from '@/components/ui/classes'
+import { focusRing, inlineLink, pressFeedback } from '@/components/ui/classes'
 import { ReplyAction } from '@/components/today/ThreadRow'
 import { useAttentionDigest, useRequestAttentionRefresh } from '@/hooks/useAttentionCount'
 import { useToast } from '@/hooks/useToast'
@@ -48,6 +48,8 @@ export interface LinkedDiscussionsProps {
   workspaceSlug?: string | null
   /** What the resume buttons need (plan, folder, run state, task states). */
   resume?: ResumeContext
+  /** The host already shows the count (section / tab title): do not repeat it in the tree header. */
+  hideCount?: boolean
   /** Number of nodes, whenever it changes (tab counts). */
   onCountChange?: (count: number) => void
   /** Called after something changed (attach, resume): the host may refresh its own data. */
@@ -69,7 +71,7 @@ function BusyNote({ reason }: { reason: BusyReason }) {
 }
 
 const BTN =
-  'inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-white/[0.12] bg-white/[0.06] px-3 text-xs font-medium text-gray-100 hover:bg-white/[0.1]'
+  `${pressFeedback} inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-white/[0.12] bg-white/[0.06] px-3 text-xs font-medium text-gray-100 hover:bg-white/[0.1]`
 
 function ActionButton({
   action,
@@ -115,7 +117,7 @@ function ActionButton({
         onClick={click}
         disabled={disabled}
         aria-describedby={undefined}
-        className={`${BTN} disabled:cursor-not-allowed disabled:border-dashed disabled:bg-transparent disabled:text-gray-500 ${focusRing}`}
+        className={`${BTN} disabled:cursor-not-allowed disabled:border-dashed disabled:bg-transparent disabled:text-gray-400 ${focusRing}`}
       >
         {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
         {action.label}
@@ -125,7 +127,7 @@ function ActionButton({
   )
 }
 
-export function LinkedDiscussions({ entity, projectId, projectSlug, workspaceSlug, resume, onCountChange, onChanged }: LinkedDiscussionsProps) {
+export function LinkedDiscussions({ entity, projectId, projectSlug, workspaceSlug, resume, hideCount, onCountChange, onChanged }: LinkedDiscussionsProps) {
   const { forest, isLoading, error, treeErrors, refresh } = useLinkedForest(entity)
   const digest = useAttentionDigest()
   const requestAttentionRefresh = useRequestAttentionRefresh()
@@ -170,6 +172,7 @@ export function LinkedDiscussions({ entity, projectId, projectSlug, workspaceSlu
           )}
           <AttachSessionButton
             sessionId={node.session_id}
+            forTitle={node.title}
             projectId={projectId}
             projectSlug={projectSlug}
             workspaceSlug={workspaceSlug}
@@ -197,7 +200,7 @@ export function LinkedDiscussions({ entity, projectId, projectSlug, workspaceSlu
   }
   if (isLoading && !forest) {
     return (
-      <div className="flex items-center gap-2 py-6 text-sm text-gray-500" role="status">
+      <div className="flex items-center gap-2 py-6 text-sm text-gray-400" role="status">
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Chargement des discussions…
       </div>
     )
@@ -217,8 +220,8 @@ export function LinkedDiscussions({ entity, projectId, projectSlug, workspaceSlu
           isLoading={isLoading}
           onRefresh={refresh}
           renderActions={renderActions}
-          title="Discussions"
-          headerExtra={<span className="text-xs text-gray-500">{count}</span>}
+          title="Arbre de discussions"
+          headerExtra={hideCount ? undefined : <span className="text-xs tabular-nums text-gray-400">{count}</span>}
         />
       )}
       {treeErrors > 0 && (
@@ -226,9 +229,12 @@ export function LinkedDiscussions({ entity, projectId, projectSlug, workspaceSlu
           {LINKED_TEXT.treeErrors(treeErrors)}
         </p>
       )}
-      <p className="text-xs text-gray-400" data-testid="linked-limits">
-        {LINKED_TEXT.limits}
-      </p>
+      <details className="text-xs text-gray-400" data-testid="linked-limits">
+        <summary className={`inline-flex min-h-9 cursor-pointer items-center rounded text-gray-400 hover:text-gray-200 ${focusRing}`}>
+          Limites du rattachement
+        </summary>
+        <p className="pb-2">{LINKED_TEXT.limits}</p>
+      </details>
     </div>
   )
 }
