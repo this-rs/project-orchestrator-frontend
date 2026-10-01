@@ -8,7 +8,9 @@ vi.mock('@/components/WorkspaceSwitcher', () => ({
   WorkspaceSwitcher: () => <div data-testid="sidebar-marker">sidebar</div>,
 }))
 vi.mock('@/components/ui', () => ({ ToastContainer: () => null, Branding: () => null }))
-vi.mock('@/hooks', () => ({
+vi.mock('@/hooks', async () => ({
+  ChromeWorkspaceSlugContext: (await import('react')).createContext<string | null>(null),
+  useAttentionCountSource: () => {},
   useMediaQuery: () => true,
   useCrudEventRefresh: () => {},
   useModelCatalogEvents: () => {},
