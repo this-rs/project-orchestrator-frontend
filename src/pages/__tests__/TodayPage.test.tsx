@@ -24,6 +24,8 @@ vi.mock('@/hooks/useEventBus', () => ({
     emit = cb
   },
 }))
+// The work dashboard has its own tests (components/today/work); this file is about the attention view.
+vi.mock('@/components/today/work/WorkDashboard', () => ({ WorkDashboard: () => null }))
 const toast = { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }
 vi.mock('@/hooks/useToast', () => ({ useToast: () => toast }))
 
@@ -405,7 +407,12 @@ describe.each([360, 1440])('TodayPage: the %ipx rendering of every contract fixt
     })
     if (!isEmpty) {
       // four bands, fixed order, tab order = DOM order
-      const labels = screen.getAllByRole('region').map((r) => r.getAttribute('aria-label'))
+      // The page frames the attention view with its own two regions (work dashboard first, then this view).
+      const PAGE_REGIONS = ['Tableau de bord du jour', 'Ce qui attend ta réponse']
+      const labels = screen
+        .getAllByRole('region')
+        .map((r) => r.getAttribute('aria-label'))
+        .filter((l) => !PAGE_REGIONS.includes(l ?? ''))
       const bandLabels = labels.filter((l) => Object.values(BAND_TEXT).some((t) => t.title === l))
       expect(bandLabels.slice(0, 4)).toEqual(SECTION_ORDER.map((b) => BAND_TEXT[b].title))
       // "Commence par ça" comes first, before the sections
@@ -566,7 +573,7 @@ describe('TodayPage: the day, in order', () => {
 })
 
 describe('TodayPage: workspace chips', () => {
-  it('are a row of compact chips under the summary, not a big selector', async () => {
+  it('are a row of compact chips above the summaries, not a big selector', async () => {
     get.mockResolvedValue(fixture('four_bands'))
     renderPage()
     await waitFor(() => expect(band('waiting').getAttribute('data-state')).toBe('ready'))
@@ -575,9 +582,9 @@ describe('TodayPage: workspace chips', () => {
     expect(within(chips).getByRole('button', { name: 'Tous' }).getAttribute('aria-pressed')).toBe('true')
     expect(screen.queryByRole('combobox')).toBeNull()
     expect(screen.queryByRole('button', { name: /filter/i })).toBeNull()
-    // under the summary
+    // The lane filters the whole page (work dashboard and attention view): the chips sit above both summaries.
     const summary = screen.getByRole('list', { name: TODAY_TEXT.summaryLabel })
-    expect(summary.compareDocumentPosition(chips) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(summary.compareDocumentPosition(chips) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
     for (const b of within(chips).getAllByRole('button')) expect(b.className).toContain('min-h-9')
   })
 
