@@ -6,7 +6,6 @@ import { ThinkingBlock } from './ThinkingBlock'
 import { ToolCallGroup } from './ToolCallGroup'
 import { AgentGroup } from './AgentGroup'
 import { PermissionRequestBlock } from './PermissionRequestBlock'
-import { InputRequestBlock } from './InputRequestBlock'
 import { AskUserQuestionBlock } from './AskUserQuestionBlock'
 import { CompactBoundaryBlock } from './CompactBoundaryBlock'
 import { ModelChangedBlock } from './ModelChangedBlock'
@@ -244,15 +243,6 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
                   key={block.id}
                   block={block}
                   onRespond={onRespondPermission}
-                />
-              )
-
-            case 'input_request':
-              return (
-                <InputRequestBlock
-                  key={block.id}
-                  block={block}
-                  onRespond={onRespondInput}
                 />
               )
 

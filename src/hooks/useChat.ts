@@ -856,20 +856,6 @@ export function useChat() {
           break
         }
 
-        case 'input_request': {
-          const data = event.replaying
-            ? (event as { data?: Record<string, unknown> }).data ?? event
-            : event
-          const irParent = getParentToolUseId(event)
-          lastMsg.blocks.push({
-            id: nextBlockId(),
-            type: 'input_request',
-            content: (data as { prompt?: string }).prompt ?? '',
-            metadata: withParent({ request_id: (data as { prompt?: string }).prompt, options: (data as { options?: string[] }).options }, irParent),
-          })
-          break
-        }
-
         case 'ask_user_question': {
           const data = event.replaying
             ? (event as { data?: Record<string, unknown> }).data ?? event
