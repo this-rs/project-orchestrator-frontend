@@ -13,6 +13,7 @@ import {
   attachToParentToolUse,
   appendBackgroundActivity,
   workflowEventToTick,
+  sessionErrorText,
   type BackgroundTick,
 } from '@/utils/chatAssembly'
 import type { BackgroundActivityMetadata, BackgroundOutputEntry } from '@/types'
@@ -894,6 +895,24 @@ export function useChat() {
           })
           if (!event.replaying) {
             setIsStreaming(false)
+          }
+          break
+        }
+
+        case 'session_error': {
+          // The CLI subprocess died: show it, and stop the typing indicator.
+          const data = event.replaying
+            ? (event as { data?: Record<string, unknown> }).data ?? event
+            : event
+          lastMsg.blocks.push({
+            id: nextBlockId(),
+            type: 'error',
+            content: sessionErrorText(data as { reason?: string; message?: string }),
+            metadata: withParent(undefined, getParentToolUseId(event)),
+          })
+          if (!event.replaying) {
+            setIsStreaming(false)
+            setIsCompacting(false)
           }
           break
         }

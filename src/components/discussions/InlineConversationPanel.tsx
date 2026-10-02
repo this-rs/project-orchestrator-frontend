@@ -6,6 +6,7 @@
  * with added "View Full" and "Stop" actions.
  */
 
+import { sessionErrorText } from '@/utils/chatAssembly'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { focusRing, pressFeedback } from '@/components/ui/classes'
 import {
@@ -108,6 +109,11 @@ function useConversationWs(sessionId: string | null) {
     }
     if (d.type === 'error') {
       return { id, type: 'error', content: String(d.message || d.error || ''), timestamp }
+    }
+
+    // The CLI subprocess died (backend emit_subprocess_death). Same text as the main chat.
+    if (d.type === 'session_error') {
+      return { id, type: 'error', content: sessionErrorText(d as { reason?: string; message?: string }), timestamp }
     }
 
     // Skip protocol messages

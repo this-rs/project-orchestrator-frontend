@@ -429,15 +429,6 @@ export interface CancelTaskResult {
 }
 
 // ============================================================================
-// CLIENT MESSAGES
-// ============================================================================
-
-export type ClientMessage =
-  | { type: 'user_message'; content: string }
-  | { type: 'permission_response'; tool_call_id: string; allowed: boolean }
-  | { type: 'input_response'; content: string }
-
-// ============================================================================
 // MESSAGE HISTORY API RESPONSE
 // ============================================================================
 
