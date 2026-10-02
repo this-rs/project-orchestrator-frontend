@@ -8,6 +8,7 @@ import {
   noteRefreshAtom,
   workspaceRefreshAtom,
   chatSessionRefreshAtom,
+  skillRefreshAtom,
 } from '@/atoms'
 import { useEventBus } from './useEventBus'
 import type { CrudEvent, EntityType } from '@/types'
@@ -27,6 +28,7 @@ export function useCrudEventRefresh() {
   const bumpNote = useSetAtom(noteRefreshAtom)
   const bumpWorkspace = useSetAtom(workspaceRefreshAtom)
   const bumpChatSession = useSetAtom(chatSessionRefreshAtom)
+  const bumpSkill = useSetAtom(skillRefreshAtom)
 
   const timers = useRef<Map<EntityType, ReturnType<typeof setTimeout>>>(new Map())
 
@@ -81,6 +83,9 @@ export function useCrudEventRefresh() {
             case 'chat_session':
               bumpChatSession((c) => c + 1)
               break
+            case 'skill':
+              bumpSkill((c) => c + 1)
+              break
             case 'protocol_run':
               // Protocol run events are handled by useProtocolRunEvents
               // for the intelligence graph. Bump project refresh for any
@@ -91,7 +96,16 @@ export function useCrudEventRefresh() {
         }, DEBOUNCE_MS),
       )
     },
-    [bumpPlan, bumpTask, bumpProject, bumpMilestone, bumpNote, bumpWorkspace, bumpChatSession],
+    [
+      bumpPlan,
+      bumpTask,
+      bumpProject,
+      bumpMilestone,
+      bumpNote,
+      bumpWorkspace,
+      bumpChatSession,
+      bumpSkill,
+    ],
   )
 
   useEventBus(handleEvent)

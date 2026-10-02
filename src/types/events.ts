@@ -31,6 +31,8 @@ export type EntityType =
   | 'lifecycle_hook'
   | 'topology_rule'
   | 'trigger'
+  | 'environment'
+  | 'deployment'
 
 export type CrudAction =
   | 'created'

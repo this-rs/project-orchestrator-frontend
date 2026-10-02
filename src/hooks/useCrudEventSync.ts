@@ -16,19 +16,19 @@ import type { ColumnData } from './useKanbanColumnData'
 export function useCrudEventSync<T extends { id: string; status: string }>(
   entityType: string | undefined,
   columnDataMap: Record<string, ColumnData<T>>,
-): { markOptimistic: (id: string) => void } {
+): { markOptimistic: (id: string, expectedStatus?: string) => void } {
   const columnDataRef = useRef(columnDataMap)
   useEffect(() => {
     columnDataRef.current = columnDataMap
   })
 
   // Track IDs that were optimistically updated to skip WebSocket echo
-  const optimisticIdsRef = useRef(new Set<string>())
+  const optimisticIdsRef = useRef(new Map<string, string | undefined>())
   const pendingEventsRef = useRef<CrudEvent[]>([])
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const markOptimistic = useCallback((id: string) => {
-    optimisticIdsRef.current.add(id)
+  const markOptimistic = useCallback((id: string, expectedStatus?: string) => {
+    optimisticIdsRef.current.set(id, expectedStatus)
     // Auto-clear after 5s to avoid memory leaks
     setTimeout(() => optimisticIdsRef.current.delete(id), 5000)
   }, [])
@@ -41,10 +41,15 @@ export function useCrudEventSync<T extends { id: string; status: string }>(
     for (const event of events) {
       const { entity_id, action, payload } = event
 
-      // Skip if this was an optimistic update
+      // Skip only the echo of our own optimistic move; a different event
+      // (e.g. 'deleted', or a status other than the expected one) must apply.
       if (optimisticIdsRef.current.has(entity_id)) {
+        const expected = optimisticIdsRef.current.get(entity_id)
+        const echoStatus = (payload as Record<string, unknown> | undefined)?.status
         optimisticIdsRef.current.delete(entity_id)
-        continue
+        if (action !== 'deleted' && (expected === undefined || echoStatus === expected)) {
+          continue
+        }
       }
 
       if (action === 'created' && payload) {
