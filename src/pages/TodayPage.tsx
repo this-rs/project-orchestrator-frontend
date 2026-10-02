@@ -12,6 +12,7 @@ import { TODAY_TEXT } from '@/components/today/bands'
 import { LinkedDiscussions } from '@/components/discussions/LinkedDiscussions'
 import { AttachSessionButton } from '@/components/discussions/AttachSessionButton'
 import type { AttentionThread } from '@/types/attention'
+import { WorkDashboard } from '@/components/today/work/WorkDashboard'
 
 /** Query parameter holding the lane filter on the cross-workspace entry. */
 export const LANE_PARAM = 'workspace'
@@ -126,18 +127,30 @@ export function TodayPage() {
   const laneName = lane ? (workspaces.find((w) => w.slug === lane)?.name ?? lane) : null
   const plansSlug = lane ?? workspaces[0]?.slug ?? null
 
+  // Every workspace unless one is picked: the dashboard loads them one by one (a plan links by its workspace).
+  const dashboardWorkspaces = lane ? [lane] : workspaces.map((w) => w.slug)
+
   return (
     <PageShell title={TODAY_TEXT.title} width="full">
-      {/* No `key` on the lane: remounting flashed every skeleton on each chip tap. The old data stays, dimmed and inert, until the new lane lands. */}
-      <LiveToday
-        lane={lane}
-        plansSlug={plansSlug}
-        onClearLane={clearLane}
-        lanePicker={<LaneChips lanes={workspaces} active={lane} onSelect={setLane} />}
-        laneNote={laneName ? TODAY_TEXT.laneNote(laneName) : null}
-        renderDiscussions={renderDiscussions}
-        renderAttach={renderAttach}
-      />
+      <div className="space-y-8">
+        <section aria-label="Tableau de bord du jour" className="space-y-4">
+          <LaneChips lanes={workspaces} active={lane} onSelect={setLane} />
+          <WorkDashboard key={dashboardWorkspaces.join('|')} workspaces={dashboardWorkspaces} lane={lane} />
+        </section>
+
+        <section aria-label="Ce qui attend ta réponse" className="space-y-4">
+          <h2 className="text-sm font-semibold text-gray-200">Ce qui attend ta réponse</h2>
+          {/* No `key` on the lane: remounting flashed every skeleton on each chip tap. The old data stays, dimmed and inert, until the new lane lands. */}
+          <LiveToday
+            lane={lane}
+            plansSlug={plansSlug}
+            onClearLane={clearLane}
+            laneNote={laneName ? TODAY_TEXT.laneNote(laneName) : null}
+            renderDiscussions={renderDiscussions}
+            renderAttach={renderAttach}
+          />
+        </section>
+      </div>
     </PageShell>
   )
 }
