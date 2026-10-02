@@ -224,6 +224,12 @@ export function appendBackgroundActivity(msg: ChatMessage, tick: BackgroundTick)
 // Main assembly function
 // ---------------------------------------------------------------------------
 
+/** Human text for a `session_error` event: the message, tagged with its machine reason. */
+export function sessionErrorText(evt: { reason?: string; message?: string }): string {
+  const message = evt.message ?? 'The session ended with an error'
+  return evt.reason ? `${message} (${evt.reason})` : message
+}
+
 /**
  * Convert raw chat events (from REST /messages endpoint) into ChatMessage UI format.
  * Groups events into user/assistant messages — same logic as handleEvent in replay mode.
@@ -481,6 +487,18 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
           type: 'error',
           content: evt.message ?? 'Unknown error',
           metadata: withParent(undefined, parent),
+        })
+        break
+      }
+
+      case 'session_error': {
+        // Emitted by the backend when the CLI subprocess dies (emit_subprocess_death).
+        // Typed in ChatEvent but never reduced: the death of the CLI was invisible.
+        const msg = lastAssistant(createdAt)
+        msg.blocks.push({
+          id: nextBlockId(),
+          type: 'error',
+          content: sessionErrorText(evt),
         })
         break
       }

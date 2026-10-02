@@ -8,6 +8,7 @@
  * and fetchWsTicket for auth.
  */
 
+import { sessionErrorText } from '@/utils/chatAssembly'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { X, Wifi, WifiOff, Loader2 } from 'lucide-react'
 import { createWebSocket, ReadyState, type IWebSocket } from '@/services/wsAdapter'
@@ -101,6 +102,11 @@ function useConversationWs(sessionId: string | null) {
     }
     if (d.type === 'error') {
       return { id, type: 'error', content: String(d.message || d.error || ''), timestamp }
+    }
+
+    // The CLI subprocess died (backend emit_subprocess_death). Same text as the main chat.
+    if (d.type === 'session_error') {
+      return { id, type: 'error', content: sessionErrorText(d as { reason?: string; message?: string }), timestamp }
     }
 
     // Skip internal protocol messages
