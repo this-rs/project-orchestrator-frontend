@@ -1,6 +1,6 @@
 /**
- * The chrome around Today: a GLOBAL mode (Today above the workspaces, nothing
- * of any workspace), a "← Today" way back in a workspace, and the attention
+ * The chrome around Today: a GLOBAL mode (the workspaces, nothing of any
+ * workspace) and a Today icon in the header, one click from anywhere, and the attention
  * badge fed by one shared fetch.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -107,30 +107,49 @@ describe('routing', () => {
 })
 
 describe('global chrome (/today)', () => {
-  it('has Today as root and lists the workspaces, with nothing of a workspace', async () => {
+  it('names the product next to the logo and lists the workspaces, with nothing of a workspace', async () => {
     renderAt('/today')
     const nav = (await screen.findAllByRole('navigation', { name: 'Application' }))[0]
-    const links = within(nav).getAllByRole('link')
-    expect(links[0].textContent).toContain('Today')
-    expect(links[0].getAttribute('href')).toBe('/today')
+    expect(screen.getAllByText('Project Orchestrator').length).toBeGreaterThan(0)
+    // Today is not repeated in the menu: its icon is in the header
+    expect(within(nav).queryByRole('link', { name: /^Today$/ })).toBeNull()
     await waitFor(() => expect(within(nav).queryByRole('link', { name: 'Lab' })).not.toBeNull())
     expect(within(nav).getByRole('link', { name: 'Studio' }).getAttribute('href')).toBe('/workspace/studio/overview')
     for (const own of ['Projects', 'Plans', 'Tasks', 'Objectives', 'Architecture', 'Overview', 'Trajectory', 'Notes']) {
       expect(screen.queryByRole('link', { name: own })).toBeNull()
     }
     expect(screen.queryByTestId('workspace-switcher')).toBeNull()
-    expect(screen.queryByText(/← Today/)).toBeNull()
+  })
+})
+
+describe('Today icon in the header', () => {
+  const todayIcon = () => within(screen.getByRole('banner')).getByRole('link', { name: 'Today' })
+
+  it('is one click to /today from the global page and from a workspace page', async () => {
+    const g = renderAt('/today')
+    expect((await screen.findByRole('banner')) && todayIcon().getAttribute('href')).toBe('/today')
+    g.unmount()
+    renderAt('/workspace/studio/plans')
+    await screen.findByRole('banner')
+    expect(todayIcon().getAttribute('href')).toBe('/today')
+  })
+
+  it('is the current page on /today and not elsewhere', async () => {
+    const g = renderAt('/today')
+    await screen.findByRole('banner')
+    expect(todayIcon().getAttribute('aria-current')).toBe('page')
+    g.unmount()
+    renderAt('/workspace/studio/plans')
+    await screen.findByRole('banner')
+    expect(todayIcon().getAttribute('aria-current')).toBeNull()
   })
 })
 
 describe('workspace chrome', () => {
-  it('starts with a persistent "← Today" back to /today, and no Today in the Focus group', async () => {
+  it('starts with the workspace switcher: no "← Today" row above it, and no Today in the Focus group', async () => {
     renderAt('/workspace/studio/plans')
-    const back = (await screen.findAllByRole('link', { name: /← Today/ }))[0]
-    expect(back.getAttribute('href')).toBe('/today')
-    // above the workspace's own name
-    const sw = screen.getAllByTestId('workspace-switcher')[0]
-    expect(back.compareDocumentPosition(sw) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await screen.findAllByTestId('workspace-switcher')
+    expect(screen.queryByRole('link', { name: /← Today/ })).toBeNull()
     const nav = screen.getAllByRole('navigation', { name: 'Workspace' })[0]
     expect(within(nav).queryByRole('link', { name: /^Today$/ })).toBeNull()
     expect(within(nav).queryByRole('link', { name: 'Overview' })).not.toBeNull()
@@ -145,15 +164,15 @@ describe('attention badge', () => {
     expect(screen.queryByTestId('attention-badge')).toBeNull()
   })
 
-  it('3 requests: "3 demandes en attente", on Today (global) and on "← Today" (workspace)', async () => {
+  it('3 requests: "3 demandes en attente", on the Today icon, global and in a workspace', async () => {
     get.mockResolvedValue(withWaiting(3))
     const g = renderAt('/today')
     expect((await screen.findAllByLabelText('3 demandes en attente')).length).toBeGreaterThan(0)
     expect(screen.getAllByTestId('attention-badge')[0].textContent).toContain('3')
     g.unmount()
     renderAt('/workspace/studio/plans')
-    const back = (await screen.findAllByRole('link', { name: /← Today/ }))[0]
-    await waitFor(() => expect(within(back).queryByLabelText('3 demandes en attente')).not.toBeNull())
+    const icon = within(await screen.findByRole('banner')).getByRole('link', { name: 'Today' })
+    await waitFor(() => expect(within(icon).queryByLabelText('3 demandes en attente')).not.toBeNull())
   })
 
   it('1 request reads in the singular', async () => {
@@ -183,8 +202,8 @@ describe('attention badge', () => {
     get.mockResolvedValue(withWaiting(2))
     renderAt('/workspace/studio/plans')
     await screen.findAllByLabelText('2 demandes en attente')
-    // desktop sidebar + mobile sidebar + hamburger: several badges, one request
-    expect(screen.getAllByTestId('attention-badge').length).toBeGreaterThanOrEqual(3)
+    // the header icon (and any other entry that shows it): one request
+    expect(screen.getAllByTestId('attention-badge').length).toBeGreaterThanOrEqual(1)
     expect(attentionCalls()).toBe(1)
 
     vi.useFakeTimers()
@@ -210,7 +229,7 @@ describe('attention badge', () => {
     get.mockResolvedValue(withWaiting(3))
     renderAt('/workspace/studio/plans')
     await screen.findAllByLabelText('3 demandes en attente')
-    const hamburger = screen.getByRole('button', { name: 'Menu' })
-    expect(within(hamburger).getByTestId('attention-badge').className).toContain('absolute')
+    const icon = within(screen.getByRole('banner')).getByRole('link', { name: 'Today' })
+    expect(within(icon).getByTestId('attention-badge').className).toContain('absolute')
   })
 })
