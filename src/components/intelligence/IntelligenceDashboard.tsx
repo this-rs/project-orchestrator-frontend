@@ -440,7 +440,14 @@ export function IntelRefreshButton({ data }: { data: Pick<IntelligenceData, 'ref
 // Stat grid — compact 2×2 (phone) / 4×1 (desktop) overview numbers
 // ============================================================================
 
-export function IntelStatGrid({ summary }: { summary: IntelligenceSummary }) {
+export function IntelStatGrid({
+  summary,
+  variant = 'compact',
+}: {
+  summary: IntelligenceSummary
+  /** `tiles`: 2×2 big numbers that stretch to the height of their neighbour. */
+  variant?: 'compact' | 'tiles'
+}) {
   const s = summary
   const items = [
     {
@@ -469,14 +476,27 @@ export function IntelStatGrid({ summary }: { summary: IntelligenceSummary }) {
     },
   ]
   return (
-    <dl className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+    <dl
+      className={
+        variant === 'tiles'
+          ? 'grid h-full grid-cols-2 auto-rows-fr gap-2'
+          : 'grid grid-cols-2 lg:grid-cols-4 gap-2'
+      }
+    >
       {items.map((it) => (
-        <div key={it.label} className={`${surface} px-3 py-2.5 min-w-0`}>
+        <div
+          key={it.label}
+          className={`${surface} min-w-0 ${variant === 'tiles' ? 'flex flex-col justify-center px-4 py-3' : 'px-3 py-2.5'}`}
+        >
           <dt className="flex items-center gap-1.5 text-xs text-gray-400 min-w-0">
             <it.icon size={13} className="shrink-0 text-gray-500" aria-hidden="true" />
             <span className="truncate">{it.label}</span>
           </dt>
-          <dd className="mt-1 text-lg font-semibold leading-6 tabular-nums text-gray-100">{it.value.toLocaleString()}</dd>
+          <dd
+            className={`mt-1 font-semibold tabular-nums text-gray-100 ${variant === 'tiles' ? 'text-2xl leading-8 sm:text-3xl sm:leading-9' : 'text-lg leading-6'}`}
+          >
+            {it.value.toLocaleString()}
+          </dd>
           <dd className={`${metaText} tabular-nums`}>{it.sub}</dd>
         </div>
       ))}
@@ -743,5 +763,30 @@ export function IntelAttention({ data }: { data: IntelligenceData }) {
         ))}
       </EntityList>
     </Section>
+  )
+}
+
+
+/**
+ * The page's pulse: health gauge + breakdown on the left, the four headline
+ * numbers as big tiles on the right. One band, read at a glance, above every list.
+ */
+export function IntelPulse({
+  data,
+  progress,
+}: {
+  data: IntelligenceData
+  progress?: { percentage: number }
+}) {
+  if (!data.summary) return null
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 items-stretch">
+      <div className="lg:col-span-3 min-w-0">
+        <IntelHealthBreakdown data={data} progress={progress} />
+      </div>
+      <div className="lg:col-span-2 min-w-0">
+        <IntelStatGrid summary={data.summary} variant="tiles" />
+      </div>
+    </div>
   )
 }

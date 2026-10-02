@@ -36,10 +36,9 @@ import { CreateMilestoneForm, CreateResourceForm, CreateComponentForm, EditWorks
 import {
   IntelAttention,
   IntelFallback,
-  IntelHealthBreakdown,
   IntelQuickActions,
   IntelRefreshButton,
-  IntelStatGrid,
+  IntelPulse,
 } from '@/components/intelligence/IntelligenceDashboard'
 import { useWorkspaceIntelligenceData } from '@/components/intelligence/useWorkspaceIntelligenceData'
 import type { Workspace, Project, WorkspaceMilestone, Resource, Component, MilestoneProgress } from '@/types'
@@ -320,10 +319,7 @@ export function WorkspaceDetailPage() {
       {/* ── Health: key numbers + breakdown ── */}
       <Section title="Health" action={intelReady ? <IntelRefreshButton data={intelligence} /> : undefined}>
         {intelReady && intelligence.summary ? (
-          <div className="space-y-2">
-            <IntelStatGrid summary={intelligence.summary} />
-            <IntelHealthBreakdown data={intelligence} />
-          </div>
+          <IntelPulse data={intelligence} />
         ) : (
           <IntelFallback intelligence={intelligence} />
         )}
