@@ -272,7 +272,6 @@ export type ChatEvent =
   | { type: 'tool_cancelled'; id: string; parent_tool_use_id?: string }
   | { type: 'permission_request'; id: string; tool: string; input: Record<string, unknown> }
   | { type: 'permission_decision'; id: string; allow: boolean }
-  | { type: 'input_request'; prompt: string; options?: string[] }
   | { type: 'ask_user_question'; questions: AskUserQuestion[]; tool_call_id?: string; id?: string }
   | { type: 'result'; session_id: string; duration_ms: number; cost_usd?: number; subtype?: string; is_error?: boolean; num_turns?: number; result_text?: string }
   | { type: 'error'; message: string }
@@ -492,7 +491,7 @@ export interface MessageSearchResult {
 
 export interface ContentBlock {
   id: string
-  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'permission_request' | 'input_request' | 'ask_user_question' | 'error' | 'compact_boundary' | 'model_changed' | 'result_max_turns' | 'result_error' | 'system_init' | 'system_hint' | 'continue_indicator' | 'retry_indicator' | 'viz' | 'background_activity'
+  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'permission_request' | 'ask_user_question' | 'error' | 'compact_boundary' | 'model_changed' | 'result_max_turns' | 'result_error' | 'system_init' | 'system_hint' | 'continue_indicator' | 'retry_indicator' | 'viz' | 'background_activity'
   content: string
   metadata?: Record<string, unknown>
 }

@@ -8,7 +8,6 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import type { ContentBlock } from '@/types'
 import { AskUserQuestionBlock } from './AskUserQuestionBlock'
 import { PermissionRequestBlock } from './PermissionRequestBlock'
-import { InputRequestBlock } from './InputRequestBlock'
 
 const askBlock: ContentBlock = {
   id: 'b1',
@@ -27,13 +26,6 @@ const permBlock: ContentBlock = {
   type: 'permission_request',
   content: '',
   metadata: { tool_call_id: 'p1', tool_name: 'Bash', tool_input: { command: 'ls' } },
-}
-
-const inputBlock: ContentBlock = {
-  id: 'b3',
-  type: 'input_request',
-  content: 'Name?',
-  metadata: { request_id: 'r1' },
 }
 
 describe('AskUserQuestionBlock', () => {
@@ -97,14 +89,3 @@ describe('PermissionRequestBlock', () => {
   })
 })
 
-describe('InputRequestBlock', () => {
-  it('keeps the typed text and shows an error when onRespond returns false', () => {
-    const onRespond = vi.fn().mockReturnValue(false)
-    render(<InputRequestBlock block={inputBlock} onRespond={onRespond} />)
-    const input = screen.getByPlaceholderText('Type your response...') as HTMLInputElement
-    fireEvent.change(input, { target: { value: 'Bob' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
-    expect(input.value).toBe('Bob')
-    expect(screen.getByRole('alert').textContent).toMatch(/not sent/i)
-  })
-})

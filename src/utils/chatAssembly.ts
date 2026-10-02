@@ -451,18 +451,6 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
         break
       }
 
-      case 'input_request': {
-        const msg = lastAssistant(createdAt)
-        const parent = getParentToolUseId(evt)
-        msg.blocks.push({
-          id: nextBlockId(),
-          type: 'input_request',
-          content: evt.prompt ?? '',
-          metadata: withParent({ request_id: evt.prompt, options: evt.options }, parent),
-        })
-        break
-      }
-
       case 'ask_user_question': {
         const msg = lastAssistant(createdAt)
         const questions = evt.questions as { question: string }[] | undefined

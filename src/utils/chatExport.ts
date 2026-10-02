@@ -58,7 +58,6 @@ function blockToMarkdown(block: ContentBlock): string {
     case 'permission_request':
       return `> **Permission requested:** ${block.content}`
 
-    case 'input_request':
     case 'ask_user_question':
       return `> **Input requested:** ${block.content}`
 
