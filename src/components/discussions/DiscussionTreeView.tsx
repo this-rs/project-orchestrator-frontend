@@ -6,9 +6,10 @@
  * is selected).
  */
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { GitBranch, RefreshCw, Loader2 } from 'lucide-react'
 import { useDiscussionTree } from '@/hooks/useDiscussionTree'
+import { focusRing, pressFeedback } from '@/components/ui/classes'
 import { DiscussionNodeRow } from './DiscussionNode'
 import { InlineConversationPanel } from './InlineConversationPanel'
 
@@ -25,10 +26,66 @@ interface DiscussionTreeViewProps {
 
 export function DiscussionTreeView({ sessionId, onNavigate }: DiscussionTreeViewProps) {
   const { tree, isLoading, error, refresh } = useDiscussionTree(sessionId)
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
 
-  // Resolve selected node title for the panel header
-  const selectedTitle = selectedNodeId ? findNodeTitle(tree, selectedNodeId) : null
+  if (isLoading && !tree) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
+        <span className="ml-2 text-sm text-gray-400">Chargement de l'arbre de discussions…</span>
+      </div>
+    )
+  }
+
+  if (error && !tree) {
+    return (
+      <div className="rounded-lg border border-red-500/20 bg-red-500/[0.04] px-4 py-6 text-center">
+        <p className="text-sm text-red-400 mb-3">{error}</p>
+        <button
+          onClick={refresh}
+          className={`inline-flex min-h-9 items-center gap-1.5 px-3 rounded-lg text-xs font-medium
+                     bg-white/[0.06] text-gray-300 hover:bg-white/[0.1] hover:text-gray-200
+                     cursor-pointer ${pressFeedback} ${focusRing}`}
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Réessayer
+        </button>
+      </div>
+    )
+  }
+
+  if (!tree) return null
+
+  return <DiscussionForestView roots={[tree]} isLoading={isLoading} onRefresh={refresh} onNavigate={onNavigate} />
+}
+
+// ---------------------------------------------------------------------------
+// Forest view: one or several roots, same rows, same inline panel
+// ---------------------------------------------------------------------------
+
+interface DiscussionForestViewProps {
+  roots: import('@/services/discussions').DiscussionNode[]
+  isLoading?: boolean
+  onRefresh: () => void
+  onNavigate?: (sessionId: string) => void
+  /** Buttons under each node (attach, resume...) */
+  renderActions?: (node: import('@/services/discussions').DiscussionNode) => ReactNode
+  /** Extra header content (counts, hints) */
+  headerExtra?: ReactNode
+  /** The panel sits under the tree on a phone: no fixed height needed */
+  title?: string
+}
+
+export function DiscussionForestView({
+  roots,
+  isLoading = false,
+  onRefresh,
+  onNavigate,
+  renderActions,
+  headerExtra,
+  title = 'Arbre de discussions',
+}: DiscussionForestViewProps) {
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const selectedTitle = selectedNodeId ? roots.map((r) => findNodeTitle(r, selectedNodeId)).find(Boolean) ?? null : null
 
   const handleSelectNode = (nodeSessionId: string) => {
     if (onNavigate) {
@@ -38,80 +95,50 @@ export function DiscussionTreeView({ sessionId, onNavigate }: DiscussionTreeView
     setSelectedNodeId((prev) => (prev === nodeSessionId ? null : nodeSessionId))
   }
 
-  // -------------------------------------------------------------------------
-  // Loading state
-  // -------------------------------------------------------------------------
-  if (isLoading && !tree) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
-        <span className="ml-2 text-sm text-gray-500">Loading discussion tree...</span>
-      </div>
-    )
-  }
-
-  // -------------------------------------------------------------------------
-  // Error state
-  // -------------------------------------------------------------------------
-  if (error && !tree) {
-    return (
-      <div className="rounded-lg border border-red-500/20 bg-red-500/[0.04] px-4 py-6 text-center">
-        <p className="text-sm text-red-400 mb-3">{error}</p>
-        <button
-          onClick={refresh}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium
-                     bg-white/[0.06] text-gray-400 hover:bg-white/[0.1] hover:text-gray-200
-                     transition-colors cursor-pointer"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          Retry
-        </button>
-      </div>
-    )
-  }
-
-  if (!tree) return null
-
-  // -------------------------------------------------------------------------
-  // Render
-  // -------------------------------------------------------------------------
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="@container flex flex-col h-full min-h-0">
       {/* Header */}
       <div className="flex items-center justify-between px-1 pb-3 flex-shrink-0">
         <div className="flex items-center gap-2 text-sm text-gray-400">
-          <GitBranch className="w-4 h-4 text-gray-500" />
-          <span className="font-medium text-gray-300">Discussion Tree</span>
+          <GitBranch className="w-4 h-4 text-gray-400" aria-hidden="true" />
+          <span className="font-medium text-gray-300">{title}</span>
+          {headerExtra}
         </div>
         <button
-          onClick={refresh}
-          className="p-1.5 rounded-md text-gray-500 hover:text-gray-300 hover:bg-white/[0.06]
-                     transition-colors cursor-pointer"
-          title="Refresh tree"
+          onClick={onRefresh}
+          type="button"
+          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/[0.06]
+                     cursor-pointer ${pressFeedback} ${focusRing}`}
+          aria-label="Actualiser l'arbre"
+          title="Actualiser l'arbre"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
       {/* Content: tree + panel */}
-      <div className="flex flex-1 min-h-0 gap-0">
+      <div className="flex flex-1 min-h-0 gap-0 flex-col @xl:flex-row">
         {/* Tree */}
         <div
-          className={`overflow-y-auto space-y-0.5 pb-4 ${
-            selectedNodeId ? 'w-1/2 flex-shrink-0' : 'flex-1'
+          className={`overflow-y-auto overscroll-contain space-y-0.5 pb-4 ${
+            selectedNodeId ? '@xl:w-1/2 flex-shrink-0' : 'flex-1'
           }`}
         >
-          <DiscussionNodeRow
-            node={tree}
-            depth={0}
-            selectedSessionId={selectedNodeId}
-            onSelectNode={handleSelectNode}
-          />
+          {roots.map((root) => (
+            <DiscussionNodeRow
+              key={root.session_id}
+              node={root}
+              depth={0}
+              selectedSessionId={selectedNodeId}
+              onSelectNode={handleSelectNode}
+              renderActions={renderActions}
+            />
+          ))}
         </div>
 
         {/* Inline conversation panel */}
         {selectedNodeId && (
-          <div className="w-1/2 flex-shrink-0 border-l border-border-subtle ml-2">
+          <div className="w-full h-[60dvh] @xl:h-auto @xl:w-1/2 flex-shrink-0 border-t @xl:border-t-0 @xl:border-l border-border-subtle @xl:ml-2 mt-2 @xl:mt-0">
             <InlineConversationPanel
               sessionId={selectedNodeId}
               title={selectedTitle || 'Session'}

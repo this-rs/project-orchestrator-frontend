@@ -6,7 +6,8 @@
  * Clickable to select and view the inline conversation.
  */
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
+import { focusRing, pressFeedback } from '@/components/ui/classes'
 import {
   ChevronRight,
   ChevronDown,
@@ -32,31 +33,36 @@ const statusConfig: Record<
     icon: Loader2,
     color: 'text-blue-400',
     dotClass: 'bg-blue-400 animate-pulse',
-    label: 'Streaming',
+    label: 'En cours',
   },
   completed: {
     icon: CheckCircle2,
     color: 'text-green-400',
     dotClass: 'bg-green-400',
-    label: 'Completed',
+    label: 'Terminée',
   },
   failed: {
     icon: XCircle,
     color: 'text-red-400',
     dotClass: 'bg-red-400',
-    label: 'Failed',
+    label: 'Échouée',
   },
   idle: {
     icon: Circle,
     color: 'text-gray-500',
     dotClass: 'bg-gray-500',
-    label: 'Idle',
+    label: 'Arrêtée',
   },
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** Indent per depth: 14 px (capped at 5 levels) so a deep node still has room for its title on a 360 px screen. */
+function indentStep(depth: number): number {
+  return Math.min(depth, 5) * 14
+}
 
 function formatDuration(secs: number): string {
   if (secs < 60) return `${Math.round(secs)}s`
@@ -80,6 +86,8 @@ interface DiscussionNodeRowProps {
   depth: number
   selectedSessionId: string | null
   onSelectNode: (sessionId: string) => void
+  /** Buttons shown under the node (attach, resume...). Return null for none. */
+  renderActions?: (node: DiscussionNode) => ReactNode
 }
 
 export function DiscussionNodeRow({
@@ -87,6 +95,7 @@ export function DiscussionNodeRow({
   depth,
   selectedSessionId,
   onSelectNode,
+  renderActions,
 }: DiscussionNodeRowProps) {
   const [expanded, setExpanded] = useState(true)
   const children = node.children ?? []
@@ -95,28 +104,36 @@ export function DiscussionNodeRow({
   const cfg = statusConfig[node.status] ?? statusConfig.idle
   const StatusIcon = cfg.icon
 
-  const title = node.title || node.metadata?.task_id || 'Untitled session'
+  const title = node.title || node.metadata?.task_id || 'Session sans titre'
+  const actions = renderActions?.(node)
+  const { source, detail } = node.metadata ?? {}
+  const indent = { paddingLeft: `${4 + indentStep(depth) + 36}px` }
 
   return (
     <div>
-      {/* Node row */}
+      {/* Node row. Wraps: on a phone the figures drop under the title instead of hiding. */}
       <div
         className={`
-          group flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer
+          flex flex-wrap items-center gap-x-2 gap-y-0.5 px-1 py-1 rounded-md cursor-pointer
           transition-colors duration-150
           ${isSelected
             ? 'bg-indigo-500/[0.08] border border-indigo-500/30'
             : 'hover:bg-white/[0.04] border border-transparent'
           }
         `}
-        style={{ paddingLeft: `${12 + depth * 20}px` }}
+        style={{ paddingLeft: `${4 + indentStep(depth)}px` }}
         onClick={() => onSelectNode(node.session_id)}
+        data-testid="node-row"
+        data-status={node.status}
       >
         {/* Expand/collapse toggle */}
         <button
-          className={`p-0.5 rounded transition-colors flex-shrink-0 ${
+          type="button"
+          aria-label={expanded ? 'Replier les sous-discussions' : 'Déplier les sous-discussions'}
+          aria-expanded={hasChildren ? expanded : undefined}
+          className={`inline-flex h-9 w-7 items-center justify-center rounded flex-shrink-0 ${pressFeedback} ${focusRing} ${
             hasChildren
-              ? 'text-gray-500 hover:text-gray-300 cursor-pointer'
+              ? 'text-gray-400 hover:text-gray-200 cursor-pointer'
               : 'text-transparent pointer-events-none'
           }`}
           onClick={(e) => {
@@ -124,51 +141,64 @@ export function DiscussionNodeRow({
             if (hasChildren) setExpanded(!expanded)
           }}
           tabIndex={hasChildren ? 0 : -1}
+          disabled={!hasChildren}
         >
           {expanded ? (
-            <ChevronDown className="w-3.5 h-3.5" />
+            <ChevronDown className="w-4 h-4" />
           ) : (
-            <ChevronRight className="w-3.5 h-3.5" />
+            <ChevronRight className="w-4 h-4" />
           )}
         </button>
 
-        {/* Status icon */}
+        {/* Status icon: colour AND a word for screen readers */}
         <StatusIcon
+          aria-hidden="true"
           className={`w-4 h-4 flex-shrink-0 ${cfg.color} ${
-            node.status === 'streaming' ? 'animate-spin' : ''
+            node.status === 'streaming' ? 'animate-spin motion-reduce:animate-none' : ''
           }`}
         />
+        <span className="sr-only">{cfg.label}</span>
 
-        {/* Title */}
-        <span
-          className={`text-sm truncate flex-1 min-w-0 ${
+        {/* Title: wraps over two lines rather than being cut by the indentation */}
+        <button
+          type="button"
+          aria-pressed={isSelected}
+          className={`min-h-9 min-w-0 flex-1 basis-32 text-left text-sm line-clamp-2 break-words ${focusRing} ${
             isSelected ? 'text-gray-100 font-medium' : 'text-gray-300'
           }`}
           title={title}
         >
           {title}
-        </span>
+        </button>
 
-        {/* Metrics (visible on hover or when selected) */}
-        <div
-          className={`flex items-center gap-3 flex-shrink-0 text-[11px] text-gray-500 transition-opacity ${
-            isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-          }`}
-        >
-          <span className="flex items-center gap-1">
-            <MessageSquare className="w-3 h-3" />
+        {/* Figures: always visible (no hover-only information) */}
+        <div className="flex items-center gap-3 flex-shrink-0 text-xs text-gray-400 pl-9 sm:pl-0 basis-full sm:basis-auto">
+          <span className="flex items-center gap-1" aria-label={`${node.message_count} messages`}>
+            <MessageSquare className="w-3 h-3" aria-hidden="true" />
             {node.message_count}
           </span>
-          <span className="flex items-center gap-1 font-mono tabular-nums">
-            <Clock className="w-3 h-3" />
+          <span className="flex items-center gap-1 font-mono tabular-nums" aria-label={`Durée ${formatDuration(node.duration_secs)}`}>
+            <Clock className="w-3 h-3" aria-hidden="true" />
             {formatDuration(node.duration_secs)}
           </span>
-          <span className="flex items-center gap-1 font-mono tabular-nums">
-            <DollarSign className="w-3 h-3" />
+          <span className="flex items-center gap-1 font-mono tabular-nums" aria-label={`Coût ${formatCost(node.cost_usd)}`}>
+            <DollarSign className="w-3 h-3" aria-hidden="true" />
             {formatCost(node.cost_usd)}
           </span>
         </div>
       </div>
+
+      {(source || detail) && (
+        <p className="pr-3 text-xs leading-4 text-gray-400 break-words" style={indent} data-testid="node-detail">
+          {source && <span className="mr-2 text-gray-400">{source}</span>}
+          {detail}
+        </p>
+      )}
+      {actions && (
+        <div className="flex flex-wrap items-start gap-x-2 gap-y-1 pb-1 pr-3" style={indent} data-testid="node-actions">
+          {actions}
+        </div>
+      )}
 
       {/* Children */}
       {hasChildren && expanded && (
@@ -180,6 +210,7 @@ export function DiscussionNodeRow({
               depth={depth + 1}
               selectedSessionId={selectedSessionId}
               onSelectNode={onSelectNode}
+              renderActions={renderActions}
             />
           ))}
         </div>

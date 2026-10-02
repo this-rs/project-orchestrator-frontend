@@ -25,7 +25,6 @@ import {
   Button,
   EmptyState,
   EntityList,
-  EntityListSkeleton,
   EntityRow,
   ErrorState,
   FormDialog,
@@ -55,7 +54,7 @@ import { ApiError } from '@/services/api'
 import { UniversalKanban, createTaskKanbanConfig } from '@/components/kanban'
 import { useViewMode, useFormDialog, useLinkDialog, useToast, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
-import { chatSuggestedProjectIdAtom, chatPanelModeAtom, chatSessionIdAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
+import { chatSuggestedProjectIdAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import { CreateTaskForm, CreateConstraintForm, EditPlanForm } from '@/components/forms'
 import { UnifiedGraphSection, type GraphBreadcrumb } from '@/components/graph/UnifiedGraphSection'
 import { ImplementDialog } from '@/components/pipeline/ImplementDialog'
@@ -64,7 +63,8 @@ import { usePlanGraphData } from '@/hooks/usePlanGraphData'
 import { CommitList } from '@/components/commits'
 import { PlanRunHistory } from '@/components/runner/PlanRunHistory'
 import { StatsRow } from '@/components/runner/StatsRow'
-import { runnerApi, useRunnerStatus } from '@/services/runner'
+import { LinkedDiscussions } from '@/components/discussions/LinkedDiscussions'
+import { planRunTarget, runnerApi, useRunnerStatus } from '@/services/runner'
 import {
   CommitShaField,
   CompactStepList,
@@ -73,12 +73,11 @@ import {
   DetailSkeleton,
   EmptyLine,
   SectionAddButton,
-  SessionRow,
   TaskMetaLink,
 } from '@/components/tasks/DetailRows'
 import { RowStateLink } from '@/components/tasks/RowStateLink'
 import { StatusBreakdown } from '@/components/tasks/StatusBreakdown'
-import type { Plan, Decision, DecisionStatus, DependencyGraph, Task, Constraint, Step, Commit, PlanStatus, TaskStatus, PaginatedResponse, Project, SessionWithLinks } from '@/types'
+import type { Plan, Decision, DecisionStatus, DependencyGraph, Task, Constraint, Step, Commit, PlanStatus, TaskStatus, PaginatedResponse, Project } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
 
 interface DecisionWithTask extends Decision {
@@ -112,8 +111,6 @@ export function PlanDetailPage() {
   const linkDialog = useLinkDialog()
   const toast = useToast()
   const setSuggestedProjectId = useSetAtom(chatSuggestedProjectIdAtom)
-  const setChatPanelMode = useSetAtom(chatPanelModeAtom)
-  const setChatSessionId = useSetAtom(chatSessionIdAtom)
   const planRefresh = useAtomValue(planRefreshAtom)
   const taskRefresh = useAtomValue(taskRefreshAtom)
   const projectRefresh = useAtomValue(projectRefreshAtom)
@@ -125,10 +122,13 @@ export function PlanDetailPage() {
   const [linkedMilestones, setLinkedMilestones] = useState<Array<{ id: string; title: string; href: string; type: 'workspace' | 'project' }>>([])
   const [implementDialogOpen, setImplementDialogOpen] = useState(false)
   const [implementLoading, setImplementLoading] = useState(false)
-  // Chat sessions linked to this plan
-  const [chatSessions, setChatSessions] = useState<SessionWithLinks[]>([])
-  const [chatSessionsLoading, setChatSessionsLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState('tasks')
+  // Discussions linked to this plan (counted by <LinkedDiscussions> once its tab is open)
+  const [discussionCount, setDiscussionCount] = useState<number | undefined>(undefined)
+  // `#graph` (the Today cockpit's mini graph links here) opens the Graph tab directly.
+  const [activeTab, setActiveTab] = useState(() => {
+    const h = window.location.hash
+    return h === '#graph' ? 'graph' : h === '#runner' ? 'runner' : h === '#discussions' ? 'chat' : 'tasks'
+  })
   // Detect active pipeline run — used to hide/disable implement button + runner tab
   const { isRunning: hasPipelineRunning, snapshot: runnerSnapshot } = useRunnerStatus(planId)
   // Plan graph data for UnifiedGraphSection
@@ -215,27 +215,6 @@ export function PlanDetailPage() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
-
-  // Lazy-load chat sessions when the Conversations tab opens
-  useEffect(() => {
-    if (activeTab !== 'chat' || !planId) return
-    let cancelled = false
-    setChatSessionsLoading(true)
-    plansApi
-      .getSessions(planId)
-      .then((data) => {
-        if (!cancelled) setChatSessions(data || [])
-      })
-      .catch(() => {
-        if (!cancelled) setChatSessions([])
-      })
-      .finally(() => {
-        if (!cancelled) setChatSessionsLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [activeTab, planId])
 
   // Resolve linked milestones (workspace + project milestones that reference this plan)
   useEffect(() => {
@@ -463,7 +442,7 @@ export function PlanDetailPage() {
     { id: 'tasks', label: 'Tasks', icon: <ListChecks className="w-4 h-4" />, count: tasks.length },
     ...(hasGraphNodes ? [{ id: 'graph', label: 'Graph', icon: <GitFork className="w-4 h-4" />, count: (planGraphData.graph?.nodes || []).length }] : []),
     { id: 'runner', label: 'Runner', icon: <Play className="w-4 h-4" /> },
-    { id: 'chat', label: 'Conversations', icon: <MessageCircle className="w-4 h-4" />, count: chatSessions.length || undefined },
+    { id: 'chat', label: 'Discussions', icon: <MessageCircle className="w-4 h-4" />, count: discussionCount || undefined },
     { id: 'artefacts', label: 'Artefacts', icon: <Archive className="w-4 h-4" />, count: commits.length + decisions.length + constraints.length },
   ]
 
@@ -764,30 +743,22 @@ export function PlanDetailPage() {
           </div>
         )}
 
-        {/* ── Conversations ── */}
+        {/* ── Discussions ── */}
         {activeTab === 'chat' && (
-          <Section title="Conversations" count={chatSessionsLoading ? undefined : chatSessions.length}>
-            {chatSessionsLoading ? (
-              <EntityListSkeleton rows={3} />
-            ) : chatSessions.length === 0 ? (
-              <EmptyLine>
-                No conversations linked — they are linked automatically when tasks run via the runner, or manually from the chat panel.
-              </EmptyLine>
-            ) : (
-              <EntityList aria-label="Conversations">
-                {chatSessions.map((sw) => (
-                  <SessionRow
-                    key={sw.session.id}
-                    item={sw}
-                    showTasks
-                    onOpen={() => {
-                      setChatSessionId(sw.session.id)
-                      setChatPanelMode('open')
-                    }}
-                  />
-                ))}
-              </EntityList>
-            )}
+          <Section title="Discussions" count={discussionCount}>
+            <LinkedDiscussions
+              entity={{ type: 'plan', id: plan.id }}
+              projectId={plan.project_id ?? linkedProject?.id}
+              projectSlug={linkedProject?.slug}
+              hideCount
+              onCountChange={setDiscussionCount}
+              resume={{
+                planId: plan.id,
+                project: linkedProject,
+                run: runnerSnapshot?.run_id ? { id: runnerSnapshot.run_id, status: runnerSnapshot.status } : null,
+                taskStatuses: Object.fromEntries(tasks.map((t) => [t.id, t.status])),
+              }}
+            />
           </Section>
         )}
 
@@ -877,8 +848,8 @@ export function PlanDetailPage() {
         onConfirm={async (maxCostUsd: number) => {
           setImplementLoading(true)
           try {
-            const cwd = linkedProject?.root_path || '.'
-            await runnerApi.startRun(plan.id, cwd, linkedProject?.slug, maxCostUsd)
+            const { cwd, projectSlug } = planRunTarget(linkedProject)
+            await runnerApi.startRun(plan.id, cwd, projectSlug, maxCostUsd)
             navigate(runnerPath, { type: 'card-click' })
           } catch (err) {
             // 409 = already running — go to the dashboard anyway

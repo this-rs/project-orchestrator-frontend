@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { NOMENCLATURE, NAV_GROUPS, segmentLabel, entityNoun } from './nomenclature'
+import { NOMENCLATURE, NAV_GROUPS, NAV_TEXT, segmentLabel, entityNoun } from './nomenclature'
 
 describe('nomenclature', () => {
   it('gives every concept a distinct route segment', () => {
@@ -34,11 +34,17 @@ describe('nomenclature', () => {
 
   it('lists every concept that has a page in the sidebar', () => {
     const keys = new Set(NAV_GROUPS.flatMap((g) => g.items))
-    // `insights` lives inside a project, not in the sidebar.
+    // `insights` lives inside a project; `today` is the application root (global chrome),
+    // not an entry of a workspace's sidebar.
     for (const key of Object.keys(NOMENCLATURE)) {
-      if (key === 'insights') continue
+      if (key === 'insights' || key === 'today') continue
       expect(keys.has(key as keyof typeof NOMENCLATURE)).toBe(true)
     }
+  })
+
+  it('keeps Today out of a workspace sidebar: it is the root above the workspaces', () => {
+    expect(NAV_GROUPS.flatMap((g) => g.items)).not.toContain('today')
+    expect(NAV_TEXT.backToToday).toBe('← Today')
   })
 
   it('names segments and entities from the registry', () => {

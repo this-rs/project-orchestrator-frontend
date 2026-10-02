@@ -1,20 +1,104 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useContext } from 'react'
 import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Menu, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
-import { NOMENCLATURE, NAV_GROUPS, segmentLabel, entityNoun } from '@/constants/nomenclature'
+import { Menu, ChevronLeft, ChevronRight, MessageCircle, Plus } from 'lucide-react'
+import { NOMENCLATURE, NAV_GROUPS, NAV_TEXT, segmentLabel, entityNoun } from '@/constants/nomenclature'
 import { sidebarCollapsedAtom, breadcrumbTitleAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, workspaceRefreshAtom } from '@/atoms'
 import { ToastContainer, Branding } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
+import { AttentionBadge } from '@/components/AttentionBadge'
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher'
-import { useMediaQuery, useCrudEventRefresh, useModelCatalogEvents, useDragRegion, useWindowFullscreen, useViewTransition, useWorkspace } from '@/hooks'
+import { useMediaQuery, useCrudEventRefresh, useModelCatalogEvents, useDragRegion, useWindowFullscreen, useViewTransition, useAttentionCountSource, ChromeWorkspaceSlugContext } from '@/hooks'
 import type { NavDirection } from '@/hooks'
 import { isTauri } from '@/services/env'
 import { workspacesApi } from '@/services/workspaces'
 import { workspacePath } from '@/utils/paths'
 import type { Project } from '@/types'
 import { RouteErrorBoundary } from './RouteErrorBoundary'
+
+/** Today, the root of the application (above every workspace). */
+const GLOBAL_TODAY_PATH = '/today'
+
+const navItemClass = (active: boolean) =>
+  `relative flex min-h-9 items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${
+    active
+      ? 'bg-indigo-500/15 text-indigo-400 font-medium border-l-[3px] border-indigo-500 -ml-[3px] glow-primary'
+      : 'text-gray-400 hover:bg-white/[0.06] hover:text-gray-200'
+  }`
+
+/**
+ * Application-level sidebar: Today is the root, the workspaces are listed below it.
+ * Nothing here belongs to a workspace (no projects, plans, milestones, architecture):
+ * it never borrows the last workspace.
+ */
+function GlobalSidebarContent({ collapsed, trafficLightPad }: { collapsed: boolean; trafficLightPad?: boolean }) {
+  const workspaces = useAtomValue(workspacesAtom)
+  const TodayIcon = NOMENCLATURE.today.icon
+  return (
+    <>
+      <div className={`px-2 ${trafficLightPad ? 'pt-7' : ''}`}>
+        <div className={`flex items-center gap-3 py-3 ${collapsed ? 'justify-center px-2' : 'px-3'}`}>
+          <img src="/logo-32.png" alt="PO" className="w-8 h-8 rounded-lg shrink-0" />
+        </div>
+      </div>
+      <nav aria-label="Application" className="flex-1 py-4 overflow-y-auto">
+        <div className="space-y-5 px-2">
+          <NavLink
+            to={GLOBAL_TODAY_PATH}
+            end
+            aria-label={collapsed ? NOMENCLATURE.today.plural : undefined}
+            title={collapsed ? NOMENCLATURE.today.plural : undefined}
+            className={({ isActive }) => navItemClass(isActive)}
+          >
+            <span className="relative flex shrink-0">
+              <TodayIcon className="w-5 h-5" />
+              {collapsed && <AttentionBadge variant="corner" />}
+            </span>
+            {!collapsed && <span>{NOMENCLATURE.today.plural}</span>}
+            {!collapsed && <AttentionBadge />}
+          </NavLink>
+
+          <div>
+            {collapsed ? (
+              <div className="h-px bg-white/[0.06] mx-2 mb-2" />
+            ) : (
+              <div className="text-[10px] uppercase tracking-widest text-gray-500 px-3 mb-1.5">{NAV_TEXT.workspaces}</div>
+            )}
+            <ul className="space-y-0.5">
+              {workspaces.map((ws) => (
+                <li key={ws.id}>
+                  <NavLink
+                    to={workspacePath(ws.slug, '/overview')}
+                    aria-label={collapsed ? ws.name : undefined}
+                    title={collapsed ? ws.name : undefined}
+                    className={() => navItemClass(false)}
+                  >
+                    <span aria-hidden="true" className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-white/[0.06] text-[10px] font-medium uppercase text-gray-300">
+                      {ws.name.slice(0, 1)}
+                    </span>
+                    {!collapsed && <span className="truncate">{ws.name}</span>}
+                  </NavLink>
+                </li>
+              ))}
+              <li>
+                <NavLink
+                  to="/workspace-selector"
+                  aria-label={collapsed ? NAV_TEXT.newWorkspace : undefined}
+                  title={collapsed ? NAV_TEXT.newWorkspace : undefined}
+                  className={() => navItemClass(false)}
+                >
+                  <Plus className="w-5 h-5 shrink-0" />
+                  {!collapsed && <span>{workspaces.length === 0 ? NAV_TEXT.newWorkspace : NAV_TEXT.allWorkspaces}</span>}
+                </NavLink>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </nav>
+    </>
+  )
+}
 
 function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { collapsed: boolean; trafficLightPad?: boolean; wsSlug: string; onNavClick?: (href: string, direction: NavDirection) => void }) {
   const location = useLocation()
@@ -79,11 +163,28 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
 
   return (
     <>
+      {/* Persistent way back to the application root, above the workspace's own name */}
+      <div className={`px-2 ${trafficLightPad ? 'pt-7' : 'pt-2'}`}>
+        <NavLink
+          to={GLOBAL_TODAY_PATH}
+          aria-label={collapsed ? NOMENCLATURE.today.plural : undefined}
+          title={collapsed ? NOMENCLATURE.today.plural : undefined}
+          className={() => `${navItemClass(false)} ${collapsed ? 'justify-center' : ''}`}
+        >
+          <span className="relative flex shrink-0">
+            <NOMENCLATURE.today.icon className="w-5 h-5" />
+            {collapsed && <AttentionBadge variant="corner" />}
+          </span>
+          {!collapsed && <span>{NAV_TEXT.backToToday}</span>}
+          {!collapsed && <AttentionBadge />}
+        </NavLink>
+      </div>
+
       {/* Workspace Switcher (logo + workspace name) */}
-      <WorkspaceSwitcher collapsed={collapsed} trafficLightPad={trafficLightPad} />
+      <WorkspaceSwitcher collapsed={collapsed} />
 
       {/* Navigation */}
-      <nav className="flex-1 py-4 overflow-y-auto">
+      <nav aria-label="Workspace" className="flex-1 py-4 overflow-y-auto">
         <div className="space-y-5 px-2">
           {navGroups.map((group) => (
             <div key={group.label}>
@@ -148,7 +249,14 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
 }
 
 export function MainLayout() {
-  const { slug: wsSlug } = useParams<{ slug: string }>()
+  const { slug: urlSlug } = useParams<{ slug: string }>()
+  // Application-level pages (/today) have no :slug: the chrome is the global one
+  // (Today as root, workspaces below). Only the chat panel borrows a workspace
+  // (chromeSlug); the sidebar and the breadcrumb never do.
+  const chromeSlug = useContext(ChromeWorkspaceSlugContext)
+  const isGlobal = !urlSlug
+  const chatSlug = urlSlug ?? chromeSlug ?? undefined
+  const wsSlug = urlSlug
   const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom)
   const [chatMode, setChatMode] = useAtom(chatPanelModeAtom)
   const [chatWidth] = useAtom(chatPanelWidthAtom)
@@ -160,7 +268,8 @@ export function MainLayout() {
   const wsStatus = useAtomValue(eventBusStatusAtom)
   const isWindowFullscreen = useWindowFullscreen()
   const setWorkspaces = useSetAtom(workspacesAtom)
-  const activeWorkspace = useWorkspace()
+  const workspaces = useAtomValue(workspacesAtom)
+  const breadcrumbWorkspaceName = urlSlug ? workspaces.find((w) => w.slug === urlSlug)?.name : undefined
   const wsRefresh = useAtomValue(workspaceRefreshAtom)
 
   // Show extra top padding on Tauri desktop (non-fullscreen) to clear native traffic lights
@@ -182,6 +291,8 @@ export function MainLayout() {
   // Connect to WebSocket CRUD event bus and auto-refresh pages
   useCrudEventRefresh()
   useModelCatalogEvents()
+  // The single source of the attention badge (every Today entry reads it)
+  useAttentionCountSource()
 
   // Enable native window dragging on the header bar (Tauri desktop)
   const onDragMouseDown = useDragRegion()
@@ -222,7 +333,11 @@ export function MainLayout() {
         } hidden md:flex flex-col bg-surface-raised border-r border-border-subtle transition-all duration-200`}
         style={{ viewTransitionName: 'sidebar' }}
       >
-        <SidebarContent collapsed={collapsed} trafficLightPad={trafficLightPad} wsSlug={currentSlug} onNavClick={handleSidebarNav} />
+        {isGlobal ? (
+          <GlobalSidebarContent collapsed={collapsed} trafficLightPad={trafficLightPad} />
+        ) : (
+          <SidebarContent collapsed={collapsed} trafficLightPad={trafficLightPad} wsSlug={currentSlug} onNavClick={handleSidebarNav} />
+        )}
 
         {/* User menu + Collapse button */}
         <div className={`border-t border-white/[0.06] p-2 ${collapsed ? 'flex flex-col items-center gap-1' : 'flex items-center gap-1'}`}>
@@ -259,7 +374,11 @@ export function MainLayout() {
             mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
-          <SidebarContent collapsed={false} wsSlug={currentSlug} onNavClick={handleSidebarNav} />
+          {isGlobal ? (
+            <GlobalSidebarContent collapsed={false} />
+          ) : (
+            <SidebarContent collapsed={false} wsSlug={currentSlug} onNavClick={handleSidebarNav} />
+          )}
 
           {/* User menu + Close button */}
           <div className="border-t border-white/[0.06] p-2 flex items-center gap-1">
@@ -267,7 +386,8 @@ export function MainLayout() {
             <div className="flex-1" />
             <button
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors"
+              className="flex h-10 w-10 items-center justify-center text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors"
+              aria-label="Fermer le menu"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
@@ -284,10 +404,12 @@ export function MainLayout() {
         <header className="h-16 flex items-center px-4 md:px-6 border-b border-border-subtle bg-surface-raised/80 backdrop-blur-sm" style={{ viewTransitionName: 'header' }} onMouseDown={onDragMouseDown}>
           {/* Hamburger button (mobile only) */}
           <button
-            className="mr-3 p-2 text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors md:hidden"
+            className="relative mr-3 flex h-10 w-10 items-center justify-center text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors md:hidden"
             onClick={() => setMobileMenuOpen(true)}
+            aria-label="Menu"
           >
             <Menu className="w-5 h-5" />
+            <AttentionBadge variant="corner" />
           </button>
 
           {/* WS status dot — before breadcrumb, vertically centered */}
@@ -302,17 +424,17 @@ export function MainLayout() {
             title={`WebSocket: ${wsStatus}`}
           />
 
-          <Breadcrumb pathname={location.pathname} workspaceName={activeWorkspace?.name} />
+          <Breadcrumb pathname={location.pathname} workspaceName={breadcrumbWorkspaceName} />
 
           {/* Chat toggle (only icon in header right) */}
           <div className="ml-auto flex items-center">
-            <button
+            {chatSlug && <button
               onClick={() => setChatMode(chatMode === 'closed' ? 'open' : 'closed')}
               className={`p-2 rounded-lg transition-colors ${chatMode !== 'closed' ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.06]'}`}
               title="Toggle chat"
             >
               <MessageCircle className="w-5 h-5" />
-            </button>
+            </button>}
           </div>
         </header>
 
@@ -332,24 +454,30 @@ export function MainLayout() {
         </div>
       </main>
 
-      <ChatPanel />
+      {/* The chat needs a workspace: with none yet (first launch), there is no chat */}
+      {chatSlug && <ChatPanel />}
       <ToastContainer />
     </div>
   )
 }
 
 /**
- * Breadcrumb that handles workspace-scoped URLs.
- * Shows: WorkspaceName > Section > Entity
- *
- * /workspace/my-ws/plans/abc → My Workspace / Plans / Auth flow (title published by PageHeader)
+ * Breadcrumb: Today is always the root.
+ *   /today                      → Today
+ *   /workspace/my-ws/today      → Today / My Workspace   (Today filtered on that lane)
+ *   /workspace/my-ws/plans/abc  → Today / My Workspace / Plans / Auth flow (title published by PageHeader)
  */
-function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceName?: string }) {
+export function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceName?: string }) {
   const parts = pathname.split('/').filter(Boolean)
 
   // Strip "workspace" and the slug from the display
   const isWorkspaceScoped = parts[0] === 'workspace' && parts.length >= 2
-  const displayParts = isWorkspaceScoped ? parts.slice(2) : parts
+  const scopedParts = isWorkspaceScoped ? parts.slice(2) : parts
+  // The workspace's own Today is the workspace crumb itself: "Today / <workspace>".
+  const isLaneToday = isWorkspaceScoped && scopedParts.length === 1 && scopedParts[0] === NOMENCLATURE.today.segment
+  const isGlobalToday = !isWorkspaceScoped && parts.length === 1 && parts[0] === NOMENCLATURE.today.segment
+  const displayParts = isLaneToday || isGlobalToday ? [] : scopedParts
+  const rootIsLast = isGlobalToday || parts.length === 0
   const basePath = isWorkspaceScoped ? `/workspace/${parts[1]}` : ''
 
   // Title published by the detail page's PageHeader (see breadcrumbTitleAtom).
@@ -373,13 +501,24 @@ function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceNa
 
   return (
     <nav className="flex items-center gap-2 text-sm min-w-0">
-      {/* Workspace name as first segment */}
+      {/* Today, the application root, as first segment */}
       <NavLink
-        to={basePath || '/'}
-        className={`shrink-0 truncate max-w-[140px] sm:max-w-[200px] ${displayParts.length === 0 ? 'text-gray-200 font-medium' : 'text-gray-400 hover:text-gray-200'}`}
+        to="/today"
+        className={`shrink-0 leading-10 ${rootIsLast ? 'text-gray-200 font-medium' : 'text-gray-400 hover:text-gray-200'}`}
       >
-        {workspaceName || 'Home'}
+        {NOMENCLATURE.today.plural}
       </NavLink>
+      {isWorkspaceScoped && (
+        <span className="flex items-center gap-2 min-w-0">
+          <span className="text-gray-600 shrink-0">/</span>
+          <NavLink
+            to={isLaneToday ? `${basePath}/today` : basePath}
+            className={`block leading-10 truncate max-w-[120px] sm:max-w-[200px] ${displayParts.length === 0 ? 'text-gray-200 font-medium' : 'text-gray-400 hover:text-gray-200'}`}
+          >
+            {workspaceName || parts[1]}
+          </NavLink>
+        </span>
+      )}
       {/* Ellipsis on mobile for long paths */}
       {displayParts.length > 2 && (
         <span className="flex items-center gap-2 min-w-0 sm:hidden">
@@ -401,7 +540,7 @@ function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceNa
             <span className="text-gray-600 shrink-0">/</span>
             <NavLink
               to={fullPath}
-              className={`truncate max-w-[120px] sm:max-w-[200px] md:max-w-none ${
+              className={`block leading-10 truncate max-w-[120px] sm:max-w-[200px] md:max-w-none ${
                 isLast
                   ? 'text-gray-200 font-medium'
                   : 'text-gray-400 hover:text-gray-200'

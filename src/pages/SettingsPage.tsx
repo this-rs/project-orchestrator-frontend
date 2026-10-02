@@ -15,7 +15,7 @@
  * prior browser history. The return URL comes from:
  * 1. `settingsReturnUrlAtom` — set by UserMenu before navigating here
  * 2. `sessionStorage['settings_return_url']` — set by the tray handler in Rust
- * 3. Fallback: `/` (which redirects to the last workspace via RootRedirect)
+ * 3. Fallback: `/` (which opens Today via RootRedirect)
  */
 
 import { useCallback } from 'react'

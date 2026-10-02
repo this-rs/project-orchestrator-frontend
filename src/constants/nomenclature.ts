@@ -244,7 +244,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
   today: {
     singular: 'Today',
     plural: 'Today',
-    description: 'What is moving, what is stuck, and what to pick up next.',
+    description: 'Tout ce qui est en cours, et par quoi commencer.',
     icon: Sun,
     segment: 'today',
     profile: 'all',
@@ -283,14 +283,29 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
   },
 }
 
-/** Sidebar structure. A group reads as a stage of the work, not as a data type. */
+/**
+ * Application-level chrome (above the workspaces). Today is the root of the
+ * application, not an entry of a workspace's sidebar: it is NOT in NAV_GROUPS.
+ */
+export const NAV_TEXT = {
+  /** Section of the global sidebar that lists the workspaces. */
+  workspaces: 'Workspaces',
+  allWorkspaces: 'Tous les workspaces',
+  newWorkspace: 'Nouveau workspace',
+  /** Persistent first item of a workspace sidebar. */
+  backToToday: `← ${NOMENCLATURE.today.plural}`,
+  attentionOne: 'demande en attente',
+  attentionMany: 'demandes en attente',
+} as const
+
+/** Sidebar structure of ONE workspace. A group reads as a stage of the work, not as a data type. */
 export interface NavGroup {
   label: string
   items: ConceptKey[]
 }
 
 export const NAV_GROUPS: NavGroup[] = [
-  { label: 'Focus', items: ['overview', 'today', 'trajectory'] },
+  { label: 'Focus', items: ['overview', 'trajectory'] },
   { label: 'Plan', items: ['projects', 'objectives', 'plans', 'tasks'] },
   { label: 'Design', items: ['architecture', 'decisions', 'proposals', 'documents'] },
   { label: 'Build', items: ['code', 'featureGraphs'] },

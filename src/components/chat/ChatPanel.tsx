@@ -1,3 +1,4 @@
+import { AttachSessionButton } from '@/components/discussions/AttachSessionButton'
 import { useAtom } from 'jotai'
 import { useChatUrlSync } from '@/hooks/useChatUrlSync'
 import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom } from '@/atoms'
@@ -396,6 +397,10 @@ export function ChatPanel() {
               >
                 <Plus className="w-4 h-4" />
               </button>
+              {/* Link this conversation to a plan or a task of its project */}
+              {!isNewConversation && chat.sessionId && (
+                <AttachSessionButton variant="icon" sessionId={chat.sessionId} projectSlug={chat.sessionMeta?.projectSlug} />
+              )}
               {/* Agent Tree toggle — visible when session has children */}
               {hasChildren && chat.sessionId && (
                 <button
@@ -621,6 +626,10 @@ export function ChatPanel() {
           >
             <Plus className="w-4 h-4" />
           </button>
+          {/* Link this conversation to a plan or a task of its project */}
+          {!isNewConversation && chat.sessionId && (
+            <AttachSessionButton variant="icon" sessionId={chat.sessionId} projectSlug={chat.sessionMeta?.projectSlug} />
+          )}
           {/* Agent Tree toggle — visible when session has children */}
           {hasChildren && chat.sessionId && (
             <button

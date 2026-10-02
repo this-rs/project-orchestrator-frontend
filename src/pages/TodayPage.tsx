@@ -1,146 +1,143 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ClipboardList } from 'lucide-react'
-import { tasksApi } from '@/services'
-import {
-  EmptyState,
-  EntityListSkeleton,
-  EntityRow,
-  ErrorState,
-  ListGroup,
-  PageShell,
-  PriorityText,
-  RelativeTime,
-  StatusDot,
-  StatusMenu,
-  hitArea,
-  inlineLink,
-  rowInteractive,
-} from '@/components/ui'
-import { useToast, useWorkspaceSlug } from '@/hooks'
-import type { TaskStatus, TaskWithPlan } from '@/types'
+import { useCallback, type ComponentProps } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useAtomValue } from 'jotai'
+import { workspacesAtom } from '@/atoms'
+import { PageShell } from '@/components/ui'
+import { TodayView, type TodaySource } from '@/components/today/TodayView'
+import { useAttention } from '@/hooks/useAttention'
+import { attentionApi } from '@/services/attention'
 import { workspacePath } from '@/utils/paths'
-import { NOMENCLATURE } from '@/constants/nomenclature'
+import { LaneChips } from '@/components/today/LaneChips'
+import { TODAY_TEXT } from '@/components/today/bands'
+import { LinkedDiscussions } from '@/components/discussions/LinkedDiscussions'
+import { AttachSessionButton } from '@/components/discussions/AttachSessionButton'
+import type { AttentionThread } from '@/types/attention'
 
-/** Sections in reading order: what moves, what is stuck, what to pick up. */
-const SECTIONS: { key: TaskStatus; title: string; limit: number }[] = [
-  { key: 'in_progress', title: 'In progress', limit: 50 },
-  { key: 'blocked', title: 'Blocked', limit: 50 },
-  { key: 'pending', title: 'Up next', limit: 12 },
-]
-
-type Buckets = Record<string, { items: TaskWithPlan[]; total: number }>
+/** Query parameter holding the lane filter on the cross-workspace entry. */
+export const LANE_PARAM = 'workspace'
+const ALL_LANES = ''
 
 /**
- * Today — the one screen to open in the morning.
- * Not a new data model: it is the task list cut by what needs a decision now.
+ * Lane filter, reflected in the URL so it can be shared and Back restores it.
+ * - /workspace/:slug/today : the path slug is the filter (the familiar entry);
+ *   widening goes to /today, picking another lane to that lane's entry.
+ * - /today                 : `?workspace=<slug>`, absent = every workspace.
+ * Unknown slugs (once workspaces are loaded) are ignored, i.e. every workspace.
  */
-export function TodayPage() {
-  const wsSlug = useWorkspaceSlug()
-  const toast = useToast()
-  const [buckets, setBuckets] = useState<Buckets>({})
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+function useLaneFilter() {
+  const { slug: pathSlug } = useParams<{ slug: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const workspaces = useAtomValue(workspacesAtom)
 
-  const load = useCallback(async () => {
-    setError(null)
-    try {
-      const results = await Promise.all(
-        SECTIONS.map((s) =>
-          tasksApi.list({
-            workspace_slug: wsSlug,
-            status: s.key,
-            limit: s.limit,
-            sort_by: 'priority',
-            sort_order: 'desc',
-          }),
-        ),
-      )
-      const next: Buckets = {}
-      SECTIONS.forEach((s, i) => {
-        next[s.key] = { items: results[i].items ?? [], total: results[i].total ?? results[i].items?.length ?? 0 }
-      })
-      setBuckets(next)
-    } catch {
-      setError('Failed to load tasks')
-    } finally {
-      setLoading(false)
-    }
-  }, [wsSlug])
+  const requested = pathSlug ?? searchParams.get(LANE_PARAM) ?? null
+  const known = !requested || workspaces.length === 0 || workspaces.some((w) => w.slug === requested)
+  const lane = known ? requested : null
 
-  useEffect(() => {
-    setLoading(true)
-    load()
-  }, [load])
-
-  const changeStatus = useCallback(
-    async (task: TaskWithPlan, status: TaskStatus) => {
-      try {
-        await tasksApi.update(task.id, { status })
-        toast.success('Status updated')
-        await load()
-      } catch {
-        toast.error('Failed to update status')
+  const setLane = useCallback(
+    (next: string) => {
+      if (pathSlug) {
+        const base = next ? workspacePath(next, '/today') : '/today'
+        navigate(base)
+      } else {
+        setSearchParams((prev) => {
+          const n = new URLSearchParams(prev)
+          if (next) n.set(LANE_PARAM, next)
+          else n.delete(LANE_PARAM)
+          return n
+        })
       }
     },
-    [load, toast],
+    [pathSlug, navigate, setSearchParams],
   )
 
-  const empty = SECTIONS.every((s) => (buckets[s.key]?.items.length ?? 0) === 0)
+  return { lane, setLane, workspaces }
+}
+
+// ---------------------------------------------------------------------------
+// Source: the live API
+// ---------------------------------------------------------------------------
+
+/** Live: `GET /api/attention` + realtime refetch + optimistic actions (useAttention). */
+function useLiveSource(lane: string | null): TodaySource {
+  const a = useAttention({ workspace: lane })
+  const { refresh } = a
+  const sendMessage = useCallback(
+    async (sessionId: string, text: string) => {
+      await attentionApi.sendMessage(sessionId, text)
+      void refresh()
+    },
+    [refresh],
+  )
+  return {
+    status: a.status,
+    data: a.data,
+    error: a.error,
+    refresh: () => void refresh(),
+    switching: a.switchingLane,
+    notices: a.notices,
+    drafts: a.drafts,
+    setDraft: a.setDraft,
+    answerPermission: a.answerPermission,
+    sendReply: a.sendReply,
+    resumeRun: a.resumeRun,
+    sendMessage,
+  }
+}
+
+function LiveToday(props: Omit<ComponentProps<typeof TodayView>, 'source'>) {
+  const source = useLiveSource(props.lane)
+  return <TodayView source={source} {...props} />
+}
+
+// ---------------------------------------------------------------------------
+// Slots: the discussion tree of a plan's thread, "Rattacher à…" of a thread-less session
+// ---------------------------------------------------------------------------
+
+/** The thread's plan is the entity of the tree; without a plan there is nothing to show (no button). */
+function renderDiscussions(thread: AttentionThread) {
+  if (!thread.plan) return null
+  return (
+    <LinkedDiscussions
+      entity={{ type: 'plan', id: thread.plan.id }}
+      workspaceSlug={thread.workspace}
+      resume={{ planId: thread.plan.id, run: thread.run ? { id: thread.run.id, status: thread.run.status } : null }}
+    />
+  )
+}
+
+function renderAttach({ sessionId, workspace }: { sessionId: string; workspace: string }) {
+  return <AttachSessionButton sessionId={sessionId} workspaceSlug={workspace} />
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
+/**
+ * Today: the day's view across every workspace. A summary line, one recommendation
+ * ("Commence par ça"), then À traiter, À reprendre, En cours (by plan) and À suivre.
+ * The workspace is a filter (chips, kept in the URL), not the axis of the page.
+ */
+export function TodayPage() {
+  const { lane, setLane, workspaces } = useLaneFilter()
+  const clearLane = useCallback(() => setLane(ALL_LANES), [setLane])
+
+  const laneName = lane ? (workspaces.find((w) => w.slug === lane)?.name ?? lane) : null
+  const plansSlug = lane ?? workspaces[0]?.slug ?? null
 
   return (
-    <PageShell title={NOMENCLATURE.today.plural} description={NOMENCLATURE.today.description} width="wide">
-      {loading ? (
-        <EntityListSkeleton rows={6} />
-      ) : error ? (
-        <ErrorState description={error} onRetry={load} />
-      ) : empty ? (
-        <EmptyState
-          title="Nothing on your plate"
-          description="No task is in progress, blocked or waiting. Create a plan to get started."
-        />
-      ) : (
-        <div className="space-y-6">
-          {SECTIONS.map((s) => {
-            const bucket = buckets[s.key]
-            if (!bucket || bucket.items.length === 0) return null
-            return (
-              <ListGroup key={s.key} title={s.title} count={bucket.total}>
-                  {bucket.items.map((task) => (
-                    <EntityRow
-                      key={task.id}
-                      title={task.title || task.description}
-                      href={workspacePath(wsSlug, `/tasks/${task.id}`)}
-                      leading={<StatusDot kind="task" status={task.status} />}
-                      trailing={<RelativeTime date={task.updated_at ?? task.created_at} />}
-                      meta={[
-                        <StatusMenu
-                          key="status"
-                          kind="task"
-                          status={task.status}
-                          onChange={(next) => changeStatus(task, next)}
-                        />,
-                        <PriorityText key="p" priority={task.priority} />,
-                        task.plan_id && task.plan_title ? (
-                          <Link
-                            key="plan"
-                            to={workspacePath(wsSlug, `/plans/${task.plan_id}`)}
-                            title={`Plan: ${task.plan_title}`}
-                            className={`${rowInteractive} ${hitArea} ${inlineLink} inline-flex items-center gap-1 min-w-0`}
-                          >
-                            <ClipboardList className="w-3 h-3 shrink-0" aria-hidden="true" />
-                            <span className="truncate max-w-[14rem]">{task.plan_title}</span>
-                          </Link>
-                        ) : null,
-                        task.assigned_to ? <span key="who">@{task.assigned_to}</span> : null,
-                      ]}
-                    />
-                  ))}
-              </ListGroup>
-            )
-          })}
-        </div>
-      )}
+    <PageShell title={TODAY_TEXT.title} width="full">
+      {/* No `key` on the lane: remounting flashed every skeleton on each chip tap. The old data stays, dimmed and inert, until the new lane lands. */}
+      <LiveToday
+        lane={lane}
+        plansSlug={plansSlug}
+        onClearLane={clearLane}
+        lanePicker={<LaneChips lanes={workspaces} active={lane} onSelect={setLane} />}
+        laneNote={laneName ? TODAY_TEXT.laneNote(laneName) : null}
+        renderDiscussions={renderDiscussions}
+        renderAttach={renderAttach}
+      />
     </PageShell>
   )
 }

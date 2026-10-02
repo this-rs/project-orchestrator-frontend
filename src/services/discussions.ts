@@ -17,6 +17,12 @@ export interface DiscussionNodeMetadata {
   run_id?: string
   /** Task id if spawned by a runner */
   task_id?: string
+  /** How the session reached the entity it is listed under: 'runner' | 'manual' | 'transitive' */
+  source?: string
+  /** True when the entity route listed this session itself (false: only found as a child of a listed one) */
+  linked?: boolean
+  /** One useful line from the former flat list (linked tasks, preview) */
+  detail?: string
 }
 
 export interface DiscussionNode {
