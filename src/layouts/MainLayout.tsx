@@ -494,7 +494,7 @@ export function Breadcrumb({ pathname, workspaceName }: { pathname: string; work
       {isWorkspaceScoped && (
         <span className="flex items-center gap-2 min-w-0">
           <NavLink
-            to={isLaneToday ? `${basePath}/today` : basePath}
+            to={`${basePath}/today`}
             className={`block leading-10 truncate max-w-[120px] sm:max-w-[200px] ${displayParts.length === 0 ? 'text-gray-200 font-medium' : 'text-gray-400 hover:text-gray-200'}`}
           >
             {workspaceName || parts[1]}

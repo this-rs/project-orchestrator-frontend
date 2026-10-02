@@ -317,6 +317,29 @@ export function WorkspaceDetailPage() {
         </section>
       )}
 
+      {/* ── Health: key numbers + breakdown ── */}
+      <Section title="Health" action={intelReady ? <IntelRefreshButton data={intelligence} /> : undefined}>
+        {intelReady && intelligence.summary ? (
+          <div className="space-y-2">
+            <IntelStatGrid summary={intelligence.summary} />
+            <IntelHealthBreakdown data={intelligence} />
+          </div>
+        ) : (
+          <IntelFallback intelligence={intelligence} />
+        )}
+      </Section>
+
+      {/* ── Graph (visual, collapsed on phones — heavy WebGL) ── */}
+      {slug && (
+        <Section title="Graph" collapsible defaultOpen={!isMobile}>
+          <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+            <Suspense fallback={graphFallback}>
+              <WorkspaceGraphPage workspaceSlug={slug} embedded />
+            </Suspense>
+          </div>
+        </Section>
+      )}
+
       {/* ── Attention needed ── */}
       {intelReady && <IntelAttention data={intelligence} />}
 
@@ -452,29 +475,6 @@ export function WorkspaceDetailPage() {
           </EntityList>
         )}
       </Section>
-
-      {/* ── Health: key numbers + breakdown ── */}
-      <Section title="Health" action={intelReady ? <IntelRefreshButton data={intelligence} /> : undefined}>
-        {intelReady && intelligence.summary ? (
-          <div className="space-y-2">
-            <IntelStatGrid summary={intelligence.summary} />
-            <IntelHealthBreakdown data={intelligence} />
-          </div>
-        ) : (
-          <IntelFallback intelligence={intelligence} />
-        )}
-      </Section>
-
-      {/* ── Graph (visual, collapsed on phones — heavy WebGL) ── */}
-      {slug && (
-        <Section title="Graph" collapsible defaultOpen={!isMobile}>
-          <div className="rounded-xl border border-white/[0.06] overflow-hidden">
-            <Suspense fallback={graphFallback}>
-              <WorkspaceGraphPage workspaceSlug={slug} embedded />
-            </Suspense>
-          </div>
-        </Section>
-      )}
 
       {/* ── Timeline (collapsed on phones) ── */}
       {slug && (
