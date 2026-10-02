@@ -3,17 +3,22 @@ import type { ContentBlock } from '@/types'
 
 interface InputRequestBlockProps {
   block: ContentBlock
-  onRespond: (requestId: string, response: string) => void
+  onRespond: (requestId: string, response: string) => boolean | void
   disabled?: boolean
 }
 
 export function InputRequestBlock({ block, onRespond, disabled }: InputRequestBlockProps) {
   const [value, setValue] = useState('')
+  const [sendFailed, setSendFailed] = useState(false)
   const requestId = block.metadata?.request_id as string
 
   const handleSubmit = () => {
     if (!value.trim()) return
-    onRespond(requestId, value.trim())
+    if (onRespond(requestId, value.trim()) === false) {
+      setSendFailed(true)
+      return
+    }
+    setSendFailed(false)
     setValue('')
   }
 
@@ -38,6 +43,11 @@ export function InputRequestBlock({ block, onRespond, disabled }: InputRequestBl
           Send
         </button>
       </div>
+      {sendFailed && (
+        <p role="alert" className="mt-1.5 text-xs text-red-400">
+          Not sent: connection lost. Your answer is kept, try again once reconnected.
+        </p>
+      )}
     </div>
   )
 }
