@@ -25,14 +25,16 @@ by hand in a page: `<PageShell title={NOMENCLATURE.plans.plural}>`.
 - New concept or new page = one entry in the registry, then it appears in the
   menu and the breadcrumb. Every route must be reachable from the sidebar.
 - **Today is the root of the application, above the workspaces.** It is not in
-  `NAV_GROUPS` (the sidebar of ONE workspace). The global chrome (`/`, `/today`)
-  lists Today first, then the workspaces, and holds nothing that belongs to a
-  workspace. Inside a workspace the sidebar starts with a persistent
-  `NAV_TEXT.backToToday` ("← Today"), above the workspace name. The breadcrumb
-  root is always "Today" (`Today / <workspace> / …`; the lane view
-  `/workspace/:slug/today` reads `Today / <workspace>`). `/` opens Today.
+  `NAV_GROUPS` (the sidebar of ONE workspace) and it is not repeated in any menu:
+  its icon sits at the left of the header on every page (one click, `/today`),
+  and it is the current page (`aria-current`) on `/today`. The global chrome
+  (`/`, `/today`) lists the workspaces under the product name ("Project
+  Orchestrator", next to the logo) and holds nothing that belongs to a workspace.
+  The breadcrumb starts at the workspace (`<workspace> / Plans / …`; the lane view
+  `/workspace/:slug/today` reads `<workspace>`); on `/today` it is empty, the page
+  names itself. `/` opens Today.
 - **Attention badge**: the count of band 1 (waiting on you) is shown on every
-  Today entry (global sidebar, "← Today", hamburger) by `<AttentionBadge>`,
+  Today entry (the header icon) by `<AttentionBadge>`,
   read from `attentionCountAtom`. ONE source feeds it (`useAttentionCountSource`,
   mounted once in `MainLayout`); a page never fetches it. 0 or an error: no badge;
   above 99: "99+"; the aria-label always carries the full count.

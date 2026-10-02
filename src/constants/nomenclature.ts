@@ -293,7 +293,6 @@ export const NAV_TEXT = {
   allWorkspaces: 'Tous les workspaces',
   newWorkspace: 'Nouveau workspace',
   /** Persistent first item of a workspace sidebar. */
-  backToToday: `← ${NOMENCLATURE.today.plural}`,
   attentionOne: 'demande en attente',
   attentionMany: 'demandes en attente',
 } as const

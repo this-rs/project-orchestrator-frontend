@@ -8,6 +8,7 @@ import { ToastContainer, Branding } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
 import { AttentionBadge } from '@/components/AttentionBadge'
+import { focusRing } from '@/components/ui/classes'
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher'
 import { useMediaQuery, useCrudEventRefresh, useModelCatalogEvents, useDragRegion, useWindowFullscreen, useViewTransition, useAttentionCountSource, ChromeWorkspaceSlugContext } from '@/hooks'
 import type { NavDirection } from '@/hooks'
@@ -16,6 +17,9 @@ import { workspacesApi } from '@/services/workspaces'
 import { workspacePath } from '@/utils/paths'
 import type { Project } from '@/types'
 import { RouteErrorBoundary } from './RouteErrorBoundary'
+
+/** Product name shown next to the logo of the application-level sidebar. */
+const PRODUCT_NAME = 'Project Orchestrator'
 
 /** Today, the root of the application (above every workspace). */
 const GLOBAL_TODAY_PATH = '/today'
@@ -28,37 +32,22 @@ const navItemClass = (active: boolean) =>
   }`
 
 /**
- * Application-level sidebar: Today is the root, the workspaces are listed below it.
+ * Application-level sidebar: the workspaces. Today is one click away in the header (its icon).
  * Nothing here belongs to a workspace (no projects, plans, milestones, architecture):
  * it never borrows the last workspace.
  */
 function GlobalSidebarContent({ collapsed, trafficLightPad }: { collapsed: boolean; trafficLightPad?: boolean }) {
   const workspaces = useAtomValue(workspacesAtom)
-  const TodayIcon = NOMENCLATURE.today.icon
   return (
     <>
       <div className={`px-2 ${trafficLightPad ? 'pt-7' : ''}`}>
         <div className={`flex items-center gap-3 py-3 ${collapsed ? 'justify-center px-2' : 'px-3'}`}>
           <img src="/logo-32.png" alt="PO" className="w-8 h-8 rounded-lg shrink-0" />
+          {!collapsed && <span className="min-w-0 truncate text-sm font-semibold text-gray-100">{PRODUCT_NAME}</span>}
         </div>
       </div>
       <nav aria-label="Application" className="flex-1 py-4 overflow-y-auto">
         <div className="space-y-5 px-2">
-          <NavLink
-            to={GLOBAL_TODAY_PATH}
-            end
-            aria-label={collapsed ? NOMENCLATURE.today.plural : undefined}
-            title={collapsed ? NOMENCLATURE.today.plural : undefined}
-            className={({ isActive }) => navItemClass(isActive)}
-          >
-            <span className="relative flex shrink-0">
-              <TodayIcon className="w-5 h-5" />
-              {collapsed && <AttentionBadge variant="corner" />}
-            </span>
-            {!collapsed && <span>{NOMENCLATURE.today.plural}</span>}
-            {!collapsed && <AttentionBadge />}
-          </NavLink>
-
           <div>
             {collapsed ? (
               <div className="h-px bg-white/[0.06] mx-2 mb-2" />
@@ -163,22 +152,7 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
 
   return (
     <>
-      {/* Persistent way back to the application root, above the workspace's own name */}
-      <div className={`px-2 ${trafficLightPad ? 'pt-7' : 'pt-2'}`}>
-        <NavLink
-          to={GLOBAL_TODAY_PATH}
-          aria-label={collapsed ? NOMENCLATURE.today.plural : undefined}
-          title={collapsed ? NOMENCLATURE.today.plural : undefined}
-          className={() => `${navItemClass(false)} ${collapsed ? 'justify-center' : ''}`}
-        >
-          <span className="relative flex shrink-0">
-            <NOMENCLATURE.today.icon className="w-5 h-5" />
-            {collapsed && <AttentionBadge variant="corner" />}
-          </span>
-          {!collapsed && <span>{NAV_TEXT.backToToday}</span>}
-          {!collapsed && <AttentionBadge />}
-        </NavLink>
-      </div>
+      {trafficLightPad && <div className="pt-7" />}
 
       {/* Workspace Switcher (logo + workspace name) */}
       <WorkspaceSwitcher collapsed={collapsed} />
@@ -409,8 +383,23 @@ export function MainLayout() {
             aria-label="Menu"
           >
             <Menu className="w-5 h-5" />
-            <AttentionBadge variant="corner" />
           </button>
+
+          {/* Today: one click from anywhere. It stands in for the breadcrumb root and the sidebar entry. */}
+          <NavLink
+            to={GLOBAL_TODAY_PATH}
+            end
+            aria-label={NOMENCLATURE.today.plural}
+            title={NOMENCLATURE.today.plural}
+            className={({ isActive }) =>
+              `${focusRing} relative mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                isActive ? 'bg-white/[0.08] text-indigo-300' : 'text-gray-400 hover:bg-white/[0.06] hover:text-gray-200'
+              }`
+            }
+          >
+            <NOMENCLATURE.today.icon className="w-5 h-5" />
+            <AttentionBadge variant="corner" />
+          </NavLink>
 
           {/* WS status dot — before breadcrumb, vertically centered */}
           <span
@@ -462,10 +451,10 @@ export function MainLayout() {
 }
 
 /**
- * Breadcrumb: Today is always the root.
- *   /today                      → Today
- *   /workspace/my-ws/today      → Today / My Workspace   (Today filtered on that lane)
- *   /workspace/my-ws/plans/abc  → Today / My Workspace / Plans / Auth flow (title published by PageHeader)
+ * Breadcrumb: starts at the workspace. Today is not a crumb: its icon sits next to it in the header.
+ *   /today                      → (nothing: the page names itself)
+ *   /workspace/my-ws/today      → My Workspace   (Today filtered on that lane)
+ *   /workspace/my-ws/plans/abc  → My Workspace / Plans / Auth flow (title published by PageHeader)
  */
 export function Breadcrumb({ pathname, workspaceName }: { pathname: string; workspaceName?: string }) {
   const parts = pathname.split('/').filter(Boolean)
@@ -473,11 +462,10 @@ export function Breadcrumb({ pathname, workspaceName }: { pathname: string; work
   // Strip "workspace" and the slug from the display
   const isWorkspaceScoped = parts[0] === 'workspace' && parts.length >= 2
   const scopedParts = isWorkspaceScoped ? parts.slice(2) : parts
-  // The workspace's own Today is the workspace crumb itself: "Today / <workspace>".
+  // The workspace's own Today is the workspace crumb itself.
   const isLaneToday = isWorkspaceScoped && scopedParts.length === 1 && scopedParts[0] === NOMENCLATURE.today.segment
   const isGlobalToday = !isWorkspaceScoped && parts.length === 1 && parts[0] === NOMENCLATURE.today.segment
   const displayParts = isLaneToday || isGlobalToday ? [] : scopedParts
-  const rootIsLast = isGlobalToday || parts.length === 0
   const basePath = isWorkspaceScoped ? `/workspace/${parts[1]}` : ''
 
   // Title published by the detail page's PageHeader (see breadcrumbTitleAtom).
@@ -499,18 +487,12 @@ export function Breadcrumb({ pathname, workspaceName }: { pathname: string; work
     'feature-graphs': 'feature-graphs',
   }
 
+  if (isGlobalToday || parts.length === 0) return null
+
   return (
     <nav className="flex items-center gap-2 text-sm min-w-0">
-      {/* Today, the application root, as first segment */}
-      <NavLink
-        to="/today"
-        className={`shrink-0 leading-10 ${rootIsLast ? 'text-gray-200 font-medium' : 'text-gray-400 hover:text-gray-200'}`}
-      >
-        {NOMENCLATURE.today.plural}
-      </NavLink>
       {isWorkspaceScoped && (
         <span className="flex items-center gap-2 min-w-0">
-          <span className="text-gray-600 shrink-0">/</span>
           <NavLink
             to={isLaneToday ? `${basePath}/today` : basePath}
             className={`block leading-10 truncate max-w-[120px] sm:max-w-[200px] ${displayParts.length === 0 ? 'text-gray-200 font-medium' : 'text-gray-400 hover:text-gray-200'}`}
@@ -522,7 +504,7 @@ export function Breadcrumb({ pathname, workspaceName }: { pathname: string; work
       {/* Ellipsis on mobile for long paths */}
       {displayParts.length > 2 && (
         <span className="flex items-center gap-2 min-w-0 sm:hidden">
-          <span className="text-gray-600 shrink-0">/</span>
+          {isWorkspaceScoped && <span className="text-gray-600 shrink-0">/</span>}
           <span className="text-gray-500">...</span>
         </span>
       )}
@@ -537,7 +519,7 @@ export function Breadcrumb({ pathname, workspaceName }: { pathname: string; work
           : `${basePath}/${displayParts.slice(0, index + 1).join('/')}`
         return (
           <span key={`${part}-${index}`} className={`flex items-center gap-2 min-w-0 ${hideOnMobile ? 'hidden sm:flex' : ''}`}>
-            <span className="text-gray-600 shrink-0">/</span>
+            {(isWorkspaceScoped || index > 0) && <span className="text-gray-600 shrink-0">/</span>}
             <NavLink
               to={fullPath}
               className={`block leading-10 truncate max-w-[120px] sm:max-w-[200px] md:max-w-none ${
