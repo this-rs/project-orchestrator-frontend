@@ -197,6 +197,17 @@ describe('WorkDashboard', () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Le plan a déjà un run actif'))
   })
 
+  it('never asks the API for more than it accepts (it answers "limit cannot exceed 100")', async () => {
+    seed({ plans: [plan('a', 1)] })
+    renderDash()
+    await screen.findByTestId('work-dashboard')
+    const limits = [...plansList.mock.calls, ...tasksList.mock.calls, ...listAllRuns.mock.calls].map(
+      ([params]) => (params as { limit?: number }).limit,
+    )
+    expect(limits.length).toBeGreaterThanOrEqual(5)
+    for (const l of limits) expect(l).toBeLessThanOrEqual(100)
+  })
+
   it('lists blocked tasks', async () => {
     seed({ plans: [plan('a', 1)], blocked: [listed(task('bl', 'blocked'), 'a')] })
     renderDash()

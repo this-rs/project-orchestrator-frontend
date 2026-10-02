@@ -10,6 +10,9 @@ import { buildDashboard, type DashboardInput, type WorkDashboard, type WorkTask 
 
 const POLL_MS = 30_000
 
+/** The API rejects any `limit` above 100 ("limit cannot exceed 100"): ask for at most that. */
+export const API_MAX_LIMIT = 100
+
 type Raw = Omit<DashboardInput, 'dayIds' | 'projects' | 'now'>
 
 export type WorkStatus = 'loading' | 'ready' | 'error'
@@ -29,11 +32,11 @@ export interface WorkDashboardState {
 async function loadWorkspace(slug: string) {
   const ws = { workspace_slug: slug }
   const [plans, inProgress, blocked, pending, runs] = await Promise.all([
-    plansApi.list({ status: 'in_progress', limit: 50, sort_by: 'priority', sort_order: 'desc', ...ws }),
-    tasksApi.list({ status: 'in_progress', limit: 100, ...ws }),
-    tasksApi.list({ status: 'blocked', limit: 100, ...ws }),
-    tasksApi.list({ status: 'pending', limit: 200, sort_by: 'priority', sort_order: 'desc', ...ws }),
-    runnerApi.listAllRuns({ limit: 100, ...ws }).catch((): PlanRun[] => []),
+    plansApi.list({ status: 'in_progress', limit: API_MAX_LIMIT, sort_by: 'priority', sort_order: 'desc', ...ws }),
+    tasksApi.list({ status: 'in_progress', limit: API_MAX_LIMIT, ...ws }),
+    tasksApi.list({ status: 'blocked', limit: API_MAX_LIMIT, ...ws }),
+    tasksApi.list({ status: 'pending', limit: API_MAX_LIMIT, sort_by: 'priority', sort_order: 'desc', ...ws }),
+    runnerApi.listAllRuns({ limit: API_MAX_LIMIT, ...ws }).catch((): PlanRun[] => []),
   ])
   return {
     slug,
