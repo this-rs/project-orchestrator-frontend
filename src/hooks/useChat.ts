@@ -15,6 +15,7 @@ import {
   appendBackgroundActivity,
   workflowEventToTick,
   sessionErrorText,
+  toolsCancelledText,
   type BackgroundTick,
 } from '@/utils/chatAssembly'
 import type { BackgroundActivityMetadata, BackgroundOutputEntry } from '@/types'
@@ -1017,6 +1018,19 @@ export function useChat() {
           if (!event.replaying) {
             setIsStreaming(true) // backend will retry shortly
           }
+          break
+        }
+
+        case 'tools_cancelled': {
+          const data = event.replaying
+            ? (event as { data?: Record<string, unknown> }).data ?? event
+            : event
+          lastMsg.blocks.push({
+            id: nextBlockId(),
+            type: 'error',
+            content: toolsCancelledText(data as { killed_count?: number; requested_by?: string }),
+            metadata: withParent(undefined, getParentToolUseId(event)),
+          })
           break
         }
 
