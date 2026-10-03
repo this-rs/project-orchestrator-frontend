@@ -18,11 +18,10 @@ export function TodayLogoLink({ className = '' }: { className?: string }) {
       end
       aria-label={NOMENCLATURE.today.plural}
       title={NOMENCLATURE.today.plural}
-      className={({ isActive }) =>
-        `${focusRing} relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-shadow ${
-          isActive ? 'ring-2 ring-indigo-400/70' : 'hover:ring-2 hover:ring-white/20'
-        } ${className}`
-      }
+      // No outline: neither on the current page nor on hover. The logo is a
+      // logo, not a button-shaped control; `aria-current` still says where we
+      // are, and the keyboard focus ring (focusRing) stays for accessibility.
+      className={`${focusRing} relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${className}`}
     >
       <img src="/logo-32.png" alt="" aria-hidden="true" className="h-8 w-8 rounded-lg" />
       <AttentionBadge variant="corner" />

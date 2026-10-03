@@ -148,6 +148,17 @@ describe('Today is the logo of the menu, not an icon in the header', () => {
     }
   })
 
+  it('the logo has no outline, neither on the current page nor on hover', async () => {
+    renderAt('/today')
+    await screen.findByRole('banner')
+    for (const a of logoLinks()) {
+      expect(a.getAttribute('aria-current')).toBe('page')
+      // the keyboard focus ring (focus-visible:*) is kept on purpose
+      const visible = a.className.split(/\s+/).filter((c) => !c.startsWith('focus'))
+      expect(visible.filter((c) => /^(hover:|active:)?(ring|outline|border)/.test(c))).toEqual([])
+    }
+  })
+
   it('is the current page on /today and not elsewhere', async () => {
     const g = renderAt('/today')
     await screen.findByRole('banner')
