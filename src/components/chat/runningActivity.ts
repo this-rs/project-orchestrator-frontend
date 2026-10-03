@@ -15,7 +15,9 @@
  * - a Task / Agent `tool_use` of the turn being streamed that has no result
  *   yet — a foreground sub-agent;
  * - orphan `background_activity` blocks (their tool call is outside the
- *   loaded window).
+ *   loaded window);
+ * - the session's detached runs that are streaming (a plan run, a delegated
+ *   task): child sessions, known through `useDetachedRuns`.
  */
 import type { BackgroundTaskInfo, ChatMessage, ContentBlock } from '@/types'
 import {
@@ -25,7 +27,7 @@ import {
   type ActivityModel,
 } from '@/utils/backgroundActivity'
 
-export type RunningKind = 'workflow' | 'agent' | 'shell' | 'monitor'
+export type RunningKind = 'run' | 'workflow' | 'agent' | 'shell' | 'monitor'
 
 export interface RunningItem {
   /** Stable across renders: the tool call id, or the background task id. */
@@ -40,6 +42,19 @@ export interface RunningItem {
   anchorId?: string
   /** Set when the backend can stop it on its own (`cancel-task`). */
   taskId?: string
+  /** A detached run: the child session to open or interrupt. */
+  sessionId?: string
+  /** A detached run started by the plan runner: the plan whose dashboard shows it. */
+  planId?: string
+}
+
+/** The part of a detached run the bar needs (see `useDetachedRuns`). */
+export interface RunningRun {
+  sessionId: string
+  title: string
+  isStreaming: boolean
+  startedAt: string
+  planId?: string
 }
 
 export interface RunningInput {
@@ -47,12 +62,14 @@ export interface RunningInput {
   backgroundTasks: ReadonlyArray<BackgroundTaskInfo>
   /** Is the session's current turn still streaming? */
   isStreaming: boolean
+  /** Child sessions of this one; only the streaming ones are listed. */
+  detachedRuns?: ReadonlyArray<RunningRun>
   /** Injected in tests; staleness is measured against it. */
   now?: number
 }
 
 /** Display order: the broadest unit of work first. */
-export const KIND_ORDER: ReadonlyArray<RunningKind> = ['workflow', 'agent', 'shell', 'monitor']
+export const KIND_ORDER: ReadonlyArray<RunningKind> = ['run', 'workflow', 'agent', 'shell', 'monitor']
 
 const SUBAGENT_TOOL = /^(task|agent)$/i
 const TITLE_MAX = 80
@@ -80,7 +97,7 @@ function isLive(activity: ActivityModel): boolean {
  * can only guess from how recent the last tick is, and would keep a finished
  * command "running" for minutes.
  */
-function barKind(activity: ActivityModel): RunningKind | undefined {
+function barKind(activity: ActivityModel): 'workflow' | 'agent' | undefined {
   return activity.kind === 'workflow' || activity.kind === 'agent' ? activity.kind : undefined
 }
 
@@ -128,6 +145,19 @@ export function collectRunning(input: RunningInput): RunningItem[] {
       startedAt: task.started_at,
       anchorId: task.id,
       taskId: task.id,
+    })
+  }
+
+  // A finished run is history, not activity: it stays in the runs panel.
+  for (const run of input.detachedRuns ?? []) {
+    if (!run.isStreaming) continue
+    items.set(run.sessionId, {
+      id: run.sessionId,
+      kind: 'run',
+      title: firstLine(run.title),
+      startedAt: run.startedAt,
+      sessionId: run.sessionId,
+      planId: run.planId,
     })
   }
 

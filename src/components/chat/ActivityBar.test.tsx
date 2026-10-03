@@ -19,7 +19,7 @@ vi.mock('@/services/chat', () => ({
 }))
 
 import { chatApi } from '@/services/chat'
-import { ActivityBar } from './ActivityBar'
+import { ActivityBar, type RunActions } from './ActivityBar'
 import type { RunningItem } from './runningActivity'
 
 const started = new Date(Date.now() - 12_000).toISOString()
@@ -29,11 +29,11 @@ const agent2: RunningItem = { id: 'a2', kind: 'agent', title: 'Plan the slices',
 const monitor: RunningItem = { id: 'm1', kind: 'monitor', title: 'tail -f ci.log', startedAt: started, anchorId: 'm1', taskId: 'm1' }
 const shell: RunningItem = { id: 's1', kind: 'shell', title: 'npm run dev', startedAt: started, anchorId: 's1', taskId: 's1' }
 
-function mount(items: RunningItem[]) {
+function mount(items: RunningItem[], runActions?: RunActions) {
   const store = createStore()
   store.set(chatSessionIdAtom, 'session-1')
   const wrapper = ({ children }: { children: ReactNode }) => createElement(Provider, { store }, children)
-  const view = render(<ActivityBar items={items} />, { wrapper })
+  const view = render(<ActivityBar items={items} runActions={runActions} />, { wrapper })
   return { ...view, setItems: (next: RunningItem[]) => view.rerender(<ActivityBar items={next} />) }
 }
 
@@ -82,6 +82,32 @@ describe('<ActivityBar />', () => {
     expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Stop review-changes' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Stop Map the backend' })).toBeNull()
+  })
+
+  it('a run row opens its conversation, its dashboard, and stops it', () => {
+    const actions: RunActions = { view: vi.fn(), stop: vi.fn(), dashboard: vi.fn() }
+    const planRun: RunningItem = { id: 'r1', kind: 'run', title: 'Plan run', sessionId: 'r1', planId: 'p1' }
+    const delegated: RunningItem = { id: 'r2', kind: 'run', title: 'Delegated', sessionId: 'r2' }
+    mount([planRun, delegated, shell], actions)
+    expect(screen.getByRole('button', { name: 'Running: 2 runs, 1 shell' })).toBeInTheDocument()
+    expand()
+    fireEvent.click(screen.getByRole('button', { name: 'Open the conversation of Plan run' }))
+    expect(actions.view).toHaveBeenCalledWith('r1')
+    fireEvent.click(screen.getByRole('button', { name: 'Open the runner dashboard of Plan run' }))
+    expect(actions.dashboard).toHaveBeenCalledWith('p1')
+    fireEvent.click(screen.getByRole('button', { name: 'Stop Plan run' }))
+    expect(actions.stop).toHaveBeenCalledWith('r1')
+    expect(chatApi.cancelTask).not.toHaveBeenCalled()
+    // No plan, no dashboard; and a run has no block in this transcript to scroll to.
+    expect(screen.queryByRole('button', { name: 'Open the runner dashboard of Delegated' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Show Plan run in the conversation' })).toBeNull()
+  })
+
+  it('offers no run action when the host gave none', () => {
+    mount([{ id: 'r1', kind: 'run', title: 'Plan run', sessionId: 'r1', planId: 'p1' }])
+    expand()
+    expect(screen.queryByRole('button', { name: 'Stop Plan run' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Open the conversation of Plan run' })).toBeNull()
   })
 
   it('scrolls the transcript to the tool call an activity came from', () => {

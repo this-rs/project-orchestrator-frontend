@@ -1,7 +1,7 @@
 /**
  * What is running in this session, on one line above the composer.
  *
- * Collapsed: a count per kind (workflows, agents, shells, monitors) and how
+ * Collapsed: a count per kind (runs, workflows, agents, shells, monitors) and how
  * long the oldest has been running. Expanded: one row per activity — title,
  * fan-out progress, live duration, "show in the conversation", and Stop where
  * the backend can stop that one thing on its own (Monitor / Bash in the
@@ -17,12 +17,13 @@
  * transcript keeps clear of it. Renders nothing when nothing runs.
  */
 import { memo, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Bot, CheckCircle2, ChevronDown, CornerRightUp, Eye, Loader2, Square, Terminal, Workflow } from 'lucide-react'
+import { AlertTriangle, Bot, CheckCircle2, ChevronDown, CornerRightUp, ExternalLink, Eye, Layers, Loader2, MessageSquare, Square, Terminal, Workflow } from 'lucide-react'
 import { useBackgroundTasks } from '@/hooks/useBackgroundTasks'
 import { countByKind, type RunningItem, type RunningKind } from './runningActivity'
 import { useElapsedMs, formatDurationShort } from './useElapsedMs'
 
 const KIND_META: Record<RunningKind, { icon: typeof Eye; one: string; many: string }> = {
+  run: { icon: Layers, one: 'run', many: 'runs' },
   workflow: { icon: Workflow, one: 'workflow', many: 'workflows' },
   agent: { icon: Bot, one: 'agent', many: 'agents' },
   shell: { icon: Terminal, one: 'shell', many: 'shells' },
@@ -59,13 +60,24 @@ function oldestStart(items: ReadonlyArray<RunningItem>): string | undefined {
   )
 }
 
+/** What can be done with a detached run (a child session) from the bar. */
+export interface RunActions {
+  /** Open the run's conversation. */
+  view: (sessionId: string) => void
+  /** Interrupt the run. */
+  stop: (sessionId: string) => void
+  /** Open the runner dashboard of the plan the run belongs to. */
+  dashboard: (planId: string) => void
+}
+
 interface RowProps {
   item: RunningItem
   stopping: boolean
   onStop: (taskId: string) => void
+  runActions?: RunActions
 }
 
-function ActivityRow({ item, stopping, onStop }: RowProps) {
+function ActivityRow({ item, stopping, onStop, runActions }: RowProps) {
   const { icon: Icon, one } = KIND_META[item.kind]
   const elapsedMs = useElapsedMs(item.startedAt, true)
   return (
@@ -98,6 +110,39 @@ function ActivityRow({ item, stopping, onStop }: RowProps) {
             <CornerRightUp className="w-3 h-3" />
           </button>
         )}
+        {runActions && item.sessionId && (
+          <button
+            type="button"
+            onClick={() => runActions.view(item.sessionId!)}
+            aria-label={`Open the conversation of ${item.title}`}
+            title="Open its conversation"
+            className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-200 hover:bg-white/[0.06] transition-colors"
+          >
+            <MessageSquare className="w-3 h-3" />
+          </button>
+        )}
+        {runActions && item.planId && (
+          <button
+            type="button"
+            onClick={() => runActions.dashboard(item.planId!)}
+            aria-label={`Open the runner dashboard of ${item.title}`}
+            title="Open the runner dashboard"
+            className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-200 hover:bg-white/[0.06] transition-colors"
+          >
+            <ExternalLink className="w-3 h-3" />
+          </button>
+        )}
+        {runActions && item.sessionId && (
+          <button
+            type="button"
+            onClick={() => runActions.stop(item.sessionId!)}
+            aria-label={`Stop ${item.title}`}
+            title="Stop this run"
+            className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-red-400 hover:bg-red-600/10 transition-colors"
+          >
+            <Square className="w-3 h-3" />
+          </button>
+        )}
         {item.taskId && (
           <button
             type="button"
@@ -115,7 +160,7 @@ function ActivityRow({ item, stopping, onStop }: RowProps) {
   )
 }
 
-export const ActivityBar = memo(function ActivityBar({ items }: { items: ReadonlyArray<RunningItem> }) {
+export const ActivityBar = memo(function ActivityBar({ items, runActions }: { items: ReadonlyArray<RunningItem>; runActions?: RunActions }) {
   const { cancelTask } = useBackgroundTasks()
   const [expanded, setExpanded] = useState(false)
   // Sticky: a row says "stopping…" from the click until the task leaves the
@@ -215,7 +260,7 @@ export const ActivityBar = memo(function ActivityBar({ items }: { items: Readonl
       {expanded && (
         <ul className="max-h-40 overflow-y-auto border-t border-white/[0.06] divide-y divide-white/[0.04]">
           {items.map((item) => (
-            <ActivityRow key={item.id} item={item} stopping={stopping.has(item.id)} onStop={(id) => void handleStop(id)} />
+            <ActivityRow key={item.id} item={item} stopping={stopping.has(item.id)} onStop={(id) => void handleStop(id)} runActions={runActions} />
           ))}
         </ul>
       )}
