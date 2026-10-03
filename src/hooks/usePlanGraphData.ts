@@ -13,8 +13,10 @@
 // The adapter does the transform, not the hook.
 // ============================================================================
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAtomValue } from 'jotai'
 import { plansApi, featureGraphsApi, chatApi, commitsApi } from '@/services'
+import { planRefreshAtom, taskRefreshAtom } from '@/atoms'
 import type {
   DependencyGraph,
   Constraint,
@@ -67,11 +69,27 @@ export function usePlanGraphData(
   const [error, setError] = useState<string | null>(null)
   const [resolvedTitle, setResolvedTitle] = useState(planTitle ?? 'Plan')
 
-  // Fetch all data
-  const fetchData = useCallback(async () => {
+  // Live updates: the backend emits a CRUD event on every task/dependency/plan change and
+  // useCrudEventRefresh turns it into a bump of these counters. The graph must follow them,
+  // otherwise it stays frozen at whatever it showed when the page opened.
+  const taskRefresh = useAtomValue(taskRefreshAtom)
+  const planRefresh = useAtomValue(planRefreshAtom)
+
+  // Monotonic request counters: only the latest request may write state, so a slow older
+  // answer arriving after a newer one cannot put an outdated graph back on screen.
+  const dataSeq = useRef(0)
+  const wavesSeq = useRef(0)
+
+  // Fetch all data. `silent` = refresh triggered by an event: keep the current data on screen,
+  // no loading state, no error banner (a failed refresh must not wipe a good graph).
+  const fetchData = useCallback(async (silent = false) => {
     if (!planId) return
-    setIsLoading(true)
-    setError(null)
+    const seq = ++dataSeq.current
+    const isStale = () => seq !== dataSeq.current
+    if (!silent) {
+      setIsLoading(true)
+      setError(null)
+    }
 
     try {
       // Phase 1: core data (parallel)
@@ -81,6 +99,7 @@ export function usePlanGraphData(
         plansApi.getCommits(planId).catch(() => ({ items: [] })),
         plansApi.get(planId),
       ])
+      if (isStale()) return
 
       if (!graphData || (graphData.nodes || []).length === 0) {
         setGraph(graphData)
@@ -156,19 +175,29 @@ export function usePlanGraphData(
         })(),
       ])
 
+      if (isStale()) return
       setFeatureGraphs(featureGraphDetails)
       setChatSessions(sessions)
       setCommitFilesMap(filesMap)
     } catch (err) {
       console.error('Failed to fetch plan graph data:', err)
-      setError('Failed to load plan graph data')
+      if (!silent && !isStale()) setError('Failed to load plan graph data')
     } finally {
-      setIsLoading(false)
+      // Whoever is the latest request clears the loading flag, so a silent refresh that
+      // supersedes an initial load cannot leave it stuck on.
+      if (!isStale()) setIsLoading(false)
     }
   }, [planId, planTitle, projectSlug])
 
+  // Keep the latest fetchData reachable from the refresh effect without making that effect
+  // re-run (and double-fetch) whenever the plan title or project slug resolves.
+  const fetchDataRef = useRef(fetchData)
   useEffect(() => {
-    fetchData()
+    fetchDataRef.current = fetchData
+  }, [fetchData])
+
+  useEffect(() => {
+    void fetchData()
   }, [fetchData])
 
   // Reset active FGs when plan changes
@@ -177,19 +206,38 @@ export function usePlanGraphData(
     setWaves(null)
   }, [planId])
 
-  // Fetch waves on demand
-  const fetchWaves = useCallback(async () => {
+  // Waves: computed on demand (the user opens the wave view); once they have been requested
+  // they follow the events too, otherwise they would contradict the refreshed graph.
+  const loadWaves = useCallback(async (silent: boolean) => {
     if (!planId) return
-    setWavesLoading(true)
+    const seq = ++wavesSeq.current
+    if (!silent) setWavesLoading(true)
     try {
       const result = await plansApi.getWaves(planId)
-      setWaves(result)
+      if (seq === wavesSeq.current) setWaves(result)
     } catch (err) {
       console.error('Failed to compute waves:', err)
     } finally {
-      setWavesLoading(false)
+      if (seq === wavesSeq.current) setWavesLoading(false)
     }
   }, [planId])
+
+  const fetchWaves = useCallback(() => loadWaves(false), [loadWaves])
+
+  const wavesRequested = useRef(false)
+  useEffect(() => {
+    wavesRequested.current = waves !== null
+  }, [waves])
+
+  // Refresh on events. The first run is skipped: the mount fetch above already covers it.
+  const lastRefresh = useRef({ taskRefresh, planRefresh })
+  useEffect(() => {
+    const prev = lastRefresh.current
+    if (prev.taskRefresh === taskRefresh && prev.planRefresh === planRefresh) return
+    lastRefresh.current = { taskRefresh, planRefresh }
+    void fetchDataRef.current(true)
+    if (wavesRequested.current) void loadWaves(true)
+  }, [taskRefresh, planRefresh, loadWaves])
 
   // Toggle feature graph
   const toggleFeatureGraph = useCallback((fgId: string) => {
