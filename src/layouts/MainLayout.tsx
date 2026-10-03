@@ -7,8 +7,7 @@ import { sidebarCollapsedAtom, breadcrumbTitleAtom, chatPanelModeAtom, chatPanel
 import { ToastContainer, Branding } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
-import { AttentionBadge } from '@/components/AttentionBadge'
-import { focusRing } from '@/components/ui/classes'
+import { TodayLogoLink } from '@/components/TodayLogoLink'
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher'
 import { useMediaQuery, useCrudEventRefresh, useModelCatalogEvents, useDragRegion, useWindowFullscreen, useViewTransition, useAttentionCountSource, ChromeWorkspaceSlugContext } from '@/hooks'
 import type { NavDirection } from '@/hooks'
@@ -21,9 +20,6 @@ import { RouteErrorBoundary } from './RouteErrorBoundary'
 /** Product name shown next to the logo of the application-level sidebar. */
 const PRODUCT_NAME = 'Project Orchestrator'
 
-/** Today, the root of the application (above every workspace). */
-const GLOBAL_TODAY_PATH = '/today'
-
 const navItemClass = (active: boolean) =>
   `relative flex min-h-9 items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${
     active
@@ -32,7 +28,7 @@ const navItemClass = (active: boolean) =>
   }`
 
 /**
- * Application-level sidebar: the workspaces. Today is one click away in the header (its icon).
+ * Application-level sidebar: the workspaces. Today is one click away: the logo is its link.
  * Nothing here belongs to a workspace (no projects, plans, milestones, architecture):
  * it never borrows the last workspace.
  */
@@ -42,7 +38,7 @@ function GlobalSidebarContent({ collapsed, trafficLightPad }: { collapsed: boole
     <>
       <div className={`px-2 ${trafficLightPad ? 'pt-7' : ''}`}>
         <div className={`flex items-center gap-3 py-3 ${collapsed ? 'justify-center px-2' : 'px-3'}`}>
-          <img src="/logo-32.png" alt="PO" className="w-8 h-8 rounded-lg shrink-0" />
+          <TodayLogoLink />
           {!collapsed && <span className="min-w-0 truncate text-sm font-semibold text-gray-100">{PRODUCT_NAME}</span>}
         </div>
       </div>
@@ -58,7 +54,7 @@ function GlobalSidebarContent({ collapsed, trafficLightPad }: { collapsed: boole
               {workspaces.map((ws) => (
                 <li key={ws.id}>
                   <NavLink
-                    to={workspacePath(ws.slug, '/overview')}
+                    to={workspacePath(ws.slug, '/today')}
                     aria-label={collapsed ? ws.name : undefined}
                     title={collapsed ? ws.name : undefined}
                     className={() => navItemClass(false)}
@@ -385,22 +381,6 @@ export function MainLayout() {
             <Menu className="w-5 h-5" />
           </button>
 
-          {/* Today: one click from anywhere. It stands in for the breadcrumb root and the sidebar entry. */}
-          <NavLink
-            to={GLOBAL_TODAY_PATH}
-            end
-            aria-label={NOMENCLATURE.today.plural}
-            title={NOMENCLATURE.today.plural}
-            className={({ isActive }) =>
-              `${focusRing} relative mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors ${
-                isActive ? 'bg-white/[0.08] text-indigo-300' : 'text-gray-400 hover:bg-white/[0.06] hover:text-gray-200'
-              }`
-            }
-          >
-            <NOMENCLATURE.today.icon className="w-5 h-5" />
-            <AttentionBadge variant="corner" />
-          </NavLink>
-
           {/* WS status dot — before breadcrumb, vertically centered */}
           <span
             className={`w-2 h-2 rounded-full shrink-0 mr-2.5 transition-colors ${
@@ -451,7 +431,8 @@ export function MainLayout() {
 }
 
 /**
- * Breadcrumb: starts at the workspace. Today is not a crumb: its icon sits next to it in the header.
+ * Breadcrumb: starts at the workspace. Today is not a crumb: the logo of the menu is its link.
+ * The workspace crumb opens the workspace's own Today.
  *   /today                      → (nothing: the page names itself)
  *   /workspace/my-ws/today      → My Workspace   (Today filtered on that lane)
  *   /workspace/my-ws/plans/abc  → My Workspace / Plans / Auth flow (title published by PageHeader)
@@ -494,7 +475,7 @@ export function Breadcrumb({ pathname, workspaceName }: { pathname: string; work
       {isWorkspaceScoped && (
         <span className="flex items-center gap-2 min-w-0">
           <NavLink
-            to={`${basePath}/today`}
+            to={`${basePath}/${NOMENCLATURE.today.segment}`}
             className={`block leading-10 truncate max-w-[120px] sm:max-w-[200px] ${displayParts.length === 0 ? 'text-gray-200 font-medium' : 'text-gray-400 hover:text-gray-200'}`}
           >
             {workspaceName || parts[1]}

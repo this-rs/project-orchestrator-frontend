@@ -1,7 +1,7 @@
 /**
  * The chrome around Today: a GLOBAL mode (the workspaces, nothing of any
- * workspace) and a Today icon in the header, one click from anywhere, and the attention
- * badge fed by one shared fetch.
+ * workspace), Today one click from anywhere THROUGH THE LOGO of the menu (not an icon in the
+ * header), and the attention badge fed by one shared fetch.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, act, within } from '@testing-library/react'
@@ -111,10 +111,11 @@ describe('global chrome (/today)', () => {
     renderAt('/today')
     const nav = (await screen.findAllByRole('navigation', { name: 'Application' }))[0]
     expect(screen.getAllByText('Project Orchestrator').length).toBeGreaterThan(0)
-    // Today is not repeated in the menu: its icon is in the header
+    // Today is not a row of the menu: it is the logo
     expect(within(nav).queryByRole('link', { name: /^Today$/ })).toBeNull()
     await waitFor(() => expect(within(nav).queryByRole('link', { name: 'Lab' })).not.toBeNull())
-    expect(within(nav).getByRole('link', { name: 'Studio' }).getAttribute('href')).toBe('/workspace/studio/overview')
+    // entering a workspace lands on ITS Today (the overview page it used to open came up empty)
+    expect(within(nav).getByRole('link', { name: 'Studio' }).getAttribute('href')).toBe('/workspace/studio/today')
     for (const own of ['Projects', 'Plans', 'Tasks', 'Objectives', 'Architecture', 'Overview', 'Trajectory', 'Notes']) {
       expect(screen.queryByRole('link', { name: own })).toBeNull()
     }
@@ -122,26 +123,40 @@ describe('global chrome (/today)', () => {
   })
 })
 
-describe('Today icon in the header', () => {
-  const todayIcon = () => within(screen.getByRole('banner')).getByRole('link', { name: 'Today' })
+describe('Today is the logo of the menu, not an icon in the header', () => {
+  // the global sidebar is rendered twice (desktop + mobile drawer): every instance must agree
+  const logoLinks = () => screen.getAllByRole('link', { name: 'Today' })
 
-  it('is one click to /today from the global page and from a workspace page', async () => {
+  it('the header holds no Today link on the global page nor on a workspace page', async () => {
     const g = renderAt('/today')
-    expect((await screen.findByRole('banner')) && todayIcon().getAttribute('href')).toBe('/today')
+    expect(await screen.findByRole('banner')).toBeTruthy()
+    expect(within(screen.getByRole('banner')).queryByRole('link', { name: 'Today' })).toBeNull()
     g.unmount()
     renderAt('/workspace/studio/plans')
     await screen.findByRole('banner')
-    expect(todayIcon().getAttribute('href')).toBe('/today')
+    expect(within(screen.getByRole('banner')).queryByRole('link', { name: 'Today' })).toBeNull()
+  })
+
+  it('the logo of the global menu is a link to /today and carries the product logo', async () => {
+    renderAt('/today')
+    await screen.findByRole('banner')
+    const links = logoLinks()
+    expect(links.length).toBeGreaterThan(0)
+    for (const a of links) {
+      expect(a.getAttribute('href')).toBe('/today')
+      expect(a.querySelector('img[src="/logo-32.png"]')).not.toBeNull()
+    }
   })
 
   it('is the current page on /today and not elsewhere', async () => {
     const g = renderAt('/today')
     await screen.findByRole('banner')
-    expect(todayIcon().getAttribute('aria-current')).toBe('page')
+    expect(logoLinks()[0].getAttribute('aria-current')).toBe('page')
     g.unmount()
     renderAt('/workspace/studio/plans')
     await screen.findByRole('banner')
-    expect(todayIcon().getAttribute('aria-current')).toBeNull()
+    // in a workspace the logo belongs to the workspace switcher (mocked here): no Today link in the header
+    expect(within(screen.getByRole('banner')).queryByRole('link', { name: 'Today' })).toBeNull()
   })
 })
 
@@ -164,15 +179,17 @@ describe('attention badge', () => {
     expect(screen.queryByTestId('attention-badge')).toBeNull()
   })
 
-  it('3 requests: "3 demandes en attente", on the Today icon, global and in a workspace', async () => {
+  it('3 requests: "3 demandes en attente", on the Today logo of the global menu, never in the header', async () => {
     get.mockResolvedValue(withWaiting(3))
     const g = renderAt('/today')
     expect((await screen.findAllByLabelText('3 demandes en attente')).length).toBeGreaterThan(0)
     expect(screen.getAllByTestId('attention-badge')[0].textContent).toContain('3')
+    expect(within(screen.getAllByRole('link', { name: 'Today' })[0]).queryByLabelText('3 demandes en attente')).not.toBeNull()
     g.unmount()
     renderAt('/workspace/studio/plans')
-    const icon = within(await screen.findByRole('banner')).getByRole('link', { name: 'Today' })
-    await waitFor(() => expect(within(icon).queryByLabelText('3 demandes en attente')).not.toBeNull())
+    // the header no longer carries the badge: it moved onto the logo with the link
+    await screen.findByRole('banner')
+    expect(within(screen.getByRole('banner')).queryByLabelText('3 demandes en attente')).toBeNull()
   })
 
   it('1 request reads in the singular', async () => {
@@ -198,12 +215,12 @@ describe('attention badge', () => {
     expect(screen.queryByTestId('page')).not.toBeNull()
   })
 
-  it('ONE shared fetch for every badge (desktop, mobile, header), then one refetch per attention_changed burst', async () => {
+  it('ONE shared fetch for every badge (desktop and mobile menus), then one refetch per attention_changed burst', async () => {
     get.mockResolvedValue(withWaiting(2))
-    renderAt('/workspace/studio/plans')
+    renderAt('/today')
     await screen.findAllByLabelText('2 demandes en attente')
-    // the header icon (and any other entry that shows it): one request
-    expect(screen.getAllByTestId('attention-badge').length).toBeGreaterThanOrEqual(1)
+    // the desktop and the mobile logo both show it: still one request
+    expect(screen.getAllByTestId('attention-badge').length).toBeGreaterThanOrEqual(2)
     expect(attentionCalls()).toBe(1)
 
     vi.useFakeTimers()
@@ -227,9 +244,9 @@ describe('attention badge', () => {
 
   it('the badge takes no room in the flow when it arrives (corner variant is absolute)', async () => {
     get.mockResolvedValue(withWaiting(3))
-    renderAt('/workspace/studio/plans')
-    await screen.findAllByLabelText('3 demandes en attente')
-    const icon = within(screen.getByRole('banner')).getByRole('link', { name: 'Today' })
-    expect(within(icon).getByTestId('attention-badge').className).toContain('absolute')
+    renderAt('/today')
+    const logo = (await screen.findAllByRole('link', { name: 'Today' }))[0]
+    await waitFor(() => expect(within(logo).queryByTestId('attention-badge')).not.toBeNull())
+    expect(within(logo).getByTestId('attention-badge').className).toContain('absolute')
   })
 })
