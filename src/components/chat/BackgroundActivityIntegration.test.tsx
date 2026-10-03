@@ -5,7 +5,7 @@
  */
 import '@testing-library/jest-dom/vitest'
 import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import type { ChatMessage, ContentBlock } from '@/types'
 import { ChatMessageBubble } from './ChatMessageBubble'
 import { ToolCallBlock } from './ToolCallBlock'
@@ -70,6 +70,9 @@ describe('ToolCallBlock child outputs', () => {
     expect(card).toHaveAttribute('data-kind', 'workflow')
     expect(card).toHaveAttribute('data-status', 'running')
     expect(screen.getByText('1/2 agents')).toBeInTheDocument()
+    // Folded while it runs: the line above is the whole card until it is opened.
+    expect(within(card).getAllByRole('button')[0]).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 
   it('renders no activity card for a plain tool call', () => {

@@ -176,7 +176,9 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
         <ActivityCard
           className="mx-3 mb-2 mt-1"
           activity={childActivity}
-          defaultOpen={childActivity.status === 'running' || childActivity.status === 'queued'}
+          // One line while it runs (title, status, progress hint): the activity
+          // bar follows it. Opened on failure only.
+          defaultOpen={childActivity.status === 'failed'}
         />
       )}
     </div>

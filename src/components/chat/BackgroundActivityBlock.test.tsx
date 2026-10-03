@@ -47,6 +47,20 @@ function withTasks(ids: string[], ui: ReactNode) {
   return <Provider store={store}>{ui}</Provider>
 }
 
+/**
+ * A running activity starts folded — the activity bar above the composer is
+ * where it is followed. These tests are about what the panel shows once a
+ * person opens it: open the group, then every card.
+ */
+function unfold() {
+  const group = screen.getByRole('button', { name: /Background activity/ })
+  if (group.getAttribute('aria-expanded') === 'false') fireEvent.click(group)
+  for (const card of screen.getAllByTestId('background-activity-card')) {
+    const toggle = within(card).getAllByRole('button')[0]
+    if (toggle.getAttribute('aria-expanded') === 'false') fireEvent.click(toggle)
+  }
+}
+
 const workflowBlock = (over: Partial<BackgroundActivityMetadata> = {}) =>
   block({
     correlation_id: 'wf-1',
@@ -81,11 +95,36 @@ describe('BackgroundActivityGroup — summary', () => {
     expect(toggle).toHaveTextContent('1 running')
     expect(toggle).toHaveTextContent('1 failed')
     expect(toggle).toHaveTextContent('1 done')
-    // Something is running/failed → open by default, one card per activity.
+    // Something failed → open by default, one card per activity.
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
     const cards = screen.getAllByTestId('background-activity-card')
     expect(cards.map((c) => c.getAttribute('data-kind'))).toEqual(['workflow', 'shell', 'shell'])
     expect(cards.map((c) => c.getAttribute('data-status'))).toEqual(['running', 'done', 'failed'])
+  })
+
+  it('stays folded while its activities run: one line, the counts, no card', () => {
+    render(withTasks([], <BackgroundActivityBlock block={workflowBlock()} />))
+    const toggle = screen.getByRole('button', { name: /Background activity/ })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle).toHaveTextContent('1 running')
+    expect(screen.queryByTestId('background-activity-card')).not.toBeInTheDocument()
+    // Opened by hand, the running card is itself one line until asked for more.
+    fireEvent.click(toggle)
+    const card = screen.getByTestId('background-activity-card')
+    expect(within(card).getAllByRole('button')[0]).toHaveAttribute('aria-expanded', 'false')
+    expect(card).toHaveTextContent('1/3 agents')
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+  })
+
+  it('opens by itself on a failure, card included', () => {
+    render(
+      <BackgroundActivityBlock
+        block={block({ correlation_id: 'b2', source: 'BashOutput', entries: [tick(2, 'BashOutput', 'boom')], data: { command: 'make', status: 'failed' } })}
+      />,
+    )
+    expect(screen.getByRole('button', { name: /Background activity/ })).toHaveAttribute('aria-expanded', 'true')
+    const card = screen.getByTestId('background-activity-card')
+    expect(within(card).getAllByRole('button')[0]).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('starts collapsed when everything is finished, and toggles', () => {
@@ -112,7 +151,7 @@ describe('BackgroundActivityGroup — summary', () => {
 describe('workflow renderer', () => {
   it('shows per-agent state, progress and usage — never JSON', () => {
     render(withTasks([], <BackgroundActivityBlock block={workflowBlock()} />))
-    // single running activity → card open by default
+    unfold()
     expect(screen.getByText('Fix flaky tests')).toBeInTheDocument()
     expect(screen.getByText('1/3 agents')).toBeInTheDocument()
     const bar = screen.getByRole('progressbar')
@@ -132,6 +171,7 @@ describe('workflow renderer', () => {
 
   it('shows the timeline with humanized lifecycle labels', () => {
     render(withTasks([], <BackgroundActivityBlock block={workflowBlock()} />))
+    unfold()
     fireEvent.click(screen.getByRole('button', { name: /Timeline · 2 events/ }))
     const list = screen.getByRole('list', { name: /events of/i })
     expect(list).toHaveTextContent('Started')
@@ -151,6 +191,7 @@ describe('shell renderer', () => {
 
   it('shows the command as code and a collapsed output tail', () => {
     render(withTasks(['b1'], <BackgroundActivityBlock block={shell()} />))
+    unfold()
     expect(screen.getByText('npm run build && npm test', { selector: 'div.font-mono' })).toBeInTheDocument()
     const outputToggle = screen.getByRole('button', { name: /Output · 20 lines/ })
     expect(outputToggle).toHaveAttribute('aria-expanded', 'false')
@@ -170,6 +211,7 @@ describe('shell renderer', () => {
       entries: [tick(1, 'BashOutput', 'hi'), tick(2, 'BashOutput', '{"exit_code":0}')],
     })
     render(withTasks(['b1'], <BackgroundActivityBlock block={b} />))
+    unfold()
     expect(screen.getByLabelText('Output')).toHaveTextContent('hi')
     expect(screen.getByLabelText('Parameters')).toHaveTextContent('Exit code0')
     const raw = screen.getByRole('button', { name: 'Raw payload' })
@@ -183,6 +225,7 @@ describe('agent + generic renderers', () => {
   it('renders sub-agent params as chips', () => {
     const b = block({ source: 'Task', subagent_type: 'researcher', description: 'Audit auth', entries: [tick(1, 'Task', 'reading files')], data: { last_tool_name: 'Grep' } })
     render(withTasks(['toolu_X'], <BackgroundActivityBlock block={b} />))
+    unfold()
     expect(screen.getByText('Audit auth')).toBeInTheDocument()
     const params = screen.getByLabelText('Parameters')
     expect(params).toHaveTextContent('Agentresearcher')
@@ -196,6 +239,7 @@ describe('agent + generic renderers', () => {
       entries: [tick(1, 'system', '<task-notification><task-id>abc</task-id><status>weird</status><summary>All good</summary></task-notification>')],
     })
     render(withTasks(['toolu_X'], <BackgroundActivityBlock block={b} />))
+    unfold()
     expect(screen.getByText('All good')).toBeInTheDocument()
     const term = screen.getByText('Status')
     expect(term.tagName).toBe('DT')
@@ -221,6 +265,7 @@ describe('accessibility + truncation', () => {
 
   it('notes earlier events that were not kept', () => {
     render(withTasks(['toolu_X'], <BackgroundActivityBlock block={block({ count: 25, entries: [tick(1), tick(2)] })} />))
+    unfold()
     fireEvent.click(screen.getByRole('button', { name: /Timeline · 25 events/ }))
     expect(screen.getByRole('list', { name: /events of/i })).toHaveTextContent('23 earlier events not kept')
   })
