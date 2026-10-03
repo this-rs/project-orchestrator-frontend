@@ -8,7 +8,8 @@ import { ApiError } from '@/services/api'
 import { useIsMobile } from '@/hooks'
 import type { PermissionMode } from '@/types'
 import { ChevronDown, Loader2, Paperclip, Square, ArrowRight } from 'lucide-react'
-import { BackgroundTasksIndicator } from './BackgroundTasksIndicator'
+import { ActivityBar } from './ActivityBar'
+import type { RunningItem } from './runningActivity'
 import { ModelFamilyPicker, type ModelSelectOptions } from './ModelFamilyPicker'
 import { deriveInputAction, describeAction } from './inputAction'
 import { MessageQueueBar } from './MessageQueueBar'
@@ -90,9 +91,14 @@ interface ChatInputProps {
   onChangeAutoContinue?: (enabled: boolean) => void
   /** When set, prefills the textarea and focuses it. Change the object reference to trigger. */
   prefill?: PrefillPayload | null
+  /** What is running in this session (see `runningActivity.ts`); shown above the queue. */
+  activity?: ReadonlyArray<RunningItem>
 }
 
-export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionId, onChangePermissionMode, onChangeModel, onChangeAutoContinue, prefill }: ChatInputProps) {
+/** A stable "nothing runs", so an absent prop does not re-render the bar. */
+const NO_ACTIVITY: ReadonlyArray<RunningItem> = []
+
+export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionId, onChangePermissionMode, onChangeModel, onChangeAutoContinue, prefill, activity = NO_ACTIVITY }: ChatInputProps) {
   const [value, setValue] = useAtom(chatDraftInputAtom)
   const isMobile = useIsMobile()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -687,13 +693,25 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
           </span>
         </div>
       )}
-      <MessageQueueBar
-        queue={queue}
-        onEdit={handleQueueEdit}
-        onDelete={handleQueueDelete}
-        onPrioritize={handleQueuePrioritize}
-        onSendNow={handleQueueSendNow}
-      />
+      {/* The tray: what is running, then what is waiting to be sent — ONE card
+          above the composer, each half optional. Two stacked cards would draw
+          two outlines for one idea ("things in flight around this message"). */}
+      {(activity.length > 0 || queue.length > 0) && (
+        <div
+          className="rounded-lg border border-white/[0.08] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.06]"
+          data-testid="composer-tray"
+        >
+          <ActivityBar items={activity} />
+          <MessageQueueBar
+            bare
+            queue={queue}
+            onEdit={handleQueueEdit}
+            onDelete={handleQueueDelete}
+            onPrioritize={handleQueuePrioritize}
+            onSendNow={handleQueueSendNow}
+          />
+        </div>
+      )}
       {/* Attachment thumbnails — directly above the textarea, part of the
           message being composed (unlike the queue bar, which floats over the
           conversation because those messages are not being composed any more). */}
@@ -837,13 +855,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
             </div>
           </div>
 
-          {/* Background tasks indicator (Monitor + Bash bg) — pushed to the
-              right alongside Auto-continue. Plan 5985a7c4 (F4). The
-              component renders `null` when no tasks are tracked, so the
-              toolbar stays compact when there's no background activity. */}
           <div className="ml-auto flex items-center gap-2">
-            <BackgroundTasksIndicator />
-
             {/* Auto-continue toggle */}
             <div className="flex items-center gap-1.5">
               <span className={`hidden sm:inline text-[10px] ${autoContinue ? 'text-gray-400' : 'text-gray-500'} transition-colors`}>Auto</span>

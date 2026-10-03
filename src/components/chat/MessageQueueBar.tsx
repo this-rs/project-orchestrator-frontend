@@ -19,6 +19,11 @@ interface MessageQueueBarProps {
    * (`QUEUE_POLICY.manualSendInterrupts`).
    */
   onSendNow: (id: string) => void
+  /**
+   * Rendered inside the composer tray, under the activity bar: the tray draws
+   * the one outline, so the queue must not draw a second.
+   */
+  bare?: boolean
 }
 
 /**
@@ -39,6 +44,7 @@ export const MessageQueueBar = memo(function MessageQueueBar({
   onDelete,
   onPrioritize,
   onSendNow,
+  bare = false,
 }: MessageQueueBarProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
@@ -74,7 +80,7 @@ export const MessageQueueBar = memo(function MessageQueueBar({
 
   return (
     <div
-      className="rounded-lg border border-white/[0.08] bg-white/[0.02] overflow-hidden"
+      className={bare ? '' : 'rounded-lg border border-white/[0.08] bg-white/[0.02] overflow-hidden'}
       data-testid="message-queue"
     >
       <div className="flex items-center gap-1.5 px-2.5 py-1 border-b border-white/[0.06] text-[11px] text-gray-500">

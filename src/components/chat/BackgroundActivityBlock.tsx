@@ -67,6 +67,8 @@ export function BackgroundActivityGroup({ blocks }: BackgroundActivityGroupProps
     <div
       className="my-1.5 rounded-lg bg-white/[0.02] border border-white/[0.05] overflow-hidden"
       data-testid="background-activity-block"
+      // The activity bar scrolls here: one group stands for several blocks.
+      data-activity-anchors={blocks.map((b) => b.id).join(' ')}
     >
       <button
         type="button"

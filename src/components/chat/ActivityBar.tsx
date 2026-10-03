@@ -1,0 +1,246 @@
+/**
+ * What is running in this session, on one line above the composer.
+ *
+ * Collapsed: a count per kind (workflows, agents, shells, monitors) and how
+ * long the oldest has been running. Expanded: one row per activity — title,
+ * fan-out progress, live duration, "show in the conversation", and Stop where
+ * the backend can stop that one thing on its own (Monitor / Bash in the
+ * background).
+ *
+ * It replaces the toolbar pill that only knew Monitor and Bash
+ * (`BackgroundTasksIndicator`): workflows and sub-agents used to be visible
+ * only where their tool call sat in the transcript, i.e. not at all once the
+ * conversation had scrolled.
+ *
+ * Like the queue under it, it is a block in the composer's column, never an
+ * overlay (see `MessageQueueBar`): the dock measures its height, so the
+ * transcript keeps clear of it. Renders nothing when nothing runs.
+ */
+import { memo, useEffect, useRef, useState } from 'react'
+import { AlertTriangle, Bot, CheckCircle2, ChevronDown, CornerRightUp, Eye, Loader2, Square, Terminal, Workflow } from 'lucide-react'
+import { useBackgroundTasks } from '@/hooks/useBackgroundTasks'
+import { countByKind, type RunningItem, type RunningKind } from './runningActivity'
+import { useElapsedMs, formatDurationShort } from './useElapsedMs'
+
+const KIND_META: Record<RunningKind, { icon: typeof Eye; one: string; many: string }> = {
+  workflow: { icon: Workflow, one: 'workflow', many: 'workflows' },
+  agent: { icon: Bot, one: 'agent', many: 'agents' },
+  shell: { icon: Terminal, one: 'shell', many: 'shells' },
+  monitor: { icon: Eye, one: 'monitor', many: 'monitors' },
+}
+
+/** How long the Stop confirmation stays visible. */
+const FEEDBACK_TTL_MS = 2500
+
+/**
+ * What a Stop click came back with (`CancelTaskResult`):
+ * - `success`: the backend signalled at least one process;
+ * - `fallback`: the cancel was registered but no pid was known — the
+ *   subprocess may survive, the global Stop is the way out;
+ * - `error`: refused (rate cap) or failed.
+ */
+type Feedback =
+  | { kind: 'success'; killed: number }
+  | { kind: 'fallback' }
+  | { kind: 'error'; message: string }
+
+/** Scroll the transcript to the block an activity came from. */
+function revealInTranscript(anchorId: string): void {
+  const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(anchorId) : anchorId.replace(/"/g, '\\"')
+  document
+    .querySelector(`[data-tool-call-id="${escaped}"], [data-activity-anchors~="${escaped}"]`)
+    ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+}
+
+function oldestStart(items: ReadonlyArray<RunningItem>): string | undefined {
+  return items.reduce<string | undefined>(
+    (oldest, item) => (item.startedAt && (!oldest || item.startedAt < oldest) ? item.startedAt : oldest),
+    undefined,
+  )
+}
+
+interface RowProps {
+  item: RunningItem
+  stopping: boolean
+  onStop: (taskId: string) => void
+}
+
+function ActivityRow({ item, stopping, onStop }: RowProps) {
+  const { icon: Icon, one } = KIND_META[item.kind]
+  const elapsedMs = useElapsedMs(item.startedAt, true)
+  return (
+    <li className={`flex items-center gap-2 px-2.5 py-1.5 ${stopping ? 'opacity-70' : ''}`} data-kind={item.kind}>
+      <Icon className="w-3 h-3 shrink-0 text-emerald-400/80" aria-label={one} />
+      <span className="flex-1 min-w-0 truncate text-xs text-gray-300" title={item.title}>
+        {item.title}
+      </span>
+      {item.progress && (
+        <span className="shrink-0 text-[10px] tabular-nums text-gray-400">
+          {item.progress.settled}/{item.progress.total} agents
+        </span>
+      )}
+      {stopping ? (
+        <span className="shrink-0 text-[10px] text-amber-300/80">stopping…</span>
+      ) : (
+        elapsedMs != null && (
+          <span className="shrink-0 text-[10px] tabular-nums text-gray-500">{formatDurationShort(elapsedMs)}</span>
+        )
+      )}
+      <div className="shrink-0 flex items-center gap-0.5">
+        {item.anchorId && (
+          <button
+            type="button"
+            onClick={() => revealInTranscript(item.anchorId!)}
+            aria-label={`Show ${item.title} in the conversation`}
+            title="Show in the conversation"
+            className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-200 hover:bg-white/[0.06] transition-colors"
+          >
+            <CornerRightUp className="w-3 h-3" />
+          </button>
+        )}
+        {item.taskId && (
+          <button
+            type="button"
+            onClick={() => onStop(item.taskId!)}
+            disabled={stopping}
+            aria-label={`Stop ${item.title}`}
+            title={stopping ? 'Stopping…' : 'Stop'}
+            className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-red-400 hover:bg-red-600/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {stopping ? <Loader2 className="w-3 h-3 animate-spin" /> : <Square className="w-3 h-3" />}
+          </button>
+        )}
+      </div>
+    </li>
+  )
+}
+
+export const ActivityBar = memo(function ActivityBar({ items }: { items: ReadonlyArray<RunningItem> }) {
+  const { cancelTask } = useBackgroundTasks()
+  const [expanded, setExpanded] = useState(false)
+  // Sticky: a row says "stopping…" from the click until the task leaves the
+  // list (the backend keeps it for a grace period). Without it the spinner
+  // would flash for the round-trip and the click would look ignored.
+  const [stopping, setStopping] = useState<ReadonlySet<string>>(() => new Set())
+  const [feedback, setFeedback] = useState<Feedback | null>(null)
+  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const elapsedMs = useElapsedMs(oldestStart(items), items.length > 0)
+
+  useEffect(() => {
+    setStopping((prev) => {
+      const alive = new Set(items.map((i) => i.id))
+      const next = new Set([...prev].filter((id) => alive.has(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }, [items])
+
+  useEffect(() => () => {
+    if (feedbackTimer.current != null) clearTimeout(feedbackTimer.current)
+  }, [])
+
+  if (items.length === 0) return null
+
+  const flash = (next: Feedback) => {
+    if (feedbackTimer.current != null) clearTimeout(feedbackTimer.current)
+    setFeedback(next)
+    feedbackTimer.current = setTimeout(() => setFeedback(null), FEEDBACK_TTL_MS)
+  }
+
+  const setStoppingFor = (taskId: string, on: boolean) =>
+    setStopping((prev) => {
+      const next = new Set(prev)
+      if (on) next.add(taskId)
+      else next.delete(taskId)
+      return next
+    })
+
+  const handleStop = async (taskId: string) => {
+    setFeedback(null)
+    setStoppingFor(taskId, true)
+    try {
+      const result = await cancelTask(taskId)
+      if (result.capped) {
+        // Refused: the click did nothing, so the row must not say "stopping…".
+        setStoppingFor(taskId, false)
+        flash({ kind: 'error', message: 'Cancelling too fast — try again in a moment.' })
+      } else if (result.killed_pids.length > 0) {
+        flash({ kind: 'success', killed: result.killed_pids.length })
+      } else {
+        flash({ kind: 'fallback' })
+      }
+    } catch {
+      setStoppingFor(taskId, false)
+      flash({ kind: 'error', message: 'Failed to cancel task — try the global Stop instead.' })
+    }
+  }
+
+  const counts = countByKind(items)
+  const summary = counts.map(({ kind, count }) => `${count} ${count === 1 ? KIND_META[kind].one : KIND_META[kind].many}`).join(', ')
+  const workflows = items.filter((i) => i.kind === 'workflow' && i.progress)
+  const soleProgress = workflows.length === 1 ? workflows[0].progress : undefined
+
+  return (
+    <div data-testid="activity-bar">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        aria-label={`Running: ${summary}`}
+        className="flex w-full items-center gap-2.5 px-2.5 py-1 text-[11px] text-gray-400 hover:bg-white/[0.03] transition-colors"
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" aria-hidden />
+        {counts.map(({ kind, count }) => {
+          const { icon: Icon, one, many } = KIND_META[kind]
+          return (
+            <span key={kind} className="inline-flex items-center gap-1 shrink-0" data-kind={kind}>
+              <Icon className="w-3 h-3 text-emerald-400/80" aria-hidden />
+              <span>
+                {count} {count === 1 ? one : many}
+                {kind === 'workflow' && soleProgress && (
+                  <span className="tabular-nums text-gray-500">
+                    {' '}
+                    {soleProgress.settled}/{soleProgress.total}
+                  </span>
+                )}
+              </span>
+            </span>
+          )
+        })}
+        <span className="ml-auto flex items-center gap-1.5 shrink-0 text-[10px] text-gray-600">
+          {elapsedMs != null && <span className="tabular-nums">{formatDurationShort(elapsedMs)}</span>}
+          <ChevronDown className={`w-3 h-3 transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden />
+        </span>
+      </button>
+
+      {expanded && (
+        <ul className="max-h-40 overflow-y-auto border-t border-white/[0.06] divide-y divide-white/[0.04]">
+          {items.map((item) => (
+            <ActivityRow key={item.id} item={item} stopping={stopping.has(item.id)} onStop={(id) => void handleStop(id)} />
+          ))}
+        </ul>
+      )}
+
+      {feedback && (
+        <div
+          role="status"
+          className={`flex items-start gap-2 px-2.5 py-1.5 border-t border-white/[0.06] text-[11px] ${
+            feedback.kind === 'success' ? 'text-emerald-300' : 'text-amber-300'
+          }`}
+        >
+          {feedback.kind === 'success' ? (
+            <CheckCircle2 className="w-3 h-3 mt-0.5 shrink-0" />
+          ) : (
+            <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+          )}
+          <span>
+            {feedback.kind === 'success'
+              ? `Stopped ${feedback.killed} subprocess${feedback.killed === 1 ? '' : 'es'}.`
+              : feedback.kind === 'fallback'
+                ? 'Cancel registered, but the subprocess PID wasn’t known — if ticks keep arriving, use the global Stop button.'
+                : feedback.message}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+})
