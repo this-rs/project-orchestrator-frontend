@@ -64,13 +64,13 @@ function seed(w: World = {}) {
   startRun.mockResolvedValue({})
 }
 
-function renderDash(workspaces = ['acme']) {
+function renderDash(workspaces = ['acme'], shownPlanIds?: ReadonlySet<string>) {
   const store = createStore()
   store.set(projectsAtom, [{ id: 'pr', name: 'Backend', slug: 'backend', root_path: '/work/backend', created_at: '2026-01-01T00:00:00Z' }])
   return render(
     <Provider store={store}>
       <MemoryRouter>
-        <WorkDashboard workspaces={workspaces} lane={null} />
+        <WorkDashboard workspaces={workspaces} lane={null} shownPlanIds={shownPlanIds} />
       </MemoryRouter>
     </Provider>,
   )
@@ -82,7 +82,7 @@ beforeEach(() => {
 })
 
 describe('WorkDashboard', () => {
-  it('shows the day, what is running, what to take next and each chain with its progress', async () => {
+  it('shows the day, what is in progress, what to take next and each plan to launch with its progress', async () => {
     seed({
       plans: [plan('a', 80, { project_id: 'pr' })],
       inProgress: [listed(task('run', 'in_progress', { priority: 7 }), 'a')],
@@ -97,17 +97,51 @@ describe('WorkDashboard', () => {
     expect(screen.getAllByText('Plan a').length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText('1/4')).toBeTruthy()
     expect(screen.getByRole('progressbar', { name: 'Avancement de Plan a' }).getAttribute('aria-valuenow')).toBe('25')
-    expect(screen.getByTestId('work-summary').textContent).toContain(WORK_TEXT.summary.inProgress(1))
+    // No summary line of its own: the page has ONE, above the queue.
+    expect(screen.queryByTestId('work-summary')).toBeNull()
+  })
+
+  it('is one column: the day, in progress, blocked, to take next, plans to launch, in that order', async () => {
+    seed({
+      plans: [plan('a', 80)],
+      inProgress: [listed(task('run', 'in_progress'), 'a')],
+      blocked: [listed(task('bl', 'blocked'), 'a')],
+      next: { a: task('nxt', 'pending') },
+    })
+    renderDash()
+    const dash = await screen.findByTestId('work-dashboard')
+    expect(dash.className).not.toMatch(/grid-cols/)
+    expect(dash.querySelector('[class*="grid-cols"]')).toBeNull()
+    const titles = within(dash).getAllByRole('heading').map((h) => h.textContent?.replace(/\d+$/, '').trim())
+    expect(titles).toEqual([WORK_TEXT.day, WORK_TEXT.inProgress, WORK_TEXT.blocked, WORK_TEXT.next, WORK_TEXT.chains])
+  })
+
+  it('leaves out a plan the page already shows (running, waiting or to resume): a plan appears once', async () => {
+    seed({
+      plans: [plan('shown', 2), plan('idle', 1)],
+      runs: [{ run_id: '1', plan_id: 'shown', status: 'failed', started_at: '2026-10-02T08:00:00Z' }],
+    })
+    renderDash(['acme'], new Set(['shown']))
+    expect(await screen.findByText('Plan idle')).toBeTruthy()
+    expect(screen.queryByText('Plan shown')).toBeNull()
+    expect(screen.queryByRole('button', { name: new RegExp(WORK_TEXT.relaunch) })).toBeNull()
+  })
+
+  it('has no "plans to launch" group when every active plan is shown elsewhere', async () => {
+    seed({ plans: [plan('a', 1)] })
+    renderDash(['acme'], new Set(['a']))
+    await screen.findByTestId('work-dashboard')
+    expect(screen.queryByRole('heading', { name: new RegExp(`^${WORK_TEXT.chains}`) })).toBeNull()
   })
 
   it('says so when there is nothing planned and nothing running', async () => {
     seed()
     renderDash()
     expect(await screen.findByTestId('work-dashboard')).toBeTruthy()
-    // Said once in the summary line and once as the empty state of the day.
-    expect(screen.getAllByText(WORK_TEXT.dayEmpty)).toHaveLength(2)
+    // Said once, as the empty state of the day.
+    expect(screen.getAllByText(WORK_TEXT.dayEmpty)).toHaveLength(1)
     expect(screen.getByText(WORK_TEXT.nextEmpty)).toBeTruthy()
-    expect(screen.getByText(WORK_TEXT.chainsEmpty)).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: new RegExp(`^${WORK_TEXT.chains}`) })).toBeNull()
   })
 
   it('adds a task to the day, remembers it across a reload, and shows it once', async () => {
@@ -174,7 +208,7 @@ describe('WorkDashboard', () => {
     expect(toast.success).toHaveBeenCalledWith(WORK_TEXT.launched)
   })
 
-  it('offers to relaunch a failed chain and hides the button while one is running', async () => {
+  it('offers to relaunch a failed plan and does not list one that is running (the queue shows it)', async () => {
     seed({
       plans: [plan('f', 2), plan('r', 1)],
       runs: [
@@ -185,7 +219,8 @@ describe('WorkDashboard', () => {
     renderDash()
     expect(await screen.findByRole('button', { name: new RegExp(WORK_TEXT.relaunch) })).toBeTruthy()
     expect(screen.getAllByRole('button', { name: new RegExp(`${WORK_TEXT.launch}|${WORK_TEXT.relaunch}`) })).toHaveLength(1)
-    expect(screen.getByText(WORK_TEXT.runLabel.running)).toBeTruthy()
+    expect(screen.queryByText('Plan r')).toBeNull()
+    expect(screen.queryByText(WORK_TEXT.runLabel.running)).toBeNull()
     expect(screen.getByText(WORK_TEXT.runLabel.failed)).toBeTruthy()
   })
 
@@ -221,7 +256,7 @@ describe('WorkDashboard', () => {
     renderDash()
     expect(await screen.findByText(WORK_TEXT.loadError)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /try again/i }))
-    expect(await screen.findByText(WORK_TEXT.chainsEmpty)).toBeTruthy()
+    expect(await screen.findByText(WORK_TEXT.nextEmpty)).toBeTruthy()
   })
 
   it('keeps showing the data and says it may be stale when a later refresh fails', async () => {

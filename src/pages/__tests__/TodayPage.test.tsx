@@ -24,8 +24,13 @@ vi.mock('@/hooks/useEventBus', () => ({
     emit = cb
   },
 }))
-// The work dashboard has its own tests (components/today/work); this file is about the attention view.
-vi.mock('@/components/today/work/WorkDashboard', () => ({ WorkDashboard: () => null }))
+// The work dashboard has its own tests (components/today/work); here it is a marker that
+// says where the page puts it and which plans the page tells it are already shown.
+vi.mock('@/components/today/work/WorkDashboard', () => ({
+  WorkDashboard: ({ shownPlanIds }: { shownPlanIds?: ReadonlySet<string> }) => (
+    <div data-testid="work-dashboard" data-shown={shownPlanIds ? [...shownPlanIds].sort().join(',') : 'none'} />
+  ),
+}))
 const toast = { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }
 vi.mock('@/hooks/useToast', () => ({ useToast: () => toast }))
 
@@ -46,8 +51,8 @@ function setViewport(width: number) {
   }) as typeof window.matchMedia
 }
 
-import { TodayPage } from '../TodayPage'
-import { BAND_TEXT, SECTION_ORDER, TODAY_TEXT } from '@/components/today/bands'
+import { TodayPage, DAY_REGION } from '../TodayPage'
+import { BAND_TEXT, SECTION_ORDER, TODAY_TEXT, buildBands, shownPlanIds } from '@/components/today/bands'
 import { DISCUSSIONS_TEXT } from '@/components/today/PlanRunRow'
 import { START_TEXT } from '@/components/today/TodayView'
 
@@ -407,8 +412,8 @@ describe.each([360, 1440])('TodayPage: the %ipx rendering of every contract fixt
     })
     if (!isEmpty) {
       // four bands, fixed order, tab order = DOM order
-      // The page frames the attention view with its own two regions (work dashboard first, then this view).
-      const PAGE_REGIONS = ['Tableau de bord du jour', 'Ce qui attend ta réponse']
+      // The user's own day is a region too; it is not one of the four bands.
+      const PAGE_REGIONS = [DAY_REGION]
       const labels = screen
         .getAllByRole('region')
         .map((r) => r.getAttribute('aria-label'))
@@ -420,7 +425,7 @@ describe.each([360, 1440])('TodayPage: the %ipx rendering of every contract fixt
     }
     const root = document.body
     // A phone is one column; the two-column grid is opt-in at the lg breakpoint only.
-    const grid = root.querySelector('[data-band]')?.parentElement
+    const grid = root.querySelector('[data-testid="sections"]')
     if (grid && !isEmpty) {
       expect(grid.className).toContain('grid-cols-1')
       expect(grid.className).toContain('lg:grid-cols-2')
@@ -481,13 +486,60 @@ describe('TodayPage: the day, in order', () => {
     for (let i = 1; i < nodes.length; i++) {
       expect(nodes[i - 1].compareDocumentPosition(nodes[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     }
-    // large screens: what asks for the user stacks on the left, "En cours" on the right, "À suivre" spans both
-    expect(band('waiting').className).toContain('lg:col-start-1')
-    expect(band('stuck').className).toContain('lg:col-start-1')
-    expect(band('running').className).toContain('lg:col-start-2')
-    expect(band('thinking').parentElement!.className).toContain('lg:col-span-2')
+    // large screens: what asks for the user (and their day) stacks on the left, what advances alone on the right
+    const main = screen.getByTestId('sections-main')
+    const side = screen.getByTestId('sections-side')
+    expect(main.parentElement).toBe(grid)
+    expect(side.parentElement).toBe(grid)
+    expect(main.contains(band('waiting'))).toBe(true)
+    expect(main.contains(band('stuck'))).toBe(true)
+    expect(side.contains(band('running'))).toBe(true)
+    expect(side.contains(band('thinking'))).toBe(true)
     // nothing is two columns on a phone
     for (const b of ['waiting', 'stuck', 'running'] as const) expect(band(b).className).not.toMatch(/(^|\s)col-(start|span)-/)
+  })
+
+  it('what waits on the user comes FIRST: the day sits under the queue, never above it', async () => {
+    get.mockResolvedValue(fixture('four_bands'))
+    renderPage()
+    await waitFor(() => expect(band('waiting').getAttribute('data-state')).toBe('ready'))
+    const day = screen.getByRole('region', { name: DAY_REGION })
+    const after = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+    // DOM order (= phone order): À traiter, À reprendre, the day, En cours, À suivre
+    expect(after(band('waiting'), day)).toBe(true)
+    expect(after(band('stuck'), day)).toBe(true)
+    expect(after(day, band('running'))).toBe(true)
+    expect(after(day, band('thinking'))).toBe(true)
+    expect(screen.getByTestId('sections-main').contains(day)).toBe(true)
+    // the first band of the page is the queue, and no region frames the page above it
+    expect(document.querySelector('[data-band]')).toBe(band('waiting'))
+    expect(screen.queryByRole('region', { name: 'Ce qui attend ta réponse' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Tableau de bord du jour' })).toBeNull()
+  })
+
+  it('has ONE summary line and ONE workspace filter', async () => {
+    get.mockResolvedValue(fixture('four_bands'))
+    renderPage()
+    await waitFor(() => expect(band('waiting').getAttribute('data-state')).toBe('ready'))
+    expect(screen.getAllByRole('list', { name: TODAY_TEXT.summaryLabel })).toHaveLength(1)
+    expect(screen.getAllByRole('group', { name: TODAY_TEXT.laneFilterLabel })).toHaveLength(1)
+  })
+
+  it('tells the day which plans the queue already shows, so a plan appears once', async () => {
+    const data = fixture('four_bands')
+    get.mockResolvedValue(data)
+    renderPage()
+    await waitFor(() => expect(band('waiting').getAttribute('data-state')).toBe('ready'))
+    const expected = [...shownPlanIds(buildBands(data))].sort()
+    expect(expected.length).toBeGreaterThan(0)
+    expect(screen.getByTestId('work-dashboard').getAttribute('data-shown')).toBe(expected.join(','))
+  })
+
+  it('keeps the day on screen when nothing waits, runs or is to resume', async () => {
+    get.mockResolvedValue(fixture('empty'))
+    renderPage()
+    expect(await screen.findByText(TODAY_TEXT.emptyAll)).toBeTruthy()
+    expect(screen.getByRole('region', { name: DAY_REGION })).toBeTruthy()
   })
 
   it('"Commence par ça" comes before the sections and says why', async () => {
@@ -573,7 +625,7 @@ describe('TodayPage: the day, in order', () => {
 })
 
 describe('TodayPage: workspace chips', () => {
-  it('are a row of compact chips above the summaries, not a big selector', async () => {
+  it('are a row of compact chips above the summary, not a big selector', async () => {
     get.mockResolvedValue(fixture('four_bands'))
     renderPage()
     await waitFor(() => expect(band('waiting').getAttribute('data-state')).toBe('ready'))
@@ -582,7 +634,7 @@ describe('TodayPage: workspace chips', () => {
     expect(within(chips).getByRole('button', { name: 'Tous' }).getAttribute('aria-pressed')).toBe('true')
     expect(screen.queryByRole('combobox')).toBeNull()
     expect(screen.queryByRole('button', { name: /filter/i })).toBeNull()
-    // The lane filters the whole page (work dashboard and attention view): the chips sit above both summaries.
+    // The lane filters the whole page (the queue and the day): the chips sit above the one summary line.
     const summary = screen.getByRole('list', { name: TODAY_TEXT.summaryLabel })
     expect(summary.compareDocumentPosition(chips) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
     for (const b of within(chips).getAllByRole('button')) expect(b.className).toContain('min-h-9')

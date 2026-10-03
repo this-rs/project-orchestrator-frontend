@@ -29,13 +29,14 @@ import { recommendStart, type StartHere } from './startHere'
  * The day's view, assembled. Presentation only: data and actions come from a
  * `TodaySource` (the live `useAttention`).
  *
- * Structure: a header (title above, one summary line of clickable counters, the
- * workspace chips), "Commence par ça" (ONE recommendation, see `startHere.ts`), then
- * four sections: À traiter, En cours (grouped by plan), À reprendre, À suivre (folded).
+ * Structure: a header (one summary line of clickable counters, the workspace chips),
+ * "Commence par ça" (ONE recommendation, see `startHere.ts`), then the queue (À traiter,
+ * À reprendre), the user's own day (`daySlot`), En cours (grouped by plan) and À suivre (folded).
+ * What asks for the user always comes first: nothing is placed above the queue.
  *
  * Rules kept here (DESIGN.md §8):
  * - fixed section order: DOM order = tab order = phone order (À traiter, À reprendre,
- *   En cours, À suivre); from 1024 px "En cours" sits on the right of the first two;
+ *   the day, En cours, À suivre); from 1024 px En cours and À suivre sit on the right;
  * - an empty section shrinks to ONE soft line, it is never hidden;
  * - first load: skeletons with the final shape of each section, no centred spinner;
  * - a failed source degrades ITS section only; the others stay usable;
@@ -273,9 +274,14 @@ export interface TodayViewProps {
    * (and the loose live sessions of En cours). No slot, no button.
    */
   renderAttach?: (target: { sessionId: string; workspace: string }) => ReactNode
+  /**
+   * The user's own work for the day (day plan, tasks). Placed right under the queue,
+   * never above it; shown in every state of the page, the empty one included.
+   */
+  daySlot?: ReactNode
 }
 
-export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, laneNote, renderDiscussions, renderAttach }: TodayViewProps) {
+export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, laneNote, renderDiscussions, renderAttach, daySlot }: TodayViewProps) {
   const { status, data, error, refresh } = source
   const bands = data ? buildBands(data) : null
   const errors = data?.source_errors ?? []
@@ -348,6 +354,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
             }
           />
         )}
+        {daySlot}
       </div>
     )
   }
@@ -455,99 +462,101 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
 
       {/* DOM order = visual order = tab order. Phone: one column in this order. */}
       <div data-testid="sections" className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
-        <BandFrame
-          {...common('waiting')}
-          className="lg:col-start-1 lg:row-start-1"
-          count={bands ? bands.counts.waiting : null}
-          skeleton={
-            <div className="space-y-3">
-              <CardSkeleton />
-              <CardSkeleton />
-            </div>
-          }
-          empty={!bands || bands.waiting.length === 0}
-        >
-          <ul aria-label="Demandes à traiter" className="space-y-3">
-            {bands?.waiting.map((entry) => (
-              <li key={entry.request.request_id}>{renderWaiting(entry)}</li>
-            ))}
-          </ul>
-        </BandFrame>
-
-        <BandFrame
-          {...common('stuck')}
-          className="lg:col-start-1 lg:row-start-2"
-          count={bands ? bands.counts.stuck : null}
-          skeleton={<ThreadRowsSkeleton />}
-          empty={!bands || bands.stuck.length === 0}
-        >
-          {bands && (
-            <>
-              <ThreadRowList label="Fils à reprendre">{bands.stuck.map(renderStuck)}</ThreadRowList>
-              {bands.stuck.some((e) => e.kind !== 'unattached') && <MiniGraphLegend />}
-            </>
-          )}
-        </BandFrame>
-
-        <BandFrame
-          {...common('running')}
-          className="lg:col-start-2 lg:row-span-2 lg:row-start-1"
-          count={bands ? bands.counts.running : null}
-          skeleton={<ThreadRowsSkeleton />}
-          empty={!bands || bands.running.length === 0}
-        >
-          {bands && (
-            <>
-            <ThreadRowList label="Plans en cours">
-              {bands.running.map((e) =>
-                e.kind === 'plan' ? (
-                  <PlanRunRow
-                    key={e.key}
-                    thread={e.thread}
-                    others={e.others}
-                    laneName={laneName(e.thread.workspace)}
-                    renderDiscussions={renderDiscussions}
-                  />
-                ) : (
-                  <ThreadRow
-                    key={e.session.id}
-                    variant="unattached"
-                    session={e.session}
-                    laneName={laneName(e.session.workspace_slug)}
-                    onSendMessage={source.sendMessage}
-                    attachSlot={renderAttach?.({ sessionId: e.session.id, workspace: e.session.workspace_slug })}
-                  />
-                ),
-              )}
-            </ThreadRowList>
-            {bands.running.some((e) => e.kind === 'plan') && <MiniGraphLegend />}
-            </>
-          )}
-        </BandFrame>
-
-        {state === 'ready' && bands && bands.thinking.length > 0 ? (
-          <div className="min-w-0 lg:col-span-2 lg:row-start-3">
-            {degradedFor('thinking') && <ErrorLine onRetry={refresh}>{degradedFor('thinking')}</ErrorLine>}
-            <ThinkingList
-              items={bands.thinking}
-              onChanged={refresh}
-              title={BAND_TEXT.thinking.title}
-              collapsed={thinkingFold.collapsed}
-              onCollapsedChange={thinkingFold.setCollapsed}
-              className=""
-            />
-          </div>
-        ) : (
+        <div data-testid="sections-main" className="min-w-0 space-y-6">
           <BandFrame
-            {...common('thinking')}
-            className="lg:col-span-2 lg:row-start-3"
-            count={bands ? bands.counts.thinking : null}
-            skeleton={<EntityListSkeleton rows={2} />}
-            empty={!bands || bands.thinking.length === 0}
+            {...common('waiting')}
+            count={bands ? bands.counts.waiting : null}
+            skeleton={
+              <div className="space-y-3">
+                <CardSkeleton />
+                <CardSkeleton />
+              </div>
+            }
+            empty={!bands || bands.waiting.length === 0}
           >
-            {null}
+            <ul aria-label="Demandes à traiter" className="space-y-3">
+              {bands?.waiting.map((entry) => (
+                <li key={entry.request.request_id}>{renderWaiting(entry)}</li>
+              ))}
+            </ul>
           </BandFrame>
-        )}
+
+          <BandFrame
+            {...common('stuck')}
+            count={bands ? bands.counts.stuck : null}
+            skeleton={<ThreadRowsSkeleton />}
+            empty={!bands || bands.stuck.length === 0}
+          >
+            {bands && (
+              <>
+                <ThreadRowList label="Fils à reprendre">{bands.stuck.map(renderStuck)}</ThreadRowList>
+                {bands.stuck.some((e) => e.kind !== 'unattached') && <MiniGraphLegend />}
+              </>
+            )}
+          </BandFrame>
+
+          {daySlot}
+        </div>
+
+        <div data-testid="sections-side" className="min-w-0 space-y-6">
+          <BandFrame
+            {...common('running')}
+            count={bands ? bands.counts.running : null}
+            skeleton={<ThreadRowsSkeleton />}
+            empty={!bands || bands.running.length === 0}
+          >
+            {bands && (
+              <>
+              <ThreadRowList label="Plans en cours">
+                {bands.running.map((e) =>
+                  e.kind === 'plan' ? (
+                    <PlanRunRow
+                      key={e.key}
+                      thread={e.thread}
+                      others={e.others}
+                      laneName={laneName(e.thread.workspace)}
+                      renderDiscussions={renderDiscussions}
+                    />
+                  ) : (
+                    <ThreadRow
+                      key={e.session.id}
+                      variant="unattached"
+                      session={e.session}
+                      laneName={laneName(e.session.workspace_slug)}
+                      onSendMessage={source.sendMessage}
+                      attachSlot={renderAttach?.({ sessionId: e.session.id, workspace: e.session.workspace_slug })}
+                    />
+                  ),
+                )}
+              </ThreadRowList>
+              {bands.running.some((e) => e.kind === 'plan') && <MiniGraphLegend />}
+              </>
+            )}
+          </BandFrame>
+
+          {state === 'ready' && bands && bands.thinking.length > 0 ? (
+            <div className="min-w-0">
+              {degradedFor('thinking') && <ErrorLine onRetry={refresh}>{degradedFor('thinking')}</ErrorLine>}
+              <ThinkingList
+                items={bands.thinking}
+                onChanged={refresh}
+                title={BAND_TEXT.thinking.title}
+                collapsed={thinkingFold.collapsed}
+                onCollapsedChange={thinkingFold.setCollapsed}
+                className=""
+              />
+            </div>
+          ) : (
+            <BandFrame
+              {...common('thinking')}
+              count={bands ? bands.counts.thinking : null}
+              skeleton={<EntityListSkeleton rows={2} />}
+              empty={!bands || bands.thinking.length === 0}
+            >
+              {null}
+            </BandFrame>
+          )}
+        </div>
       </div>
       </div>
     </div>
