@@ -76,6 +76,12 @@ function renderDash(workspaces = ['acme'], shownPlanIds?: ReadonlySet<string>) {
   )
 }
 
+/** Opens the ⋯ menu of a row and activates one of its items. */
+function menu(rowTitle: string, item: string) {
+  fireEvent.click(screen.getByRole('button', { name: `Actions for ${rowTitle}` }))
+  fireEvent.click(screen.getByRole('menuitem', { name: item }))
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
@@ -148,11 +154,11 @@ describe('WorkDashboard', () => {
     seed({ plans: [plan('a', 1)], next: { a: task('nxt', 'pending') }, pending: [listed(task('nxt', 'pending'), 'a')] })
     const first = renderDash()
     await screen.findByText('Tâche nxt')
-    fireEvent.click(screen.getByRole('button', { name: WORK_TEXT.addToDay }))
+    fireEvent.click(screen.getByRole('button', { name: `${WORK_TEXT.addToDay} : Tâche nxt` }))
     await waitFor(() => expect(JSON.parse(localStorage.getItem(DAY_PLAN_KEY) ?? '{}').ids).toEqual(['nxt']))
     // It now lives under "Ma journée" only: no longer offered in "À prendre".
     expect(screen.getAllByText('Tâche nxt')).toHaveLength(1)
-    expect(screen.queryByRole('button', { name: WORK_TEXT.addToDay })).toBeNull()
+    expect(screen.queryByRole('button', { name: new RegExp(WORK_TEXT.addToDay) })).toBeNull()
     first.unmount()
     renderDash()
     expect(await screen.findByText('Tâche nxt')).toBeTruthy()
@@ -166,9 +172,11 @@ describe('WorkDashboard', () => {
     await screen.findByText('Tâche one')
     const order = () => screen.getAllByText(/^Tâche (one|two)$/).map((e) => e.textContent)
     expect(order()).toEqual(['Tâche one', 'Tâche two'])
-    fireEvent.click(screen.getByRole('button', { name: `${WORK_TEXT.moveUp} : Tâche two` }))
+    // Reordering and removing are secondary: they live in the row's ⋯ menu.
+    expect(screen.queryByRole('button', { name: new RegExp(WORK_TEXT.moveUp) })).toBeNull()
+    menu('Tâche two', WORK_TEXT.moveUp)
     await waitFor(() => expect(order()).toEqual(['Tâche two', 'Tâche one']))
-    fireEvent.click(screen.getByRole('button', { name: `${WORK_TEXT.removeFromDay} : Tâche two` }))
+    menu('Tâche two', WORK_TEXT.removeFromDay)
     await waitFor(() => expect(screen.queryByText('Tâche two')).toBeNull())
     expect(JSON.parse(localStorage.getItem(DAY_PLAN_KEY) ?? '{}').ids).toEqual(['one'])
   })
@@ -182,12 +190,38 @@ describe('WorkDashboard', () => {
     })
     renderDash()
     await screen.findByText('Tâche nxt')
-    fireEvent.click(screen.getByRole('button', { name: new RegExp(WORK_TEXT.start) }))
+    // A task to take next offers "Ajouter"; starting it right away is in its menu.
+    menu('Tâche nxt', WORK_TEXT.start)
     await waitFor(() => expect(tasksUpdate).toHaveBeenCalledWith('nxt', { status: 'in_progress' }))
     expect(toast.success).toHaveBeenCalledWith(WORK_TEXT.started)
     fireEvent.click(screen.getByRole('button', { name: new RegExp(WORK_TEXT.complete) }))
     await waitFor(() => expect(tasksUpdate).toHaveBeenCalledWith('run', { status: 'completed' }))
     expect(toast.success).toHaveBeenCalledWith(WORK_TEXT.completed)
+  })
+
+  it('shows ONE visible action per row, and ONE filled button in all: "Démarrer" on the next task of the day', async () => {
+    localStorage.setItem(DAY_PLAN_KEY, JSON.stringify({ date: 'x', ids: ['one', 'two'] }))
+    seed({
+      plans: [plan('a', 2), plan('b', 1)],
+      pending: [listed(task('one', 'pending'), 'a'), listed(task('two', 'pending'), 'a'), listed(task('nxt', 'pending'), 'b')],
+      inProgress: [listed(task('run', 'in_progress'), 'a')],
+      next: { b: task('nxt', 'pending') },
+    })
+    renderDash()
+    const dash = await screen.findByTestId('work-dashboard')
+    await screen.findByText('Tâche nxt')
+    // at most one visible action per row
+    for (const row of dash.querySelectorAll('li')) {
+      expect(row.querySelectorAll('[data-row-primary] button').length).toBeLessThanOrEqual(1)
+    }
+    // one filled button in the whole dashboard, on the first task of the day still to start
+    const filled = [...dash.querySelectorAll('button')].filter((b) => b.className.includes('bg-indigo-600'))
+    expect(filled).toHaveLength(1)
+    expect(filled[0].textContent).toContain(WORK_TEXT.start)
+    expect(filled[0].closest('li')!.textContent).toContain('Tâche one')
+    // the second task of the day can still be started, from its menu
+    menu('Tâche two', WORK_TEXT.start)
+    await waitFor(() => expect(tasksUpdate).toHaveBeenCalledWith('two', { status: 'in_progress' }))
   })
 
   it('marks a planned task done from its check, and reports a failed action', async () => {
