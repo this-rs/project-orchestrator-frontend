@@ -231,6 +231,13 @@ export function sessionErrorText(evt: { reason?: string; message?: string }): st
   return evt.reason ? `${message} (${evt.reason})` : message
 }
 
+/** Human text for a `tools_cancelled` event: how many processes were killed, and by whom. */
+export function toolsCancelledText(evt: { killed_count?: number; requested_by?: string }): string {
+  const n = evt.killed_count ?? 0
+  const what = n === 1 ? '1 running tool process' : `${n} running tool processes`
+  return evt.requested_by ? `Cancelled ${what} (requested by ${evt.requested_by})` : `Cancelled ${what}`
+}
+
 /**
  * Convert raw chat events (from REST /messages endpoint) into ChatMessage UI format.
  * Groups events into user/assistant messages — same logic as handleEvent in replay mode.
@@ -501,6 +508,17 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
           id: nextBlockId(),
           type: 'error',
           content: sessionErrorText(evt),
+        })
+        break
+      }
+
+      case 'tools_cancelled': {
+        // Emitted by cancel_running_tools: the tools were killed, the user must see it.
+        const msg = lastAssistant(createdAt)
+        msg.blocks.push({
+          id: nextBlockId(),
+          type: 'error',
+          content: toolsCancelledText(evt),
         })
         break
       }
