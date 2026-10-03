@@ -13,6 +13,7 @@ import { LinkedDiscussions } from '@/components/discussions/LinkedDiscussions'
 import { AttachSessionButton } from '@/components/discussions/AttachSessionButton'
 import type { AttentionThread } from '@/types/attention'
 import { WorkDashboard } from '@/components/today/work/WorkDashboard'
+import { LiveAgents } from '@/components/today/live/LiveAgents'
 
 /** Query parameter holding the lane filter on the cross-workspace entry. */
 export const LANE_PARAM = 'workspace'
@@ -147,6 +148,7 @@ export function TodayPage() {
           laneNote={laneName ? TODAY_TEXT.laneNote(laneName) : null}
           renderDiscussions={renderDiscussions}
           renderAttach={renderAttach}
+          liveSlot={<LiveAgents />}
           daySlot={
             <section aria-label={DAY_REGION} data-testid="today-day" className="min-w-0">
               <WorkDashboard key={dashboardWorkspaces.join('|')} workspaces={dashboardWorkspaces} lane={lane} shownPlanIds={shown} />

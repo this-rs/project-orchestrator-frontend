@@ -275,9 +275,15 @@ export interface TodayViewProps {
    * never above it; shown in every state of the page, the empty one included.
    */
   daySlot?: ReactNode
+  /**
+   * Slot for the agents running now (components/today/live). It heads the right column, above
+   * "En cours", and on a phone comes after the queue and the day: it says who is running, which
+   * is not what the user is asked to do, so it never sits above the queue.
+   */
+  liveSlot?: ReactNode
 }
 
-export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, laneNote, renderDiscussions, renderAttach, daySlot }: TodayViewProps) {
+export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, laneNote, renderDiscussions, renderAttach, daySlot, liveSlot }: TodayViewProps) {
   const { status, data, error, refresh } = source
   const bands = data ? buildBands(data) : null
   const errors = data?.source_errors ?? []
@@ -495,6 +501,8 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
         </div>
 
         <div data-testid="sections-side" className="min-w-0 space-y-6">
+          {liveSlot}
+
           <BandFrame
             {...common('running')}
             count={bands ? bands.counts.running : null}

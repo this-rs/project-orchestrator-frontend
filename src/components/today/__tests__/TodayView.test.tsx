@@ -94,3 +94,27 @@ describe('TodayView: an empty section is one soft line', () => {
     expect(section.querySelectorAll('li, a').length).toBe(0)
   })
 })
+
+describe('TodayView: the live agents slot', () => {
+  const data = fixture('four_bands')
+
+  it('heads the right column, above "En cours", and never above the queue', () => {
+    view(data, { liveSlot: <section aria-label="Agents en cours" data-testid="live" /> })
+    const side = screen.getByTestId('sections-side')
+    const live = screen.getByTestId('live')
+    expect(side.contains(live)).toBe(true)
+    // first thing in the column
+    expect(side.firstElementChild).toBe(live)
+    // after the queue in DOM order (= phone order): "À traiter" comes first
+    const queue = screen.getByRole('region', { name: 'À traiter' })
+    expect(queue.compareDocumentPosition(live) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // and before "En cours"
+    const running = screen.getByRole('region', { name: 'En cours' })
+    expect(live.compareDocumentPosition(running) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('draws nothing extra when no slot is given', () => {
+    view(data)
+    expect(screen.getByTestId('sections-side').querySelector('[data-testid="live"]')).toBeNull()
+  })
+})
