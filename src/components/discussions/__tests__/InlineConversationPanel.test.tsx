@@ -5,7 +5,11 @@ import { MemoryRouter } from 'react-router-dom'
 const chat = vi.hoisted(() => ({ interruptSession: vi.fn() }))
 vi.mock('@/services/chat', () => ({ chatApi: chat }))
 vi.mock('@/services/auth', () => ({ fetchWsTicket: vi.fn(async () => null) }))
-vi.mock('@/services/env', () => ({ wsUrl: (p: string) => `ws://x${p}` }))
+// Partial mock: the shared chat rendering pulls services/api, which reads `isTauri` from env.
+vi.mock('@/services/env', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/env')>()),
+  wsUrl: (p: string) => `ws://x${p}`,
+}))
 vi.mock('@/hooks', () => ({ useWorkspaceSlug: () => 'acme' }))
 vi.mock('@/services/wsAdapter', () => ({
   ReadyState: { OPEN: 1 },

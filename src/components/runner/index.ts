@@ -2,7 +2,6 @@
 
 export { AgentExecutionDetail } from './AgentExecutionDetail'
 export { CancelButton } from './CancelButton'
-export { ConversationPanel } from './ConversationPanel'
 export { PlanRunHistory } from './PlanRunHistory'
 export { PlanRunRow } from './PlanRunRow'
 
