@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
-import { ConfirmDialog, EntityRow, ListGroup } from '@/components/ui'
+import { Button, ConfirmDialog, EntityRow, ListGroup } from '@/components/ui'
 import { RelativeTime } from '@/components/ui/MetaLine'
-import { focusRing, pressFeedback } from '@/components/ui/classes'
+import { focusRing } from '@/components/ui/classes'
 import { useToast } from '@/hooks/useToast'
 import { api } from '@/services/api'
 import { attentionApi, type Verdict } from '@/services/attention'
@@ -96,9 +96,6 @@ function call(item: ThinkingItem, act: Act): Promise<unknown> {
   }
 }
 
-const actionBtn =
-  'inline-flex items-center justify-center min-h-9 px-3 rounded-lg text-xs font-medium border border-white/[0.08] bg-white/[0.04] text-gray-200 hover:bg-white/[0.08] active:bg-white/[0.1] ' + pressFeedback
-
 export interface ThinkingListProps {
   items: ThinkingItem[]
   /** Called after a successful action (typically `refresh`). */
@@ -155,9 +152,9 @@ export function ThinkingList({
   const actionsFor = (item: ThinkingItem) => {
     const label = (verb: string) => `${verb} ${item.title}`
     const btn = (act: Act, text: string, onClick: () => void) => (
-      <button key={act} type="button" className={`${actionBtn} ${focusRing}`} aria-label={label(text)} onClick={onClick}>
+      <Button key={act} variant="secondary" size="sm" aria-label={label(text)} onClick={onClick}>
         {text}
-      </button>
+      </Button>
     )
     switch (item.kind) {
       case 'rfc':

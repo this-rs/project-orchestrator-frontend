@@ -1,8 +1,9 @@
 import { useId, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
 import { StatusDot } from '@/components/ui/Status'
-import { focusRing, metaTextReadable as metaText, pressFeedback } from '@/components/ui/classes'
+import { focusRing, metaTextReadable as metaText } from '@/components/ui/classes'
 import { formatCost, formatDurationMs } from '@/components/ui/format'
 import type { AttentionThread, WaveSummaryDto } from '@/types/attention'
 import { workspacePath } from '@/utils/paths'
@@ -166,18 +167,17 @@ function DiscussionsToggle({
   const panelId = useId()
   return (
     <div className="mt-1">
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        size="sm"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((o) => !o)}
-        className={`${pressFeedback} inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-sm text-gray-100 ${focusRing} ${
-          open ? 'border-indigo-400/60 bg-indigo-500/15' : 'border-white/[0.12] bg-white/[0.06] hover:bg-white/[0.1]'
-        }`}
+        className={open ? 'border-indigo-400/60! bg-indigo-500/15!' : ''}
       >
-        <ChevronRight className={`h-4 w-4 shrink-0 ${open ? 'rotate-90' : ''}`} aria-hidden="true" />
+        <ChevronRight className={`mr-1.5 h-4 w-4 shrink-0 ${open ? 'rotate-90' : ''}`} aria-hidden="true" />
         {open ? DISCUSSIONS_TEXT.hide : DISCUSSIONS_TEXT.show}
-      </button>
+      </Button>
       <div id={panelId} hidden={!open} className="min-w-0">
         {open && renderDiscussions(thread)}
       </div>

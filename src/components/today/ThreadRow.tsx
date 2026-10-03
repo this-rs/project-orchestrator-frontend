@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { Button } from '@/components/ui/Button'
 import { StatusIcon } from '@/components/ui/Status'
 import { RelativeTime } from '@/components/ui/MetaLine'
 import { focusRing, inlineLink, metaTextReadable as metaText, pressFeedback, provenanceText } from '@/components/ui/classes'
@@ -113,12 +114,10 @@ export function linkProvenance(link: SessionLink, thread?: AttentionThread): str
 const shortId = (id: string) => id.slice(0, 8)
 
 /**
- * Buttons of the rows (bands 2 and 3). The ONE primary of the page is the answer to a
- * live agent (band 1): eight stuck threads must not stack eight identical primaries.
+ * Buttons of the rows (bands 2 and 3) are quiet `<Button variant="secondary">`. The ONE
+ * filled button of the page is the answer to a live agent (band 1): eight stuck threads
+ * must not stack eight identical primaries.
  */
-const BTN = `${pressFeedback} inline-flex min-h-9 items-center justify-center rounded-lg px-4 text-sm font-medium`
-const secondaryBtn = `${BTN} border border-white/[0.12] bg-white/[0.06] text-gray-100 hover:bg-white/[0.1]`
-const primaryBtn = `${BTN} bg-indigo-600 text-white hover:bg-indigo-500`
 
 // ---------------------------------------------------------------------------
 // Pieces
@@ -287,15 +286,17 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
         </p>
       )}
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={click}
           disabled={disabled}
           aria-describedby={noteId}
-          className={`${secondaryBtn} disabled:cursor-not-allowed disabled:border-dashed disabled:border-white/[0.12] disabled:bg-transparent disabled:text-gray-400 ${focusRing}`}
+          // Not a dimmed button: a visibly unavailable one (dashed, grey), at full opacity so its reason stays readable.
+          className="disabled:border-dashed disabled:border-white/[0.12]! disabled:bg-transparent! disabled:text-gray-400! disabled:opacity-100!"
         >
           {pending ? 'Reprise…' : ROW_TEXT.resume}
-        </button>
+        </Button>
         {disabledReason && (
           <p data-testid="resume-disabled-reason" className="text-xs text-amber-400">
             {disabledReason}
@@ -422,13 +423,9 @@ export function ReplyAction({
       ) : (
         <>
           <div className="mt-2">
-            <button
-              type="button"
-              onClick={() => setOpen(true)}
-              className={`${emphasis === 'primary' ? primaryBtn : secondaryBtn} ${focusRing}`}
-            >
+            <Button variant={emphasis === 'primary' ? 'primary' : 'secondary'} size="sm" onClick={() => setOpen(true)}>
               {dead ? ROW_TEXT.resumeSession : ROW_TEXT.reply}
-            </button>
+            </Button>
           </div>
           {dead && <p className="mt-1 text-xs text-gray-400">{help}</p>}
         </>

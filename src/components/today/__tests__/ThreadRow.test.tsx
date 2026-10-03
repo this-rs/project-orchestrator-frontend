@@ -109,7 +109,8 @@ describe('ThreadRow — stuck (À reprendre)', () => {
       renderRow(<ThreadRow variant="stuck" thread={stuck} runner={busy.runner} onResume={vi.fn()} />)
       const cls = screen.getByRole('button', { name: ROW_TEXT.resume }).className
       expect(cls).not.toContain('bg-indigo')
-      expect(cls).not.toContain('disabled:opacity-50')
+      // It goes through <Button>, whose disabled state dims: the row overrides that to stay at full opacity.
+      expect(cls).toContain('disabled:opacity-100!')
       expect(cls).toContain('disabled:border-dashed')
       expect(cls).toContain('disabled:text-gray-400')
     })

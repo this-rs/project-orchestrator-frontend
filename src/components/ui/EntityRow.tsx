@@ -40,6 +40,13 @@ export interface EntityRowProps {
   meta?: ReactNode[] | ReactNode
   /** Extra line under the meta (linked entities, cwd, progress bar…). */
   context?: ReactNode
+  /**
+   * THE visible action of the row (one `<Button size="sm">`), at the right of the text and
+   * before the `⋯` menu. At most one per row; every other action goes in `actions`
+   * (DESIGN.md §9). Keep its label to one short word: on a phone it shares the line with
+   * the title, which wraps.
+   */
+  primaryAction?: ReactNode
   /** Row actions: an array renders a `⋯` OverflowMenu; a node is rendered as-is. */
   actions?: OverflowMenuAction[] | ReactNode
   /** Selected / current item (indigo inset bar). */
@@ -72,7 +79,7 @@ export interface EntityRowProps {
  * The one list row used by every entity list.
  *
  * ```
- * [leading] Title ····················· trailing  [⋯]
+ * [leading] Title ················ trailing  [Action] [⋯]
  *           description (optional, muted)
  *           meta · meta · meta
  *           context (optional)
@@ -95,6 +102,7 @@ export function EntityRow({
   tone,
   meta,
   context,
+  primaryAction,
   actions,
   selected,
   muted,
@@ -184,6 +192,11 @@ export function EntityRow({
         {children && <div className="relative z-10 mt-2">{children}</div>}
       </div>
 
+      {primaryAction && (
+        <div data-row-primary className="relative z-10 shrink-0 -my-1.5">
+          {primaryAction}
+        </div>
+      )}
       {menu && <div className="relative z-10 shrink-0 -my-1.5 -mr-1.5 md:-mr-2">{menu}</div>}
       {!menu && chevron && interactive && (
         <ChevronRight className="shrink-0 mt-0.5 w-4 h-4 text-gray-600" aria-hidden="true" />

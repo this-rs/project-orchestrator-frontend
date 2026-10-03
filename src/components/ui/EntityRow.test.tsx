@@ -38,6 +38,38 @@ describe('EntityRow', () => {
     expect(screen.queryByText('·')).toBeNull()
   })
 
+  it('primaryAction: one visible button before the menu, which never activates the row', () => {
+    const act = vi.fn()
+    renderInRouter(
+      <ul>
+        <EntityRow
+          title="Auth flow"
+          href="/items/1"
+          primaryAction={<button onClick={act}>Start</button>}
+          actions={[{ label: 'Edit', onClick: () => {} }]}
+        />
+      </ul>,
+    )
+    const primary = screen.getByRole('button', { name: 'Start' })
+    const menu = screen.getByRole('button', { name: 'Actions for Auth flow' })
+    // order on the line: the visible action, then the ⋯ menu
+    expect(primary.compareDocumentPosition(menu) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // it sits above the row's stretched link: tapping it runs the action, not the navigation
+    expect(primary.closest('[data-row-primary]')!.className).toContain('z-10')
+    fireEvent.click(primary)
+    expect(act).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('detail page')).toBeNull()
+  })
+
+  it('renders no primary slot when there is none', () => {
+    render(
+      <ul>
+        <EntityRow title="Auth flow" />
+      </ul>,
+    )
+    expect(document.querySelector('[data-row-primary]')).toBeNull()
+  })
+
   it('navigates via its stretched link', () => {
     renderInRouter(
       <ul>

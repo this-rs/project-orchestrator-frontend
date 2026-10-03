@@ -18,7 +18,8 @@ const variantStyles: Record<ButtonVariant, string> = {
 }
 
 const sizeStyles: Record<ButtonSize, string> = {
-  sm: 'px-3 py-2 text-sm',
+  // `min-h-9`: the 36px tap target of DESIGN.md §10, stated instead of left to padding + line height.
+  sm: 'min-h-9 px-3 py-2 text-sm',
   md: 'px-4 py-2.5 text-sm',
   lg: 'px-6 py-3 text-base',
 }
