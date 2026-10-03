@@ -7,11 +7,14 @@ import { workspacesAtom } from '@/atoms'
 import { workspacePath } from '@/utils/paths'
 import { workspacesApi } from '@/services'
 import { useWorkspace } from '@/hooks'
+import { TodayLogoLink } from '@/components/TodayLogoLink'
+import { focusRing } from '@/components/ui/classes'
 
 /**
  * Combined logo + workspace selector in the sidebar header.
- * Shows the app icon alongside the active workspace name with a dropdown
- * to switch workspaces.
+ * The logo is the link to Today (a link cannot live inside the selector's button, so the two
+ * are siblings); the active workspace name opens a dropdown to switch workspaces. Collapsed,
+ * the name is hidden and a small chevron button keeps the dropdown reachable.
  */
 export function WorkspaceSwitcher({ collapsed, trafficLightPad }: { collapsed: boolean; trafficLightPad?: boolean }) {
   const navigate = useNavigate()
@@ -24,14 +27,14 @@ export function WorkspaceSwitcher({ collapsed, trafficLightPad }: { collapsed: b
   const [creating, setCreating] = useState(false)
   const createInputRef = useRef<HTMLInputElement>(null)
   const ref = useRef<HTMLDivElement>(null)
-  const btnRef = useRef<HTMLButtonElement>(null)
+  const rowRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number } | null>(null)
 
   // Compute menu position from the trigger button
   const updateMenuPos = useCallback(() => {
-    if (!btnRef.current) return
-    const rect = btnRef.current.getBoundingClientRect()
+    if (!rowRef.current) return
+    const rect = rowRef.current.getBoundingClientRect()
     setMenuPos({
       top: rect.bottom + 4,
       left: rect.left,
@@ -71,14 +74,31 @@ export function WorkspaceSwitcher({ collapsed, trafficLightPad }: { collapsed: b
 
   return (
     <div ref={ref} className={`px-2 transition-all duration-300 ${trafficLightPad ? 'pt-7' : ''}`}>
-      <button
-        ref={btnRef}
-        onClick={() => setOpen(!open)}
-        className={`group w-full flex items-center gap-3 rounded-lg transition-colors text-left ${collapsed ? 'justify-center px-2 py-3' : 'px-3 py-3'}`}
+      <div
+        ref={rowRef}
+        className={`flex items-center rounded-lg ${collapsed ? 'flex-col gap-1 px-2 py-3' : 'gap-3 px-3 py-3'}`}
       >
-        <img src="/logo-32.png" alt="PO" className="w-8 h-8 rounded-lg shrink-0" />
-        {!collapsed && (
-          <>
+        <TodayLogoLink />
+        {collapsed ? (
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            aria-label="Changer de workspace"
+            aria-haspopup="menu"
+            aria-expanded={open}
+            title={activeWorkspace.name}
+            className={`${focusRing} flex h-6 w-6 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-white/[0.08] ${open ? 'bg-white/[0.08]' : ''}`}
+          >
+            <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            className={`${focusRing} group flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left`}
+          >
             <span className="flex-1 text-sm font-semibold text-gray-100 truncate">
               {activeWorkspace.name}
             </span>
@@ -87,9 +107,9 @@ export function WorkspaceSwitcher({ collapsed, trafficLightPad }: { collapsed: b
                 className={`w-4 h-4 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`}
               />
             </span>
-          </>
+          </button>
         )}
-      </button>
+      </div>
 
       {/* Dropdown — portal to escape sidebar stacking context */}
       {open && menuPos && createPortal(
@@ -106,7 +126,7 @@ export function WorkspaceSwitcher({ collapsed, trafficLightPad }: { collapsed: b
                 key={ws.id}
                 onClick={() => {
                   setOpen(false)
-                  navigate(workspacePath(ws.slug, '/overview'))
+                  navigate(workspacePath(ws.slug, '/today'))
                 }}
                 className="w-full flex items-center gap-2 px-3 py-2 hover:bg-white/[0.06] transition-colors text-left"
               >
@@ -152,7 +172,7 @@ export function WorkspaceSwitcher({ collapsed, trafficLightPad }: { collapsed: b
                     setOpen(false)
                     setShowCreate(false)
                     setNewName('')
-                    navigate(workspacePath(ws.slug, '/overview'))
+                    navigate(workspacePath(ws.slug, '/today'))
                   } catch {
                     setCreating(false)
                   }
