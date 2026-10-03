@@ -1,3 +1,4 @@
+import type { MessageAttachment } from '@/utils/messageAttachments'
 // ============================================================================
 // PERMISSION CONFIG
 // ============================================================================
@@ -535,6 +536,8 @@ export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   blocks: ContentBlock[]
+  /** Documents attached to a user message (rendered as chips under the text). */
+  attachments?: MessageAttachment[]
   timestamp: Date
   /** Total turn duration in ms (from backend result event) */
   duration_ms?: number

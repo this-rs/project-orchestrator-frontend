@@ -5,6 +5,7 @@
  * useChat (main conversation) and useConversationWs (inline runner conversations).
  */
 
+import { splitAttachments } from './messageAttachments'
 import type {
   BackgroundActivityMetadata,
   BackgroundOutputEntry,
@@ -259,7 +260,7 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
 
     switch (type) {
       case 'user_message': {
-        const content = evt.content ?? ''
+        const { text: content, attachments: sentAttachments } = splitAttachments(evt.content ?? '')
         // "Continue" after max_turns -> discreet indicator instead of user bubble
         if (lastEventWasMaxTurns && content === 'Continue') {
           const assistantMsg = messages[messages.length - 1]
@@ -292,6 +293,7 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
           id: evt.id || nextMessageId(),
           role: 'user',
           blocks: [{ id: nextBlockId(), type: 'text', content }],
+          ...(sentAttachments.length > 0 ? { attachments: sentAttachments } : {}),
           timestamp: createdAt,
         })
         break

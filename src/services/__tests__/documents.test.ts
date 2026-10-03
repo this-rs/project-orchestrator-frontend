@@ -10,7 +10,7 @@
  * Run with: npx vitest run src/services/__tests__/documents.test.ts
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { documentsApi } from '../documents'
+import { documentsApi, UPLOAD_TIMEOUT_MS } from '../documents'
 import { ApiError } from '../api'
 
 vi.mock('../authManager', () => ({
@@ -39,6 +39,8 @@ interface FakeXhr {
   onload: (() => void) | null
   onerror: (() => void) | null
   onabort: (() => void) | null
+  ontimeout: (() => void) | null
+  timeout: number
   abort: () => void
   /** Emit an upload progress event. */
   progress: (loaded: number, total: number) => void
@@ -60,6 +62,8 @@ class MockXhr implements Partial<FakeXhr> {
   onload: (() => void) | null = null
   onerror: (() => void) | null = null
   onabort: (() => void) | null = null
+  ontimeout: (() => void) | null = null
+  timeout = 0
 
   open(method: string, url: string) {
     this.method = method
@@ -196,6 +200,14 @@ describe('documentsApi.upload — failures', () => {
     await flush()
     lastXhr?.onerror?.()
     await expect(promise).rejects.toMatchObject({ name: 'ApiError', status: 0 })
+  })
+
+  it('gives every upload a bounded wait, and reports its expiry as 408', async () => {
+    const promise = documentsApi.upload(file())
+    await flush()
+    expect(lastXhr?.timeout).toBe(UPLOAD_TIMEOUT_MS)
+    lastXhr?.ontimeout?.()
+    await expect(promise).rejects.toMatchObject({ name: 'ApiError', status: 408 })
   })
 
   it('rejects rather than resolving with garbage when the body is not JSON', async () => {
