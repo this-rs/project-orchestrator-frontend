@@ -1,5 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { memo } from 'react'
+import { Paperclip } from 'lucide-react'
+import { formatBytes } from './attachmentState'
 import type { ChatMessage, ContentBlock } from '@/types'
 import { MarkdownText } from './MarkdownText'
 import { ThinkingBlock } from './ThinkingBlock'
@@ -162,6 +164,25 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
         <div className="max-w-[85%] px-3 py-2 rounded-xl bg-indigo-600/20 text-sm text-gray-200 whitespace-pre-wrap break-words overflow-hidden">
           {message.blocks[0]?.content}
         </div>
+        {message.attachments && message.attachments.length > 0 && (
+          <ul
+            className="flex flex-wrap justify-end gap-1.5 mt-1 max-w-[85%]"
+            aria-label="Attachments"
+          >
+            {message.attachments.map((a) => (
+              <li
+                key={a.id}
+                data-testid="message-attachment"
+                title={a.filename}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/[0.04] border border-white/[0.08] text-xs text-gray-300"
+              >
+                <Paperclip className="w-3 h-3 text-gray-400 shrink-0" aria-hidden />
+                <span className="truncate max-w-[14rem]">{a.filename}</span>
+                <span className="text-gray-500">{formatBytes(a.size_bytes)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
         {/* Footer: copy button · timestamp */}
         <div className="flex items-center gap-1 mt-0.5 mr-1 text-[10px] text-gray-600">
           <CopyMarkdownButton

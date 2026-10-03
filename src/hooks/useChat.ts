@@ -1,3 +1,4 @@
+import { splitAttachments } from '@/utils/messageAttachments'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useSetAtom, useStore } from 'jotai'
 import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom, chatDraftInputAtom, chatDraftsMapAtom, chatBackgroundTasksAtom, chatSecretRequestsAtom } from '@/atoms'
@@ -460,10 +461,13 @@ export function useChat() {
     if (event.type === 'user_message') {
       // During replay, content is nested in event.data.content
       // During live broadcast, content is at event.content
-      const content = event.replaying
+      const rawContent = event.replaying
         ? ((event as { data?: { content?: string } }).data?.content ?? (event as { content?: string }).content)
         : (event as { content: string }).content
-      if (!content) return
+      if (!rawContent) return
+      // The attachment block is part of the stored text; the bubble shows the
+      // text alone and the chips from the references.
+      const { text: content, attachments: sentAttachments } = splitAttachments(rawContent)
 
       setMessages((prev) => {
         // "Continue" after max_turns: if a continue_indicator was already added
@@ -488,6 +492,12 @@ export function useChat() {
         for (let i = prev.length - 1; i >= Math.max(0, prev.length - 10); i--) {
           const msg = prev[i]
           if (msg.role === 'user' && msg.blocks[0]?.content === content) {
+            // The optimistic bubble knows no filenames; the broadcast does.
+            if (sentAttachments.length > 0 && !msg.attachments?.length) {
+              const next = [...prev]
+              next[i] = { ...msg, attachments: sentAttachments }
+              return next
+            }
             return prev
           }
         }
@@ -497,6 +507,7 @@ export function useChat() {
             id: nextMessageId(),
             role: 'user',
             blocks: [{ id: nextBlockId(), type: 'text' as const, content }],
+            ...(sentAttachments.length > 0 ? { attachments: sentAttachments } : {}),
             timestamp: new Date(),
           },
         ]
