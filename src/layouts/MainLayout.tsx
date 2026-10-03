@@ -468,7 +468,18 @@ export function Breadcrumb({ pathname, workspaceName }: { pathname: string; work
     'feature-graphs': 'feature-graphs',
   }
 
-  if (isGlobalToday || parts.length === 0) return null
+  // The global Today (every workspace at once) is the Overview: it takes the
+  // place the workspace name has once a workspace is selected.
+  if (isGlobalToday) {
+    return (
+      <nav className="flex items-center gap-2 text-sm min-w-0">
+        <span aria-current="page" className="block leading-10 truncate text-gray-200 font-medium">
+          {NOMENCLATURE.overview.singular}
+        </span>
+      </nav>
+    )
+  }
+  if (parts.length === 0) return null
 
   return (
     <nav className="flex items-center gap-2 text-sm min-w-0">

@@ -15,10 +15,11 @@ function renderCrumb(pathname: string, workspaceName?: string) {
 }
 
 describe('Breadcrumb: starts at the workspace, Today is not a crumb', () => {
-  it('global entry (/today): nothing, the page names itself', () => {
+  it('global entry (/today, all the dashboards): "Overview" where the workspace name goes', () => {
     const { container } = renderCrumb('/today')
+    // the current page, not a link: there is nowhere further up to go
     expect(screen.queryAllByRole('link')).toEqual([])
-    expect(container.textContent).toBe('')
+    expect(container.textContent).toBe('Overview')
   })
 
   it('workspace entry (Today filtered on a lane): just the workspace', () => {
