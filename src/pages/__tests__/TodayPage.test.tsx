@@ -32,6 +32,9 @@ vi.mock('@/components/today/work/WorkDashboard', () => ({
   ),
 }))
 const toast = { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }
+// The live agents list has its own tests (components/today/live); it also subscribes to the event
+// bus, which would take over this file's `emit`.
+vi.mock('@/components/today/live/LiveAgents', () => ({ LiveAgents: () => null }))
 vi.mock('@/hooks/useToast', () => ({ useToast: () => toast }))
 
 function setViewport(width: number) {
