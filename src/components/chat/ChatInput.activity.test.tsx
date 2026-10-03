@@ -39,6 +39,29 @@ const queueOne = (text: string) => {
 }
 
 describe('ChatInput — activity and queue tray', () => {
+  it('is glass, like the composer under it: blurred, with a real fill — never near-transparent', () => {
+    mount({ activity: running })
+    const tray = screen.getByTestId('composer-tray')
+    // blur of what scrolls under it
+    expect(tray.className).toContain('backdrop-blur-md')
+    // a fill with enough weight to carry text over a busy transcript
+    expect(tray.className).toMatch(/bg-surface-base\/(\d+)/)
+    const alpha = Number(/bg-surface-base\/(\d+)/.exec(tray.className)![1])
+    expect(alpha).toBeGreaterThanOrEqual(50)
+    // and it is not the old 2 % white wash
+    expect(tray.className).not.toContain('bg-white/[0.02]')
+  })
+
+  it('has the same glass recipe as the composer box (one dock, one look)', () => {
+    mount({ activity: running })
+    const tray = screen.getByTestId('composer-tray').className
+    const box = screen.getByRole('textbox').closest('[class*="backdrop-blur"]')!.className
+    for (const token of ['bg-surface-base/55', 'backdrop-blur-md', 'backdrop-saturate-150']) {
+      expect(tray).toContain(token)
+      expect(box).toContain(token)
+    }
+  })
+
   it('draws no tray when nothing runs and nothing is queued', () => {
     mount({})
     expect(screen.queryByTestId('composer-tray')).toBeNull()

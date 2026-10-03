@@ -700,7 +700,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
           two outlines for one idea ("things in flight around this message"). */}
       {(activity.length > 0 || queue.length > 0) && (
         <div
-          className="rounded-lg border border-white/[0.08] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.06]"
+          // Glass, same recipe as the composer box below it (translucent fill + blur): the
+          // transcript scrolls under the dock, and a near-transparent fill left the tray's
+          // text drawn straight over the messages behind it.
+          className="rounded-xl border border-white/[0.1] bg-surface-base/55 backdrop-blur-md backdrop-saturate-150 shadow-lg shadow-black/20 overflow-hidden divide-y divide-white/[0.06]"
           data-testid="composer-tray"
         >
           <ActivityBar items={activity} runActions={runActions} />
