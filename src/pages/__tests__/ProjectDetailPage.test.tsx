@@ -141,11 +141,11 @@ describe('ProjectDetailPage', () => {
     expect(screen.getByTitle('Copy path')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Intelligence' }).getAttribute('href')).toBe('/workspace/ws/projects/backend/intelligence')
 
-    // order: milestones before health, details after health
+    // order: the pulse (health) leads the page, before the milestones; details come after
     const milestones = screen.getByRole('heading', { name: /Milestones/ })
     const health = screen.getByRole('heading', { name: 'Health' })
     const details = screen.getByRole('heading', { name: 'Details' })
-    expect(milestones.compareDocumentPosition(health) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(health.compareDocumentPosition(milestones) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(health.compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 

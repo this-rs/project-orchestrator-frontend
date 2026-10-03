@@ -29,10 +29,9 @@ import {
   useIntelligenceData,
   IntelAttention,
   IntelFallback,
-  IntelHealthBreakdown,
   IntelQuickActions,
   IntelRefreshButton,
-  IntelStatGrid,
+  IntelPulse,
 } from '@/components/intelligence/IntelligenceDashboard'
 import { projectsApi } from '@/services'
 import { useFormDialog, useToast, useWorkspaceSlug } from '@/hooks'
@@ -257,6 +256,15 @@ export function ProjectDetailPage() {
         </section>
       )}
 
+      {/* ── Health: key numbers + breakdown ──────────────────────────────── */}
+      <Section title="Health" action={intelReady ? <IntelRefreshButton data={intelligence} /> : undefined}>
+        {intelReady && intelligence.summary ? (
+          <IntelPulse data={intelligence} />
+        ) : (
+          <IntelFallback intelligence={intelligence} />
+        )}
+      </Section>
+
       {/* ── Attention needed (actionable, short) ─────────────────────────── */}
       {intelReady && <IntelAttention data={intelligence} />}
 
@@ -327,18 +335,6 @@ export function ProjectDetailPage() {
               />
             ))}
           </EntityList>
-        )}
-      </Section>
-
-      {/* ── Health: key numbers + breakdown ──────────────────────────────── */}
-      <Section title="Health" action={intelReady ? <IntelRefreshButton data={intelligence} /> : undefined}>
-        {intelReady && intelligence.summary ? (
-          <div className="space-y-2">
-            <IntelStatGrid summary={intelligence.summary} />
-            <IntelHealthBreakdown data={intelligence} />
-          </div>
-        ) : (
-          <IntelFallback intelligence={intelligence} />
         )}
       </Section>
 
