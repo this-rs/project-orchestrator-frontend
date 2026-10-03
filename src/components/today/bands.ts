@@ -23,7 +23,8 @@ export const BAND_ORDER: readonly Band[] = ['waiting', 'running', 'stuck', 'thin
 /**
  * Order of the sections in the page (DOM order = tab order = phone order): what asks
  * for the user first, then what to take back up, then what advances alone, then what
- * to follow. From 1024 px the first two stack on the left, "En cours" sits on the right.
+ * to follow. From 1024 px the first two (and the user's own day under them) stack on the
+ * left, "En cours" and "À suivre" on the right.
  */
 export const SECTION_ORDER: readonly Band[] = ['waiting', 'stuck', 'running', 'thinking']
 
@@ -217,6 +218,25 @@ export function buildBands(data: AttentionResponse): Bands {
     counts,
     empty: BAND_ORDER.every((b) => counts[b] === 0),
   }
+}
+
+/**
+ * Plans the queue already shows: one that runs, one whose agent waits on the user, one to
+ * resume. The page hands them to the work dashboard so a plan appears ONCE on the page.
+ */
+export function shownPlanIds(bands: Bands): Set<string> {
+  const ids = new Set<string>()
+  const add = (t: AttentionThread | null) => {
+    if (t?.plan) ids.add(t.plan.id)
+  }
+  for (const e of bands.waiting) add(e.thread)
+  for (const e of bands.running) {
+    if (e.kind !== 'plan') continue
+    add(e.thread)
+    e.others.forEach(add)
+  }
+  for (const e of bands.stuck) if (e.kind !== 'unattached') add(e.thread)
+  return ids
 }
 
 /** Plan / task titles the backend only sends as ids on a link, collected from the payload. */

@@ -65,7 +65,22 @@ function Count({ children }: { children: ReactNode }) {
   return <span className="tabular-nums">{children}</span>
 }
 
-export function WorkDashboard({ workspaces, lane }: { workspaces: string[]; lane: string | null }) {
+export interface WorkDashboardProps {
+  workspaces: string[]
+  lane: string | null
+  /**
+   * Plans the page already shows elsewhere (running, waiting on the user, or to resume):
+   * they are left out of "Plans à lancer", so a plan appears once on the page.
+   */
+  shownPlanIds?: ReadonlySet<string>
+}
+
+/**
+ * The user's own work for the day, as ONE column (it sits under the request queue of the
+ * page): the day plan, what is in progress, what is blocked, what to take next, and the
+ * active plans that are not running yet. It has no summary line of its own: the page has one.
+ */
+export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardProps) {
   const toast = useToast()
   const projects = useAtomValue(projectsAtom)
   const [plan, setPlan] = useState<DayPlan>(() => loadDayPlan(typeof localStorage === 'undefined' ? null : localStorage))
@@ -126,14 +141,8 @@ export function WorkDashboard({ workspaces, lane }: { workspaces: string[]; lane
   // A task already on today's plan is shown there, once.
   const inProgress = data.inProgress.filter((t) => !dayIds.has(t.task.id))
   const next = data.next.filter((t) => !dayIds.has(t.task.id))
-  const doneCount = data.day.filter((d) => d.done).length
-  const summary = [
-    data.day.length > 0 && WORK_TEXT.summary.planned(data.day.length - doneCount),
-    doneCount > 0 && WORK_TEXT.summary.done(doneCount),
-    data.inProgress.length > 0 && WORK_TEXT.summary.inProgress(data.inProgress.length),
-    data.blocked.length > 0 && WORK_TEXT.summary.blocked(data.blocked.length),
-    data.runningPlanIds.size > 0 && WORK_TEXT.summary.running(data.runningPlanIds.size),
-  ].filter(Boolean) as string[]
+  // A plan that runs, waits on the user or is to resume is shown by the page's queue, once.
+  const toLaunch = data.chains.filter((c) => !shownPlanIds?.has(c.plan.id) && c.run?.status !== 'running')
 
   const dayButton = (t: WorkTask) =>
     dayIds.has(t.task.id) ? null : (
@@ -174,141 +183,123 @@ export function WorkDashboard({ workspaces, lane }: { workspaces: string[]; lane
 
   return (
     <div className="space-y-4" data-testid="work-dashboard">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-400" aria-live="polite">
-        {summary.length > 0 ? (
-          <p data-testid="work-summary">
-            {summary.map((s, i) => (
-              <span key={s}>
-                {i > 0 && <span aria-hidden="true"> · </span>}
-                <Count>{s}</Count>
-              </span>
-            ))}
-          </p>
-        ) : (
-          <p>{WORK_TEXT.dayEmpty}</p>
-        )}
+      <div aria-live="polite">
         {stale && <p className="text-xs text-amber-300">{WORK_TEXT.stale}</p>}
         {refreshing && !stale && <span className="sr-only">Actualisation…</span>}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
-        <div className="space-y-4 min-w-0">
-          <ListGroup title={WORK_TEXT.day} count={data.day.length}>
-            {data.day.length === 0 ? (
-              <EmptyState size="sm" icon={<CalendarPlus className="h-5 w-5" aria-hidden="true" />} title={WORK_TEXT.dayEmpty} description={WORK_TEXT.dayEmptyHint} />
-            ) : (
-              data.day.map(({ item, done }, i) =>
-                taskRow(
-                  item,
-                  <>
-                    {!done && startButton(item)}
-                    <button
-                      type="button"
-                      className={btnIcon}
-                      aria-label={`${WORK_TEXT.moveUp} : ${taskTitle(item)}`}
-                      disabled={i === 0}
-                      onClick={() => edit((p) => moveInDay(p, item.task.id, -1))}
-                    >
-                      <ArrowUp className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      className={btnIcon}
-                      aria-label={`${WORK_TEXT.moveDown} : ${taskTitle(item)}`}
-                      disabled={i === data.day.length - 1}
-                      onClick={() => edit((p) => moveInDay(p, item.task.id, 1))}
-                    >
-                      <ArrowDown className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      className={btnIcon}
-                      aria-label={`${WORK_TEXT.removeFromDay} : ${taskTitle(item)}`}
-                      onClick={() => edit((p) => removeFromDay(p, item.task.id))}
-                    >
-                      <X className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                  </>,
-                  {
-                    muted: done,
-                    leading: (
-                      <button
-                        type="button"
-                        className={btnIcon}
-                        aria-label={WORK_TEXT.completeAria(taskTitle(item))}
-                        aria-pressed={done}
-                        disabled={done || busy.has(item.task.id)}
-                        onClick={() => void setTaskStatus(item, 'completed')}
-                      >
-                        {done ? (
-                          <Check className="h-4 w-4 text-emerald-400" aria-hidden="true" />
-                        ) : (
-                          <Circle className="h-4 w-4" aria-hidden="true" />
-                        )}
-                      </button>
-                    ),
-                  },
+      <ListGroup title={WORK_TEXT.day} count={data.day.length}>
+        {data.day.length === 0 ? (
+          <EmptyState size="sm" icon={<CalendarPlus className="h-5 w-5" aria-hidden="true" />} title={WORK_TEXT.dayEmpty} description={WORK_TEXT.dayEmptyHint} />
+        ) : (
+          data.day.map(({ item, done }, i) =>
+            taskRow(
+              item,
+              <>
+                {!done && startButton(item)}
+                <button
+                  type="button"
+                  className={btnIcon}
+                  aria-label={`${WORK_TEXT.moveUp} : ${taskTitle(item)}`}
+                  disabled={i === 0}
+                  onClick={() => edit((p) => moveInDay(p, item.task.id, -1))}
+                >
+                  <ArrowUp className="h-4 w-4" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className={btnIcon}
+                  aria-label={`${WORK_TEXT.moveDown} : ${taskTitle(item)}`}
+                  disabled={i === data.day.length - 1}
+                  onClick={() => edit((p) => moveInDay(p, item.task.id, 1))}
+                >
+                  <ArrowDown className="h-4 w-4" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className={btnIcon}
+                  aria-label={`${WORK_TEXT.removeFromDay} : ${taskTitle(item)}`}
+                  onClick={() => edit((p) => removeFromDay(p, item.task.id))}
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </>,
+              {
+                muted: done,
+                leading: (
+                  <button
+                    type="button"
+                    className={btnIcon}
+                    aria-label={WORK_TEXT.completeAria(taskTitle(item))}
+                    aria-pressed={done}
+                    disabled={done || busy.has(item.task.id)}
+                    onClick={() => void setTaskStatus(item, 'completed')}
+                  >
+                    {done ? (
+                      <Check className="h-4 w-4 text-emerald-400" aria-hidden="true" />
+                    ) : (
+                      <Circle className="h-4 w-4" aria-hidden="true" />
+                    )}
+                  </button>
                 ),
-              )
-            )}
-          </ListGroup>
+              },
+            ),
+          )
+        )}
+      </ListGroup>
 
-          <ListGroup title={WORK_TEXT.inProgress} count={inProgress.length}>
-            {inProgress.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-gray-500">{WORK_TEXT.inProgressEmpty}</p>
-            ) : (
-              inProgress.map((t) =>
-                taskRow(
-                  t,
-                  <>
-                    <button
-                      type="button"
-                      className={btnPrimary}
-                      disabled={busy.has(t.task.id)}
-                      onClick={() => void setTaskStatus(t, 'completed')}
-                    >
-                      <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                      {WORK_TEXT.complete}
-                    </button>
-                    {dayButton(t)}
-                  </>,
-                  { leading: <StatusDot kind="task" status="in_progress" label="En cours" pulse /> },
-                ),
-              )
-            )}
-          </ListGroup>
-        </div>
-
-        <div className="space-y-4 min-w-0">
-          <ListGroup title={WORK_TEXT.next} count={next.length}>
-            {next.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-gray-500">{WORK_TEXT.nextEmpty}</p>
-            ) : (
-              next.map((t) =>
-                taskRow(
-                  t,
-                  <>
-                    {startButton(t)}
-                    {dayButton(t)}
-                  </>,
-                ),
-              )
-            )}
-          </ListGroup>
-
-          <ListGroup title={WORK_TEXT.chains} count={data.chains.length}>
-            {data.chains.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-gray-500">{WORK_TEXT.chainsEmpty}</p>
-            ) : (
-              data.chains.map((c) => <ChainRow key={c.plan.id} chain={c} lane={lane} busy={busy} onLaunch={launch} />)
-            )}
-          </ListGroup>
-        </div>
-      </div>
+      <ListGroup title={WORK_TEXT.inProgress} count={inProgress.length}>
+        {inProgress.length === 0 ? (
+          <p className="px-4 py-3 text-sm text-gray-500">{WORK_TEXT.inProgressEmpty}</p>
+        ) : (
+          inProgress.map((t) =>
+            taskRow(
+              t,
+              <>
+                <button
+                  type="button"
+                  className={btnPrimary}
+                  disabled={busy.has(t.task.id)}
+                  onClick={() => void setTaskStatus(t, 'completed')}
+                >
+                  <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                  {WORK_TEXT.complete}
+                </button>
+                {dayButton(t)}
+              </>,
+              { leading: <StatusDot kind="task" status="in_progress" label="En cours" pulse /> },
+            ),
+          )
+        )}
+      </ListGroup>
 
       {data.blocked.length > 0 && (
         <ListGroup title={WORK_TEXT.blocked} count={data.blocked.length}>
           {data.blocked.map((t) => taskRow(t, <>{dayButton(t)}</>))}
+        </ListGroup>
+      )}
+
+      <ListGroup title={WORK_TEXT.next} count={next.length}>
+        {next.length === 0 ? (
+          <p className="px-4 py-3 text-sm text-gray-500">{WORK_TEXT.nextEmpty}</p>
+        ) : (
+          next.map((t) =>
+            taskRow(
+              t,
+              <>
+                {startButton(t)}
+                {dayButton(t)}
+              </>,
+            ),
+          )
+        )}
+      </ListGroup>
+
+      {toLaunch.length > 0 && (
+        <ListGroup title={WORK_TEXT.chains} count={toLaunch.length}>
+          {toLaunch.map((c) => (
+            <ChainRow key={c.plan.id} chain={c} lane={lane} busy={busy} onLaunch={launch} />
+          ))}
         </ListGroup>
       )}
     </div>
@@ -388,16 +379,12 @@ function ChainRow({
 
 function DashboardSkeleton() {
   return (
-    <div className="grid gap-4 lg:grid-cols-2" aria-busy="true" aria-label="Chargement du tableau de bord">
-      {[0, 1].map((c) => (
-        <div key={c} className="space-y-4">
-          {[0, 1].map((b) => (
-            <div key={b} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
-              <Skeleton className="h-3 w-24" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ))}
+    <div className="space-y-4" aria-busy="true" aria-label="Chargement du tableau de bord">
+      {[0, 1].map((b) => (
+        <div key={b} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
         </div>
       ))}
     </div>

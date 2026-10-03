@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import { parseAttentionResponse } from '@/services/attention'
 import type { AttentionResponse } from '@/types/attention'
-import { BAND_ORDER, BAND_TEXT, SECTION_ORDER, buildBands } from '../bands'
+import { BAND_ORDER, BAND_TEXT, SECTION_ORDER, buildBands, shownPlanIds } from '../bands'
 
 const fixture = (name: string): AttentionResponse =>
   parseAttentionResponse(
@@ -178,5 +178,26 @@ describe('section texts and order', () => {
   it('the summary keeps the band order, the page puts what asks for the user first', () => {
     expect(BAND_ORDER).toEqual(['waiting', 'running', 'stuck', 'thinking'])
     expect(SECTION_ORDER).toEqual(['waiting', 'stuck', 'running', 'thinking'])
+  })
+})
+
+describe('shownPlanIds: the plans the queue already shows', () => {
+  it('collects the plan of every running, waiting and stuck thread, and nothing else', () => {
+    const data = fixture('four_bands')
+    const b = buildBands(data)
+    const ids = shownPlanIds(b)
+    const expected = new Set<string>()
+    for (const t of data.threads) {
+      const inRunning = b.running.some((e) => e.kind === 'plan' && (e.thread === t || e.others.includes(t)))
+      const inStuck = b.stuck.some((e) => e.kind !== 'unattached' && e.thread === t)
+      const inWaiting = b.waiting.some((e) => e.thread === t)
+      if (t.plan && (inRunning || inStuck || inWaiting)) expected.add(t.plan.id)
+    }
+    expect(expected.size).toBeGreaterThan(0)
+    expect([...ids].sort()).toEqual([...expected].sort())
+  })
+
+  it('is empty when nothing waits, runs or is to resume', () => {
+    expect(shownPlanIds(buildBands(fixture('empty'))).size).toBe(0)
   })
 })
