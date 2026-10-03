@@ -46,6 +46,16 @@ export interface UploadOptions {
  * just dropped a file, and `describeUploadFailure` in
  * `components/chat/attachmentState.ts` turns each into its own sentence.
  */
+/**
+ * Ceiling on one upload, from the first byte sent to the response.
+ *
+ * `XMLHttpRequest` has no timeout by default: when a proxy or the server
+ * accepts the body and never answers, the attachment stays on "100%" forever
+ * and, with a send held behind it, so does the message. A bounded wait turns
+ * that into an error on the chip, which is removable and retryable.
+ */
+export const UPLOAD_TIMEOUT_MS = 180_000
+
 function upload(file: File, options: UploadOptions = {}): Promise<DocumentDetail> {
   const { projectId, sessionId, onProgress, signal } = options
 
@@ -74,6 +84,7 @@ function upload(file: File, options: UploadOptions = {}): Promise<DocumentDetail
         xhr.open('POST', `${getApiBase()}/documents`)
         // Send the HttpOnly refresh cookie, like `credentials: 'include'`.
         xhr.withCredentials = true
+        xhr.timeout = UPLOAD_TIMEOUT_MS
         if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
         // No Content-Type header: the browser must set it itself so the
         // multipart boundary matches the body it generates.
@@ -107,6 +118,13 @@ function upload(file: File, options: UploadOptions = {}): Promise<DocumentDetail
           // Status 0: the request never reached the server (offline, DNS,
           // CORS). Distinct from any HTTP status the server could return.
           reject(new ApiError(0, 'Network error'))
+        }
+
+        xhr.ontimeout = () => {
+          cleanup()
+          // 408 rather than 0: the request did reach the network, the answer
+          // never came — a different advice from "check your connection".
+          reject(new ApiError(408, 'Upload timed out'))
         }
 
         xhr.onabort = () => {

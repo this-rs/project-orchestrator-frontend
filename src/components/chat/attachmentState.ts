@@ -325,6 +325,8 @@ export function describeUploadFailure(status: number, serverMessage?: string): s
   switch (status) {
     case 0:
       return 'Network error — the file never reached the server'
+    case 408:
+      return 'The server did not answer in time — remove the file and add it again'
     case 413:
       return 'File too large'
     case 415:

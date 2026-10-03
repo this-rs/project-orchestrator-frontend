@@ -93,14 +93,22 @@ export const Attachments = memo(function Attachments({
                 </span>
                 <span className="text-[10px] text-gray-500">
                   {a.status === 'uploading' ? (
-                    <>
-                      {formatBytes(a.sizeBytes)} · {a.progress}%
-                    </>
+                    // At 100% the body has left the browser but the server is
+                    // still extracting: say so instead of a bare "100%" that
+                    // reads as stuck.
+                    a.progress >= 100 ? (
+                      <>{formatBytes(a.sizeBytes)} · Processing…</>
+                    ) : (
+                      <>
+                        {formatBytes(a.sizeBytes)} · {a.progress}%
+                      </>
+                    )
                   ) : a.status === 'error' ? (
                     <span className="text-red-400/90">{a.error}</span>
                   ) : hasWarnings ? (
                     <span className="text-amber-400/90">
-                      {a.warnings?.length} warning{(a.warnings?.length ?? 0) > 1 ? 's' : ''}
+                      {a.warnings?.[0]}
+                      {(a.warnings?.length ?? 0) > 1 ? ` (+${(a.warnings?.length ?? 1) - 1})` : ''}
                     </span>
                   ) : (
                     formatBytes(a.sizeBytes)
