@@ -173,6 +173,35 @@ describe('collectRunning — what the activity bar lists', () => {
     ])
   })
 
+  it('lists a detached run only while it streams, with what opens and stops it', () => {
+    const items = collectRunning({
+      messages: [],
+      backgroundTasks: [],
+      isStreaming: false,
+      now: NOW,
+      detachedRuns: [
+        { sessionId: 'r1', title: 'Plan run\nsecond line', isStreaming: true, startedAt: at(120), planId: 'p1' },
+        { sessionId: 'r2', title: 'Delegated task', isStreaming: true, startedAt: at(20) },
+        { sessionId: 'r3', title: 'Finished', isStreaming: false, startedAt: at(900), planId: 'p1' },
+      ],
+    })
+    expect(items).toEqual([
+      { id: 'r1', kind: 'run', title: 'Plan run', startedAt: at(120), sessionId: 'r1', planId: 'p1' },
+      { id: 'r2', kind: 'run', title: 'Delegated task', startedAt: at(20), sessionId: 'r2', planId: undefined },
+    ])
+  })
+
+  it('puts runs before everything else', () => {
+    const items = collectRunning({
+      messages: [],
+      backgroundTasks: [task('m1', 'monitor', 'mon')],
+      isStreaming: false,
+      now: NOW,
+      detachedRuns: [{ sessionId: 'r1', title: 'Plan run', isStreaming: true, startedAt: at(1) }],
+    })
+    expect(items.map((i) => i.kind)).toEqual(['run', 'monitor'])
+  })
+
   it('orders workflows, then agents, then shells, then monitors; oldest first inside a kind', () => {
     const wf = toolUse('w1', 'Workflow', {}, workflowTick([{ state: 'running' }]))
     const agentNew = toolUse('a2', 'Task', { description: 'new' }, { created_at: at(10) })

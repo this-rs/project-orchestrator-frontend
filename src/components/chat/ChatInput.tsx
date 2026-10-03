@@ -8,7 +8,7 @@ import { ApiError } from '@/services/api'
 import { useIsMobile } from '@/hooks'
 import type { PermissionMode } from '@/types'
 import { ChevronDown, Loader2, Paperclip, Square, ArrowRight } from 'lucide-react'
-import { ActivityBar } from './ActivityBar'
+import { ActivityBar, type RunActions } from './ActivityBar'
 import type { RunningItem } from './runningActivity'
 import { ModelFamilyPicker, type ModelSelectOptions } from './ModelFamilyPicker'
 import { deriveInputAction, describeAction } from './inputAction'
@@ -93,12 +93,14 @@ interface ChatInputProps {
   prefill?: PrefillPayload | null
   /** What is running in this session (see `runningActivity.ts`); shown above the queue. */
   activity?: ReadonlyArray<RunningItem>
+  /** Open / stop / dashboard for the detached runs listed in `activity`. */
+  runActions?: RunActions
 }
 
 /** A stable "nothing runs", so an absent prop does not re-render the bar. */
 const NO_ACTIVITY: ReadonlyArray<RunningItem> = []
 
-export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionId, onChangePermissionMode, onChangeModel, onChangeAutoContinue, prefill, activity = NO_ACTIVITY }: ChatInputProps) {
+export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionId, onChangePermissionMode, onChangeModel, onChangeAutoContinue, prefill, activity = NO_ACTIVITY, runActions }: ChatInputProps) {
   const [value, setValue] = useAtom(chatDraftInputAtom)
   const isMobile = useIsMobile()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -701,7 +703,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
           className="rounded-lg border border-white/[0.08] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.06]"
           data-testid="composer-tray"
         >
-          <ActivityBar items={activity} />
+          <ActivityBar items={activity} runActions={runActions} />
           <MessageQueueBar
             bare
             queue={queue}

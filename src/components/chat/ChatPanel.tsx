@@ -12,9 +12,8 @@ import { CompactionBanner } from './CompactionBanner'
 import { SecretRequestTray } from './SecretRequestTray'
 import { ComposerDock } from './ComposerDock'
 import { collectRunning } from './runningActivity'
+import type { RunActions } from './ActivityBar'
 import { DetachedRunsPanel } from './DetachedRunsPanel'
-import { AgenticModeBanner } from './AgenticModeBanner'
-import { AgenticModePill } from './AgenticModePill'
 import { SessionList } from './SessionList'
 import { ProjectSelect } from './ProjectSelect'
 import { PermissionSettingsPanel } from './PermissionSettingsPanel'
@@ -23,7 +22,7 @@ import { DiscussionTreeView } from '@/components/discussions/DiscussionTreeView'
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { messagesToMarkdown } from '@/utils/chatExport'
 import { useSetAtom, useAtomValue } from 'jotai'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { isTauri } from '@/services/env'
 import { workspacePath } from '@/utils/paths'
 
@@ -69,9 +68,19 @@ export function ChatPanel() {
   // One derivation of "what is running here", rendered above the composer (ActivityBar).
   const backgroundTasks = useAtomValue(chatBackgroundTasksAtom)
   const activity = useMemo(
-    () => collectRunning({ messages: chat.messages, backgroundTasks, isStreaming: chat.isStreaming }),
-    [chat.messages, backgroundTasks, chat.isStreaming],
+    () =>
+      collectRunning({
+        messages: chat.messages,
+        backgroundTasks,
+        isStreaming: chat.isStreaming,
+        detachedRuns: detachedRuns.runs,
+      }),
+    [chat.messages, backgroundTasks, chat.isStreaming, detachedRuns.runs],
   )
+  // A run that streams is in the activity bar; the panel above the transcript keeps the finished
+  // ones. Showing a live run in both (and in a banner, and in a header pill) was three surfaces
+  // for one fact.
+  const finishedRuns = useMemo(() => detachedRuns.runs.filter((r) => !r.isStreaming), [detachedRuns.runs])
   const panelRef = useRef<HTMLDivElement>(null)
   const setScrollToTurn = useSetAtom(chatScrollToTurnAtom)
   const permissionConfig = useAtomValue(chatPermissionConfigAtom)
@@ -206,6 +215,16 @@ export function ChatPanel() {
       })
       .catch((err) => console.error('Stop run failed', childSessionId, err))
   }, [])
+
+  const navigate = useNavigate()
+  const runActions = useMemo<RunActions>(
+    () => ({
+      view: handleViewRun,
+      stop: handleStopRun,
+      dashboard: (planId) => navigate(workspacePath(activeWsSlug, `/plans/${planId}/runner`)),
+    }),
+    [handleViewRun, handleStopRun, navigate, activeWsSlug],
+  )
 
   const handleNewSession = useCallback(() => {
     chat.newSession()
@@ -421,13 +440,6 @@ export function ChatPanel() {
                   <TreePine className="w-4 h-4" />
                 </button>
               )}
-              {/* Agentic mode icon-button — self-hides when idle */}
-              {!isNewConversation && (
-                <AgenticModePill
-                  runs={detachedRuns.runs}
-                  hasActiveRuns={detachedRuns.hasActiveRuns}
-                />
-              )}
               {/* Permission settings gear icon */}
               <button
                 onClick={() => { setShowSettings(!showSettings); setShowAgentTree(false) }}
@@ -512,17 +524,11 @@ export function ChatPanel() {
             <div className="flex flex-1 min-h-0">
               {/* Main conversation column */}
               <div className="flex flex-col flex-1 min-w-0">
-                {/* Agentic mode banner — prominent strip while at least one run streams */}
-                <AgenticModeBanner
-                  runs={detachedRuns.runs}
-                  onViewRun={handleViewRun}
-                  onStopRun={handleStopRun}
-                />
                 {/* Detached runs panel — fullscreen layout (collapsible historical view) */}
-                {detachedRuns.runs.length > 0 && (
+                {finishedRuns.length > 0 && (
                   <DetachedRunsPanel
-                    runs={detachedRuns.runs}
-                    hasActiveRuns={detachedRuns.hasActiveRuns}
+                    runs={finishedRuns}
+                    hasActiveRuns={false}
                     onViewRun={handleViewRun}
                     onStopRun={handleStopRun}
                   />
@@ -564,6 +570,7 @@ export function ChatPanel() {
                       onChangeAutoContinue={chat.changeAutoContinue}
                       prefill={prefill}
                       activity={activity}
+                      runActions={runActions}
                     />
                   </ComposerDock>
                 </div>
@@ -657,13 +664,6 @@ export function ChatPanel() {
               <TreePine className="w-4 h-4" />
             </button>
           )}
-          {/* Agentic mode icon-button — self-hides when idle */}
-          {!isNewConversation && (
-            <AgenticModePill
-              runs={detachedRuns.runs}
-              hasActiveRuns={detachedRuns.hasActiveRuns}
-            />
-          )}
           {/* Permission settings gear icon */}
           <button
             onClick={() => { setShowSettings(!showSettings); setShowSessions(false); setShowAgentTree(false) }}
@@ -756,17 +756,11 @@ export function ChatPanel() {
         <NoProjectsPlaceholder wsSlug={activeWsSlug} />
       ) : (
         <>
-          {/* Agentic mode banner — prominent strip while at least one run streams */}
-          <AgenticModeBanner
-            runs={detachedRuns.runs}
-            onViewRun={handleViewRun}
-            onStopRun={handleStopRun}
-          />
           {/* Detached runs panel — panel/sidebar layout (collapsible historical view) */}
-          {detachedRuns.runs.length > 0 && (
+          {finishedRuns.length > 0 && (
             <DetachedRunsPanel
-              runs={detachedRuns.runs}
-              hasActiveRuns={detachedRuns.hasActiveRuns}
+              runs={finishedRuns}
+              hasActiveRuns={false}
               onViewRun={handleViewRun}
               onStopRun={handleStopRun}
             />
@@ -808,6 +802,7 @@ export function ChatPanel() {
                 onChangeAutoContinue={chat.changeAutoContinue}
                 prefill={prefill}
                 activity={activity}
+                runActions={runActions}
               />
             </ComposerDock>
           </div>
