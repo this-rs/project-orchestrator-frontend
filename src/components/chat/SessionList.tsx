@@ -11,7 +11,16 @@ import type {
   CrudEvent,
   MessageSearchResult,
   Project,
+  SessionActivity,
 } from '@/types'
+import type { ActivityStatus } from './sessionActivity'
+import {
+  anyLive,
+  applySnapshot,
+  applyStreamingEvent,
+  applyWindow,
+  describeActivity,
+} from './sessionActivity'
 import { Select, PulseIndicator } from '@/components/ui'
 import { workspacePath } from '@/utils/paths'
 import {
@@ -61,6 +70,33 @@ interface SessionListProps {
 }
 
 const SESSION_PAGE_SIZE = 30
+
+/**
+ * How often the list re-reads live activity from the server — and only while
+ * it believes something is running. When every conversation is quiet, no
+ * request is sent at all.
+ *
+ * It exists because CRUD events are not a reliable channel for this: a list
+ * mounted mid-turn never receives the "started" event, and a dropped "stopped"
+ * event would otherwise leave a "Working…" that nothing can clear. Polling the
+ * in-memory snapshot is what makes both impossible.
+ */
+const ACTIVITY_POLL_MS = 5_000
+
+/**
+ * How a fetch is allowed to disturb what the user is looking at.
+ *
+ * `reconcile` is the one that matters. Every `chat_session` CRUD event used to
+ * run the `initial` path: it raised the global spinner, which *unmounts* the
+ * whole list — collapsing every expanded row and re-firing one
+ * `useDetachedRuns` request per row — and reset the paging offset, so the list
+ * silently shrank back to one page and the scroll position jumped. A
+ * conversation merely changing state repainted everything.
+ *
+ * `reconcile` re-reads exactly the window already on screen, shows no spinner,
+ * and hands React the same rows so only what changed re-renders.
+ */
+type FetchMode = 'initial' | 'more' | 'reconcile'
 
 /** Shared typography for every secondary line — one size, one muted colour. */
 const META = 'text-[11px] leading-4 text-gray-500'
@@ -249,6 +285,332 @@ function ChildrenIndicator({ sessionId, onSelect }: { sessionId: string; onSelec
 }
 
 // ============================================================================
+// One row
+// ============================================================================
+
+/** Colour per activity tone — `blocked` is the one the user must act on. */
+const ACTIVITY_TONE: Record<ActivityStatus['tone'], string> = {
+  blocked: 'text-amber-300',
+  working: 'text-emerald-400/80',
+  watching: 'text-sky-400/80',
+}
+
+/**
+ * The rename field, owning its own draft.
+ *
+ * Keeping the draft here rather than in `SessionList` is not tidiness: the
+ * draft used to live in the list's state, so every keystroke re-rendered
+ * every row of the list.
+ */
+function RenameInput({
+  initial,
+  onCommit,
+  onCancel,
+}: {
+  initial: string
+  onCommit: (title: string) => void
+  onCancel: () => void
+}) {
+  const [draft, setDraft] = useState(initial)
+  const ref = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    // Select after React has painted the input, as the old inline field did.
+    const id = requestAnimationFrame(() => ref.current?.select())
+    return () => cancelAnimationFrame(id)
+  }, [])
+
+  return (
+    <input
+      ref={ref}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => onCommit(draft)}
+      onKeyDown={(e) => {
+        // Stop ALL key events from bubbling to the row's onKeyDown, which
+        // intercepts Space (navigate) and Enter (navigate).
+        e.stopPropagation()
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          onCommit(draft)
+        } else if (e.key === 'Escape') {
+          onCancel()
+        }
+      }}
+      onClick={(e) => e.stopPropagation()}
+      aria-label="Conversation title"
+      className="text-sm bg-white/[0.06] border border-indigo-500/40 rounded px-1.5 py-0.5 text-gray-200 focus:outline-none w-full min-w-0"
+      autoFocus
+    />
+  )
+}
+
+const stopKeys = (e: React.KeyboardEvent) => e.stopPropagation()
+
+interface SessionRowProps {
+  session: ChatSession
+  isActive: boolean
+  /** What this conversation is doing now, or `null` when it is quiet. */
+  status: ActivityStatus | null
+  isEditing: boolean
+  isMenuOpen: boolean
+  isConfirmingDelete: boolean
+  wsSlug: string | null
+  onSelect: (sessionId: string, turnIndex?: number, title?: string) => void
+  onClose: () => void
+  onStartRename: (sessionId: string) => void
+  onCommitRename: (sessionId: string, title: string) => void
+  onCancelRename: () => void
+  onOpenMenu: (sessionId: string) => void
+  onCloseMenu: () => void
+  onRequestDelete: (sessionId: string) => void
+  onDelete: (sessionId: string) => void
+}
+
+/**
+ * A conversation row, memoised.
+ *
+ * This is what makes "only the state changes" true rather than merely
+ * intended: when one conversation starts or stops working, every other row
+ * gets identical props and React skips it entirely. All the callbacks below
+ * are therefore kept referentially stable in `SessionList` — a fresh lambda
+ * per render would silently defeat this.
+ */
+export const SessionRow = memo(function SessionRow({
+  session,
+  isActive,
+  status,
+  isEditing,
+  isMenuOpen,
+  isConfirmingDelete,
+  wsSlug,
+  onSelect,
+  onClose,
+  onStartRename,
+  onCommitRename,
+  onCancelRename,
+  onOpenMenu,
+  onCloseMenu,
+  onRequestDelete,
+  onDelete,
+}: SessionRowProps) {
+  const title = sessionDisplayTitle(session)
+  const preview = sessionPreview(session)
+  const scope = sessionScope(session)
+  const mode = permissionModeMeta(session.permission_mode)
+  const cost = formatCost(session.total_cost_usd)
+  const spawn = session.spawned_by ? spawnLabel(session.spawned_by) : null
+  const activate = () => { onCloseMenu(); if (isActive) { onClose() } else { onSelect(session.id, undefined, title) } }
+
+  return (
+    <li>
+      <div
+        role="button"
+        tabIndex={0}
+        aria-current={isActive ? 'true' : undefined}
+        aria-label={title}
+        onClick={activate}
+        onKeyDown={(e) => {
+          // Only react to keys aimed at the row itself, not at nested controls
+          if (e.target !== e.currentTarget) return
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate() }
+          else if (e.key === 'F2') { e.preventDefault(); onStartRename(session.id) }
+        }}
+        className={`relative flex items-start gap-1 pl-3 pr-1.5 py-2.5 cursor-pointer transition-colors outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-indigo-500/60 ${
+          isActive
+            ? 'bg-indigo-500/[0.08] shadow-[inset_2px_0_0_var(--color-indigo-500)]'
+            : 'hover:bg-white/[0.03]'
+        }`}
+      >
+        <div className="flex-1 min-w-0">
+          {/* Line 1 — title (primary) + live dot + date (right, tabular) */}
+          <div className="flex items-center gap-2 min-h-5">
+            {status?.pulse && (
+              <PulseIndicator variant={status.tone === 'blocked' ? 'pending' : 'active'} size={7} />
+            )}
+            {isEditing ? (
+              <RenameInput
+                initial={title}
+                onCommit={(next) => onCommitRename(session.id, next)}
+                onCancel={onCancelRename}
+              />
+            ) : (
+              <span
+                className={`flex-1 min-w-0 text-sm truncate ${isActive ? 'text-gray-100 font-medium' : 'text-gray-200'}`}
+                onDoubleClick={(e) => { e.stopPropagation(); onStartRename(session.id) }}
+              >
+                {title}
+              </span>
+            )}
+            {!isEditing && (
+              <time
+                dateTime={session.updated_at}
+                title={formatAbsolute(session.updated_at)}
+                className="shrink-0 text-[11px] tabular-nums text-gray-500"
+              >
+                {formatRelativeShort(session.updated_at)}
+              </time>
+            )}
+          </div>
+
+          {/* Line 2 — what it is doing now, else the preview.
+              A running conversation always has a line here: before this, a
+              session whose turn produced nothing (watching a log, waiting on
+              a background command) showed only its stale preview, which reads
+              exactly like a conversation that has stopped. */}
+          {status ? (
+            <div
+              className={`text-xs leading-4 mt-0.5 flex items-center gap-1.5 min-w-0 ${ACTIVITY_TONE[status.tone]}`}
+              title={status.detail}
+            >
+              {status.pulse && (
+                <PulseIndicator variant={status.tone === 'blocked' ? 'pending' : 'active'} size={6} />
+              )}
+              <span className="truncate">{status.label}</span>
+            </div>
+          ) : preview ? (
+            <div className="text-xs leading-4 text-gray-500 truncate mt-0.5">{preview}</div>
+          ) : null}
+
+          {/* Line 3 — metadata: scope · msgs · mode+model · cost · origin */}
+          <div className={`${META} mt-1 flex flex-wrap items-center min-w-0`}>
+            {scope && (
+              <span
+                className={`inline-flex items-center gap-1 min-w-0 max-w-[45%] ${scope.kind === 'workspace' ? 'text-purple-400/80' : 'text-indigo-400/80'}`}
+                aria-label={`${scope.kind === 'workspace' ? 'Workspace' : 'Project'} ${scope.slug}`}
+              >
+                {scope.kind === 'workspace'
+                  ? <Hexagon className="w-3 h-3 shrink-0" aria-hidden="true" />
+                  : <Box className="w-3 h-3 shrink-0" aria-hidden="true" />}
+                <span className="truncate">{scope.slug}</span>
+              </span>
+            )}
+            {scope && <Sep />}
+            <span className="tabular-nums whitespace-nowrap">{formatMessageCount(session.message_count)}</span>
+            {session.model && (
+              <>
+                <Sep />
+                <span className="inline-flex items-center gap-1 min-w-0" title={session.model}>
+                  {mode && (
+                    <span
+                      role="img"
+                      aria-label={mode.label}
+                      title={mode.label}
+                      className={`w-1.5 h-1.5 rounded-full shrink-0 ${mode.dot}`}
+                    />
+                  )}
+                  <span className="truncate max-w-[9rem]">{shortModelName(session.model)}</span>
+                </span>
+              </>
+            )}
+            {!session.model && mode && (
+              <>
+                <Sep />
+                <span role="img" aria-label={mode.label} title={mode.label} className={`w-1.5 h-1.5 rounded-full shrink-0 ${mode.dot}`} />
+              </>
+            )}
+            {cost && (
+              <>
+                <Sep />
+                <span className="tabular-nums whitespace-nowrap">{cost}</span>
+              </>
+            )}
+            {spawn && (
+              <>
+                <Sep />
+                <span className={`inline-flex items-center gap-0.5 whitespace-nowrap ${spawn.text}`}>
+                  <GitBranch className="w-3 h-3" aria-hidden="true" />
+                  {spawn.label}
+                </span>
+              </>
+            )}
+          </div>
+
+          {/* Line 4 (optional) — cwd + linked plans / RFCs / tasks */}
+          <ContextLine
+            plans={session.linked_plans}
+            rfcs={session.linked_rfcs}
+            tasks={session.linked_tasks}
+            wsSlug={wsSlug}
+            cwd={session.cwd}
+          />
+
+          {/* Child sessions (detached runs) */}
+          <ChildrenIndicator sessionId={session.id} onSelect={onSelect} />
+
+          {/* Inline actions — revealed by the ⋯ button, touch friendly */}
+          {isMenuOpen && (
+            <div
+              className="mt-2 flex items-center gap-1.5"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Escape') onCloseMenu() }}
+            >
+              {isConfirmingDelete ? (
+                <>
+                  <span className="text-xs text-gray-400 mr-auto">Delete this conversation?</span>
+                  <button
+                    type="button"
+                    onClick={onCloseMenu}
+                    className="px-2.5 py-1.5 rounded-md text-xs text-gray-300 bg-white/[0.05] hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(session.id)}
+                    className="px-2.5 py-1.5 rounded-md text-xs font-medium text-red-300 bg-red-500/15 hover:bg-red-500/25 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/60"
+                    autoFocus
+                  >
+                    Delete
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onStartRename(session.id)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-gray-300 bg-white/[0.05] hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60"
+                  >
+                    <Pencil className="w-3 h-3" aria-hidden="true" />
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onRequestDelete(session.id)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-red-400 bg-white/[0.05] hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/60"
+                  >
+                    <Trash2 className="w-3 h-3" aria-hidden="true" />
+                    Delete
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Row actions trigger — always visible (touch), muted until hovered/focused */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            if (isMenuOpen) onCloseMenu()
+            else onOpenMenu(session.id)
+          }}
+          onKeyDown={stopKeys}
+          aria-label={`Actions for ${title}`}
+          aria-expanded={isMenuOpen}
+          className={`shrink-0 -my-1.5 w-8 h-8 inline-flex items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60 ${
+            isMenuOpen ? 'text-gray-200 bg-white/[0.06]' : 'text-gray-600 hover:text-gray-300 hover:bg-white/[0.05]'
+          }`}
+        >
+          <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
+        </button>
+      </div>
+    </li>
+  )
+})
+
+// ============================================================================
 // SessionList component
 // ============================================================================
 
@@ -257,7 +619,12 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
   const [loading, setLoading] = useState(true)
   const [hasMoreSessions, setHasMoreSessions] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
+  /** Exactly how many sessions are loaded — the offset of the next page. */
   const offsetRef = useRef(0)
+  /** How many a reconcile must re-read; claimed optimistically by a page load. */
+  const windowRef = useRef(SESSION_PAGE_SIZE)
+  /** Monotonic request id: only the newest response may touch the list. */
+  const fetchSeqRef = useRef(0)
 
   // Sentinel ref for IntersectionObserver (infinite scroll)
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -268,12 +635,24 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
   // Track active detached runs per parent session
   const activeRuns = useActiveRunTracker()
 
-  // Track streaming sessions via direct event bus subscription
-  const [streamingSessions, setStreamingSessions] = useState<Set<string>>(
-    () => new Set(),
+  /**
+   * What each conversation is doing right now, keyed by session id.
+   *
+   * Fed from three places, in order of authority:
+   *  1. `GET /api/chat/live-activity` — the server's in-memory truth, which
+   *     replaces this map wholesale (so a stuck indicator cannot survive);
+   *  2. every session listing, which stamps the sessions it returns;
+   *  3. `chat_session` CRUD events, which only make the dot appear sooner.
+   *
+   * It used to be a `Set` of streaming ids fed by (3) alone. That could only
+   * ever be right for a list that had been mounted since before the turn
+   * started: after a reload, every working conversation looked idle.
+   */
+  const [activityById, setActivityById] = useState<Map<string, SessionActivity>>(
+    () => new Map(),
   )
 
-  // Listen to chat_session events for streaming status updates
+  // CRUD events — an accelerator on top of the snapshot, not the source.
   useEffect(() => {
     const bus = getEventBus()
     const off = bus.on((event: CrudEvent) => {
@@ -284,15 +663,8 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
         event.payload &&
         typeof event.payload.is_streaming === 'boolean'
       ) {
-        setStreamingSessions((prev) => {
-          const next = new Set(prev)
-          if (event.payload.is_streaming) {
-            next.add(event.entity_id)
-          } else {
-            next.delete(event.entity_id)
-          }
-          return next
-        })
+        const streaming = event.payload.is_streaming as boolean
+        setActivityById((prev) => applyStreamingEvent(prev, event.entity_id, streaming))
       }
     })
     return () => { off() }
@@ -309,10 +681,9 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
   const [selectedProject, setSelectedProject] = useState<string>('')
   const [selectedPlanOrRfc, setSelectedPlanOrRfc] = useState<string>('')
 
-  // Inline rename state
+  // Inline rename state — which row is being renamed. The draft itself lives
+  // inside <RenameInput> so typing does not re-render the list.
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
-  const [editingTitle, setEditingTitle] = useState('')
-  const editInputRef = useRef<HTMLInputElement>(null)
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
@@ -343,20 +714,30 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
     })
   }, [activeWsSlug])
 
-  // Fetch sessions — initial load resets the list, loadMore appends
   const fetchSessions = useCallback(
-    async (loadMore = false) => {
-      if (loadMore) {
+    async (mode: FetchMode = 'initial') => {
+      // Only the newest request may touch the list. Without this, a reconcile
+      // and a page load that overlap apply in arrival order, and the loser
+      // overwrites the winner — the truncation bug again, by another route.
+      const seq = ++fetchSeqRef.current
+
+      if (mode === 'more') {
         setIsLoadingMore(true)
-      } else {
+        // Claim the page being fetched straight away, so a reconcile starting
+        // mid-flight already covers it instead of cutting the list back.
+        windowRef.current = offsetRef.current + SESSION_PAGE_SIZE
+      } else if (mode === 'initial') {
         setLoading(true)
         offsetRef.current = 0
+        windowRef.current = SESSION_PAGE_SIZE
       }
 
       try {
         const params: { limit: number; offset: number; project_slug?: string; workspace_slug?: string } = {
-          limit: SESSION_PAGE_SIZE,
-          offset: loadMore ? offsetRef.current : 0,
+          // A reconcile covers the whole window the user scrolled through,
+          // not just the first page.
+          limit: mode === 'reconcile' ? windowRef.current : SESSION_PAGE_SIZE,
+          offset: mode === 'more' ? offsetRef.current : 0,
         }
         // When a plan/RFC filter is active, always fetch workspace-level
         // so we get all sessions with links (they're workspace-scoped).
@@ -367,22 +748,27 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
           params.workspace_slug = activeWsSlug
         }
         const data = await chatApi.listSessions(params)
+        if (seq !== fetchSeqRef.current) return // a newer request owns the list
         const newItems = data.items || []
 
-        if (loadMore) {
+        if (mode === 'more') {
           setSessions((prev) => [...prev, ...newItems])
+          offsetRef.current += newItems.length
         } else {
           setSessions(newItems)
+          offsetRef.current = newItems.length
         }
-
-        offsetRef.current = (loadMore ? offsetRef.current : 0) + newItems.length
+        windowRef.current = Math.max(offsetRef.current, SESSION_PAGE_SIZE)
+        // The listing is authoritative for the sessions it returned, and
+        // silent about the rest. `applyWindow` encodes exactly that.
+        setActivityById((prev) => applyWindow(prev, newItems))
         setHasMoreSessions(!!data.has_more)
       } catch {
         // ignore
       } finally {
-        if (loadMore) {
+        if (mode === 'more') {
           setIsLoadingMore(false)
-        } else {
+        } else if (mode === 'initial') {
           setLoading(false)
         }
       }
@@ -390,10 +776,59 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
     [selectedProject, selectedPlanOrRfc, activeWsSlug],
   )
 
-  // Initial load + refresh on filter/CRUD changes
+  // First load, and whenever the filters change: this one may show a spinner,
+  // because there is genuinely nothing to look at yet.
   useEffect(() => {
-    fetchSessions(false)
-  }, [fetchSessions, chatSessionRefresh])
+    fetchSessions('initial')
+  }, [fetchSessions])
+
+  // A CRUD event means "something moved", never "throw the list away".
+  //
+  // Keyed on the counter's own value rather than on the effect firing:
+  // `fetchSessions` is rebuilt whenever a filter changes, and reacting to that
+  // would fire a reconcile straight after the initial load it belongs to.
+  const seenRefreshRef = useRef(chatSessionRefresh)
+  useEffect(() => {
+    if (seenRefreshRef.current === chatSessionRefresh) return
+    seenRefreshRef.current = chatSessionRefresh
+    fetchSessions('reconcile')
+  }, [chatSessionRefresh, fetchSessions])
+
+  /**
+   * Re-read live activity while anything is running.
+   *
+   * Deliberately independent of the CRUD stream: this is the only mechanism
+   * that can clear a working indicator whose "stopped" event never arrived,
+   * and the only one that can light one up for a turn that started before
+   * this list was mounted. It stops by itself once every session is quiet,
+   * and pauses while the tab is hidden.
+   */
+  const hasLiveSession = useMemo(() => anyLive(activityById.values()), [activityById])
+
+  useEffect(() => {
+    if (!hasLiveSession) return
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+
+    const tick = async () => {
+      if (cancelled) return
+      if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
+        try {
+          const data = await chatApi.getLiveActivity()
+          if (!cancelled) setActivityById(applySnapshot(data?.sessions ?? {}))
+        } catch {
+          // A failed poll leaves the previous map in place and tries again.
+        }
+      }
+      if (!cancelled) timer = setTimeout(tick, ACTIVITY_POLL_MS)
+    }
+
+    timer = setTimeout(tick, ACTIVITY_POLL_MS)
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+    }
+  }, [hasLiveSession])
 
   // IntersectionObserver for infinite scroll sentinel
   useEffect(() => {
@@ -403,7 +838,7 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && hasMoreSessions && !isLoadingMore && !loading) {
-          fetchSessions(true)
+          fetchSessions('more')
         }
       },
       { threshold: 0.1 },
@@ -509,52 +944,61 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
   const [menuSessionId, setMenuSessionId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
-  const closeMenu = () => {
+  // Every callback handed to a row is referentially stable: a new lambda per
+  // render would re-render all 30+ rows on any state change and undo the
+  // memoisation above.
+  const closeMenu = useCallback(() => {
     setMenuSessionId(null)
     setConfirmDeleteId(null)
-  }
+  }, [])
 
-  const handleDelete = async (sessionId: string) => {
-    closeMenu()
+  const openMenu = useCallback((sessionId: string) => {
+    setConfirmDeleteId(null)
+    setMenuSessionId(sessionId)
+  }, [])
+
+  const handleDelete = useCallback(async (sessionId: string) => {
+    setMenuSessionId(null)
+    setConfirmDeleteId(null)
     await chatApi.deleteSession(sessionId)
     setSessions((prev) => prev.filter((s) => s.id !== sessionId))
-  }
+  }, [])
 
-  const handleStartRename = (session: ChatSession) => {
-    closeMenu()
-    setEditingSessionId(session.id)
-    setEditingTitle(sessionDisplayTitle(session))
-    // Focus after React renders the input
-    requestAnimationFrame(() => editInputRef.current?.select())
-  }
+  const handleStartRename = useCallback((sessionId: string) => {
+    setMenuSessionId(null)
+    setConfirmDeleteId(null)
+    setEditingSessionId(sessionId)
+  }, [])
 
-  const handleCommitRename = async () => {
-    if (!editingSessionId) return
-    const trimmed = editingTitle.trim()
-    if (trimmed) {
-      try {
-        await chatApi.renameSession(editingSessionId, trimmed)
-        setSessions((prev) =>
-          prev.map((s) => s.id === editingSessionId ? { ...s, title: trimmed } : s)
-        )
-      } catch {
-        // Revert silently
-      }
-    }
+  const handleCancelRename = useCallback(() => setEditingSessionId(null), [])
+
+  const handleCommitRename = useCallback(async (sessionId: string, title: string) => {
     setEditingSessionId(null)
-  }
-
-  const handleRenameKeyDown = (e: React.KeyboardEvent) => {
-    // Stop ALL key events from bubbling to the row's onKeyDown
-    // which intercepts Space (navigate) and Enter (navigate).
-    e.stopPropagation()
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      handleCommitRename()
-    } else if (e.key === 'Escape') {
-      setEditingSessionId(null)
+    const trimmed = title.trim()
+    if (!trimmed) return
+    try {
+      await chatApi.renameSession(sessionId, trimmed)
+      setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, title: trimmed } : s)))
+    } catch {
+      // Revert silently
     }
-  }
+  }, [])
+
+  const handleRequestDelete = useCallback((sessionId: string) => setConfirmDeleteId(sessionId), [])
+
+  // `onSelect` / `onClose` come from the parent and may be fresh lambdas on
+  // every parent render. Routing them through refs keeps the rows memoised
+  // whatever the parent does.
+  const selectRef = useRef(onSelect)
+  selectRef.current = onSelect
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  const stableSelect = useCallback(
+    (sessionId: string, turnIndex?: number, title?: string) =>
+      selectRef.current(sessionId, turnIndex, title),
+    [],
+  )
+  const stableClose = useCallback(() => closeRef.current(), [])
 
   const handleClearSearch = () => {
     setSearchQuery('')
@@ -574,221 +1018,7 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
   if (selectedPlanOrRfc) activeFilterLabels.push(planRfcOptions.find((o) => o.value === selectedPlanOrRfc)?.label ?? selectedPlanOrRfc)
   if (!showSpawned) activeFilterLabels.push('spawned hidden')
 
-  const stopKeys = (e: React.KeyboardEvent) => e.stopPropagation()
-
   // Render a single session row
-  const renderSessionRow = (session: ChatSession) => {
-    const isActive = session.id === activeSessionId
-    const isStreaming = streamingSessions.has(session.id)
-    const isEditing = editingSessionId === session.id
-    const isMenuOpen = menuSessionId === session.id
-    const title = sessionDisplayTitle(session)
-    const preview = sessionPreview(session)
-    const scope = sessionScope(session)
-    const mode = permissionModeMeta(session.permission_mode)
-    const cost = formatCost(session.total_cost_usd)
-    const spawn = session.spawned_by ? spawnLabel(session.spawned_by) : null
-    const activate = () => { closeMenu(); if (isActive) { onClose() } else { onSelect(session.id, undefined, title) } }
-
-    return (
-      <li key={session.id}>
-        <div
-          role="button"
-          tabIndex={0}
-          aria-current={isActive ? 'true' : undefined}
-          aria-label={title}
-          onClick={activate}
-          onKeyDown={(e) => {
-            // Only react to keys aimed at the row itself, not at nested controls
-            if (e.target !== e.currentTarget) return
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate() }
-            else if (e.key === 'F2') { e.preventDefault(); handleStartRename(session) }
-          }}
-          className={`relative flex items-start gap-1 pl-3 pr-1.5 py-2.5 cursor-pointer transition-colors outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-indigo-500/60 ${
-            isActive
-              ? 'bg-indigo-500/[0.08] shadow-[inset_2px_0_0_var(--color-indigo-500)]'
-              : 'hover:bg-white/[0.03]'
-          }`}
-        >
-          <div className="flex-1 min-w-0">
-            {/* Line 1 — title (primary) + live dot + date (right, tabular) */}
-            <div className="flex items-center gap-2 min-h-5">
-              {isStreaming && <PulseIndicator variant="active" size={7} />}
-              {isEditing ? (
-                <input
-                  ref={editInputRef}
-                  value={editingTitle}
-                  onChange={(e) => setEditingTitle(e.target.value)}
-                  onBlur={handleCommitRename}
-                  onKeyDown={handleRenameKeyDown}
-                  onClick={(e) => e.stopPropagation()}
-                  aria-label="Conversation title"
-                  className="text-sm bg-white/[0.06] border border-indigo-500/40 rounded px-1.5 py-0.5 text-gray-200 focus:outline-none w-full min-w-0"
-                  autoFocus
-                />
-              ) : (
-                <span
-                  className={`flex-1 min-w-0 text-sm truncate ${isActive ? 'text-gray-100 font-medium' : 'text-gray-200'}`}
-                  onDoubleClick={(e) => { e.stopPropagation(); handleStartRename(session) }}
-                >
-                  {title}
-                </span>
-              )}
-              {!isEditing && (
-                <time
-                  dateTime={session.updated_at}
-                  title={formatAbsolute(session.updated_at)}
-                  className="shrink-0 text-[11px] tabular-nums text-gray-500"
-                >
-                  {formatRelativeShort(session.updated_at)}
-                </time>
-              )}
-            </div>
-
-            {/* Line 2 — preview, or live status */}
-            {isStreaming ? (
-              <div className="text-xs leading-4 text-emerald-400/80 mt-0.5">Working…</div>
-            ) : preview ? (
-              <div className="text-xs leading-4 text-gray-500 truncate mt-0.5">{preview}</div>
-            ) : null}
-
-            {/* Line 3 — metadata: scope · msgs · mode+model · cost · origin */}
-            <div className={`${META} mt-1 flex flex-wrap items-center min-w-0`}>
-              {scope && (
-                <span
-                  className={`inline-flex items-center gap-1 min-w-0 max-w-[45%] ${scope.kind === 'workspace' ? 'text-purple-400/80' : 'text-indigo-400/80'}`}
-                  aria-label={`${scope.kind === 'workspace' ? 'Workspace' : 'Project'} ${scope.slug}`}
-                >
-                  {scope.kind === 'workspace'
-                    ? <Hexagon className="w-3 h-3 shrink-0" aria-hidden="true" />
-                    : <Box className="w-3 h-3 shrink-0" aria-hidden="true" />}
-                  <span className="truncate">{scope.slug}</span>
-                </span>
-              )}
-              {scope && <Sep />}
-              <span className="tabular-nums whitespace-nowrap">{formatMessageCount(session.message_count)}</span>
-              {session.model && (
-                <>
-                  <Sep />
-                  <span className="inline-flex items-center gap-1 min-w-0" title={session.model}>
-                    {mode && (
-                      <span
-                        role="img"
-                        aria-label={mode.label}
-                        title={mode.label}
-                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${mode.dot}`}
-                      />
-                    )}
-                    <span className="truncate max-w-[9rem]">{shortModelName(session.model)}</span>
-                  </span>
-                </>
-              )}
-              {!session.model && mode && (
-                <>
-                  <Sep />
-                  <span role="img" aria-label={mode.label} title={mode.label} className={`w-1.5 h-1.5 rounded-full shrink-0 ${mode.dot}`} />
-                </>
-              )}
-              {cost && (
-                <>
-                  <Sep />
-                  <span className="tabular-nums whitespace-nowrap">{cost}</span>
-                </>
-              )}
-              {spawn && (
-                <>
-                  <Sep />
-                  <span className={`inline-flex items-center gap-0.5 whitespace-nowrap ${spawn.text}`}>
-                    <GitBranch className="w-3 h-3" aria-hidden="true" />
-                    {spawn.label}
-                  </span>
-                </>
-              )}
-            </div>
-
-            {/* Line 4 (optional) — cwd + linked plans / RFCs / tasks */}
-            <ContextLine
-              plans={session.linked_plans}
-              rfcs={session.linked_rfcs}
-              tasks={session.linked_tasks}
-              wsSlug={activeWsSlug ?? null}
-              cwd={session.cwd}
-            />
-
-            {/* Child sessions (detached runs) */}
-            <ChildrenIndicator sessionId={session.id} onSelect={onSelect} />
-
-            {/* Inline actions — revealed by the ⋯ button, touch friendly */}
-            {isMenuOpen && (
-              <div
-                className="mt-2 flex items-center gap-1.5"
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Escape') closeMenu() }}
-              >
-                {confirmDeleteId === session.id ? (
-                  <>
-                    <span className="text-xs text-gray-400 mr-auto">Delete this conversation?</span>
-                    <button
-                      type="button"
-                      onClick={closeMenu}
-                      className="px-2.5 py-1.5 rounded-md text-xs text-gray-300 bg-white/[0.05] hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(session.id)}
-                      className="px-2.5 py-1.5 rounded-md text-xs font-medium text-red-300 bg-red-500/15 hover:bg-red-500/25 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/60"
-                      autoFocus
-                    >
-                      Delete
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => handleStartRename(session)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-gray-300 bg-white/[0.05] hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60"
-                    >
-                      <Pencil className="w-3 h-3" aria-hidden="true" />
-                      Rename
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDeleteId(session.id)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-red-400 bg-white/[0.05] hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/60"
-                    >
-                      <Trash2 className="w-3 h-3" aria-hidden="true" />
-                      Delete
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Row actions trigger — always visible (touch), muted until hovered/focused */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              if (isMenuOpen) closeMenu()
-              else { setConfirmDeleteId(null); setMenuSessionId(session.id) }
-            }}
-            onKeyDown={stopKeys}
-            aria-label={`Actions for ${title}`}
-            aria-expanded={isMenuOpen}
-            className={`shrink-0 -my-1.5 w-8 h-8 inline-flex items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60 ${
-              isMenuOpen ? 'text-gray-200 bg-white/[0.06]' : 'text-gray-600 hover:text-gray-300 hover:bg-white/[0.05]'
-            }`}
-          >
-            <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
-          </button>
-        </div>
-      </li>
-    )
-  }
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -1072,7 +1302,29 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
                   {group}
                   <span className="ml-auto tabular-nums font-normal text-gray-600">{groupSessions.length}</span>
                 </h3>
-                <ul>{groupSessions.map(renderSessionRow)}</ul>
+                <ul>
+                  {groupSessions.map((session) => (
+                    <SessionRow
+                      key={session.id}
+                      session={session}
+                      isActive={session.id === activeSessionId}
+                      status={describeActivity(activityById.get(session.id))}
+                      isEditing={editingSessionId === session.id}
+                      isMenuOpen={menuSessionId === session.id}
+                      isConfirmingDelete={confirmDeleteId === session.id}
+                      wsSlug={activeWsSlug ?? null}
+                      onSelect={stableSelect}
+                      onClose={stableClose}
+                      onStartRename={handleStartRename}
+                      onCommitRename={handleCommitRename}
+                      onCancelRename={handleCancelRename}
+                      onOpenMenu={openMenu}
+                      onCloseMenu={closeMenu}
+                      onRequestDelete={handleRequestDelete}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </ul>
               </section>
             ))}
 

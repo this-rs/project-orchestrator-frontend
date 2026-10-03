@@ -15,6 +15,7 @@ import type {
   DetectPathResponse,
   InterruptOutcome,
   InterruptScope,
+  LiveActivityResponse,
   PaginatedResponse,
   MessageHistoryResponse,
   MessageSearchResult,
@@ -56,6 +57,18 @@ export const chatApi = {
 
   getSession: (sessionId: string) =>
     api.get<ChatSession>(`/chat/sessions/${sessionId}`),
+
+  /**
+   * What every known session is doing right now, read from the backend's
+   * in-memory ChatManager (no database, no pagination).
+   *
+   * The conversation list polls this while it believes something is running,
+   * so a working indicator can be *reconciled* rather than merely accumulated
+   * from CRUD events: events alone go stale on mount and stay stale forever
+   * if the "streaming stopped" one is dropped.
+   */
+  getLiveActivity: () =>
+    api.get<LiveActivityResponse>('/chat/live-activity'),
 
   deleteSession: (sessionId: string) =>
     api.delete(`/chat/sessions/${sessionId}`),
