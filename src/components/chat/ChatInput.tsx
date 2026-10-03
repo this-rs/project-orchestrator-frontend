@@ -668,7 +668,9 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
       // No top border: the composer box already has its own outline, so a
       // separator above it only drew a second, competing line. The gap between
       // the transcript and that outline is the demarcation.
-      className="relative px-3 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex flex-col gap-1"
+      // Floats over the transcript (ComposerDock): no background here, and the margins let clicks
+      // through to the messages below; only the composer's own blocks take pointer events.
+      className="relative px-3 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex flex-col gap-1 pointer-events-none [&>*]:pointer-events-auto"
       // The composer is the drop target rather than the whole panel: it is
       // where the attachments then appear, so the drop lands where the result
       // shows up instead of somewhere up in the transcript.
@@ -708,7 +710,9 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
           keeps the eye on one place. The border and focus ring live on the
           wrapper (`focus-within`), the textarea itself is transparent. */}
       <div
-        className={`flex flex-col rounded-xl bg-white/[0.04] border border-white/[0.06] p-1 transition-colors focus-within:border-indigo-500/40 ${
+        // Glass: a translucent fill and a blur, so the transcript scrolling under the box stays
+        // legible but soft. (It used to be a flat bg-white/[0.04] on top of a strip.)
+        className={`flex flex-col rounded-xl bg-surface-base/55 backdrop-blur-md backdrop-saturate-150 border border-white/[0.1] shadow-lg shadow-black/20 p-1 transition-colors focus-within:border-indigo-500/40 ${
           disabled ? 'opacity-50' : ''
         }`}
       >

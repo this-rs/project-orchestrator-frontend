@@ -10,6 +10,7 @@ import { ChatSessionProvider } from './ChatSessionContext'
 import { ChatInput, type PrefillPayload } from './ChatInput'
 import { CompactionBanner } from './CompactionBanner'
 import { SecretRequestTray } from './SecretRequestTray'
+import { ComposerDock } from './ComposerDock'
 import { DetachedRunsPanel } from './DetachedRunsPanel'
 import { AgenticModeBanner } from './AgenticModeBanner'
 import { AgenticModePill } from './AgenticModePill'
@@ -47,6 +48,8 @@ export function ChatPanel() {
   const [panelWidth, setPanelWidth] = useAtom(chatPanelWidthAtom)
   const [showSessions, setShowSessions] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  // Height of the composer floating over the bottom of the transcript (see ComposerDock)
+  const [dockHeight, setDockHeight] = useState(0)
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
   const selectedProject = useAtomValue(chatSelectedProjectAtom)
   const allProjectsMode = useAtomValue(chatAllProjectsModeAtom)
@@ -517,39 +520,45 @@ export function ChatPanel() {
                     onStopRun={handleStopRun}
                   />
                 )}
-                <ChatMessages
-                  messages={chat.messages}
-                  isStreaming={chat.isStreaming}
-                  isLoadingHistory={chat.isLoadingHistory}
-                  isReplaying={chat.isReplaying}
-                  hasOlderMessages={chat.hasOlderMessages}
-                  isLoadingOlder={chat.isLoadingOlder}
-                  onLoadOlder={chat.loadOlderMessages}
-                  hasNewerMessages={chat.hasNewerMessages}
-                  isLoadingNewer={chat.isLoadingNewer}
-                  onLoadNewer={chat.loadNewerMessages}
-                  hasLiveActivity={chat.hasLiveActivity}
-                  onJumpToTail={chat.jumpToTail}
-                  onRespondPermission={chat.respondPermission}
-                  onRespondInput={chat.respondInput}
-                  onContinue={handleContinue}
-                  onQuickAction={handleQuickAction}
-                  onSelectSession={handleSelectSession}
-                  selectedProject={selectedProject}
-                />
-                <CompactionBanner visible={chat.isCompacting} />
-                <SecretRequestTray sessionId={chat.sessionId} />
-                <ChatInput
-                  onSend={handleSend}
-                  onInterrupt={chat.interrupt}
-                  isStreaming={chat.isStreaming}
-                  disabled={isNewConversation && !hasContext}
-                  sessionId={chat.sessionId}
-                  onChangePermissionMode={chat.changePermissionMode}
-                  onChangeModel={chat.changeModel}
-                  onChangeAutoContinue={chat.changeAutoContinue}
-                  prefill={prefill}
-                />
+                {/* The composer floats over the transcript: the messages scroll under its glass. */}
+                <div className="relative flex flex-1 min-h-0 flex-col">
+                  <ChatMessages
+                    messages={chat.messages}
+                    isStreaming={chat.isStreaming}
+                    isLoadingHistory={chat.isLoadingHistory}
+                    isReplaying={chat.isReplaying}
+                    hasOlderMessages={chat.hasOlderMessages}
+                    isLoadingOlder={chat.isLoadingOlder}
+                    onLoadOlder={chat.loadOlderMessages}
+                    hasNewerMessages={chat.hasNewerMessages}
+                    isLoadingNewer={chat.isLoadingNewer}
+                    onLoadNewer={chat.loadNewerMessages}
+                    hasLiveActivity={chat.hasLiveActivity}
+                    onJumpToTail={chat.jumpToTail}
+                    onRespondPermission={chat.respondPermission}
+                    onRespondInput={chat.respondInput}
+                    onContinue={handleContinue}
+                    onQuickAction={handleQuickAction}
+                    onSelectSession={handleSelectSession}
+                    selectedProject={selectedProject}
+                    bottomInset={dockHeight}
+                  />
+                  <ComposerDock onHeight={setDockHeight}>
+                    <CompactionBanner visible={chat.isCompacting} />
+                    <SecretRequestTray sessionId={chat.sessionId} />
+                    <ChatInput
+                      onSend={handleSend}
+                      onInterrupt={chat.interrupt}
+                      isStreaming={chat.isStreaming}
+                      disabled={isNewConversation && !hasContext}
+                      sessionId={chat.sessionId}
+                      onChangePermissionMode={chat.changePermissionMode}
+                      onChangeModel={chat.changeModel}
+                      onChangeAutoContinue={chat.changeAutoContinue}
+                      prefill={prefill}
+                    />
+                  </ComposerDock>
+                </div>
               </div>
 
               {/* Agent Tree right panel — fullscreen layout */}
@@ -754,39 +763,45 @@ export function ChatPanel() {
               onStopRun={handleStopRun}
             />
           )}
-          <ChatMessages
-            messages={chat.messages}
-            isStreaming={chat.isStreaming}
-            isLoadingHistory={chat.isLoadingHistory}
-            isReplaying={chat.isReplaying}
-            hasOlderMessages={chat.hasOlderMessages}
-            isLoadingOlder={chat.isLoadingOlder}
-            onLoadOlder={chat.loadOlderMessages}
-            hasNewerMessages={chat.hasNewerMessages}
-            isLoadingNewer={chat.isLoadingNewer}
-            onLoadNewer={chat.loadNewerMessages}
-            hasLiveActivity={chat.hasLiveActivity}
-            onJumpToTail={chat.jumpToTail}
-            onRespondPermission={chat.respondPermission}
-            onRespondInput={chat.respondInput}
-            onContinue={handleContinue}
-            onQuickAction={handleQuickAction}
-            onSelectSession={handleSelectSession}
-            selectedProject={selectedProject}
-          />
-          <CompactionBanner visible={chat.isCompacting} />
-          <SecretRequestTray sessionId={chat.sessionId} />
-          <ChatInput
-            onSend={handleSend}
-            onInterrupt={chat.interrupt}
-            isStreaming={chat.isStreaming}
-            disabled={isNewConversation && !hasContext}
-            sessionId={chat.sessionId}
-            onChangePermissionMode={chat.changePermissionMode}
-            onChangeModel={chat.changeModel}
-            onChangeAutoContinue={chat.changeAutoContinue}
-            prefill={prefill}
-          />
+          {/* The composer floats over the transcript: the messages scroll under its glass. */}
+          <div className="relative flex flex-1 min-h-0 flex-col">
+            <ChatMessages
+              messages={chat.messages}
+              isStreaming={chat.isStreaming}
+              isLoadingHistory={chat.isLoadingHistory}
+              isReplaying={chat.isReplaying}
+              hasOlderMessages={chat.hasOlderMessages}
+              isLoadingOlder={chat.isLoadingOlder}
+              onLoadOlder={chat.loadOlderMessages}
+              hasNewerMessages={chat.hasNewerMessages}
+              isLoadingNewer={chat.isLoadingNewer}
+              onLoadNewer={chat.loadNewerMessages}
+              hasLiveActivity={chat.hasLiveActivity}
+              onJumpToTail={chat.jumpToTail}
+              onRespondPermission={chat.respondPermission}
+              onRespondInput={chat.respondInput}
+              onContinue={handleContinue}
+              onQuickAction={handleQuickAction}
+              onSelectSession={handleSelectSession}
+              selectedProject={selectedProject}
+              bottomInset={dockHeight}
+            />
+            <ComposerDock onHeight={setDockHeight}>
+              <CompactionBanner visible={chat.isCompacting} />
+              <SecretRequestTray sessionId={chat.sessionId} />
+              <ChatInput
+                onSend={handleSend}
+                onInterrupt={chat.interrupt}
+                isStreaming={chat.isStreaming}
+                disabled={isNewConversation && !hasContext}
+                sessionId={chat.sessionId}
+                onChangePermissionMode={chat.changePermissionMode}
+                onChangeModel={chat.changeModel}
+                onChangeAutoContinue={chat.changeAutoContinue}
+                prefill={prefill}
+              />
+            </ComposerDock>
+          </div>
         </>
       )}
     </div>
