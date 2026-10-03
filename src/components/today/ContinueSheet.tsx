@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { Loader2 } from 'lucide-react'
-import { focusRing, glass, pressFeedback } from '@/components/ui/classes'
+import { Button } from '@/components/ui/Button'
+import { focusRing, glass } from '@/components/ui/classes'
 import { useVisualViewportHeight } from '@/hooks/useVisualViewportHeight'
 
 /**
@@ -134,23 +134,12 @@ function SheetBody({ onClose, title, help, initialText = '', submitLabel, onSend
           </p>
         )}
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={sending}
-            className={`min-h-9 rounded-lg px-3 text-sm text-gray-300 hover:bg-white/[0.06] disabled:opacity-50 ${pressFeedback} ${focusRing}`}
-          >
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={sending}>
             Annuler
-          </button>
-          <button
-            type="button"
-            onClick={send}
-            disabled={!canSend}
-            className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 ${pressFeedback} ${focusRing}`}
-          >
-            {sending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+          </Button>
+          <Button size="sm" onClick={send} disabled={!canSend} loading={sending}>
             {submitLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </div>,

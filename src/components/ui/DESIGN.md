@@ -110,7 +110,7 @@ Numbers that change or align (counts, dates, costs) use `tabular-nums`. No
 Every entity list is `EntityList` / `ListGroup` of `EntityRow`s. No per-page cards for list items; grids of cards only for genuinely visual content (graph previews, dashboards).
 
 ```
-[leading] Title (≤ 2 lines) ····················· trailing  [⋯]
+[leading] Title (≤ 2 lines) ············ trailing  [Action] [⋯]
           description (optional, ≤ 2 lines, muted)
           ◔ Status  P8    ▣ Project  @ owner  ⏱ due …   (status line, then facts — one wrapping line)
           context line (optional: TaskProgress, links…)
@@ -218,6 +218,8 @@ Anatomy: **PageHeader → key facts line → sections**.
 ## 9. Actions
 
 - **Primary** (create, run): one `<Button size="sm">` in `PageShell.actions` / `PageHeader.actions`. At most one primary + one secondary visible.
+- **Row action**: a row shows at most ONE button, in `EntityRow.primaryAction` (`<Button size="sm">`, one short word: "Start", "Add", "Resume"). It is `variant="secondary"` unless it is THE next thing to do in its list; a list never stacks the same filled button on every row. Everything else the row can do goes in its `actions` menu.
+- **No local button classes.** A button is `<Button>`; a page never defines its own `btn…` class strings (heights, radii and greys drift apart within a week).
 - **Secondary** (edit, duplicate, export, delete): the `⋯` `OverflowMenu` (row `actions` array or `PageHeader.overflowActions`). Always visible, never hover-revealed.
 - **Destructive**: `variant: 'danger'` + `confirm: { title, description }` — the menu shows the ConfirmDialog. Bulk deletes use `useConfirmDialog` + `BulkActionBar` as today.
 - After a mutation: optimistic local update + `toast.success` / `toast.error`.

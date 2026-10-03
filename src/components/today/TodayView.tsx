@@ -242,13 +242,9 @@ function StartPointer({
       <p data-testid="start-what" className="min-w-0 break-words text-sm text-gray-100">
         {what}
       </p>
-      <button
-        type="button"
-        onClick={() => onGo(band)}
-        className={`inline-flex min-h-9 items-center rounded-lg border border-white/[0.12] bg-white/[0.06] px-3 text-sm text-gray-100 hover:bg-white/[0.1] ${pressFeedback} ${focusRing}`}
-      >
+      <Button variant="secondary" size="sm" onClick={() => onGo(band)}>
         {START_TEXT.go(BAND_TEXT[band].title)}
-      </button>
+      </Button>
     </div>
   )
 }
