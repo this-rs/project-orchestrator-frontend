@@ -52,16 +52,17 @@ import { NOMENCLATURE } from '@/constants/nomenclature'
 
 const PAGE_SIZE = 20
 
-type StatusFilter = 'all' | 'running' | 'completed' | 'failed'
+type StatusFilter = 'all' | 'running' | 'completed' | 'failed' | 'interrupted'
 
 const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: 'All statuses' },
   { value: 'running', label: 'Running' },
   { value: 'completed', label: 'Completed' },
   { value: 'failed', label: 'Failed' },
+  { value: 'interrupted', label: 'Interrupted' },
 ]
 
-const FAILED_LIKE = new Set(['failed', 'cancelled', 'budget_exceeded'])
+const FAILED_LIKE = new Set(['failed', 'cancelled', 'budget_exceeded', 'interrupted'])
 
 function runTitle(run: PlanRun): string {
   return run.plan_title || `Plan ${run.plan_id.slice(0, 8)}…`

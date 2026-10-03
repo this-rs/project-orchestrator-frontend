@@ -16,7 +16,13 @@ import type { GateResultsResponse, ProgressScoreResponse } from '@/types/chat'
 // Types — aligned with backend RunStatus
 // ---------------------------------------------------------------------------
 
-export type AgentStatus = 'spawning' | 'running' | 'verifying' | 'completed' | 'failed'
+/**
+ * Status of a plan run. `interrupted`: the run was left `running` by a server that
+ * restarted and could not be resumed safely; whether the work finished is unknown.
+ */
+export type PlanRunStatus = 'running' | 'completed' | 'failed' | 'cancelled' | 'budget_exceeded' | 'interrupted'
+
+export type AgentStatus = 'spawning' | 'running' | 'verifying' | 'completed' | 'failed' | 'interrupted'
 
 /**
  * Live OS-level metrics for an agent's subprocess.
@@ -59,7 +65,7 @@ export interface RunSnapshot {
   running: boolean
   run_id: string | null
   plan_id: string | null
-  status: 'running' | 'completed' | 'failed' | 'cancelled' | 'budget_exceeded' | null
+  status: PlanRunStatus | null
   current_wave: number | null
   current_task_id: string | null
   current_task_title: string | null
@@ -100,7 +106,7 @@ export interface PlanRun {
   git_branch: string
   started_at: string
   completed_at: string | null
-  status: 'running' | 'completed' | 'failed' | 'cancelled' | 'budget_exceeded'
+  status: PlanRunStatus
   cost_usd: number
   triggered_by: string | { chat: { session_id: string | null } } | { schedule: { trigger_id: string } } | { webhook: { trigger_id: string; payload_hash: string | null } } | { event: { trigger_id: string; source_event: string } }
   project_id: string | null

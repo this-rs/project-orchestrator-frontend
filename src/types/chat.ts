@@ -579,7 +579,8 @@ export interface AgentExecution {
   completed_at?: string | null
   cost_usd: number
   duration_secs: number
-  status: 'running' | 'completed' | 'failed' | 'timeout'
+  /** `interrupted`: left `running` by a process that is gone; whether it finished is unknown. */
+  status: 'running' | 'completed' | 'failed' | 'timeout' | 'interrupted'
   tools_used?: string | null  // JSON string
   files_modified: string[]
   commits: string[]

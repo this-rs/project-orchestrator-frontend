@@ -9,18 +9,8 @@
 import { FileCode2, Clock, DollarSign, GitCommitHorizontal, Wrench, Eye, X } from 'lucide-react'
 import { PulseIndicator } from '@/components/ui'
 import { useElapsedTime } from '@/hooks/useElapsedTime'
+import { finalDurationSecs, statusStyle } from './shared'
 import type { AgentExecution } from '@/types'
-
-// ---------------------------------------------------------------------------
-// Status config
-// ---------------------------------------------------------------------------
-
-const statusConfig: Record<AgentExecution['status'], { label: string; bg: string; text: string; dot: string; pulse?: boolean }> = {
-  running:   { label: 'Running',   bg: 'bg-blue-500/15',   text: 'text-blue-400',   dot: 'bg-blue-400',   pulse: true },
-  completed: { label: 'Completed', bg: 'bg-green-500/15',  text: 'text-green-400',  dot: 'bg-green-400' },
-  failed:    { label: 'Failed',    bg: 'bg-red-500/15',    text: 'text-red-400',    dot: 'bg-red-400' },
-  timeout:   { label: 'Timeout',   bg: 'bg-amber-500/15',  text: 'text-amber-400',  dot: 'bg-amber-400' },
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -61,8 +51,8 @@ export function AgentExecutionDetail({
   onViewConversation,
 }: AgentExecutionDetailProps) {
   const isRunning = execution.status === 'running'
-  const cfg = statusConfig[execution.status] ?? statusConfig.running
-  const elapsed = useElapsedTime(execution.started_at, isRunning, execution.duration_secs)
+  const cfg = statusStyle(execution.status)
+  const elapsed = useElapsedTime(execution.started_at, isRunning, finalDurationSecs(execution))
   const tools = parseToolsUsed(execution.tools_used)
 
   return (

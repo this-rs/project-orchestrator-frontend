@@ -18,7 +18,7 @@ import { EmptyState, EntityListSkeleton, ErrorState, PageContainer } from '@/com
 import { RunnerHeader } from '@/components/runner/RunnerHeader'
 import { StatsRow } from '@/components/runner/StatsRow'
 import { WaveSection } from '@/components/runner/WaveSection'
-import { getWaveStatus } from '@/components/runner/shared'
+import { getWaveStatus, finalDurationSecs } from '@/components/runner/shared'
 import { ViewTabs } from '@/components/ui'
 import { Explainer } from '@/components/protocols/Explainer'
 import { LinkedDiscussions } from '@/components/discussions/LinkedDiscussions'
@@ -130,7 +130,7 @@ export function RunnerDashboard() {
         task_id: exec.task_id,
         task_title: taskTitleMap.get(exec.task_id) ?? exec.task_id.slice(0, 8),
         session_id: exec.session_id ?? null,
-        elapsed_secs: exec.duration_secs, cost_usd: exec.cost_usd,
+        elapsed_secs: finalDurationSecs(exec) ?? 0, cost_usd: exec.cost_usd,
         status: exec.status === 'timeout' ? 'failed' : (exec.status as ActiveAgentSnapshot['status']),
       }))
     return [...liveAgents, ...historicalAgents]
