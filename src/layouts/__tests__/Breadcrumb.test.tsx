@@ -31,7 +31,8 @@ describe('Breadcrumb: starts at the workspace, Today is not a crumb', () => {
     const { container } = renderCrumb('/workspace/ws/plans', 'Studio')
     expect(screen.getAllByRole('link').map((a) => a.textContent)).toEqual(['Studio', 'Plans'])
     expect(screen.queryByRole('link', { name: 'Today' })).toBeNull()
-    expect(screen.getByRole('link', { name: 'Studio' }).getAttribute('href')).toBe('/workspace/ws')
+    // the workspace name opens the workspace's own Today (its bare path used to redirect to an empty list)
+    expect(screen.getByRole('link', { name: 'Studio' }).getAttribute('href')).toBe('/workspace/ws/today')
     // one separator between the two crumbs, none before the first
     expect((container.textContent ?? '').trim()).toBe('Studio/Plans')
   })
