@@ -51,7 +51,8 @@ interface BackgroundActivityGroupProps {
  * rendered by a renderer specialised for its type (workflow fan-out, shell
  * command + output tail, sub-agent, generic key/value).
  *
- * Open by default only while something is still moving or failed; the state
+ * Open by default only when something failed (running work is followed in the
+ * activity bar above the composer, see `ActivityBar`); the state
  * is decided at mount so later ticks never re-flow the transcript.
  */
 export function BackgroundActivityGroup({ blocks }: BackgroundActivityGroupProps) {
@@ -61,7 +62,10 @@ export function BackgroundActivityGroup({ blocks }: BackgroundActivityGroupProps
     return blocks.map((b) => buildActivityFromBlock(b, { activeIds }))
   }, [blocks, tasks])
   const counts = summarizeStatuses(activities)
-  const [expanded, setExpanded] = useState(() => counts.running + counts.queued + counts.failed > 0)
+  // Closed while things run: the activity bar above the composer is where a
+  // running activity is followed, and an open panel per activity is what made
+  // the transcript hard to read. A failure still opens it — that one needs eyes.
+  const [expanded, setExpanded] = useState(() => counts.failed > 0)
 
   return (
     <div
@@ -92,7 +96,7 @@ export function BackgroundActivityGroup({ blocks }: BackgroundActivityGroupProps
             <li key={blocks[i].id}>
               <ActivityCard
                 activity={activity}
-                defaultOpen={activities.length === 1 && (activity.status === 'running' || activity.status === 'failed')}
+                defaultOpen={activities.length === 1 && activity.status === 'failed'}
               />
             </li>
           ))}
