@@ -189,6 +189,46 @@ export interface SessionWithLinks {
   source: string
 }
 
+/**
+ * What a conversation is doing *right now*, as the backend reads it from the
+ * live ChatManager (`GET /api/chat/live-activity`, and stamped on every
+ * session the session endpoints return).
+ *
+ * Never persisted server-side: `is_streaming` lives in an AtomicBool in the
+ * running process and is written nowhere else. So this is the only source
+ * that can answer "is this conversation working?" — in particular it is the
+ * only one that still answers correctly after a page reload, when no CRUD
+ * event has arrived yet.
+ */
+export interface SessionActivity {
+  /** The Claude CLI subprocess for this session is alive. */
+  live: boolean
+  /** A turn is being streamed right now. */
+  streaming: boolean
+  /** Permission requests waiting for a human answer (blocked on the user). */
+  pending_permissions: number
+  /** Active `Monitor` subprocesses — a "watch". */
+  monitors: number
+  /** Active `Bash run_in_background` subprocesses. */
+  bash_tasks: number
+}
+
+/** Activity is absent for a quiet session; this is that answer, spelled out. */
+export const QUIET_ACTIVITY: SessionActivity = {
+  live: false,
+  streaming: false,
+  pending_permissions: 0,
+  monitors: 0,
+  bash_tasks: 0,
+}
+
+/** Body of `GET /api/chat/live-activity`. */
+export interface LiveActivityResponse {
+  generated_at: string
+  /** Keyed by session id. An absent session is quiet, not unknown. */
+  sessions: Record<string, SessionActivity>
+}
+
 export interface ChatSession {
   id: string
   cli_session_id?: string
@@ -215,6 +255,11 @@ export interface ChatSession {
   linked_tasks?: ChatLinkedTask[]
   /** RFCs transitively linked via plans */
   linked_rfcs?: ChatLinkedRfc[]
+  /**
+   * Live activity, stamped by the server from its in-memory map. Absent
+   * means quiet — the server omits the field rather than sending zeroes.
+   */
+  activity?: SessionActivity
 }
 
 export interface CreateSessionRequest {
