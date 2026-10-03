@@ -15,7 +15,7 @@
 import type { DiscussionNode } from '@/services/discussions'
 import type { RunnerState, WaitingRequest } from '@/types/attention'
 
-export const RESUMABLE_RUN_STATUSES = ['failed', 'budget_exceeded', 'cancelled'] as const
+export const RESUMABLE_RUN_STATUSES = ['failed', 'budget_exceeded', 'cancelled', 'interrupted'] as const
 /** Only a FAILED task can be retried: the runner skips a blocked one, a button would do nothing. */
 export const RETRYABLE_TASK_STATUSES = ['failed'] as const
 

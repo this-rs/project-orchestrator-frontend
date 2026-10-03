@@ -4,6 +4,7 @@
  */
 
 import type { ActiveAgentSnapshot, PlanRun } from '@/services/runner'
+import type { AgentExecution } from '@/types'
 import type { StatusTone } from '@/components/ui/statusMeta'
 
 // ---------------------------------------------------------------------------
@@ -27,6 +28,49 @@ export function planRunElapsedSecs(run: Pick<PlanRun, 'started_at' | 'completed_
   const start = new Date(run.started_at).getTime()
   const end = run.completed_at ? new Date(run.completed_at).getTime() : now
   return Math.max(0, (end - start) / 1000)
+}
+
+/**
+ * Seconds shown for a finished execution: the recorded duration, else the span
+ * between start and `completed_at` (an interrupted execution has no duration of its own).
+ */
+export function finalDurationSecs(execution: Pick<AgentExecution, 'started_at' | 'completed_at' | 'duration_secs'>): number | undefined {
+  if (execution.duration_secs > 0) return execution.duration_secs
+  if (!execution.completed_at) return undefined
+  const span = (new Date(execution.completed_at).getTime() - new Date(execution.started_at).getTime()) / 1000
+  return Number.isFinite(span) ? Math.max(0, Math.floor(span)) : undefined
+}
+
+// ---------------------------------------------------------------------------
+// Agent execution status (AgentExecutionDetail)
+// ---------------------------------------------------------------------------
+
+export interface StatusStyle {
+  label: string
+  bg: string
+  text: string
+  dot: string
+  pulse?: boolean
+}
+
+const statusConfig: Record<AgentExecution['status'], StatusStyle> = {
+  running:     { label: 'Running',     bg: 'bg-blue-500/15',   text: 'text-blue-400',   dot: 'bg-blue-400',   pulse: true },
+  completed:   { label: 'Completed',   bg: 'bg-green-500/15',  text: 'text-green-400',  dot: 'bg-green-400' },
+  failed:      { label: 'Failed',      bg: 'bg-red-500/15',    text: 'text-red-400',    dot: 'bg-red-400' },
+  timeout:     { label: 'Timeout',     bg: 'bg-amber-500/15',  text: 'text-amber-400',  dot: 'bg-amber-400' },
+  // Left `running` by a process that is gone: whether it finished is unknown.
+  interrupted: { label: 'Interrupted', bg: 'bg-orange-500/15', text: 'text-orange-400', dot: 'bg-orange-400' },
+}
+
+/** A status this UI does not know is shown as it is, never as `running`. */
+const UNKNOWN_STATUS_STYLE: Omit<StatusStyle, 'label'> = {
+  bg: 'bg-gray-500/15',
+  text: 'text-gray-400',
+  dot: 'bg-gray-400',
+}
+
+export function statusStyle(status: string): StatusStyle {
+  return (statusConfig as Record<string, StatusStyle>)[status] ?? { label: status, ...UNKNOWN_STATUS_STYLE }
 }
 
 /** `Manual` · `Chat` · `Schedule` · `Webhook` · `Event` — how a plan run was started. */
@@ -53,6 +97,7 @@ export const agentStatusConfig: Record<AgentStatus, { label: string; bg: string;
   verifying:  { label: 'Verifying',  bg: 'bg-purple-500/15', text: 'text-purple-400', dot: 'bg-purple-400' },
   completed:  { label: 'Completed',  bg: 'bg-green-500/15',  text: 'text-green-400',  dot: 'bg-green-400' },
   failed:     { label: 'Failed',     bg: 'bg-red-500/15',    text: 'text-red-400',    dot: 'bg-red-400' },
+  interrupted: { label: 'Interrupted', bg: 'bg-orange-500/15', text: 'text-orange-400', dot: 'bg-orange-400' },
 }
 
 /** Maps agent status to Badge variant for the UI Badge component. */
@@ -62,6 +107,7 @@ export const agentStatusBadgeVariant: Record<AgentStatus, 'default' | 'success' 
   verifying: 'purple',
   completed: 'success',
   failed:    'error',
+  interrupted: 'warning',
 }
 
 // ---------------------------------------------------------------------------
@@ -100,6 +146,7 @@ const RUN_META: Record<string, ToneMeta> = {
   failed: { label: 'Failed', tone: 'danger' },
   cancelled: { label: 'Cancelled', tone: 'muted' },
   budget_exceeded: { label: 'Budget exceeded', tone: 'warning' },
+  interrupted: { label: 'Interrupted', tone: 'warning' },
 }
 
 const AGENT_META: Record<string, ToneMeta> = {
@@ -108,6 +155,7 @@ const AGENT_META: Record<string, ToneMeta> = {
   verifying: { label: 'Verifying', tone: 'progress', live: true },
   completed: { label: 'Completed', tone: 'success' },
   failed: { label: 'Failed', tone: 'danger' },
+  interrupted: { label: 'Interrupted', tone: 'warning' },
 }
 
 const WAVE_META: Record<WaveStatus, ToneMeta> = {
@@ -118,7 +166,7 @@ const WAVE_META: Record<WaveStatus, ToneMeta> = {
   partial: { label: 'Partial', tone: 'warning' },
 }
 
-/** Plan run / runner run status (`running`, `completed`, `failed`, `cancelled`, `budget_exceeded`). */
+/** Plan run / runner run status (`running`, `completed`, `failed`, `cancelled`, `budget_exceeded`, `interrupted`). */
 export function runStateMeta(status: string | null | undefined): ToneMeta {
   return RUN_META[status ?? ''] ?? { label: status ? status.replace(/_/g, ' ') : 'Unknown', tone: 'neutral' }
 }

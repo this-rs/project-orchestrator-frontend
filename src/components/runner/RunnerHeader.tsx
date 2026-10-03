@@ -49,7 +49,7 @@ export function RunnerHeader({
   const toast = useToast()
   const statusStr = snap.status ?? (snap.running ? 'running' : 'completed')
   const meta = runStateMeta(statusStr)
-  const canRetry = !isRunning && (statusStr === 'failed' || statusStr === 'budget_exceeded' || statusStr === 'cancelled')
+  const canRetry = !isRunning && (statusStr === 'failed' || statusStr === 'budget_exceeded' || statusStr === 'cancelled' || statusStr === 'interrupted')
   const wave = snap.current_wave != null ? snap.current_wave + 1 : null
 
   return (

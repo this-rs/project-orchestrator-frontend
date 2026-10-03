@@ -327,7 +327,7 @@ function ChainRow({
 }) {
   const { plan, counts, run, project, workspace } = chain
   const running = run?.status === 'running'
-  const failedLike = run && ['failed', 'cancelled', 'budget_exceeded'].includes(run.status)
+  const failedLike = run && ['failed', 'cancelled', 'budget_exceeded', 'interrupted'].includes(run.status)
   const pending = busy.has(plan.id)
   const segments = counts && counts.total > 0
     ? [
