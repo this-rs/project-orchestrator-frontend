@@ -4,7 +4,7 @@
  * cost, agents, branch, trigger, date, details link) and the "ready to run"
  * plans are still present.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { PlanRun } from '@/services/runner'
@@ -24,7 +24,12 @@ vi.mock('@/hooks', () => ({
 
 import { PipelineDashboardPage } from '../PipelineDashboardPage'
 
-const now = Date.now()
+// Fixed at local noon: the page groups runs by calendar day ("Today" / "Yesterday"),
+// so a fixture of "5 minutes ago" built from the real clock lands in "Yesterday"
+// whenever the suite runs within 5 minutes after midnight.
+const noon = new Date()
+noon.setHours(12, 0, 0, 0)
+const now = noon.getTime()
 const runs: PlanRun[] = [
   {
     run_id: 'run-1',
@@ -69,7 +74,13 @@ const runs: PlanRun[] = [
   },
 ]
 
+afterEach(() => {
+  vi.useRealTimers()
+})
+
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(noon)
   listAllRuns.mockReset().mockResolvedValue(runs)
   plansList.mockReset().mockImplementation((p: { status: string }) =>
     Promise.resolve({
