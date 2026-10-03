@@ -96,7 +96,11 @@ export function AgentGroup({ parentBlock, childBlocks, allBlocks, isStreaming }:
   const agentType = (toolInput.subagent_type as string) || (toolInput.type as string) || null
 
   return (
-    <div className={`my-2 rounded-lg border-l-2 ${color.border} bg-white/[0.02] overflow-hidden`}>
+    <div
+      className={`my-2 rounded-lg border-l-2 ${color.border} bg-white/[0.02] overflow-hidden`}
+      // The activity bar scrolls here ("show in the conversation").
+      data-tool-call-id={(parentBlock.metadata?.tool_call_id as string | undefined) ?? parentBlock.id}
+    >
       {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}

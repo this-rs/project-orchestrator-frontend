@@ -1,7 +1,7 @@
 import { AttachSessionButton } from '@/components/discussions/AttachSessionButton'
 import { useAtom } from 'jotai'
 import { useChatUrlSync } from '@/hooks/useChatUrlSync'
-import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom } from '@/atoms'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom } from '@/atoms'
 import { useChat, useDetachedRuns, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { chatApi } from '@/services/chat'
 import { Plus, X, Menu, Settings, Minimize2, Maximize2, Loader2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check } from 'lucide-react'
@@ -11,6 +11,7 @@ import { ChatInput, type PrefillPayload } from './ChatInput'
 import { CompactionBanner } from './CompactionBanner'
 import { SecretRequestTray } from './SecretRequestTray'
 import { ComposerDock } from './ComposerDock'
+import { collectRunning } from './runningActivity'
 import { DetachedRunsPanel } from './DetachedRunsPanel'
 import { AgenticModeBanner } from './AgenticModeBanner'
 import { AgenticModePill } from './AgenticModePill'
@@ -65,6 +66,12 @@ export function ChatPanel() {
   // Session + panel mode live in the URL, so a reload reopens the chat as it was.
   useChatUrlSync({ sessionId: chat.sessionId, mode, setMode, loadSession: chat.loadSession })
   const detachedRuns = useDetachedRuns(chat.sessionId)
+  // One derivation of "what is running here", rendered above the composer (ActivityBar).
+  const backgroundTasks = useAtomValue(chatBackgroundTasksAtom)
+  const activity = useMemo(
+    () => collectRunning({ messages: chat.messages, backgroundTasks, isStreaming: chat.isStreaming }),
+    [chat.messages, backgroundTasks, chat.isStreaming],
+  )
   const panelRef = useRef<HTMLDivElement>(null)
   const setScrollToTurn = useSetAtom(chatScrollToTurnAtom)
   const permissionConfig = useAtomValue(chatPermissionConfigAtom)
@@ -556,6 +563,7 @@ export function ChatPanel() {
                       onChangeModel={chat.changeModel}
                       onChangeAutoContinue={chat.changeAutoContinue}
                       prefill={prefill}
+                      activity={activity}
                     />
                   </ComposerDock>
                 </div>
@@ -799,6 +807,7 @@ export function ChatPanel() {
                 onChangeModel={chat.changeModel}
                 onChangeAutoContinue={chat.changeAutoContinue}
                 prefill={prefill}
+                activity={activity}
               />
             </ComposerDock>
           </div>
