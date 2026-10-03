@@ -35,6 +35,12 @@ interface ChatMessagesProps {
   onSelectSession?: (sessionId: string, turnIndex?: number, title?: string) => void
   /** Currently selected project (for welcome screen context) */
   selectedProject?: Project | null
+  /**
+   * Height (px) of the composer floating over the bottom of the transcript. The scroller keeps
+   * that much room under its last line, and the "new activity" button stays above the composer.
+   * Leave undefined when the composer sits below the transcript instead of over it.
+   */
+  bottomInset?: number
 }
 
 export const ChatMessages = memo(function ChatMessages({
@@ -56,6 +62,7 @@ export const ChatMessages = memo(function ChatMessages({
   onQuickAction,
   onSelectSession,
   selectedProject,
+  bottomInset,
 }: ChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const shouldAutoScrollRef = useRef(true)
@@ -178,6 +185,16 @@ export const ChatMessages = memo(function ChatMessages({
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages, isReplaying, scrollToTurn])
+
+  // The composer grew or shrank (queue bar, attachments, banner): a view that was pinned to the
+  // bottom stays pinned, instead of the last line slipping under the glass.
+  useLayoutEffect(() => {
+    if (bottomInset === undefined) return
+    if (shouldAutoScrollRef.current && scrollRef.current && scrollToTurn === null) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a height change should re-pin
+  }, [bottomInset])
 
   // Keep the view pinned to the bottom when the CONTAINER resizes — the
   // mobile keyboard shrinks the panel (visual-viewport compensation in
@@ -338,6 +355,8 @@ export const ChatMessages = memo(function ChatMessages({
         ref={scrollRef}
         onScroll={handleScroll}
         className="h-full overflow-y-auto px-4 py-4"
+        // `py-4` is 16px; the composer's height comes on top of it (inline: it is measured, not a token)
+        style={bottomInset === undefined ? undefined : { paddingBottom: 16 + bottomInset }}
       >
       {/* Loading older messages spinner */}
       {isLoadingOlder && (
@@ -406,6 +425,7 @@ export const ChatMessages = memo(function ChatMessages({
           type="button"
           onClick={handleJumpToTail}
           disabled={isCatchingUp}
+          style={bottomInset === undefined ? undefined : { bottom: 12 + bottomInset }}
           className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-800/90 border border-gray-700 text-gray-200 text-xs font-medium shadow-lg hover:bg-gray-700/90 disabled:opacity-70 disabled:cursor-wait transition-colors"
         >
           {isCatchingUp ? (
