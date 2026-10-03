@@ -11,34 +11,8 @@ import type { ToolRendererProps } from './types'
 /** Max characters to show before offering "show more" */
 const OUTPUT_PREVIEW_LIMIT = 2000
 
-/**
- * Split a compound shell command (using &&, ||, or ;) into
- * separate lines for readability. Only splits on top-level
- * operators — ignores operators inside quotes or subshells.
- */
-function formatMultilineCommand(cmd: string): string[] {
-  // Simple heuristic: split on && / || / ; that are preceded by a space
-  // and not inside quotes. Good enough for display purposes.
-  const lines: string[] = []
-  let current = ''
-  const tokens = cmd.split(/(\s+&&\s+|\s+\|\|\s+|\s*;\s+)/)
-  for (const token of tokens) {
-    const trimmed = token.trim()
-    if (trimmed === '&&' || trimmed === '||' || trimmed === ';') {
-      if (current) lines.push(current.trim() + ' ' + trimmed)
-      current = ''
-    } else {
-      current += token
-    }
-  }
-  if (current.trim()) lines.push(current.trim())
-  return lines.length > 1 ? lines : [cmd]
-}
-
-/** Check if a command looks like it has multiple chained parts */
-function isMultiline(cmd: string): boolean {
-  return /\s+&&\s+|\s+\|\|\s+|;\s+/.test(cmd)
-}
+/** Lines of command shown before clamping (fixed cartouche height). */
+const COMMAND_CLAMP_LINES = 3
 
 /** Strip ANSI escape sequences from terminal output */
 function stripAnsi(text: string): string {
@@ -64,6 +38,7 @@ export function BashToolRenderer({ toolInput, resultContent, isError, isLoading 
   const runInBackground = toolInput.run_in_background as boolean | undefined
 
   const [expanded, setExpanded] = useState(false)
+  const [cmdOpen, setCmdOpen] = useState(false)
 
   // Parse exit code from result (only when finished)
   const exitCode = !isLoading && resultContent != null
@@ -72,9 +47,7 @@ export function BashToolRenderer({ toolInput, resultContent, isError, isLoading 
 
   // Determine what to display as the primary command text
   const displayCommand = command || (description ? '' : '(empty command)')
-  const commandLines = displayCommand && isMultiline(displayCommand)
-    ? formatMultilineCommand(displayCommand)
-    : null
+  const isLong = displayCommand.length > 160 || displayCommand.split('\n').length > COMMAND_CLAMP_LINES
 
   // Determine if the result has been finished (not loading, has content)
   const hasResult = !isLoading && resultContent != null && resultContent.length > 0
@@ -99,74 +72,52 @@ export function BashToolRenderer({ toolInput, resultContent, isError, isLoading 
     <div className="space-y-0">
       {/* ── Command block ── */}
       <div className={`${topRounding} font-mono text-xs ${isError ? 'bg-red-950/30' : 'bg-black/30'} overflow-hidden`}>
-        {/* Description as comment */}
-        {description && (
-          <div className="px-3 pt-2 text-gray-600 select-none text-[11px] leading-tight">
-            # {description}
+        {/* Fixed-height cartouche: the description is already the tool-call
+            header's summary, so it is not repeated here (kept as tooltip).
+            The command is clamped to COMMAND_CLAMP_LINES lines whatever its
+            length; click to read it whole. */}
+        <div className="flex items-start gap-2 px-3 py-2" title={description || undefined}>
+          <div
+            role={isLong ? 'button' : undefined}
+            tabIndex={isLong ? 0 : undefined}
+            onClick={isLong ? () => setCmdOpen(o => !o) : undefined}
+            onKeyDown={isLong ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCmdOpen(o => !o) } } : undefined}
+            className={`min-w-0 flex-1 text-gray-300 whitespace-pre-wrap break-all select-text ${
+              cmdOpen ? 'max-h-64 overflow-y-auto' : 'max-h-[3.9rem] overflow-hidden'
+            } ${isLong ? 'cursor-pointer' : ''}`}
+            style={cmdOpen ? undefined : { display: '-webkit-box', WebkitLineClamp: COMMAND_CLAMP_LINES, WebkitBoxOrient: 'vertical' }}
+          >
+            <span className="text-green-500/70 select-none">$ </span>
+            {displayCommand || (
+              <span className="text-gray-600 italic">{description || '(empty command)'}</span>
+            )}
           </div>
-        )}
 
-        {/* Badges row (timeout, background) */}
-        {(timeout != null || runInBackground) && (
-          <div className="px-3 pt-1.5 flex items-center gap-1.5">
+          {/* Badges + status share the row: no extra line, no reflow. */}
+          <div className="shrink-0 flex items-center gap-1.5 select-none">
             {timeout != null && (
-              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] bg-amber-900/25 text-amber-500/80 border border-amber-800/20 select-none">
-                timeout {timeout >= 1000 ? `${(timeout / 1000).toFixed(0)}s` : `${timeout}ms`}
+              <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-900/25 text-amber-500/80 border border-amber-800/20">
+                {timeout >= 1000 ? `${(timeout / 1000).toFixed(0)}s` : `${timeout}ms`}
               </span>
             )}
             {runInBackground && (
-              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-900/40 text-purple-400 border border-purple-800/30 select-none">
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-900/40 text-purple-400 border border-purple-800/30">
                 BG
               </span>
             )}
-          </div>
-        )}
-
-        {/* Command prompt */}
-        <div className="px-3 py-2 text-gray-300 whitespace-pre-wrap break-all select-text">
-          {commandLines ? (
-            // Multi-line formatted command
-            commandLines.map((line, i) => (
-              <div key={i} className={i > 0 ? 'pl-4' : ''}>
-                {i === 0 && <span className="text-green-500/70 select-none">$ </span>}
-                {i > 0 && <span className="text-gray-700 select-none">  </span>}
-                {line}
-              </div>
-            ))
-          ) : (
-            // Single-line command (or fallback to description)
-            <div>
-              <span className="text-green-500/70 select-none">$ </span>
-              {displayCommand || (
-                <span className="text-gray-600 italic">{description || '(empty command)'}</span>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Status indicator row (only after completion) */}
-        {!isLoading && resultContent != null && (
-          <div className="px-3 pb-2 flex items-center gap-1.5">
-            <span
-              className={`inline-block w-1.5 h-1.5 rounded-full ${
-                isError ? 'bg-red-500' : 'bg-green-500/80'
-              }`}
-            />
-            {exitCode != null && exitCode !== 0 ? (
-              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-900/40 text-red-400 border border-red-800/30 select-none">
-                exit {exitCode}
-              </span>
-            ) : exitCode != null ? (
-              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-900/40 text-green-400 border border-green-800/30 select-none">
-                exit 0
-              </span>
-            ) : (
-              <span className={`text-[10px] select-none ${isError ? 'text-red-500/60' : 'text-gray-600'}`}>
-                {isError ? 'exited with error' : 'exited 0'}
+            {!isLoading && resultContent != null && (
+              <span
+                className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                  exitCode != null && exitCode !== 0 || isError
+                    ? 'bg-red-900/40 text-red-400 border-red-800/30'
+                    : 'bg-green-900/40 text-green-400 border-green-800/30'
+                }`}
+              >
+                exit {exitCode ?? (isError ? 1 : 0)}
               </span>
             )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* ── Output ── */}

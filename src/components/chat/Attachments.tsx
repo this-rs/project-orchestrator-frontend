@@ -38,7 +38,7 @@ export const Attachments = memo(function Attachments({
   if (attachments.length === 0) return null
 
   return (
-    <div className="flex flex-col gap-1 pt-1">
+    <div className="flex flex-col gap-1 p-1.5 mb-1 rounded-xl border border-white/[0.1] bg-surface-popover/95 backdrop-blur-md shadow-lg shadow-black/20">
       <ul className="flex flex-wrap gap-1.5">
         {attachments.map((a) => {
           const isImage = a.mimeType.startsWith('image/')
@@ -62,8 +62,8 @@ export const Attachments = memo(function Attachments({
               }
               className={`group relative flex items-center gap-1.5 pl-1.5 pr-0.5 py-1 rounded-lg border text-[11px] max-w-[14rem] overflow-hidden ${
                 a.status === 'error'
-                  ? 'border-red-500/40 bg-red-600/[0.08]'
-                  : 'border-white/[0.08] bg-white/[0.04]'
+                  ? 'border-red-500/40 bg-[#2a1517]'
+                  : 'border-white/[0.12] bg-surface-popover'
               }`}
             >
               {/* Progress is painted as a fill behind the chip rather than as
