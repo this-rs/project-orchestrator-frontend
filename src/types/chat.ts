@@ -338,6 +338,8 @@ export type ChatEvent =
   | { type: 'session_error'; reason: string; message: string; received_at: string }
   | { type: 'tools_cancelled'; cli_pid?: number; killed_count: number; requested_by: string }
   | { type: 'active_tasks_update'; tasks: BackgroundTaskInfo[] }
+  /** The user messages the session holds until the running turn ends — always the full list. */
+  | { type: 'pending_queue'; messages: import('@/components/chat/messageQueue').ServerQueueEntry[] }
   | { type: 'secret_request'; id: string; name: string; reason: string; exists: boolean }
   | { type: 'secret_request_resolved'; id: string; outcome: string }
 
@@ -655,7 +657,10 @@ export type WsChatClientMessage =
   // `attachments` (document ids) is omitted when there are none: the backend's
   // `ClientMessage::UserMessage` gains the field in parallel with this, and an
   // absent field deserializes identically on both versions.
-  | { type: 'user_message'; content: string; attachments?: string[] }
+  // `queue: true`: if a response is running, the session holds the message until
+  // it ends instead of interrupting it. Omitted otherwise.
+  | { type: 'user_message'; content: string; attachments?: string[]; queue?: true }
+  | ({ type: 'queue_op' } & import('@/components/chat/messageQueue').QueueOp)
   | { type: 'interrupt' }
   | { type: 'permission_response'; id?: string; allow: boolean }
   | { type: 'input_response'; id?: string; content: string }

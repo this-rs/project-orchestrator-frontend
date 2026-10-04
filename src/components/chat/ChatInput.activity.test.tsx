@@ -7,8 +7,9 @@
  */
 import '@testing-library/jest-dom/vitest'
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { render, screen, within, act } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'
+import { chatMessageQueuesAtom } from '@/atoms/chat'
 import { ChatInput } from './ChatInput'
 import type { RunningItem } from './runningActivity'
 
@@ -23,19 +24,27 @@ const running: RunningItem[] = [
   { id: 'a1', kind: 'agent', title: 'Map the backend', anchorId: 'a1' },
 ]
 
+let store = createStore()
+
 function mount({ activity, isStreaming = false }: { activity?: RunningItem[]; isStreaming?: boolean }) {
+  store = createStore()
   return render(
-    <Provider store={createStore()}>
-      <ChatInput onSend={() => {}} onInterrupt={() => {}} isStreaming={isStreaming} sessionId="session-1" activity={activity} />
+    <Provider store={store}>
+      <ChatInput onSend={() => {}} onQueue={() => {}} onQueueOp={() => {}} onInterrupt={() => {}} isStreaming={isStreaming} sessionId="session-1" activity={activity} />
     </Provider>,
   )
 }
 
-/** Composing while a response streams puts the message in the queue. */
+/** A message the session holds for this conversation (the server publishes the list). */
 const queueOne = (text: string) => {
-  const textarea = screen.getByRole('textbox')
-  fireEvent.change(textarea, { target: { value: text } })
-  fireEvent.keyDown(textarea, { key: 'Enter' })
+  act(() => {
+    const all = store.get(chatMessageQueuesAtom)
+    const current = all['session-1'] ?? []
+    store.set(chatMessageQueuesAtom, {
+      ...all,
+      'session-1': [...current, { id: `q${current.length}`, text, queuedAt: 0 }],
+    })
+  })
 }
 
 describe('ChatInput — activity and queue tray', () => {

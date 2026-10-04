@@ -488,12 +488,19 @@ export class ChatWebSocket {
    * being added in parallel), and an absent field is the one shape every
    * version of it accepts.
    */
-  sendUserMessage(content: string, attachments?: string[]) {
-    return this.send(
-      attachments && attachments.length > 0
-        ? { type: 'user_message', content, attachments }
-        : { type: 'user_message', content },
-    )
+  sendUserMessage(content: string, attachments?: string[], options?: { queue?: boolean }) {
+    return this.send({
+      type: 'user_message',
+      content,
+      ...(attachments && attachments.length > 0 ? { attachments } : {}),
+      // Hold it until the running response ends instead of interrupting it.
+      ...(options?.queue ? { queue: true as const } : {}),
+    })
+  }
+
+  /** Edit, drop, prioritize or send now a message the session holds. */
+  sendQueueOp(action: import('@/components/chat/messageQueue').QueueOp) {
+    return this.send({ type: 'queue_op', ...action })
   }
 
   /**

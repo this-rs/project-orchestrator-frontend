@@ -73,7 +73,7 @@ function setup() {
   const store = createStore()
   const utils = render(
     <Provider store={store}>
-      <ChatInput onSend={onSend} onInterrupt={vi.fn()} isStreaming={false} sessionId="s1" />
+      <ChatInput onSend={onSend} onQueue={() => {}} onQueueOp={() => {}} onInterrupt={vi.fn()} isStreaming={false} sessionId="s1" />
     </Provider>,
   )
   const textarea = screen.getByPlaceholderText('Send a message...')
@@ -298,7 +298,7 @@ describe('session switch', () => {
     const store = createStore()
     const { rerender, container } = render(
       <Provider store={store}>
-        <ChatInput onSend={onSend} onInterrupt={vi.fn()} isStreaming={false} sessionId="s1" />
+        <ChatInput onSend={onSend} onQueue={() => {}} onQueueOp={() => {}} onInterrupt={vi.fn()} isStreaming={false} sessionId="s1" />
       </Provider>,
     )
     const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement
@@ -307,7 +307,7 @@ describe('session switch', () => {
 
     rerender(
       <Provider store={store}>
-        <ChatInput onSend={onSend} onInterrupt={vi.fn()} isStreaming={false} sessionId="s2" />
+        <ChatInput onSend={onSend} onQueue={() => {}} onQueueOp={() => {}} onInterrupt={vi.fn()} isStreaming={false} sessionId="s2" />
       </Provider>,
     )
 

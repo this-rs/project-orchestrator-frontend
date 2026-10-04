@@ -561,6 +561,8 @@ export function ChatPanel() {
                     <SecretRequestTray sessionId={chat.sessionId} />
                     <ChatInput
                       onSend={handleSend}
+                      onQueue={chat.queueMessage}
+                      onQueueOp={chat.queueOp}
                       onInterrupt={chat.interrupt}
                       isStreaming={chat.isStreaming}
                       disabled={isNewConversation && !hasContext}
@@ -793,6 +795,8 @@ export function ChatPanel() {
               <SecretRequestTray sessionId={chat.sessionId} />
               <ChatInput
                 onSend={handleSend}
+                onQueue={chat.queueMessage}
+                onQueueOp={chat.queueOp}
                 onInterrupt={chat.interrupt}
                 isStreaming={chat.isStreaming}
                 disabled={isNewConversation && !hasContext}

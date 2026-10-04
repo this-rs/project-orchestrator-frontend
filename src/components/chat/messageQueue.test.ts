@@ -4,10 +4,10 @@ import {
   enqueue,
   removeFromQueue,
   editInQueue,
-  takeById,
-  takeHead,
   prioritize,
-  QUEUE_POLICY,
+  applyQueueOp,
+  fromServerEntry,
+  mergeServerQueue,
   type QueuedMessage,
 } from './messageQueue'
 
@@ -77,60 +77,6 @@ describe('editInQueue', () => {
   })
 })
 
-describe('takeById', () => {
-  it('returns the message and the queue without it', () => {
-    const q = [msg('a', 'one'), msg('b', 'two')]
-    const { taken, rest } = takeById(q, 'a')
-    expect(taken?.text).toBe('one')
-    expect(rest.map((m) => m.id)).toEqual(['b'])
-  })
-
-  it('returns the taken message so the caller dispatches exactly what it removed', () => {
-    // Guards against a read-then-filter in the caller racing with a concurrent
-    // edit and sending stale text.
-    const q = [msg('a', 'original')]
-    const { taken, rest } = takeById(q, 'a')
-    expect(taken).toEqual(msg('a', 'original'))
-    expect(rest).toEqual([])
-  })
-
-  it('returns null and an unchanged copy for an unknown id', () => {
-    const q = [msg('a', 'one')]
-    const { taken, rest } = takeById(q, 'zzz')
-    expect(taken).toBeNull()
-    expect(rest).toEqual(q)
-  })
-})
-
-describe('takeHead', () => {
-  it('takes the oldest, leaving the rest in order', () => {
-    const q = [msg('a', 'one'), msg('b', 'two'), msg('c', 'three')]
-    const { taken, rest } = takeHead(q)
-    expect(taken?.id).toBe('a')
-    expect(rest.map((m) => m.id)).toEqual(['b', 'c'])
-  })
-
-  it('is safe on an empty queue', () => {
-    const { taken, rest } = takeHead([])
-    expect(taken).toBeNull()
-    expect(rest).toEqual([])
-  })
-
-  it('drains fully in FIFO order when applied repeatedly', () => {
-    // The auto-flush loop: one message per finished turn, oldest first.
-    let q: QueuedMessage[] = [msg('a', 'one'), msg('b', 'two'), msg('c', 'three')]
-    const sent: string[] = []
-    for (;;) {
-      const { taken, rest } = takeHead(q)
-      if (!taken) break
-      sent.push(taken.text)
-      q = rest
-    }
-    expect(sent).toEqual(['one', 'two', 'three'])
-    expect(q).toEqual([])
-  })
-})
-
 describe('prioritize', () => {
   it('moves the message to the head and marks it', () => {
     const q = [msg('a', 'one'), msg('b', 'two'), msg('c', 'three')]
@@ -162,23 +108,48 @@ describe('prioritize', () => {
     const q = [msg('a', 'one')]
     expect(prioritize(q, 'zzz')).toEqual(q)
   })
+})
 
-  it('makes takeHead pick the prioritized message next', () => {
-    // prioritize + auto-flush compose: the marked message is what leaves when
-    // the current response ends.
-    const q = [msg('a', 'one'), msg('b', 'two'), msg('c', 'three')]
-    expect(takeHead(prioritize(q, 'c')).taken?.id).toBe('c')
+describe('applyQueueOp', () => {
+  const q = () => [msg('a', 'one'), msg('b', 'two'), msg('c', 'three')]
+
+  it('edits, drops and prioritizes like the server does', () => {
+    expect(applyQueueOp(q(), { op: 'edit', id: 'b', content: ' new ' })[1].text).toBe('new')
+    expect(applyQueueOp(q(), { op: 'remove', id: 'b' }).map((m) => m.id)).toEqual(['a', 'c'])
+    expect(applyQueueOp(q(), { op: 'prioritize', id: 'c' }).map((m) => m.id)).toEqual(['c', 'a', 'b'])
+  })
+
+  it('takes a message sent now out of the list: it is on its way', () => {
+    expect(applyQueueOp(q(), { op: 'send_now', id: 'a' }).map((m) => m.id)).toEqual(['b', 'c'])
   })
 })
 
-describe('QUEUE_POLICY', () => {
-  it('records the two product decisions in one place', () => {
-    // Not a behaviour test — a tripwire. Flipping one of these is a product
-    // change and should show up in a diff as such, not slip through a refactor.
-    expect(QUEUE_POLICY).toEqual({
-      autoFlushOnIdle: true,
-      flushAll: false,
-      manualSendInterrupts: 'second-click',
+describe('the list the server publishes', () => {
+  it('maps a server entry to a row', () => {
+    expect(
+      fromServerEntry({
+        id: 's1',
+        content: 'held',
+        attachments: [{ id: 'doc-1' }],
+        queued_at: '2026-10-04T12:00:00Z',
+        prioritized: true,
+      }),
+    ).toEqual({
+      id: 's1',
+      text: 'held',
+      queuedAt: Date.parse('2026-10-04T12:00:00Z'),
+      attachmentIds: ['doc-1'],
+      prioritized: true,
     })
+  })
+
+  it('replaces everything the server knows about and keeps what was not handed over yet', () => {
+    const current: QueuedMessage[] = [msg('old-server', 'stale'), { ...msg('l1', 'not sent yet'), local: true }]
+    const merged = mergeServerQueue(current, [{ id: 's1', content: 'held', queued_at: '2026-10-04T12:00:00Z' }])
+    expect(merged.map((m) => m.id)).toEqual(['s1', 'l1'])
+  })
+
+  it('an empty server list clears the rows the server had', () => {
+    expect(mergeServerQueue([msg('s1', 'delivered')], [])).toEqual([])
   })
 })
