@@ -45,11 +45,77 @@ export const chatAutoApprovedToolsAtom = atom<Set<string>>(new Set<string>())
 /** Whether auto-continue is enabled (automatically sends "Continue" after max_turns) */
 export const chatAutoContinueAtom = atom<boolean>(false)
 
-/** Draft text in the chat input textarea (survives layout switches & settings overlay) */
-export const chatDraftInputAtom = atom<string>('')
+/** Draft key of a conversation that has no id yet (nothing sent so far). */
+export const NEW_CONVERSATION_DRAFT_KEY = '__new__'
 
-/** Per-session draft persistence in localStorage. Key = sessionId (or '__new__' for new conversations) */
-export const chatDraftsMapAtom = atomWithStorage<Record<string, string>>('chat-drafts', {})
+/** Drafts kept in storage. Past this, the least recently edited one goes. */
+export const MAX_STORED_DRAFTS = 50
+
+/** The storage key of a conversation's draft. */
+export function draftKeyFor(sessionId: string | null | undefined): string {
+  return sessionId ?? NEW_CONVERSATION_DRAFT_KEY
+}
+
+/**
+ * Every unsent draft, one per conversation, in localStorage.
+ * Key = session id, or `NEW_CONVERSATION_DRAFT_KEY` for a conversation not yet
+ * created. Read at init (`getOnInit`): a write made before hydration would
+ * otherwise start from `{}` and overwrite every stored draft.
+ */
+export const chatDraftsMapAtom = atomWithStorage<Record<string, string>>('chat-drafts', {}, undefined, {
+  getOnInit: true,
+})
+
+/** `map` with `key` set to `text` — removed when empty, most recent last, capped. */
+function withDraft(map: Record<string, string>, key: string, text: string): Record<string, string> {
+  if ((map[key] ?? '') === text) return map
+  const next: Record<string, string> = {}
+  for (const [k, v] of Object.entries(map)) {
+    if (k !== key) next[k] = v
+  }
+  // The text is kept as typed: trimming here would eat the space the user
+  // just typed, since the textarea is controlled by this value.
+  if (text !== '') next[key] = text
+  const keys = Object.keys(next)
+  for (const stale of keys.slice(0, Math.max(0, keys.length - MAX_STORED_DRAFTS))) {
+    delete next[stale]
+  }
+  return next
+}
+
+/**
+ * The text being typed in the composer, for the CURRENT conversation.
+ *
+ * It is a view over `chatDraftsMapAtom`, keyed by `chatSessionIdAtom`: each
+ * conversation has its own draft, switching conversation shows that
+ * conversation's draft, and every keystroke is persisted — so the draft
+ * survives a page reload. It used to be one in-memory string for the whole
+ * app, copied to storage only when switching conversation: a reload lost it.
+ */
+export const chatDraftInputAtom = atom(
+  (get) => get(chatDraftsMapAtom)[draftKeyFor(get(chatSessionIdAtom))] ?? '',
+  (get, set, next: string | ((prev: string) => string)) => {
+    const key = draftKeyFor(get(chatSessionIdAtom))
+    const map = get(chatDraftsMapAtom)
+    const text = typeof next === 'function' ? next(map[key] ?? '') : next
+    set(chatDraftsMapAtom, withDraft(map, key, text))
+  },
+)
+
+/**
+ * Move a draft from one conversation key to another. Used when a new
+ * conversation receives its id: what was typed while the id was on its way
+ * follows the conversation instead of staying behind under the "new" key.
+ * A draft already present at the destination is kept.
+ */
+export const moveChatDraftAtom = atom(null, (get, set, { from, to }: { from: string; to: string }) => {
+  if (from === to) return
+  const map = get(chatDraftsMapAtom)
+  const text = map[from]
+  if (text === undefined) return
+  const withoutSource = withDraft(map, from, '')
+  set(chatDraftsMapAtom, map[to] ? withoutSource : withDraft(withoutSource, to, text))
+})
 
 /** Selected project for new conversations (survives layout switches & new-session) */
 export const chatSelectedProjectAtom = atom<Project | null>(null)
