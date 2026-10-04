@@ -8,7 +8,7 @@
  * parser, which read `tool_use.name` while the backend sends `tool`.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { focusRing, pressFeedback } from '@/components/ui/classes'
 import {
   X,
@@ -23,6 +23,7 @@ import { useConversationWs, type WsStatus } from '@/hooks/runner/useConversation
 import { ChatMessageBubble } from '@/components/chat/ChatMessageBubble'
 import { chatApi } from '@/services/chat'
 import { useWorkspaceSlug } from '@/hooks'
+import { useStickToBottom } from '@/hooks/useStickToBottom'
 import { workspacePath } from '@/utils/paths'
 
 // Read-only: there is no user interaction to answer in this view.
@@ -69,20 +70,13 @@ interface InlineConversationPanelProps {
 
 export function InlineConversationPanel({ sessionId, title, onClose }: InlineConversationPanelProps) {
   const { messages, status } = useConversationWs(sessionId)
-  const scrollRef = useRef<HTMLDivElement>(null)
+  // Follows the live conversation, but never pulls back a reader who scrolled up.
+  const { scrollRef } = useStickToBottom<HTMLDivElement>(messages)
   const navigate = useNavigate()
   const wsSlug = useWorkspaceSlug()
   const [stopping, setStopping] = useState(false)
   const [confirmStop, setConfirmStop] = useState(false)
   const [stopNote, setStopNote] = useState<string | null>(null)
-
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
-    const el = scrollRef.current
-    if (el) {
-      el.scrollTop = el.scrollHeight
-    }
-  }, [messages.length])
 
   const handleViewFull = () => {
     navigate(workspacePath(wsSlug, `/chat/${sessionId}`))

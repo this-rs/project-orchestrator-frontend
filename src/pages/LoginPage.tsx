@@ -101,7 +101,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col items-center justify-center overflow-hidden bg-[var(--surface-base)]">
+    <div className="flex h-dvh flex-col items-center justify-center overflow-clip bg-[var(--surface-base)]">
       <div className="w-full max-w-sm space-y-6 px-6">
         {/* Logo & Title */}
         <div className="text-center">

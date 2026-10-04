@@ -19,7 +19,7 @@ export interface VisualViewportBox {
 }
 
 /** True when the currently focused element takes text input. */
-function isEditableFocused(): boolean {
+export function isEditableFocused(): boolean {
   const el = document.activeElement
   if (!el) return false
   const tag = el.tagName
@@ -44,9 +44,15 @@ function isEditableFocused(): boolean {
  * Guards against stale pinning (a shrunk panel with the keyboard closed):
  * - compensation requires BOTH an editable element focused AND a
  *   significant viewport gap — no focus, no pinning, period;
- * - events (vv resize/scroll, window resize, focusin/out) plus a 300ms
- *   polling safety net (WebKit event delivery is flaky) converge the state
- *   quickly in both directions.
+ * - events (vv resize/scroll, window resize, focusin/out) plus a per-frame
+ *   read for as long as a field has the focus. WebKit does not reliably
+ *   deliver vv events while it pans the page under the keyboard, and every
+ *   frame spent on a stale height is a frame where the panel stops short of
+ *   the keyboard and the page shows through underneath (a 300ms poll left
+ *   that band visible for up to 300ms each time). The loop stops by itself
+ *   when the focus leaves the field;
+ * - a pinch-zoomed page is not a keyboard: the visual viewport is measured
+ *   at scale 1 (`height * scale`), so zooming never shortens the panel.
  *
  * Android Chrome (Blink) honors `interactive-widget=resizes-content`: its
  * layout viewport resizes, the gap stays ≈ 0 and this hook remains inert.
@@ -65,10 +71,12 @@ export function useVisualViewportHeight(enabled: boolean = true): VisualViewport
 
     const update = () => {
       const layoutHeight = window.innerHeight
-      const gap = layoutHeight - vv.height
+      // vv.height is in CSS px of the ZOOMED page: bring it back to scale 1.
+      const scale = vv.scale || 1
+      const gap = layoutHeight - vv.height * scale
       // Keyboard = editable focused AND a meaningful shrink. Without focus
       // there is no keyboard — never pin (prevents a stuck short panel).
-      if (isEditableFocused() && gap > 100) {
+      if (isEditableFocused() && gap > 100 && Math.abs(scale - 1) < 0.01) {
         const height = Math.round(vv.offsetTop + vv.height)
         setBox((prev) => (prev && prev.height === height ? prev : { height }))
       } else {
@@ -76,22 +84,32 @@ export function useVisualViewportHeight(enabled: boolean = true): VisualViewport
       }
     }
 
-    update()
-    vv.addEventListener('resize', update)
-    vv.addEventListener('scroll', update)
-    window.addEventListener('resize', update)
-    document.addEventListener('focusin', update)
-    document.addEventListener('focusout', update)
-    // Safety net: WebKit does not always deliver vv events around keyboard
-    // show/hide. 300ms while the chat is open is negligible.
-    const interval = window.setInterval(update, 300)
+    // Per-frame tracking, alive only while a field has the focus (the only
+    // time a keyboard can be up). Reading two numbers per frame is free, and
+    // `setBox` keeps the same object when the height did not change.
+    let frame = 0
+    const track = () => {
+      update()
+      frame = isEditableFocused() ? requestAnimationFrame(track) : 0
+    }
+    const onSignal = () => {
+      update()
+      if (frame === 0 && isEditableFocused()) frame = requestAnimationFrame(track)
+    }
+
+    onSignal()
+    vv.addEventListener('resize', onSignal)
+    vv.addEventListener('scroll', onSignal)
+    window.addEventListener('resize', onSignal)
+    document.addEventListener('focusin', onSignal)
+    document.addEventListener('focusout', onSignal)
     return () => {
-      vv.removeEventListener('resize', update)
-      vv.removeEventListener('scroll', update)
-      window.removeEventListener('resize', update)
-      document.removeEventListener('focusin', update)
-      document.removeEventListener('focusout', update)
-      window.clearInterval(interval)
+      vv.removeEventListener('resize', onSignal)
+      vv.removeEventListener('scroll', onSignal)
+      window.removeEventListener('resize', onSignal)
+      document.removeEventListener('focusin', onSignal)
+      document.removeEventListener('focusout', onSignal)
+      if (frame !== 0) cancelAnimationFrame(frame)
     }
   }, [enabled])
 
