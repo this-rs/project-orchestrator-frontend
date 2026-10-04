@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useAtom, useAtomValue, useStore } from 'jotai'
-import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom, chatMessageQueueAtom, modelCatalogAtom, modelCatalogLoadedAtom } from '@/atoms'
+import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom, chatMessageQueuesAtom, chatReplayingAtom, draftKeyFor, withQueue, modelCatalogAtom, modelCatalogLoadedAtom } from '@/atoms'
 import { DEFAULT_MODEL_ID, getModelShortLabel, getModelDotColor, groupModelsByFamily } from '@/constants/models'
 import { chatApi } from '@/services/chat'
 import { documentsApi } from '@/services/documents'
@@ -22,6 +22,7 @@ import {
   takeById,
   prioritize,
   takeHead,
+  type QueuedMessage,
 } from './messageQueue'
 import { Attachments } from './Attachments'
 import {
@@ -97,6 +98,9 @@ interface ChatInputProps {
   runActions?: RunActions
 }
 
+/** A stable empty queue, so a conversation without one does not re-run the effects that read it. */
+const NO_QUEUE: QueuedMessage[] = []
+
 /** A stable "nothing runs", so an absent prop does not re-render the bar. */
 const NO_ACTIVITY: ReadonlyArray<RunningItem> = []
 
@@ -116,14 +120,32 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
   const [modeJustChanged, setModeJustChanged] = useState(false)
   const [modelJustChanged, setModelJustChanged] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
-  const [queue, setQueue] = useAtom(chatMessageQueueAtom)
+  // The queue of THIS composer's conversation, and of no other. Keyed by the
+  // `sessionId` prop — the same value `onSend` is bound to — so what is shown,
+  // what is flushed and where it is sent can never disagree, not even for the
+  // one render in which the conversation changes.
+  const queueKey = draftKeyFor(sessionId)
+  const queues = useAtomValue(chatMessageQueuesAtom)
+  const queue = queues[queueKey] ?? NO_QUEUE
+  const isReplaying = useAtomValue(chatReplayingAtom)
   const prevStreamingRef = useRef(isStreaming)
   const prevSessionIdRef = useRef(sessionId)
+  /** "One message per turn" latch of the auto-flush — explained where it is used. */
+  const flushArmedRef = useRef(true)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const modelDropdownRef = useRef<HTMLDivElement>(null)
 
   // --- Attachments ---
   const store = useStore()
+  /** Write the queue of this composer's conversation. Reads the latest map, so updates never go stale. */
+  const setQueue = useCallback(
+    (next: QueuedMessage[] | ((prev: QueuedMessage[]) => QueuedMessage[])) => {
+      const all = store.get(chatMessageQueuesAtom)
+      const prev = all[queueKey] ?? NO_QUEUE
+      store.set(chatMessageQueuesAtom, withQueue(all, queueKey, typeof next === 'function' ? next(prev) : next))
+    },
+    [store, queueKey],
+  )
   const attachments = useAtomValue(chatAttachmentsAtom)
   const deferredSend = useAtomValue(chatAttachmentDeferredSendAtom)
   const selectedProject = useAtomValue(chatSelectedProjectAtom)
@@ -470,18 +492,14 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
   // attached for session A must never ride along to session B. Compared
   // against a ref rather than firing on mount, because ChatInput remounts when
   // the panel switches layout and that must not wipe an upload in progress.
-  // Session change wipes BOTH the pending queue and the attachments, in one
-  // effect and against one ref.
-  //
-  // This was two effects before the merge, each comparing and then updating
-  // `prevSessionIdRef`. Whichever ran first would update the ref, and the
-  // second would see no change and clear nothing — a silent half-purge that
-  // compiles, renders, and leaks one session's state into the next. Splitting
-  // them again means reintroducing that bug.
+  // The pending queue is NOT wiped here: it is keyed by conversation
+  // (`chatMessageQueuesAtom`) and simply stays with the one it was composed
+  // for. Wiping it from this effect is what used to leak it: the auto-flush
+  // effect below ran in the same commit with the previous conversation's
+  // queue still in hand, and sent it in the new one.
   //
   // Compared against a ref rather than firing on mount: `ChatInput` remounts
-  // when the panel switches layout, and that must not wipe a pending queue or
-  // an upload in flight.
+  // when the panel switches layout, and that must not wipe an upload in flight.
   //
   // In-flight requests are aborted — they carry the old session_id.
   useEffect(() => {
@@ -491,8 +509,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     uploadsRef.current.clear()
     store.set(chatAttachmentsAtom, [])
     store.set(chatAttachmentDeferredSendAtom, false)
-    setQueue([])
-  }, [sessionId, store, setQueue])
+    // Another conversation, another turn: its queue may be stranded from a
+    // previous visit, so it must be allowed to drain (see the latch below).
+    flushArmedRef.current = true
+  }, [sessionId, store])
 
   const handleSend = () => {
     const text = value.trim()
@@ -557,7 +577,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
   // If a send never starts a stream (dead socket, disabled input) the latch
   // stays closed and the rest of the queue waits for the next response rather
   // than draining in one render pass.
-  const flushArmedRef = useRef(true)
+  //
+  // While a conversation is still LOADING, nothing leaves: opening it resets
+  // `isStreaming` to false until its replay says whether it is answering, and
+  // a flush in that window would cut a running response short.
   useEffect(() => {
     const responseStarted = isStreaming && !prevStreamingRef.current
     prevStreamingRef.current = isStreaming
@@ -566,6 +589,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     if (!QUEUE_POLICY.autoFlushOnIdle) return
     // A disabled composer has no session to send to — hold, don't drop.
     if (disabled) return
+    if (isReplaying) return
     if (!flushArmedRef.current) return
     const { taken, rest } = takeHead(queue)
     if (!taken) return
@@ -575,7 +599,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     // holds the *next* message's attachments, so reading them here would send
     // the wrong ones.
     onSend(taken.text, taken.attachmentIds)
-  }, [isStreaming, disabled, queue, onSend, setQueue])
+  }, [isStreaming, disabled, isReplaying, queue, onSend, setQueue])
 
   const handleQueueEdit = useCallback(
     (id: string, text: string) => setQueue((q) => editInQueue(q, id, text)),
@@ -607,13 +631,13 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
    */
   const handleQueueSendNow = useCallback(
     (id: string) => {
-      const { taken, rest } = takeById(store.get(chatMessageQueueAtom), id)
+      const { taken, rest } = takeById(store.get(chatMessageQueuesAtom)[queueKey] ?? NO_QUEUE, id)
       if (!taken) return
       flushArmedRef.current = false
       setQueue(rest)
       onSend(taken.text, taken.attachmentIds)
     },
-    [store, setQueue, onSend],
+    [store, queueKey, setQueue, onSend],
   )
 
   const action = deriveInputAction({

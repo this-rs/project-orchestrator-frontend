@@ -139,6 +139,8 @@ export const moveChatDraftAtom = atom(null, (get, set, { from, to }: { from: str
  */
 export const clearChatDraftsAtom = atom(null, (_get, set) => {
   set(chatDraftsMapAtom, RESET)
+  // Queued messages are unsent text too.
+  set(chatMessageQueuesAtom, {})
 })
 
 /** Selected project for new conversations (survives layout switches & new-session) */
@@ -202,10 +204,45 @@ export const chatSecretRequestsAtom = atom<PendingSecretRequest[]>([])
  * `chat/manager.rs`). The queue drains one message per finished turn, and each
  * row can be edited, dropped, or fired immediately from the UI.
  *
- * Cleared on session switch: a message composed for session A must never land
- * in session B.
+ * One queue PER CONVERSATION, keyed like the drafts (`draftKeyFor`): a message
+ * composed for conversation A must never land in conversation B, and must not
+ * be thrown away either when the user looks at B for a moment. It waits under
+ * A's key and leaves from A.
+ *
+ * It used to be one array for the whole app, emptied by an effect when the
+ * session id changed. The auto-flush effect ran in that same commit, still
+ * holding the old array, found the new conversation idle — and sent A's
+ * message in B.
+ *
+ * In memory only: a queued message is a pending send, and a send that fires
+ * by itself after a reload would be a surprise.
  */
-export const chatMessageQueueAtom = atom<QueuedMessage[]>([])
+export const chatMessageQueuesAtom = atom<Record<string, QueuedMessage[]>>({})
+
+/** `queues` with the queue of `key` replaced. An empty queue leaves no entry behind. */
+export function withQueue(
+  queues: Record<string, QueuedMessage[]>,
+  key: string,
+  queue: QueuedMessage[],
+): Record<string, QueuedMessage[]> {
+  const next = { ...queues }
+  if (queue.length === 0) delete next[key]
+  else next[key] = queue
+  return next
+}
+
+/**
+ * Move a queue from one conversation key to another. Used when a new
+ * conversation receives its id: what was queued while the id was on its way
+ * (the first response is already streaming) follows the conversation.
+ */
+export const moveChatQueueAtom = atom(null, (get, set, { from, to }: { from: string; to: string }) => {
+  if (from === to) return
+  const queues = get(chatMessageQueuesAtom)
+  const moved = queues[from]
+  if (!moved) return
+  set(chatMessageQueuesAtom, withQueue(withQueue(queues, from, []), to, [...(queues[to] ?? []), ...moved]))
+})
 /**
  * Files attached to the message currently being composed.
  *
@@ -218,8 +255,8 @@ export const chatMessageQueueAtom = atom<QueuedMessage[]>([])
  * text: `ChatInput` remounts when the panel switches between the side layout
  * and fullscreen, and an upload in flight must survive that.
  *
- * Cleared on session switch, like the message queue: a screenshot attached for
- * session A must never ride along with a message to session B. In-flight
+ * Cleared on session switch: a screenshot attached for session A must never
+ * ride along with a message to session B. In-flight
  * uploads are aborted at the same time (`ChatInput`).
  */
 export const chatAttachmentsAtom = atom<Attachment[]>([])
