@@ -9,7 +9,7 @@ import {
 } from './bands'
 
 /**
- * « Commence par ça » — ONE recommendation, computed by a pure, deterministic rule.
+ * The day in ONE sentence (the page's headline) — computed by a pure, deterministic rule.
  * No score, no invented priority: the only criterion is how long something has waited.
  *
  *   (a) the OLDEST request of a LIVE agent that waits on the user
@@ -54,12 +54,12 @@ function stuckWhy(e: StuckEntry): string {
   switch (e.kind) {
     case 'stuck': {
       const cause = e.thread.stuck_reason ? `${STUCK_LABEL[e.thread.stuck_reason].toLowerCase()}` : 'à reprendre'
-      return `ce fil est à l'arrêt depuis ${ageText(e.thread.age_secs)} : ${cause}`
+      return `ce plan est à l'arrêt depuis ${ageText(e.thread.age_secs)} : ${cause}`
     }
     case 'orphan':
-      return `une demande est restée sans réponse depuis ${ageText(e.orphan.age_secs)} : la session s'est arrêtée`
+      return `une demande est restée sans réponse depuis ${ageText(e.orphan.age_secs)} : la conversation s'est arrêtée`
     case 'unattached':
-      return `une session sans fil est arrêtée depuis ${ageText(e.session.age_secs)}`
+      return `une conversation est arrêtée depuis ${ageText(e.session.age_secs)}`
   }
 }
 
@@ -81,7 +81,7 @@ export function recommendStart(
     return {
       kind: 'waiting',
       entry,
-      why: `un agent vivant attend ta réponse depuis ${ageText(entry.request.age_secs)}${extra}`,
+      why: `un assistant attend ta réponse depuis ${ageText(entry.request.age_secs)}${extra}`,
     }
   }
   if (bands.stuck.length > 0) {
@@ -92,8 +92,8 @@ export function recommendStart(
     return {
       kind: 'blocked',
       title: 'Rien que tu puisses reprendre maintenant',
-      why: `${n === 1 ? 'un fil est à reprendre' : `${n} fils sont à reprendre`}, mais ${
-        holder ? `le runner est occupé par le plan « ${holder} »` : 'aucune reprise n\'est possible pour le moment'
+      why: `${n === 1 ? 'un travail est à reprendre' : `${n} travaux sont à reprendre`}, mais ${
+        holder ? `un autre plan tourne déjà : « ${holder} »` : 'aucune reprise n\'est possible pour le moment'
       }`,
     }
   }
@@ -109,13 +109,46 @@ export function recommendStart(
     return {
       kind: 'calm',
       running: n,
-      title: `Rien ne te bloque : ${n} ${n === 1 ? 'fil avance seul' : 'fils avancent seuls'}`,
-      why: "aucun agent n'attend ta réponse et rien n'est à reprendre",
+      title: `Rien ne te bloque : ${n} ${n === 1 ? 'plan avance seul' : 'plans avancent seuls'}`,
+      why: "aucun assistant n'attend ta réponse et rien n'est à reprendre",
     }
   }
   return {
     kind: 'empty',
     title: 'Rien à faire pour le moment',
-    why: "aucun agent n'attend ta réponse, rien n'est à reprendre, rien n'est en cours",
+    why: "aucun assistant n'attend ta réponse, rien n'est à reprendre, rien n'est en cours",
+  }
+}
+
+/** The page's headline: the state of the day in a few words, and the reason under it. */
+export interface Headline {
+  title: string
+  why: string
+  /** Where the headline points: the section the reader should go to, if any. */
+  band: Band | null
+}
+
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+
+export function headline(start: StartHere, bands: Bands): Headline {
+  switch (start.kind) {
+    case 'waiting': {
+      const n = bands.waiting.length
+      return {
+        title: n === 1 ? 'Un assistant attend ta réponse' : `${n} assistants attendent ta réponse`,
+        why: `${n === 1 ? 'Il attend' : 'Le plus ancien attend'} depuis ${ageText(start.entry.request.age_secs)}.`,
+        band: 'waiting',
+      }
+    }
+    case 'stuck': {
+      const n = bands.stuck.length
+      return {
+        title: n === 1 ? 'Un travail est à reprendre' : `${n} travaux sont à reprendre`,
+        why: `${cap(start.why)}.`,
+        band: 'stuck',
+      }
+    }
+    default:
+      return { title: start.title, why: `${cap(start.why)}.`, band: start.kind === 'calm' ? 'running' : null }
   }
 }

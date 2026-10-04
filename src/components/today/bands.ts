@@ -255,27 +255,27 @@ export function linkNames(data: AttentionResponse): LinkNames {
 // Texts (plain French: no jargon, no internal band names)
 // ---------------------------------------------------------------------------
 
-export const BAND_TEXT: Record<Band, { title: string; empty: string; summary: string }> = {
-  waiting: { title: 'À traiter', empty: 'Rien à traiter', summary: 'à traiter' },
-  running: { title: 'En cours', empty: 'Rien en cours', summary: 'en cours' },
-  stuck: { title: 'À reprendre', empty: 'Rien à reprendre', summary: 'à reprendre' },
-  thinking: { title: 'À suivre', empty: 'Rien à suivre', summary: 'à suivre' },
+export const BAND_TEXT: Record<Band, { title: string; empty: string; summary: string; hint: string }> = {
+  waiting: { title: 'À traiter', empty: 'Personne n’attend ta réponse', summary: 'à traiter', hint: 'un assistant attend ta réponse' },
+  running: { title: 'En cours', empty: 'Aucun plan ne tourne', summary: 'en cours', hint: 'plans qui avancent seuls' },
+  stuck: { title: 'À reprendre', empty: 'Rien à reprendre', summary: 'à reprendre', hint: 'travaux arrêtés' },
+  thinking: { title: 'À lire', empty: 'Rien à lire', summary: 'à lire', hint: 'propositions, décisions, notes' },
 }
 
 export const TODAY_TEXT = {
   title: "Aujourd'hui",
   summaryLabel: 'Résumé du jour',
-  laneFilterLabel: 'Filtrer par workspace',
+  laneFilterLabel: 'Filtrer par espace',
   allLanes: 'Tous',
-  laneNote: (name: string) => `Filtré sur ${name}. La pastille de la barre compte tous les workspaces.`,
+  laneNote: (name: string) => `Filtré sur ${name}. La pastille de la barre compte tous les espaces.`,
   bandError: 'Cette section n’a pas pu être chargée.',
   retry: 'Réessayer',
   staleRefresh: 'Actualisation impossible : les données affichées peuvent être périmées.',
-  emptyAll: 'Rien à traiter, rien en cours',
-  emptyAllHint: 'Aucun agent ne demande ta réponse, aucun fil n’est en cours ni à reprendre.',
+  emptyAll: 'Rien ne t’attend',
+  emptyAllHint: 'Aucun assistant ne demande ta réponse, aucun plan n’est en cours ni à reprendre.',
   plans: 'Voir les plans',
-  createWorkspace: 'Choisir ou créer un workspace',
-  noMatch: 'Aucun résultat pour ce workspace',
-  noMatchHint: 'Ce workspace n’a rien à traiter, rien en cours, rien à reprendre.',
+  createWorkspace: 'Choisir ou créer un espace',
+  noMatch: 'Rien dans cet espace',
+  noMatchHint: 'Cet espace n’a rien à traiter, rien en cours, rien à reprendre.',
   clearFilter: 'Effacer le filtre',
 } as const

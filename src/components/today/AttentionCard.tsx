@@ -5,7 +5,7 @@ import { ORPHAN_NOTICE } from '@/hooks/useAttention'
 import { Button } from '@/components/ui/Button'
 import { RelativeTime } from '@/components/ui/MetaLine'
 import { StatusDot } from '@/components/ui/Status'
-import { focusRing, inlineLink, metaText, provenanceText } from '@/components/ui/classes'
+import { focusRing, inlineLink, provenanceText } from '@/components/ui/classes'
 import type { SessionLink, SessionState, WaitingRequest } from '@/types/attention'
 import { workspacePath } from '@/utils/paths'
 import { ReplyAction } from './ThreadRow'
@@ -90,7 +90,7 @@ export function linkLabel(link: SessionLink, names: LinkNames = {}): string {
 
 /** All links, one sentence each; none = "sans fil". */
 export function provenanceLabels(links: SessionLink[] | null | undefined, names?: LinkNames): string[] {
-  return links && links.length > 0 ? links.map((l) => linkLabel(l, names)) : ['sans fil']
+  return links && links.length > 0 ? links.map((l) => linkLabel(l, names)) : ['Conversation libre : rattachée à aucun plan']
 }
 
 type Phase = 'idle' | 'sending' | 'sent' | 'decided' | 'orphaned'
@@ -115,14 +115,16 @@ export function AttentionCard({
   const [phase, setPhase] = useState<Phase>('idle')
   const [error, setError] = useState<string | null>(null)
   const [localDraft, setLocalDraft] = useState('')
+  /** The free answer of a question WITH options is folded until asked for (or until a draft exists). */
+  const [freeOpen, setFreeOpen] = useState(false)
   // A ref, not state: two taps in the same tick must not both pass.
   const inFlight = useRef(false)
 
   const isPermission = request.kind === 'permission'
   const sessionName = session?.title?.trim() || shortId(request.session_id)
   const regionLabel = isPermission
-    ? `Permission demandée par la session ${sessionName}`
-    : `Question posée par la session ${sessionName}`
+    ? `Autorisation demandée par ${sessionName}`
+    : `Question posée par ${sessionName}`
 
   // A dead session can never be authorized, and neither can one whose state we do not know
   // (session === null): same as an orphan (resume the session instead).
@@ -184,31 +186,39 @@ export function AttentionCard({
   const provenance = provenanceLabels(links, names)
   const btn = 'min-h-9'
 
+  const hasOptions = request.options.length > 0
+  const linked = Boolean(links && links.length > 0)
+
   return (
     <section
       aria-label={regionLabel}
       data-testid="attention-card"
-      className="min-w-0 rounded-xl border border-white/[0.1] border-l-[3px] border-l-sky-400/70 bg-surface-base p-4 space-y-3"
+      className="@container/card min-w-0 space-y-2.5 rounded-xl border border-white/[0.09] border-l-[3px] border-l-sky-400/80 bg-white/[0.03] px-4 py-3"
     >
-      {/* Where: lane, thread, since, alive. No "·" separators: when the line wraps on a phone
-          a separator would be left dangling at the end of the first line. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-4 text-gray-400 min-w-0">
-        <span className="min-w-0 break-words text-gray-300">{lane}</span>
-        <span className="min-w-0 break-words text-gray-200">{threadTitle ?? 'Sans fil'}</span>
-        <RelativeTime date={request.requested_at} prefix="depuis " />
-        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-          <StatusDot tone={live ? 'success' : 'muted'} />
-          <span className={live ? 'text-emerald-300' : 'text-gray-400'}>{live ? 'vivant' : session ? 'arrêté' : 'état inconnu'}</span>
+      {/* Who asks: the plan (or conversation) first, then where and since when. One wrapping line, no "·" separators. */}
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+        <span className="shrink-0 text-xs font-semibold text-sky-300">{isPermission ? 'Autorisation' : 'Question'}</span>
+        <span className="min-w-0 max-w-full truncate text-sm font-medium text-gray-100">{threadTitle ?? session?.title?.trim() ?? 'Conversation libre'}</span>
+        <span className="flex flex-wrap items-baseline gap-x-3 text-xs leading-4 text-gray-400">
+          <span>{lane}</span>
+          <RelativeTime date={request.requested_at} prefix="depuis " />
+          {!live && (
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+              <StatusDot tone="muted" />
+              {session ? 'arrêté' : 'état inconnu'}
+            </span>
+          )}
         </span>
+        {live && <span className="sr-only">vivant</span>}
       </div>
 
       {/* What: the EXACT text, whole */}
       {isPermission ? (
-        <div className="space-y-1 min-w-0">
-          <p className={metaText}>
+        <div className="min-w-0 space-y-1">
+          <p className="text-xs leading-4 text-gray-400">
             {request.tool_name ? (
               <>
-                Autoriser <span className="font-mono text-gray-300">{request.tool_name}</span> à exécuter :
+                L’assistant veut lancer <span className="font-mono text-gray-300">{request.tool_name}</span> :
               </>
             ) : (
               'Commande demandée :'
@@ -216,25 +226,22 @@ export function AttentionCard({
           </p>
           <pre
             data-testid="attention-text"
-            className="m-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-lg bg-black/30 px-3 py-2 font-mono text-[13px] leading-5 text-gray-100"
+            className="m-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-lg bg-black/35 px-3 py-2 font-mono text-[13px] leading-5 text-gray-100"
           >
             {request.text}
           </pre>
         </div>
       ) : (
-        <p
-          data-testid="attention-text"
-          className="m-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm leading-6 text-gray-100"
-        >
+        <p data-testid="attention-text" className="m-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm leading-6 text-gray-100">
           {request.text}
         </p>
       )}
 
-      {/* Provenance, as the backend gave it */}
-      <p className={`${provenanceText} break-words`} data-testid="attention-provenance">
+      {/* Provenance, as the backend gave it: read by assistive tech and by the conversation it opens; shown only when the conversation belongs to no plan. */}
+      <p className={linked ? 'sr-only' : `${provenanceText} break-words`} data-testid="attention-provenance">
         {provenance.join(' · ')}
       </p>
-      {attachSlot && (!links || links.length === 0) && <div>{attachSlot}</div>}
+      {attachSlot && !linked && <div>{attachSlot}</div>}
 
       {/* Status messages */}
       {orphaned && (
@@ -260,7 +267,7 @@ export function AttentionCard({
 
       {/* Actions */}
       {isPermission ? (
-        <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
           {orphaned && resumeAction}
           {!orphaned && (
             <>
@@ -275,15 +282,15 @@ export function AttentionCard({
           <OpenSession request={request} />
         </div>
       ) : (
-        <div className="space-y-3">
-          {request.options.length > 0 && !orphaned && (
-            <ul className="m-0 list-none space-y-2 p-0" aria-label="Réponses proposées">
+        <div className="space-y-2">
+          {hasOptions && !orphaned && (
+            <ul className="m-0 grid list-none gap-2 p-0 @lg/card:grid-cols-2" aria-label="Réponses proposées">
               {request.options.map((o) => (
-                <li key={o.label}>
+                <li key={o.label} className="min-w-0">
                   <Button
                     size="sm"
                     variant="secondary"
-                    className={`${btn} w-full !justify-start text-left whitespace-normal break-words`}
+                    className={`${btn} h-full w-full !justify-start text-left whitespace-normal break-words`}
                     disabled={locked}
                     onClick={() => reply(o.label)}
                   >
@@ -296,14 +303,22 @@ export function AttentionCard({
               ))}
             </ul>
           )}
-          {!orphaned && (
+          {!orphaned && (hasOptions && !freeOpen && text.trim() === '' ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="ghost" className={btn} disabled={locked} onClick={() => setFreeOpen(true)}>
+                Autre réponse…
+              </Button>
+              <OpenSession request={request} />
+            </div>
+          ) : (
             <div className="space-y-2">
               <textarea
                 aria-label="Autre réponse"
                 rows={2}
                 value={text}
                 disabled={locked}
-                placeholder="Autre réponse…"
+                autoFocus={freeOpen}
+                placeholder={hasOptions ? 'Autre réponse…' : 'Ta réponse…'}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) reply(text)
@@ -313,7 +328,7 @@ export function AttentionCard({
               <div className="flex flex-wrap items-center gap-2">
                 <Button
                   size="sm"
-                  variant={request.options.length > 0 ? 'ghost' : 'primary'}
+                  variant={hasOptions ? 'secondary' : 'primary'}
                   className={btn}
                   disabled={locked || text.trim() === ''}
                   loading={sending}
@@ -324,7 +339,7 @@ export function AttentionCard({
                 <OpenSession request={request} />
               </div>
             </div>
-          )}
+          ))}
           {orphaned && (
             <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
               {resumeAction}
@@ -343,7 +358,7 @@ function OpenSession({ request }: { request: WaitingRequest }) {
       to={workspacePath(request.workspace, `/chat/${request.session_id}`)}
       className={`${inlineLink} inline-flex min-h-9 items-center px-2 text-sm ${focusRing}`}
     >
-      Ouvrir la session
+      Ouvrir la conversation
     </Link>
   )
 }
