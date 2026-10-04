@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useContext } from 'react'
 import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
+import { ownsContentArea } from './contentArea'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Menu, ChevronLeft, ChevronRight, MessageCircle, Plus } from 'lucide-react'
 import { NOMENCLATURE, NAV_GROUPS, NAV_TEXT, segmentLabel, entityNoun } from '@/constants/nomenclature'
@@ -293,6 +294,7 @@ export function MainLayout() {
   )
 
   const currentSlug = wsSlug || ''
+  const pageOwnsContentArea = ownsContentArea(location.pathname)
 
   return (
     <div className="flex min-h-0 flex-1 bg-surface-base">
@@ -367,7 +369,7 @@ export function MainLayout() {
 
       {/* Main content */}
       <main
-        className="flex-1 flex flex-col overflow-hidden transition-[margin] duration-300"
+        className="flex-1 min-w-0 min-h-0 flex flex-col overflow-clip transition-[margin] duration-300"
         style={{ marginRight: chatOpen && !chatFullscreen && isSmUp ? chatWidth : 0 }}
       >
         {/* Breadcrumb */}
@@ -408,8 +410,13 @@ export function MainLayout() {
         </header>
 
         {/* Page content */}
-        <div className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain px-4 md:px-6 pb-2" style={{ viewTransitionName: 'content' }}>
-          <div className="flex-1">
+        <div
+          className={`flex-1 min-h-0 flex flex-col px-4 md:px-6 ${
+            pageOwnsContentArea ? 'overflow-clip' : 'overflow-y-auto overflow-x-hidden overscroll-y-contain pb-2'
+          }`}
+          style={{ viewTransitionName: 'content' }}
+        >
+          <div className={pageOwnsContentArea ? 'flex-1 min-h-0' : 'flex-1'}>
             {/* Key on slug forces page remount on workspace switch,
                 clearing all stale useState (workspace data, loading flags, etc.).
                 Sidebar + ChatPanel stay mounted — only the page resets. */}
@@ -418,8 +425,8 @@ export function MainLayout() {
             </RouteErrorBoundary>
           </div>
 
-          {/* Branding */}
-          <Branding className="mt-4" />
+          {/* Branding — a page footer: a page that fills the area has no "below" */}
+          {!pageOwnsContentArea && <Branding className="mt-4" />}
         </div>
       </main>
 

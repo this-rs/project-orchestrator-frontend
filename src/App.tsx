@@ -9,6 +9,7 @@ import { WorkspaceRouteGuard } from '@/components/WorkspaceRouteGuard'
 import { UpdateBanner } from '@/components/UpdateBanner'
 import { WebUpdateBanner } from '@/components/ui/WebUpdateBanner'
 import { useTrayNavigation } from '@/hooks'
+import { useDocumentScrollGuard } from '@/hooks/useDocumentScrollGuard'
 import { isTauri } from '@/services/env'
 import { activeWorkspaceSlugAtom, modelCatalogAtom, modelCatalogLoadedAtom, fetchModelCatalog } from '@/atoms'
 import { workspacePath } from '@/utils/paths'
@@ -149,12 +150,13 @@ function useMacRoundedCorners() {
 
 function App() {
   useMacRoundedCorners()
+  useDocumentScrollGuard()
 
   return (
     <Provider>
       <ModelCatalogLoader />
       <BrowserRouter>
-        <div className="tauri-window flex h-dvh flex-col overflow-hidden">
+        <div className="tauri-window flex h-dvh flex-col">
           {/* <AmbientBackground /> */}
           <div className="flex min-h-0 flex-1 flex-col">
             <UpdateBanner />

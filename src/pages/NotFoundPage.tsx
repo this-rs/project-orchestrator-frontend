@@ -68,7 +68,7 @@ export function NotFoundPage({ embedded = false }: NotFoundPageProps) {
 
   // Full-screen mode: standalone page with background effects and branding
   return (
-    <div className="relative flex h-screen flex-col items-center justify-center overflow-hidden bg-[var(--surface-base)]">
+    <div className="relative flex h-dvh flex-col items-center justify-center overflow-clip bg-[var(--surface-base)]">
       {/* Background dot grid */}
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.03]"

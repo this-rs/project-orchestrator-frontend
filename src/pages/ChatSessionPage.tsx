@@ -8,11 +8,12 @@
  * ChatMessageBubble component as the main chat.
  */
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowDown } from 'lucide-react'
 import { useConversationWs } from '@/hooks/runner'
 import { useDetachedRuns, useWorkspaceSlug } from '@/hooks'
+import { useStickToBottom } from '@/hooks/useStickToBottom'
 import { ChatMessageBubble } from '@/components/chat/ChatMessageBubble'
 import { AgenticModePill } from '@/components/chat/AgenticModePill'
 import { AgenticModeBanner } from '@/components/chat/AgenticModeBanner'
@@ -28,9 +29,9 @@ export default function ChatSessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const navigate = useNavigate()
   const wsSlug = useWorkspaceSlug()
-  const scrollRef = useRef<HTMLDivElement>(null)
-
   const { messages, status: wsStatus } = useConversationWs(sessionId ?? '')
+  // Follows the live conversation, but never pulls back a reader who scrolled up.
+  const { scrollRef, scrollToBottom } = useStickToBottom<HTMLDivElement>(messages)
   // Agentic mode surfaces: detached runs spawned by this session.
   const detachedRuns = useDetachedRuns(sessionId ?? null)
 
@@ -50,21 +51,6 @@ export default function ChatSessionPage() {
       .catch((err) => console.error('Stop run failed', childSessionId, err))
   }, [])
 
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
-    const el = scrollRef.current
-    if (el) {
-      const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120
-      if (isNearBottom) {
-        el.scrollTop = el.scrollHeight
-      }
-    }
-  }, [messages.length])
-
-  const scrollToBottom = () => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }
-
   if (!sessionId) {
     return (
       <div className="flex items-center justify-center h-full text-slate-500">
@@ -74,9 +60,11 @@ export default function ChatSessionPage() {
   }
 
   return (
-    // dvh, not vh: on mobile, 100vh is the LARGE viewport (URL bar extended)
-    // and overflows the visible area — dvh tracks the dynamic viewport.
-    <div className="relative flex flex-col h-[calc(100dvh-4rem)] -mx-4 md:-mx-6">
+    // h-full, not a viewport calc: MainLayout hands this route its whole
+    // content area (see `ownsContentArea`). A `calc(100dvh - header)` height
+    // filled the area exactly while the layout still added its footer below,
+    // so the page scrolled a second time, behind the conversation.
+    <div className="relative flex flex-col h-full min-h-0 -mx-4 md:-mx-6">
       {/* Header — full bleed via negative margins to counter MainLayout px-4/px-6 */}
       <div className="flex items-center gap-3 px-6 py-3 border-b border-white/10 bg-slate-900/80 backdrop-blur-sm shrink-0">
         <Link
@@ -115,7 +103,7 @@ export default function ChatSessionPage() {
       {/* Messages */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-6 py-4 space-y-1"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-4 space-y-1"
       >
         {messages.length === 0 && wsStatus === 'connected' && (
           <div className="text-center text-slate-600 text-sm py-12">
@@ -135,7 +123,7 @@ export default function ChatSessionPage() {
 
       {/* Scroll to bottom FAB */}
       <button
-        onClick={scrollToBottom}
+        onClick={() => scrollToBottom()}
         className="absolute bottom-6 right-6 p-2 rounded-full bg-slate-800 border border-white/10 text-slate-400 hover:text-slate-200 hover:bg-slate-700 shadow-lg transition-colors cursor-pointer"
         title="Scroll to bottom"
         aria-label="Scroll to bottom"

@@ -229,7 +229,11 @@ html.tauri body {
 }
 
 .tauri-window {
-  overflow: hidden;
+  /* clip, not hidden: `hidden` still makes a scroll container, which the
+     browser scrolls by itself to reveal a focused field or a scrollIntoView
+     target — the whole app then sits shifted up with a blank band below, and
+     no gesture can scroll it back. `clip` cannot be scrolled at all. */
+  overflow: clip;
   overscroll-behavior: none;
   background-color: var(--color-surface-base);
 }
