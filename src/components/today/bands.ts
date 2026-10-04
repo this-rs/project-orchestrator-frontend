@@ -30,10 +30,10 @@ export const SECTION_ORDER: readonly Band[] = ['waiting', 'stuck', 'running', 't
 
 /** What a stuck thread says about itself, in plain words. */
 export const STUCK_LABEL: Record<StuckReason, string> = {
-  failed: 'Run échoué',
+  failed: 'Arrêté sur une erreur',
   budget_exceeded: 'Budget dépassé',
   task_blocked: 'Tâche bloquée',
-  session_error: 'Erreur de session',
+  session_error: 'Erreur de conversation',
   orphan_request: 'Demande restée sans réponse',
 }
 

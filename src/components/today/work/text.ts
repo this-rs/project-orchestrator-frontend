@@ -1,6 +1,9 @@
 /** Visible wording of the work dashboard, in one place (DESIGN.md §0). */
 export const WORK_TEXT = {
+  title: 'Mes tâches',
   day: 'Ma journée',
+  showAll: (n: number) => `Afficher les ${n}`,
+  showLess: 'Réduire',
   dayEmpty: 'Rien de prévu pour aujourd’hui',
   dayEmptyHint: 'Ajoute des tâches depuis « À prendre » ou « En cours » : elles se rangent ici, dans l’ordre où tu veux les faire.',
   inProgress: 'En cours',
@@ -8,7 +11,7 @@ export const WORK_TEXT = {
   next: 'À prendre',
   nextEmpty: 'Aucun plan actif n’a de tâche prête.',
   chains: 'Plans à lancer',
-  blocked: 'Bloqué',
+  blocked: 'Bloquées',
   addToDay: 'Ajouter à ma journée',
   /** Short label of the visible button; its accessible name stays `addToDay`. */
   add: 'Ajouter',

@@ -1,15 +1,16 @@
 import type { LiveAgent, LiveAgentState } from '@/types/liveAgents'
 
 export const LIVE_TEXT = {
-  title: 'Agents en cours',
-  region: 'Agents en cours',
-  empty: 'Aucun agent ne tourne en ce moment',
-  emptyHint: 'Quand une session démarre (chat, plan, tâche déléguée), elle apparaît ici.',
-  loadError: 'La liste des agents n’a pas pu être chargée.',
+  title: 'Assistants',
+  region: 'Assistants en cours',
+  empty: 'Aucun assistant ne tourne en ce moment',
+  idle: (n: number) => (n === 1 ? '1 inactif' : `${n} inactifs`),
+  emptyHint: 'Quand une conversation démarre (chat, plan, tâche déléguée), elle apparaît ici.',
+  loadError: 'La liste des assistants n’a pas pu être chargée.',
   stale: 'Actualisation impossible : la liste affichée peut être périmée.',
   retry: 'Réessayer',
   open: 'Ouvrir',
-  untitled: 'Session sans titre',
+  untitled: 'Conversation sans titre',
 } as const
 
 export const STATE_LABEL: Record<LiveAgentState, string> = {
@@ -43,13 +44,13 @@ export function formatSecs(secs: number): string {
   return `${Math.floor(hours / 24)}d ${hours % 24}h`
 }
 
-/** "5 en cours · 1 attend ta réponse · 3 travaillent · 1 inactif". */
+/** "1 attend ta réponse · 3 travaillent" (the idle ones have their own fold). */
 export function summaryLine(r: { total: number; waiting_input: number; streaming: number; idle: number }): string {
   if (r.total === 0) return LIVE_TEXT.empty
-  const parts = [`${r.total} ${r.total === 1 ? 'agent' : 'agents'}`]
+  const parts: string[] = []
   if (r.waiting_input) parts.push(`${r.waiting_input} ${r.waiting_input === 1 ? 'attend' : 'attendent'} ta réponse`)
   if (r.streaming) parts.push(`${r.streaming} ${r.streaming === 1 ? 'travaille' : 'travaillent'}`)
-  if (r.idle) parts.push(`${r.idle} ${r.idle === 1 ? 'inactif' : 'inactifs'}`)
+  if (parts.length === 0) return LIVE_TEXT.idle(r.idle)
   return parts.join(' · ')
 }
 

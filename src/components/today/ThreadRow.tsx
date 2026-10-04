@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { StatusIcon } from '@/components/ui/Status'
 import { RelativeTime } from '@/components/ui/MetaLine'
-import { focusRing, inlineLink, metaTextReadable as metaText, pressFeedback, provenanceText } from '@/components/ui/classes'
+import { ChevronRight } from 'lucide-react'
+import { focusRing, hitArea, inlineLink, metaTextReadable as metaText, pressFeedback } from '@/components/ui/classes'
 import { formatCost, formatDurationMs } from '@/components/ui/format'
 import { workspacePath } from '@/utils/paths'
 import type {
@@ -15,7 +16,8 @@ import type {
   UnattachedSession,
   WaitingRequest,
 } from '@/types/attention'
-import { MiniThreadGraph } from './MiniThreadGraph'
+import { PlanStateBar } from './PlanStateBar'
+import { ageText } from './startHere'
 import { ContinueSheet } from './ContinueSheet'
 import { STUCK_LABEL } from './bands'
 
@@ -49,24 +51,26 @@ import { STUCK_LABEL } from './bands'
 
 export const ROW_TEXT = {
   resume: 'Reprendre',
-  resumeSession: 'Reprendre la session',
+  resumeSession: 'Reprendre la conversation',
   reply: 'Répondre…',
-  noThread: 'sans fil',
-  runnerBusy: 'Runner occupé par le plan',
+  noThread: 'Conversation libre',
+  runnerBusy: 'Indisponible : un autre plan tourne déjà,',
   noPlan: 'Aucun plan à reprendre.',
   noPreview: "L'aperçu de la reprise n'est pas disponible.",
-  unblockFirst: 'Débloque-la avant de reprendre : le runner la saute.',
+  unblockFirst: 'Débloque-les avant de reprendre : une tâche bloquée est sautée.',
+  blockedToggle: (n: number) => (n === 1 ? '1 tâche bloquée sera sautée' : `${n} tâches bloquées seront sautées`),
+  showRequest: 'Voir la demande',
   resumeStarted: 'Reprise lancée.',
-  followRun: 'Suivre le run',
+  followRun: 'Suivre le plan',
   resumeFailed: 'La reprise a échoué.',
   /** Help of an orphan PERMISSION (only valid for a request without decision). */
   helpPermission:
-    "La session s'est interrompue avant ta réponse. Reprendre relance l'assistant, qui redemandera l'autorisation si besoin. Rien n'a été exécuté.",
+    "La conversation s'est interrompue avant ta réponse. Reprendre relance l'assistant, qui redemandera l'autorisation si besoin. Rien n'a été exécuté.",
   /** Help of an orphan QUESTION. */
   helpQuestion:
-    "La session s'est interrompue avant ta réponse. Choisis une option : elle sera envoyée comme message à la reprise.",
-  helpLive: 'La session attend ta réponse : elle sera envoyée comme message.',
-  livePermissionElsewhere: 'Cette autorisation se donne dans « À traiter ».',
+    "La conversation s'est interrompue avant ta réponse. Choisis une option : elle sera envoyée comme message à la reprise.",
+  helpLive: 'L’assistant attend ta réponse : elle sera envoyée comme message.',
+  livePermissionElsewhere: 'Cette autorisation se donne dans « À toi ».',
   /** What the sheet opens with when no option was chosen. */
   defaultMessage: 'Continue.',
 } as const
@@ -77,21 +81,18 @@ export function questionAnswerMessage(question: string, option: string): string 
 }
 
 /**
- * The resume preview, worded from the backend's three fields as they are —
- * "4 faites et 1 bloquée seront sautées, 2 relancées". Counts are shown, not
- * recomputed; the only count taken is the length of the named blocked list.
+ * The resume preview, worded from the backend's fields as they are — "Reprendre relance
+ * 2 tâches ; 4 déjà faites". Counts are shown, not recomputed. The blocked tasks the resume
+ * skips are named right under it (`blocked-tasks`), so they are not repeated here.
  */
 export function resumePreviewText(p: ResumePreview): string {
-  const blocked = p.skipped_blocked.length
   const done = p.done_count
-  const doneWord = `${done} ${done === 1 ? 'faite' : 'faites'}`
-  const blockedWord = `${blocked} ${blocked === 1 ? 'bloquée' : 'bloquées'}`
-  let skipped = ''
-  if (blocked > 0 && done > 0) skipped = `${doneWord} et ${blockedWord} seront sautées`
-  else if (blocked > 0) skipped = `${blockedWord} ${blocked === 1 ? 'sera sautée' : 'seront sautées'}`
-  else if (done > 0) skipped = `${doneWord} ${done === 1 ? 'sera sautée' : 'seront sautées'}`
-  const rerun = p.rerun_count > 0 ? `${p.rerun_count} ${p.rerun_count === 1 ? 'relancée' : 'relancées'}` : 'aucune relancée'
-  return skipped ? `${skipped}, ${rerun}` : rerun
+  const rerun =
+    p.rerun_count > 0
+      ? `Reprendre relance ${p.rerun_count} ${p.rerun_count === 1 ? 'tâche' : 'tâches'}`
+      : 'Reprendre ne relance aucune tâche'
+  const kept = done > 0 ? ` ; ${done} déjà ${done === 1 ? 'faite' : 'faites'}` : ''
+  return `${rerun}${kept}`
 }
 
 /** Where a session is attached, in words (provenance of each link; never computed membership). */
@@ -137,50 +138,73 @@ interface CommonProps {
   className?: string
 }
 
+const titleClass = 'min-w-0 break-words text-sm font-medium leading-5 text-gray-100 line-clamp-2'
+
 function Title({ thread }: { thread: AttentionThread }) {
-  const text = <span className="min-w-0 break-words text-sm text-gray-200">{thread.title}</span>
+  const text = <span className={titleClass}>{thread.title}</span>
   if (thread.plan) {
     return (
       <Link
         to={`${workspacePath(thread.workspace, `/plans/${thread.plan.id}`)}#graph`}
-        className={`inline-flex min-h-9 min-w-0 items-center rounded ${focusRing} hover:text-gray-100`}
+        className={`min-w-0 flex-1 rounded ${hitArea} ${focusRing} hover:text-white`}
       >
         {text}
       </Link>
     )
   }
-  return <span className="inline-flex min-h-9 min-w-0 items-center">{text}</span>
+  return <span className="min-w-0 flex-1">{text}</span>
 }
 
-function Frame({
-  thread,
-  variant,
+/**
+ * The row shape shared by every variant: a state mark, the title with THE action at its right
+ * (under the text on a narrow column), one line of facts, then whatever the variant adds.
+ */
+function RowShell({
+  attrs,
   lead,
+  title,
+  action,
   meta,
   children,
   className = '',
 }: {
-  thread: AttentionThread
-  variant: string
+  attrs: Record<string, string>
   lead: ReactNode
+  title: ReactNode
+  action?: ReactNode
   meta?: ReactNode
   children?: ReactNode
   className?: string
 }) {
   return (
-    <li data-variant={variant} data-thread={thread.id} className={`flex min-w-0 flex-col gap-1 py-3 ${className}`}>
-      <div className="flex min-w-0 items-start gap-2">
-        <span className="mt-[15px] flex w-4 shrink-0 items-center justify-center">{lead}</span>
-        <div className="flex min-w-0 flex-1 flex-col">
-          <Title thread={thread} />
-          {meta && <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${metaText}`}>{meta}</div>}
+    <li {...attrs} className={`flex min-w-0 items-start gap-2.5 py-3 ${className}`}>
+      <span className="flex h-5 w-4 shrink-0 items-center justify-center">{lead}</span>
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-wrap items-start gap-x-3 gap-y-2">
+          <div className="min-w-[12rem] flex-1">
+            <div className="flex min-w-0">{title}</div>
+            {meta && <div className={`mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 ${metaText}`}>{meta}</div>}
+          </div>
+          {action && <div className="-my-1 shrink-0">{action}</div>}
         </div>
-      </div>
-      <div className="min-w-0 pl-6">
-        <MiniThreadGraph waves={thread.waves} planId={thread.plan?.id} workspace={thread.workspace} />
         {children}
       </div>
     </li>
+  )
+}
+
+/** A fold for what explains a row without being needed to act on it. */
+function Fold({ summary, children, testId }: { summary: ReactNode; children: ReactNode; testId?: string }) {
+  return (
+    <details data-testid={testId} className="group/fold mt-1 min-w-0">
+      <summary
+        className={`-ml-1 inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded px-1 text-xs text-gray-400 hover:text-gray-200 [&::-webkit-details-marker]:hidden ${focusRing}`}
+      >
+        <ChevronRight className="h-3.5 w-3.5 shrink-0 group-open/fold:rotate-90" aria-hidden="true" />
+        {summary}
+      </summary>
+      <div className="min-w-0 pb-1 pl-4">{children}</div>
+    </details>
   )
 }
 
@@ -220,7 +244,7 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
         {ROW_TEXT.runnerBusy}{' '}
         <Link
           to={workspacePath(busy.workspace, `/plans/${busy.plan_id}`)}
-          className={`inline-flex min-h-9 items-center ${inlineLink}`}
+          className={`${inlineLink} underline`}
         >
           {busy.plan_title}
         </Link>
@@ -244,48 +268,12 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
   }
 
   return (
-    <Frame
-      thread={thread}
-      variant="stuck"
+    <RowShell
+      attrs={{ 'data-variant': 'stuck', 'data-thread': thread.id }}
       className={className}
       lead={<StatusIcon tone={reason === 'task_blocked' ? 'warning' : 'danger'} className="h-4 w-4" />}
-      meta={
-        <>
-          <span className="text-gray-300">{cause}</span>
-          <span>{laneName ?? thread.workspace}</span>
-          {thread.run && (
-            <span data-testid="run-cost" className="tabular-nums">
-              {formatCost(thread.run.cost_usd) ?? '$0.00'}
-            </span>
-          )}
-        </>
-      }
-    >
-      {blocked.length > 0 && (
-        <div data-testid="blocked-tasks" className="mt-2 text-xs text-amber-400">
-          <p>
-            {blocked.length === 1 ? 'Tâche bloquée' : 'Tâches bloquées'} :{' '}
-            {blocked.map((t, i) => (
-              <span key={t.id}>
-                {i > 0 && ', '}
-                <Link
-                  to={workspacePath(thread.workspace, `/tasks/${t.id}`)}
-                  className={`inline-flex min-h-9 items-center underline underline-offset-2 ${focusRing}`}
-                >
-                  {t.title}
-                </Link>
-              </span>
-            ))}
-          </p>
-          <p className="text-gray-400">{ROW_TEXT.unblockFirst}</p>
-        </div>
-      )}
-      {thread.resume && (
-        <p id={noteId} data-testid="resume-preview" className="mt-2 text-xs text-gray-300">
-          {resumePreviewText(thread.resume)}
-        </p>
-      )}
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+      title={<Title thread={thread} />}
+      action={
         <Button
           variant="secondary"
           size="sm"
@@ -297,12 +285,48 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
         >
           {pending ? 'Reprise…' : ROW_TEXT.resume}
         </Button>
-        {disabledReason && (
-          <p data-testid="resume-disabled-reason" className="text-xs text-amber-400">
-            {disabledReason}
-          </p>
-        )}
-      </div>
+      }
+      meta={
+        <>
+          <span className={reason === 'task_blocked' ? 'text-amber-300' : 'text-red-300'}>{cause}</span>
+          <span>{laneName ?? thread.workspace}</span>
+          <span>depuis {ageText(thread.age_secs)}</span>
+          {thread.run && (
+            <span data-testid="run-cost" className="tabular-nums">
+              {formatCost(thread.run.cost_usd) ?? '$0.00'}
+            </span>
+          )}
+        </>
+      }
+    >
+      <PlanStateBar waves={thread.waves} planId={thread.plan?.id} workspace={thread.workspace} className="mt-1" />
+      {disabledReason && (
+        <p data-testid="resume-disabled-reason" className="text-xs text-amber-300">
+          {disabledReason}
+        </p>
+      )}
+      {thread.resume && (
+        <p id={noteId} data-testid="resume-preview" className="text-xs text-gray-400">
+          {resumePreviewText(thread.resume)}
+        </p>
+      )}
+      {blocked.length > 0 && (
+        <Fold testId="blocked-tasks" summary={<span className="text-amber-300">{ROW_TEXT.blockedToggle(blocked.length)}</span>}>
+          <ul className="text-xs text-gray-300">
+            {blocked.map((t) => (
+              <li key={t.id}>
+                <Link
+                  to={workspacePath(thread.workspace, `/tasks/${t.id}`)}
+                  className={`inline-flex min-h-9 items-center underline underline-offset-2 ${focusRing}`}
+                >
+                  {t.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-gray-400">{ROW_TEXT.unblockFirst}</p>
+        </Fold>
+      )}
       {started && (
         <p role="status" className="mt-1 text-xs text-emerald-300">
           {ROW_TEXT.resumeStarted}
@@ -324,7 +348,7 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
           {error}
         </p>
       )}
-    </Frame>
+    </RowShell>
   )
 }
 
@@ -332,20 +356,21 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
 // Orphan (band 3) and unattached
 // ---------------------------------------------------------------------------
 
-/** The request itself, read in full (monospace, wrapping). */
+/** The request itself, whole (monospace, wrapping), behind a fold: the row says what happened, the fold what was asked. */
 function RequestText({ req }: { req: WaitingRequest }) {
   return (
-    <div className="mt-2 min-w-0">
-      <p className="text-xs leading-4 text-gray-400">
-        {req.kind === 'permission' ? `Permission demandée${req.tool_name ? ` (${req.tool_name})` : ''}` : 'Question posée'}
-      </p>
-      <pre
-        data-testid="request-text"
-        className="mt-1 max-w-full whitespace-pre-wrap break-words font-mono text-xs text-gray-200"
-      >
+    <Fold
+      summary={
+        <span>
+          {ROW_TEXT.showRequest}
+          {req.kind === 'permission' ? ` : autorisation${req.tool_name ? ` (${req.tool_name})` : ''}` : ' : question'}
+        </span>
+      }
+    >
+      <pre data-testid="request-text" className="max-w-full whitespace-pre-wrap break-words rounded-lg bg-black/30 px-3 py-2 font-mono text-xs text-gray-200">
         {req.text}
       </pre>
-    </div>
+    </Fold>
   )
 }
 
@@ -419,16 +444,13 @@ export function ReplyAction({
     <div className="min-w-0">
       {isQuestion && <OptionPicker options={req.options} selected={choice} onSelect={setChoice} />}
       {livePermission ? (
-        <p className="mt-2 text-xs text-gray-400">{ROW_TEXT.livePermissionElsewhere}</p>
+        <p className="mt-1 text-xs text-gray-400">{ROW_TEXT.livePermissionElsewhere}</p>
       ) : (
-        <>
-          <div className="mt-2">
-            <Button variant={emphasis === 'primary' ? 'primary' : 'secondary'} size="sm" onClick={() => setOpen(true)}>
-              {dead ? ROW_TEXT.resumeSession : ROW_TEXT.reply}
-            </Button>
-          </div>
-          {dead && <p className="mt-1 text-xs text-gray-400">{help}</p>}
-        </>
+        <div className={isQuestion && req.options.length > 0 ? 'mt-2' : ''}>
+          <Button variant={emphasis === 'primary' ? 'primary' : 'secondary'} size="sm" onClick={() => setOpen(true)}>
+            {dead ? ROW_TEXT.resumeSession : ROW_TEXT.reply}
+          </Button>
+        </div>
       )}
       <ContinueSheet
         open={open}
@@ -455,33 +477,36 @@ export interface OrphanThreadRowProps extends CommonProps {
 
 export function OrphanThreadRow({ thread, orphan, onSendMessage, attachSlot, laneName, className }: OrphanThreadRowProps) {
   const session = thread.sessions.find((s) => s.id === orphan.session_id)
+  const linked = Boolean(session && session.links.length > 0)
   return (
-    <Frame
-      thread={thread}
-      variant="orphan"
+    <RowShell
+      attrs={{ 'data-variant': 'orphan', 'data-thread': thread.id }}
       className={className}
       lead={<StatusIcon tone="warning" className="h-4 w-4" />}
+      title={<Title thread={thread} />}
+      action={orphan.kind === 'permission' || orphan.options.length === 0 ? <ReplyAction req={orphan} sessionId={orphan.session_id} dead onSendMessage={onSendMessage} /> : undefined}
       meta={
         <>
-          <span className="text-gray-300">Demande sans réponse</span>
+          <span className="text-amber-300">Demande restée sans réponse</span>
           <span>{laneName ?? thread.workspace}</span>
           {orphan.cli_stopped_at ? (
-            <RelativeTime date={orphan.cli_stopped_at} prefix="CLI arrêté depuis " />
+            <RelativeTime date={orphan.cli_stopped_at} prefix="conversation arrêtée depuis " />
           ) : (
-            <span>CLI arrêté (date inconnue)</span>
+            <span>conversation arrêtée</span>
           )}
         </>
       }
     >
       <RequestText req={orphan} />
-      <p data-testid="provenance" className={`mt-2 ${provenanceText}`}>
-        {session && session.links.length > 0
-          ? session.links.map((l) => linkProvenance(l, thread)).join(' · ')
-          : ROW_TEXT.noThread}
+      {/* A question with options: the options ARE the action, they cannot sit at the right of the title. */}
+      {orphan.kind === 'question' && orphan.options.length > 0 && (
+        <ReplyAction req={orphan} sessionId={orphan.session_id} dead onSendMessage={onSendMessage} />
+      )}
+      <p data-testid="provenance" className="sr-only">
+        {linked && session ? session.links.map((l) => linkProvenance(l, thread)).join(' · ') : ROW_TEXT.noThread}
       </p>
-      {attachSlot && !(session && session.links.length > 0) && <div className="mt-1">{attachSlot}</div>}
-      <ReplyAction req={orphan} sessionId={orphan.session_id} dead onSendMessage={onSendMessage} />
-    </Frame>
+      {attachSlot && !linked && <div className="mt-1">{attachSlot}</div>}
+    </RowShell>
   )
 }
 
@@ -496,37 +521,31 @@ export interface UnattachedThreadRowProps extends CommonProps {
 export function UnattachedThreadRow({ session, onSendMessage, attachSlot, laneName, className = '' }: UnattachedThreadRowProps) {
   const dead = session.state === 'dead'
   return (
-    <li
-      data-variant="unattached"
-      data-session={session.id}
-      className={`flex min-w-0 flex-col gap-1 py-3 ${className}`}
+    <RowShell
+      attrs={{ 'data-variant': 'unattached', 'data-session': session.id }}
+      className={className}
+      lead={<StatusIcon tone={dead ? 'warning' : 'info'} className="h-4 w-4" />}
+      title={<span className={`flex-1 ${titleClass}`}>{session.title}</span>}
+      action={attachSlot}
+      meta={
+        <>
+          <span data-testid="no-thread-label" className="text-gray-300">
+            {ROW_TEXT.noThread}
+          </span>
+          <span>{laneName ?? session.workspace_slug}</span>
+          <span className="tabular-nums">
+            {dead ? 'arrêtée' : 'en cours'} depuis {formatDurationMs(session.age_secs * 1000)}
+          </span>
+        </>
+      }
     >
-      <div className="flex min-w-0 items-start gap-2">
-        <span className="mt-[15px] flex w-4 shrink-0 items-center justify-center">
-          <StatusIcon tone={dead ? 'warning' : 'info'} className="h-4 w-4" />
-        </span>
-        <div className="flex min-w-0 flex-1 flex-col">
-          <span className="inline-flex min-h-9 min-w-0 items-center break-words text-sm text-gray-200">{session.title}</span>
-          <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${metaText}`}>
-            <span data-testid="no-thread-label" className="text-gray-300">
-              {ROW_TEXT.noThread}
-            </span>
-            <span>{laneName ?? session.workspace_slug}</span>
-            <span>{dead ? 'session arrêtée' : 'session vivante'}</span>
-            <span className="tabular-nums">depuis {formatDurationMs(session.age_secs * 1000)}</span>
-          </div>
+      {session.pending.map((req) => (
+        <div key={req.request_id} data-request={req.request_id}>
+          <RequestText req={req} />
+          <ReplyAction req={req} sessionId={session.id} dead={dead} onSendMessage={onSendMessage} />
         </div>
-      </div>
-      <div className="min-w-0 pl-6">
-        {attachSlot && <div className="mt-1">{attachSlot}</div>}
-        {session.pending.map((req) => (
-          <div key={req.request_id} data-request={req.request_id}>
-            <RequestText req={req} />
-            <ReplyAction req={req} sessionId={session.id} dead={dead} onSendMessage={onSendMessage} />
-          </div>
-        ))}
-      </div>
-    </li>
+      ))}
+    </RowShell>
   )
 }
 
