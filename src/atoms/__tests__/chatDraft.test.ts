@@ -6,6 +6,7 @@ import {
   chatDraftInputAtom,
   chatDraftsMapAtom,
   chatSessionIdAtom,
+  clearChatDraftsAtom,
   draftKeyFor,
   moveChatDraftAtom,
 } from '@/atoms/chat'
@@ -133,5 +134,36 @@ describe('the composer draft is per conversation and persisted', () => {
     expect(map['conv-6']).toBeUndefined() // the oldest left after conv-5 was refreshed
     expect(map['conv-5']).toBe('edited')
     expect(map['conv-new']).toBe('one more')
+  })
+  it('ignores a stored value that is not a map of strings, instead of throwing', async () => {
+    for (const bad of ['null', '[]', '"text"', '42', '{"conv-a": 7, "conv-b": {"x": 1}, "conv-c": "kept"}']) {
+      localStorage.setItem(STORAGE_KEY, bad)
+      const page = await reloadPage()
+      page.store.set(page.chatSessionIdAtom, 'conv-a')
+      expect(page.store.get(page.chatDraftInputAtom)).toBe('')
+      page.store.set(page.chatSessionIdAtom, 'conv-c')
+      expect(page.store.get(page.chatDraftInputAtom)).toBe(bad.includes('kept') ? 'kept' : '')
+
+      // Typing still works, and what is written back is a clean map.
+      page.store.set(page.chatSessionIdAtom, 'conv-a')
+      page.store.set(page.chatDraftInputAtom, 'typed')
+      expect(stored()['conv-a']).toBe('typed')
+      expect(Object.values(stored()).every((v) => typeof v === 'string')).toBe(true)
+    }
+  })
+
+  it('forgets every draft on sign-out, in memory and in storage', () => {
+    const store = createStore()
+    store.set(chatSessionIdAtom, 'conv-a')
+    store.set(chatDraftInputAtom, 'private, unsent')
+    store.set(chatSessionIdAtom, null)
+    store.set(chatDraftInputAtom, 'unsent first message')
+
+    store.set(clearChatDraftsAtom)
+
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+    expect(store.get(chatDraftInputAtom)).toBe('')
+    store.set(chatSessionIdAtom, 'conv-a')
+    expect(store.get(chatDraftInputAtom)).toBe('')
   })
 })

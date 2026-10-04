@@ -1,5 +1,5 @@
 import { atom } from 'jotai'
-import { atomWithStorage } from 'jotai/utils'
+import { atomWithStorage, RESET } from 'jotai/utils'
 import type { BackgroundTaskInfo, ChatPanelMode, PermissionConfig, PermissionMode, Project, WsConnectionStatus } from '@/types'
 import type { QueuedMessage } from '@/components/chat/messageQueue'
 import type { Attachment } from '@/components/chat/attachmentState'
@@ -66,6 +66,21 @@ export const chatDraftsMapAtom = atomWithStorage<Record<string, string>>('chat-d
   getOnInit: true,
 })
 
+/**
+ * The stored drafts, whatever storage holds. localStorage is outside our
+ * control (another version of the app, a hand edit, an extension): anything
+ * that is not a plain object of strings is ignored rather than trusted — a
+ * `null` there would otherwise throw on every render of the composer.
+ */
+function readDrafts(value: unknown): Record<string, string> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {}
+  const drafts: Record<string, string> = {}
+  for (const [key, text] of Object.entries(value)) {
+    if (typeof text === 'string' && text !== '') drafts[key] = text
+  }
+  return drafts
+}
+
 /** `map` with `key` set to `text` — removed when empty, most recent last, capped. */
 function withDraft(map: Record<string, string>, key: string, text: string): Record<string, string> {
   if ((map[key] ?? '') === text) return map
@@ -93,10 +108,10 @@ function withDraft(map: Record<string, string>, key: string, text: string): Reco
  * app, copied to storage only when switching conversation: a reload lost it.
  */
 export const chatDraftInputAtom = atom(
-  (get) => get(chatDraftsMapAtom)[draftKeyFor(get(chatSessionIdAtom))] ?? '',
+  (get) => readDrafts(get(chatDraftsMapAtom))[draftKeyFor(get(chatSessionIdAtom))] ?? '',
   (get, set, next: string | ((prev: string) => string)) => {
     const key = draftKeyFor(get(chatSessionIdAtom))
-    const map = get(chatDraftsMapAtom)
+    const map = readDrafts(get(chatDraftsMapAtom))
     const text = typeof next === 'function' ? next(map[key] ?? '') : next
     set(chatDraftsMapAtom, withDraft(map, key, text))
   },
@@ -110,11 +125,20 @@ export const chatDraftInputAtom = atom(
  */
 export const moveChatDraftAtom = atom(null, (get, set, { from, to }: { from: string; to: string }) => {
   if (from === to) return
-  const map = get(chatDraftsMapAtom)
+  const map = readDrafts(get(chatDraftsMapAtom))
   const text = map[from]
   if (text === undefined) return
   const withoutSource = withDraft(map, from, '')
   set(chatDraftsMapAtom, map[to] ? withoutSource : withDraft(withoutSource, to, text))
+})
+
+/**
+ * Forget every draft, in memory and in storage. For an explicit sign-out:
+ * unsent text is the user's, and must not greet whoever signs in next on the
+ * same browser. A session that merely expired keeps its drafts.
+ */
+export const clearChatDraftsAtom = atom(null, (_get, set) => {
+  set(chatDraftsMapAtom, RESET)
 })
 
 /** Selected project for new conversations (survives layout switches & new-session) */
