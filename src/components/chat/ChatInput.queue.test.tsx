@@ -150,4 +150,84 @@ describe('ChatInput — message queue', () => {
     await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
     expect(screen.getByText('later')).toBeTruthy()
   })
+
+  // ── A queue belongs to its conversation ──────────────────────────────────
+  // Reported bug: queue a message in conversation A, switch to conversation B
+  // before it leaves — it was sent in B.
+
+  /** One composer whose conversation and streaming state the test drives, like ChatPanel does. */
+  function mountIn(sessionId: string | null, isStreaming: boolean) {
+    const ui = (sid: string | null, streaming: boolean) => (
+      <Provider store={store}>
+        <ChatInput onSend={(t, a) => onSend(sid, t, a)} onInterrupt={() => {}} isStreaming={streaming} sessionId={sid} />
+      </Provider>
+    )
+    const view = render(ui(sessionId, isStreaming))
+    return { show: (sid: string | null, streaming: boolean) => view.rerender(ui(sid, streaming)) }
+  }
+
+  it('never sends a queued message in the conversation the user switched to', async () => {
+    const { show } = mountIn('conversation-a', true)
+    compose('for A only')
+    await screen.findByTestId('message-queue')
+
+    // Conversation B is idle: exactly the state in which a queue flushes.
+    show('conversation-b', false)
+    await waitFor(() => expect(screen.queryByTestId('message-queue')).toBeNull())
+    await new Promise((r) => setTimeout(r, 50))
+    expect(onSend).not.toHaveBeenCalled()
+  })
+
+  it('keeps the queue with its conversation and sends it there once the user is back', async () => {
+    const { show } = mountIn('conversation-a', true)
+    compose('for A only')
+    await screen.findByTestId('message-queue')
+
+    show('conversation-b', false)
+    await waitFor(() => expect(screen.queryByTestId('message-queue')).toBeNull())
+
+    // Back in A while it still answers: the message is there, waiting.
+    show('conversation-a', true)
+    expect(await screen.findByText('for A only')).toBeTruthy()
+    expect(onSend).not.toHaveBeenCalled()
+
+    show('conversation-a', false)
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('conversation-a', 'for A only', undefined))
+    expect(onSend).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not flush while the conversation is still loading: it may be answering', async () => {
+    // Opening a conversation resets `isStreaming` to false until its replay
+    // says otherwise. Flushing in that window would send mid-response.
+    const { chatReplayingAtom } = await import('@/atoms')
+    const { show } = mountIn('conversation-a', true)
+    compose('wait for the replay')
+    await screen.findByTestId('message-queue')
+    show('conversation-b', false)
+
+    store.set(chatReplayingAtom, true)
+    show('conversation-a', false)
+    await new Promise((r) => setTimeout(r, 50))
+    expect(onSend).not.toHaveBeenCalled()
+
+    store.set(chatReplayingAtom, false)
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('conversation-a', 'wait for the replay', undefined))
+  })
+
+  it('carries the queue of a new conversation over to the id it receives', async () => {
+    // First message of a new conversation: the id arrives while the response
+    // already streams. What was queued meanwhile follows the conversation.
+    const { moveChatQueueAtom, NEW_CONVERSATION_DRAFT_KEY } = await import('@/atoms/chat')
+    const { show } = mountIn(null, true)
+    compose('second thought')
+    await screen.findByTestId('message-queue')
+
+    store.set(moveChatQueueAtom, { from: NEW_CONVERSATION_DRAFT_KEY, to: 'fresh-id' })
+    show('fresh-id', true)
+    expect(await screen.findByText('second thought')).toBeTruthy()
+
+    show('fresh-id', false)
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('fresh-id', 'second thought', undefined))
+  })
+
 })

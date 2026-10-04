@@ -1,7 +1,7 @@
 import { splitAttachments } from '@/utils/messageAttachments'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useSetAtom, useStore } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom } from '@/atoms'
 import { chatApi, ChatWebSocket } from '@/services'
 import type { ChatMessage, ChatEvent, PermissionMode } from '@/types'
 import {
@@ -216,6 +216,7 @@ export function useChat() {
   const store = useStore()
   const setDraftsMap = useSetAtom(chatDraftsMapAtom)
   const moveDraft = useSetAtom(moveChatDraftAtom)
+  const moveQueue = useSetAtom(moveChatQueueAtom)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const wsRef = useRef<ChatWebSocket | null>(null)
@@ -1769,6 +1770,8 @@ export function useChat() {
         isFirstSendRef.current = true
         // What was typed while the id was on its way follows the conversation.
         moveDraft({ from: NEW_CONVERSATION_DRAFT_KEY, to: response.session_id })
+        // So does what was queued behind this first message.
+        moveQueue({ from: NEW_CONVERSATION_DRAFT_KEY, to: response.session_id })
         setSessionId(response.session_id)
         // Populate session metadata from the options used to create the session
         if (options) {
@@ -1792,7 +1795,7 @@ export function useChat() {
         pendingSendRef.current.push({ text, attachments })
       }
     }
-  }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride, setDraftsMap, moveDraft, store])
+  }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride, setDraftsMap, moveDraft, moveQueue, store])
 
   /**
    * Send "Continue" after max_turns — adds a discreet inline indicator instead of a user bubble.
