@@ -102,7 +102,7 @@ export function linkProvenance(link: SessionLink, thread?: AttentionThread): str
     case 'spawned_by_json': {
       // Neutral: the contract gives `via` + ids only. Whether a run is the current
       // one is the backend's to say, never inferred here (requirement 07909b4a).
-      const who = link.via === 'runner_run' ? 'rattachée au run' : 'créée par le run'
+      const who = link.via === 'runner_run' ? 'rattachée à l’exécution' : 'créée par l’exécution'
       return link.run_id ? `${who} ${shortId(link.run_id)}` : who
     }
     case 'task_association':

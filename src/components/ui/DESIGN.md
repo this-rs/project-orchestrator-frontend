@@ -33,6 +33,14 @@ by hand in a page: `<PageShell title={NOMENCLATURE.plans.plural}>`.
   The breadcrumb starts at the workspace (`<workspace> / Plans / …`; the lane view
   `/workspace/:slug/today` reads `<workspace>`); on `/today` it is empty, the page
   names itself. `/` opens Today.
+- **Today's own layout.** Today is a dashboard, not a list page: it has no `PageShell` title bar.
+  Its header says the day in ONE sentence in large type (`headline`, `components/today/startHere.ts`),
+  holds the workspace filter and four counters that are the anchors of the sections. Below, the left
+  column is what depends on the user (requests, work to resume, their tasks in ONE tabbed block), the
+  right column what advances alone (plans, assistants, things to read). The columns follow the
+  container (`@container/today`), never a window breakpoint. Height is a budget: one line per task or
+  assistant, a list is cut at six rows with "Afficher les N", details sit behind a fold, and a plan's
+  state is one segmented bar plus words (`PlanStateBar`), never a legend to decode.
 - **Attention badge**: the count of band 1 (waiting on you) is shown on every
   Today entry (the header icon) by `<AttentionBadge>`,
   read from `attentionCountAtom`. ONE source feeds it (`useAttentionCountSource`,

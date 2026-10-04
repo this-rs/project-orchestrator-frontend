@@ -1,6 +1,6 @@
 /**
- * TodayPage — the day's view across workspaces: summary, "Commence par ça", four sections,
- * workspace chips, and the loading / empty / error states of each section. Data: the shared contract fixtures, through the real
+ * TodayPage — the day's view across workspaces: the header (the day in one sentence, the workspace
+ * filter, four counters), four sections, and the loading / empty / error states of each section. Data: the shared contract fixtures, through the real
  * `useAttention` (only the HTTP layer is mocked).
  */
 import { readFileSync } from 'node:fs'
@@ -57,7 +57,7 @@ function setViewport(width: number) {
 import { TodayPage, DAY_REGION } from '../TodayPage'
 import { BAND_TEXT, SECTION_ORDER, TODAY_TEXT, buildBands, shownPlanIds } from '@/components/today/bands'
 import { DISCUSSIONS_TEXT } from '@/components/today/PlanRunRow'
-import { START_TEXT } from '@/components/today/TodayView'
+import { ROW_TEXT } from '@/components/today/ThreadRow'
 
 const DIR = join(__dirname, '../../services/__fixtures__/attention')
 const fixture = (name: string): AttentionResponse => JSON.parse(readFileSync(join(DIR, `${name}.json`), 'utf8'))
@@ -140,9 +140,12 @@ describe('TodayPage: structure', () => {
   it('the title is short, and no visible text keeps the former jargon', async () => {
     get.mockResolvedValue(fixture('four_bands'))
     renderPage()
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe("Aujourd'hui")
+    // The h1 names the page and the date; the day itself is said by the headline under it.
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toMatch(/^Aujourd'hui · \S+ \d{1,2} \S+$/)
     await waitFor(() => expect(band('waiting').getAttribute('data-state')).toBe('ready'))
     expect(document.body.textContent).not.toMatch(/T['’]attend|Tourne|Coincé|Pensée/i) // (fixture titles are data, not interface)
+    // nor the engineer's words: the page speaks of assistants, conversations and plans
+    expect(document.body.textContent).not.toMatch(/sans fil|\bCLI\b|\brunner\b|agent vivant|\brun\b/i)
     expect(screen.queryByText(/What is moving/)).toBeNull()
   })
 
@@ -172,7 +175,7 @@ describe('TodayPage: states', () => {
     let resolve!: (v: unknown) => void
     get.mockReturnValue(new Promise((r) => (resolve = r)))
     renderPage()
-    expect(screen.getByRole('region', { name: START_TEXT.title }).getAttribute('data-start')).toBe('loading')
+    expect(screen.getByTestId('today-header').getAttribute('data-start')).toBe('loading')
     for (const b of ['waiting', 'running', 'stuck', 'thinking'] as const) {
       expect(band(b).getAttribute('data-state')).toBe('loading')
       expect(within(band(b)).getAllByRole('status').length).toBeGreaterThan(0)
@@ -261,7 +264,7 @@ describe('TodayPage: plans, workspaces and sessions without a thread', () => {
     expect(band('running').querySelectorAll('[data-lane]').length).toBe(0) // the workspace is not the axis
     for (const row of rows) {
       expect(within(row as HTMLElement).getByTestId('lane-label').textContent).toBeTruthy()
-      expect(within(row as HTMLElement).queryByTestId('progress-text')?.textContent ?? '0/0 faites').toMatch(/^\d+\/\d+ faites$/)
+      expect(within(row as HTMLElement).queryByTestId('progress-text')?.textContent ?? '0/0').toMatch(/^\d+\/\d+$/)
     }
   })
 
@@ -275,7 +278,7 @@ describe('TodayPage: plans, workspaces and sessions without a thread', () => {
     expect(band('stuck').querySelectorAll('h3').length).toBe(0)
   })
 
-  it('unattached sessions are shown in their lane, labelled "sans fil", with their pending requests', async () => {
+  it('unattached sessions are shown in their lane, labelled as free conversations, with their pending requests', async () => {
     const data = fixture('unattached_waiting')
     get.mockResolvedValue(data)
     renderPage()
@@ -284,7 +287,7 @@ describe('TodayPage: plans, workspaces and sessions without a thread', () => {
     await waitFor(() => expect(hasText(live[0].pending[0].text)).toBe(true))
     // live + pending => band 1, every one of them
     for (const u of live) for (const r of u.pending) expect(within(band('waiting')).getAllByText(snippet(r.text), { exact: false }).length).toBeGreaterThan(0)
-    expect(within(band('waiting')).getAllByText(/sans fil/i).length).toBeGreaterThanOrEqual(live.length)
+    expect(within(band('waiting')).getAllByText(/Conversation libre/).length).toBeGreaterThanOrEqual(live.length)
     // dead => band 3, labelled, never lost
     for (const u of dead) expect(within(band('stuck')).getByText(u.title)).toBeTruthy()
     expect(within(band('stuck')).getAllByTestId('no-thread-label').length).toBe(dead.length)
@@ -366,7 +369,7 @@ describe('TodayPage: lane filter in the URL', () => {
     renderPage('/workspace/acme-freelance/today')
     await waitFor(() => expect(get).toHaveBeenCalled())
     expect(screen.getByText(TODAY_TEXT.laneNote('Acme'))).toBeTruthy()
-    expect(screen.getByText(/La pastille de la barre compte tous les workspaces/)).toBeTruthy()
+    expect(screen.getByText(/La pastille de la barre compte tous les espaces/)).toBeTruthy()
   })
 
   it('narrowing on /today is reflected in the query string and widening clears it', async () => {
@@ -423,15 +426,18 @@ describe.each([360, 1440])('TodayPage: the %ipx rendering of every contract fixt
         .filter((l) => !PAGE_REGIONS.includes(l ?? ''))
       const bandLabels = labels.filter((l) => Object.values(BAND_TEXT).some((t) => t.title === l))
       expect(bandLabels.slice(0, 4)).toEqual(SECTION_ORDER.map((b) => BAND_TEXT[b].title))
-      // "Commence par ça" comes first, before the sections
-      expect(labels[0]).toBe(START_TEXT.title)
+      // The header (the day in one sentence) comes first, before the sections
+      const header = screen.getByTestId('today-header')
+      expect(header.compareDocumentPosition(band('waiting')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     }
     const root = document.body
-    // A phone is one column; the two-column grid is opt-in at the lg breakpoint only.
+    // One column by default; two columns are opt-in from a wide CONTAINER (not a window breakpoint:
+    // the chat panel, once open, takes its width from the content).
     const grid = root.querySelector('[data-testid="sections"]')
     if (grid && !isEmpty) {
       expect(grid.className).toContain('grid-cols-1')
-      expect(grid.className).toContain('lg:grid-cols-2')
+      expect(grid.className).toMatch(/@4xl\/today:grid-cols-/)
+      expect(grid.className).not.toMatch(/(^|\s)(sm|md|lg|xl):grid-cols-/)
     }
     // Nothing forces a width wider than the viewport, nothing scrolls sideways.
     for (const el of root.querySelectorAll<HTMLElement>('*')) {
@@ -455,7 +461,7 @@ describe('TodayPage: no entrance animation', () => {
 })
 
 describe('TodayPage: a dead free session with a pending request', () => {
-  it('has no Autoriser/Refuser in "À traiter" and is reachable through "Reprendre la session" in "À reprendre"', async () => {
+  it('has no Autoriser/Refuser in "À traiter" and is reachable through "Reprendre la conversation" in "À reprendre"', async () => {
     const base = fixture('unattached_waiting')
     const live = base.unattached.find((u) => u.state === 'live' && u.pending.length > 0)!
     const dead = {
@@ -468,7 +474,7 @@ describe('TodayPage: a dead free session with a pending request', () => {
     get.mockResolvedValue({ ...base, waiting: [], unattached: [dead] })
     renderPage('/today')
     const stuck = await screen.findByRole('region', { name: BAND_TEXT.stuck.title })
-    expect(within(stuck).getByRole('button', { name: 'Reprendre la session' })).toBeTruthy()
+    expect(within(stuck).getByRole('button', { name: ROW_TEXT.resumeSession })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Autoriser' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Refuser' })).toBeNull()
     expect(screen.queryByTestId('attention-card')).toBeNull()
@@ -476,15 +482,17 @@ describe('TodayPage: a dead free session with a pending request', () => {
 })
 
 describe('TodayPage: the day, in order', () => {
-  it('one column on a phone in the order À traiter, À reprendre, En cours, À suivre; two columns from 1024 px', async () => {
+  it('one column on a phone in the order À traiter, À reprendre, En cours, À lire; two columns from a wide container', async () => {
     get.mockResolvedValue(fixture('four_bands'))
     renderPage()
     await waitFor(() => expect(band('waiting').getAttribute('data-state')).toBe('ready'))
     const grid = screen.getByTestId('sections')
     expect(grid.className).toContain('grid-cols-1')
-    expect(grid.className).toContain('lg:grid-cols-2')
+    expect(grid.className).toMatch(/@4xl\/today:grid-cols-/)
+    // the columns follow the container, so the page root declares it
+    expect(grid.closest('[class*="@container/today"]')).toBeTruthy()
     // phone order = DOM order
-    expect(SECTION_ORDER.map((b) => BAND_TEXT[b].title)).toEqual(['À traiter', 'À reprendre', 'En cours', 'À suivre'])
+    expect(SECTION_ORDER.map((b) => BAND_TEXT[b].title)).toEqual(['À traiter', 'À reprendre', 'En cours', 'À lire'])
     const nodes = SECTION_ORDER.map((b) => band(b))
     for (let i = 1; i < nodes.length; i++) {
       expect(nodes[i - 1].compareDocumentPosition(nodes[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -508,7 +516,7 @@ describe('TodayPage: the day, in order', () => {
     await waitFor(() => expect(band('waiting').getAttribute('data-state')).toBe('ready'))
     const day = screen.getByRole('region', { name: DAY_REGION })
     const after = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
-    // DOM order (= phone order): À traiter, À reprendre, the day, En cours, À suivre
+    // DOM order (= phone order): À traiter, À reprendre, the day, En cours, À lire
     expect(after(band('waiting'), day)).toBe(true)
     expect(after(band('stuck'), day)).toBe(true)
     expect(after(day, band('running'))).toBe(true)
@@ -545,25 +553,27 @@ describe('TodayPage: the day, in order', () => {
     expect(screen.getByRole('region', { name: DAY_REGION })).toBeTruthy()
   })
 
-  it('"Commence par ça" comes before the sections and says why', async () => {
+  it('the header says the day in one sentence and why, before the sections, without copying a card', async () => {
     const data = fixture('four_bands')
     get.mockResolvedValue(data)
     renderPage()
-    await waitFor(() => expect(screen.getByRole('region', { name: START_TEXT.title }).getAttribute('data-start')).toBe('waiting'))
-    const start = screen.getByRole('region', { name: START_TEXT.title })
-    expect(screen.getByTestId('start-why').textContent).toMatch(/^Pourquoi : un agent vivant attend ta réponse depuis /)
-    // a POINTER to the oldest request, not a second copy of its card: the text and the
-    // Autoriser buttons exist ONCE on the page, in "À traiter"
+    await waitFor(() => expect(screen.getByTestId('today-header').getAttribute('data-start')).toBe('waiting'))
+    const header = screen.getByTestId('today-header')
+    expect(screen.getByTestId('start-title').textContent).toMatch(/^(Un assistant attend|\d+ assistants attendent) ta réponse$/)
+    expect(screen.getByTestId('start-why').textContent).toMatch(/^(Il attend|Le plus ancien attend) depuis /)
+    // the headline is NOT a second copy of the oldest request: its text and its Autoriser
+    // buttons exist ONCE on the page, in "À traiter"
     const oldest = [...data.waiting].sort((a, b) => b.age_secs - a.age_secs)[0]
-    expect(within(start).queryByText(snippet(oldest.text), { exact: false })).toBeNull()
-    expect(within(start).queryByRole('button', { name: 'Autoriser' })).toBeNull()
-    expect(within(start).getByRole('button', { name: /Voir en haut de « À traiter »/ })).toBeTruthy()
+    expect(within(header).queryByText(snippet(oldest.text), { exact: false })).toBeNull()
+    expect(within(header).queryByRole('button', { name: 'Autoriser' })).toBeNull()
     expect(screen.getAllByText(snippet(oldest.text), { exact: false })).toHaveLength(1)
     expect(screen.getAllByTestId('attention-card')).toHaveLength(data.waiting.length)
-    expect(start.compareDocumentPosition(band('waiting')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(header.compareDocumentPosition(band('waiting')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // the former "Commence par ça" pointer section is gone
+    expect(screen.queryByRole('region', { name: 'Commence par ça' })).toBeNull()
   })
 
-  it('with nothing to answer or resume, it says nothing blocks and how many threads advance alone', async () => {
+  it('with nothing to answer or resume, it says nothing blocks and how many plans advance alone', async () => {
     const data = fixture('four_bands')
     get.mockResolvedValue({
       ...data,
@@ -574,8 +584,8 @@ describe('TodayPage: the day, in order', () => {
       threads: data.threads.filter((t) => t.band === 'running'),
     })
     renderPage()
-    await waitFor(() => expect(screen.getByRole('region', { name: START_TEXT.title }).getAttribute('data-start')).toBe('calm'))
-    expect(screen.getByTestId('start-title').textContent).toMatch(/^Rien ne te bloque : \d+ (fil avance seul|fils avancent seuls)$/)
+    await waitFor(() => expect(screen.getByTestId('today-header').getAttribute('data-start')).toBe('calm'))
+    expect(screen.getByTestId('start-title').textContent).toMatch(/^Rien ne te bloque : \d+ (plan avance seul|plans avancent seuls)$/)
   })
 
   it('a failed source never lets it claim that nothing blocks', async () => {
@@ -590,17 +600,18 @@ describe('TodayPage: the day, in order', () => {
       source_errors: [{ source: 'chat', bands: ['waiting'], message: 'chat down' }],
     })
     renderPage()
-    await waitFor(() => expect(screen.getByRole('region', { name: START_TEXT.title }).getAttribute('data-start')).toBe('incomplete'))
+    await waitFor(() => expect(screen.getByTestId('today-header').getAttribute('data-start')).toBe('incomplete'))
+    expect(screen.getByTestId('start-title').textContent).not.toMatch(/Rien ne te bloque/)
   })
 
-  it('"À suivre" is folded by default with a discreet count, and its header counter opens it', async () => {
+  it('"À lire" is folded by default with a discreet count, and its header counter opens it', async () => {
     get.mockResolvedValue(fixture('four_bands'))
     renderPage()
-    await waitFor(() => expect(within(band('thinking')).getByRole('button', { name: /À suivre/ })).toBeTruthy())
-    const toggle = within(band('thinking')).getByRole('button', { name: /À suivre/ })
+    await waitFor(() => expect(within(band('thinking')).getByRole('button', { name: new RegExp(BAND_TEXT.thinking.title) })).toBeTruthy())
+    const toggle = within(band('thinking')).getByRole('button', { name: new RegExp(BAND_TEXT.thinking.title) })
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     expect(document.getElementById('today-thinking-body')!.hidden).toBe(true)
-    fireEvent.click(within(screen.getByRole('list', { name: TODAY_TEXT.summaryLabel })).getByRole('button', { name: /à suivre/ }))
+    fireEvent.click(within(screen.getByRole('list', { name: TODAY_TEXT.summaryLabel })).getByRole('button', { name: new RegExp(BAND_TEXT.thinking.summary) }))
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
   })
 
@@ -622,13 +633,15 @@ describe('TodayPage: the day, in order', () => {
       Element.prototype.scrollIntoView = original
     }
     expect(scrolled).toEqual(['today-waiting', 'today-running', 'today-stuck', 'today-thinking'])
-    // the summary reads in the SAME order as the sections: "2 à traiter · 1 à reprendre · 3 en cours · ..."
-    expect(screen.getByRole('list', { name: TODAY_TEXT.summaryLabel }).textContent!.replace(/\s+/g, ' ').trim()).toMatch(/^\d+ à traiter ?· ?\d+ à reprendre ?· ?\d+ en cours ?· ?\d+ à suivre$/)
+    // the counters read in the SAME order as the sections
+    const counters = [...screen.getByRole('list', { name: TODAY_TEXT.summaryLabel }).querySelectorAll('[data-counter]')]
+    expect(counters.map((c) => c.getAttribute('data-counter'))).toEqual([...SECTION_ORDER])
+    for (const c of counters) expect(c.textContent).toMatch(/^\d+/)
   })
 })
 
 describe('TodayPage: workspace chips', () => {
-  it('are a row of compact chips above the summary, not a big selector', async () => {
+  it('are one compact strip in the header, above the counters, not a big selector', async () => {
     get.mockResolvedValue(fixture('four_bands'))
     renderPage()
     await waitFor(() => expect(band('waiting').getAttribute('data-state')).toBe('ready'))
@@ -637,7 +650,8 @@ describe('TodayPage: workspace chips', () => {
     expect(within(chips).getByRole('button', { name: 'Tous' }).getAttribute('aria-pressed')).toBe('true')
     expect(screen.queryByRole('combobox')).toBeNull()
     expect(screen.queryByRole('button', { name: /filter/i })).toBeNull()
-    // The lane filters the whole page (the queue and the day): the chips sit above the one summary line.
+    // The lane filters the whole page (the queue and the day): the strip sits in the header, above the counters.
+    expect(screen.getByTestId('today-header').contains(chips)).toBe(true)
     const summary = screen.getByRole('list', { name: TODAY_TEXT.summaryLabel })
     expect(summary.compareDocumentPosition(chips) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
     for (const b of within(chips).getAllByRole('button')) expect(b.className).toContain('min-h-9')

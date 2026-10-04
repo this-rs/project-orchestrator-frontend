@@ -77,10 +77,10 @@ export function linkLabel(link: SessionLink, names: LinkNames = {}): string {
   const plan = link.plan_id ? (names.plans?.[link.plan_id] ?? shortId(link.plan_id)) : null
   switch (link.via) {
     case 'runner_run':
-      return run ? `rattaché au run ${run}` : 'rattaché à un run'
+      return run ? `rattaché à l’exécution ${run}` : 'rattaché à une exécution'
     case 'spawned_by_json':
-      if (run) return `lancé par le run ${run}`
-      return plan ? `lancé par le plan ${plan}` : 'lancé par le runner'
+      if (run) return `lancé par l’exécution ${run}`
+      return plan ? `lancé par le plan ${plan}` : 'lancé par un plan'
     case 'task_association':
       return task ? `rattaché à la tâche ${task}` : 'rattaché à une tâche'
     case 'plan_association':

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { ROW_TEXT } from '@/components/today/ThreadRow'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { Provider, createStore } from 'jotai'
@@ -231,25 +232,25 @@ describe('LinkedDiscussions — Rattacher à… groups by project when only the 
 describe('LinkedDiscussions — resume buttons', () => {
   const nodeOf = (title: string) => screen.getByText(title).closest('[style]')!.parentElement!
 
-  it('"Reprendre la session" only on a dead session with a pending request; sends a message, never an Autoriser', async () => {
+  it('"Reprendre la conversation" only on a dead session with a pending request; sends a message, never an Autoriser', async () => {
     setup({}, { deadPending: { dead: request } })
     await screen.findByText('Session morte')
-    expect(within(nodeOf('Session morte')).getByRole('button', { name: 'Reprendre la session' })).toBeTruthy()
-    expect(within(nodeOf('Discussion manuelle')).queryByRole('button', { name: 'Reprendre la session' })).toBeNull()
-    expect(within(nodeOf('Agent runner')).queryByRole('button', { name: 'Reprendre la session' })).toBeNull()
+    expect(within(nodeOf('Session morte')).getByRole('button', { name: ROW_TEXT.resumeSession })).toBeTruthy()
+    expect(within(nodeOf('Discussion manuelle')).queryByRole('button', { name: ROW_TEXT.resumeSession })).toBeNull()
+    expect(within(nodeOf('Agent runner')).queryByRole('button', { name: ROW_TEXT.resumeSession })).toBeNull()
     expect(screen.queryByRole('button', { name: /Autoriser/i })).toBeNull()
 
-    fireEvent.click(within(nodeOf('Session morte')).getByRole('button', { name: 'Reprendre la session' }))
+    fireEvent.click(within(nodeOf('Session morte')).getByRole('button', { name: ROW_TEXT.resumeSession }))
     const sheet = await screen.findByTestId('continue-sheet')
     expect(within(sheet).queryByRole('button', { name: /Autoriser/i })).toBeNull()
-    fireEvent.click(within(sheet).getAllByRole('button', { name: 'Reprendre la session' })[0])
+    fireEvent.click(within(sheet).getAllByRole('button', { name: ROW_TEXT.resumeSession })[0])
     await waitFor(() => expect(attention.sendMessage).toHaveBeenCalledWith('dead', 'Continue.'))
   })
 
   it('no resume button at all when nothing is unfinished', async () => {
     setup({ resume: { planId: 'plan1', run: { id: 'run1', status: 'completed' }, taskStatuses: { t1: 'completed' } } })
     await screen.findByText('Session morte')
-    for (const name of ['Reprendre la session', 'Reprendre le run', 'Relancer la tâche']) {
+    for (const name of [ROW_TEXT.resumeSession, 'Reprendre le run', 'Relancer la tâche']) {
       expect(screen.queryByRole('button', { name })).toBeNull()
     }
   })
@@ -309,7 +310,7 @@ describe('LinkedDiscussions — resume buttons', () => {
     expect(runner.retryTask).not.toHaveBeenCalled()
   })
 
-  it('a busy runner does not block "Reprendre la session" (a message needs no runner)', async () => {
+  it('a busy runner does not block "Reprendre la conversation" (a message needs no runner)', async () => {
     setup(
       {},
       {
@@ -318,7 +319,7 @@ describe('LinkedDiscussions — resume buttons', () => {
       },
     )
     await screen.findByText('Session morte')
-    const b = within(nodeOf('Session morte')).getByRole('button', { name: 'Reprendre la session' }) as HTMLButtonElement
+    const b = within(nodeOf('Session morte')).getByRole('button', { name: ROW_TEXT.resumeSession }) as HTMLButtonElement
     expect(b.disabled).toBe(false)
   })
 })

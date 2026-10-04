@@ -5,6 +5,7 @@ import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { parseAttentionResponse } from '@/services/attention'
 import type { AttentionResponse } from '@/types/attention'
+import { BAND_TEXT } from '../bands'
 import { DISCUSSIONS_TEXT } from '../PlanRunRow'
 import { TodayView, type TodaySource } from '../TodayView'
 
@@ -73,10 +74,10 @@ describe('TodayView: the discussions slot of "En cours"', () => {
 
 describe('TodayView: an empty section is one soft line', () => {
   it.each([
-    ['waiting', 'Rien à traiter'],
-    ['stuck', 'Rien à reprendre'],
-    ['thinking', 'Rien à suivre'],
-    ['running', 'Rien en cours'],
+    ['waiting', BAND_TEXT.waiting.empty],
+    ['stuck', BAND_TEXT.stuck.empty],
+    ['thinking', BAND_TEXT.thinking.empty],
+    ['running', BAND_TEXT.running.empty],
   ] as const)('%s says "%s" and stays on the page', (b, text) => {
     const data = fixture('four_bands')
     const emptied: AttentionResponse = {
@@ -88,7 +89,7 @@ describe('TodayView: an empty section is one soft line', () => {
       threads: data.threads.filter((t) => (b === 'running' ? t.band !== 'running' : b === 'stuck' ? t.band !== 'stuck' : true)),
     }
     view(emptied)
-    const title = { waiting: 'À traiter', stuck: 'À reprendre', thinking: 'À suivre', running: 'En cours' }[b]
+    const title = BAND_TEXT[b].title
     const section = screen.getByRole('region', { name: title })
     expect(within(section).getByText(text)).toBeTruthy()
     expect(section.querySelectorAll('li, a').length).toBe(0)
@@ -98,19 +99,18 @@ describe('TodayView: an empty section is one soft line', () => {
 describe('TodayView: the live agents slot', () => {
   const data = fixture('four_bands')
 
-  it('heads the right column, above "En cours", and never above the queue', () => {
-    view(data, { liveSlot: <section aria-label="Agents en cours" data-testid="live" /> })
+  it('sits in the right column, under the plans that run, and never above the queue', () => {
+    view(data, { liveSlot: <section aria-label="Assistants en cours" data-testid="live" /> })
     const side = screen.getByTestId('sections-side')
     const live = screen.getByTestId('live')
     expect(side.contains(live)).toBe(true)
-    // first thing in the column
-    expect(side.firstElementChild).toBe(live)
     // after the queue in DOM order (= phone order): "À traiter" comes first
     const queue = screen.getByRole('region', { name: 'À traiter' })
     expect(queue.compareDocumentPosition(live) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    // and before "En cours"
+    // the plans that run (what advances) come first in the column, then who works on them
     const running = screen.getByRole('region', { name: 'En cours' })
-    expect(live.compareDocumentPosition(running) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(side.firstElementChild).toBe(running)
+    expect(running.compareDocumentPosition(live) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('draws nothing extra when no slot is given', () => {
