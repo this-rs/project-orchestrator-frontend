@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useAtom, useAtomValue, useStore } from 'jotai'
-import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom, chatMessageQueuesAtom, chatReplayingAtom, draftKeyFor, withQueue, modelCatalogAtom, modelCatalogLoadedAtom } from '@/atoms'
+import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom, chatMessageQueuesAtom, draftKeyFor, modelCatalogAtom, modelCatalogLoadedAtom } from '@/atoms'
 import { DEFAULT_MODEL_ID, getModelShortLabel, getModelDotColor, groupModelsByFamily } from '@/constants/models'
 import { chatApi } from '@/services/chat'
 import { documentsApi } from '@/services/documents'
@@ -13,17 +13,7 @@ import type { RunningItem } from './runningActivity'
 import { ModelFamilyPicker, type ModelSelectOptions } from './ModelFamilyPicker'
 import { deriveInputAction, describeAction } from './inputAction'
 import { MessageQueueBar } from './MessageQueueBar'
-import {
-  QUEUE_POLICY,
-  shouldEnqueue,
-  enqueue,
-  removeFromQueue,
-  editInQueue,
-  takeById,
-  prioritize,
-  takeHead,
-  type QueuedMessage,
-} from './messageQueue'
+import { shouldEnqueue, type QueueOp, type QueuedMessage } from './messageQueue'
 import { Attachments } from './Attachments'
 import {
   addAttachment,
@@ -79,6 +69,14 @@ interface ChatInputProps {
    * id for an upload still in flight. `attachmentState.ts` is what guarantees it.
    */
   onSend: (text: string, attachmentIds?: string[]) => void
+  /**
+   * Queue a message behind the running response instead of sending it now.
+   * The session holds it and delivers it when the turn ends — the server does,
+   * not this component (`useChat.queueMessage`).
+   */
+  onQueue: (text: string, attachmentIds?: string[]) => void
+  /** Edit, drop, move to the front or send now one queued message (`useChat.queueOp`). */
+  onQueueOp: (action: QueueOp) => void
   onInterrupt: () => void
   isStreaming: boolean
   disabled?: boolean
@@ -104,7 +102,7 @@ const NO_QUEUE: QueuedMessage[] = []
 /** A stable "nothing runs", so an absent prop does not re-render the bar. */
 const NO_ACTIVITY: ReadonlyArray<RunningItem> = []
 
-export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStreaming, disabled, sessionId, onChangePermissionMode, onChangeModel, onChangeAutoContinue, prefill, activity = NO_ACTIVITY, runActions }: ChatInputProps) {
+export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, onInterrupt, isStreaming, disabled, sessionId, onChangePermissionMode, onChangeModel, onChangeAutoContinue, prefill, activity = NO_ACTIVITY, runActions }: ChatInputProps) {
   const [value, setValue] = useAtom(chatDraftInputAtom)
   const isMobile = useIsMobile()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -120,32 +118,16 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
   const [modeJustChanged, setModeJustChanged] = useState(false)
   const [modelJustChanged, setModelJustChanged] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
-  // The queue of THIS composer's conversation, and of no other. Keyed by the
-  // `sessionId` prop — the same value `onSend` is bound to — so what is shown,
-  // what is flushed and where it is sent can never disagree, not even for the
-  // one render in which the conversation changes.
-  const queueKey = draftKeyFor(sessionId)
-  const queues = useAtomValue(chatMessageQueuesAtom)
-  const queue = queues[queueKey] ?? NO_QUEUE
-  const isReplaying = useAtomValue(chatReplayingAtom)
-  const prevStreamingRef = useRef(isStreaming)
+  // The queued messages of THIS composer's conversation — read only. The
+  // session holds them and delivers them (`chat/pending_queue.rs`); this
+  // component shows the list and forwards the user's actions on it.
+  const queue = useAtomValue(chatMessageQueuesAtom)[draftKeyFor(sessionId)] ?? NO_QUEUE
   const prevSessionIdRef = useRef(sessionId)
-  /** "One message per turn" latch of the auto-flush — explained where it is used. */
-  const flushArmedRef = useRef(true)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const modelDropdownRef = useRef<HTMLDivElement>(null)
 
   // --- Attachments ---
   const store = useStore()
-  /** Write the queue of this composer's conversation. Reads the latest map, so updates never go stale. */
-  const setQueue = useCallback(
-    (next: QueuedMessage[] | ((prev: QueuedMessage[]) => QueuedMessage[])) => {
-      const all = store.get(chatMessageQueuesAtom)
-      const prev = all[queueKey] ?? NO_QUEUE
-      store.set(chatMessageQueuesAtom, withQueue(all, queueKey, typeof next === 'function' ? next(prev) : next))
-    },
-    [store, queueKey],
-  )
   const attachments = useAtomValue(chatAttachmentsAtom)
   const deferredSend = useAtomValue(chatAttachmentDeferredSendAtom)
   const selectedProject = useAtomValue(chatSelectedProjectAtom)
@@ -271,11 +253,6 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     onInterrupt()
   }, [isStopping, onInterrupt])
 
-  const newQueueId = () =>
-    typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? crypto.randomUUID()
-      : `q-${Date.now()}-${Math.random().toString(36).slice(2)}`
-
   // ── Attachments ───────────────────────────────────────────────────────
   //
   // Everything below reads the attachment list through `store.get` rather
@@ -325,7 +302,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
         dispatchSend(text, list)
         return
       }
-      setQueue((q) => enqueue(q, text, newQueueId(), Date.now(), readyDocumentIds(list)))
+      onQueue(text, readyDocumentIds(list))
       // The queued message took the composer's contents with it — text,
       // attachments and any held send: it starts clean for the next one.
       setValue('')
@@ -333,7 +310,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
       store.set(chatAttachmentDeferredSendAtom, false)
       uploadsRef.current.clear()
     },
-    [isStreaming, dispatchSend, setQueue, setValue, store],
+    [isStreaming, dispatchSend, onQueue, setValue, store],
   )
 
   /**
@@ -492,11 +469,8 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
   // attached for session A must never ride along to session B. Compared
   // against a ref rather than firing on mount, because ChatInput remounts when
   // the panel switches layout and that must not wipe an upload in progress.
-  // The pending queue is NOT wiped here: it is keyed by conversation
-  // (`chatMessageQueuesAtom`) and simply stays with the one it was composed
-  // for. Wiping it from this effect is what used to leak it: the auto-flush
-  // effect below ran in the same commit with the previous conversation's
-  // queue still in hand, and sent it in the new one.
+  // The queued messages are not touched here: they belong to their
+  // conversation and the session holds them (`chatMessageQueuesAtom`).
   //
   // Compared against a ref rather than firing on mount: `ChatInput` remounts
   // when the panel switches layout, and that must not wipe an upload in flight.
@@ -509,9 +483,6 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     uploadsRef.current.clear()
     store.set(chatAttachmentsAtom, [])
     store.set(chatAttachmentDeferredSendAtom, false)
-    // Another conversation, another turn: its queue may be stranded from a
-    // previous visit, so it must be allowed to drain (see the latch below).
-    flushArmedRef.current = true
   }, [sessionId, store])
 
   const handleSend = () => {
@@ -553,92 +524,22 @@ export const ChatInput = memo(function ChatInput({ onSend, onInterrupt, isStream
     summary: summarize(attachments),
   })
 
-  // Auto-flush: one message per finished turn, oldest first.
-  //
-  // Expressed as an INVARIANT ("idle with a non-empty queue must not last"),
-  // not as an edge detector. It used to fire only on the streaming
-  // true -> false transition, which strands the queue for good whenever that
-  // single edge is missed — and it is missed every time `ChatInput` remounts
-  // (layout switch, Fast Refresh), because the comparison ref is then
-  // re-initialised to the current value and the transition has already
-  // happened. The message sat in the queue forever with nothing to say so.
-  // Asserting the invariant instead is self-healing: on the next render after
-  // any such miss, the queue drains.
-  //
-  // `flushArmedRef` is what keeps "one message per turn". It is armed when a
-  // response STARTS (and at mount, so a stranded queue heals) and disarmed by
-  // whatever sends — the auto-flush here, or a manual "send now" from a row.
-  // Arming on the rising edge rather than on `isStreaming === true` matters:
-  // a manual send interrupts the running response, so a `result` for the
-  // interrupted turn lands moments later. Re-arming on that stale `true` would
-  // let the interrupted turn's end flush a SECOND message, and both would race
-  // into the same turn.
-  //
-  // If a send never starts a stream (dead socket, disabled input) the latch
-  // stays closed and the rest of the queue waits for the next response rather
-  // than draining in one render pass.
-  //
-  // While a conversation is still LOADING, nothing leaves: opening it resets
-  // `isStreaming` to false until its replay says whether it is answering, and
-  // a flush in that window would cut a running response short.
-  useEffect(() => {
-    const responseStarted = isStreaming && !prevStreamingRef.current
-    prevStreamingRef.current = isStreaming
-    if (responseStarted) flushArmedRef.current = true
-    if (isStreaming) return
-    if (!QUEUE_POLICY.autoFlushOnIdle) return
-    // A disabled composer has no session to send to — hold, don't drop.
-    if (disabled) return
-    if (isReplaying) return
-    if (!flushArmedRef.current) return
-    const { taken, rest } = takeHead(queue)
-    if (!taken) return
-    flushArmedRef.current = false
-    setQueue(rest)
-    // The queued entry carries its own attachment ids: by now the composer
-    // holds the *next* message's attachments, so reading them here would send
-    // the wrong ones.
-    onSend(taken.text, taken.attachmentIds)
-  }, [isStreaming, disabled, isReplaying, queue, onSend, setQueue])
-
+  // No auto-flush here. The queue used to be drained by this component, which
+  // sent the oldest message when it saw the stream stop: delivery depended on
+  // this conversation being the one on screen. The session drains it now.
   const handleQueueEdit = useCallback(
-    (id: string, text: string) => setQueue((q) => editInQueue(q, id, text)),
-    [setQueue],
+    (id: string, text: string) => onQueueOp({ op: 'edit', id, content: text }),
+    [onQueueOp],
   )
-  const handleQueueDelete = useCallback(
-    (id: string) => setQueue((q) => removeFromQueue(q, id)),
-    [setQueue],
-  )
-  const handleQueuePrioritize = useCallback(
-    (id: string) => setQueue((q) => prioritize(q, id)),
-    [setQueue],
-  )
+  const handleQueueDelete = useCallback((id: string) => onQueueOp({ op: 'remove', id }), [onQueueOp])
+  /** First click on a row's send button: it leaves first when the turn ends. Interrupts nothing. */
+  const handleQueuePrioritize = useCallback((id: string) => onQueueOp({ op: 'prioritize', id }), [onQueueOp])
   /**
-   * Second click on a row already marked "next": send it right now.
-   *
-   * No `onInterrupt()` here — the backend already interrupts the running
-   * generation when a user message arrives mid-stream (`chat/manager.rs`:
-   * `interrupt_flag.store(true)` + an interrupt frame on the CLI's stdin).
-   * Interrupting from the client too would race that path for nothing.
-   *
-   * `takeById` removes and returns in one step, so what is dispatched is exactly
-   * what left the queue — a read-then-filter could send text a concurrent edit
-   * had already replaced.
-   *
-   * Disarms the auto-flush latch: this send IS the turn's message. Without
-   * that, the `result` of the response it interrupts would immediately flush a
-   * second message into the same turn.
+   * Second click, on a row already marked "next": send it right now. The
+   * server puts it first and interrupts the running response — the one action
+   * on the queue that cuts a response short, which is why it takes two clicks.
    */
-  const handleQueueSendNow = useCallback(
-    (id: string) => {
-      const { taken, rest } = takeById(store.get(chatMessageQueuesAtom)[queueKey] ?? NO_QUEUE, id)
-      if (!taken) return
-      flushArmedRef.current = false
-      setQueue(rest)
-      onSend(taken.text, taken.attachmentIds)
-    },
-    [store, queueKey, setQueue, onSend],
-  )
+  const handleQueueSendNow = useCallback((id: string) => onQueueOp({ op: 'send_now', id }), [onQueueOp])
 
   const action = deriveInputAction({
     hasText: value.trim().length > 0,

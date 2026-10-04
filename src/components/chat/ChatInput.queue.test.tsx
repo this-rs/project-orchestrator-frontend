@@ -1,21 +1,27 @@
 /**
- * Wiring tests for the pending-message queue in the composer.
+ * Wiring tests for the queued messages in the composer.
  *
- * The queue's rules are tested without rendering in `messageQueue.test.ts`.
- * What is checked here is only what a component test can check:
+ * The session holds the queue and delivers it (backend `chat/pending_queue.rs`;
+ * hand-over and server list in `useChat.queue.test.tsx`). What a component test
+ * can check here:
  *
- * - a message composed mid-stream is queued AND visibly so — "I queue a message
- *   and see nothing" was the bug report that reshaped this component;
- * - the queue drains when the response ends, INCLUDING after a remount, which
- *   the previous edge-triggered flush lost the message on;
- * - the row's send button is two-stage: mark "next", then send now.
+ * - a message composed mid-stream is handed to `onQueue`, never sent, and the
+ *   composer starts clean;
+ * - the composer shows the list of ITS conversation, and visibly so — "I queue
+ *   a message and see nothing" was the bug report that shaped this component;
+ * - the composer never sends a queued message by itself: that used to be an
+ *   effect here, and it sent conversation A's message in conversation B;
+ * - each row action is forwarded as the matching operation, and the send
+ *   button is two-stage: "next" first, "send now" on the second click.
  *
  * Run with: npx vitest run src/components/chat/ChatInput.queue.test.tsx
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { Provider, createStore, type createStore as CreateStore } from 'jotai'
+import { chatMessageQueuesAtom } from '@/atoms/chat'
 import { ChatInput } from './ChatInput'
+import type { QueuedMessage } from './messageQueue'
 
 vi.mock('@/hooks', () => ({ useIsMobile: () => false }))
 vi.mock('@/services/chat', () => ({
@@ -25,209 +31,127 @@ vi.mock('@/services/documents', () => ({ documentsApi: { upload: vi.fn() } }))
 
 type Store = ReturnType<typeof CreateStore>
 
-/** One composer, rendered against a store the test can keep across remounts. */
-function mount(store: Store, onSend: (t: string, a?: string[]) => void, isStreaming: boolean) {
-  const ui = (streaming: boolean) => (
-    <Provider store={store}>
-      <ChatInput
-        onSend={onSend}
-        onInterrupt={() => {}}
-        isStreaming={streaming}
-        sessionId="session-1"
-      />
-    </Provider>
-  )
-  const view = render(ui(isStreaming))
-  return {
-    setStreaming: (streaming: boolean) => view.rerender(ui(streaming)),
-    unmount: () => view.unmount(),
-  }
-}
+const row = (id: string, text: string, extra: Partial<QueuedMessage> = {}): QueuedMessage => ({
+  id,
+  text,
+  queuedAt: 0,
+  ...extra,
+})
 
-const compose = (text: string) => {
-  const ta = screen.getByRole('textbox')
-  fireEvent.change(ta, { target: { value: text } })
-  fireEvent.keyDown(ta, { key: 'Enter' })
-}
-
-describe('ChatInput — message queue', () => {
+describe('ChatInput — queued messages', () => {
   let store: Store
   let onSend: ReturnType<typeof vi.fn>
+  let onQueue: ReturnType<typeof vi.fn>
+  let onQueueOp: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     store = createStore()
     onSend = vi.fn()
+    onQueue = vi.fn()
+    onQueueOp = vi.fn()
   })
-
-  it('queues a message composed mid-stream and shows it', async () => {
-    mount(store, onSend, true)
-    compose('while you were talking')
-
-    // Visible, not just held in state: the queue is the whole point.
-    const panel = await screen.findByTestId('message-queue')
-    expect(panel).toBeTruthy()
-    expect(screen.getByText('while you were talking')).toBeTruthy()
-    expect(screen.getByText('1 message queued')).toBeTruthy()
-    expect(onSend).not.toHaveBeenCalled()
-    // Nothing invisible in the way — it takes layout space rather than floating.
-    expect(panel.className).not.toMatch(/absolute|pointer-events-none/)
-  })
-
-  it('sends it when the response ends', async () => {
-    const { setStreaming } = mount(store, onSend, true)
-    compose('after you finish')
-    await screen.findByTestId('message-queue')
-
-    setStreaming(false)
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith('after you finish', undefined))
-    expect(screen.queryByTestId('message-queue')).toBeNull()
-  })
-
-  it('still sends it when the end-of-stream edge is missed by a remount', async () => {
-    // The regression this replaces: the flush watched for a streaming
-    // true -> false transition. A remount (layout switch, Fast Refresh)
-    // re-initialises that comparison, the edge never comes back, and the
-    // message stays queued forever with nothing to signal it.
-    const first = mount(store, onSend, true)
-    compose('do not lose me')
-    await screen.findByTestId('message-queue')
-
-    first.unmount()
-    mount(store, onSend, false) // remounts already idle — no edge to observe
-
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith('do not lose me', undefined))
-  })
-
-  it('holds one message per turn instead of draining the queue at once', async () => {
-    const { setStreaming } = mount(store, onSend, true)
-    compose('first')
-    compose('second')
-    await screen.findByTestId('message-queue')
-
-    setStreaming(false)
-    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
-    expect(onSend).toHaveBeenCalledWith('first', undefined)
-    // The second one is still visible, waiting for the next turn.
-    expect(screen.getByText('second')).toBeTruthy()
-  })
-
-  it('marks "next" on the first click and sends on the second', async () => {
-    mount(store, onSend, true)
-    compose('urgent')
-    compose('later')
-    await screen.findByTestId('message-queue')
-
-    const nextButton = () =>
-      screen.getAllByRole('button').find((b) => b.dataset.stage === 'send-next' && b.closest('li')?.textContent?.includes('urgent'))!
-    fireEvent.click(nextButton())
-
-    // First click never truncates the running response.
-    expect(onSend).not.toHaveBeenCalled()
-    expect(screen.getByText('next')).toBeTruthy()
-
-    const nowButton = screen.getAllByRole('button').find((b) => b.dataset.stage === 'send-now')!
-    fireEvent.click(nowButton)
-
-    // Second click sends immediately, mid-stream — the backend interrupts.
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith('urgent', undefined))
-    expect(screen.queryByText('urgent')).toBeNull()
-    expect(screen.getByText('later')).toBeTruthy()
-  })
-
-  it('does not also auto-flush the queue after a manual send', async () => {
-    // A manual send consumes the turn: the response it interrupts is the one
-    // whose end would otherwise trigger an auto-flush a moment later.
-    const { setStreaming } = mount(store, onSend, true)
-    compose('urgent')
-    compose('later')
-    await screen.findByTestId('message-queue')
-
-    fireEvent.click(screen.getAllByRole('button').find((b) => b.dataset.stage === 'send-next')!)
-    fireEvent.click(screen.getAllByRole('button').find((b) => b.dataset.stage === 'send-now')!)
-    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
-
-    setStreaming(false)
-    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
-    expect(screen.getByText('later')).toBeTruthy()
-  })
-
-  // ── A queue belongs to its conversation ──────────────────────────────────
-  // Reported bug: queue a message in conversation A, switch to conversation B
-  // before it leaves — it was sent in B.
 
   /** One composer whose conversation and streaming state the test drives, like ChatPanel does. */
-  function mountIn(sessionId: string | null, isStreaming: boolean) {
+  function mount(sessionId: string | null, isStreaming: boolean) {
     const ui = (sid: string | null, streaming: boolean) => (
       <Provider store={store}>
-        <ChatInput onSend={(t, a) => onSend(sid, t, a)} onInterrupt={() => {}} isStreaming={streaming} sessionId={sid} />
+        <ChatInput
+          onSend={onSend}
+          onQueue={onQueue}
+          onQueueOp={onQueueOp}
+          onInterrupt={() => {}}
+          isStreaming={streaming}
+          sessionId={sid}
+        />
       </Provider>
     )
     const view = render(ui(sessionId, isStreaming))
     return { show: (sid: string | null, streaming: boolean) => view.rerender(ui(sid, streaming)) }
   }
 
-  it('never sends a queued message in the conversation the user switched to', async () => {
-    const { show } = mountIn('conversation-a', true)
-    compose('for A only')
-    await screen.findByTestId('message-queue')
+  const compose = (text: string) => {
+    const ta = screen.getByRole('textbox')
+    fireEvent.change(ta, { target: { value: text } })
+    fireEvent.keyDown(ta, { key: 'Enter' })
+  }
 
-    // Conversation B is idle: exactly the state in which a queue flushes.
+  it('hands a message composed mid-stream to the queue instead of sending it', () => {
+    mount('conversation-a', true)
+    compose('while you were talking')
+
+    expect(onQueue).toHaveBeenCalledWith('while you were talking', [])
+    expect(onSend).not.toHaveBeenCalled()
+    // The message took the text with it: the composer is clean for the next one.
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('')
+  })
+
+  it('sends straight away when nothing is running: the queue is never an extra step', () => {
+    mount('conversation-a', false)
+    compose('right now')
+
+    expect(onSend).toHaveBeenCalledWith('right now', [])
+    expect(onQueue).not.toHaveBeenCalled()
+  })
+
+  it('shows the queued messages of its conversation, taking real space', () => {
+    store.set(chatMessageQueuesAtom, { 'conversation-a': [row('1', 'held for A')] })
+    mount('conversation-a', true)
+
+    const panel = screen.getByTestId('message-queue')
+    expect(screen.getByText('held for A')).toBeTruthy()
+    expect(screen.getByText('1 message queued')).toBeTruthy()
+    // Nothing invisible in the way — it takes layout space rather than floating.
+    expect(panel.className).not.toMatch(/absolute|pointer-events-none/)
+  })
+
+  it('shows nothing of another conversation and sends nothing when the user switches to it', async () => {
+    // The reported bug: queue in A, switch to idle B before the message leaves — it was sent in B.
+    store.set(chatMessageQueuesAtom, { 'conversation-a': [row('1', 'for A only')] })
+    const { show } = mount('conversation-a', true)
+    expect(screen.getByText('for A only')).toBeTruthy()
+
     show('conversation-b', false)
-    await waitFor(() => expect(screen.queryByTestId('message-queue')).toBeNull())
+    expect(screen.queryByTestId('message-queue')).toBeNull()
+    await new Promise((r) => setTimeout(r, 50))
+    expect(onSend).not.toHaveBeenCalled()
+    expect(onQueue).not.toHaveBeenCalled()
+  })
+
+  it('never sends a queued message by itself when the response ends: the session does', async () => {
+    store.set(chatMessageQueuesAtom, { 'conversation-a': [row('1', 'the server delivers me')] })
+    const { show } = mount('conversation-a', true)
+
+    show('conversation-a', false)
     await new Promise((r) => setTimeout(r, 50))
     expect(onSend).not.toHaveBeenCalled()
   })
 
-  it('keeps the queue with its conversation and sends it there once the user is back', async () => {
-    const { show } = mountIn('conversation-a', true)
-    compose('for A only')
-    await screen.findByTestId('message-queue')
+  it('shows the queue of a conversation that has no id yet', () => {
+    store.set(chatMessageQueuesAtom, { __new__: [row('1', 'second thought', { local: true })] })
+    mount(null, true)
+    expect(screen.getByText('second thought')).toBeTruthy()
+  })
 
-    show('conversation-b', false)
-    await waitFor(() => expect(screen.queryByTestId('message-queue')).toBeNull())
+  it('marks "next" on the first click and sends now on the second', () => {
+    store.set(chatMessageQueuesAtom, { 'conversation-a': [row('1', 'urgent'), row('2', 'later')] })
+    mount('conversation-a', true)
 
-    // Back in A while it still answers: the message is there, waiting.
-    show('conversation-a', true)
-    expect(await screen.findByText('for A only')).toBeTruthy()
+    const sendNext = screen
+      .getAllByRole('button')
+      .find((b) => b.dataset.stage === 'send-next' && b.closest('li')?.textContent?.includes('urgent'))!
+    fireEvent.click(sendNext)
+    // First click never cuts the running response short.
+    expect(onQueueOp).toHaveBeenLastCalledWith({ op: 'prioritize', id: '1' })
+
+    // The server answers with the row marked "next": the same button now sends.
+    act(() => {
+      store.set(chatMessageQueuesAtom, {
+        'conversation-a': [row('1', 'urgent', { prioritized: true }), row('2', 'later')],
+      })
+    })
+    const sendNow = screen.getAllByRole('button').find((b) => b.dataset.stage === 'send-now')!
+    fireEvent.click(sendNow)
+    expect(onQueueOp).toHaveBeenLastCalledWith({ op: 'send_now', id: '1' })
     expect(onSend).not.toHaveBeenCalled()
-
-    show('conversation-a', false)
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith('conversation-a', 'for A only', undefined))
-    expect(onSend).toHaveBeenCalledTimes(1)
   })
-
-  it('does not flush while the conversation is still loading: it may be answering', async () => {
-    // Opening a conversation resets `isStreaming` to false until its replay
-    // says otherwise. Flushing in that window would send mid-response.
-    const { chatReplayingAtom } = await import('@/atoms')
-    const { show } = mountIn('conversation-a', true)
-    compose('wait for the replay')
-    await screen.findByTestId('message-queue')
-    show('conversation-b', false)
-
-    store.set(chatReplayingAtom, true)
-    show('conversation-a', false)
-    await new Promise((r) => setTimeout(r, 50))
-    expect(onSend).not.toHaveBeenCalled()
-
-    store.set(chatReplayingAtom, false)
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith('conversation-a', 'wait for the replay', undefined))
-  })
-
-  it('carries the queue of a new conversation over to the id it receives', async () => {
-    // First message of a new conversation: the id arrives while the response
-    // already streams. What was queued meanwhile follows the conversation.
-    const { moveChatQueueAtom, NEW_CONVERSATION_DRAFT_KEY } = await import('@/atoms/chat')
-    const { show } = mountIn(null, true)
-    compose('second thought')
-    await screen.findByTestId('message-queue')
-
-    store.set(moveChatQueueAtom, { from: NEW_CONVERSATION_DRAFT_KEY, to: 'fresh-id' })
-    show('fresh-id', true)
-    expect(await screen.findByText('second thought')).toBeTruthy()
-
-    show('fresh-id', false)
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith('fresh-id', 'second thought', undefined))
-  })
-
 })

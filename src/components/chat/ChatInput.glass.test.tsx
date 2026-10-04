@@ -16,7 +16,7 @@ vi.mock('@/services/documents', () => ({ documentsApi: { upload: vi.fn() } }))
 function mount() {
   render(
     <Provider store={createStore()}>
-      <ChatInput onSend={() => {}} onInterrupt={() => {}} isStreaming={false} sessionId="s1" />
+      <ChatInput onSend={() => {}} onQueue={() => {}} onQueueOp={() => {}} onInterrupt={() => {}} isStreaming={false} sessionId="s1" />
     </Provider>,
   )
   const box = screen.getByRole('textbox').parentElement as HTMLElement

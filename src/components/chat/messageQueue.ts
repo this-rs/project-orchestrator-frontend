@@ -1,25 +1,26 @@
 /**
- * Client-side queue for messages composed while the agent is still answering.
+ * Messages composed while the agent is still answering.
  *
- * ## Why this exists
+ * ## Who owns the queue
  *
- * Until now, sending mid-stream went straight to the backend, which queued the
- * message **and interrupted the running generation** so it would be processed
- * sooner (`chat/manager.rs`: `interrupt_flag.store(true)` + an interrupt frame
- * pushed to the CLI's stdin). The response you were reading got cut off, with
- * no way to say "wait, finish first".
+ * The BACKEND does. A message sent mid-stream with `queue: true` is held by the
+ * session and delivered when the running turn ends (`chat/pending_queue.rs`),
+ * instead of interrupting the response. The session delivers it — not this
+ * page: it leaves whether or not the conversation is still on screen.
  *
- * Holding the message here instead makes that a choice: it sits in a visible
- * queue you can edit, drop, move to the front, or — on a deliberate second
- * click — send right now, which is the one path that still cuts the running
- * response short. Nothing truncates anything by accident.
+ * The first version held the queue here and sent each message when the composer
+ * saw the stream stop. Delivery then depended on what the screen showed: switch
+ * conversation before the turn ended and the message left in the wrong
+ * conversation, or — once that was fixed client-side — did not leave until the
+ * user came back.
  *
- * ## Policy
- *
- * The behavioural questions this feature raises are answered in one place,
- * `QUEUE_POLICY`, rather than scattered through effects and handlers — they are
- * product decisions, not implementation details, and they are meant to be easy
- * to flip after using the thing for a day.
+ * What stays on this side:
+ * - the list the server publishes (`pending_queue` events), kept per conversation;
+ * - `local` entries: a message that could not be handed over yet (the
+ *   conversation has no id yet, or the socket is down). It is shown at once and
+ *   handed over as soon as possible (`useChat`);
+ * - the same edit/drop/prioritize rules as the server, applied to the list on
+ *   screen so a click answers immediately. The server's next list is the truth.
  */
 
 export interface QueuedMessage {
@@ -39,51 +40,31 @@ export interface QueuedMessage {
   attachmentIds?: string[]
   /**
    * The user asked for this one to go next. It sits at the head of the queue
-   * and leaves on the next flush — it does not interrupt anything.
+   * and leaves first when the running turn ends — it does not interrupt anything.
    */
   prioritized?: boolean
+  /**
+   * Not handed to the server yet (no conversation id, or socket down). Shown
+   * like any other row; `useChat` hands it over as soon as it can.
+   */
+  local?: boolean
 }
 
-export const QUEUE_POLICY = {
-  /**
-   * When a response finishes and the queue is non-empty, send the oldest
-   * message automatically.
-   *
-   * `true` means nothing can be stranded: the queue drains on its own, in
-   * order, one per turn. `false` would give total control at the cost of a
-   * forgotten message never being sent, with nothing to signal it.
-   */
-  autoFlushOnIdle: true,
+/** An action on a held message — the `queue_op` frame, minus its `type`. */
+export type QueueOp =
+  | { op: 'edit'; id: string; content: string }
+  | { op: 'remove'; id: string }
+  | { op: 'prioritize'; id: string }
+  | { op: 'send_now'; id: string }
 
-  /**
-   * With `autoFlushOnIdle`, send messages one per turn rather than merging the
-   * whole queue into a single concatenated send.
-   *
-   * One per turn keeps each message a distinct turn in the transcript, which is
-   * what the queue looks like on screen. Merging would be fewer agent turns but
-   * would silently rewrite what the user composed.
-   */
-  flushAll: false,
-
-  /**
-   * The per-row send button is TWO-STAGE, and only the second stage interrupts.
-   *
-   *   1st click — the message moves to the head of the queue and is marked
-   *               `prioritized` ("next"). Nothing is truncated: it leaves when
-   *               the running response finishes.
-   *   2nd click — on a row already marked "next", the message is dispatched
-   *               immediately. The backend queues it and interrupts the running
-   *               generation (`chat/manager.rs`), so the current response is cut
-   *               short — which is the point: the user asked for it twice.
-   *
-   * The first version had no second stage, which made "send" a button whose only
-   * visible effect was the row moving — indistinguishable from doing nothing
-   * when you wanted the message to go out *now*. Making urgency the second click
-   * keeps the safe default (never truncate by accident) and still gives a way
-   * out, without turning the row's primary action into a destructive one.
-   */
-  manualSendInterrupts: 'second-click',
-} as const
+/** One held message as the server publishes it (`pending_queue` event). */
+export interface ServerQueueEntry {
+  id: string
+  content: string
+  attachments?: { id: string }[]
+  queued_at: string
+  prioritized?: boolean
+}
 
 /**
  * Should a send be queued rather than dispatched?
@@ -136,28 +117,13 @@ export function editInQueue(
 }
 
 /**
- * Remove and return one message by id.
- *
- * Returns the message separately from the new queue so the caller dispatches
- * exactly what it removed — a read-then-filter in the caller could race with a
- * concurrent edit and send stale text.
- */
-export function takeById(
-  queue: readonly QueuedMessage[],
-  id: string,
-): { taken: QueuedMessage | null; rest: QueuedMessage[] } {
-  const taken = queue.find((m) => m.id === id) ?? null
-  return { taken, rest: taken ? queue.filter((m) => m.id !== id) : [...queue] }
-}
-
-/**
  * Move a message to the head and mark it as the next to leave.
  *
  * This is the FIRST click of the per-row send button. It deliberately does not
- * dispatch: the message waits for the running response to finish, then leaves on
- * the next flush. A second click on an already-prioritized row is what dispatches
- * immediately (`takeById` + send, see `QUEUE_POLICY.manualSendInterrupts`).
- * Unknown ids are a no-op.
+ * dispatch: the message waits for the running response to finish, then leaves
+ * first. A second click on an already-prioritized row is what sends immediately
+ * (`send_now`: the server interrupts the running response). Unknown ids are a
+ * no-op.
  */
 export function prioritize(
   queue: readonly QueuedMessage[],
@@ -168,11 +134,46 @@ export function prioritize(
   return [{ ...target, prioritized: true }, ...queue.filter((m) => m.id !== id)]
 }
 
-/** Remove and return the oldest message — the auto-flush path. */
-export function takeHead(queue: readonly QueuedMessage[]): {
-  taken: QueuedMessage | null
-  rest: QueuedMessage[]
-} {
-  if (queue.length === 0) return { taken: null, rest: [] }
-  return { taken: queue[0], rest: queue.slice(1) }
+/**
+ * What the list on screen becomes right after an action, before the server
+ * answers with its own list.
+ *
+ * `send_now` removes the row: the message is on its way and will come back as a
+ * bubble in the transcript.
+ */
+export function applyQueueOp(queue: readonly QueuedMessage[], action: QueueOp): QueuedMessage[] {
+  switch (action.op) {
+    case 'edit':
+      return editInQueue(queue, action.id, action.content)
+    case 'remove':
+    case 'send_now':
+      return removeFromQueue(queue, action.id)
+    case 'prioritize':
+      return prioritize(queue, action.id)
+  }
+}
+
+/** A server entry in the shape the queue bar draws. */
+export function fromServerEntry(entry: ServerQueueEntry): QueuedMessage {
+  const queued: QueuedMessage = {
+    id: entry.id,
+    text: entry.content,
+    queuedAt: Date.parse(entry.queued_at) || 0,
+  }
+  const ids = (entry.attachments ?? []).map((a) => a.id)
+  if (ids.length > 0) queued.attachmentIds = ids
+  if (entry.prioritized) queued.prioritized = true
+  return queued
+}
+
+/**
+ * The list on screen after the server published its own: the server's entries,
+ * then whatever is still waiting to be handed over. The server's list replaces
+ * everything it knows about — it is the truth for those.
+ */
+export function mergeServerQueue(
+  current: readonly QueuedMessage[],
+  server: readonly ServerQueueEntry[],
+): QueuedMessage[] {
+  return [...server.map(fromServerEntry), ...current.filter((m) => m.local)]
 }

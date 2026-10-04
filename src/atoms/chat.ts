@@ -196,26 +196,16 @@ export interface PendingSecretRequest {
 export const chatSecretRequestsAtom = atom<PendingSecretRequest[]>([])
 
 /**
- * Messages composed while the agent was still answering, held client-side.
+ * The messages queued behind a running response, per conversation.
  *
- * Empty in the normal case. A send while `chatStreamingAtom` is true appends
- * here instead of dispatching, so the running response is no longer cut short
- * (the backend interrupts the CLI on a mid-stream send — see
- * `chat/manager.rs`). The queue drains one message per finished turn, and each
- * row can be edited, dropped, or fired immediately from the UI.
+ * The SESSION holds them, on the server, and delivers each one when the turn
+ * before it ends (`chat/pending_queue.rs`). This atom is what the page shows:
+ * the list the server last published for a conversation (`pending_queue`
+ * events), plus `local` rows not handed over yet. See
+ * `components/chat/messageQueue.ts` for why the queue is not kept here.
  *
- * One queue PER CONVERSATION, keyed like the drafts (`draftKeyFor`): a message
- * composed for conversation A must never land in conversation B, and must not
- * be thrown away either when the user looks at B for a moment. It waits under
- * A's key and leaves from A.
- *
- * It used to be one array for the whole app, emptied by an effect when the
- * session id changed. The auto-flush effect ran in that same commit, still
- * holding the old array, found the new conversation idle — and sent A's
- * message in B.
- *
- * In memory only: a queued message is a pending send, and a send that fires
- * by itself after a reload would be a surprise.
+ * Keyed like the drafts (`draftKeyFor`). In memory only: on a reload, the
+ * server's list comes back when the conversation is opened.
  */
 export const chatMessageQueuesAtom = atom<Record<string, QueuedMessage[]>>({})
 

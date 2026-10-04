@@ -1,8 +1,9 @@
 import { splitAttachments } from '@/utils/messageAttachments'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useSetAtom, useStore } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom } from '@/atoms'
 import { chatApi, ChatWebSocket } from '@/services'
+import { applyQueueOp, enqueue, mergeServerQueue, type QueueOp, type QueuedMessage } from '@/components/chat/messageQueue'
 import type { ChatMessage, ChatEvent, PermissionMode } from '@/types'
 import {
   historyEventsToMessages,
@@ -214,6 +215,8 @@ export function useChat() {
   // chatSessionPermissionOverrideAtom DIRECTLY (its own useAtom setter), so the
   // refs stay stale for new-conversation selections. See sendMessage below.
   const store = useStore()
+  /** Latest `syncLocalQueue`, for the WebSocket callbacks set up once. */
+  const syncLocalQueueRef = useRef<() => void>(() => {})
   const setDraftsMap = useSetAtom(chatDraftsMapAtom)
   const moveDraft = useSetAtom(moveChatDraftAtom)
   const moveQueue = useSetAtom(moveChatQueueAtom)
@@ -345,6 +348,24 @@ export function useChat() {
   // Event handler — processes LIVE events only (no more replay)
   // ========================================================================
   const handleEvent = useCallback((event: ChatEvent & { seq?: number; replaying?: boolean }) => {
+    // The messages the session holds until the running turn ends — always the
+    // full list, published to EVERY device connected to the session, so a
+    // message queued on one shows on the others. It replaces what we showed for
+    // this conversation, except rows not handed over yet (`local`).
+    //
+    // Handled first and on its own: it is not part of the transcript, so it
+    // neither waits for the history to load nor goes through the message
+    // updater below (which must stay pure and would open an empty assistant
+    // message for it).
+    if (event.type === 'pending_queue') {
+      const sid = store.get(chatSessionIdAtom)
+      if (sid) {
+        const all = store.get(chatMessageQueuesAtom)
+        store.set(chatMessageQueuesAtom, withQueue(all, sid, mergeServerQueue(all[sid] ?? [], event.messages)))
+      }
+      return
+    }
+
     // Mid-stream join: if REST history hasn't loaded yet, buffer most events
     // so they can be replayed AFTER setMessages(history). This prevents
     // setMessages([]) or setMessages(history) from wiping live events.
@@ -1310,6 +1331,8 @@ export function useChat() {
       onReplayComplete: () => {
         setIsReplaying(false)
         setIsLoadingHistory(false)
+        // The socket is usable again: hand over what was queued without it.
+        syncLocalQueueRef.current()
         // Flush messages that failed on a dead socket (their failure triggered
         // this very reconnect). The replay just brought us up to date, so
         // sending now preserves ordering.
@@ -1930,6 +1953,77 @@ export function useChat() {
     }
   }, [sessionId, getWs, setIsStreaming])
 
+  /**
+   * Hand over to the server every queued message still waiting on this side
+   * (`local`): composed before the conversation had an id, or while the socket
+   * was down. Stops at the first one that cannot leave, to keep their order;
+   * the next reconnect retries.
+   */
+  const syncLocalQueue = useCallback(() => {
+    const sid = store.get(chatSessionIdAtom)
+    const ws = getWs()
+    if (!sid || ws.sessionId !== sid) return
+    const queue = store.get(chatMessageQueuesAtom)[sid] ?? []
+    let remaining = queue
+    for (const entry of queue) {
+      if (!entry.local) continue
+      if (!ws.sendUserMessage(entry.text, entry.attachmentIds, { queue: true })) break
+      remaining = remaining.filter((m) => m.id !== entry.id)
+    }
+    if (remaining !== queue) {
+      store.set(chatMessageQueuesAtom, withQueue(store.get(chatMessageQueuesAtom), sid, remaining))
+    }
+  }, [getWs, store])
+  useEffect(() => {
+    syncLocalQueueRef.current = syncLocalQueue
+  }, [syncLocalQueue])
+
+  /**
+   * Queue a message behind the running response instead of interrupting it.
+   *
+   * The session holds it and delivers it when the turn ends — the server, not
+   * this page, so it leaves even if the user moves to another conversation.
+   * It shows at once as a `local` row and is handed over right away when the
+   * socket allows; the server's `pending_queue` list then takes over.
+   */
+  const queueMessage = useCallback((text: string, attachments?: string[]) => {
+    const key = draftKeyFor(store.get(chatSessionIdAtom))
+    const all = store.get(chatMessageQueuesAtom)
+    const current = all[key] ?? []
+    const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `local-${Date.now()}-${Math.random()}`
+    const next = enqueue(current, text, id, Date.now(), attachments)
+    if (next.length === current.length) return // empty text
+    const last: QueuedMessage = { ...next[next.length - 1], local: true }
+    store.set(chatMessageQueuesAtom, withQueue(all, key, [...next.slice(0, -1), last]))
+    syncLocalQueue()
+  }, [store, syncLocalQueue])
+
+  /**
+   * Edit, drop, move to the front or send now one queued message.
+   *
+   * A row the server holds changes on the server; the list on screen follows
+   * at once and the server's next list confirms it. If the frame cannot leave
+   * (socket down) nothing changes on screen either: showing a message as
+   * dropped while the server still holds it would get it sent anyway.
+   */
+  const queueOp = useCallback((action: QueueOp) => {
+    const key = draftKeyFor(store.get(chatSessionIdAtom))
+    const all = store.get(chatMessageQueuesAtom)
+    const current = all[key] ?? []
+    const target = current.find((m) => m.id === action.id)
+    if (!target) return
+    if (target.local) {
+      // Not on the server yet: there is no running send to interrupt for it,
+      // so "send now" can only put it first.
+      const local: QueueOp = action.op === 'send_now' ? { op: 'prioritize', id: action.id } : action
+      const next = applyQueueOp(current, local).map((m) => (m.id === action.id ? { ...m, local: true } : m))
+      store.set(chatMessageQueuesAtom, withQueue(all, key, next))
+      return
+    }
+    if (!getWs().sendQueueOp(action)) return
+    store.set(chatMessageQueuesAtom, withQueue(all, key, applyQueueOp(current, action)))
+  }, [getWs, store])
+
   const newSession = useCallback(() => {
     // The draft needs no hand-over: it is keyed by conversation
     // (chatDraftInputAtom), so the composer follows the session id.
@@ -2024,6 +2118,8 @@ export function useChat() {
     sessionId,
     sessionMeta,
     sendMessage,
+    queueMessage,
+    queueOp,
     sendContinue,
     respondPermission,
     respondInput,
