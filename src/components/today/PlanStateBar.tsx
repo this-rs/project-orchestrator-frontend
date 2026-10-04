@@ -34,6 +34,11 @@ export function countPlanStates(waves: WaveSummaryDto[]): StateCounts & { total:
   return c
 }
 
+/** The same cut as the bar, for a ring: one segment per state, in the bar's order. */
+export function stateSegments(c: StateCounts) {
+  return BAR_ORDER.map((s) => ({ value: c[s], className: TONE_CLASSES[STATE_META[s].tone].text }))
+}
+
 const phrase = (s: WavePointStatus, n: number) => `${n} ${n === 1 ? STATE_META[s].one : STATE_META[s].many}`
 
 /** "21 faites sur 49, 9 en cours, 1 attend ta réponse, 1 bloquée". */

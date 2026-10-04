@@ -14,7 +14,6 @@ import {
   StatusDot,
   StatusText,
   ViewTabs,
-  surface,
   type OverflowMenuAction,
   type ViewTab,
 } from '@/components/ui'
@@ -272,7 +271,7 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
   const hidden = panel.rows.length - shown.length
 
   return (
-    <div className="@container/tasks min-w-0" data-testid="work-dashboard">
+    <div className="@container/tasks min-w-0 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3.5" data-testid="work-dashboard">
       <div aria-live="polite">
         {stale && <p className="mb-2 text-xs text-amber-300">{WORK_TEXT.stale}</p>}
         {refreshing && !stale && <span className="sr-only">Actualisation…</span>}
@@ -285,9 +284,9 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
 
       <div role="tabpanel" aria-label={tabs.find((t) => t.id === active)?.label} data-tab={active}>
         {panel.rows.length === 0 ? (
-          <div className={surface}>{panel.empty}</div>
+          <div>{panel.empty}</div>
         ) : (
-          <EntityList>
+          <EntityList variant="flush" className="-mx-3 md:-mx-4">
             {shown}
             {(hidden > 0 || (open && panel.rows.length > ROWS_SHOWN)) && (
               <li className="px-2 py-1">

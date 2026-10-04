@@ -23,6 +23,11 @@ import {
   type WaitingEntry,
 } from './bands'
 import { headline, recommendStart } from './startHere'
+import { MiniBars, Ring, StackedBar } from './charts'
+import { STATE_META } from './MiniThreadGraph'
+import { countPlanStates, type StateCounts } from './PlanStateBar'
+import { TONE_CLASSES } from '@/components/ui/statusMeta'
+import { THINKING_KINDS } from '@/types/attention'
 
 /**
  * The day's view, assembled. Presentation only: data and actions come from a
@@ -70,6 +75,9 @@ export interface TodaySource {
 // Section frame
 // ---------------------------------------------------------------------------
 
+/** A panel of the dashboard: one surface per section, never nested. */
+export const PANEL = 'rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3.5'
+
 function ErrorLine({ children, onRetry }: { children: ReactNode; onRetry: () => void }) {
   return (
     <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm text-red-300">
@@ -92,15 +100,17 @@ interface BandFrameProps {
   onRetry: () => void
   skeleton: ReactNode
   empty: boolean
+  /** Draw the section as a panel of the dashboard (a surface with its own padding). */
+  panel?: boolean
   className?: string
   children: ReactNode
 }
 
-function BandFrame({ band, count, state, errorText, degraded, onRetry, skeleton, empty, className = '', children }: BandFrameProps) {
+function BandFrame({ band, count, state, errorText, degraded, onRetry, skeleton, empty, panel, className = '', children }: BandFrameProps) {
   const { title, empty: emptyText } = BAND_TEXT[band]
   const showEmptyLine = state === 'ready' && empty && !degraded
   return (
-    <section aria-label={title} id={`today-${band}`} data-band={band} data-state={state} className={`min-w-0 scroll-mt-4 ${className}`}>
+    <section aria-label={title} id={`today-${band}`} data-band={band} data-state={state} className={`min-w-0 scroll-mt-4 ${panel ? PANEL : ''} ${className}`}>
       {/* An empty section is ONE line: its title, its count and "nothing" side by side. */}
       <div className={`flex flex-wrap items-baseline gap-x-3 ${showEmptyLine ? '' : 'mb-2'}`}>
         <h2 className="flex items-baseline gap-2 text-base font-semibold tracking-tight text-gray-100">
@@ -171,6 +181,15 @@ function goToSection(band: Band) {
   el.scrollIntoView?.({ block: 'start' })
 }
 
+/** Ring segments of a set of tasks, in reading order: finished, moving, waiting on the user, stopped. */
+function ringSegments(c: StateCounts) {
+  return (['done', 'running', 'waiting', 'blocked', 'failed'] as const).map((st) => ({ value: c[st], className: TONE_CLASSES[STATE_META[st].tone].text }))
+}
+/** States named next to the header's ring ("faites" is its headline number). */
+const OVERVIEW_ORDER = ['running', 'waiting', 'blocked', 'failed', 'pending'] as const
+/** One tone per kind of thing to read (RFC, decision, note, alert), same order as `THINKING_KINDS`. */
+const KIND_TONES = ['text-violet-400', 'text-sky-400', 'text-gray-400', 'text-amber-400']
+
 /** What each counter says when it is not zero: the colour of its number. Zero is always quiet. */
 const COUNT_TONE: Record<Band, string> = {
   waiting: 'text-sky-300',
@@ -187,9 +206,12 @@ const COUNT_TONE: Record<Band, string> = {
 export function TodaySummary({
   counts,
   onGo = goToSection,
+  visuals,
 }: {
   counts: Record<Band, number> | null
   onGo?: (band: Band) => void
+  /** A small chart per counter (decorative: the number and the words say the same). */
+  visuals?: Partial<Record<Band, ReactNode>>
 }) {
   return (
     <ul aria-label={TODAY_TEXT.summaryLabel} className="grid grid-cols-2 @2xl/today:grid-cols-4">
@@ -200,17 +222,20 @@ export function TodaySummary({
             <button
               type="button"
               onClick={() => onGo(b)}
-              className={`flex h-full w-full min-w-0 flex-col items-start gap-0.5 px-4 py-3 text-left hover:bg-white/[0.04] ${pressFeedback} ${focusRingInset}`}
+              className={`flex h-full w-full min-w-0 items-center justify-between gap-3 px-4 py-3 text-left hover:bg-white/[0.04] ${pressFeedback} ${focusRingInset}`}
             >
+              <span className="flex min-w-0 flex-col items-start gap-0.5">
               <span className="flex items-baseline gap-2">
                 {n !== null ? (
-                  <span className={`text-2xl font-semibold leading-7 tabular-nums tracking-tight ${n > 0 ? COUNT_TONE[b] : 'text-gray-500'}`}>{n}</span>
+                  <span className={`text-3xl font-semibold leading-8 tabular-nums tracking-tight ${n > 0 ? COUNT_TONE[b] : 'text-gray-500'}`}>{n}</span>
                 ) : (
                   <Skeleton className="h-7 w-6" />
                 )}{' '}
                 <span className="text-sm font-medium text-gray-200">{BAND_TEXT[b].summary}</span>
               </span>
               <span className="hidden text-xs leading-4 text-gray-400 @md/today:block">{BAND_TEXT[b].hint}</span>
+              </span>
+              {n !== null && n > 0 && visuals?.[b] && <span className={`shrink-0 ${COUNT_TONE[b]}`}>{visuals[b]}</span>}
             </button>
           </li>
         )
@@ -293,21 +318,46 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
   const start = bands && state === 'ready' ? recommendStart(bands, incomplete, data?.runner ?? null) : null
   const head = start && bands ? headline(start, bands) : null
 
-  // The header: the day in one sentence, the filter, the four counters. It is the page's title.
+  // Every task of every plan on the page, by state: the ring of the header.
+  const all = data ? countPlanStates(data.threads.flatMap((t) => t.waves)) : null
+  const planCount = data ? new Set(data.threads.filter((t) => t.plan).map((t) => t.plan!.id)).size : 0
+  const pct = all && all.total > 0 ? Math.round((all.done / all.total) * 100) : 0
+
+  const runningWaves = bands ? bands.running.flatMap((e) => (e.kind === 'plan' ? [e.thread, ...e.others].flatMap((t) => t.waves) : [])) : []
+  const runningStates = countPlanStates(runningWaves)
+  const kinds = bands ? THINKING_KINDS.map((k) => bands.thinking.filter((i) => i.kind === k).length) : []
+  const visuals: Partial<Record<Band, ReactNode>> = bands
+    ? {
+        // how long each request has waited: one bar per request, the tallest is the oldest
+        waiting: <MiniBars values={bands.waiting.map((e) => e.request.age_secs)} />,
+        stuck: <MiniBars values={bands.stuck.map((e) => (e.kind === 'unattached' ? e.session.age_secs : e.kind === 'orphan' ? e.orphan.age_secs : e.thread.age_secs))} />,
+        running: runningStates.total > 0 ? <Ring size={30} stroke={4} total={runningStates.total} segments={ringSegments(runningStates)} /> : undefined,
+        thinking: (
+          <span className="block w-14">
+            <StackedBar segments={kinds.map((v, i) => ({ value: v, className: KIND_TONES[i] }))} />
+          </span>
+        ),
+      }
+    : {}
+
+  // The header: the day in one sentence, the filter, the state of every plan, the four counters. It is the page's title.
   const header = (
     <header
       data-testid="today-header"
       data-start={start?.kind ?? (state === 'loading' ? 'loading' : 'error')}
-      className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[radial-gradient(90%_140%_at_0%_0%,rgba(99,102,241,0.16),transparent_60%)] bg-white/[0.02]"
+      className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[radial-gradient(80%_160%_at_0%_0%,rgba(99,102,241,0.18),transparent_60%),radial-gradient(60%_120%_at_100%_0%,rgba(56,189,248,0.07),transparent_60%)] bg-white/[0.02]"
     >
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 px-4 pb-4 pt-4 @2xl/today:px-5 @2xl/today:pt-5">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 pt-4 @2xl/today:px-5">
+        <h1 className="text-xs font-medium text-gray-400">
+          {TODAY_TEXT.title} <span className="font-normal text-gray-500">· {todayLabel()}</span>
+        </h1>
+        {lanePicker && <div className="min-w-0 max-w-full">{lanePicker}</div>}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-4 px-4 pb-5 pt-2 @2xl/today:px-5">
         <div className="min-w-0 flex-[1_1_20rem]">
-          <h1 className="text-xs font-medium text-gray-400">
-            {TODAY_TEXT.title} <span className="font-normal text-gray-500">· {todayLabel()}</span>
-          </h1>
           {head ? (
             <>
-              <p data-testid="start-title" className="mt-1 text-2xl font-semibold leading-8 tracking-tight text-gray-50 text-balance @2xl/today:text-[1.75rem] @2xl/today:leading-9">
+              <p data-testid="start-title" className="text-2xl font-semibold leading-8 tracking-tight text-gray-50 text-balance @2xl/today:text-[2rem] @2xl/today:leading-10">
                 {head.title}
               </p>
               <p data-testid="start-why" className="mt-1 text-sm text-gray-300">
@@ -315,12 +365,12 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
               </p>
             </>
           ) : state === 'loading' ? (
-            <div role="status" aria-label="Chargement" className="mt-2 space-y-2">
-              <SkeletonLine width="60%" className="h-7" />
+            <div role="status" aria-label="Chargement" className="space-y-2">
+              <SkeletonLine width="60%" className="h-8" />
               <SkeletonLine width="40%" className="h-4" />
             </div>
           ) : (
-            <p className="mt-1 text-2xl font-semibold leading-8 tracking-tight text-gray-50">{TODAY_TEXT.title}</p>
+            <p className="text-2xl font-semibold leading-8 tracking-tight text-gray-50">{TODAY_TEXT.title}</p>
           )}
           {laneNote && <p className="mt-2 text-xs text-gray-400">{laneNote}</p>}
           {status === 'ready' && error && (
@@ -332,10 +382,36 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
             </div>
           )}
         </div>
-        {lanePicker && <div className="min-w-0 max-w-full">{lanePicker}</div>}
+
+        {all && all.total > 0 && (
+          <div data-testid="today-overview" className="flex shrink-0 items-center gap-4">
+            <Ring size={92} stroke={9} total={all.total} segments={ringSegments(all)}>
+              <span className="text-xl font-semibold leading-6 tabular-nums text-gray-50">{pct} %</span>
+            </Ring>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-100">
+                <span className="tabular-nums">
+                  {all.done}/{all.total}
+                </span>{' '}
+                tâches faites
+              </p>
+              <p className="text-xs text-gray-400">
+                sur {planCount} {planCount === 1 ? 'plan' : 'plans'} suivis ici
+              </p>
+              <ul className="mt-1.5 flex max-w-[16rem] flex-wrap gap-x-3 gap-y-0.5 text-xs leading-4">
+                {OVERVIEW_ORDER.filter((st) => all[st] > 0).map((st) => (
+                  <li key={st} className={`inline-flex items-center gap-1.5 ${TONE_CLASSES[STATE_META[st].tone].text}`}>
+                    <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${TONE_CLASSES[STATE_META[st].tone].dot}`} />
+                    {all[st]} {all[st] === 1 ? STATE_META[st].one : STATE_META[st].many}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
       </div>
       <div className="border-t border-white/[0.07]">
-        <TodaySummary counts={bands ? bands.counts : null} onGo={go} />
+        <TodaySummary counts={bands ? bands.counts : null} onGo={go} visuals={visuals} />
       </div>
     </header>
   )
@@ -343,7 +419,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
   // Truly nothing anywhere (and no source failed): one composed empty state.
   if (state === 'ready' && bands?.empty && errors.length === 0) {
     return (
-      <div className="@container/today space-y-6">
+      <div className="@container/today space-y-5">
         {header}
         {lane ? (
           <EmptyState
@@ -441,13 +517,13 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
   }
 
   return (
-    <div className="@container/today space-y-6">
+    <div className="@container/today space-y-5">
       {header}
 
       <div aria-busy={source.switching || undefined} className={source.switching ? 'pointer-events-none opacity-60' : ''}>
         {/* DOM order = visual order = tab order. Narrow container: one column in this order. */}
-        <div data-testid="sections" className="grid min-w-0 grid-cols-1 gap-x-8 gap-y-8 @4xl/today:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] @4xl/today:items-start">
-          <div data-testid="sections-main" className="min-w-0 space-y-8">
+        <div data-testid="sections" className="grid min-w-0 grid-cols-1 gap-x-5 gap-y-5 @4xl/today:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] @4xl/today:items-start">
+          <div data-testid="sections-main" className="min-w-0 space-y-5">
             <BandFrame
               {...common('waiting')}
               count={bands ? bands.counts.waiting : null}
@@ -468,6 +544,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
 
             <BandFrame
               {...common('stuck')}
+              panel
               count={bands ? bands.counts.stuck : null}
               skeleton={<ThreadRowsSkeleton />}
               empty={!bands || bands.stuck.length === 0}
@@ -478,9 +555,10 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
             {daySlot}
           </div>
 
-          <div data-testid="sections-side" className="min-w-0 space-y-8 @4xl/today:sticky @4xl/today:top-4">
+          <div data-testid="sections-side" className="min-w-0 space-y-5 @4xl/today:sticky @4xl/today:top-4">
             <BandFrame
               {...common('running')}
+              panel
               count={bands ? bands.counts.running : null}
               skeleton={<ThreadRowsSkeleton />}
               empty={!bands || bands.running.length === 0}
@@ -514,7 +592,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
             {liveSlot}
 
             {state === 'ready' && bands && bands.thinking.length > 0 ? (
-              <div className="min-w-0">
+              <div className={`min-w-0 ${PANEL} py-1.5!`}>
                 {degradedFor('thinking') && <ErrorLine onRetry={refresh}>{degradedFor('thinking')}</ErrorLine>}
                 <ThinkingList
                   items={bands.thinking}
@@ -528,6 +606,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
             ) : (
               <BandFrame
                 {...common('thinking')}
+                panel
                 count={bands ? bands.counts.thinking : null}
                 skeleton={<EntityListSkeleton rows={2} />}
                 empty={!bands || bands.thinking.length === 0}

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { focusRing, metaTextReadable as metaText, pressFeedback } from '@/components/ui/classes'
 import { formatCost } from '@/components/ui/format'
 import { useLiveAgents } from '@/hooks/useLiveAgents'
+import { StackedBar } from '../charts'
 import type { LiveAgent } from '@/types/liveAgents'
 import { LIVE_TEXT, STATE_LABEL, agentTitle, formatSecs, originLabel, summaryLine } from './text'
 
@@ -22,7 +23,7 @@ function StateDot({ state }: { state: LiveAgent['state'] }) {
  * word, since when. Model, message count and cost are in the conversation it opens; here they made
  * every row three lines tall.
  */
-export function LiveAgentRow({ agent, onOpen }: { agent: LiveAgent; onOpen: (sessionId: string) => void }) {
+export function LiveAgentRow({ agent, onOpen, scale }: { agent: LiveAgent; onOpen: (sessionId: string) => void; /** Longest age on screen, in seconds: the row's time bar is drawn against it. */ scale?: number }) {
   const waiting = agent.state === 'waiting_input'
   const since = agent.state === 'idle' ? formatSecs(agent.idle_secs) : formatSecs(agent.age_secs)
   const cost = formatCost(agent.total_cost_usd)
@@ -34,8 +35,17 @@ export function LiveAgentRow({ agent, onOpen }: { agent: LiveAgent; onOpen: (ses
         onClick={() => onOpen(agent.session_id)}
         aria-label={`${LIVE_TEXT.open} ${agentTitle(agent)}`}
         title={detail}
-        className={`flex min-h-10 w-full min-w-0 items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.04] ${pressFeedback} ${focusRing}`}
+        className={`relative flex min-h-11 w-full min-w-0 items-center gap-2.5 rounded-lg px-2 pb-2.5 pt-1.5 text-left hover:bg-white/[0.04] ${pressFeedback} ${focusRing}`}
       >
+        {/* How long it has been running, against the longest on screen: the list reads as a timeline. */}
+        {scale ? (
+          <span aria-hidden="true" data-chart="age" className="absolute bottom-1 left-[2.125rem] right-2 h-[3px] overflow-hidden rounded-full bg-white/[0.06]">
+            <span
+              className={`block h-full rounded-full ${waiting ? 'bg-amber-400' : agent.state === 'streaming' ? 'bg-emerald-400/80' : 'bg-gray-500'}`}
+              style={{ width: `${Math.max(2, Math.min(100, (agent.age_secs / scale) * 100))}%` }}
+            />
+          </span>
+        ) : null}
         <span className="flex h-4 w-4 shrink-0 items-center justify-center">
           <StateDot state={agent.state} />
         </span>
@@ -70,8 +80,11 @@ export function LiveAgents() {
   const active = (data?.agents ?? []).filter((a) => a.state !== 'idle').sort((a, b) => order[a.state] - order[b.state])
   const idle = (data?.agents ?? []).filter((a) => a.state === 'idle')
 
+  const scale = Math.max(0, ...active.map((a) => a.age_secs))
+  const cost = formatCost((data?.agents ?? []).reduce((n, a) => n + (a.total_cost_usd ?? 0), 0))
+
   return (
-    <section aria-label={LIVE_TEXT.region} className="@container/live min-w-0 space-y-2">
+    <section aria-label={LIVE_TEXT.region} className="@container/live min-w-0 space-y-2 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3.5">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="text-base font-semibold tracking-tight text-gray-100">{LIVE_TEXT.title}</h2>
         {data && (
@@ -79,7 +92,17 @@ export function LiveAgents() {
             {summaryLine(data)}
           </p>
         )}
+        {data && data.total > 0 && cost && <p className="ml-auto text-xs tabular-nums text-gray-400">{cost}</p>}
       </div>
+      {data && data.total > 0 && (
+        <StackedBar
+          segments={[
+            { value: data.waiting_input, className: 'text-amber-400' },
+            { value: data.streaming, className: 'text-emerald-400' },
+            { value: data.idle, className: 'text-gray-500' },
+          ]}
+        />
+      )}
 
       {stale && data && (
         <p role="status" className="text-xs text-amber-400">
@@ -100,7 +123,7 @@ export function LiveAgents() {
       {data && active.length > 0 && (
         <ul className="-mx-2">
           {active.map((a) => (
-            <LiveAgentRow key={a.session_id} agent={a} onOpen={open} />
+            <LiveAgentRow key={a.session_id} agent={a} onOpen={open} scale={scale} />
           ))}
         </ul>
       )}

@@ -7,7 +7,8 @@ import { focusRing, hitArea, metaTextReadable as metaText } from '@/components/u
 import { formatCost, formatDurationMs } from '@/components/ui/format'
 import type { AttentionThread, WaveSummaryDto } from '@/types/attention'
 import { workspacePath } from '@/utils/paths'
-import { PlanStateBar } from './PlanStateBar'
+import { PlanStateBar, countPlanStates, stateSegments } from './PlanStateBar'
+import { Ring } from './charts'
 
 /**
  * One row of "En cours": ONE PLAN. Rows, not cards (a `ThreadRowList` draws the
@@ -88,6 +89,7 @@ export function PlanRunRow({ thread, others = [], laneName, renderDiscussions, c
   const run = thread.run
   const running = run?.status === 'running'
   const now = nowWorking(thread)
+  const states = countPlanStates(thread.waves)
   const label = thread.plan?.title ?? thread.title
 
   const title = <span className="min-w-0 break-words text-sm font-medium leading-5 text-gray-100 line-clamp-2">{label}</span>
@@ -95,9 +97,9 @@ export function PlanRunRow({ thread, others = [], laneName, renderDiscussions, c
   return (
     <li data-variant="running" data-thread={thread.id} className={`flex min-w-0 flex-col py-3 ${className}`}>
       <div className="flex min-w-0 items-start gap-2.5">
-        <span className="flex h-5 w-4 shrink-0 items-center justify-center">
+        <Ring size={40} stroke={4} total={states.total || 1} segments={stateSegments(states)} className="mt-0.5">
           <StatusDot tone="progress" pulse={running} size="md" label={running ? 'En cours' : 'Arrêté'} />
-        </span>
+        </Ring>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start gap-3">
             {thread.plan ? (

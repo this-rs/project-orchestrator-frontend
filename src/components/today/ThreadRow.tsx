@@ -16,7 +16,8 @@ import type {
   UnattachedSession,
   WaitingRequest,
 } from '@/types/attention'
-import { PlanStateBar } from './PlanStateBar'
+import { PlanStateBar, countPlanStates, stateSegments } from './PlanStateBar'
+import { Ring } from './charts'
 import { ageText } from './startHere'
 import { ContinueSheet } from './ContinueSheet'
 import { STUCK_LABEL } from './bands'
@@ -178,7 +179,7 @@ function RowShell({
 }) {
   return (
     <li {...attrs} className={`flex min-w-0 items-start gap-2.5 py-3 ${className}`}>
-      <span className="flex h-5 w-4 shrink-0 items-center justify-center">{lead}</span>
+      <span className="flex min-h-5 min-w-4 shrink-0 items-center justify-center">{lead}</span>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 flex-wrap items-start gap-x-3 gap-y-2">
           <div className="min-w-[12rem] flex-1">
@@ -235,6 +236,7 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
   const blocked = thread.blocked_tasks.length > 0 ? thread.blocked_tasks : (thread.resume?.skipped_blocked ?? [])
   const reason = thread.stuck_reason
   const cause = reason ? STUCK_LABEL[reason] : 'À reprendre'
+  const states = countPlanStates(thread.waves)
 
   // Why the button cannot be used — said before the click.
   let disabledReason: ReactNode = null
@@ -271,7 +273,15 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
     <RowShell
       attrs={{ 'data-variant': 'stuck', 'data-thread': thread.id }}
       className={className}
-      lead={<StatusIcon tone={reason === 'task_blocked' ? 'warning' : 'danger'} className="h-4 w-4" />}
+      lead={
+        states.total > 0 ? (
+          <Ring size={40} stroke={4} total={states.total} segments={stateSegments(states)} className="mt-0.5">
+            <StatusIcon tone={reason === 'task_blocked' ? 'warning' : 'danger'} className="h-4 w-4" />
+          </Ring>
+        ) : (
+          <StatusIcon tone={reason === 'task_blocked' ? 'warning' : 'danger'} className="h-4 w-4" />
+        )
+      }
       title={<Title thread={thread} />}
       action={
         <Button
