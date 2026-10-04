@@ -1,7 +1,7 @@
 import { splitAttachments } from '@/utils/messageAttachments'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useSetAtom, useStore } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom, chatDraftInputAtom, chatDraftsMapAtom, chatBackgroundTasksAtom, chatSecretRequestsAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom } from '@/atoms'
 import { chatApi, ChatWebSocket } from '@/services'
 import type { ChatMessage, ChatEvent, PermissionMode } from '@/types'
 import {
@@ -214,10 +214,8 @@ export function useChat() {
   // chatSessionPermissionOverrideAtom DIRECTLY (its own useAtom setter), so the
   // refs stay stale for new-conversation selections. See sendMessage below.
   const store = useStore()
-  const setDraftInput = useSetAtom(chatDraftInputAtom)
-  const [draftsMap, setDraftsMap] = useAtom(chatDraftsMapAtom)
-  const draftsMapRef = useRef(draftsMap)
-  draftsMapRef.current = draftsMap
+  const setDraftsMap = useSetAtom(chatDraftsMapAtom)
+  const moveDraft = useSetAtom(moveChatDraftAtom)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const wsRef = useRef<ChatWebSocket | null>(null)
@@ -1710,7 +1708,7 @@ export function useChat() {
    */
   const sendMessage = useCallback(async (text: string, options?: SendMessageOptions, attachments?: string[]) => {
     // Clear draft for this session after sending
-    const draftKey = sessionId ?? '__new__'
+    const draftKey = draftKeyFor(sessionId)
     setDraftsMap((prev) => {
       if (!(draftKey in prev)) return prev
       const next = { ...prev }
@@ -1769,6 +1767,8 @@ export function useChat() {
         // Signal that the upcoming sessionId change is from a first send,
         // so the auto-connect useEffect should NOT reset messages.
         isFirstSendRef.current = true
+        // What was typed while the id was on its way follows the conversation.
+        moveDraft({ from: NEW_CONVERSATION_DRAFT_KEY, to: response.session_id })
         setSessionId(response.session_id)
         // Populate session metadata from the options used to create the session
         if (options) {
@@ -1792,7 +1792,7 @@ export function useChat() {
         pendingSendRef.current.push({ text, attachments })
       }
     }
-  }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride, setDraftsMap, store])
+  }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride, setDraftsMap, moveDraft, store])
 
   /**
    * Send "Continue" after max_turns — adds a discreet inline indicator instead of a user bubble.
@@ -1927,24 +1927,9 @@ export function useChat() {
     }
   }, [sessionId, getWs, setIsStreaming])
 
-  /** Save current draft to the per-session map, then load draft for target session */
-  const swapDraft = useCallback((fromKey: string, toKey: string) => {
-    // Read the current input value from the atom via a DOM shortcut
-    // (atoms are sync in jotai, but we use the ref for the map)
-    const input = (document.querySelector('textarea[placeholder="Send a message..."]') as HTMLTextAreaElement)?.value ?? ''
-    setDraftsMap((prev) => {
-      const next = { ...prev }
-      if (input.trim()) { next[fromKey] = input } else { delete next[fromKey] }
-      return next
-    })
-    setDraftInput(draftsMapRef.current[toKey] ?? '')
-  }, [setDraftsMap, setDraftInput])
-
   const newSession = useCallback(() => {
-    // Save draft from current session before switching
-    const fromKey = sessionId ?? '__new__'
-    swapDraft(fromKey, '__new__')
-
+    // The draft needs no hand-over: it is keyed by conversation
+    // (chatDraftInputAtom), so the composer follows the session id.
     const ws = getWs()
     ws.disconnect()
     setSessionId(null)
@@ -1966,7 +1951,7 @@ export function useChat() {
     setPermissionOverride(null)
     setSessionModel(null)
     setAutoContinue(false)
-  }, [getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride, setSessionModel, setAutoContinue, swapDraft, sessionId])
+  }, [getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride, setSessionModel, setAutoContinue, sessionId])
 
   const changePermissionMode = useCallback((mode: PermissionMode) => {
     if (!sessionId) return
@@ -1987,10 +1972,6 @@ export function useChat() {
   const loadSession = useCallback(async (sid: string, targetTimestamp?: number) => {
     // Guard: if already on this session, do nothing (avoid WS disconnect/reconnect loop)
     if (sid === sessionId) return
-
-    // Save draft from current session, restore draft for target session
-    const fromKey = sessionId ?? '__new__'
-    swapDraft(fromKey, sid)
 
     // Store target timestamp (Unix seconds) for the auto-connect useEffect to pick up
     targetTimestampRef.current = targetTimestamp ?? null
