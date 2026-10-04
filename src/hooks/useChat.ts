@@ -348,6 +348,24 @@ export function useChat() {
   // Event handler — processes LIVE events only (no more replay)
   // ========================================================================
   const handleEvent = useCallback((event: ChatEvent & { seq?: number; replaying?: boolean }) => {
+    // The messages the session holds until the running turn ends — always the
+    // full list, published to EVERY device connected to the session, so a
+    // message queued on one shows on the others. It replaces what we showed for
+    // this conversation, except rows not handed over yet (`local`).
+    //
+    // Handled first and on its own: it is not part of the transcript, so it
+    // neither waits for the history to load nor goes through the message
+    // updater below (which must stay pure and would open an empty assistant
+    // message for it).
+    if (event.type === 'pending_queue') {
+      const sid = store.get(chatSessionIdAtom)
+      if (sid) {
+        const all = store.get(chatMessageQueuesAtom)
+        store.set(chatMessageQueuesAtom, withQueue(all, sid, mergeServerQueue(all[sid] ?? [], event.messages)))
+      }
+      return
+    }
+
     // Mid-stream join: if REST history hasn't loaded yet, buffer most events
     // so they can be replayed AFTER setMessages(history). This prevents
     // setMessages([]) or setMessages(history) from wiping live events.
@@ -1148,18 +1166,6 @@ export function useChat() {
 
         case 'system_hint': {
           // System-generated hints are internal — never rendered in the UI.
-          break
-        }
-
-        case 'pending_queue': {
-          // The messages the session holds until the running turn ends —
-          // always the full list. It replaces what we showed for this
-          // conversation, except rows not handed over yet (`local`).
-          const sid = store.get(chatSessionIdAtom)
-          if (sid) {
-            const all = store.get(chatMessageQueuesAtom)
-            store.set(chatMessageQueuesAtom, withQueue(all, sid, mergeServerQueue(all[sid] ?? [], event.messages)))
-          }
           break
         }
 

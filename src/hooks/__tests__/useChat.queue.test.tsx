@@ -137,7 +137,7 @@ describe('useChat — queued messages are held by the session', () => {
   })
 
   it('shows the list the server publishes for the conversation', async () => {
-    const { store, ws } = await setup()
+    const { result, store, ws } = await setup()
     act(() => {
       ws.callbacks.onEvent({ type: 'pending_queue', messages: [held('s1', 'first'), held('s2', 'second', { prioritized: true })] })
     })
@@ -146,11 +146,31 @@ describe('useChat — queued messages are held by the session', () => {
       ['s2', 'second', true],
     ])
 
+    // It is not part of the transcript: no message, not even an empty assistant one.
+    expect(result.current.messages).toEqual([])
+
     // The session delivered them: the list empties.
     act(() => {
       ws.callbacks.onEvent({ type: 'pending_queue', messages: [] })
     })
     expect(queueOf(store)).toEqual([])
+  })
+
+  it('shows on this device a message queued from another device of the same conversation', async () => {
+    // Device B never called `queueMessage`: the list reaches it because the
+    // session publishes it to every connected client.
+    const { result, store, ws } = await setup()
+    expect(queueOf(store)).toEqual([])
+    act(() => {
+      ws.callbacks.onEvent({ type: 'pending_queue', messages: [held('from-phone', 'typed on my phone')] })
+    })
+    expect(queueOf(store).map((m) => [m.id, m.text])).toEqual([['from-phone', 'typed on my phone']])
+
+    // And an action here acts on the same server-side entry.
+    act(() => result.current.queueOp({ op: 'remove', id: 'from-phone' }))
+    expect((FakeWS.instances[FakeWS.instances.length - 1] as unknown as { sent: unknown[][] }).sent).toEqual([
+      ['queue_op', { op: 'remove', id: 'from-phone' }],
+    ])
   })
 
   it('keeps a message it could not hand over, shows it, and hands it over on reconnect', async () => {
