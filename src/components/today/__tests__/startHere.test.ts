@@ -3,8 +3,8 @@ import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import { parseAttentionResponse } from '@/services/attention'
 import type { AttentionResponse } from '@/types/attention'
-import { buildBands } from '../bands'
-import { ageText, recommendStart } from '../startHere'
+import { STUCK_LABEL, buildBands } from '../bands'
+import { ageText, headline, recommendStart } from '../startHere'
 
 const fixture = (name: string): AttentionResponse =>
   parseAttentionResponse(
@@ -39,7 +39,7 @@ describe('recommendStart (a) a LIVE agent waits on the user', () => {
     expect(r.kind).toBe('waiting')
     if (r.kind !== 'waiting') return
     expect(r.entry.request.request_id).toBe(oldest.request.request_id)
-    expect(r.why).toContain('un agent vivant attend ta réponse depuis')
+    expect(r.why).toContain('un assistant attend ta réponse depuis')
   })
 
   it('wins over a stuck thread, even an older one', () => {
@@ -52,7 +52,7 @@ describe('recommendStart (a) a LIVE agent waits on the user', () => {
     const bands = buildBands(data)
     const e = { ...bands.waiting[0], request: { ...bands.waiting[0].request, age_secs: 7 * 3600 + 30 } }
     const r = recommendStart({ ...bands, waiting: [e] })
-    expect(r.kind === 'waiting' && r.why).toBe('un agent vivant attend ta réponse depuis 7 h')
+    expect(r.kind === 'waiting' && r.why).toBe('un assistant attend ta réponse depuis 7 h')
   })
 
   it('ties on age go to the smallest request id, whatever the payload order', () => {
@@ -87,7 +87,7 @@ describe('recommendStart (b) the oldest stuck or resumable item', () => {
     expect(r.kind).toBe('stuck')
     if (r.kind !== 'stuck') return
     expect(r.entry.kind === 'stuck' && r.entry.thread.id).toBe('older')
-    expect(r.why).toContain('ce fil est à l\'arrêt depuis 1 j')
+    expect(r.why).toBe(`ce plan est à l'arrêt depuis 1 j : ${STUCK_LABEL.task_blocked.toLowerCase()}`)
   })
 
   it('ties on age go to the smallest id, whatever the payload order', () => {
@@ -99,11 +99,12 @@ describe('recommendStart (b) the oldest stuck or resumable item', () => {
     }
   })
 
-  it('an orphan request is resumable too, and says the session stopped', () => {
+  it('an orphan request is resumable too, and says the conversation stopped', () => {
     const o = fixture('orphan')
     const r = recommendStart(buildBands({ ...nothing(o), orphans: o.orphans, threads: o.threads }))
     expect(r.kind).toBe('stuck')
     expect(r.kind === 'stuck' && r.why).toMatch(/restée sans réponse|à l'arrêt/)
+    expect(r.why).not.toMatch(/session|\bCLI\b/i)
   })
 
   it('a stuck thread with a running thread alongside is still (b), not (c)', () => {
@@ -136,6 +137,8 @@ describe('recommendStart (b) only recommends actions that are possible', () => {
     const r = recommendStart(bands, [], busy)
     expect(r.kind).toBe('blocked')
     expect(r.why).toContain('Autre plan')
+    expect(r.why).toContain('un autre plan tourne déjà')
+    expect(r.why).not.toMatch(/runner/i)
   })
 
   it('free runner: the oldest thread is still recommended', () => {
@@ -149,20 +152,20 @@ describe('recommendStart (c) nothing blocks, some threads advance alone', () => 
   const running = four.threads.filter((t) => t.band === 'running')
   const calm = buildBands({ ...nothing(four), threads: running })
 
-  it('says "Rien ne te bloque : N fils avancent seuls"', () => {
+  it('says "Rien ne te bloque : N plans avancent seuls"', () => {
     const r = recommendStart(calm)
     expect(r.kind).toBe('calm')
     if (r.kind !== 'calm') return
     expect(r.running).toBe(calm.counts.running)
     expect(r.title).toBe(
-      `Rien ne te bloque : ${calm.counts.running} ${calm.counts.running === 1 ? 'fil avance seul' : 'fils avancent seuls'}`,
+      `Rien ne te bloque : ${calm.counts.running} ${calm.counts.running === 1 ? 'plan avance seul' : 'plans avancent seuls'}`,
     )
   })
 
   it('agrees in the singular', () => {
     const one = buildBands({ ...nothing(four), threads: [running[0]] })
     const r = recommendStart(one)
-    expect(r.kind === 'calm' && r.title).toBe('Rien ne te bloque : 1 fil avance seul')
+    expect(r.kind === 'calm' && r.title).toBe('Rien ne te bloque : 1 plan avance seul')
   })
 
   it('does NOT claim calm or empty when the "En cours" source failed', () => {
@@ -201,6 +204,85 @@ describe('recommendStart never invents data', () => {
       const r = recommendStart(bands)
       if (r.kind === 'waiting') expect(bands.waiting).toContain(r.entry)
       if (r.kind === 'stuck') expect(bands.stuck).toContain(r.entry)
+    }
+  })
+})
+
+describe('headline: the day in a few words, the reason under it, and where it points', () => {
+  const four = fixture('four_bands')
+  const blockedData = fixture('blocked_task')
+  const stuckThread = blockedData.threads.find((t) => t.band === 'stuck')!
+  const of = (bands: ReturnType<typeof buildBands>, ...rest: [Parameters<typeof recommendStart>[1]?, Parameters<typeof recommendStart>[2]?]) =>
+    headline(recommendStart(bands, ...rest), bands)
+
+  it('ONE live request: singular, since when, points at "À traiter"', () => {
+    const base = buildBands(four)
+    const e = { ...base.waiting[0], request: { ...base.waiting[0].request, age_secs: 7 * 3600 } }
+    const bands = { ...base, waiting: [e] }
+    expect(of(bands)).toEqual({ title: 'Un assistant attend ta réponse', why: 'Il attend depuis 7 h.', band: 'waiting' })
+  })
+
+  it('SEVERAL live requests: the count, the age of the oldest, points at "À traiter"', () => {
+    const base = buildBands(four)
+    const a = { ...base.waiting[0], request: { ...base.waiting[0].request, request_id: 'req_a', age_secs: 12 * 60 } }
+    const b = { ...base.waiting[0], request: { ...base.waiting[0].request, request_id: 'req_b', age_secs: 3 * 86400 } }
+    const bands = { ...base, waiting: [a, b] }
+    expect(of(bands)).toEqual({
+      title: '2 assistants attendent ta réponse',
+      why: 'Le plus ancien attend depuis 3 j.',
+      band: 'waiting',
+    })
+  })
+
+  it('stuck: counts what is to resume, gives the capitalised reason of the recommended one, points at "À reprendre"', () => {
+    const one = buildBands({ ...nothing(blockedData), threads: [{ ...stuckThread, age_secs: 90000 }] })
+    expect(of(one)).toEqual({
+      title: 'Un travail est à reprendre',
+      why: `Ce plan est à l'arrêt depuis 1 j : ${STUCK_LABEL.task_blocked.toLowerCase()}.`,
+      band: 'stuck',
+    })
+    const two = buildBands({
+      ...nothing(blockedData),
+      threads: [
+        { ...stuckThread, id: 'a', age_secs: 90000 },
+        { ...stuckThread, id: 'b', age_secs: 100 },
+      ],
+    })
+    const h = of(two)
+    expect(h.title).toBe('2 travaux sont à reprendre')
+    expect(h.why).toMatch(/^Ce plan est à l'arrêt depuis 1 j : .+\.$/)
+    expect(h.band).toBe('stuck')
+  })
+
+  it('calm: the title of the recommendation, points at "En cours"', () => {
+    const bands = buildBands({ ...nothing(four), threads: four.threads.filter((t) => t.band === 'running') })
+    const start = recommendStart(bands)
+    expect(start.kind).toBe('calm')
+    const h = headline(start, bands)
+    expect(h.title).toBe(start.kind === 'calm' && start.title)
+    expect(h.why).toBe("Aucun assistant n'attend ta réponse et rien n'est à reprendre.")
+    expect(h.band).toBe('running')
+  })
+
+  it('empty, incomplete and blocked point nowhere and keep their own title', () => {
+    const empty = buildBands(fixture('empty'))
+    const busy = {
+      status: 'busy' as const,
+      busy_with: { plan_id: 'other', plan_title: 'Autre plan', run_id: 'r9', workspace: 'studio', since: '2026-10-01T10:00:00Z' },
+    }
+    const onlyStuck = buildBands({ ...nothing(blockedData), threads: [stuckThread] })
+    const cases = [
+      ['empty', empty, recommendStart(empty)],
+      ['incomplete', empty, recommendStart(empty, ['running'])],
+      ['blocked', onlyStuck, recommendStart(onlyStuck, [], busy)],
+    ] as const
+    for (const [kind, bands, start] of cases) {
+      expect(start.kind).toBe(kind)
+      const h = headline(start, bands)
+      expect(h.band).toBeNull()
+      expect(h.title).toBe('title' in start && start.title)
+      // the reason is a sentence: capitalised, ended by a full stop
+      expect(h.why).toBe(`${start.why.charAt(0).toUpperCase()}${start.why.slice(1)}.`)
     }
   })
 })

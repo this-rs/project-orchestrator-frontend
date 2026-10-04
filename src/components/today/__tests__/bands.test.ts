@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import { parseAttentionResponse } from '@/services/attention'
 import type { AttentionResponse } from '@/types/attention'
-import { BAND_ORDER, BAND_TEXT, SECTION_ORDER, buildBands, shownPlanIds } from '../bands'
+import { BAND_ORDER, BAND_TEXT, SECTION_ORDER, STUCK_LABEL, TODAY_TEXT, buildBands, shownPlanIds } from '../bands'
 
 const fixture = (name: string): AttentionResponse =>
   parseAttentionResponse(
@@ -171,9 +171,30 @@ describe('buildBands: "À reprendre" is one list, oldest first, tie by id', () =
 
 describe('section texts and order', () => {
   it('uses plain words, none of the former band names', () => {
-    expect(Object.values(BAND_TEXT).map((t) => t.title)).toEqual(['À traiter', 'En cours', 'À reprendre', 'À suivre'])
+    expect(Object.values(BAND_TEXT).map((t) => t.title)).toEqual(['À traiter', 'En cours', 'À reprendre', 'À lire'])
     const all = JSON.stringify(BAND_TEXT)
-    expect(all).not.toMatch(/T.attend|Tourne|Coincé|Pensée|cockpit/i)
+    // "T'attend" (the former band name) is matched as a capitalised name: "n’attend ta réponse" is plain French.
+    expect(all).not.toMatch(/T.attend|Tourne\b|Coincé|Pensée/)
+    expect(all).not.toMatch(/cockpit|runner|\bCLI\b|sans fil|À suivre/i)
+  })
+  it('every section has a title, an empty text, a summary word and a hint', () => {
+    for (const band of BAND_ORDER) {
+      const t = BAND_TEXT[band]
+      for (const key of ['title', 'empty', 'summary', 'hint'] as const) expect(t[key].trim().length).toBeGreaterThan(0)
+    }
+    expect(BAND_TEXT.waiting.empty).toBe('Personne n’attend ta réponse')
+    expect(BAND_TEXT.running.empty).toBe('Aucun plan ne tourne')
+    expect(BAND_TEXT.stuck.empty).toBe('Rien à reprendre')
+    expect(BAND_TEXT.thinking).toMatchObject({ empty: 'Rien à lire', summary: 'à lire' })
+  })
+  it('the page and the stuck causes speak without jargon: "espace", no runner / CLI / run / session', () => {
+    // the values only: the keys are code, not wording
+    const page = Object.values({ ...TODAY_TEXT, laneNote: TODAY_TEXT.laneNote('X') }).join(' | ')
+    expect(page).not.toMatch(/workspace|runner|\bCLI\b|sans fil/i)
+    expect(page).toContain('espace')
+    expect(Object.values(STUCK_LABEL).join(' | ')).not.toMatch(/\brun\b|runner|\bCLI\b|session/i)
+    expect(STUCK_LABEL.failed).toBe('Arrêté sur une erreur')
+    expect(STUCK_LABEL.session_error).toBe('Erreur de conversation')
   })
   it('the summary keeps the band order, the page puts what asks for the user first', () => {
     expect(BAND_ORDER).toEqual(['waiting', 'running', 'stuck', 'thinking'])

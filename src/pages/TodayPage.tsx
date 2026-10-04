@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { workspacesAtom } from '@/atoms'
-import { PageShell } from '@/components/ui'
+import { PageContainer } from '@/components/ui'
 import { TodayView, type TodaySource } from '@/components/today/TodayView'
 import { useAttention } from '@/hooks/useAttention'
 import { attentionApi } from '@/services/attention'
@@ -114,12 +114,11 @@ function renderAttach({ sessionId, workspace }: { sessionId: string; workspace: 
 // ---------------------------------------------------------------------------
 
 /**
- * Today: the day's view across every workspace. ONE page, in the order of what the user
- * comes for: a summary line, one recommendation ("Commence par ça"), what waits on them
- * (À traiter, À reprendre), their own day (day plan and tasks), then what advances alone
- * (En cours, by plan) and À suivre. Nothing sits above the queue, and a plan is shown once:
- * the ones the queue already shows are left out of the day's "Plans à lancer".
- * The workspace is a filter (chips, kept in the URL), not the axis of the page.
+ * Today: the day's view across every workspace. ONE page: a header that says the day in one
+ * sentence (with the workspace filter and four counters), what depends on the user (À traiter,
+ * À reprendre, their tasks), and what advances alone (the plans that run, the assistants,
+ * À lire). A plan is shown once: the ones the queue already shows are left out of "Plans à lancer".
+ * The workspace is a filter (kept in the URL), not the axis of the page.
  */
 export function TodayPage() {
   const { lane, setLane, workspaces } = useLaneFilter()
@@ -135,27 +134,25 @@ export function TodayPage() {
   const shown = useMemo(() => (source.data ? shownPlanIds(buildBands(source.data)) : undefined), [source.data])
 
   return (
-    <PageShell title={TODAY_TEXT.title} width="full">
-      <div className="space-y-4">
-        {/* The filter applies to the whole page (the queue and the day): it sits above the one summary line. */}
-        <LaneChips lanes={workspaces} active={lane} onSelect={setLane} />
-        {/* No `key` on the lane: remounting flashed every skeleton on each chip tap. The old data stays, dimmed and inert, until the new lane lands. */}
-        <TodayView
-          source={source}
-          lane={lane}
-          plansSlug={plansSlug}
-          onClearLane={clearLane}
-          laneNote={laneName ? TODAY_TEXT.laneNote(laneName) : null}
-          renderDiscussions={renderDiscussions}
-          renderAttach={renderAttach}
-          liveSlot={<LiveAgents />}
-          daySlot={
-            <section aria-label={DAY_REGION} data-testid="today-day" className="min-w-0">
-              <WorkDashboard key={dashboardWorkspaces.join('|')} workspaces={dashboardWorkspaces} lane={lane} shownPlanIds={shown} />
-            </section>
-          }
-        />
-      </div>
-    </PageShell>
+    // No page title bar: the header of the view IS the title (the day in one sentence).
+    <PageContainer width="full" className="mx-auto max-w-[88rem]">
+      {/* No `key` on the lane: remounting flashed every skeleton on each filter tap. The old data stays, dimmed and inert, until the new lane lands. */}
+      <TodayView
+        source={source}
+        lane={lane}
+        plansSlug={plansSlug}
+        onClearLane={clearLane}
+        lanePicker={<LaneChips lanes={workspaces} active={lane} onSelect={setLane} />}
+        laneNote={laneName ? TODAY_TEXT.laneNote(laneName) : null}
+        renderDiscussions={renderDiscussions}
+        renderAttach={renderAttach}
+        liveSlot={<LiveAgents />}
+        daySlot={
+          <section aria-label={DAY_REGION} data-testid="today-day" className="min-w-0">
+            <WorkDashboard key={dashboardWorkspaces.join('|')} workspaces={dashboardWorkspaces} lane={lane} shownPlanIds={shown} />
+          </section>
+        }
+      />
+    </PageContainer>
   )
 }

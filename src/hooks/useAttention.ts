@@ -19,7 +19,7 @@ export function describeRequest(req: WaitingRequest): string {
 }
 
 export const ORPHAN_NOTICE =
-  "L'agent n'est plus là : son CLI s'est arrêté. Tu peux le relancer avec « Reprendre la session »."
+  "L'assistant n'est plus là : sa conversation s'est arrêtée. Tu peux le relancer avec « Reprendre la conversation »."
 
 /** The relay of `attention_changed` on `/ws/events` (tolerates the CRUD-envelope variants). */
 export function isAttentionChanged(e: CrudEvent): boolean {

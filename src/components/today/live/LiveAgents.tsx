@@ -1,12 +1,14 @@
+import { useState } from 'react'
 import { useSetAtom } from 'jotai'
-import { Bot, FolderGit2 } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { chatPanelModeAtom, chatSessionIdAtom } from '@/atoms'
 import { PulseIndicator } from '@/components/ui/PulseIndicator'
 import { ErrorState, Skeleton } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
-import { metaTextReadable as metaText } from '@/components/ui/classes'
+import { focusRing, metaTextReadable as metaText, pressFeedback } from '@/components/ui/classes'
 import { formatCost } from '@/components/ui/format'
 import { useLiveAgents } from '@/hooks/useLiveAgents'
+import { StackedBar } from '../charts'
 import type { LiveAgent } from '@/types/liveAgents'
 import { LIVE_TEXT, STATE_LABEL, agentTitle, formatSecs, originLabel, summaryLine } from './text'
 
@@ -16,55 +18,48 @@ function StateDot({ state }: { state: LiveAgent['state'] }) {
   return <span aria-hidden="true" className="inline-block h-2 w-2 shrink-0 rounded-full bg-gray-500" />
 }
 
-export function LiveAgentRow({ agent, onOpen }: { agent: LiveAgent; onOpen: (sessionId: string) => void }) {
+/**
+ * One agent = ONE line, and the line is the button: dot, title, what started it, its state in a
+ * word, since when. Model, message count and cost are in the conversation it opens; here they made
+ * every row three lines tall.
+ */
+export function LiveAgentRow({ agent, onOpen, scale }: { agent: LiveAgent; onOpen: (sessionId: string) => void; /** Longest age on screen, in seconds: the row's time bar is drawn against it. */ scale?: number }) {
+  const waiting = agent.state === 'waiting_input'
+  const since = agent.state === 'idle' ? formatSecs(agent.idle_secs) : formatSecs(agent.age_secs)
   const cost = formatCost(agent.total_cost_usd)
-  const facts = [
-    originLabel(agent.origin),
-    agent.model,
-    `depuis ${formatSecs(agent.age_secs)}`,
-    agent.state === 'idle' ? `inactif depuis ${formatSecs(agent.idle_secs)}` : null,
-    `${agent.message_count} msg`,
-    cost,
-  ].filter(Boolean)
+  const detail = [agent.project_slug, agent.model, `${agent.message_count} msg`, cost].filter(Boolean).join(' · ')
   return (
-    <li
-      data-testid="live-agent"
-      data-state={agent.state}
-      className="flex items-center gap-3 px-1 py-2.5 min-h-12"
-    >
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center" title={STATE_LABEL[agent.state]}>
-        <StateDot state={agent.state} />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-sm text-gray-100">{agentTitle(agent)}</span>
-          <span
-            className={`shrink-0 text-[11px] ${agent.state === 'waiting_input' ? 'text-amber-400' : agent.state === 'streaming' ? 'text-green-400' : 'text-gray-500'}`}
-          >
-            {STATE_LABEL[agent.state]}
-            {agent.pending_requests > 1 ? ` (${agent.pending_requests})` : ''}
-          </span>
-        </div>
-        <div className={`mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 text-xs ${metaText}`}>
-          {agent.project_slug && (
-            <span className="inline-flex items-center gap-1">
-              <FolderGit2 className="h-3 w-3" aria-hidden="true" />
-              {agent.project_slug}
-            </span>
-          )}
-          {facts.map((f, i) => (
-            <span key={i}>{f}</span>
-          ))}
-        </div>
-      </div>
-      <Button
-        variant="secondary"
-        size="sm"
+    <li data-testid="live-agent" data-state={agent.state}>
+      <button
+        type="button"
         onClick={() => onOpen(agent.session_id)}
         aria-label={`${LIVE_TEXT.open} ${agentTitle(agent)}`}
+        title={detail}
+        className={`relative flex min-h-11 w-full min-w-0 items-center gap-2.5 rounded-lg px-2 pb-2.5 pt-1.5 text-left hover:bg-white/[0.04] ${pressFeedback} ${focusRing}`}
       >
-        {LIVE_TEXT.open}
-      </Button>
+        {/* How long it has been running, against the longest on screen: the list reads as a timeline. */}
+        {scale ? (
+          <span aria-hidden="true" data-chart="age" className="absolute bottom-1 left-[2.125rem] right-2 h-[3px] overflow-hidden rounded-full bg-white/[0.06]">
+            <span
+              className={`block h-full rounded-full ${waiting ? 'bg-amber-400' : agent.state === 'streaming' ? 'bg-emerald-400/80' : 'bg-gray-500'}`}
+              style={{ width: `${Math.max(2, Math.min(100, (agent.age_secs / scale) * 100))}%` }}
+            />
+          </span>
+        ) : null}
+        <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+          <StateDot state={agent.state} />
+        </span>
+        <span className={`min-w-0 flex-1 truncate text-sm ${agent.state === 'idle' ? 'text-gray-400' : 'text-gray-100'}`}>{agentTitle(agent)}</span>
+        <span className={`hidden shrink-0 @md/live:inline ${metaText}`}>{originLabel(agent.origin)}</span>
+        <span
+          className={`shrink-0 text-xs ${waiting ? 'font-medium text-amber-300' : agent.state === 'streaming' ? 'text-emerald-300' : 'text-gray-400'}`}
+        >
+          {STATE_LABEL[agent.state]}
+          {agent.pending_requests > 1 ? ` (${agent.pending_requests})` : ''}
+        </span>
+        <span className={`w-12 shrink-0 text-right tabular-nums ${metaText}`}>{since}</span>
+        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-gray-600" aria-hidden="true" />
+      </button>
     </li>
   )
 }
@@ -74,24 +69,40 @@ export function LiveAgents() {
   const { status, data, stale, refresh } = useLiveAgents()
   const setSession = useSetAtom(chatSessionIdAtom)
   const setMode = useSetAtom(chatPanelModeAtom)
+  const [showIdle, setShowIdle] = useState(false)
   const open = (id: string) => {
     setSession(id)
     setMode('open')
   }
 
+  // Who needs the user first, then who works; the idle ones are folded (nothing happens there).
+  const order = { waiting_input: 0, streaming: 1, idle: 2 } as const
+  const active = (data?.agents ?? []).filter((a) => a.state !== 'idle').sort((a, b) => order[a.state] - order[b.state])
+  const idle = (data?.agents ?? []).filter((a) => a.state === 'idle')
+
+  const scale = Math.max(0, ...active.map((a) => a.age_secs))
+  const cost = formatCost((data?.agents ?? []).reduce((n, a) => n + (a.total_cost_usd ?? 0), 0))
+
   return (
-    <section aria-label={LIVE_TEXT.region} className="space-y-3">
+    <section aria-label={LIVE_TEXT.region} className="@container/live min-w-0 space-y-2 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3.5">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-200">
-          <Bot className="h-4 w-4 text-gray-400" aria-hidden="true" />
-          {LIVE_TEXT.title}
-        </h2>
+        <h2 className="text-base font-semibold tracking-tight text-gray-100">{LIVE_TEXT.title}</h2>
         {data && (
           <p className="text-xs text-gray-400" aria-live="polite">
             {summaryLine(data)}
           </p>
         )}
+        {data && data.total > 0 && cost && <p className="ml-auto text-xs tabular-nums text-gray-400">{cost}</p>}
       </div>
+      {data && data.total > 0 && (
+        <StackedBar
+          segments={[
+            { value: data.waiting_input, className: 'text-amber-400' },
+            { value: data.streaming, className: 'text-emerald-400' },
+            { value: data.idle, className: 'text-gray-500' },
+          ]}
+        />
+      )}
 
       {stale && data && (
         <p role="status" className="text-xs text-amber-400">
@@ -109,12 +120,27 @@ export function LiveAgents() {
         </div>
       )}
 
-      {data && data.agents.length > 0 && (
-        <ul className="divide-y divide-white/[0.06]">
-          {data.agents.map((a) => (
-            <LiveAgentRow key={a.session_id} agent={a} onOpen={open} />
+      {data && active.length > 0 && (
+        <ul className="-mx-2">
+          {active.map((a) => (
+            <LiveAgentRow key={a.session_id} agent={a} onOpen={open} scale={scale} />
           ))}
         </ul>
+      )}
+      {data && idle.length > 0 && (
+        <div>
+          <Button variant="ghost" size="sm" className="-ml-2" aria-expanded={showIdle} onClick={() => setShowIdle((v) => !v)}>
+            <ChevronRight className={`mr-1 h-3.5 w-3.5 ${showIdle ? 'rotate-90' : ''}`} aria-hidden="true" />
+            {LIVE_TEXT.idle(idle.length)}
+          </Button>
+          {showIdle && (
+            <ul className="-mx-2">
+              {idle.map((a) => (
+                <LiveAgentRow key={a.session_id} agent={a} onOpen={open} />
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </section>
   )

@@ -14,6 +14,7 @@ vi.mock('@/hooks/useEventBus', () => ({
 }))
 
 import { LiveAgents } from '../LiveAgents'
+import { LIVE_TEXT, STATE_LABEL, originLabel } from '../text'
 import { LIVE_AGENTS_POLL_MS } from '@/hooks/useLiveAgents'
 
 const agent = (over: Partial<LiveAgent> = {}): LiveAgent => ({
@@ -65,36 +66,96 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('LiveAgents', () => {
-  it('lists every running agent with its state, origin and facts', async () => {
+  it('lists the agents that wait or work, one line each: who waits first, with state, origin and duration', async () => {
     list.mockResolvedValue(
       response([
-        agent({ session_id: 'a', title: 'Waits', state: 'waiting_input', pending_requests: 2 }),
-        agent({ session_id: 'b', title: 'Runs', origin: 'runner', state: 'streaming' }),
+        agent({ session_id: 'b', title: 'Runs', origin: 'runner', state: 'streaming', age_secs: 300 }),
         agent({ session_id: 'c', title: 'Rests', state: 'idle', idle_secs: 120 }),
+        agent({ session_id: 'a', title: 'Waits', state: 'waiting_input', pending_requests: 2, age_secs: 45 }),
       ]),
     )
     renderLive()
     expect(await screen.findByText('Waits')).toBeTruthy()
+    expect(screen.getByRole('region', { name: LIVE_TEXT.region })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: LIVE_TEXT.title })).toBeTruthy()
     const rows = screen.getAllByTestId('live-agent')
-    expect(rows.map((r) => r.getAttribute('data-state'))).toEqual(['waiting_input', 'streaming', 'idle'])
-    expect(rows[0].textContent).toContain('Attend ta réponse (2)')
-    expect(rows[1].textContent).toContain('Plan')
-    expect(rows[2].textContent).toContain('inactif depuis 2m')
-    expect(rows[0].textContent).toContain('$0.50')
-    expect(screen.getByText(/3 agents · 1 attend ta réponse · 1 travaille · 1 inactif/)).toBeTruthy()
+    // Who needs the user first, then who works; the idle one is folded.
+    expect(rows.map((r) => r.getAttribute('data-state'))).toEqual(['waiting_input', 'streaming'])
+    expect(rows[0].textContent).toContain(`${STATE_LABEL.waiting_input} (2)`)
+    expect(rows[0].textContent).toContain(originLabel('user'))
+    expect(rows[0].textContent).toContain('45s')
+    expect(rows[1].textContent).toContain(STATE_LABEL.streaming)
+    expect(rows[1].textContent).toContain(originLabel('runner'))
+    expect(rows[1].textContent).toContain('5m')
+    // The whole line is ONE button; project, model, messages and cost are its tooltip, not text of the row.
+    for (const r of rows) expect(r.querySelectorAll('button')).toHaveLength(1)
+    const button = screen.getByRole('button', { name: `${LIVE_TEXT.open} Waits` })
+    expect(rows[0].contains(button)).toBe(true)
+    for (const fact of ['po', 'claude-opus', '4 msg', '$0.50']) expect(button.getAttribute('title')).toContain(fact)
+    expect(rows[0].textContent).not.toContain('$0.50')
+    expect(rows[0].textContent).not.toContain('claude-opus')
+    // The summary counts who waits and who works: no total, no idle.
+    expect(screen.getByText('1 attend ta réponse · 1 travaille')).toBeTruthy()
+  })
+
+  it('folds the idle agents behind a button that reveals them', async () => {
+    list.mockResolvedValue(
+      response([
+        agent({ session_id: 'b', title: 'Runs', state: 'streaming' }),
+        agent({ session_id: 'c', title: 'Rests', state: 'idle', age_secs: 4000, idle_secs: 120 }),
+        agent({ session_id: 'd', title: 'Sleeps', state: 'idle', idle_secs: 30 }),
+      ]),
+    )
+    const { store } = renderLive()
+    expect(await screen.findByText('Runs')).toBeTruthy()
+    const fold = screen.getByRole('button', { name: LIVE_TEXT.idle(2) })
+    expect(fold.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByText('Rests')).toBeNull()
+    expect(screen.getAllByTestId('live-agent')).toHaveLength(1)
+
+    fireEvent.click(fold)
+    expect(fold.getAttribute('aria-expanded')).toBe('true')
+    const rows = screen.getAllByTestId('live-agent')
+    expect(rows.map((r) => r.getAttribute('data-state'))).toEqual(['streaming', 'idle', 'idle'])
+    // An idle agent says since when it is idle, not its age.
+    expect(rows[1].textContent).toContain('Rests')
+    expect(rows[1].textContent).toContain(STATE_LABEL.idle)
+    expect(rows[1].textContent).toContain('2m')
+    expect(rows[1].textContent).not.toContain('1h')
+    // An idle agent opens like any other.
+    fireEvent.click(screen.getByRole('button', { name: `${LIVE_TEXT.open} Sleeps` }))
+    expect(store.get(chatSessionIdAtom)).toBe('d')
+    expect(store.get(chatPanelModeAtom)).toBe('open')
+
+    fireEvent.click(fold)
+    expect(fold.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByText('Rests')).toBeNull()
+  })
+
+  it('shows only the fold when every agent is idle', async () => {
+    list.mockResolvedValue(response([agent({ title: 'Rests', state: 'idle' })]))
+    renderLive()
+    const fold = await screen.findByRole('button', { name: LIVE_TEXT.idle(1) })
+    expect(fold.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryAllByTestId('live-agent')).toHaveLength(0)
+    // Not "nobody runs": one does, it is just idle.
+    expect(screen.queryByText(LIVE_TEXT.empty)).toBeNull()
+    fireEvent.click(fold)
+    expect(screen.getByRole('button', { name: `${LIVE_TEXT.open} Rests` })).toBeTruthy()
   })
 
   it('says plainly that nobody runs', async () => {
     list.mockResolvedValue(response([]))
     renderLive()
-    expect(await screen.findByText('Aucun agent ne tourne en ce moment', { selector: 'p.text-sm' })).toBeTruthy()
+    expect(await screen.findByText(LIVE_TEXT.empty, { selector: 'p.text-sm' })).toBeTruthy()
     expect(screen.queryAllByTestId('live-agent')).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: /inactif/ })).toBeNull()
   })
 
   it('opens the session in the chat panel on "Ouvrir"', async () => {
     list.mockResolvedValue(response([agent({ session_id: 'sess-42', title: 'Open me' })]))
     const { store } = renderLive()
-    fireEvent.click(await screen.findByRole('button', { name: 'Ouvrir Open me' }))
+    fireEvent.click(await screen.findByRole('button', { name: `${LIVE_TEXT.open} Open me` }))
     expect(store.get(chatSessionIdAtom)).toBe('sess-42')
     expect(store.get(chatPanelModeAtom)).toBe('open')
   })
@@ -102,8 +163,8 @@ describe('LiveAgents', () => {
   it('shows an error with a retry when the first load fails, never an empty list', async () => {
     list.mockRejectedValueOnce(new Error('boom'))
     renderLive()
-    expect(await screen.findByText('La liste des agents n’a pas pu être chargée.')).toBeTruthy()
-    expect(screen.queryByText('Aucun agent ne tourne en ce moment', { selector: 'p.text-sm' })).toBeNull()
+    expect(await screen.findByText(LIVE_TEXT.loadError)).toBeTruthy()
+    expect(screen.queryByText(LIVE_TEXT.empty)).toBeNull()
     list.mockResolvedValue(response([agent({ title: 'Back' })]))
     fireEvent.click(screen.getByRole('button', { name: /retry|réessayer|try again/i }))
     expect(await screen.findByText('Back')).toBeTruthy()

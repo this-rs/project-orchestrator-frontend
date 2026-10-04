@@ -31,7 +31,7 @@ vi.mock('@/services/runner', async () => {
 const toast = { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }
 vi.mock('@/hooks/useToast', () => ({ useToast: () => toast }))
 
-import { WorkDashboard } from '../WorkDashboard'
+import { ROWS_SHOWN, WorkDashboard } from '../WorkDashboard'
 
 const plan = (id: string, priority: number, extra: Partial<Plan> = {}): Plan => ({
   id, title: `Plan ${id}`, description: '', status: 'in_progress', created_at: '2026-09-01T00:00:00Z', created_by: 't', priority, ...extra,
@@ -82,6 +82,16 @@ function menu(rowTitle: string, item: string) {
   fireEvent.click(screen.getByRole('menuitem', { name: item }))
 }
 
+const tab = (label: string) => screen.getByRole('tab', { name: new RegExp(`^${label}`) })
+const queryTab = (label: string) => screen.queryByRole('tab', { name: new RegExp(`^${label}`) })
+/** Shows one list of the dashboard: clicks the tab whose name starts with `label` (its count follows). */
+function openTab(label: string) {
+  fireEvent.click(tab(label))
+  expect(tab(label).getAttribute('aria-selected')).toBe('true')
+}
+/** The one list on screen. */
+const panel = () => screen.getByRole('tabpanel')
+
 beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
@@ -97,17 +107,36 @@ describe('WorkDashboard', () => {
       counts: { a: { total: 4, completed: 1, in_progress: 1, blocked: 0, pending: 2, failed: 0, percentage: 25 } },
     })
     renderDash()
-    expect(await screen.findByText('Tâche run')).toBeTruthy()
-    expect(screen.getByText('Tâche nxt')).toBeTruthy()
+    // One block: a title and one tab per list, each with its count.
+    expect(await screen.findByRole('heading', { level: 2, name: WORK_TEXT.title })).toBeTruthy()
+    expect(screen.getByRole('tablist', { name: WORK_TEXT.title })).toBeTruthy()
+    expect(tab(WORK_TEXT.day).textContent).toBe(`${WORK_TEXT.day} 0`)
+    expect(tab(WORK_TEXT.inProgress).textContent).toBe(`${WORK_TEXT.inProgress} 1`)
+    expect(tab(WORK_TEXT.next).textContent).toBe(`${WORK_TEXT.next} 1`)
+    expect(tab(WORK_TEXT.chains).textContent).toBe(`${WORK_TEXT.chains} 1`)
+    // Nothing planned for the day: what is in progress is the list on screen, and the only one.
+    expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
+    expect(panel().getAttribute('data-tab')).toBe('inProgress')
+    expect(screen.getByText('Tâche run')).toBeTruthy()
+    expect(screen.queryByText('Tâche nxt')).toBeNull()
     // The plan is named on its task rows and on its chain row.
-    expect(screen.getAllByText('Plan a').length).toBeGreaterThanOrEqual(2)
+    expect(within(panel()).getByText('Plan a')).toBeTruthy()
+    openTab(WORK_TEXT.next)
+    expect(panel().getAttribute('data-tab')).toBe('next')
+    expect(screen.getByText('Tâche nxt')).toBeTruthy()
+    expect(within(panel()).getByText('Plan a')).toBeTruthy()
+    openTab(WORK_TEXT.chains)
+    expect(panel().getAttribute('data-tab')).toBe('chains')
+    expect(within(panel()).getByText('Plan a')).toBeTruthy()
+    // Priorities are no longer written on the rows.
+    expect(screen.queryByText(/^P\d+$/)).toBeNull()
     expect(screen.getByText('1/4')).toBeTruthy()
     expect(screen.getByRole('progressbar', { name: 'Avancement de Plan a' }).getAttribute('aria-valuenow')).toBe('25')
     // No summary line of its own: the page has ONE, above the queue.
     expect(screen.queryByTestId('work-summary')).toBeNull()
   })
 
-  it('is one column: the day, in progress, blocked, to take next, plans to launch, in that order', async () => {
+  it('is one block of tabs: the day, in progress, to take next, blocked, plans to launch, in that order', async () => {
     seed({
       plans: [plan('a', 80)],
       inProgress: [listed(task('run', 'in_progress'), 'a')],
@@ -118,8 +147,13 @@ describe('WorkDashboard', () => {
     const dash = await screen.findByTestId('work-dashboard')
     expect(dash.className).not.toMatch(/grid-cols/)
     expect(dash.querySelector('[class*="grid-cols"]')).toBeNull()
-    const titles = within(dash).getAllByRole('heading').map((h) => h.textContent?.replace(/\d+$/, '').trim())
-    expect(titles).toEqual([WORK_TEXT.day, WORK_TEXT.inProgress, WORK_TEXT.blocked, WORK_TEXT.next, WORK_TEXT.chains])
+    // One heading for the whole block; the lists are tabs, in this order.
+    expect(within(dash).getAllByRole('heading').map((h) => h.textContent)).toEqual([WORK_TEXT.title])
+    const titles = within(within(dash).getByRole('tablist')).getAllByRole('tab').map((t) => t.textContent?.replace(/\d+$/, '').trim())
+    expect(titles).toEqual([WORK_TEXT.day, WORK_TEXT.inProgress, WORK_TEXT.next, WORK_TEXT.blocked, WORK_TEXT.chains])
+    // One list at a time, and exactly one tab selected.
+    expect(within(dash).getAllByRole('tabpanel')).toHaveLength(1)
+    expect(within(dash).getAllByRole('tab').filter((t) => t.getAttribute('aria-selected') === 'true')).toHaveLength(1)
   })
 
   it('leaves out a plan the page already shows (running, waiting or to resume): a plan appears once', async () => {
@@ -128,26 +162,37 @@ describe('WorkDashboard', () => {
       runs: [{ run_id: '1', plan_id: 'shown', status: 'failed', started_at: '2026-10-02T08:00:00Z' }],
     })
     renderDash(['acme'], new Set(['shown']))
-    expect(await screen.findByText('Plan idle')).toBeTruthy()
+    await screen.findByTestId('work-dashboard')
+    expect(tab(WORK_TEXT.chains).textContent).toBe(`${WORK_TEXT.chains} 1`)
+    openTab(WORK_TEXT.chains)
+    expect(screen.getByText('Plan idle')).toBeTruthy()
     expect(screen.queryByText('Plan shown')).toBeNull()
     expect(screen.queryByRole('button', { name: new RegExp(WORK_TEXT.relaunch) })).toBeNull()
   })
 
-  it('has no "plans to launch" group when every active plan is shown elsewhere', async () => {
+  it('has no "plans to launch" tab when every active plan is shown elsewhere', async () => {
     seed({ plans: [plan('a', 1)] })
     renderDash(['acme'], new Set(['a']))
     await screen.findByTestId('work-dashboard')
-    expect(screen.queryByRole('heading', { name: new RegExp(`^${WORK_TEXT.chains}`) })).toBeNull()
+    expect(queryTab(WORK_TEXT.chains)).toBeNull()
+    expect(screen.queryByText('Plan a')).toBeNull()
   })
 
   it('says so when there is nothing planned and nothing running', async () => {
     seed()
     renderDash()
     expect(await screen.findByTestId('work-dashboard')).toBeTruthy()
-    // Said once, as the empty state of the day.
-    expect(screen.getAllByText(WORK_TEXT.dayEmpty)).toHaveLength(1)
+    // Nothing planned, nothing in progress: the page opens on what to take next, and says there is nothing.
+    expect(panel().getAttribute('data-tab')).toBe('next')
     expect(screen.getByText(WORK_TEXT.nextEmpty)).toBeTruthy()
-    expect(screen.queryByRole('heading', { name: new RegExp(`^${WORK_TEXT.chains}`) })).toBeNull()
+    openTab(WORK_TEXT.inProgress)
+    expect(screen.getByText(WORK_TEXT.inProgressEmpty)).toBeTruthy()
+    // Said once, as the empty state of the day.
+    openTab(WORK_TEXT.day)
+    expect(screen.getAllByText(WORK_TEXT.dayEmpty)).toHaveLength(1)
+    // Tabs with nothing to show and nothing to say are left out.
+    expect(queryTab(WORK_TEXT.chains)).toBeNull()
+    expect(queryTab(WORK_TEXT.blocked)).toBeNull()
   })
 
   it('adds a task to the day, remembers it across a reload, and shows it once', async () => {
@@ -156,8 +201,14 @@ describe('WorkDashboard', () => {
     await screen.findByText('Tâche nxt')
     fireEvent.click(screen.getByRole('button', { name: `${WORK_TEXT.addToDay} : Tâche nxt` }))
     await waitFor(() => expect(JSON.parse(localStorage.getItem(DAY_PLAN_KEY) ?? '{}').ids).toEqual(['nxt']))
-    // It now lives under "Ma journée" only: no longer offered in "À prendre".
+    // It now lives under "Ma journée" only (the day has a task: it is the list on screen)…
+    expect(panel().getAttribute('data-tab')).toBe('day')
     expect(screen.getAllByText('Tâche nxt')).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: new RegExp(WORK_TEXT.addToDay) })).toBeNull()
+    expect(tab(WORK_TEXT.day).textContent).toBe(`${WORK_TEXT.day} 1`)
+    // …and is no longer offered in "À prendre".
+    openTab(WORK_TEXT.next)
+    expect(screen.queryByText('Tâche nxt')).toBeNull()
     expect(screen.queryByRole('button', { name: new RegExp(WORK_TEXT.addToDay) })).toBeNull()
     first.unmount()
     renderDash()
@@ -189,12 +240,19 @@ describe('WorkDashboard', () => {
       pending: [listed(task('nxt', 'pending'), 'a')],
     })
     renderDash()
-    await screen.findByText('Tâche nxt')
+    await screen.findByText('Tâche run')
     // A task to take next offers "Ajouter"; starting it right away is in its menu.
+    openTab(WORK_TEXT.next)
+    expect(screen.getByRole('button', { name: `${WORK_TEXT.addToDay} : Tâche nxt` })).toBeTruthy()
     menu('Tâche nxt', WORK_TEXT.start)
     await waitFor(() => expect(tasksUpdate).toHaveBeenCalledWith('nxt', { status: 'in_progress' }))
     expect(toast.success).toHaveBeenCalledWith(WORK_TEXT.started)
-    fireEvent.click(screen.getByRole('button', { name: new RegExp(WORK_TEXT.complete) }))
+    // Starting it planned it for the day.
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(DAY_PLAN_KEY) ?? '{}').ids).toEqual(['nxt']))
+    // A task in progress has no visible button: "Terminer" is in its menu.
+    openTab(WORK_TEXT.inProgress)
+    expect(screen.queryByRole('button', { name: new RegExp(`^${WORK_TEXT.complete}`) })).toBeNull()
+    menu('Tâche run', WORK_TEXT.complete)
     await waitFor(() => expect(tasksUpdate).toHaveBeenCalledWith('run', { status: 'completed' }))
     expect(toast.success).toHaveBeenCalledWith(WORK_TEXT.completed)
   })
@@ -209,17 +267,32 @@ describe('WorkDashboard', () => {
     })
     renderDash()
     const dash = await screen.findByTestId('work-dashboard')
-    await screen.findByText('Tâche nxt')
-    // at most one visible action per row
-    for (const row of dash.querySelectorAll('li')) {
-      expect(row.querySelectorAll('[data-row-primary] button').length).toBeLessThanOrEqual(1)
+    await screen.findByText('Tâche one')
+    // Every list of the dashboard, one tab after the other.
+    const filled: { tab: string; label: string; row: string }[] = []
+    const seen: string[] = []
+    for (const label of [WORK_TEXT.day, WORK_TEXT.inProgress, WORK_TEXT.next]) {
+      openTab(label)
+      const rows = [...panel().querySelectorAll('li')]
+      expect(rows.length).toBeGreaterThan(0)
+      // at most one visible action per row
+      for (const row of rows) {
+        expect(row.querySelectorAll('[data-row-primary] button').length).toBeLessThanOrEqual(1)
+        seen.push(row.textContent ?? '')
+      }
+      for (const b of dash.querySelectorAll('button')) {
+        if (b.className.includes('bg-indigo-600')) filled.push({ tab: label, label: b.textContent ?? '', row: b.closest('li')?.textContent ?? '' })
+      }
     }
+    expect(seen.some((t) => t.includes('Tâche run'))).toBe(true)
+    expect(seen.some((t) => t.includes('Tâche nxt'))).toBe(true)
     // one filled button in the whole dashboard, on the first task of the day still to start
-    const filled = [...dash.querySelectorAll('button')].filter((b) => b.className.includes('bg-indigo-600'))
     expect(filled).toHaveLength(1)
-    expect(filled[0].textContent).toContain(WORK_TEXT.start)
-    expect(filled[0].closest('li')!.textContent).toContain('Tâche one')
+    expect(filled[0].tab).toBe(WORK_TEXT.day)
+    expect(filled[0].label).toContain(WORK_TEXT.start)
+    expect(filled[0].row).toContain('Tâche one')
     // the second task of the day can still be started, from its menu
+    openTab(WORK_TEXT.day)
     menu('Tâche two', WORK_TEXT.start)
     await waitFor(() => expect(tasksUpdate).toHaveBeenCalledWith('two', { status: 'in_progress' }))
   })
@@ -237,7 +310,9 @@ describe('WorkDashboard', () => {
   it('launches a chain that never ran, in the project folder', async () => {
     seed({ plans: [plan('a', 1, { project_id: 'pr' })], counts: { a: { total: 2, completed: 0, in_progress: 0, blocked: 0, pending: 2, failed: 0, percentage: 0 } } })
     renderDash()
-    fireEvent.click(await screen.findByRole('button', { name: new RegExp(WORK_TEXT.launch) }))
+    await screen.findByTestId('work-dashboard')
+    openTab(WORK_TEXT.chains)
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(WORK_TEXT.launch) }))
     await waitFor(() => expect(startRun).toHaveBeenCalledWith('a', '/work/backend', 'backend'))
     expect(toast.success).toHaveBeenCalledWith(WORK_TEXT.launched)
   })
@@ -251,7 +326,12 @@ describe('WorkDashboard', () => {
       ],
     })
     renderDash()
-    expect(await screen.findByRole('button', { name: new RegExp(WORK_TEXT.relaunch) })).toBeTruthy()
+    await screen.findByTestId('work-dashboard')
+    // Only the failed plan is to launch: the running one is not counted either.
+    expect(tab(WORK_TEXT.chains).textContent).toBe(`${WORK_TEXT.chains} 1`)
+    openTab(WORK_TEXT.chains)
+    expect(screen.getByText('Plan f')).toBeTruthy()
+    expect(screen.getByRole('button', { name: new RegExp(WORK_TEXT.relaunch) })).toBeTruthy()
     expect(screen.getAllByRole('button', { name: new RegExp(`${WORK_TEXT.launch}|${WORK_TEXT.relaunch}`) })).toHaveLength(1)
     expect(screen.queryByText('Plan r')).toBeNull()
     expect(screen.queryByText(WORK_TEXT.runLabel.running)).toBeNull()
@@ -262,7 +342,9 @@ describe('WorkDashboard', () => {
     seed({ plans: [plan('a', 1)] })
     startRun.mockRejectedValueOnce(new Error('Le plan a déjà un run actif'))
     renderDash()
-    fireEvent.click(await screen.findByRole('button', { name: new RegExp(WORK_TEXT.launch) }))
+    await screen.findByTestId('work-dashboard')
+    openTab(WORK_TEXT.chains)
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(WORK_TEXT.launch) }))
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Le plan a déjà un run actif'))
   })
 
@@ -280,8 +362,81 @@ describe('WorkDashboard', () => {
   it('lists blocked tasks', async () => {
     seed({ plans: [plan('a', 1)], blocked: [listed(task('bl', 'blocked'), 'a')] })
     renderDash()
-    expect(await screen.findByText('Tâche bl')).toBeTruthy()
-    expect(within(screen.getByTestId('work-dashboard')).getByRole('heading', { name: /^Bloqué/ })).toBeTruthy()
+    await screen.findByTestId('work-dashboard')
+    expect(tab(WORK_TEXT.blocked).textContent).toBe(`${WORK_TEXT.blocked} 1`)
+    openTab(WORK_TEXT.blocked)
+    expect(panel().getAttribute('data-tab')).toBe('blocked')
+    expect(screen.getByText('Tâche bl')).toBeTruthy()
+  })
+
+  it('cuts a long list: the first rows, then "Afficher les N", which toggles to "Réduire"', async () => {
+    const n = ROWS_SHOWN + 2
+    seed({
+      plans: [plan('a', 1)],
+      inProgress: Array.from({ length: n }, (_, i) => listed(task(`t${i}`, 'in_progress'), 'a')),
+    })
+    renderDash()
+    await screen.findByText('Tâche t0')
+    const rows = () => within(panel()).queryAllByText(/^Tâche t\d+$/).map((e) => e.textContent)
+    const all = Array.from({ length: n }, (_, i) => `Tâche t${i}`)
+    // The count of the tab is the whole list, not what is on screen.
+    expect(tab(WORK_TEXT.inProgress).textContent).toBe(`${WORK_TEXT.inProgress} ${n}`)
+    expect(rows()).toEqual(all.slice(0, ROWS_SHOWN))
+    const more = screen.getByRole('button', { name: WORK_TEXT.showAll(n) })
+    expect(more.getAttribute('aria-expanded')).toBe('false')
+    // A ghost button: the dashboard keeps its single filled one.
+    expect(more.className).not.toContain('bg-indigo-600')
+    fireEvent.click(more)
+    expect(rows()).toEqual(all)
+    expect(screen.queryByRole('button', { name: WORK_TEXT.showAll(n) })).toBeNull()
+    const less = screen.getByRole('button', { name: WORK_TEXT.showLess })
+    expect(less.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(less)
+    expect(rows()).toEqual(all.slice(0, ROWS_SHOWN))
+    expect(screen.getByRole('button', { name: WORK_TEXT.showAll(n) })).toBeTruthy()
+  })
+
+  it('does not offer "Afficher les N" for a list that fits', async () => {
+    seed({
+      plans: [plan('a', 1)],
+      inProgress: Array.from({ length: ROWS_SHOWN }, (_, i) => listed(task(`t${i}`, 'in_progress'), 'a')),
+    })
+    renderDash()
+    await screen.findByText('Tâche t0')
+    expect(within(panel()).getAllByText(/^Tâche t\d+$/)).toHaveLength(ROWS_SHOWN)
+    expect(screen.queryByRole('button', { name: WORK_TEXT.showAll(ROWS_SHOWN) })).toBeNull()
+    expect(screen.queryByRole('button', { name: WORK_TEXT.showLess })).toBeNull()
+  })
+
+  it('opens on the day when it has tasks, and keeps the tab the user picked', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      localStorage.setItem(DAY_PLAN_KEY, JSON.stringify({ date: 'x', ids: ['one', 'doing'] }))
+      seed({
+        plans: [plan('a', 1)],
+        pending: [listed(task('one', 'pending'), 'a')],
+        inProgress: [listed(task('doing', 'in_progress'), 'a'), listed(task('run', 'in_progress'), 'a')],
+      })
+      renderDash()
+      await screen.findByText('Tâche one')
+      expect(panel().getAttribute('data-tab')).toBe('day')
+      // In the day, a row says its state when it is not just "to do".
+      const row = (title: string) => screen.getByText(title).closest('li')!
+      expect(within(row('Tâche doing')).getByText(WORK_TEXT.taskStatus.in_progress)).toBeTruthy()
+      expect(within(row('Tâche one')).queryByText(WORK_TEXT.taskStatus.pending)).toBeNull()
+      // A task of the day is shown there, once: not again under "En cours".
+      openTab(WORK_TEXT.inProgress)
+      expect(screen.getByText('Tâche run')).toBeTruthy()
+      expect(screen.queryByText('Tâche doing')).toBeNull()
+      // The picked tab survives a refresh of the data.
+      const calls = plansList.mock.calls.length
+      await vi.advanceTimersByTimeAsync(31_000)
+      await waitFor(() => expect(plansList.mock.calls.length).toBeGreaterThan(calls))
+      expect(panel().getAttribute('data-tab')).toBe('inProgress')
+      expect(tab(WORK_TEXT.inProgress).getAttribute('aria-selected')).toBe('true')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('shows an error with a retry when the first load fails, then recovers', async () => {

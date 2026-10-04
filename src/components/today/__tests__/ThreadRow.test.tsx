@@ -4,6 +4,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { parseAttentionResponse } from '@/services/attention'
+import { STUCK_LABEL } from '../bands'
 import type { AttentionResponse, AttentionThread } from '@/types/attention'
 import {
   ThreadRow,
@@ -37,12 +38,14 @@ describe('ThreadRow — stuck (À reprendre)', () => {
 
   it('says the cause, names the blocked task with a link to unblock it, and shows the backend preview as is', () => {
     renderRow(<ThreadRow variant="stuck" thread={thread} runner={blocked.runner} onResume={noResume} />)
-    expect(screen.getByText('Tâche bloquée')).toBeTruthy()
+    expect(screen.getByText(STUCK_LABEL.task_blocked)).toBeTruthy()
+    // one meta line: the cause, then since when
+    expect(screen.getByText('depuis 4 h')).toBeTruthy()
     const box = screen.getByTestId('blocked-tasks')
     const link = within(box).getByRole('link', { name: 'Configurer le webhook de paiement' })
     expect(link.getAttribute('href')).toBe(`/workspace/${thread.workspace}/tasks/${thread.resume!.skipped_blocked[0].id}`)
     expect(box.textContent).toContain(ROW_TEXT.unblockFirst)
-    expect(screen.getByTestId('resume-preview').textContent).toBe('2 faites et 1 bloquée seront sautées, 1 relancée')
+    expect(screen.getByTestId('resume-preview').textContent).toBe('Reprendre relance 1 tâche ; 2 déjà faites')
   })
 
   it('shows the preview from the backend numbers without computing anything', () => {
@@ -51,14 +54,51 @@ describe('ThreadRow — stuck (À reprendre)', () => {
       resume: { done_count: 4, skipped_blocked: [{ id: 'a', title: 'A' }], rerun_count: 2 },
     }
     renderRow(<ThreadRow variant="stuck" thread={t} runner={blocked.runner} onResume={noResume} />)
-    expect(screen.getByTestId('resume-preview').textContent).toBe('4 faites et 1 bloquée seront sautées, 2 relancées')
+    expect(screen.getByTestId('resume-preview').textContent).toBe('Reprendre relance 2 tâches ; 4 déjà faites')
   })
 
-  it('names the blocked tasks BEFORE the click: the list precedes the Reprendre button in the DOM', () => {
+  // The button now sits at the right of the title, so it precedes the list in the DOM. What is
+  // protected is unchanged: the constraint is stated BEFORE the click, without any interaction.
+  it('states the blocked tasks BEFORE the click: the count is readable without opening anything, the names and links are in the row', () => {
     renderRow(<ThreadRow variant="stuck" thread={thread} runner={blocked.runner} onResume={noResume} />)
-    const names = screen.getByTestId('blocked-tasks')
+    const box = screen.getByTestId('blocked-tasks')
+    expect(box.tagName).toBe('DETAILS')
+    // The summary of a <details> is what stays shown while it is folded: it carries the count.
+    const summary = box.querySelector(':scope > summary')!
+    expect(summary.textContent).toBe(ROW_TEXT.blockedToggle(thread.blocked_tasks.length))
+    expect(summary.textContent).toBe('1 tâche bloquée sera sautée')
+    // Names and links are there before any click on Reprendre (inside the fold).
+    for (const t of thread.blocked_tasks) {
+      expect(within(box).getByRole('link', { name: t.title }).getAttribute('href')).toBe(
+        `/workspace/${thread.workspace}/tasks/${t.id}`,
+      )
+    }
+    // The button is described by the resume preview, which is in the row from the start.
     const button = screen.getByRole('button', { name: ROW_TEXT.resume })
-    expect(names.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(button.getAttribute('aria-describedby')).toBe(screen.getByTestId('resume-preview').id)
+  })
+
+  it('agrees the blocked summary in the plural', () => {
+    const two: AttentionThread = {
+      ...thread,
+      blocked_tasks: [
+        { id: 'a', title: 'Tâche A' },
+        { id: 'b', title: 'Tâche B' },
+      ],
+    }
+    renderRow(<ThreadRow variant="stuck" thread={two} runner={blocked.runner} onResume={noResume} />)
+    const box = screen.getByTestId('blocked-tasks')
+    expect(box.querySelector(':scope > summary')!.textContent).toBe('2 tâches bloquées seront sautées')
+    expect(within(box).getAllByRole('link').map((l) => l.textContent)).toEqual(['Tâche A', 'Tâche B'])
+  })
+
+  it('shows where the plan stands as ONE state bar, linked to the plan graph', () => {
+    renderRow(<ThreadRow variant="stuck" thread={thread} runner={blocked.runner} onResume={noResume} />)
+    const bar = screen.getByRole('progressbar', { name: 'Avancement' })
+    expect(bar.getAttribute('aria-valuenow')).toBe('2')
+    expect(bar.getAttribute('aria-valuemax')).toBe('5')
+    expect(screen.getByTestId('state-words').textContent).toBe('1 bloquée')
+    expect(bar.closest('a')!.getAttribute('href')).toBe(`/workspace/${thread.workspace}/plans/${thread.plan!.id}#graph`)
   })
 
   it('Reprendre is a secondary button: eight stuck threads must not stack eight primaries', () => {
@@ -98,6 +138,7 @@ describe('ThreadRow — stuck (À reprendre)', () => {
       expect(button.disabled).toBe(true)
       const reason = screen.getByTestId('resume-disabled-reason')
       expect(reason.textContent).toBe(`${ROW_TEXT.runnerBusy} ${busy.runner.busy_with!.plan_title}`)
+      expect(ROW_TEXT.runnerBusy).not.toMatch(/runner/i)
       expect(within(reason).getByRole('link').getAttribute('href')).toBe(
         `/workspace/${busy.runner.busy_with!.workspace}/plans/${busy.runner.busy_with!.plan_id}`,
       )
@@ -134,19 +175,22 @@ describe('ThreadRow — stuck (À reprendre)', () => {
   })
 
   it('says each stuck cause in clear', () => {
-    const cases = { failed: 'Run échoué', budget_exceeded: 'Budget dépassé', session_error: 'Erreur de session' } as const
-    for (const [reason, text] of Object.entries(cases)) {
+    const cases = ['failed', 'budget_exceeded', 'session_error'] as const
+    expect(STUCK_LABEL.failed).toBe('Arrêté sur une erreur')
+    expect(STUCK_LABEL.session_error).toBe('Erreur de conversation')
+    for (const reason of cases) {
+      const text = STUCK_LABEL[reason]
       const { unmount } = renderRow(
         <ThreadRow
           variant="stuck"
-          thread={{ ...thread, stuck_reason: reason as keyof typeof cases, blocked_tasks: [], resume: { done_count: 0, skipped_blocked: [], rerun_count: 3 } }}
+          thread={{ ...thread, stuck_reason: reason, blocked_tasks: [], resume: { done_count: 0, skipped_blocked: [], rerun_count: 3 } }}
           runner={blocked.runner}
           onResume={noResume}
         />,
       )
       expect(screen.getByText(text)).toBeTruthy()
       expect(screen.queryByTestId('blocked-tasks')).toBeNull()
-      expect(screen.getByTestId('resume-preview').textContent).toBe('3 relancées')
+      expect(screen.getByTestId('resume-preview').textContent).toBe('Reprendre relance 3 tâches')
       unmount()
     }
   })
@@ -160,12 +204,13 @@ describe('ThreadRow — stuck (À reprendre)', () => {
 describe('resumePreviewText (wording of the backend fields, singular and plural)', () => {
   const t = (id: string) => ({ id, title: id })
   it.each([
-    [{ done_count: 4, skipped_blocked: [t('a')], rerun_count: 2 }, '4 faites et 1 bloquée seront sautées, 2 relancées'],
-    [{ done_count: 1, skipped_blocked: [t('a'), t('b')], rerun_count: 1 }, '1 faite et 2 bloquées seront sautées, 1 relancée'],
-    [{ done_count: 0, skipped_blocked: [t('a')], rerun_count: 0 }, '1 bloquée sera sautée, aucune relancée'],
-    [{ done_count: 1, skipped_blocked: [], rerun_count: 2 }, '1 faite sera sautée, 2 relancées'],
-    [{ done_count: 5, skipped_blocked: [], rerun_count: 0 }, '5 faites seront sautées, aucune relancée'],
-    [{ done_count: 0, skipped_blocked: [], rerun_count: 4 }, '4 relancées'],
+    // blocked tasks are no longer counted in this sentence: the fold under it names them
+    [{ done_count: 4, skipped_blocked: [t('a')], rerun_count: 2 }, 'Reprendre relance 2 tâches ; 4 déjà faites'],
+    [{ done_count: 1, skipped_blocked: [t('a'), t('b')], rerun_count: 1 }, 'Reprendre relance 1 tâche ; 1 déjà faite'],
+    [{ done_count: 0, skipped_blocked: [t('a')], rerun_count: 0 }, 'Reprendre ne relance aucune tâche'],
+    [{ done_count: 1, skipped_blocked: [], rerun_count: 2 }, 'Reprendre relance 2 tâches ; 1 déjà faite'],
+    [{ done_count: 5, skipped_blocked: [], rerun_count: 0 }, 'Reprendre ne relance aucune tâche ; 5 déjà faites'],
+    [{ done_count: 0, skipped_blocked: [], rerun_count: 4 }, 'Reprendre relance 4 tâches'],
   ])('%j', (preview, text) => {
     expect(resumePreviewText(preview)).toBe(text)
   })
@@ -180,19 +225,34 @@ describe('ThreadRow — orphan (À reprendre)', () => {
     return onSendMessage
   }
 
-  it('shows what was asked in full, since when the CLI stopped, and the spike help text', () => {
+  it('says what happened, since when the conversation stopped, keeps what was asked in full behind a fold, and the spike help text in the sheet', () => {
     send()
-    expect(screen.getByTestId('request-text').textContent).toBe(orphan.text)
-    expect(screen.getByText(/Permission demandée \(Bash\)/)).toBeTruthy()
-    expect(screen.getByText(/CLI arrêté depuis/)).toBeTruthy()
-    expect(screen.getByText(ROW_TEXT.helpPermission)).toBeTruthy()
+    expect(screen.getByText(STUCK_LABEL.orphan_request)).toBeTruthy()
+    expect(screen.getByText(/^conversation arrêtée depuis /)).toBeTruthy()
+    // The request, whole, inside a folded <details> whose summary names its kind and tool.
+    const request = screen.getByTestId('request-text')
+    expect(request.textContent).toBe(orphan.text)
+    const fold = request.closest('details')!
+    expect(fold.open).toBe(false)
+    expect(fold.querySelector(':scope > summary')!.textContent).toBe(`${ROW_TEXT.showRequest} : autorisation (Bash)`)
+    // The help is no longer printed in the row: it is the help of the sheet, once opened.
+    expect(screen.queryByText(ROW_TEXT.helpPermission)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resumeSession }))
+    expect(within(screen.getByRole('dialog')).getByText(ROW_TEXT.helpPermission)).toBeTruthy()
+  })
+
+  it('the row wording has no CLI / session jargon', () => {
+    const { container } = renderRow(<ThreadRow variant="orphan" thread={thread} orphan={orphan} onSendMessage={noSend} />)
+    const row = container.querySelector('li[data-variant="orphan"]')!
+    const own = row.textContent!.replace(orphan.text, '').replace(thread.title, '')
+    expect(own).not.toMatch(/\bCLI\b|session|sans fil/i)
   })
 
   it('says when the stop date is unknown', () => {
     renderRow(
       <ThreadRow variant="orphan" thread={thread} orphan={{ ...orphan, cli_stopped_at: null }} onSendMessage={noSend} />,
     )
-    expect(screen.getByText('CLI arrêté (date inconnue)')).toBeTruthy()
+    expect(screen.getByText('conversation arrêtée')).toBeTruthy()
   })
 
   it('NEVER offers an Allow / Autoriser button — row, permission or question, sheet open or closed', () => {
@@ -206,7 +266,7 @@ describe('ThreadRow — orphan (À reprendre)', () => {
     }
   })
 
-  it('"Reprendre la session" opens the field with a short editable "Continue." and sends a message to THAT session', async () => {
+  it('"Reprendre la conversation" opens the field with a short editable "Continue." and sends a message to THAT session', async () => {
     const onSendMessage = send()
     expect(screen.queryByRole('dialog')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resumeSession }))
@@ -252,9 +312,26 @@ describe('ThreadRow — orphan (À reprendre)', () => {
 
     it('without a chosen option the field opens with the plain "Continue."', () => {
       open()
-      expect(screen.getByText(ROW_TEXT.helpQuestion)).toBeTruthy()
+      expect(screen.getByText(`${ROW_TEXT.showRequest} : question`)).toBeTruthy()
+      // the help moved from the row into the sheet
+      expect(screen.queryByText(ROW_TEXT.helpQuestion)).toBeNull()
       fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resumeSession }))
+      expect(within(screen.getByRole('dialog')).getByText(ROW_TEXT.helpQuestion)).toBeTruthy()
       expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('Continue.')
+    })
+
+    it('with options, the options ARE the action: the resume button sits under the picker, once', () => {
+      open()
+      const picker = screen.getByRole('group', { name: 'Options de la question' })
+      const buttons = screen.getAllByRole('button', { name: ROW_TEXT.resumeSession })
+      expect(buttons).toHaveLength(1)
+      expect(picker.compareDocumentPosition(buttons[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+
+    it('a question without options keeps ONE resume button (at the right of the title, no picker)', () => {
+      renderRow(<ThreadRow variant="orphan" thread={thread} orphan={{ ...question, options: [] }} onSendMessage={noSend} />)
+      expect(screen.queryByRole('group', { name: 'Options de la question' })).toBeNull()
+      expect(screen.getAllByRole('button', { name: ROW_TEXT.resumeSession })).toHaveLength(1)
     })
 
     it('a chosen option pre-fills the answer message (spike wording) and is sent as a message', async () => {
@@ -280,28 +357,32 @@ describe('ThreadRow — orphan (À reprendre)', () => {
     })
   })
 
-  it('falls back to "sans fil" when the session is not among the thread sessions', () => {
+  it('falls back to "Conversation libre" when the session is not among the thread sessions', () => {
     const stray = { ...orphan, session_id: 'ffffffff-0000-0000-0000-000000000000' }
     renderRow(<ThreadRow variant="orphan" thread={thread} orphan={stray} onSendMessage={vi.fn()} />)
-    expect(screen.getByTestId('provenance').textContent).toBe('sans fil')
+    expect(screen.getByTestId('provenance').textContent).toBe(ROW_TEXT.noThread)
   })
 
-  it('"Reprendre la session" of an orphan row is secondary (the page keeps one primary)', () => {
+  it('"Reprendre la conversation" of an orphan row is secondary (the page keeps one primary)', () => {
     send()
-    expect(screen.getByRole('button', { name: 'Reprendre la session' }).className).not.toContain('bg-indigo-600')
+    expect(ROW_TEXT.resumeSession).toBe('Reprendre la conversation')
+    expect(screen.getByRole('button', { name: ROW_TEXT.resumeSession }).className).not.toContain('bg-indigo-600')
   })
 
-  it('the provenance of an orphan is 12px in a readable grey, set apart from the request', () => {
+  // Was: "12px in a readable grey, set apart from the request". The provenance is no longer
+  // printed: it stays in the DOM for assistive tech only, still apart from the request text.
+  it('the provenance of an orphan is kept for assistive tech (sr-only), set apart from the request', () => {
     send()
-    const cls = screen.getByTestId('provenance').className
-    expect(cls).toContain('text-xs')
-    expect(cls).toContain('text-gray-400')
-    expect(cls).toContain('mt-2')
+    const provenance = screen.getByTestId('provenance')
+    expect(provenance.className).toBe('sr-only')
+    expect(provenance.textContent).not.toBe('')
+    expect(screen.getByTestId('request-text').contains(provenance)).toBe(false)
+    expect(provenance.closest('details')).toBeNull()
   })
 
   it('states where the session is attached (provenance), never computing membership', () => {
     send()
-    expect(screen.getByTestId('provenance').textContent).toBe(`rattachée au run ${thread.run!.id.slice(0, 8)}`)
+    expect(screen.getByTestId('provenance').textContent).toBe(`rattachée à l’exécution ${thread.run!.id.slice(0, 8)}`)
   })
 
   it('gives the resume button a ≥ 36px target', () => {
@@ -329,14 +410,14 @@ describe('linkProvenance', () => {
   it('never infers "précédent": every run link reads the same, via + id only', () => {
     const texts = links.filter((l) => l.via === 'runner_run').map((l) => linkProvenance(l, thread))
     expect(texts.length).toBeGreaterThan(1)
-    for (const x of texts) expect(x).toMatch(/^rattachée au run [0-9a-f]{8}$/)
+    for (const x of texts) expect(x).toMatch(/^rattachée à l’exécution [0-9a-f]{8}$/)
   })
 
   it('words each mechanism', () => {
     const link = { run_id: null, task_id: 'abcdef123456', plan_id: null }
     expect(linkProvenance({ via: 'task_association', ...link }, thread)).toBe('rattachée à la tâche abcdef12')
     expect(linkProvenance({ via: 'plan_association', ...link }, thread)).toBe(`rattachée au plan ${thread.plan!.title}`)
-    expect(linkProvenance({ via: 'spawned_by_json', ...link, run_id: 'r1234567890' }, undefined)).toBe('créée par le run r1234567')
+    expect(linkProvenance({ via: 'spawned_by_json', ...link, run_id: 'r1234567890' }, undefined)).toBe('créée par l’exécution r1234567')
   })
 })
 
@@ -347,10 +428,18 @@ describe('ThreadRow — unattached session (no thread)', () => {
   const permission = live.find((u) => u.pending[0]?.kind === 'permission')!
   const dead = data.unattached.find((u) => u.state === 'dead')!
 
-  it('is the same row, labelled "sans fil", in its lane', () => {
-    renderRow(<ThreadRow variant="unattached" session={question} onSendMessage={noSend} laneName="Lane X" />)
-    expect(screen.getByTestId('no-thread-label').textContent).toBe('sans fil')
-    expect(screen.getByText('Lane X')).toBeTruthy()
+  it('is the same row, labelled "Conversation libre", in its lane, with since when', () => {
+    const { container } = renderRow(
+      <ThreadRow variant="unattached" session={question} onSendMessage={noSend} laneName="Lane X" attachSlot={<button type="button">Rattacher</button>} />,
+    )
+    expect(container.querySelector(`li[data-variant="unattached"][data-session="${question.id}"]`)).toBeTruthy()
+    const label = screen.getByTestId('no-thread-label')
+    expect(label.textContent).toBe(ROW_TEXT.noThread)
+    expect(ROW_TEXT.noThread).toBe('Conversation libre')
+    const lane = screen.getByText('Lane X')
+    expect(label.compareDocumentPosition(lane) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByText(/^en cours depuis /)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Rattacher' })).toBeTruthy()
     expect(screen.getByText(question.title)).toBeTruthy()
     expect(screen.getByTestId('request-text').textContent).toBe(question.pending[0].text)
   })
@@ -373,7 +462,7 @@ describe('ThreadRow — unattached session (no thread)', () => {
     expect(screen.getByText(ROW_TEXT.livePermissionElsewhere)).toBeTruthy()
   })
 
-  it('a DEAD session is resumed with "Reprendre la session" (user_message), never Autoriser', async () => {
+  it('a DEAD session is resumed with "Reprendre la conversation" (user_message), never Autoriser', async () => {
     const withPending = {
       ...dead,
       pending: [{ ...permission.pending[0], session_id: dead.id }],
@@ -389,6 +478,7 @@ describe('ThreadRow — unattached session (no thread)', () => {
   it('a session without pending request still renders its row', () => {
     renderRow(<ThreadRow variant="unattached" session={dead} onSendMessage={noSend} />)
     expect(screen.getByTestId('no-thread-label')).toBeTruthy()
+    expect(screen.getByText(/^arrêtée depuis /)).toBeTruthy()
     expect(screen.queryByRole('button')).toBeNull()
   })
 })
