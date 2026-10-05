@@ -28,6 +28,21 @@ vi.mock('@/services/runner', async () => {
   const actual = await vi.importActual<typeof import('@/services/runner')>('@/services/runner')
   return { ...actual, runnerApi: { listAllRuns: (...a: unknown[]) => listAllRuns(...a), startRun: (...a: unknown[]) => startRun(...a) } }
 })
+
+const providersList = vi.hoisted(() => vi.fn())
+vi.mock('@/services/providers', async (orig) => ({
+  ...(await orig<typeof import('@/services/providers')>()),
+  providersApi: { list: (...a: unknown[]) => providersList(...a) },
+}))
+const ONE = { providers: [{ id: 'claude-code', kind: 'claude_code', label: 'Claude Code', builtin: true, health: { status: 'healthy' }, models: [] }] }
+const TWO = (allowedForProject: boolean | undefined) => ({
+  providers: [
+    ...ONE.providers,
+    { id: 'deepseek', kind: 'openai_compatible', label: 'DeepSeek', cost_source: 'priced', health: { status: 'healthy' }, models: [], allowed_for_project: allowedForProject },
+  ],
+  default: { provider: 'claude-code', model: null, routed_by: 'default' },
+})
+
 const toast = { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }
 vi.mock('@/hooks/useToast', () => ({ useToast: () => toast }))
 
@@ -62,6 +77,7 @@ function seed(w: World = {}) {
   tasksGet.mockResolvedValue(null)
   tasksUpdate.mockResolvedValue({})
   startRun.mockResolvedValue({})
+  providersList.mockResolvedValue(ONE)
 }
 
 function renderDash(workspaces = ['acme'], shownPlanIds?: ReadonlySet<string>) {
@@ -470,5 +486,47 @@ describe('WorkDashboard', () => {
     renderDash()
     expect(await screen.findByText('Tâche deep')).toBeTruthy()
     expect(tasksGet).toHaveBeenCalledWith('deep')
+  })
+})
+
+describe('WorkDashboard — the provider choice of a launch', () => {
+  const launchWithTwoProviders = async () => {
+    seed({ plans: [plan('a', 1, { project_id: 'pr' })], counts: { a: { total: 2, completed: 0, in_progress: 0, blocked: 0, pending: 2, failed: 0, percentage: 0 } } })
+    providersList.mockImplementation(async (params?: { project_slug?: string }) => TWO(params?.project_slug === 'backend' ? false : true))
+    renderDash()
+    await screen.findByTestId('work-dashboard')
+    openTab(WORK_TEXT.chains)
+    // wait until the list of providers is known: the launch is then gated
+    await waitFor(() => expect(providersList).toHaveBeenCalled())
+    await new Promise((r) => setTimeout(r, 50))
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(WORK_TEXT.launch) }))
+  }
+
+  it('asks which provider first: no run starts until one is chosen, then it starts with that choice', async () => {
+    seed({ plans: [plan('a', 1, { project_id: 'pr' })], counts: { a: { total: 2, completed: 0, in_progress: 0, blocked: 0, pending: 2, failed: 0, percentage: 0 } } })
+    providersList.mockResolvedValue(TWO(true))
+    renderDash()
+    await screen.findByTestId('work-dashboard')
+    openTab(WORK_TEXT.chains)
+    await waitFor(() => expect(providersList).toHaveBeenCalled())
+    await new Promise((r) => setTimeout(r, 50))
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(WORK_TEXT.launch) }))
+    expect(startRun).not.toHaveBeenCalled()
+    fireEvent.click(await screen.findByRole('radio', { name: /DeepSeek/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Launch$/ }))
+    await waitFor(() => expect(startRun).toHaveBeenCalledWith('a', '/work/backend', 'backend', undefined, { provider: 'deepseek' }))
+  })
+
+  it('Escape closes the dialog and starts nothing', async () => {
+    await launchWithTwoProviders()
+    fireEvent.keyDown(await screen.findByRole('dialog'), { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(startRun).not.toHaveBeenCalled()
+  })
+
+  it("reads the consent of the PLAN's project, not the chat's", async () => {
+    await launchWithTwoProviders()
+    await waitFor(() => expect(providersList).toHaveBeenCalledWith({ project_slug: 'backend' }))
+    await waitFor(() => expect(screen.getByRole('radio', { name: /DeepSeek/ }).getAttribute('aria-disabled')).toBe('true'))
   })
 })

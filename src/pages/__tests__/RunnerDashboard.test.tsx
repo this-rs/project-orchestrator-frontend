@@ -12,6 +12,21 @@ const getSessionTree = vi.fn()
 const startRun = vi.fn()
 const snapshot = { current: null as unknown }
 
+const providersList = vi.hoisted(() => vi.fn())
+vi.mock('@/services/providers', async (orig) => ({
+  ...(await orig<typeof import('@/services/providers')>()),
+  providersApi: { list: (...a: unknown[]) => providersList(...a) },
+}))
+const ONE = { providers: [{ id: 'claude-code', kind: 'claude_code', label: 'Claude Code', builtin: true, health: { status: 'healthy' }, models: [] }] }
+const TWO = (allowedForProject: boolean | undefined) => ({
+  providers: [
+    ...ONE.providers,
+    { id: 'deepseek', kind: 'openai_compatible', label: 'DeepSeek', cost_source: 'priced', health: { status: 'healthy' }, models: [], allowed_for_project: allowedForProject },
+  ],
+  default: { provider: 'claude-code', model: null, routed_by: 'default' },
+})
+
+
 vi.mock('@/services/chat', () => ({
   chatApi: {
     getPlanSessions: vi.fn(),
@@ -40,7 +55,13 @@ vi.mock('@/hooks/runner', () => ({
   useLatestPlanRun: () => null,
   useWavesData: () => ({ waves: null, loading: false }),
 }))
-vi.mock('@/components/runner/RunnerHeader', () => ({ RunnerHeader: () => <div data-testid="runner-header" /> }))
+vi.mock('@/components/runner/RunnerHeader', () => ({
+  RunnerHeader: ({ onRetryRun }: { onRetryRun: () => void }) => (
+    <div data-testid="runner-header">
+      <button onClick={onRetryRun}>retry run</button>
+    </div>
+  ),
+}))
 vi.mock('@/components/runner/StatsRow', () => ({ StatsRow: () => <div data-testid="stats-row" /> }))
 vi.mock('@/components/runner/WaveSection', () => ({ WaveSection: () => null }))
 
@@ -74,6 +95,7 @@ describe('RunnerDashboard discussions tab', () => {
         : [{ session_id: 'stray', parent_session_id: 'gone', depth: 1, is_streaming: false, run_id: 'run1' }],
     )
     startRun.mockResolvedValue({})
+    providersList.mockResolvedValue(ONE)
   })
 
   it('renders every session of the run as one forest (nothing lost) and resumes a failed run in the project folder', async () => {
@@ -98,5 +120,54 @@ describe('RunnerDashboard discussions tab', () => {
     fireEvent.click(await screen.findByRole('tab', { name: /Discussion tree/ }))
     await screen.findByText('Run root')
     expect(screen.queryByRole('button', { name: 'Reprendre le run' })).toBeNull()
+  })
+})
+
+describe('RunnerDashboard — the provider choice of a retry', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    snapshot.current = { ...base, status: 'failed' }
+    getRunSessions.mockResolvedValue([])
+    getSessionTree.mockResolvedValue([])
+    startRun.mockResolvedValue({})
+  })
+
+  const clickRetry = async () => {
+    renderPage()
+    await waitFor(() => expect(providersList).toHaveBeenCalled())
+    await new Promise((r) => setTimeout(r, 50))
+    fireEvent.click(await screen.findByRole('button', { name: 'retry run' }))
+  }
+
+  it('asks which provider first: nothing starts until one is chosen, then it starts with that choice', async () => {
+    providersList.mockResolvedValue(TWO(true))
+    await clickRetry()
+    expect(startRun).not.toHaveBeenCalled()
+    fireEvent.click(await screen.findByRole('radio', { name: /DeepSeek/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Launch$/ }))
+    await waitFor(() => expect(startRun).toHaveBeenCalled())
+    expect(startRun.mock.calls[0][4]).toEqual({ provider: 'deepseek' })
+  })
+
+  it('Escape closes the dialog and starts nothing', async () => {
+    providersList.mockResolvedValue(TWO(true))
+    await clickRetry()
+    fireEvent.keyDown(await screen.findByRole('dialog'), { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(startRun).not.toHaveBeenCalled()
+  })
+
+  it("reads the consent of the PLAN's project, not the chat's", async () => {
+    providersList.mockImplementation(async (params?: { project_slug?: string }) => TWO(params?.project_slug === 'alpha' ? false : true))
+    await clickRetry()
+    await waitFor(() => expect(providersList).toHaveBeenCalledWith({ project_slug: 'alpha' }))
+    await waitFor(() => expect(screen.getByRole('radio', { name: /DeepSeek/ }).getAttribute('aria-disabled')).toBe('true'))
+  })
+
+  it('launches at once when there is one provider, as before', async () => {
+    providersList.mockResolvedValue(ONE)
+    await clickRetry()
+    await waitFor(() => expect(startRun).toHaveBeenCalled())
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
