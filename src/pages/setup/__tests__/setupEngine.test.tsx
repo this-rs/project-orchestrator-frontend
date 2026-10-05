@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, configure } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { Provider, createStore } from 'jotai'
 import { setupConfigAtom, setupStepAtom, defaultSetupConfig, withSetupModelFallback, type SetupConfig } from '@/atoms/setup'
@@ -43,6 +43,10 @@ function cli(installed: boolean) {
     return null
   })
 }
+
+// Waits are on the REAL state (the CLI check answered, the button enabled); this
+// timeout is only a ceiling for a loaded machine, never the thing being measured.
+configure({ asyncUtilTimeout: 30_000 })
 
 const next = () => screen.getByRole('button', { name: /next/i })
 
