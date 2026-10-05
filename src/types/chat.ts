@@ -1,4 +1,5 @@
 import type { MessageAttachment } from '@/utils/messageAttachments'
+import type { CostBasis, ProviderCapabilities, ProviderId, ProviderKind, ToolCategory, ToolPolicy, ToolPolicyMode } from './provider'
 // ============================================================================
 // PERMISSION CONFIG
 // ============================================================================
@@ -245,6 +246,19 @@ export interface ChatSession {
   preview?: string
   /** Permission mode override for this session (undefined = global config default) */
   permission_mode?: PermissionMode
+  /**
+   * Provider INSTANCE the session runs on. Absent on a session created before
+   * providers existed: read it as `claude-code` (see `sessionProviderId`).
+   */
+  provider_id?: ProviderId | null
+  /** Kind of that instance, when the server stamps it. */
+  provider_kind?: ProviderKind | null
+  /** Capabilities frozen on the session when it opened. Absent = read them from the provider list. */
+  capabilities?: Partial<ProviderCapabilities> | null
+  /** Which rule picked the provider/model (`request`, `project_rule`, …). */
+  routed_by?: string | null
+  /** Where the session's cost figure comes from. Absent = `reported` (Claude Code). */
+  cost_basis?: CostBasis | null
   /** Additional directories exposed to Claude CLI (--add-dir) */
   add_dirs?: string[]
   /** Origin of this session if detached (null = normal conversation) */
@@ -270,8 +284,16 @@ export interface CreateSessionRequest {
   /** Workspace slug — resolves all project root_paths as --add-dir */
   workspace_slug?: string
   model?: string
-  /** Permission mode override for this session (default: from server config) */
-  permission_mode?: PermissionMode
+  /**
+   * Provider instance to open the session on. Omitted = the server resolves
+   * the default (and a pre-provider backend ignores the field).
+   */
+  provider?: ProviderId
+  /**
+   * Permission mode override for this session (default: from server config).
+   * Legacy string, or a neutral `ToolPolicyMode` once the backend accepts both.
+   */
+  permission_mode?: PermissionMode | ToolPolicyMode
   /** Additional directories to expose to Claude CLI (--add-dir) */
   add_dirs?: string[]
   /**
@@ -307,41 +329,191 @@ export interface AskUserQuestion {
 // CHAT EVENTS (discriminated union on `type`)
 // ============================================================================
 
+/** Cost of a turn, with where the figure comes from. `usd: null` = unknown, never zero. */
+export interface TurnCost {
+  usd?: number | null
+  basis: CostBasis
+}
+
+/** Token usage of a turn. Every field optional: providers report what they can. */
+export interface TurnUsage {
+  input_tokens?: number
+  output_tokens?: number
+  cache_read_tokens?: number
+  cache_creation_tokens?: number
+  reasoning_tokens?: number
+}
+
+/** Fields the provider adapter stamps on a tool call so the UI never guesses from the name. */
+interface ToolProviderHints {
+  /** `command | read | edit | search | web | mcp | agent | other`. */
+  category?: ToolCategory
+  /** Canonical alias of the tool (`Bash`, `Read`, `Edit`…) for the renderer registry. */
+  canonical?: string
+}
+
+/** Events nested under a sub-agent's tool call carry its id. */
+interface Nested {
+  parent_tool_use_id?: string
+}
+
+/**
+ * `ChatEvent` — the persisted/broadcast events of a session. Mirrors the
+ * backend enum `ChatEvent` (`backend/src/chat/types.rs`) variant for variant;
+ * the field-level contract test (`chatContract.test.ts`) replays the backend's
+ * sample frames against `CHAT_EVENT_FIELDS` below.
+ *
+ * NOT here: `partial_text` & co. (transport control frames — `ChatControlFrame`)
+ * and `viz_block` (never emitted as an event by the backend — `ChatLocalEvent`).
+ */
 export type ChatEvent =
   | { type: 'user_message'; content: string }
-  | { type: 'assistant_text'; content: string }
-  | { type: 'stream_delta'; text: string }
-  | { type: 'thinking'; content: string }
-  | { type: 'tool_use'; id: string; tool: string; input: Record<string, unknown> }
-  | { type: 'tool_result'; id: string; result: unknown; is_error?: boolean }
-  | { type: 'tool_use_input_resolved'; id: string; input: Record<string, unknown> }
+  | ({ type: 'assistant_text'; content: string } & Nested)
+  | ({ type: 'stream_delta'; text: string } & Nested)
+  | ({ type: 'thinking'; content: string } & Nested)
+  | ({ type: 'tool_use'; id: string; tool: string; input: Record<string, unknown> } & ToolProviderHints & Nested)
+  | ({ type: 'tool_result'; id: string; result: unknown; is_error?: boolean } & Nested)
+  | ({ type: 'tool_use_input_resolved'; id: string; input: Record<string, unknown> } & Nested)
   | { type: 'tool_cancelled'; id: string; parent_tool_use_id?: string }
-  | { type: 'permission_request'; id: string; tool: string; input: Record<string, unknown> }
+  | ({ type: 'permission_request'; id: string; tool: string; input: Record<string, unknown> } & ToolProviderHints & Nested)
   | { type: 'permission_decision'; id: string; allow: boolean }
-  | { type: 'ask_user_question'; questions: AskUserQuestion[]; tool_call_id?: string; id?: string }
-  | { type: 'result'; session_id: string; duration_ms: number; cost_usd?: number; subtype?: string; is_error?: boolean; num_turns?: number; result_text?: string }
-  | { type: 'error'; message: string }
-  | { type: 'partial_text'; content: string }
+  | ({
+      type: 'ask_user_question'
+      questions: AskUserQuestion[]
+      tool_call_id?: string
+      id?: string
+      input?: Record<string, unknown>
+      /** True when the backend built the question for a provider with no native support: the answer goes back as a user turn. */
+      synthetic?: boolean
+    } & Nested)
+  | {
+      type: 'result'
+      session_id: string
+      duration_ms: number
+      cost_usd?: number | null
+      subtype?: string
+      is_error?: boolean
+      num_turns?: number
+      result_text?: string
+      /** Cost with its basis. When present it wins over the bare `cost_usd`. */
+      cost?: TurnCost
+      usage?: TurnUsage
+      /** Model that actually answered (may differ from the one requested). */
+      model?: string
+    }
+  | ({ type: 'error'; message: string } & Nested)
   | { type: 'streaming_status'; is_streaming: boolean }
-  | { type: 'permission_mode_changed'; mode: string }
+  | { type: 'permission_mode_changed'; mode: string; tool_policy?: ToolPolicy | ToolPolicyMode }
   | { type: 'model_changed'; model: string }
   | { type: 'compaction_started'; trigger: string }
+  | { type: 'compaction_recovery'; hint_tokens: number; build_latency_ms: number; recovery_success: boolean }
   | { type: 'compact_boundary'; trigger: string; pre_tokens?: number }
-  | { type: 'system_init'; cli_session_id: string; model?: string; tools?: string[]; mcp_servers?: { name: string; status?: string }[]; permission_mode?: string }
+  | {
+      type: 'system_init'
+      /** Claude CLI session id. Absent for a provider that has no such thing. */
+      cli_session_id?: string
+      model?: string
+      tools?: string[]
+      mcp_servers?: { name: string; status?: string }[]
+      /** Legacy (Claude) permission mode string. */
+      permission_mode?: string
+      /** Provider instance: an id, or `{ id, kind?, label? }`. ABSENT = `claude-code`. */
+      provider?: ProviderId | { id: ProviderId; kind?: ProviderKind; label?: string }
+      /** Capabilities of (provider, model), frozen when the session opened. ABSENT = full Claude profile. */
+      capabilities?: Partial<ProviderCapabilities>
+      /** Neutral policy of the session. */
+      tool_policy?: ToolPolicy | ToolPolicyMode
+    }
   | { type: 'auto_continue'; session_id: string; delay_ms: number }
   | { type: 'auto_continue_state_changed'; session_id: string; enabled: boolean }
   | { type: 'system_hint'; content: string }
   | { type: 'retrying'; attempt: number; max_attempts: number; delay_ms: number; error_message: string }
-  | { type: 'viz_block'; viz_type: string; data: Record<string, unknown>; interactive?: boolean; fallback_text: string; title?: string; max_height?: number }
   | { type: 'background_output'; source: string; content: string; received_at: string; correlation_id?: string }
   | { type: 'workflow'; subtype: string; data: Record<string, unknown> }
-  | { type: 'session_error'; reason: string; message: string; received_at: string }
+  | { type: 'session_error'; reason: string; message: string; received_at: string; code?: string }
   | { type: 'tools_cancelled'; cli_pid?: number; killed_count: number; requested_by: string }
   | { type: 'active_tasks_update'; tasks: BackgroundTaskInfo[] }
   /** The user messages the session holds until the running turn ends — always the full list. */
   | { type: 'pending_queue'; messages: import('@/components/chat/messageQueue').ServerQueueEntry[] }
   | { type: 'secret_request'; id: string; name: string; reason: string; exists: boolean }
   | { type: 'secret_request_resolved'; id: string; outcome: string }
+
+export type ChatEventType = ChatEvent['type']
+
+/**
+ * Every field of every `ChatEvent` variant, as `required` / `optional`.
+ *
+ * The `satisfies` clause makes this table EXHAUSTIVE AND EXACT at compile
+ * time: a variant or a field added to `ChatEvent` without a row here (or a row
+ * with no matching field) fails `tsc`. At test time, the contract test replays
+ * the backend's sample frames against it: a frame carrying a field that is not
+ * listed here — i.e. a field the frontend does not type — fails.
+ */
+type FieldTable<T> = { [K in keyof T]-?: Record<string, never> extends Pick<T, K> ? 'optional' : 'required' }
+type EventFieldTables = { [T in ChatEventType]: FieldTable<Omit<Extract<ChatEvent, { type: T }>, 'type'>> }
+
+export const CHAT_EVENT_FIELDS = {
+  user_message: { content: 'required' },
+  assistant_text: { content: 'required', parent_tool_use_id: 'optional' },
+  stream_delta: { text: 'required', parent_tool_use_id: 'optional' },
+  thinking: { content: 'required', parent_tool_use_id: 'optional' },
+  tool_use: { id: 'required', tool: 'required', input: 'required', category: 'optional', canonical: 'optional', parent_tool_use_id: 'optional' },
+  tool_result: { id: 'required', result: 'required', is_error: 'optional', parent_tool_use_id: 'optional' },
+  tool_use_input_resolved: { id: 'required', input: 'required', parent_tool_use_id: 'optional' },
+  tool_cancelled: { id: 'required', parent_tool_use_id: 'optional' },
+  permission_request: { id: 'required', tool: 'required', input: 'required', category: 'optional', canonical: 'optional', parent_tool_use_id: 'optional' },
+  permission_decision: { id: 'required', allow: 'required' },
+  ask_user_question: { questions: 'required', tool_call_id: 'optional', id: 'optional', input: 'optional', synthetic: 'optional', parent_tool_use_id: 'optional' },
+  result: { session_id: 'required', duration_ms: 'required', cost_usd: 'optional', subtype: 'optional', is_error: 'optional', num_turns: 'optional', result_text: 'optional', cost: 'optional', usage: 'optional', model: 'optional' },
+  error: { message: 'required', parent_tool_use_id: 'optional' },
+  streaming_status: { is_streaming: 'required' },
+  permission_mode_changed: { mode: 'required', tool_policy: 'optional' },
+  model_changed: { model: 'required' },
+  compaction_started: { trigger: 'required' },
+  compaction_recovery: { hint_tokens: 'required', build_latency_ms: 'required', recovery_success: 'required' },
+  compact_boundary: { trigger: 'required', pre_tokens: 'optional' },
+  system_init: { cli_session_id: 'optional', model: 'optional', tools: 'optional', mcp_servers: 'optional', permission_mode: 'optional', provider: 'optional', capabilities: 'optional', tool_policy: 'optional' },
+  auto_continue: { session_id: 'required', delay_ms: 'required' },
+  auto_continue_state_changed: { session_id: 'required', enabled: 'required' },
+  system_hint: { content: 'required' },
+  retrying: { attempt: 'required', max_attempts: 'required', delay_ms: 'required', error_message: 'required' },
+  background_output: { source: 'required', content: 'required', received_at: 'required', correlation_id: 'optional' },
+  workflow: { subtype: 'required', data: 'required' },
+  session_error: { reason: 'required', message: 'required', received_at: 'required', code: 'optional' },
+  tools_cancelled: { cli_pid: 'optional', killed_count: 'required', requested_by: 'required' },
+  active_tasks_update: { tasks: 'required' },
+  pending_queue: { messages: 'required' },
+  secret_request: { id: 'required', name: 'required', reason: 'required', exists: 'required' },
+  secret_request_resolved: { id: 'required', outcome: 'required' },
+} as const satisfies EventFieldTables
+
+/**
+ * Transport control frames of the chat WebSocket. They are written by the
+ * socket handler, not by the session, are never persisted and never replayed.
+ * `ChatWebSocket` consumes all of them except `partial_text`, which it forwards.
+ */
+export type ChatControlFrame =
+  | { type: 'partial_text'; content: string }
+  | { type: 'replay_complete' }
+  | { type: 'events_lagged'; skipped?: number }
+  | { type: 'session_dormant' }
+  /** Emitted by `close_session`: the session is gone, do not reconnect. */
+  | { type: 'session_closed' }
+  | { type: 'auth_ok' }
+  | { type: 'auth_error'; message?: string }
+
+/**
+ * Events the reducers understand that the backend does NOT emit as a
+ * `ChatEvent` variant: kept so stored/hand-built streams still render.
+ */
+export type ChatLocalEvent =
+  | { type: 'viz_block'; viz_type: string; data: Record<string, unknown>; interactive?: boolean; fallback_text: string; title?: string; max_height?: number }
+
+/** What the live reducer (`useChat.handleEvent`) receives. */
+export type ChatStreamEvent =
+  | ChatEvent
+  | Extract<ChatControlFrame, { type: 'partial_text' }>
+  | ChatLocalEvent
 
 /**
  * How far an interrupt reaches.
@@ -614,6 +786,12 @@ export interface SessionTreeNode {
   model?: string | null
   total_cost_usd?: number | null
   is_streaming: boolean
+  /** Provider instance of this node. Absent = `claude-code`. */
+  provider_id?: ProviderId | null
+  /** Where `total_cost_usd` comes from. Absent = `reported`. */
+  cost_basis?: CostBasis | null
+  /** Cost of this node plus every descendant, when the server computes it. */
+  subtree_cost_usd?: number | null
 }
 
 /** An agent execution record for a plan run */
@@ -662,11 +840,37 @@ export type WsChatClientMessage =
   | { type: 'user_message'; content: string; attachments?: string[]; queue?: true }
   | ({ type: 'queue_op' } & import('@/components/chat/messageQueue').QueueOp)
   | { type: 'interrupt' }
+  /** Cancel the running tools WITHOUT ending the turn. */
+  | { type: 'cancel_tools' }
   | { type: 'permission_response'; id?: string; allow: boolean }
   | { type: 'input_response'; id?: string; content: string }
   | { type: 'set_permission_mode'; mode: string }
   | { type: 'set_model'; model: string }
   | { type: 'set_auto_continue'; enabled: boolean }
+
+/** Every client message type — exhaustive by construction (`satisfies`). */
+export const WS_CLIENT_MESSAGE_TYPES = {
+  user_message: true,
+  queue_op: true,
+  interrupt: true,
+  cancel_tools: true,
+  permission_response: true,
+  input_response: true,
+  set_permission_mode: true,
+  set_model: true,
+  set_auto_continue: true,
+} as const satisfies Record<WsChatClientMessage['type'], true>
+
+/** Every transport control frame type — exhaustive by construction. */
+export const CHAT_CONTROL_FRAME_TYPES = {
+  partial_text: true,
+  replay_complete: true,
+  events_lagged: true,
+  session_dormant: true,
+  session_closed: true,
+  auth_ok: true,
+  auth_error: true,
+} as const satisfies Record<ChatControlFrame['type'], true>
 
 /** A chat event received over WebSocket with sequence number */
 export interface ChatWsEvent {

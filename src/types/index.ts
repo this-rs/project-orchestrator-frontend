@@ -1,4 +1,5 @@
 export * from './chat'
+export * from './provider'
 export * from './documents'
 export * from './events'
 

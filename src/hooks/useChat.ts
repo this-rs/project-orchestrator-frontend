@@ -1,10 +1,10 @@
 import { splitAttachments } from '@/utils/messageAttachments'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useSetAtom, useStore } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom } from '@/atoms'
 import { chatApi, ChatWebSocket } from '@/services'
 import { applyQueueOp, enqueue, mergeServerQueue, type QueueOp, type QueuedMessage } from '@/components/chat/messageQueue'
-import type { ChatMessage, ChatEvent, PermissionMode } from '@/types'
+import type { ChatMessage, ChatStreamEvent, PermissionMode } from '@/types'
 import {
   historyEventsToMessages,
   nextBlockId,
@@ -17,8 +17,13 @@ import {
   workflowEventToTick,
   sessionErrorText,
   toolsCancelledText,
+  readSystemInitRuntime,
+  lastSystemInitRuntime,
+  systemInitProviderMetadata,
+  type SystemInitRuntime,
   type BackgroundTick,
 } from '@/utils/chatAssembly'
+import { toProviderRef } from '@/types/provider'
 import type { BackgroundActivityMetadata, BackgroundOutputEntry } from '@/types'
 
 /** Number of messages to load per page via REST */
@@ -40,6 +45,8 @@ interface LoadedWindow {
   totalCount: number
   /** Last raw event, to tell a finished turn from a live one. */
   lastEvent?: { type?: string }
+  /** Provider runtime of the last `system_init` in the window, if it holds one. */
+  runtime: SystemInitRuntime | null
 }
 
 /** Whether a window shows the user any conversation, not only background-activity noise. */
@@ -56,6 +63,7 @@ async function fetchWindow(sid: string, offset: number, limit: number): Promise<
     offset,
     totalCount: data.total_count,
     lastEvent: data.messages[data.messages.length - 1] as { type?: string } | undefined,
+    runtime: lastSystemInitRuntime(data.messages),
   }
 }
 
@@ -246,7 +254,7 @@ export function useChat() {
   // Whether the loaded message window includes the tail (end) of the conversation.
   // When false (pagination centrée), live WS events are buffered to avoid disorder.
   const isAtTailRef = useRef(true)
-  const pendingTailEventsRef = useRef<Array<ChatEvent & { seq?: number; replaying?: boolean }>>([])
+  const pendingTailEventsRef = useRef<Array<ChatStreamEvent & { seq?: number; replaying?: boolean }>>([])
   // True when live WS events are being buffered (user is viewing centered pagination)
   const [hasLiveActivity, setHasLiveActivity] = useState(false)
 
@@ -255,7 +263,7 @@ export function useChat() {
   // The auto-connect useEffect sets it to false before starting REST,
   // then back to true after setMessages(history) + replaying buffered events.
   const historyLoadedRef = useRef(true)
-  const pendingEventsRef = useRef<Array<ChatEvent & { seq?: number; replaying?: boolean }>>([])
+  const pendingEventsRef = useRef<Array<ChatStreamEvent & { seq?: number; replaying?: boolean }>>([])
 
   // ------------------------------------------------------------------------
   // Replay reconciliation — APPEND-ONLY, NEVER DESTRUCTIVE.
@@ -328,6 +336,15 @@ export function useChat() {
     _setSessionModel(value)
   }, [_setSessionModel])
 
+  // Provider runtime of the session (provider, capabilities, tool policy).
+  // Written from `system_init` — the LAST one wins: a resume may change the
+  // capabilities after a provider update — and from the session record.
+  const applySessionRuntime = useCallback((runtime: SystemInitRuntime | null) => {
+    store.set(chatSessionProviderAtom, runtime?.provider ?? null)
+    store.set(chatSessionCapabilitiesSnapshotAtom, runtime?.capabilities ?? null)
+    store.set(chatSessionToolPolicyAtom, runtime?.toolPolicy ?? null)
+  }, [store])
+
   // Auto-continue: atom is now synced from backend events (not local-only)
   const setAutoContinue = useSetAtom(chatAutoContinueAtom)
   /**
@@ -347,7 +364,7 @@ export function useChat() {
   // ========================================================================
   // Event handler — processes LIVE events only (no more replay)
   // ========================================================================
-  const handleEvent = useCallback((event: ChatEvent & { seq?: number; replaying?: boolean }) => {
+  const handleEvent = useCallback((event: ChatStreamEvent & { seq?: number; replaying?: boolean }) => {
     // The messages the session holds until the running turn ends — always the
     // full list, published to EVERY device connected to the session, so a
     // message queued on one shows on the others. It replaces what we showed for
@@ -1101,6 +1118,10 @@ export function useChat() {
           if (siModel) {
             setSessionModel(siModel)
           }
+          // Provider, capabilities and policy: read on EVERY system_init (the
+          // block below is deduped, this state is not). No provider on the
+          // event = a pre-provider session = Claude Code, full profile.
+          applySessionRuntime(readSystemInitRuntime(siData))
           // Dedup: only show the first system_init per conversation
           const alreadyHasSystemInit = updated.some((m) =>
             m.blocks.some((b) => b.type === 'system_init'),
@@ -1115,6 +1136,7 @@ export function useChat() {
                 tools_count: siTools?.length ?? 0,
                 mcp_servers_count: siMcpServers?.length ?? 0,
                 permission_mode: siPermMode,
+                ...systemInitProviderMetadata(siData),
               },
             })
           }
@@ -1228,7 +1250,7 @@ export function useChat() {
       return finalize(updated)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- tracked setters are stable (useCallback with stable deps)
-  }, [setIsStreaming, setPermissionOverride, setSessionModel, setAutoContinue, setIsCompacting, setBackgroundTasks, setSecretRequests])
+  }, [setIsStreaming, setPermissionOverride, setSessionModel, setAutoContinue, setIsCompacting, setBackgroundTasks, setSecretRequests, applySessionRuntime])
 
   // ========================================================================
   // REST resync — after a reconnect that the server cannot replay
@@ -1272,9 +1294,10 @@ export function useChat() {
         const total = meta.total_count
         const win: LoadedWindow =
           total === 0
-            ? { messages: [], rawCount: 0, offset: 0, totalCount: 0 }
+            ? { messages: [], rawCount: 0, offset: 0, totalCount: 0, runtime: null }
             : await fetchRenderableTail(sid, total)
         if (gen !== resyncGenRef.current) return
+        if (win.runtime) applySessionRuntime(win.runtime)
 
         setMessages(win.messages)
         paginationRef.current = {
@@ -1524,6 +1547,9 @@ export function useChat() {
               ? await fetchWindow(sessionId, loadOffset, PAGE_SIZE)
               : await fetchRenderableTail(sessionId, total)
             if (cancelled) return
+            // A `system_init` in the loaded window is more precise than the
+            // session record (it carries the frozen capabilities).
+            if (win.runtime) applySessionRuntime(win.runtime)
 
             setMessages(win.messages)
 
@@ -2048,7 +2074,8 @@ export function useChat() {
     setPermissionOverride(null)
     setSessionModel(null)
     setAutoContinue(false)
-  }, [getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride, setSessionModel, setAutoContinue, sessionId])
+    applySessionRuntime(null)
+  }, [getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride, setSessionModel, setAutoContinue, sessionId, applySessionRuntime])
 
   const changePermissionMode = useCallback((mode: PermissionMode) => {
     if (!sessionId) return
@@ -2084,9 +2111,19 @@ export function useChat() {
     setHasNewerMessages(false)
     setHasLiveActivity(false)
     paginationRef.current = { offset: 0, tailOffset: 0, totalCount: 0 }
+    // The previous conversation's provider must not leak into this one.
+    applySessionRuntime(null)
 
     // Fetch session metadata (cwd, project, permission mode) for display in header
     chatApi.getSession(sid).then((session) => {
+      // Provider of the session record. Absent (session created before
+      // providers existed) = Claude Code with the full profile.
+      const provider = toProviderRef(
+        session.provider_id ? { id: session.provider_id, kind: session.provider_kind ?? undefined } : null,
+      )
+      if (provider || session.capabilities) {
+        applySessionRuntime({ provider, capabilities: session.capabilities ?? null, toolPolicy: null })
+      }
       setSessionMeta({ cwd: session.cwd, projectSlug: session.project_slug, workspaceSlug: session.workspace_slug, spawnedBy: session.spawned_by ?? null })
       // Restore the session's permission mode override
       setPermissionOverride((session.permission_mode as PermissionMode) ?? null)
@@ -2099,7 +2136,7 @@ export function useChat() {
 
     // WS will auto-connect via the useEffect above when sessionId changes
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setPermissionOverride and setSessionModel are stable Jotai setters
-  }, [sessionId, getWs, setSessionId, setIsStreaming, setIsReplaying])
+  }, [sessionId, getWs, setSessionId, setIsStreaming, setIsReplaying, applySessionRuntime])
 
   return {
     messages,

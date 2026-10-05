@@ -13,6 +13,7 @@ import type {
   ContentBlock,
 } from '@/types'
 import { BACKGROUND_ACTIVITY_MAX_ENTRIES } from '@/types'
+import { toProviderRef, toToolPolicy, type ProviderCapabilities, type ProviderRef, type ToolPolicy } from '@/types/provider'
 
 // ---------------------------------------------------------------------------
 // ID generators
@@ -571,6 +572,7 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
               tools_count: initTools?.length ?? 0,
               mcp_servers_count: initMcpServers?.length ?? 0,
               permission_mode: initPermMode,
+              ...systemInitProviderMetadata(evt),
             },
           })
         }
@@ -712,3 +714,49 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
 // ---------------------------------------------------------------------------
 
 export { nextBlockId, nextMessageId, getParentToolUseId, withParent, withCreatedAt }
+
+// ============================================================================
+// system_init → provider runtime (shared by the live and the history reducers)
+// ============================================================================
+
+/** What a `system_init` says about the harness behind the session. */
+export interface SystemInitRuntime {
+  /** `null` = the event names no provider: a pre-provider session, i.e. Claude Code. */
+  provider: ProviderRef | null
+  /** `null` = no capabilities carried: the fallback profile applies. */
+  capabilities: Partial<ProviderCapabilities> | null
+  toolPolicy: ToolPolicy | null
+}
+
+/**
+ * Read provider, capabilities and tool policy off a `system_init` payload.
+ * Used by BOTH reducers so a session renders the same live and from history.
+ */
+export function readSystemInitRuntime(evt: unknown): SystemInitRuntime {
+  const e = (typeof evt === 'object' && evt !== null ? evt : {}) as Record<string, unknown>
+  const caps = e.capabilities
+  return {
+    provider: toProviderRef(e.provider),
+    capabilities: typeof caps === 'object' && caps !== null ? (caps as Partial<ProviderCapabilities>) : null,
+    toolPolicy: toToolPolicy(e.tool_policy) ?? toToolPolicy(e.permission_mode),
+  }
+}
+
+/** Runtime of the LAST `system_init` in a raw history window, or `null` when it holds none. */
+export function lastSystemInitRuntime(rawEvents: ReadonlyArray<unknown>): SystemInitRuntime | null {
+  for (let i = rawEvents.length - 1; i >= 0; i--) {
+    const evt = rawEvents[i] as { type?: string; data?: unknown } | null
+    if (evt?.type !== 'system_init') continue
+    // A replayed record may nest its payload under `data`.
+    const nested = typeof evt.data === 'object' && evt.data !== null ? (evt.data as object) : null
+    return readSystemInitRuntime(nested ? { ...evt, ...nested } : evt)
+  }
+  return null
+}
+
+/** Provider fields stored on a `system_init` block (absent for a legacy session). */
+export function systemInitProviderMetadata(evt: unknown): { provider?: string; provider_kind?: string; provider_label?: string } {
+  const ref = readSystemInitRuntime(evt).provider
+  if (!ref) return {}
+  return { provider: ref.id, provider_kind: ref.kind, provider_label: ref.label }
+}

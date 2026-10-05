@@ -155,12 +155,6 @@ export const chatWorkspaceHasProjectsAtom = atom<boolean>(false)
 /** Whether spawned (child) sessions are visible in the session list */
 export const showSpawnedSessionsAtom = atomWithStorage<boolean>('show-spawned-sessions', true)
 
-/** Derived: true when permission mode requires interactive approval (not bypassPermissions) */
-export const chatPermissionInteractiveAtom = atom((get) => {
-  const config = get(chatPermissionConfigAtom)
-  return config !== null && config.mode !== 'bypassPermissions'
-})
-
 /**
  * Background subprocesses currently tracked for the active chat session.
  * Plan 5985a7c4 (F2). The atom holds the **full snapshot** received on
