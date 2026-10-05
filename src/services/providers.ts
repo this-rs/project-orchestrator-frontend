@@ -54,20 +54,19 @@ export const providersApi = {
     api.post<ProviderTestResult>('/chat/providers/test', draft),
   create: (draft: ProviderDraft) => api.post<unknown>('/chat/providers', draft),
   update: (id: ProviderId, patch: ProviderPatch) =>
-    api.patch<unknown>(`/chat/providers/${encodeURIComponent(id)}`, patch),
+    api.put<unknown>(`/chat/providers/${encodeURIComponent(id)}`, patch),
   remove: (id: ProviderId) => api.delete<void>(`/chat/providers/${encodeURIComponent(id)}`),
 
   /** What a project agreed to send to which endpoint. */
   consents: (projectSlug: string) =>
-    api.get<LlmConsent[]>(`/projects/${encodeURIComponent(projectSlug)}/llm-consents`),
+    api.get<LlmConsent[]>(`/projects/${encodeURIComponent(projectSlug)}/llm-consent`),
   allow: (projectSlug: string, providerId: ProviderId, origin: string) =>
-    api.put<unknown>(
-      `/projects/${encodeURIComponent(projectSlug)}/llm-consents/${encodeURIComponent(providerId)}`,
-      { origin },
-    ),
+    // Only `PUT /api/projects/{slug}/llm-consent` is known from the backend's
+    // human-only guard (auth/middleware.rs); the body shape is an assumption.
+    api.put<unknown>(`/projects/${encodeURIComponent(projectSlug)}/llm-consent`, { provider_id: providerId, origin }),
   revoke: (projectSlug: string, providerId: ProviderId) =>
     api.delete<void>(
-      `/projects/${encodeURIComponent(projectSlug)}/llm-consents/${encodeURIComponent(providerId)}`,
+      `/projects/${encodeURIComponent(projectSlug)}/llm-consent/${encodeURIComponent(providerId)}`,
     ),
 
   /** Pilot / executor roles, global then per project (an absent role inherits). */

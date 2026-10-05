@@ -21,7 +21,7 @@ export interface ProviderDraft {
   credential_ref: CredentialRef
 }
 
-/** Body of `PATCH /chat/providers/{id}`: the id never changes. */
+/** Body of `PUT /chat/providers/{id}`: the id never changes. */
 export type ProviderPatch = Partial<Omit<ProviderDraft, 'id' | 'kind'>>
 
 /** Answer of `POST /chat/providers/test`. */
@@ -32,7 +32,7 @@ export interface ProviderTestResult {
   probe?: { tools: boolean; context_window?: number }
 }
 
-/** One row of `GET /projects/{slug}/llm-consents`. */
+/** One row of `GET /projects/{slug}/llm-consent`. */
 export interface LlmConsent {
   provider_id: ProviderId
   /** Origin the consent was given for. */

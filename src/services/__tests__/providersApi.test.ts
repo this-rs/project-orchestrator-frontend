@@ -57,9 +57,9 @@ describe('providersApi settings routes', () => {
     expect(post).toHaveBeenCalledWith('/chat/providers', draft)
   })
 
-  it('update — PATCH /chat/providers/{id}', async () => {
+  it('update — PUT /chat/providers/{id}', async () => {
     await providersApi.update('deepseek', { label: 'DS' })
-    expect(patch).toHaveBeenCalledWith('/chat/providers/deepseek', { label: 'DS' })
+    expect(put).toHaveBeenCalledWith('/chat/providers/deepseek', { label: 'DS' })
   })
 
   it('remove — DELETE /chat/providers/{id}', async () => {
@@ -67,13 +67,13 @@ describe('providersApi settings routes', () => {
     expect(del).toHaveBeenCalledWith('/chat/providers/deepseek')
   })
 
-  it('consents — GET, PUT { origin } and DELETE under /projects/{slug}/llm-consents', async () => {
+  it('consents — GET, PUT { provider_id, origin } and DELETE under /projects/{slug}/llm-consent', async () => {
     await providersApi.consents('po')
-    expect(get).toHaveBeenCalledWith('/projects/po/llm-consents')
+    expect(get).toHaveBeenCalledWith('/projects/po/llm-consent')
     await providersApi.allow('po', 'deepseek', 'https://api.deepseek.com')
-    expect(put).toHaveBeenCalledWith('/projects/po/llm-consents/deepseek', { origin: 'https://api.deepseek.com' })
+    expect(put).toHaveBeenCalledWith('/projects/po/llm-consent', { provider_id: 'deepseek', origin: 'https://api.deepseek.com' })
     await providersApi.revoke('po', 'deepseek')
-    expect(del).toHaveBeenCalledWith('/projects/po/llm-consents/deepseek')
+    expect(del).toHaveBeenCalledWith('/projects/po/llm-consent/deepseek')
   })
 
   it('roles — GET/PUT /chat/roles and /projects/{slug}/llm-roles', async () => {
