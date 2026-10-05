@@ -1,5 +1,7 @@
 import { atom } from 'jotai'
 import { DEFAULT_MODEL_ID } from '@/constants/models'
+import { DEFAULT_TOOL_POLICY_MODE, type LegacyWireMode } from '@/constants/toolPolicy'
+import { POLICY_TO_LEGACY_MODE } from '@/types/provider'
 
 // ============================================================================
 // Setup wizard configuration atoms
@@ -120,7 +122,8 @@ export interface SetupConfig {
   chatModel: string
   chatMaxSessions: number
   chatMaxTurns: number
-  chatPermissionMode: 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions'
+  /** Written to the config file the desktop (Rust) reads: always a legacy Claude string. */
+  chatPermissionMode: LegacyWireMode
   claudeCodeDetected: boolean
   mcpSetupStatus: McpSetupStatus
   mcpSetupMessage: string
@@ -183,7 +186,7 @@ export const defaultSetupConfig: SetupConfig = {
   chatModel: DEFAULT_MODEL_ID,
   chatMaxSessions: 3,
   chatMaxTurns: 50,
-  chatPermissionMode: 'default',
+  chatPermissionMode: POLICY_TO_LEGACY_MODE[DEFAULT_TOOL_POLICY_MODE],
   claudeCodeDetected: false,
   mcpSetupStatus: 'idle' as McpSetupStatus,
   mcpSetupMessage: '',

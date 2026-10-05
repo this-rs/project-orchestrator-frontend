@@ -1,11 +1,17 @@
 import type { MessageAttachment } from '@/utils/messageAttachments'
-import type { CostBasis, ProviderCapabilities, ProviderId, ProviderKind, ToolCategory, ToolPolicy, ToolPolicyMode } from './provider'
+import type { CostBasis, LegacyPermissionMode, ProviderCapabilities, ProviderId, ProviderKind, ToolCategory, ToolPolicy, ToolPolicyMode } from './provider'
 // ============================================================================
 // PERMISSION CONFIG
 // ============================================================================
 
-/** Permission modes supported by Claude CLI via Nexus SDK */
-export type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions'
+/**
+ * A permission mode AS RECEIVED from the backend (config, session record,
+ * events): a legacy Claude CLI string or a neutral `ToolPolicyMode`.
+ *
+ * It is a wire type. The interface holds a `ToolPolicyMode` (read with
+ * `readToolPolicyMode`) and writes with `toWireMode` — see `constants/toolPolicy.ts`.
+ */
+export type PermissionMode = LegacyPermissionMode | ToolPolicyMode
 
 /** Runtime permission configuration (matches backend PermissionConfig struct) */
 export interface PermissionConfig {
@@ -293,7 +299,7 @@ export interface CreateSessionRequest {
    * Permission mode override for this session (default: from server config).
    * Legacy string, or a neutral `ToolPolicyMode` once the backend accepts both.
    */
-  permission_mode?: PermissionMode | ToolPolicyMode
+  permission_mode?: PermissionMode
   /** Additional directories to expose to Claude CLI (--add-dir) */
   add_dirs?: string[]
   /**

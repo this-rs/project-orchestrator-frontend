@@ -7,6 +7,8 @@ import { isTauri } from '@/services/env'
 import { useToast } from '@/hooks'
 import { modelCatalogAtom, modelCatalogLoadedAtom } from '@/atoms'
 import type { CliVersionStatus } from '@/types'
+import { POLICY_TO_LEGACY_MODE, toToolPolicyMode } from '@/types/provider'
+import { SETUP_MODE_OPTIONS } from '@/constants/toolPolicy'
 
 /** Format bytes into a human-readable string (KB, MB, GB). */
 function formatBytes(bytes: number): string {
@@ -15,29 +17,6 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
-
-const PERMISSION_MODES = [
-  {
-    value: 'bypassPermissions' as const,
-    label: 'Bypass',
-    description: 'All tools auto-approved — no permission prompts',
-  },
-  {
-    value: 'default' as const,
-    label: 'Default',
-    description: 'Asks approval for file edits and shell commands',
-  },
-  {
-    value: 'acceptEdits' as const,
-    label: 'Accept Edits',
-    description: 'File edits auto-approved, shell commands need approval',
-  },
-  {
-    value: 'plan' as const,
-    label: 'Plan Only',
-    description: 'Read-only mode — Claude can read but not modify files',
-  },
-]
 
 export function ChatPage() {
   const [config, setConfig] = useAtom(setupConfigAtom)
@@ -490,29 +469,34 @@ export function ChatPage() {
             and shell commands.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
-            {PERMISSION_MODES.map((m) => (
+            {SETUP_MODE_OPTIONS.map((m) => {
+              // The config file keeps the legacy Claude string: the desktop (Rust) reads it.
+              const selected = toToolPolicyMode(config.chatPermissionMode) === m.mode
+              return (
+
               <button
-                key={m.value}
-                onClick={() => update({ chatPermissionMode: m.value })}
+                key={m.mode}
+                onClick={() => update({ chatPermissionMode: POLICY_TO_LEGACY_MODE[m.mode] })}
                 className={`flex flex-col items-start gap-1.5 rounded-xl border p-4 text-left transition ${
-                  config.chatPermissionMode === m.value
+                  selected
                     ? 'border-indigo-500/50 bg-indigo-500/10'
                     : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]'
                 }`}
               >
                 <div className="flex w-full items-center justify-between">
                   <span
-                    className={`text-sm font-medium ${config.chatPermissionMode === m.value ? 'text-white' : 'text-gray-300'}`}
+                    className={`text-sm font-medium ${selected ? 'text-white' : 'text-gray-300'}`}
                   >
                     {m.label}
                   </span>
-                  {config.chatPermissionMode === m.value && (
+                  {selected && (
                     <Check className="h-4 w-4 text-indigo-400" />
                   )}
                 </div>
                 <span className="text-xs text-gray-500">{m.description}</span>
               </button>
-            ))}
+              )
+            })}
           </div>
         </div>
       </div>

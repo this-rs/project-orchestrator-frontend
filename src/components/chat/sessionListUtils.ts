@@ -4,7 +4,15 @@
  * Every function that depends on "now" takes it as a parameter (default:
  * `new Date()`) so tests are deterministic.
  */
-import type { ChatSession, PermissionMode, SpawnedBy } from '@/types'
+import type { ChatSession, SpawnedBy } from '@/types'
+import { toToolPolicyMode } from '@/types/provider'
+import {
+  MODE_DOT_COLORS,
+  SESSION_LIST_MODE_LABELS,
+  UNKNOWN_MODE_DOT_COLOR,
+  claudeNativeModeLabel,
+  modeLabelSet,
+} from '@/constants/toolPolicy'
 
 // ============================================================================
 // Recency grouping
@@ -132,16 +140,24 @@ export function sessionPreview(session: Pick<ChatSession, 'title' | 'preview'>):
   return p
 }
 
-export const PERMISSION_MODE_META: Record<PermissionMode, { label: string; dot: string }> = {
-  bypassPermissions: { label: 'Bypass permissions', dot: 'bg-emerald-400' },
-  acceptEdits: { label: 'Accept edits', dot: 'bg-blue-400' },
-  default: { label: 'Ask permissions', dot: 'bg-amber-400' },
-  plan: { label: 'Plan mode', dot: 'bg-gray-400' },
-}
-
-export function permissionModeMeta(mode?: PermissionMode | null): { label: string; dot: string } | null {
+/**
+ * Label + dot of a session's permission mode, as the session record carries it
+ * (legacy Claude string or neutral mode). `isClaudeCode: false` picks the
+ * neutral wording; the default keeps the Claude one, unchanged.
+ *
+ * A string nobody knows is shown as is rather than dropped or guessed.
+ */
+export function permissionModeMeta(
+  mode?: string | null,
+  { isClaudeCode = true }: { isClaudeCode?: boolean } = {},
+): { label: string; dot: string } | null {
   if (!mode) return null
-  return PERMISSION_MODE_META[mode] ?? { label: mode, dot: 'bg-gray-400' }
+  const policy = toToolPolicyMode(mode)
+  if (!policy) return { label: mode, dot: UNKNOWN_MODE_DOT_COLOR }
+  // `auto` / `dontAsk` exist only in the Claude CLI: name them, the neutral
+  // mode they map to is an approximation.
+  const native = isClaudeCode ? claudeNativeModeLabel(mode, 'long') : null
+  return { label: native ?? SESSION_LIST_MODE_LABELS[modeLabelSet(isClaudeCode)][policy], dot: MODE_DOT_COLORS[policy] }
 }
 
 const SPAWN_LABELS: Record<string, { label: string; text: string }> = {

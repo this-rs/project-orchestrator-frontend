@@ -1,12 +1,22 @@
-import { memo, useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { memo, useState, useRef, useCallback, useEffect, useId, useMemo } from 'react'
 import { useAtom, useAtomValue, useStore } from 'jotai'
-import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom, chatMessageQueuesAtom, draftKeyFor, modelCatalogAtom, modelCatalogLoadedAtom } from '@/atoms'
+import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom, chatMessageQueuesAtom, draftKeyFor, modelCatalogAtom, modelCatalogLoadedAtom, chatProviderTargetAtom, chatSessionToolPolicyAtom } from '@/atoms'
 import { DEFAULT_MODEL_ID, getModelShortLabel, getModelDotColor, groupModelsByFamily } from '@/constants/models'
 import { chatApi } from '@/services/chat'
 import { documentsApi } from '@/services/documents'
 import { ApiError } from '@/services/api'
 import { useIsMobile } from '@/hooks'
-import type { PermissionMode } from '@/types'
+import type { ToolPolicyMode } from '@/types/provider'
+import {
+  COMPOSER_MODE_LABELS,
+  COMPOSER_MODE_ORDER,
+  MODE_DOT_COLORS,
+  TRUST_REQUIRES_SANDBOX_TEXT,
+  claudeNativeModeLabel,
+  isTrustAllowed,
+  modeLabelSet,
+  readToolPolicyMode,
+} from '@/constants/toolPolicy'
 import { ChevronDown, Loader2, Paperclip, Square, ArrowRight } from 'lucide-react'
 import { ActivityBar, type RunActions } from './ActivityBar'
 import type { RunningItem } from './runningActivity'
@@ -31,20 +41,6 @@ import {
   withUploaded,
   type Attachment,
 } from './attachmentState'
-
-const MODE_LABELS: Record<PermissionMode, string> = {
-  bypassPermissions: 'Bypass',
-  acceptEdits: 'Accept Edits',
-  default: 'Default',
-  plan: 'Plan Only',
-}
-
-const MODE_DOT_COLORS: Record<PermissionMode, string> = {
-  bypassPermissions: 'bg-emerald-400',
-  acceptEdits: 'bg-blue-400',
-  default: 'bg-amber-400',
-  plan: 'bg-gray-400',
-}
 
 /** Payload for prefilling the textarea from an external source (e.g. quick actions) */
 export interface PrefillPayload {
@@ -83,7 +79,7 @@ interface ChatInputProps {
   /** Current session ID (null = new conversation) */
   sessionId?: string | null
   /** Callback to change permission mode on an active session (mid-session) */
-  onChangePermissionMode?: (mode: PermissionMode) => void
+  onChangePermissionMode?: (mode: ToolPolicyMode) => void
   /** Callback to change model on an active session (mid-session) */
   onChangeModel?: (model: string) => void
   /** Callback to toggle auto-continue on an active session (sends WS message to backend) */
@@ -110,6 +106,9 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   const [serverConfig, setServerConfig] = useAtom(chatPermissionConfigAtom)
   const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
   const autoContinue = useAtomValue(chatAutoContinueAtom)
+  const providerTarget = useAtomValue(chatProviderTargetAtom)
+  const sessionPolicy = useAtomValue(chatSessionToolPolicyAtom)
+  const trustHelpId = useId()
   const availableModels = useAtomValue(modelCatalogAtom)
   const catalogLoaded = useAtomValue(modelCatalogLoadedAtom)
   const modelGroups = useMemo(() => groupModelsByFamily(availableModels), [availableModels])
@@ -139,7 +138,20 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   /** One AbortController per in-flight upload, so removing a chip cancels it. */
   const uploadsRef = useRef(new Map<string, AbortController>())
 
-  const effectiveMode = modeOverride ?? serverConfig?.mode ?? 'default'
+  // The server default arrives as a legacy Claude string (or a neutral mode):
+  // the composer works on the neutral one.
+  const serverMode = serverConfig ? readToolPolicyMode(serverConfig.mode) : null
+  const effectiveMode: ToolPolicyMode = modeOverride ?? readToolPolicyMode(serverConfig?.mode)
+  const modeLabels = COMPOSER_MODE_LABELS[modeLabelSet(providerTarget.isClaudeCode)]
+  // `auto` / `dontAsk` exist only in the Claude CLI and have no neutral twin:
+  // when the mode in force is one of them, say so instead of showing the
+  // neutral mode it was folded into.
+  const nativeMode = modeOverride === null
+    ? serverConfig?.mode
+    : sessionPolicy?.mode === effectiveMode ? sessionPolicy.native_mode : undefined
+  const effectiveModeLabel =
+    (providerTarget.isClaudeCode ? claudeNativeModeLabel(nativeMode, 'short') : null) ?? modeLabels[effectiveMode]
+  const trustAllowed = isTrustAllowed(providerTarget)
   const effectiveModel = sessionModel ?? serverConfig?.default_model ?? DEFAULT_MODEL_ID
 
   /** Full re-measure: reset then fit (needed to let the box SHRINK). */
@@ -561,13 +573,15 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
     }
   }
 
-  const handleSelectMode = (mode: PermissionMode) => {
+  const handleSelectMode = (mode: ToolPolicyMode) => {
+    // Refused, with the reason shown on the option itself.
+    if (mode === 'trust' && !trustAllowed) return
     if (sessionId && onChangePermissionMode) {
       // Active session — send WS message for mid-session mode change
       onChangePermissionMode(mode)
     } else {
       // No session yet — set override atom (used at session creation)
-      if (mode === serverConfig?.mode) {
+      if (mode === serverMode) {
         setModeOverride(null)
       } else {
         setModeOverride(mode)
@@ -720,28 +734,44 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
                 }`}
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${MODE_DOT_COLORS[effectiveMode]}`} />
-                <span>{MODE_LABELS[effectiveMode]}</span>
+                <span>{effectiveModeLabel}</span>
                 {modeOverride && !sessionId && (
                   <span className="text-[8px] text-indigo-400 ml-0.5">(override)</span>
                 )}
                 <ChevronDown className="w-2.5 h-2.5 text-gray-500" />
               </button>
               {showModeDropdown && (
-                <div className="absolute bottom-full left-0 mb-1 z-20 w-40 bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl py-1">
-                  {(Object.keys(MODE_LABELS) as PermissionMode[]).map((mode) => {
+                <div className={`absolute bottom-full left-0 mb-1 z-20 ${trustAllowed ? 'w-40' : 'w-56'} bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl py-1`}>
+                  {COMPOSER_MODE_ORDER.map((mode) => {
                     const isActive = effectiveMode === mode
-                    const isDefault = mode === serverConfig?.mode
+                    const isDefault = mode === serverMode
+                    // Kept focusable and announced as disabled, with the reason
+                    // as visible text: a greyed-out option that says nothing
+                    // reads as a bug.
+                    const refused = mode === 'trust' && !trustAllowed
                     return (
                       <button
                         key={mode}
+                        type="button"
                         onClick={() => handleSelectMode(mode)}
-                        className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${
-                          isActive ? 'text-gray-100 bg-white/[0.04]' : 'text-gray-400 hover:bg-white/[0.04] hover:text-gray-200'
+                        aria-disabled={refused || undefined}
+                        aria-describedby={refused ? trustHelpId : undefined}
+                        className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
+                          refused
+                            ? 'text-gray-500 cursor-not-allowed'
+                            : isActive ? 'text-gray-100 bg-white/[0.04]' : 'text-gray-400 hover:bg-white/[0.04] hover:text-gray-200'
                         }`}
                       >
-                        <span className={`w-1.5 h-1.5 rounded-full ${MODE_DOT_COLORS[mode]}`} />
-                        <span>{MODE_LABELS[mode]}</span>
-                        {isDefault && <span className="text-[9px] text-gray-600 ml-auto">default</span>}
+                        <span className="flex items-center gap-1.5">
+                          <span className={`w-1.5 h-1.5 rounded-full ${refused ? 'bg-gray-600' : MODE_DOT_COLORS[mode]}`} />
+                          <span>{modeLabels[mode]}</span>
+                          {isDefault && <span className="text-[9px] text-gray-600 ml-auto">default</span>}
+                        </span>
+                        {refused && (
+                          <span id={trustHelpId} className="mt-0.5 block text-[10px] leading-snug text-gray-500">
+                            {TRUST_REQUIRES_SANDBOX_TEXT}
+                          </span>
+                        )}
                       </button>
                     )
                   })}

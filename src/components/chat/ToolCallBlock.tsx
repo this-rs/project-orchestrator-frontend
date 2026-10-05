@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useAtomValue } from 'jotai'
-import { chatBackgroundTasksAtom } from '@/atoms'
+import { chatBackgroundTasksAtom, chatProviderTargetAtom, chatSessionIdAtom } from '@/atoms'
 import { buildActivityFromToolCall } from '@/utils/backgroundActivity'
 import { ActivityCard } from './BackgroundActivityCard'
 import type { ContentBlock } from '@/types'
@@ -46,8 +46,21 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
   const createdAt = block.metadata?.created_at as string | undefined
   const elapsedMs = useElapsedMs(createdAt, isLoading)
 
-  const icon = getToolIcon(toolName, toolInput)
-  const summary = getToolSummary(toolName, toolInput)
+  // Which provider's tool this is. The provider atoms describe the session open
+  // in the chat panel, so they only apply to a block of THAT session; any other
+  // transcript resolves as Claude Code, helped by the alias its events carry.
+  const currentSessionId = useAtomValue(chatSessionIdAtom)
+  const providerTarget = useAtomValue(chatProviderTargetAtom)
+  const toolContext = useMemo(
+    () => ({
+      providerKind: sessionId !== null && sessionId === currentSessionId ? providerTarget.providerKind : undefined,
+      canonical: block.metadata?.tool_canonical as string | undefined,
+    }),
+    [sessionId, currentSessionId, providerTarget.providerKind, block.metadata?.tool_canonical],
+  )
+
+  const icon = getToolIcon(toolName, toolInput, toolContext)
+  const summary = getToolSummary(toolName, toolInput, toolContext)
   const headerText = summary || toolName
 
   // Plan 5985a7c4 (F5+F6): when this tool_use is a Monitor / Bash bg
@@ -162,6 +175,8 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
           <ToolContent
             toolName={toolName}
             toolInput={toolInput}
+            providerKind={toolContext.providerKind}
+            canonical={toolContext.canonical}
             resultContent={resultBlock?.content}
             isError={isError}
             isLoading={isLoading}

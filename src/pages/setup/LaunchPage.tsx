@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useAtom, useSetAtom } from 'jotai'
 import { Check, X, Loader2, Rocket, RefreshCw, ChevronDown } from 'lucide-react'
 import { setupConfigAtom, configExistsAtom } from '@/atoms/setup'
+import { toToolPolicyMode } from '@/types/provider'
+import { SETUP_MODE_SUMMARIES } from '@/constants/toolPolicy'
 import { isTauri } from '@/services/env'
 
 type LaunchPhase = 'review' | 'generating' | 'generated' | 'restarting' | 'error'
@@ -137,12 +139,7 @@ export function LaunchPage() {
         <SummaryRow label="Max Turns" value={String(config.chatMaxTurns)} />
         <SummaryRow
           label="Permissions"
-          value={
-            config.chatPermissionMode === 'bypassPermissions' ? 'Bypass (all auto-approved)'
-            : config.chatPermissionMode === 'default' ? 'Default (ask for edits & shell)'
-            : config.chatPermissionMode === 'acceptEdits' ? 'Accept Edits (ask for shell only)'
-            : 'Plan Only (read-only)'
-          }
+          value={SETUP_MODE_SUMMARIES[toToolPolicyMode(config.chatPermissionMode) ?? 'plan_only']}
         />
         {config.chatProcessPath && (
           <SummaryRow label="Process PATH" value={config.chatProcessPath.length > 60 ? config.chatProcessPath.slice(0, 57) + '...' : config.chatProcessPath} />

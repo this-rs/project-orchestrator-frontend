@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { setupStepAtom, setupConfigAtom, configExistsAtom, trayNavigationAtom, infraValidAtom, chatValidAtom, OIDC_PROVIDERS, type SetupConfig, type OidcProvider } from '@/atoms/setup'
 import { authModeAtom, currentUserAtom } from '@/atoms'
+import { isLegacyWireMode } from '@/constants/toolPolicy'
 import { fetchSetupStatus, isTauri } from '@/services/env'
 import { Spinner } from '@/components/ui'
 import { SetupLayout } from './SetupLayout'
@@ -131,9 +132,9 @@ export function SetupWizard() {
             chatModel: (existing.chatModel as string) || prev.chatModel,
             chatMaxSessions: (existing.chatMaxSessions as number) || prev.chatMaxSessions,
             chatMaxTurns: (existing.chatMaxTurns as number) || prev.chatMaxTurns,
-            chatPermissionMode: (['default', 'acceptEdits', 'bypassPermissions', 'plan'].includes(existing.chatPermissionMode as string)
+            chatPermissionMode: isLegacyWireMode(existing.chatPermissionMode)
               ? existing.chatPermissionMode
-              : prev.chatPermissionMode) as SetupConfig['chatPermissionMode'],
+              : prev.chatPermissionMode,
             // Desktop-only settings (PATH, CLI, auto-update)
             chatProcessPath: (existing.chatProcessPath as string) || '',
             chatClaudeCliPath: (existing.chatClaudeCliPath as string) || '',

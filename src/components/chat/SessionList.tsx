@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { chatSessionRefreshAtom, showSpawnedSessionsAtom } from '@/atoms'
+import { isClaudeCodeProvider } from '@/types/provider'
 import { chatApi, getEventBus, workspacesApi } from '@/services'
 import { useActiveRunTracker, useDetachedRuns, useWorkspaceSlug } from '@/hooks'
 import type {
@@ -397,7 +398,9 @@ export const SessionRow = memo(function SessionRow({
   const title = sessionDisplayTitle(session)
   const preview = sessionPreview(session)
   const scope = sessionScope(session)
-  const mode = permissionModeMeta(session.permission_mode)
+  const mode = permissionModeMeta(session.permission_mode, {
+    isClaudeCode: isClaudeCodeProvider(session.provider_id, session.provider_kind),
+  })
   const cost = formatCost(session.total_cost_usd)
   const spawn = session.spawned_by ? spawnLabel(session.spawned_by) : null
   const activate = () => { onCloseMenu(); if (isActive) { onClose() } else { onSelect(session.id, undefined, title) } }

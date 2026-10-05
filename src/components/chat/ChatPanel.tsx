@@ -17,6 +17,8 @@ import { DetachedRunsPanel } from './DetachedRunsPanel'
 import { SessionList } from './SessionList'
 import { ProjectSelect } from './ProjectSelect'
 import { PermissionSettingsPanel } from './PermissionSettingsPanel'
+import { MODE_DOT_COLORS } from '@/constants/toolPolicy'
+import { toToolPolicyMode } from '@/types/provider'
 import { SessionBreadcrumb } from './SessionBreadcrumb'
 import { DiscussionTreeView } from '@/components/discussions/DiscussionTreeView'
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
@@ -88,7 +90,7 @@ export function ChatPanel() {
 
   // Mode-based color for gear icon badge
   const modeColor = permissionConfig
-    ? { bypassPermissions: 'bg-emerald-400', acceptEdits: 'bg-blue-400', default: 'bg-amber-400', plan: 'bg-gray-400' }[permissionConfig.mode] || 'bg-gray-400'
+    ? MODE_DOT_COLORS[toToolPolicyMode(permissionConfig.mode) ?? 'plan_only']
     : null
 
   const isOpen = mode !== 'closed'

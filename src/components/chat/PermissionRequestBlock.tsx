@@ -1,47 +1,52 @@
 import { useState, useEffect, useRef } from 'react'
 import type { ContentBlock } from '@/types'
+import type { ToolCategory } from '@/types/provider'
+import { commandText, getToolCategory } from './tools'
 import { Terminal, Eye, FileEdit, Zap, Globe, AlertTriangle, Check, X, ChevronRight } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
 // Tool category classification + colors
 // ---------------------------------------------------------------------------
 
-type ToolCategory = 'bash' | 'read' | 'edit' | 'mcp' | 'web' | 'other'
+// Which category a tool belongs to is decided by the registry
+// (`getToolCategory`): the provider adapter's `category` when the event carries
+// one, the Claude tool table otherwise. No tool name is known here.
 
-function classifyTool(toolName: string): ToolCategory {
-  const lower = toolName.toLowerCase()
-  if (lower === 'bash') return 'bash'
-  if (lower === 'read' || lower === 'glob' || lower === 'grep') return 'read'
-  if (lower === 'edit' || lower === 'write' || lower === 'notebookedit') return 'edit'
-  if (lower.startsWith('mcp__') || lower.startsWith('mcp_')) return 'mcp'
-  if (lower === 'webfetch' || lower === 'websearch') return 'web'
-  return 'other'
+type CategoryStyle = {
+  border: string
+  bg: string
+  text: string
+  icon: string
+  label: string
 }
 
-const CATEGORY_STYLES: Record<
-  ToolCategory,
-  {
-    border: string
-    bg: string
-    text: string
-    icon: string
-    label: string
-  }
-> = {
-  bash: {
+const READ_STYLE: CategoryStyle = {
+  border: 'border-l-emerald-500/40',
+  bg: 'bg-emerald-950/20',
+  text: 'text-emerald-400',
+  icon: 'text-emerald-400',
+  label: 'Read',
+}
+
+const OTHER_STYLE: CategoryStyle = {
+  border: 'border-l-gray-500/40',
+  bg: 'bg-gray-950/20',
+  text: 'text-gray-400',
+  icon: 'text-gray-400',
+  label: 'Tool',
+}
+
+const CATEGORY_STYLES: Record<ToolCategory, CategoryStyle> = {
+  command: {
     border: 'border-l-amber-500/40',
     bg: 'bg-amber-950/20',
     text: 'text-amber-400',
     icon: 'text-amber-400',
     label: 'Command',
   },
-  read: {
-    border: 'border-l-emerald-500/40',
-    bg: 'bg-emerald-950/20',
-    text: 'text-emerald-400',
-    icon: 'text-emerald-400',
-    label: 'Read',
-  },
+  read: READ_STYLE,
+  // Searching is reading: Glob and Grep have always been shown as "Read".
+  search: READ_STYLE,
   edit: {
     border: 'border-l-blue-500/40',
     bg: 'bg-blue-950/20',
@@ -63,13 +68,9 @@ const CATEGORY_STYLES: Record<
     icon: 'text-cyan-400',
     label: 'Web',
   },
-  other: {
-    border: 'border-l-gray-500/40',
-    bg: 'bg-gray-950/20',
-    text: 'text-gray-400',
-    icon: 'text-gray-400',
-    label: 'Tool',
-  },
+  // No dedicated style for sub-agents yet: shown like any other tool.
+  agent: OTHER_STYLE,
+  other: OTHER_STYLE,
 }
 
 // ---------------------------------------------------------------------------
@@ -79,20 +80,21 @@ const CATEGORY_STYLES: Record<
 function formatToolSummary(
   toolName: string,
   input: Record<string, unknown> | undefined,
+  category: ToolCategory,
 ): { summary: string; detail: string | null; language: string } {
   if (!input || Object.keys(input).length === 0) {
     return { summary: toolName, detail: null, language: 'text' }
   }
 
-  const category = classifyTool(toolName)
-
   switch (category) {
-    case 'bash': {
-      const command = (input.command as string) || ''
+    case 'command': {
+      // A string for Claude's Bash, an argv array for Codex's `shell`.
+      const command = commandText(input) || ''
       const desc = (input.description as string) || ''
       return { summary: desc || command.slice(0, 80) || 'Execute command', detail: command, language: 'bash' }
     }
-    case 'read': {
+    case 'read':
+    case 'search': {
       const filePath =
         (input.file_path as string) || (input.path as string) || (input.pattern as string) || ''
       return {
@@ -138,9 +140,10 @@ function formatToolSummary(
 function CategoryIcon({ category, className }: { category: ToolCategory; className?: string }) {
   const cls = className || 'w-3.5 h-3.5'
   switch (category) {
-    case 'bash':
+    case 'command':
       return <Terminal className={cls} />
     case 'read':
+    case 'search':
       return <Eye className={cls} />
     case 'edit':
       return <FileEdit className={cls} />
@@ -178,9 +181,12 @@ export function PermissionRequestBlock({
     ? (block.metadata.decision as 'allowed' | 'denied')
     : null
 
-  const category = classifyTool(toolName)
+  const category = getToolCategory(toolName, {
+    category: block.metadata?.tool_category,
+    canonical: block.metadata?.tool_canonical as string | undefined,
+  })
   const styles = CATEGORY_STYLES[category]
-  const { summary, detail, language } = formatToolSummary(toolName, toolInput)
+  const { summary, detail, language } = formatToolSummary(toolName, toolInput, category)
 
   // Response state — auto-approved or persisted decisions start as already responded
   const initialDecision = autoApproved ? 'allowed' : persistedDecision

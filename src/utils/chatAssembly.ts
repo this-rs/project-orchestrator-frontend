@@ -353,7 +353,7 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
             id: nextBlockId(),
             type: 'tool_use',
             content: toolName,
-            metadata: withCreatedAt(withParent({ tool_call_id: toolId, tool_name: toolName, tool_input: toolInput }, parent), ts),
+            metadata: withCreatedAt(withParent({ tool_call_id: toolId, tool_name: toolName, tool_input: toolInput, ...toolHintMetadata(evt) }, parent), ts),
           })
         }
         break
@@ -446,7 +446,7 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
           id: nextBlockId(),
           type: 'permission_request',
           content: `Tool "${evt.tool}" wants to execute`,
-          metadata: withParent({ tool_call_id: evt.id, tool_name: evt.tool, tool_input: evt.input }, parent),
+          metadata: withParent({ tool_call_id: evt.id, tool_name: evt.tool, tool_input: evt.input, ...toolHintMetadata(evt) }, parent),
         })
         break
       }
@@ -714,6 +714,25 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
 // ---------------------------------------------------------------------------
 
 export { nextBlockId, nextMessageId, getParentToolUseId, withParent, withCreatedAt }
+
+/**
+ * What the provider adapter said about a tool call (`tool_use`,
+ * `permission_request`), as block metadata: `tool_category` and
+ * `tool_canonical`. The renderer registry and the permission block read them
+ * instead of guessing from the tool's name.
+ *
+ * Only the fields the event carries are returned, so a Claude Code block —
+ * whose events carry neither — keeps exactly the metadata it always had.
+ * Shared by the history reducer (here) and the live one (`useChat`).
+ */
+export function toolHintMetadata(evt: unknown): { tool_category?: string; tool_canonical?: string } {
+  if (typeof evt !== 'object' || evt === null) return {}
+  const e = evt as Record<string, unknown>
+  const out: { tool_category?: string; tool_canonical?: string } = {}
+  if (typeof e.category === 'string' && e.category !== '') out.tool_category = e.category
+  if (typeof e.canonical === 'string' && e.canonical !== '') out.tool_canonical = e.canonical
+  return out
+}
 
 // ============================================================================
 // system_init → provider runtime (shared by the live and the history reducers)

@@ -1,10 +1,11 @@
 import { splitAttachments } from '@/utils/messageAttachments'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useSetAtom, useStore } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatProviderTargetAtom } from '@/atoms'
 import { chatApi, ChatWebSocket } from '@/services'
 import { applyQueueOp, enqueue, mergeServerQueue, type QueueOp, type QueuedMessage } from '@/components/chat/messageQueue'
 import type { ChatMessage, ChatStreamEvent, PermissionMode } from '@/types'
+import { readToolPolicyMode, toWireMode } from '@/constants/toolPolicy'
 import {
   historyEventsToMessages,
   nextBlockId,
@@ -20,10 +21,11 @@ import {
   readSystemInitRuntime,
   lastSystemInitRuntime,
   systemInitProviderMetadata,
+  toolHintMetadata,
   type SystemInitRuntime,
   type BackgroundTick,
 } from '@/utils/chatAssembly'
-import { toProviderRef } from '@/types/provider'
+import { toProviderRef, toToolPolicy, type ToolPolicyMode } from '@/types/provider'
 import type { BackgroundActivityMetadata, BackgroundOutputEntry } from '@/types'
 
 /** Number of messages to load per page via REST */
@@ -309,11 +311,11 @@ export function useChat() {
   // these atoms, and updating them during handleEvent caused cross-component
   // setState-during-render. Tracked setters keep refs in sync for callback access.
   const autoApprovedToolsRef = useRef<Set<string>>(new Set())
-  const permissionOverrideRef = useRef<PermissionMode | null>(null)
+  const permissionOverrideRef = useRef<ToolPolicyMode | null>(null)
   const sessionModelRef = useRef<string | null>(null)
 
   // Tracked setters: update ref + atom atomically
-  const setPermissionOverride = useCallback((value: PermissionMode | null) => {
+  const setPermissionOverride = useCallback((value: ToolPolicyMode | null) => {
     permissionOverrideRef.current = value
     _setPermissionOverride(value)
   }, [_setPermissionOverride])
@@ -330,6 +332,14 @@ export function useChat() {
       _setAutoApprovedTools(value)
     }
   }, [_setAutoApprovedTools])
+
+  // The permission mode of a NEW session, in the form its backend reads: the
+  // legacy Claude string, unless the session opens on another provider (then
+  // the neutral name). Nothing chosen → nothing sent, the server default applies.
+  const wirePermissionMode = useCallback((mode: PermissionMode | null | undefined) => {
+    if (!mode) return undefined
+    return toWireMode(readToolPolicyMode(mode), { neutral: store.get(chatProviderTargetAtom).neutralWire })
+  }, [store])
 
   const setSessionModel = useCallback((value: string | null) => {
     sessionModelRef.current = value
@@ -752,6 +762,7 @@ export function useChat() {
                     tool_call_id: toolId,
                     tool_name: toolName,
                     tool_input: toolInput,
+                    ...toolHintMetadata(data),
                     ...(initialChildOutputs.length > 0
                       ? { child_outputs: initialChildOutputs }
                       : {}),
@@ -881,6 +892,7 @@ export function useChat() {
               tool_call_id: (data as { id?: string }).id,
               tool_name: (data as { tool?: string }).tool,
               tool_input: (data as { input?: Record<string, unknown> }).input,
+              ...toolHintMetadata(data),
             }, prParent),
           })
           break
@@ -999,9 +1011,23 @@ export function useChat() {
 
         case 'permission_mode_changed': {
           // Server confirmed the mode change — update local atom
-          const newMode = (event as { mode?: string }).mode
-          if (newMode) {
-            setPermissionOverride(newMode as PermissionMode)
+          // The mode arrives as a legacy Claude string or a neutral one, and a
+          // provider-aware backend adds `tool_policy` (with the exact native
+          // mode). Either way the interface keeps the neutral mode.
+          const changed = event as { mode?: string; tool_policy?: unknown }
+          const policy = toToolPolicy(changed.tool_policy) ?? toToolPolicy(changed.mode)
+          if (changed.mode || policy) {
+            setPermissionOverride(policy?.mode ?? readToolPolicyMode(changed.mode))
+          }
+          if (policy) {
+            // Keep the session policy in step (its native mode is what a Claude
+            // session shows). A bare mode string says nothing about the rules:
+            // the ones already known stay.
+            const previous = store.get(chatSessionToolPolicyAtom)
+            const carriesRules = typeof changed.tool_policy === 'object' && changed.tool_policy !== null
+            store.set(chatSessionToolPolicyAtom, carriesRules || !previous
+              ? policy
+              : { ...policy, allow: previous.allow, deny: previous.deny })
           }
           break
         }
@@ -1810,7 +1836,7 @@ export function useChat() {
           cwd: options!.cwd,
           project_slug: options?.projectSlug,
           workspace_slug: options?.workspaceSlug,
-          permission_mode: options?.permissionMode ?? store.get(chatSessionPermissionOverrideAtom) ?? undefined,
+          permission_mode: wirePermissionMode(options?.permissionMode ?? store.get(chatSessionPermissionOverrideAtom)),
           model: options?.model ?? store.get(chatSessionModelAtom) ?? undefined,
           attachments: attachments && attachments.length > 0 ? attachments : undefined,
         })
@@ -1844,7 +1870,7 @@ export function useChat() {
         pendingSendRef.current.push({ text, attachments })
       }
     }
-  }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride, setDraftsMap, moveDraft, moveQueue, store])
+  }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride, setDraftsMap, moveDraft, moveQueue, store, wirePermissionMode])
 
   /**
    * Send "Continue" after max_turns — adds a discreet inline indicator instead of a user bubble.
@@ -2077,13 +2103,13 @@ export function useChat() {
     applySessionRuntime(null)
   }, [getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride, setSessionModel, setAutoContinue, sessionId, applySessionRuntime])
 
-  const changePermissionMode = useCallback((mode: PermissionMode) => {
+  const changePermissionMode = useCallback((mode: ToolPolicyMode) => {
     if (!sessionId) return
     const ws = getWs()
-    ws.sendSetPermissionMode(mode)
+    ws.sendSetPermissionMode(toWireMode(mode, { neutral: store.get(chatProviderTargetAtom).neutralWire }))
     // Optimistically update local state (server will confirm via permission_mode_changed event)
     setPermissionOverride(mode)
-  }, [sessionId, getWs, setPermissionOverride])
+  }, [sessionId, getWs, setPermissionOverride, store])
 
   const changeModel = useCallback((model: string) => {
     if (!sessionId) return
@@ -2126,7 +2152,7 @@ export function useChat() {
       }
       setSessionMeta({ cwd: session.cwd, projectSlug: session.project_slug, workspaceSlug: session.workspace_slug, spawnedBy: session.spawned_by ?? null })
       // Restore the session's permission mode override
-      setPermissionOverride((session.permission_mode as PermissionMode) ?? null)
+      setPermissionOverride(session.permission_mode ? readToolPolicyMode(session.permission_mode) : null)
       // Restore the session's model
       setSessionModel(session.model ?? null)
     }).catch(() => {
