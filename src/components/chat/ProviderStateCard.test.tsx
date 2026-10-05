@@ -44,6 +44,11 @@ beforeEach(() => {
 })
 
 describe('ProviderStateCard', () => {
+  it('auth_required — never offers a plain Retry, even when the server says retryable', () => {
+    const { card } = mount(err('auth_required', { provider_id: 'codex', retryable: true }), { onRetry: vi.fn() })
+    expect(within(card).queryByRole('button', { name: /^retry$/i })).toBeNull()
+  })
+
   it('no_provider — links to the provider settings', () => {
     const { card, link } = mount(NO_PROVIDER_ERROR)
     expect(card.getAttribute('data-error-code')).toBe('no_provider')

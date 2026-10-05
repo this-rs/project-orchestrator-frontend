@@ -248,3 +248,23 @@ describe('default model of the conversation', () => {
     expect(store.get(chatDefaultModelAtom)).toBe('claude-opus-5-5')
   })
 })
+
+describe('chatSelectedProviderAtom — storage that throws', () => {
+  it('still reads and writes in memory when localStorage is blocked', () => {
+    const get = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    const set = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    try {
+      const store = createStore()
+      expect(store.get(chatSelectedProviderAtom)).toBeNull()
+      expect(() => store.set(chatSelectedProviderAtom, 'deepseek')).not.toThrow()
+      expect(store.get(chatSelectedProviderAtom)).toBe('deepseek')
+    } finally {
+      get.mockRestore()
+      set.mockRestore()
+    }
+  })
+})

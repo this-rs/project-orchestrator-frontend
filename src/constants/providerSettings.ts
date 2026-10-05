@@ -91,3 +91,25 @@ export function formatWhen(iso: string | null | undefined): string {
   const d = new Date(iso)
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
+
+/** URL problem of a base URL, or `null`. https is required except on a loopback host. */
+export function validateBaseUrl(raw: string): string | null {
+  const value = raw.trim()
+  if (!value) return 'The base URL is required.'
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    return 'This is not a valid URL.'
+  }
+  if (url.protocol === 'https:') return null
+  if (url.protocol === 'http:' && isLoopbackHost(url.hostname)) return null
+  return 'Use https. Plain http is only accepted for localhost, 127.0.0.1 and ::1.'
+}
+
+export const PROVIDER_SECTIONS = [
+  { id: 'instances', title: 'Instances' },
+  { id: 'consent', title: 'Project consent' },
+  { id: 'roles', title: 'Roles' },
+  { id: 'models', title: 'Models and policy' },
+] as const

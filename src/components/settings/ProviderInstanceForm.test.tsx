@@ -27,7 +27,8 @@ vi.mock('@/services/vault', async (orig) => ({
 }))
 
 import { ApiError } from '@/services/api'
-import { ProviderInstanceForm, validateBaseUrl } from './ProviderInstanceForm'
+import { validateBaseUrl } from '@/constants/providerSettings'
+import { ProviderInstanceForm } from './ProviderInstanceForm'
 import { DEEPSEEK, mountSettings } from './settingsTestKit'
 
 const onSaved = vi.fn()

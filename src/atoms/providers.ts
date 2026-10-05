@@ -1,5 +1,5 @@
 import { atom } from 'jotai'
-import { atomWithStorage } from 'jotai/utils'
+import { atomWithStorage, createJSONStorage } from 'jotai/utils'
 import { ApiError } from '@/services/api'
 import { providersApi } from '@/services/providers'
 import {
@@ -120,7 +120,34 @@ export const chatSessionToolPolicyAtom = atom<ToolPolicy | null>(null)
  * Provider picked for the NEXT new conversation. `null` = let the server
  * resolve its default. Remembered across reloads: it is the user's last choice.
  */
-export const chatSelectedProviderAtom = atomWithStorage<ProviderId | null>('chat-selected-provider', null, undefined, {
+const SELECTED_PROVIDER_KEY = 'chat-selected-provider'
+
+/** localStorage that never throws (private window, blocked site data): the pick is then just not remembered. */
+const selectedProviderStorage = createJSONStorage<ProviderId | null>(() => ({
+  getItem: (key) => {
+    try {
+      return localStorage.getItem(key)
+    } catch {
+      return null
+    }
+  },
+  setItem: (key, value) => {
+    try {
+      localStorage.setItem(key, value)
+    } catch {
+      /* not remembered */
+    }
+  },
+  removeItem: (key) => {
+    try {
+      localStorage.removeItem(key)
+    } catch {
+      /* nothing to forget */
+    }
+  },
+}))
+
+export const chatSelectedProviderAtom = atomWithStorage<ProviderId | null>(SELECTED_PROVIDER_KEY, null, selectedProviderStorage, {
   getOnInit: true,
 })
 

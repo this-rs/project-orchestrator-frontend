@@ -10,6 +10,8 @@ import { screen } from '@testing-library/react'
 import { installDomStubs, renderAt } from './testUtils'
 
 const latestRun = { current: null as unknown }
+const wavesData = { current: null as unknown }
+const waveAgents = { current: [] as Array<{ task_id: string; cost_usd: number | null }> }
 const IDLE = vi.hoisted(() => ({
   running: false, run_id: null, plan_id: null, status: null, current_wave: null, current_task_id: null, current_task_title: null,
   active_agents: [], progress_pct: 0, tasks_completed: 0, tasks_total: 0, elapsed_secs: 0, cost_usd: 0, max_cost_usd: 0,
@@ -35,10 +37,15 @@ vi.mock('@/services/projects', () => ({
 vi.mock('@/hooks/runner', () => ({
   useAgentExecutionsMap: () => new Map(),
   useLatestPlanRun: () => latestRun.current,
-  useWavesData: () => ({ waves: null, loading: false }),
+  useWavesData: () => ({ waves: wavesData.current, loading: false }),
 }))
 vi.mock('@/components/runner/RunnerHeader', () => ({ RunnerHeader: () => <div data-testid="runner-header" /> }))
-vi.mock('@/components/runner/WaveSection', () => ({ WaveSection: () => null }))
+vi.mock('@/components/runner/WaveSection', () => ({
+  WaveSection: ({ agents }: { agents: Array<{ task_id: string; cost_usd: number | null }> }) => {
+    waveAgents.current = agents
+    return null
+  },
+}))
 // The real StatsRow / BudgetEditor are tested in `components/runner`; here only
 // what the page hands them matters.
 vi.mock('@/components/runner/StatsRow', () => ({
@@ -91,5 +98,18 @@ describe('RunnerDashboard — cost of the latest run', () => {
     const stats = await screen.findByTestId('stats-row')
     expect(stats.getAttribute('data-cost')).toBe('1.25')
     expect(stats.getAttribute('data-basis')).toBe('')
+  })
+})
+
+describe('RunnerDashboard — tasks no agent ran', () => {
+  it('a synthetic agent for a finished task has no cost figure (null, not 0)', async () => {
+    wavesData.current = { waves: [], total_waves: 1 }
+    wavesData.current = {
+      waves: [{ wave_number: 1, tasks: [{ id: 't1', title: 'Task one', status: 'completed' }] }],
+    }
+    latestRun.current = run({ cost_usd: null })
+    renderPage()
+    await screen.findByTestId('stats-row')
+    expect(waveAgents.current.map((a) => [a.task_id, a.cost_usd])).toEqual([['t1', null]])
   })
 })

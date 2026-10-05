@@ -5,17 +5,11 @@ import { Section, EmptyState } from '@/components/ui'
 import { providersLoadStateAtom } from '@/atoms'
 import { useProviders } from '@/hooks/useProviders'
 import { UNSUPPORTED_TEXT, UNSUPPORTED_TITLE } from '@/constants/providerSettings'
+import { PROVIDER_SECTIONS } from '@/constants/providerSettings'
 import { ModelPolicy } from './ModelPolicy'
 import { ProjectConsent } from './ProjectConsent'
 import { ProviderInstances } from './ProviderInstances'
 import { ProviderRoles } from './ProviderRoles'
-
-export const PROVIDER_SECTIONS = [
-  { id: 'instances', title: 'Instances' },
-  { id: 'consent', title: 'Project consent' },
-  { id: 'roles', title: 'Roles' },
-  { id: 'models', title: 'Models and policy' },
-] as const
 
 /** Every provider setting, without page chrome: the `/providers` page and the desktop settings embed it. */
 export function ProviderSettings() {

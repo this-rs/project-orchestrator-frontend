@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui'
 import { useProviders } from '@/hooks/useProviders'
@@ -31,23 +31,27 @@ export function ProjectConsent() {
   const [allowing, setAllowing] = useState<ProviderInstance | null>(null)
   const [revoking, setRevoking] = useState<ProviderInstance | null>(null)
 
-  const load = useCallback(async () => {
-    if (!slug) return
-    try {
-      setConsents(await providersApi.consents(slug))
-      setError(null)
-    } catch (err) {
-      setConsents(null)
-      setError(settingsErrorMessage(err))
-    }
-  }, [slug])
+  const [reloadTick, setReloadTick] = useState(0)
 
   useEffect(() => {
-    setConsents(null)
-    setAllowing(null)
-    setRevoking(null)
-    void load()
-  }, [load])
+    if (!slug) return
+    let live = true
+    providersApi
+      .consents(slug)
+      .then((list) => {
+        if (!live) return
+        setConsents(list)
+        setError(null)
+      })
+      .catch((err) => {
+        if (!live) return
+        setConsents(null)
+        setError(settingsErrorMessage(err))
+      })
+    return () => {
+      live = false
+    }
+  }, [slug, reloadTick])
 
   const act = async (fn: () => Promise<unknown>) => {
     try {
@@ -58,7 +62,7 @@ export function ProjectConsent() {
     }
     setAllowing(null)
     setRevoking(null)
-    await load()
+    setReloadTick((n) => n + 1)
   }
 
   const external = providers.filter((p) => !(p.builtin || isClaudeCodeProvider(p.id, p.kind)))
@@ -78,6 +82,9 @@ export function ProjectConsent() {
             const next = new URLSearchParams(params)
             if (e.target.value) next.set('project', e.target.value)
             else next.delete('project')
+            setConsents(null)
+            setAllowing(null)
+            setRevoking(null)
             setParams(next, { replace: true })
           }}
         >

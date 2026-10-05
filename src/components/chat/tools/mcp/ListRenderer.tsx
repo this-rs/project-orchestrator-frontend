@@ -6,6 +6,7 @@
  * list_constraints, list_workspace_projects, etc.
  */
 
+import { costReport, costToText } from '@/utils/cost'
 import {
   StatusBadge, PriorityBadge, TagList, TimeAgo, ShortId,
   PaginationInfo, McpContainer, truncate, EntityLink,
@@ -185,6 +186,7 @@ function TaskRow({ item, searchQuery }: RowProps) {
 
 function SessionRow({ item, searchQuery }: RowProps) {
   const cost = item.total_cost_usd as number | undefined
+  const listCost = costToText(costReport(cost ?? null, item.cost_basis), { hideZero: true, format: (usd) => `$${usd.toFixed(4)}` })
   return (
     <div className="flex items-center gap-3 px-2 py-1.5 hover:bg-white/[0.02] rounded">
       <div className="flex-1 min-w-0">
@@ -202,7 +204,7 @@ function SessionRow({ item, searchQuery }: RowProps) {
           {typeof item.message_count === 'number' && (
             <span>{item.message_count} msg{(item.message_count as number) !== 1 ? 's' : ''}</span>
           )}
-          {cost != null && cost > 0 && <span>${cost.toFixed(4)}</span>}
+          {listCost && <span>{listCost}</span>}
           <TimeAgo date={(item.updated_at ?? item.created_at) as string} />
         </div>
       </div>

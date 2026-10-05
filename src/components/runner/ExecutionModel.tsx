@@ -2,32 +2,12 @@ import { useAtomValue } from 'jotai'
 import { providersAtom } from '@/atoms'
 import { ProviderBadge } from '@/components/chat/ProviderBadge'
 import { describeSessionProvider } from '@/constants/providers'
-import { describeExecutionRouting } from '@/constants/runProviders'
-import type { AgentExecution } from '@/types'
-
-type RoutingFields = Pick<
-  AgentExecution,
-  | 'provider_id'
-  | 'model'
-  | 'model_requested'
-  | 'model_alias'
-  | 'routed_by'
-  | 'route_rule'
-  | 'fallback_reason'
-  | 'shadow_model'
-  | 'attempt'
->
+import { describeExecutionRouting, hasExecutionRouting, type RoutingFields } from '@/constants/runProviders'
 
 interface ExecutionModelProps {
   execution: RoutingFields
   /** One line (agent cards) instead of one line per fact. */
   compact?: boolean
-}
-
-/** Does the record say anything about where it ran? (A caller drops its separator when not.) */
-export function hasExecutionRouting(execution: RoutingFields): boolean {
-  const routing = describeExecutionRouting(execution)
-  return !!(execution.provider_id || routing.ran || routing.chosenBy || routing.shadow)
 }
 
 /**

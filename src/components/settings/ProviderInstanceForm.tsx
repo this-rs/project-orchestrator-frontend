@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui'
 import { ProviderStateCard } from '@/components/chat/ProviderStateCard'
 import { PROVIDER_PRESETS, presetInfo, type CredentialKind } from '@/constants/providerPresets'
-import { COST_BASIS_LABELS, isLoopbackHost, settingsErrorMessage } from '@/constants/providerSettings'
+import { COST_BASIS_LABELS, settingsErrorMessage, validateBaseUrl } from '@/constants/providerSettings'
 import { VAULT_PATH } from '@/constants/providerErrors'
 import { providersApi, toProviderError } from '@/services/providers'
 import { vaultApi } from '@/services/vault'
@@ -28,21 +28,6 @@ function splitRef(ref: CredentialRef | null | undefined): { kind: CredentialKind
   if (ref && ref.startsWith('vault:')) return { kind: 'vault', name: ref.slice(6) }
   if (ref && ref.startsWith('env:')) return { kind: 'env', name: ref.slice(4) }
   return { kind: 'none', name: '' }
-}
-
-/** URL problem of a base URL, or `null`. https is required except on a loopback host. */
-export function validateBaseUrl(raw: string): string | null {
-  const value = raw.trim()
-  if (!value) return 'The base URL is required.'
-  let url: URL
-  try {
-    url = new URL(value)
-  } catch {
-    return 'This is not a valid URL.'
-  }
-  if (url.protocol === 'https:') return null
-  if (url.protocol === 'http:' && isLoopbackHost(url.hostname)) return null
-  return 'Use https. Plain http is only accepted for localhost, 127.0.0.1 and ::1.'
 }
 
 /**

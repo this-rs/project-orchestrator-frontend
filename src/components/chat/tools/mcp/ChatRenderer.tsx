@@ -5,6 +5,7 @@
  * get_chat_session details.
  */
 
+import { costReport, costToText } from '@/utils/cost'
 import type { ReactNode } from 'react'
 import { McpContainer, truncate, TimeAgo, ShortId, LinkedId } from './utils'
 import { ExternalLink } from '@/components/ui/ExternalLink'
@@ -17,6 +18,11 @@ function formatCost(usd: number): string {
   if (usd >= 1) return `$${usd.toFixed(2)}`
   if (usd >= 0.01) return `$${usd.toFixed(3)}`
   return `$${usd.toFixed(4)}`
+}
+
+/** Cost line by basis: nothing for an unknown or zero figure, never a bare `$0.00`. */
+function costText(usd: unknown, basis: unknown): string | null {
+  return costToText(costReport(typeof usd === 'number' ? usd : null, basis), { format: formatCost, hideZero: true })
 }
 
 // ---------------------------------------------------------------------------
@@ -206,9 +212,7 @@ function ChatSendMessageResult({ data, toolInput }: { data: Record<string, unkno
         {durationMs != null && (
           <span>{(durationMs / 1000).toFixed(1)}s</span>
         )}
-        {costUsd != null && costUsd > 0 && (
-          <span>{formatCost(costUsd)}</span>
-        )}
+        {costText(costUsd, data.cost_basis) && <span>{costText(costUsd, data.cost_basis)}</span>}
         {sessionId && (
           <LinkedId field="session_id" value={sessionId} />
         )}
@@ -244,8 +248,8 @@ function ChatSessionDetail({ data }: { data: Record<string, unknown> }) {
             {msgCount} message{msgCount !== 1 ? 's' : ''}
           </span>
         )}
-        {cost != null && cost > 0 && (
-          <span className="text-[10px] text-gray-600">{formatCost(cost)}</span>
+        {costText(cost, data.cost_basis) && (
+          <span className="text-[10px] text-gray-600">{costText(cost, data.cost_basis)}</span>
         )}
       </div>
 

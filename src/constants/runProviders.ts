@@ -104,3 +104,22 @@ export function describeExecutionRouting(exec: Pick<
     retry: exec.attempt && exec.attempt > 1 ? exec.attempt : null,
   }
 }
+
+export type RoutingFields = Pick<
+  AgentExecution,
+  | 'provider_id'
+  | 'model'
+  | 'model_requested'
+  | 'model_alias'
+  | 'routed_by'
+  | 'route_rule'
+  | 'fallback_reason'
+  | 'shadow_model'
+  | 'attempt'
+>
+
+/** Does the record say anything about where it ran? (A caller drops its separator when not.) */
+export function hasExecutionRouting(execution: RoutingFields): boolean {
+  const routing = describeExecutionRouting(execution)
+  return !!(execution.provider_id || routing.ran || routing.chosenBy || routing.shadow)
+}

@@ -22,7 +22,8 @@ import type { ActiveAgentSnapshot } from '@/services/runner'
 import type { AgentExecution } from '@/types'
 import { formatElapsed, agentStateMeta, runCost } from './shared'
 import { CostDisplay } from '@/components/ui/CostDisplay'
-import { ExecutionModel, hasExecutionRouting } from './ExecutionModel'
+import { hasExecutionRouting } from '@/constants/runProviders'
+import { ExecutionModel } from './ExecutionModel'
 import { formatUsd2, hasCost } from '@/utils/cost'
 
 export interface WaveAgentCardProps {

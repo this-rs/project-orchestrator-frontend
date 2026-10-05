@@ -104,7 +104,7 @@ const PROVIDER_TOOL_TABLES: Record<string, Record<string, ComponentType<ToolRend
 }
 
 /**
- * PROVISIONAL — static aliases (provider tool name → canonical Claude name)
+ * Static aliases, unverified against real traffic (provider tool name → canonical Claude name)
  * for adapters that do not stamp `canonical` on their events yet. Guessed from
  * public documentation, not from real traffic: the real tables will be derived
  * from the Nexus transcripts, and an alias sent by the adapter always wins

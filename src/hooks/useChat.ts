@@ -1376,7 +1376,7 @@ export function useChat() {
           handleEvent(evt)
         }
       })
-  }, [handleEvent, setIsStreaming])
+  }, [handleEvent, setIsStreaming, applySessionRuntime])
 
   // ========================================================================
   // Setup WS callbacks
