@@ -61,26 +61,31 @@ function isTauriEnv(): boolean {
   )
 }
 
-/** Parse semver string to comparable tuple */
-function parseSemver(version: string): [number, number, number] | null {
-  const v = version.replace(/^v/, '')
-  const parts = v.split('.').map(Number)
-  if (parts.length !== 3 || parts.some(isNaN)) return null
-  return parts as [number, number, number]
+interface Semver {
+  core: [number, number, number]
+  prerelease: boolean
 }
 
-/** Check if latest > current */
-function isNewer(current: string, latest: string): boolean {
+/** Parse "1.2.3", "v1.2.3", "1.2.3-rc1" or "1.2.3+build" (build metadata is ignored). */
+export function parseSemver(version: string): Semver | null {
+  const m = /^v?(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/.exec(version.trim())
+  if (!m) return null
+  return { core: [Number(m[1]), Number(m[2]), Number(m[3])], prerelease: m[4] !== undefined }
+}
+
+/** True when `latest` is strictly newer than `current` (a pre-release sorts before its release). */
+export function isNewer(current: string, latest: string): boolean {
   const c = parseSemver(current)
   const l = parseSemver(latest)
   if (!c || !l) return false
-  if (l[0] !== c[0]) return l[0] > c[0]
-  if (l[1] !== c[1]) return l[1] > c[1]
-  return l[2] > c[2]
+  for (let i = 0; i < 3; i++) {
+    if (l.core[i] !== c.core[i]) return l.core[i] > c.core[i]
+  }
+  return c.prerelease && !l.prerelease
 }
 
 /** Check if a dismiss is still valid (within TTL) */
-function isDismissed(version: string): boolean {
+export function isDismissed(version: string): boolean {
   try {
     const raw = localStorage.getItem(DISMISS_KEY)
     if (!raw) return false

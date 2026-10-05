@@ -24,6 +24,7 @@ import { useAtom, useAtomValue } from 'jotai'
 import { ArrowLeft } from 'lucide-react'
 import { Button, PageContainer, PageHeader, Section, surface } from '@/components/ui'
 import { isTauri } from '@/services/env'
+import { UpdatesSection } from '@/components/settings/UpdatesSection'
 import { PermissionSettingsPanel } from '@/components/chat/PermissionSettingsPanel'
 import { settingsReturnUrlAtom } from '@/atoms/setup'
 import { activeWorkspaceSlugAtom } from '@/atoms'
@@ -87,6 +88,12 @@ export function SettingsPage() {
           >
             <div className={`${surface} overflow-hidden [&>div]:border-none`}>
               <PermissionSettingsPanel />
+            </div>
+          </Section>
+
+          <Section title="Updates" description="Check for a new version of the desktop app and install it.">
+            <div className={`${surface} overflow-hidden`}>
+              <UpdatesSection />
             </div>
           </Section>
         </PageContainer>
