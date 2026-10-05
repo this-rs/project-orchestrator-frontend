@@ -141,7 +141,8 @@ export function SetupWizard() {
             // Access restrictions
             allowedEmailDomain: (existing.allowedEmailDomain as string) || '',
             allowedEmails: (existing.allowedEmails as string) || '',
-            // Chat
+            // Chat (a config written before the engine choice existed is Claude Code)
+            chatProvider: existing.chatProvider === 'none' ? 'none' : 'claude-code',
             chatModel: (existing.chatModel as string) || prev.chatModel,
             chatMaxSessions: (existing.chatMaxSessions as number) || prev.chatMaxSessions,
             chatMaxTurns: (existing.chatMaxTurns as number) || prev.chatMaxTurns,

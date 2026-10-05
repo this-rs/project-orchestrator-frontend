@@ -9,6 +9,7 @@ import { modelCatalogAtom, modelCatalogLoadedAtom } from '@/atoms'
 import type { CliVersionStatus } from '@/types'
 import { POLICY_TO_LEGACY_MODE, toToolPolicyMode } from '@/types/provider'
 import { SETUP_MODE_OPTIONS } from '@/constants/toolPolicy'
+import { SETUP_CHAT_ENGINE_OPTIONS, SETUP_NO_ENGINE_NOTE } from '@/constants/setupProviders'
 
 /** Format bytes into a human-readable string (KB, MB, GB). */
 function formatBytes(bytes: number): string {
@@ -48,6 +49,8 @@ export function ChatPage() {
   const [embeddingTestResult, setEmbeddingTestResult] = useState<{ success: boolean; dimensions?: number; latencyMs?: number } | null>(null)
   const [testingEmbedding, setTestingEmbedding] = useState(false)
   const toast = useToast()
+  // Pre-existing configs have no `chatProvider`: they are Claude Code.
+  const isClaude = config.chatProvider !== 'none'
 
   const update = (patch: Partial<typeof config>) =>
     setConfig((prev) => ({ ...prev, ...patch }))
@@ -83,12 +86,17 @@ export function ChatPage() {
       setChatValid(true)
       return
     }
+    // No Claude Code chosen: nothing to detect, only the embedding model gates the step.
+    if (!isClaude) {
+      setChatValid(!isTauri || embeddingReady)
+      return
+    }
     if (!isTauri) {
       setChatValid(true)
       return
     }
     setChatValid(cliDetected && embeddingReady)
-  }, [cliDetected, embeddingReady, isTrayNavigation, setChatValid])
+  }, [cliDetected, embeddingReady, isClaude, isTrayNavigation, setChatValid])
 
   // ── Check local embedding model availability ────────────────────────
   useEffect(() => {
@@ -369,6 +377,41 @@ export function ChatPage() {
         </p>
       </div>
 
+      {/* Engine choice: Claude Code keeps the original path, anything else is configured later */}
+      <fieldset className="space-y-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
+        <legend className="px-1 text-sm font-medium text-gray-300">Chat engine</legend>
+        <div role="radiogroup" aria-label="Chat engine" className="grid gap-3 sm:grid-cols-2">
+          {SETUP_CHAT_ENGINE_OPTIONS.map((opt) => {
+            const selected = config.chatProvider === opt.value
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => update({ chatProvider: opt.value })}
+                className={`flex flex-col items-start gap-1.5 rounded-xl border p-4 text-left transition ${
+                  selected
+                    ? 'border-indigo-500/50 bg-indigo-500/10'
+                    : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]'
+                }`}
+              >
+                <span className={`text-sm font-medium ${selected ? 'text-white' : 'text-gray-300'}`}>
+                  {opt.label}
+                </span>
+                <span className="text-xs text-gray-500">{opt.description}</span>
+              </button>
+            )
+          })}
+        </div>
+        {!isClaude && (
+          <p className="text-xs text-gray-400" data-testid="setup-no-engine-note">
+            {SETUP_NO_ENGINE_NOTE}
+          </p>
+        )}
+      </fieldset>
+
+      {isClaude && (<>
       {/* Model selection */}
       <div className="space-y-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
         <div>
@@ -500,6 +543,8 @@ export function ChatPage() {
           </div>
         </div>
       </div>
+
+      </>)}
 
       {/* Embedding Provider */}
       <div className="space-y-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
@@ -740,6 +785,7 @@ export function ChatPage() {
         )}
       </div>
 
+      {isClaude && (<>
       {/* Claude Code CLI — detection, paths, version management, auto-update */}
       <div className="space-y-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
         {/* CLI status banner */}
@@ -988,6 +1034,8 @@ export function ChatPage() {
           </div>
         )}
       </div>
+
+      </>)}
 
       {/* Info box */}
       <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">

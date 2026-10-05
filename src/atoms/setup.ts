@@ -84,6 +84,9 @@ export const OIDC_PROVIDERS: Record<OidcProvider, OidcProviderDef> = {
   },
 }
 
+/** `none` = no engine picked here: the user adds one later in Settings → Providers. */
+export type ChatProviderChoice = 'claude-code' | 'none'
+
 export interface SetupConfig {
   // Step 1 — Infrastructure
   infraMode: InfraMode
@@ -118,6 +121,8 @@ export interface SetupConfig {
   allowedEmails: string // newline-separated list
 
   // Step 3 — Chat AI
+  /** Which engine the chat step was configured for. Absent in old configs = 'claude-code'. */
+  chatProvider: ChatProviderChoice
   chatModel: string
   chatMaxSessions: number
   chatMaxTurns: number
@@ -182,6 +187,7 @@ export const defaultSetupConfig: SetupConfig = {
   allowedEmails: '',
 
   // Chat
+  chatProvider: 'claude-code',
   // Empty until the wizard reads the live catalog (ChatPage): no model id is
   // hardcoded here, the lineup changes without this file.
   chatModel: '',
@@ -295,7 +301,18 @@ export const chatValidAtom = atom<boolean>(false)
  */
 export const SETUP_FALLBACK_CHAT_MODEL = 'claude-sonnet-5'
 
-/** The config as it is handed to `generate_config`: never with an empty chat model. */
-export function withSetupModelFallback<T extends { chatModel: string }>(config: T): T {
+/**
+ * The config as it is handed to `generate_config`.
+ *
+ * Claude Code: never with an empty chat model. Any other engine: no Claude
+ * field is written with an invented value (model, CLI path, CLI auto-update),
+ * the user picks the engine later in Settings → Providers.
+ */
+export function withSetupModelFallback<
+  T extends { chatModel: string; chatProvider?: ChatProviderChoice; chatClaudeCliPath?: string; chatAutoUpdateCli?: boolean },
+>(config: T): T {
+  if (config.chatProvider === 'none') {
+    return { ...config, chatModel: '', chatClaudeCliPath: '', chatAutoUpdateCli: false }
+  }
   return config.chatModel ? config : { ...config, chatModel: SETUP_FALLBACK_CHAT_MODEL }
 }
