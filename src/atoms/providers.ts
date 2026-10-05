@@ -200,7 +200,18 @@ export const chatSessionCapabilitiesAtom = atom<ProviderCapabilities>((get) => {
     ? capabilitiesFor(instance, get(chatSessionModelAtom) ?? instance.default_model)
     : normalizeCapabilities(null, capabilitiesFallback(id, ref?.kind))
   const snapshot = get(chatSessionCapabilitiesSnapshotAtom)
-  return snapshot ? normalizeCapabilities(snapshot, base) : base
+  const merged = snapshot ? normalizeCapabilities(snapshot, base) : base
+  // `images: true` is the fallback of a LEGACY Claude Code session (it takes
+  // attachments today). On the agent engine Claude Code takes none in v1: when
+  // that engine is known and nobody declared `images`, the fallback must not
+  // offer attachments that would be dropped.
+  const model = get(chatSessionModelAtom) ?? instance?.default_model
+  const declared =
+    snapshot?.images !== undefined ||
+    instance?.capabilities?.images !== undefined ||
+    instance?.models.find((m) => m.id === model)?.capabilities?.images !== undefined
+  if (!declared && merged.images && get(chatSessionEngineAtom).engine === 'agent') return { ...merged, images: false }
+  return merged
 })
 
 /**

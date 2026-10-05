@@ -18,6 +18,7 @@ import {
   chatPermissionConfigAtom,
   chatPermissionInteractiveAtom,
   chatSelectedProviderAtom,
+  chatSessionEngineAtom,
   chatSessionCapabilitiesAtom,
   chatSessionCapabilitiesSnapshotAtom,
   chatSessionIdAtom,
@@ -266,5 +267,30 @@ describe('chatSelectedProviderAtom — storage that throws', () => {
       get.mockRestore()
       set.mockRestore()
     }
+  })
+})
+
+describe('images — the fallback only holds for the legacy engine', () => {
+  it('keeps images on for a Claude Code session on the legacy engine (or an engine not said)', () => {
+    const store = createStore()
+    expect(store.get(chatSessionCapabilitiesAtom).images).toBe(true)
+    store.set(chatSessionEngineAtom, { engine: 'legacy', degraded: [] })
+    expect(store.get(chatSessionCapabilitiesAtom).images).toBe(true)
+  })
+
+  it('turns images off on the agent engine when nobody declared them', () => {
+    const store = createStore()
+    store.set(chatSessionEngineAtom, { engine: 'agent', degraded: [] })
+    expect(store.get(chatSessionCapabilitiesAtom).images).toBe(false)
+  })
+
+  it('follows what the session declares, whatever the engine', () => {
+    const store = createStore()
+    store.set(chatSessionEngineAtom, { engine: 'agent', degraded: [] })
+    store.set(chatSessionCapabilitiesSnapshotAtom, { images: true })
+    expect(store.get(chatSessionCapabilitiesAtom).images).toBe(true)
+    store.set(chatSessionEngineAtom, { engine: 'legacy', degraded: [] })
+    store.set(chatSessionCapabilitiesSnapshotAtom, { images: false })
+    expect(store.get(chatSessionCapabilitiesAtom).images).toBe(false)
   })
 })
