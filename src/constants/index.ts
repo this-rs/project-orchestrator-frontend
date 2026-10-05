@@ -1,5 +1,4 @@
 export {
-  DEFAULT_MODEL_ID,
   FAMILY_ORDER,
   FAMILY_LABEL,
   asModelFamily,
@@ -11,5 +10,6 @@ export {
   compareVersions,
   sortByVersionAscending,
   defaultModelForFamily,
+  catalogDefaultModel,
 } from './models'
 export type { ModelDefinition, ModelFamily, ModelTier, ModelFamilyGroup } from './models'

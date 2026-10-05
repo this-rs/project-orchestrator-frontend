@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { setupStepAtom, setupConfigAtom, configExistsAtom, trayNavigationAtom, infraValidAtom, chatValidAtom, OIDC_PROVIDERS, type SetupConfig, type OidcProvider } from '@/atoms/setup'
-import { authModeAtom, currentUserAtom } from '@/atoms'
+import { authModeAtom, currentUserAtom, modelCatalogAtom } from '@/atoms'
+import { catalogDefaultModel } from '@/constants/models'
 import { isLegacyWireMode } from '@/constants/toolPolicy'
 import { fetchSetupStatus, isTauri } from '@/services/env'
 import { Spinner } from '@/components/ui'
@@ -48,6 +49,18 @@ export function SetupWizard() {
   const currentUser = useAtomValue(currentUserAtom)
   const [checking, setChecking] = useState(!isTrayNavigation)
   const [loadingConfig, setLoadingConfig] = useState(isTrayNavigation)
+  const modelCatalog = useAtomValue(modelCatalogAtom)
+
+  // ── Default chat model: read from the live catalog ─────────────────
+  // The config starts without a model (no id is hardcoded in the app). Done
+  // here rather than on the Chat step, which can be skipped: the Launch step
+  // writes `chatModel` to the config file whatever steps were visited. A model
+  // already chosen, or loaded from an existing config, is left alone.
+  useEffect(() => {
+    const fallback = catalogDefaultModel(modelCatalog)
+    if (!fallback) return
+    setSetupConfig((prev) => (prev.chatModel ? prev : { ...prev, chatModel: fallback.id }))
+  }, [modelCatalog, setSetupConfig])
 
   // ── First setup: check if backend is already configured ────────────
   useEffect(() => {

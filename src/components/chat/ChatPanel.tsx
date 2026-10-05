@@ -1,8 +1,9 @@
 import { AttachSessionButton } from '@/components/discussions/AttachSessionButton'
 import { useAtom } from 'jotai'
 import { useChatUrlSync } from '@/hooks/useChatUrlSync'
-import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom } from '@/atoms'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom } from '@/atoms'
 import { useChat, useDetachedRuns, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
+import { useProviders } from '@/hooks/useProviders'
 import { chatApi } from '@/services/chat'
 import { Plus, X, Menu, Settings, Minimize2, Maximize2, Loader2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check } from 'lucide-react'
 import { ChatMessages } from './ChatMessages'
@@ -10,6 +11,7 @@ import { ChatSessionProvider } from './ChatSessionContext'
 import { ChatInput, type PrefillPayload } from './ChatInput'
 import { CompactionBanner } from './CompactionBanner'
 import { SecretRequestTray } from './SecretRequestTray'
+import { SessionOpenError } from './SessionOpenError'
 import { ComposerDock } from './ComposerDock'
 import { collectRunning } from './runningActivity'
 import type { RunActions } from './ActivityBar'
@@ -64,6 +66,12 @@ export function ChatPanel() {
   const [showAgentTree, setShowAgentTree] = useState(false)
   const [copiedChat, setCopiedChat] = useState(false)
   const chat = useChat()
+  // Provider instances of this server, for the project the chat is about. The
+  // composer reads them from the atoms; a backend without provider routes
+  // leaves everything as it was (Claude Code only).
+  useProviders()
+  const [sessionOpenError, setSessionOpenError] = useAtom(chatSessionOpenErrorAtom)
+  const dismissSessionOpenError = useCallback(() => setSessionOpenError(null), [setSessionOpenError])
   // Session + panel mode live in the URL, so a reload reopens the chat as it was.
   useChatUrlSync({ sessionId: chat.sessionId, mode, setMode, loadSession: chat.loadSession })
   const detachedRuns = useDetachedRuns(chat.sessionId)
@@ -175,14 +183,20 @@ export function ChatPanel() {
   // holds the send until every upload has resolved (see `attachmentState.ts`).
   const handleSend = useCallback((text: string, attachmentIds?: string[]) => {
     if (isNewConversation && !hasContext) return
+    // `sendMessage` reports a failed session creation itself (see
+    // `chatSessionOpenErrorAtom`). Anything else it could reject with is
+    // logged here: a send must never end as an unhandled rejection.
+    const send = (...args: Parameters<typeof chat.sendMessage>) => {
+      Promise.resolve(chat.sendMessage(...args)).catch((err: unknown) => console.error('Send failed', err))
+    }
     if (!isNewConversation) {
-      chat.sendMessage(text, undefined, attachmentIds)
+      send(text, undefined, attachmentIds)
       return
     }
     if (selectedProject) {
       // When allProjectsMode → send workspaceSlug (adds all project dirs)
       // When single project → send only projectSlug (no extra dirs)
-      chat.sendMessage(text, {
+      send(text, {
         cwd: selectedProject.root_path ?? '',
         workspaceSlug: allProjectsMode ? (activeWsSlug || undefined) : undefined,
         projectSlug: allProjectsMode ? undefined : selectedProject.slug,
@@ -561,6 +575,7 @@ export function ChatPanel() {
                   <ComposerDock onHeight={setDockHeight}>
                     <CompactionBanner visible={chat.isCompacting} />
                     <SecretRequestTray sessionId={chat.sessionId} />
+                    {sessionOpenError && <SessionOpenError error={sessionOpenError} onDismiss={dismissSessionOpenError} />}
                     <ChatInput
                       onSend={handleSend}
                       onQueue={chat.queueMessage}
@@ -571,6 +586,7 @@ export function ChatPanel() {
                       sessionId={chat.sessionId}
                       onChangePermissionMode={chat.changePermissionMode}
                       onChangeModel={chat.changeModel}
+                      onNewConversation={handleNewSession}
                       onChangeAutoContinue={chat.changeAutoContinue}
                       prefill={prefill}
                       activity={activity}
@@ -795,6 +811,7 @@ export function ChatPanel() {
             <ComposerDock onHeight={setDockHeight}>
               <CompactionBanner visible={chat.isCompacting} />
               <SecretRequestTray sessionId={chat.sessionId} />
+              {sessionOpenError && <SessionOpenError error={sessionOpenError} onDismiss={dismissSessionOpenError} />}
               <ChatInput
                 onSend={handleSend}
                 onQueue={chat.queueMessage}
@@ -805,6 +822,7 @@ export function ChatPanel() {
                 sessionId={chat.sessionId}
                 onChangePermissionMode={chat.changePermissionMode}
                 onChangeModel={chat.changeModel}
+                onNewConversation={handleNewSession}
                 onChangeAutoContinue={chat.changeAutoContinue}
                 prefill={prefill}
                 activity={activity}

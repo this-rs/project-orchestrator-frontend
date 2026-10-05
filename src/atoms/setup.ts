@@ -1,5 +1,4 @@
 import { atom } from 'jotai'
-import { DEFAULT_MODEL_ID } from '@/constants/models'
 import { DEFAULT_TOOL_POLICY_MODE, type LegacyWireMode } from '@/constants/toolPolicy'
 import { POLICY_TO_LEGACY_MODE } from '@/types/provider'
 
@@ -183,7 +182,9 @@ export const defaultSetupConfig: SetupConfig = {
   allowedEmails: '',
 
   // Chat
-  chatModel: DEFAULT_MODEL_ID,
+  // Empty until the wizard reads the live catalog (ChatPage): no model id is
+  // hardcoded here, the lineup changes without this file.
+  chatModel: '',
   chatMaxSessions: 3,
   chatMaxTurns: 50,
   chatPermissionMode: POLICY_TO_LEGACY_MODE[DEFAULT_TOOL_POLICY_MODE],
@@ -283,3 +284,18 @@ export const infraValidAtom = atom<boolean>(false)
  * Defaults to `false` — the user must satisfy the prerequisites to proceed.
  */
 export const chatValidAtom = atom<boolean>(false)
+
+/**
+ * Model written to the config file when the wizard reaches "Launch" with no
+ * model selected — i.e. when the live catalog could not be read (first run,
+ * backend not up yet). The wizard is the one place that may have to decide
+ * without a backend; an EMPTY `default_model` in the generated file would
+ * leave Claude Code sessions without a model. Everywhere else the default
+ * comes from the backend.
+ */
+export const SETUP_FALLBACK_CHAT_MODEL = 'claude-sonnet-5'
+
+/** The config as it is handed to `generate_config`: never with an empty chat model. */
+export function withSetupModelFallback<T extends { chatModel: string }>(config: T): T {
+  return config.chatModel ? config : { ...config, chatModel: SETUP_FALLBACK_CHAT_MODEL }
+}

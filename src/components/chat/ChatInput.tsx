@@ -1,7 +1,6 @@
-import { memo, useState, useRef, useCallback, useEffect, useId, useMemo } from 'react'
+import { memo, useState, useRef, useCallback, useEffect, useId } from 'react'
 import { useAtom, useAtomValue, useStore } from 'jotai'
-import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom, chatMessageQueuesAtom, draftKeyFor, modelCatalogAtom, modelCatalogLoadedAtom, chatProviderTargetAtom, chatSessionToolPolicyAtom } from '@/atoms'
-import { DEFAULT_MODEL_ID, getModelShortLabel, getModelDotColor, groupModelsByFamily } from '@/constants/models'
+import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoContinueAtom, chatMessageQueuesAtom, draftKeyFor, chatProviderTargetAtom, chatSessionToolPolicyAtom } from '@/atoms'
 import { chatApi } from '@/services/chat'
 import { documentsApi } from '@/services/documents'
 import { ApiError } from '@/services/api'
@@ -20,7 +19,7 @@ import {
 import { ChevronDown, Loader2, Paperclip, Square, ArrowRight } from 'lucide-react'
 import { ActivityBar, type RunActions } from './ActivityBar'
 import type { RunningItem } from './runningActivity'
-import { ModelFamilyPicker, type ModelSelectOptions } from './ModelFamilyPicker'
+import { ProviderModelPicker, type ProviderModelMenu } from './ProviderModelPicker'
 import { deriveInputAction, describeAction } from './inputAction'
 import { MessageQueueBar } from './MessageQueueBar'
 import { shouldEnqueue, type QueueOp, type QueuedMessage } from './messageQueue'
@@ -82,6 +81,8 @@ interface ChatInputProps {
   onChangePermissionMode?: (mode: ToolPolicyMode) => void
   /** Callback to change model on an active session (mid-session) */
   onChangeModel?: (model: string) => void
+  /** Start a new conversation — offered where a session is locked on its provider. */
+  onNewConversation?: () => void
   /** Callback to toggle auto-continue on an active session (sends WS message to backend) */
   onChangeAutoContinue?: (enabled: boolean) => void
   /** When set, prefills the textarea and focuses it. Change the object reference to trigger. */
@@ -98,24 +99,21 @@ const NO_QUEUE: QueuedMessage[] = []
 /** A stable "nothing runs", so an absent prop does not re-render the bar. */
 const NO_ACTIVITY: ReadonlyArray<RunningItem> = []
 
-export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, onInterrupt, isStreaming, disabled, sessionId, onChangePermissionMode, onChangeModel, onChangeAutoContinue, prefill, activity = NO_ACTIVITY, runActions }: ChatInputProps) {
+export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, onInterrupt, isStreaming, disabled, sessionId, onChangePermissionMode, onChangeModel, onNewConversation, onChangeAutoContinue, prefill, activity = NO_ACTIVITY, runActions }: ChatInputProps) {
   const [value, setValue] = useAtom(chatDraftInputAtom)
   const isMobile = useIsMobile()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [modeOverride, setModeOverride] = useAtom(chatSessionPermissionOverrideAtom)
   const [serverConfig, setServerConfig] = useAtom(chatPermissionConfigAtom)
-  const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
   const autoContinue = useAtomValue(chatAutoContinueAtom)
   const providerTarget = useAtomValue(chatProviderTargetAtom)
   const sessionPolicy = useAtomValue(chatSessionToolPolicyAtom)
   const trustHelpId = useId()
-  const availableModels = useAtomValue(modelCatalogAtom)
-  const catalogLoaded = useAtomValue(modelCatalogLoadedAtom)
-  const modelGroups = useMemo(() => groupModelsByFamily(availableModels), [availableModels])
   const [showModeDropdown, setShowModeDropdown] = useState(false)
-  const [showModelDropdown, setShowModelDropdown] = useState(false)
+  // Provider and model menus (`ProviderModelPicker`): one open at a time, and
+  // never together with the mode menu.
+  const [pickerMenu, setPickerMenu] = useState<ProviderModelMenu>(null)
   const [modeJustChanged, setModeJustChanged] = useState(false)
-  const [modelJustChanged, setModelJustChanged] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
   // The queued messages of THIS composer's conversation — read only. The
   // session holds them and delivers them (`chat/pending_queue.rs`); this
@@ -152,7 +150,6 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   const effectiveModeLabel =
     (providerTarget.isClaudeCode ? claudeNativeModeLabel(nativeMode, 'short') : null) ?? modeLabels[effectiveMode]
   const trustAllowed = isTrustAllowed(providerTarget)
-  const effectiveModel = sessionModel ?? serverConfig?.default_model ?? DEFAULT_MODEL_ID
 
   /** Full re-measure: reset then fit (needed to let the box SHRINK). */
   const resize = useCallback(() => {
@@ -227,18 +224,18 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
 
   // Close dropdowns on outside click
   useEffect(() => {
-    if (!showModeDropdown && !showModelDropdown) return
+    if (!showModeDropdown && !pickerMenu) return
     const handler = (e: MouseEvent) => {
       if (showModeDropdown && dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setShowModeDropdown(false)
       }
-      if (showModelDropdown && modelDropdownRef.current && !modelDropdownRef.current.contains(e.target as Node)) {
-        setShowModelDropdown(false)
+      if (pickerMenu && modelDropdownRef.current && !modelDropdownRef.current.contains(e.target as Node)) {
+        setPickerMenu(null)
       }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [showModeDropdown, showModelDropdown])
+  }, [showModeDropdown, pickerMenu])
 
   // Load permission config from server on mount (so mode selector has the correct default)
   useEffect(() => {
@@ -593,19 +590,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
     setTimeout(() => setModeJustChanged(false), 1000)
   }
 
-  const handleSelectModel = (modelId: string, { close }: ModelSelectOptions = { close: true }) => {
-    if (sessionId && onChangeModel) {
-      // Active session — send WS message for mid-session model change
-      onChangeModel(modelId)
-    } else {
-      // No session yet — set atom directly (used at session creation)
-      setSessionModel(modelId)
-    }
-    if (close) setShowModelDropdown(false)
-    // Visual feedback: brief highlight
-    setModelJustChanged(true)
-    setTimeout(() => setModelJustChanged(false), 1000)
-  }
+  const handlePickerMenu = useCallback((menu: ProviderModelMenu) => {
+    setPickerMenu(menu)
+    if (menu) setShowModeDropdown(false)
+  }, [])
 
   return (
     // pb: with viewport-fit=cover, keep the input clear of the home
@@ -726,7 +714,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           <div className="flex items-center gap-1.5" ref={dropdownRef}>
             <div className="relative">
               <button
-                onClick={() => { setShowModeDropdown(!showModeDropdown); setShowModelDropdown(false) }}
+                onClick={() => { setShowModeDropdown(!showModeDropdown); setPickerMenu(null) }}
                 className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border text-gray-300 hover:bg-white/[0.06] transition-all duration-300 ${
                   modeJustChanged
                     ? 'border-indigo-400/50 ring-1 ring-indigo-400/30'
@@ -780,39 +768,16 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
             </div>
           </div>
 
-          {/* Model selector — always visible (new conversation + active session) */}
+          {/* Provider (when the server has several) and model — always visible
+              (new conversation + active session). */}
           <div className="flex items-center gap-1.5" ref={modelDropdownRef}>
-            {/* Positioned only from `sm` up. Below that the picker's containing
-                block is the whole toolbar row, so it spans the input's width
-                instead of hanging off a button that sits mid-row — anchored to
-                the button, a phone-width screen pushed it off the right edge. */}
-            <div className="sm:relative">
-              <button
-                onClick={() => { setShowModelDropdown(!showModelDropdown); setShowModeDropdown(false) }}
-                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border text-gray-300 hover:bg-white/[0.06] transition-all duration-300 ${
-                  modelJustChanged
-                    ? 'border-violet-400/50 ring-1 ring-violet-400/30'
-                    : 'border-white/[0.08]'
-                }`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${getModelDotColor(effectiveModel)}`} />
-                <span>{getModelShortLabel(effectiveModel)}</span>
-                <ChevronDown className="w-2.5 h-2.5 text-gray-500" />
-              </button>
-              {showModelDropdown && (
-                <div
-                  data-testid="model-picker-popover"
-                  className="absolute bottom-full left-0 right-0 sm:right-auto sm:w-64 mb-1 z-20 max-h-[min(18rem,45dvh)] overflow-y-auto overscroll-contain bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl"
-                >
-                  <ModelFamilyPicker
-                    groups={modelGroups}
-                    activeModelId={effectiveModel}
-                    loaded={catalogLoaded}
-                    onSelect={handleSelectModel}
-                  />
-                </div>
-              )}
-            </div>
+            <ProviderModelPicker
+              sessionId={sessionId}
+              open={pickerMenu}
+              onOpenChange={handlePickerMenu}
+              onChangeModel={onChangeModel}
+              onNewConversation={onNewConversation}
+            />
           </div>
 
           <div className="ml-auto flex items-center gap-2">

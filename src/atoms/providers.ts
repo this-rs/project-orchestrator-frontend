@@ -6,9 +6,11 @@ import {
   CLAUDE_CODE_PROVIDER_ID,
   capabilitiesFallback,
   capabilitiesFor,
+  isClaudeCodeProvider,
   normalizeCapabilities,
   toToolPolicyMode,
   type ProviderCapabilities,
+  type ProviderErrorInfo,
   type ProviderId,
   type ProviderInstance,
   type ProviderRef,
@@ -30,23 +32,33 @@ export type ProvidersLoadState = 'idle' | 'loading' | 'ready' | 'unsupported' | 
 export const providersAtom = atom<ProvidersResponse | null>(null)
 export const providersLoadStateAtom = atom<ProvidersLoadState>('idle')
 
-let fetchInFlight = false
+/** The request in flight, and which project it asked about. */
+let inFlight: { key: string; generation: number; promise: Promise<void> } | null = null
+let fetchGeneration = 0
 
 /**
- * Load the instances. Safe to call repeatedly (overlapping calls are deduped);
- * never throws. A 404/405 means the backend predates providers.
+ * Load the instances. Safe to call repeatedly (overlapping calls for the same
+ * project share one request); never throws. A 404/405 means the backend
+ * predates providers.
+ *
+ * A call for ANOTHER project while one is in flight starts its own request and
+ * the older answer is dropped: `allowed_for_project` is about one project, and
+ * the list on screen must be the one of the project now selected.
  */
 export function fetchProviders(
   set: (value: ProvidersResponse | null) => void,
   setState: (state: ProvidersLoadState) => void,
   params: { project_slug?: string } = {},
 ): Promise<void> {
-  if (fetchInFlight) return Promise.resolve()
-  fetchInFlight = true
+  const key = params.project_slug ?? ''
+  if (inFlight && inFlight.key === key) return inFlight.promise
+  const generation = ++fetchGeneration
+  const current = () => generation === fetchGeneration
   setState('loading')
-  return providersApi
+  const promise = providersApi
     .list(params)
     .then((res) => {
+      if (!current()) return
       if (res && Array.isArray(res.providers)) {
         set(res)
         setState('ready')
@@ -56,6 +68,7 @@ export function fetchProviders(
       }
     })
     .catch((err: unknown) => {
+      if (!current()) return
       if (err instanceof ApiError && (err.status === 404 || err.status === 405)) {
         set(null)
         setState('unsupported')
@@ -64,9 +77,28 @@ export function fetchProviders(
       }
     })
     .finally(() => {
-      fetchInFlight = false
+      if (inFlight?.generation === generation) inFlight = null
     })
+  inFlight = { key, generation, promise }
+  return promise
 }
+
+/**
+ * Why the last attempt to OPEN a conversation failed (`POST /chat/sessions`).
+ * `info` is the typed provider error when the server sent one; `text` and
+ * `attachments` are the message that did not leave, so nothing typed is lost.
+ */
+export interface ChatSessionOpenError {
+  info: ProviderErrorInfo | null
+  /** Human sentence, for when `info` is absent or carries no message. */
+  message: string
+  /** The message that was not sent. */
+  text: string
+  /** Document ids that were attached to it. */
+  attachments: string[]
+}
+
+export const chatSessionOpenErrorAtom = atom<ChatSessionOpenError | null>(null)
 
 /**
  * Provider of the CURRENT session, as its last `system_init` (or its session
@@ -142,4 +174,29 @@ export const chatPermissionInteractiveAtom = atom((get) => {
   if (config === null) return false
   if (toToolPolicyMode(config.mode) === 'trust') return false
   return get(chatSessionCapabilitiesAtom).interactive_permissions
+})
+
+/**
+ * The model a conversation runs on when none was picked, as the SERVER says:
+ * the resolved default when it is about this provider, then the instance's own
+ * default, then (Claude Code only) the configured chat model. `null` = nobody
+ * said — the interface then shows "Default model", never an invented id.
+ */
+export const chatDefaultModelAtom = atom<string | null>((get) => {
+  const id = get(chatEffectiveProviderIdAtom)
+  const resolved = get(providersAtom)?.default
+  if (resolved && resolved.provider === id) {
+    const model = resolved.model ?? resolved.alias
+    if (model) return model
+  }
+  const instance = get(chatEffectiveProviderAtom)
+  if (instance?.default_model) return instance.default_model
+  // A backend without provider routes has one provider, whatever a stale pick says.
+  const claude =
+    get(providersLoadStateAtom) === 'unsupported' ||
+    isClaudeCodeProvider(id, instance?.kind ?? get(chatSessionProviderAtom)?.kind)
+  if (claude) {
+    return get(chatPermissionConfigAtom)?.default_model || null
+  }
+  return null
 })

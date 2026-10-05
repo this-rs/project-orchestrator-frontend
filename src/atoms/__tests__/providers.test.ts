@@ -13,6 +13,7 @@ vi.mock('@/services/providers', () => ({
 
 import { ApiError } from '@/services/api'
 import {
+  chatDefaultModelAtom,
   chatEffectiveProviderIdAtom,
   chatPermissionConfigAtom,
   chatPermissionInteractiveAtom,
@@ -171,5 +172,79 @@ describe('fetchProviders', () => {
     const store = await run()
     expect(store.get(providersLoadStateAtom)).toBe('unsupported')
     expect(store.get(providersAtom)).toBeNull()
+  })
+})
+
+describe('fetchProviders — one answer per project', () => {
+  const setters = (store: ReturnType<typeof createStore>) =>
+    [
+      (v: ProvidersResponse | null) => store.set(providersAtom, v),
+      (s: Parameters<Parameters<typeof fetchProviders>[1]>[0]) => store.set(providersLoadStateAtom, s),
+    ] as const
+
+  it('shares one request between overlapping calls for the same project', async () => {
+    list.mockResolvedValue(PROVIDERS)
+    const store = createStore()
+    await Promise.all([
+      fetchProviders(...setters(store), { project_slug: 'alpha' }),
+      fetchProviders(...setters(store), { project_slug: 'alpha' }),
+    ])
+    expect(list).toHaveBeenCalledTimes(1)
+    expect(store.get(providersLoadStateAtom)).toBe('ready')
+  })
+
+  it('asks again for another project, and the older answer does not overwrite the newer', async () => {
+    let resolveAlpha: (v: ProvidersResponse) => void = () => {}
+    list.mockReturnValueOnce(new Promise<ProvidersResponse>((r) => (resolveAlpha = r)))
+    const forBeta: ProvidersResponse = { ...PROVIDERS, default: { provider: 'local-llama', routed_by: 'project_rule' } }
+    list.mockResolvedValueOnce(forBeta)
+    const store = createStore()
+    const alpha = fetchProviders(...setters(store), { project_slug: 'alpha' })
+    await fetchProviders(...setters(store), { project_slug: 'beta' })
+    expect(list).toHaveBeenCalledTimes(2)
+    resolveAlpha(PROVIDERS)
+    await alpha
+    expect(store.get(providersAtom)?.default?.provider).toBe('local-llama')
+    expect(store.get(providersLoadStateAtom)).toBe('ready')
+  })
+})
+
+describe('default model of the conversation', () => {
+  const config = (default_model?: string) => ({ mode: 'default' as const, allowed_tools: [], disallowed_tools: [], default_model })
+
+  it('is the configured chat model on a backend without providers, and null when none is advertised', () => {
+    const store = createStore()
+    store.set(providersLoadStateAtom, 'unsupported')
+    // A pick remembered from another server changes nothing.
+    store.set(chatSelectedProviderAtom, 'local-llama')
+    expect(store.get(chatDefaultModelAtom)).toBeNull()
+    store.set(chatPermissionConfigAtom, config('claude-opus-5-5'))
+    expect(store.get(chatDefaultModelAtom)).toBe('claude-opus-5-5')
+  })
+
+  it('is the model of the resolved default when it is about the provider in use', () => {
+    const store = createStore()
+    store.set(providersAtom, { ...PROVIDERS, default: { provider: 'local-llama', model: 'llava', routed_by: 'project_rule' } })
+    expect(store.get(chatDefaultModelAtom)).toBe('llava')
+  })
+
+  it('is the default of the picked instance otherwise, never the configured Claude model', () => {
+    const store = createStore()
+    store.set(providersAtom, PROVIDERS)
+    store.set(chatPermissionConfigAtom, config('claude-opus-5-5'))
+    store.set(chatSelectedProviderAtom, 'local-llama')
+    expect(store.get(chatDefaultModelAtom)).toBe('qwen')
+    store.set(providersAtom, {
+      ...PROVIDERS,
+      providers: PROVIDERS.providers.map((p) => ({ ...p, default_model: null })),
+    })
+    expect(store.get(chatDefaultModelAtom)).toBeNull()
+  })
+
+  it('falls back to the configured chat model for Claude Code', () => {
+    const store = createStore()
+    store.set(providersAtom, PROVIDERS)
+    store.set(chatPermissionConfigAtom, config('claude-opus-5-5'))
+    expect(store.get(chatDefaultModelAtom)).toBe('claude-opus-5-5')
   })
 })

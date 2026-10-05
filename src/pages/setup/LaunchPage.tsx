@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAtom, useSetAtom } from 'jotai'
 import { Check, X, Loader2, Rocket, RefreshCw, ChevronDown } from 'lucide-react'
-import { setupConfigAtom, configExistsAtom } from '@/atoms/setup'
+import { setupConfigAtom, configExistsAtom, withSetupModelFallback } from '@/atoms/setup'
 import { toToolPolicyMode } from '@/types/provider'
 import { SETUP_MODE_SUMMARIES } from '@/constants/toolPolicy'
 import { isTauri } from '@/services/env'
@@ -28,7 +28,7 @@ export function LaunchPage() {
 
     try {
       const { invoke } = await import('@tauri-apps/api/core')
-      const path = await invoke<string>('generate_config', { config })
+      const path = await invoke<string>('generate_config', { config: withSetupModelFallback(config) })
       setConfigPath(path)
       setConfigExists(true)
       setPhase('generated')
@@ -134,7 +134,7 @@ export function LaunchPage() {
 
         <div className="border-t border-white/[0.04] pt-2" />
 
-        <SummaryRow label="Chat Model" value={config.chatModel} />
+        <SummaryRow label="Chat Model" value={config.chatModel || 'Not selected'} />
         <SummaryRow label="Max Sessions" value={String(config.chatMaxSessions)} />
         <SummaryRow label="Max Turns" value={String(config.chatMaxTurns)} />
         <SummaryRow

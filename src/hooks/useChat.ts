@@ -1,7 +1,9 @@
 import { splitAttachments } from '@/utils/messageAttachments'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useSetAtom, useStore } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatProviderTargetAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatSessionOpenErrorAtom, providersAtom, providersLoadStateAtom } from '@/atoms'
+import { apiErrorMessage } from '@/services/api'
+import { toProviderError } from '@/services/providers'
 import { chatApi, ChatWebSocket } from '@/services'
 import { applyQueueOp, enqueue, mergeServerQueue, type QueueOp, type QueuedMessage } from '@/components/chat/messageQueue'
 import type { ChatMessage, ChatStreamEvent, PermissionMode } from '@/types'
@@ -1783,6 +1785,11 @@ export function useChat() {
    * `attachments` field on the `user_message` frame for follow-ups.
    */
   const sendMessage = useCallback(async (text: string, options?: SendMessageOptions, attachments?: string[]) => {
+    // A new attempt: whatever the previous one failed on is no longer the news.
+    store.set(chatSessionOpenErrorAtom, null)
+    // Known before the optimistic bubble is added, so a failed creation can
+    // take exactly that bubble back out.
+    const userMessageId = nextMessageId()
     // Clear draft for this session after sending
     const draftKey = draftKeyFor(sessionId)
     setDraftsMap((prev) => {
@@ -1818,7 +1825,7 @@ export function useChat() {
       }
 
       updated.push({
-        id: nextMessageId(),
+        id: userMessageId,
         role: 'user',
         blocks: [{ id: nextBlockId(), type: 'text', content: text }],
         timestamp: new Date(),
@@ -1831,13 +1838,26 @@ export function useChat() {
       setIsSending(true)
       setIsStreaming(true)
       try {
+        // The provider is named ONLY when the user picked an instance this
+        // server lists. Otherwise the field is left out and the server
+        // resolves its default (project rule, global rule…) — sending the
+        // id the interface merely DISPLAYS would freeze that routing.
+        const picked = store.get(chatSelectedProviderAtom)
+        const provider =
+          picked &&
+          store.get(providersLoadStateAtom) !== 'unsupported' &&
+          store.get(providersAtom)?.providers.some((p) => p.id === picked)
+            ? picked
+            : undefined
         const response = await chatApi.createSession({
           message: text,
           cwd: options!.cwd,
           project_slug: options?.projectSlug,
           workspace_slug: options?.workspaceSlug,
           permission_mode: wirePermissionMode(options?.permissionMode ?? store.get(chatSessionPermissionOverrideAtom)),
+          // A model id, or the NAME of an alias (`fast`, `deep`…) of the instance.
           model: options?.model ?? store.get(chatSessionModelAtom) ?? undefined,
+          ...(provider ? { provider } : {}),
           attachments: attachments && attachments.length > 0 ? attachments : undefined,
         })
         // Signal that the upcoming sessionId change is from a first send,
@@ -1854,6 +1874,20 @@ export function useChat() {
         }
         // Reset override after use
         if (store.get(chatSessionPermissionOverrideAtom)) setPermissionOverride(null)
+      } catch (err) {
+        // No session was opened: nothing will ever stream, so the indicator
+        // goes off, and the bubble shown optimistically was never sent.
+        setIsStreaming(false)
+        setMessages((prev) => prev.filter((m) => m.id !== userMessageId))
+        // The text goes back to the composer rather than being lost; anything
+        // typed while the request was pending is kept after it.
+        store.set(chatDraftInputAtom, (typed) => (typed.trim() === '' ? text : `${text}\n${typed}`))
+        store.set(chatSessionOpenErrorAtom, {
+          info: toProviderError(err),
+          message: apiErrorMessage(err, 'The conversation could not be started'),
+          text,
+          attachments: attachments ?? [],
+        })
       } finally {
         setIsSending(false)
       }
@@ -2101,7 +2135,8 @@ export function useChat() {
     setSessionModel(null)
     setAutoContinue(false)
     applySessionRuntime(null)
-  }, [getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride, setSessionModel, setAutoContinue, sessionId, applySessionRuntime])
+    store.set(chatSessionOpenErrorAtom, null)
+  }, [store, getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride, setSessionModel, setAutoContinue, sessionId, applySessionRuntime])
 
   const changePermissionMode = useCallback((mode: ToolPolicyMode) => {
     if (!sessionId) return
@@ -2139,6 +2174,8 @@ export function useChat() {
     paginationRef.current = { offset: 0, tailOffset: 0, totalCount: 0 }
     // The previous conversation's provider must not leak into this one.
     applySessionRuntime(null)
+    // Neither must the failure of a conversation that never opened.
+    store.set(chatSessionOpenErrorAtom, null)
 
     // Fetch session metadata (cwd, project, permission mode) for display in header
     chatApi.getSession(sid).then((session) => {
@@ -2162,7 +2199,7 @@ export function useChat() {
 
     // WS will auto-connect via the useEffect above when sessionId changes
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setPermissionOverride and setSessionModel are stable Jotai setters
-  }, [sessionId, getWs, setSessionId, setIsStreaming, setIsReplaying, applySessionRuntime])
+  }, [sessionId, getWs, setSessionId, setIsStreaming, setIsReplaying, applySessionRuntime, store])
 
   return {
     messages,
