@@ -34,7 +34,7 @@ const readJson = <T,>(name: string) => JSON.parse(readFileSync(resolve(dir, name
  *  - the BACKEND's (`server-events.json`, `client-messages.json`,
  *    `control-frames.json`, `SHA256SUMS`), copied as is by the sync script:
  *    what the backend emits TODAY. Authoritative.
- *  - `chat-contract.json` + `CHECKSUMS.sha256`, hand-written TARGET frames:
+ *  - `provisional-target-frames.json` + `PROVISIONAL-TARGET.sha256`, hand-written TARGET frames:
  *    the same wire plus the fields the provider work adds (provider,
  *    capabilities, tool policy, cost basis, tool category…), from the nexus
  *    agent contract. They keep the frontend types honest about a wire the
@@ -49,13 +49,13 @@ const backendFiles: BackendContractFiles | null = fromBackend
       controlFrames: existsSync(resolve(dir, 'control-frames.json')) ? readJson('control-frames.json') : undefined,
     }
   : null
-const target: ContractFile | null = existsSync(resolve(dir, 'chat-contract.json')) ? readJson<ContractFile>('chat-contract.json') : null
+const target: ContractFile | null = existsSync(resolve(dir, 'provisional-target-frames.json')) ? readJson<ContractFile>('provisional-target-frames.json') : null
 const contract: ContractFile = backendFiles ? fromBackendContract(backendFiles) : target!
 
 describe('vendored contract files', () => {
   it('match their recorded checksums (copy them with the sync script, never edit them by hand)', () => {
     const checked: string[] = []
-    for (const sumsFile of ['SHA256SUMS', 'CHECKSUMS.sha256']) {
+    for (const sumsFile of ['SHA256SUMS', 'PROVISIONAL-TARGET.sha256']) {
       if (!existsSync(resolve(dir, sumsFile))) continue
       const lines = readFileSync(resolve(dir, sumsFile), 'utf8').trim().split('\n').map((line) => line.trim().split(/\s+/))
       for (const [recorded, rawName] of lines) {
@@ -65,7 +65,7 @@ describe('vendored contract files', () => {
       }
     }
     if (fromBackend) expect(checked).toEqual(expect.arrayContaining(['server-events.json', 'client-messages.json', 'control-frames.json']))
-    if (target) expect(checked).toContain('chat-contract.json')
+    if (target) expect(checked).toContain('provisional-target-frames.json')
     expect(checked.length).toBeGreaterThan(0)
   })
 
@@ -83,10 +83,10 @@ describe('chat contract — field level', () => {
     expect(checkContract(target!)).toEqual([])
   })
 
-  it('counts 32 event variants and 9 client messages', () => {
-    expect(Object.keys(CHAT_EVENT_FIELDS)).toHaveLength(32)
+  it('counts 33 event variants and 9 client messages', () => {
+    expect(Object.keys(CHAT_EVENT_FIELDS)).toHaveLength(33)
     expect(Object.keys(WS_CLIENT_MESSAGE_TYPES)).toHaveLength(9)
-    expect(new Set(contract.events.map((e) => e.type)).size).toBe(32)
+    expect(new Set(contract.events.map((e) => e.type)).size).toBe(33)
   })
 
   it('no longer treats partial_text and viz_block as events, and knows compaction_recovery and cancel_tools', () => {

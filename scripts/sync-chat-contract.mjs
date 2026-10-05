@@ -6,8 +6,8 @@
  * `client-messages.json`, `control-frames.json`, `SHA256SUMS`). This script
  * COPIES that directory as is into `src/services/__fixtures__/chat-contract/`,
  * and verifies the copy against `SHA256SUMS`. The hand-written
- * `chat-contract.json` (TARGET frames: fields the backend does not emit yet)
- * is kept next to them with its own `CHECKSUMS.sha256`. `src/services/__tests__/chatContract.test.ts` then
+ * `provisional-target-frames.json` (TARGET frames: fields the backend does not emit yet)
+ * is kept next to them with its own `PROVISIONAL-TARGET.sha256`. `src/services/__tests__/chatContract.test.ts` then
  * refuses a copy whose checksums do not match and replays every example
  * against the frontend's field tables.
  *
@@ -23,8 +23,8 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const dir = resolve(root, 'src/services/__fixtures__/chat-contract')
-const PROVISIONAL = 'chat-contract.json'
-const PROVISIONAL_SUMS = 'CHECKSUMS.sha256'
+const PROVISIONAL = 'provisional-target-frames.json'
+const PROVISIONAL_SUMS = 'PROVISIONAL-TARGET.sha256'
 const BACKEND_SUMS = 'SHA256SUMS'
 
 const sha256 = (path) => createHash('sha256').update(readFileSync(path)).digest('hex')
@@ -83,7 +83,7 @@ for (const name of readdirSync(source)) {
   }
 }
 if (!verify(BACKEND_SUMS)) process.exit(1)
-// `chat-contract.json` stays: it holds the TARGET frames (fields the backend
+// `provisional-target-frames.json` stays: it holds the TARGET frames (fields the backend
 // does not emit yet — provider, capabilities, cost basis…). Delete it by hand
 // once the backend's own examples carry them.
 console.log('chat contract vendored and verified')

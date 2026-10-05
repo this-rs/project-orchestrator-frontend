@@ -1,6 +1,6 @@
 {
-  "_provisional": "PROVISIONAL \u2014 hand-written by the frontend lane from backend/src/chat/types.rs (origin/main) and CONSOLIDATION A4/A5/A8/A42/A45. Replace with the backend-generated file (npm run contract:sync) as soon as it exists.",
-  "contract_version": "0-provisional",
+  "_provisional": "NOT THE BACKEND CONTRACT. Hand-written TARGET frames (fields the backend does not emit yet). The real contract is server-events.json / client-messages.json / control-frames.json copied from the backend. Do not treat this file as authoritative.",
+  "contract_version": "provisional-target",
   "events": [
     {
       "type": "user_message",
@@ -413,6 +413,11 @@
       "type": "secret_request_resolved",
       "id": "sr_1",
       "outcome": "provided"
+    },
+    {
+      "type": "session_closed",
+      "session_id": "5b0c7c1e-2f4a-4d6b-9a3e-1c2d3e4f5a6b",
+      "reason": "closed"
     }
   ],
   "control_frames": [
@@ -429,9 +434,6 @@
     },
     {
       "type": "session_dormant"
-    },
-    {
-      "type": "session_closed"
     },
     {
       "type": "auth_ok"

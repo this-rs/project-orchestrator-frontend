@@ -422,6 +422,8 @@ export type ChatEvent =
   | { type: 'permission_mode_changed'; mode: string; tool_policy?: ToolPolicy | ToolPolicyMode; policy_mode?: ToolPolicyMode }
   | { type: 'model_changed'; model: string }
   | { type: 'compaction_started'; trigger: string }
+  /** Emitted by `close_session`: the session is gone, do not reconnect. */
+  | { type: 'session_closed'; session_id: string; reason?: string }
   | { type: 'compaction_recovery'; hint_tokens: number; build_latency_ms: number; recovery_success: boolean }
   | { type: 'compact_boundary'; trigger: string; pre_tokens?: number }
   | {
@@ -488,6 +490,7 @@ export const CHAT_EVENT_FIELDS = {
   permission_mode_changed: { mode: 'required', tool_policy: 'optional', policy_mode: 'optional' },
   model_changed: { model: 'required' },
   compaction_started: { trigger: 'required' },
+  session_closed: { session_id: 'required', reason: 'optional' },
   compaction_recovery: { hint_tokens: 'required', build_latency_ms: 'required', recovery_success: 'required' },
   compact_boundary: { trigger: 'required', pre_tokens: 'optional' },
   system_init: { cli_session_id: 'optional', model: 'optional', tools: 'optional', mcp_servers: 'optional', permission_mode: 'optional', provider: 'optional', capabilities: 'optional', tool_policy: 'optional', policy_mode: 'optional' },
@@ -515,12 +518,6 @@ export type ChatControlFrame =
   | { type: 'replay_complete' }
   | { type: 'events_lagged'; skipped?: number }
   | { type: 'session_dormant' }
-  /**
-   * Emitted by `close_session`: the session is gone, do not reconnect. The
-   * backend plans it as a persisted event (`{ session_id, reason }`); it is
-   * read here as a control frame until `server-events.json` lists it.
-   */
-  | { type: 'session_closed'; session_id?: string; reason?: string }
   | { type: 'auth_ok' }
   | { type: 'auth_error'; message?: string }
 
@@ -932,7 +929,6 @@ export const CHAT_CONTROL_FRAME_TYPES = {
   replay_complete: true,
   events_lagged: true,
   session_dormant: true,
-  session_closed: true,
   auth_ok: true,
   auth_error: true,
 } as const satisfies Record<ChatControlFrame['type'], true>
