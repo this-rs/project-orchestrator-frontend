@@ -433,6 +433,10 @@ export type ProviderErrorCode =
   | 'turn_in_progress'
   | 'invalid_request'
   | 'closed'
+  /** Gateway codes of the backend (`provider-additions.json`). */
+  | 'provider_error'
+  | 'provider_unknown'
+  | 'provider_unavailable'
 
 export const PROVIDER_ERROR_CODES: readonly ProviderErrorCode[] = [
   'no_provider',
@@ -455,6 +459,9 @@ export const PROVIDER_ERROR_CODES: readonly ProviderErrorCode[] = [
   'turn_in_progress',
   'invalid_request',
   'closed',
+  'provider_error',
+  'provider_unknown',
+  'provider_unavailable',
 ]
 
 /** A provider error as the interface handles it. Never carries a credential. */
@@ -493,15 +500,27 @@ export interface ProviderErrorInfo {
 export function readProviderError(body: unknown, status?: number): ProviderErrorInfo | null {
   if (typeof body !== 'object' || body === null) return null
   const b = body as Record<string, unknown>
-  const code = b.code ?? b.kind
-  if (typeof code !== 'string' || !(PROVIDER_ERROR_CODES as readonly string[]).includes(code)) return null
   const str = (v: unknown) => (typeof v === 'string' && v !== '' ? v : undefined)
   const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined)
+  const known = (v: unknown): v is ProviderErrorCode =>
+    typeof v === 'string' && (PROVIDER_ERROR_CODES as readonly string[]).includes(v)
+  let code: unknown = b.code ?? b.kind
+  let message = str(b.error) ?? str(b.message) ?? ''
+  if (!known(code)) {
+    // A 403 of the gateway has no `code` field: its body is `{"error": "<code>: <message>"}`.
+    const prefixed = /^([a-z_]+):\s*(.*)$/s.exec(message)
+    if (prefixed && known(prefixed[1])) {
+      code = prefixed[1]
+      message = prefixed[2]
+    }
+  }
+  if (!known(code)) return null
   return {
-    code: code as ProviderErrorCode,
-    message: str(b.error) ?? str(b.message) ?? '',
+    code,
+    message,
     provider_id: str(b.provider_id) ?? str(b.provider),
-    login_hint: str(b.login_hint),
+    // `action` is the backend's name for the command to run (`claude login`…).
+    login_hint: str(b.login_hint) ?? str(b.action),
     retry_after_ms: num(b.retry_after_ms) ?? (num(b.retry_after) !== undefined ? num(b.retry_after)! * 1000 : undefined),
     detail: str(b.detail),
     program: str(b.program),
@@ -565,6 +584,8 @@ export interface ProviderInstance {
   capabilities?: Partial<ProviderCapabilities>
   /** Whether the project given as `project_slug` may send content to it. Absent = no project asked. */
   allowed_for_project?: boolean | null
+  /** The server's default instance (`GET /api/chat/providers`). */
+  is_default?: boolean
 }
 
 /** Which rule picked the default (persisted server-side as `routed_by`). */
@@ -576,8 +597,9 @@ export type RoutedBy =
   | 'run'
   | 'project_rule'
   | 'global_rule'
-  | 'configured_default'
-  | 'claude_code_fallback'
+  | 'default'
+  | 'claude_code'
+  | 'fallback'
   | (string & {})
 
 export interface ResolvedDefault {

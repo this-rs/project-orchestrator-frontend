@@ -164,8 +164,8 @@ describe('ProviderModelPicker — new conversation', () => {
 
   it.each([
     ['global_rule', 'global default'],
-    ['configured_default', 'server default'],
-    ['claude_code_fallback', 'fallback'],
+    ['default', 'server default'],
+    ['claude_code', 'Claude Code fallback'],
   ])('reads the origin %s as "%s"', (routed_by, label) => {
     mount({ prepare: withProviders({ ...PROVIDERS, default: { provider: 'claude-code', routed_by } }) })
     expect(providerChip().textContent).toContain(label)
@@ -286,7 +286,7 @@ describe('ProviderModelPicker — new conversation', () => {
     mount({
       prepare: withProviders({
         providers: [{ id: 'acp-agent', kind: 'acp', label: 'opencode', health: { status: 'unknown' }, models: [] }],
-        default: { provider: 'acp-agent', routed_by: 'configured_default' },
+        default: { provider: 'acp-agent', routed_by: 'default' },
       }),
     })
     expect(modelChip().textContent).toBe(DEFAULT_MODEL_LABEL)
@@ -408,7 +408,7 @@ describe('ProviderModelPicker — existing session', () => {
 
 describe('ProviderModelPicker — one menu at a time', () => {
   it('opening the model menu closes the provider menu, and the mode menu closes both', () => {
-    mount({ prepare: withProviders({ ...PROVIDERS, default: { provider: 'claude-code', routed_by: 'claude_code_fallback' } }) })
+    mount({ prepare: withProviders({ ...PROVIDERS, default: { provider: 'claude-code', routed_by: 'claude_code' } }) })
     fireEvent.click(providerChip())
     expect(screen.getByTestId('provider-picker-popover')).toBeTruthy()
     fireEvent.click(modelChip())

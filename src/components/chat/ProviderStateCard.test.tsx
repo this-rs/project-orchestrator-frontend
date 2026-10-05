@@ -182,7 +182,7 @@ describe('ProviderStateCard', () => {
     expect(onRetry).toHaveBeenCalledTimes(1)
   })
 
-  it.each(['overloaded', 'timeout', 'process_exited', 'protocol', 'turn_in_progress', 'invalid_request', 'closed', 'provider_conflict'] as const)(
+  it.each(['overloaded', 'timeout', 'process_exited', 'protocol', 'turn_in_progress', 'invalid_request', 'closed', 'provider_conflict', 'provider_error', 'provider_unknown', 'provider_unavailable'] as const)(
     '%s — no Retry when not retryable',
     (code) => {
       const { card } = mount(err(code, { retryable: false }), { onRetry: vi.fn() })

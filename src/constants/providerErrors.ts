@@ -30,6 +30,9 @@ export const PROVIDER_ERROR_TITLES: Readonly<Record<ProviderErrorCode, string>> 
   instance_not_found: 'Provider no longer exists',
   provider_conflict: 'Provider conflict',
   cli_not_found: 'Command-line tool not found',
+  provider_error: 'Provider error',
+  provider_unknown: 'Unknown provider',
+  provider_unavailable: 'Provider unavailable',
   auth_required: 'Sign-in required',
   credentials_locked: 'Vault locked',
   unauthorized: 'Credential refused',
@@ -116,6 +119,12 @@ export function providerErrorExplanation(error: ProviderErrorInfo, projectSlug?:
       return 'This session has been closed by its provider.'
     case 'provider_conflict':
       return 'This conversation already runs on another provider. A conversation stays on its provider.'
+    case 'provider_error':
+      return error.message || 'The provider reported an error.'
+    case 'provider_unknown':
+      return 'The provider named in this request is not configured on this server. Choose one of the listed instances.'
+    case 'provider_unavailable':
+      return 'This provider is not available right now (unhealthy, or refused by the security gate). Try another instance or check its settings.'
   }
 }
 

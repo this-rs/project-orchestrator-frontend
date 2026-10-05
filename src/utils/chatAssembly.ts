@@ -827,7 +827,7 @@ export function readSystemInitRuntime(evt: unknown): SystemInitRuntime {
   return {
     provider: toProviderRef(e.provider),
     capabilities: typeof caps === 'object' && caps !== null ? (caps as Partial<ProviderCapabilities>) : null,
-    toolPolicy: toToolPolicy(e.tool_policy) ?? toToolPolicy(e.permission_mode),
+    toolPolicy: toToolPolicy(e.tool_policy) ?? toToolPolicy(e.policy_mode) ?? toToolPolicy(e.permission_mode),
   }
 }
 

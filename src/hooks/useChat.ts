@@ -1037,8 +1037,8 @@ export function useChat() {
           // The mode arrives as a legacy Claude string or a neutral one, and a
           // provider-aware backend adds `tool_policy` (with the exact native
           // mode). Either way the interface keeps the neutral mode.
-          const changed = event as { mode?: string; tool_policy?: unknown }
-          const policy = toToolPolicy(changed.tool_policy) ?? toToolPolicy(changed.mode)
+          const changed = event as { mode?: string; tool_policy?: unknown; policy_mode?: unknown }
+          const policy = toToolPolicy(changed.tool_policy) ?? toToolPolicy(changed.policy_mode) ?? toToolPolicy(changed.mode)
           if (changed.mode || policy) {
             setPermissionOverride(policy?.mode ?? readToolPolicyMode(changed.mode))
           }

@@ -30,8 +30,8 @@ describe('routedByLabel', () => {
   it.each([
     ['project_rule', 'project default'],
     ['global_rule', 'global default'],
-    ['configured_default', 'server default'],
-    ['claude_code_fallback', 'fallback'],
+    ['default', 'server default'],
+    ['claude_code', 'Claude Code fallback'],
   ])('%s → %s', (routedBy, label) => {
     expect(routedByLabel(routedBy)).toBe(label)
   })

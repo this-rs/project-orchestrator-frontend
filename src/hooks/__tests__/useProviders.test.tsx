@@ -31,7 +31,7 @@ const response = (allowed: boolean): ProvidersResponse => ({
       allowed_for_project: allowed,
     },
   ],
-  default: { provider: 'claude-code', routed_by: 'configured_default' },
+  default: { provider: 'claude-code', routed_by: 'default' },
 })
 
 const project = (slug: string) => ({ id: slug, slug, name: slug }) as unknown as Project
@@ -54,7 +54,7 @@ describe('useProviders', () => {
     await waitFor(() => expect(result.current.state).toBe('ready'))
     expect(list).toHaveBeenCalledWith({ project_slug: 'alpha' })
     expect(result.current.providers.map((p) => p.id)).toEqual(['claude-code', 'deepseek'])
-    expect(result.current.default?.routed_by).toBe('configured_default')
+    expect(result.current.default?.routed_by).toBe('default')
   })
 
   it('asks without a project when none is selected', async () => {

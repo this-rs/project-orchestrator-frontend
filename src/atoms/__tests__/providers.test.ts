@@ -43,7 +43,7 @@ const PROVIDERS: ProvidersResponse = {
       models: [{ id: 'qwen' }, { id: 'llava', capabilities: { images: true } }],
     },
   ],
-  default: { provider: 'claude-code', routed_by: 'claude_code_fallback' },
+  default: { provider: 'claude-code', routed_by: 'claude_code' },
 }
 
 beforeEach(() => {
@@ -105,7 +105,7 @@ describe('session capabilities', () => {
 
   it('uses the server default when nothing is picked, and ignores a remembered pick that no longer exists', () => {
     const store = createStore()
-    store.set(providersAtom, { ...PROVIDERS, default: { provider: 'local-llama', routed_by: 'configured_default' } })
+    store.set(providersAtom, { ...PROVIDERS, default: { provider: 'local-llama', routed_by: 'default' } })
     expect(store.get(chatEffectiveProviderIdAtom)).toBe('local-llama')
     store.set(chatSelectedProviderAtom, 'deleted-instance')
     expect(store.get(chatEffectiveProviderIdAtom)).toBe('local-llama')

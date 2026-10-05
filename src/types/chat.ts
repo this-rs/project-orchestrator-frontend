@@ -410,10 +410,14 @@ export type ChatEvent =
       usage?: TurnUsage
       /** Model that actually answered (may differ from the one requested). */
       model?: string
+      /** `completed | max_turns | max_tokens | interrupted | refusal | budget_exceeded | error`; `subtype` keeps the native string. */
+      stop_reason?: string
+      /** Classified failure behind `is_error` (nexus contract v2 `done.error`): a ProviderError with its `kind`. */
+      error?: { kind: string; [field: string]: unknown }
     }
   | ({ type: 'error'; message: string } & Nested)
   | { type: 'streaming_status'; is_streaming: boolean }
-  | { type: 'permission_mode_changed'; mode: string; tool_policy?: ToolPolicy | ToolPolicyMode }
+  | { type: 'permission_mode_changed'; mode: string; tool_policy?: ToolPolicy | ToolPolicyMode; policy_mode?: ToolPolicyMode }
   | { type: 'model_changed'; model: string }
   | { type: 'compaction_started'; trigger: string }
   | { type: 'compaction_recovery'; hint_tokens: number; build_latency_ms: number; recovery_success: boolean }
@@ -433,6 +437,8 @@ export type ChatEvent =
       capabilities?: Partial<ProviderCapabilities>
       /** Neutral policy of the session. */
       tool_policy?: ToolPolicy | ToolPolicyMode
+      /** Neutral form of `permission_mode` (which keeps being emitted). */
+      policy_mode?: ToolPolicyMode
     }
   | { type: 'auto_continue'; session_id: string; delay_ms: number }
   | { type: 'auto_continue_state_changed'; session_id: string; enabled: boolean }
@@ -474,15 +480,15 @@ export const CHAT_EVENT_FIELDS = {
   permission_request: { id: 'required', tool: 'required', input: 'required', category: 'optional', canonical: 'optional', parent_tool_use_id: 'optional' },
   permission_decision: { id: 'required', allow: 'required' },
   ask_user_question: { questions: 'required', tool_call_id: 'optional', id: 'optional', input: 'optional', synthetic: 'optional', parent_tool_use_id: 'optional' },
-  result: { session_id: 'required', duration_ms: 'required', cost_usd: 'optional', subtype: 'optional', is_error: 'optional', num_turns: 'optional', result_text: 'optional', cost: 'optional', usage: 'optional', model: 'optional' },
+  result: { session_id: 'required', duration_ms: 'required', cost_usd: 'optional', subtype: 'optional', is_error: 'optional', num_turns: 'optional', result_text: 'optional', cost: 'optional', usage: 'optional', model: 'optional', stop_reason: 'optional', error: 'optional' },
   error: { message: 'required', parent_tool_use_id: 'optional' },
   streaming_status: { is_streaming: 'required' },
-  permission_mode_changed: { mode: 'required', tool_policy: 'optional' },
+  permission_mode_changed: { mode: 'required', tool_policy: 'optional', policy_mode: 'optional' },
   model_changed: { model: 'required' },
   compaction_started: { trigger: 'required' },
   compaction_recovery: { hint_tokens: 'required', build_latency_ms: 'required', recovery_success: 'required' },
   compact_boundary: { trigger: 'required', pre_tokens: 'optional' },
-  system_init: { cli_session_id: 'optional', model: 'optional', tools: 'optional', mcp_servers: 'optional', permission_mode: 'optional', provider: 'optional', capabilities: 'optional', tool_policy: 'optional' },
+  system_init: { cli_session_id: 'optional', model: 'optional', tools: 'optional', mcp_servers: 'optional', permission_mode: 'optional', provider: 'optional', capabilities: 'optional', tool_policy: 'optional', policy_mode: 'optional' },
   auto_continue: { session_id: 'required', delay_ms: 'required' },
   auto_continue_state_changed: { session_id: 'required', enabled: 'required' },
   system_hint: { content: 'required' },
@@ -507,8 +513,12 @@ export type ChatControlFrame =
   | { type: 'replay_complete' }
   | { type: 'events_lagged'; skipped?: number }
   | { type: 'session_dormant' }
-  /** Emitted by `close_session`: the session is gone, do not reconnect. */
-  | { type: 'session_closed' }
+  /**
+   * Emitted by `close_session`: the session is gone, do not reconnect. The
+   * backend plans it as a persisted event (`{ session_id, reason }`); it is
+   * read here as a control frame until `server-events.json` lists it.
+   */
+  | { type: 'session_closed'; session_id?: string; reason?: string }
   | { type: 'auth_ok' }
   | { type: 'auth_error'; message?: string }
 
