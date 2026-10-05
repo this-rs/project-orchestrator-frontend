@@ -86,3 +86,68 @@ export function checkContract(file: ContractFile): string[] {
   }
   return problems
 }
+
+// ---------------------------------------------------------------------------
+// Backend-generated contract (backend `docs/api/chat-contract/`)
+// ---------------------------------------------------------------------------
+
+/** One entry of a backend contract file: field descriptions plus two sample frames. */
+export interface BackendContractEntry {
+  fields?: Record<string, { type?: string; required?: boolean; nullable?: boolean }>
+  examples?: { full?: Record<string, unknown>; minimal?: Record<string, unknown> }
+}
+
+/** The three files the backend generates, parsed. */
+export interface BackendContractFiles {
+  /** `server-events.json` — `events.<tag>`. */
+  serverEvents: { events: Record<string, BackendContractEntry> }
+  /** `client-messages.json` — `messages.<tag>`. */
+  clientMessages?: { messages: Record<string, BackendContractEntry> }
+  /** `control-frames.json` — `frames.<tag>` and the event envelope. */
+  controlFrames?: { frames: Record<string, BackendContractEntry>; event_envelope?: unknown }
+}
+
+function sampleFrames(tag: string, entry: BackendContractEntry): Record<string, unknown>[] {
+  const frames: Record<string, unknown>[] = []
+  for (const example of [entry.examples?.full, entry.examples?.minimal]) {
+    if (example && typeof example === 'object') frames.push({ type: tag, ...example })
+  }
+  // An entry without examples still names a variant: keep it visible to the check.
+  return frames.length > 0 ? frames : [{ type: tag }]
+}
+
+/** Turn the backend's files into the flat frame lists `checkContract` reads. */
+export function fromBackendContract(files: BackendContractFiles): ContractFile {
+  const flat = (entries: Record<string, BackendContractEntry> | undefined) =>
+    Object.entries(entries ?? {}).flatMap(([tag, entry]) => sampleFrames(tag, entry))
+  return {
+    events: flat(files.serverEvents.events),
+    client_messages: files.clientMessages ? flat(files.clientMessages.messages) : undefined,
+    control_frames: files.controlFrames ? flat(files.controlFrames.frames) : undefined,
+  }
+}
+
+/**
+ * Compare the backend's `required` flags with the frontend's table.
+ *
+ * - A field the backend may OMIT but the frontend types as required is a crash
+ *   waiting for the first frame without it.
+ * - A field the backend describes that the frontend does not type at all is
+ *   reported even when no example happens to carry it.
+ */
+export function checkBackendFields(events: Record<string, BackendContractEntry>): string[] {
+  const problems: string[] = []
+  for (const [tag, entry] of Object.entries(events)) {
+    if (!has(CHAT_EVENT_FIELDS, tag)) continue // reported by checkContract
+    const typed = CHAT_EVENT_FIELDS[tag as ChatEventType] as Record<string, 'required' | 'optional'>
+    for (const [field, spec] of Object.entries(entry.fields ?? {})) {
+      if (field === 'type') continue
+      if (!has(typed, field)) {
+        problems.push(`\`${tag}.${field}\` is described by the backend but not typed by the frontend`)
+      } else if (typed[field] === 'required' && spec.required === false) {
+        problems.push(`\`${tag}.${field}\` may be absent on the wire but the frontend types it as required`)
+      }
+    }
+  }
+  return problems
+}

@@ -11,28 +11,76 @@
  */
 import { describe, it, expect } from 'vitest'
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { checkContract, checkEventFrame, type ContractFile } from '../chatContract'
+import {
+  checkBackendFields,
+  checkContract,
+  checkEventFrame,
+  fromBackendContract,
+  type BackendContractFiles,
+  type ContractFile,
+} from '../chatContract'
 import { CHAT_EVENT_FIELDS, WS_CLIENT_MESSAGE_TYPES } from '@/types/chat'
 import { CAPABILITY_KEYS, normalizeCapabilities, MINIMAL_CAPABILITIES } from '@/types/provider'
 import { historyEventsToMessages, readSystemInitRuntime } from '@/utils/chatAssembly'
 
 const dir = resolve(__dirname, '../__fixtures__/chat-contract')
-const raw = readFileSync(resolve(dir, 'chat-contract.json'))
-const contract = JSON.parse(raw.toString('utf8')) as ContractFile
+const sha256 = (name: string) => createHash('sha256').update(readFileSync(resolve(dir, name))).digest('hex')
+const readJson = <T,>(name: string) => JSON.parse(readFileSync(resolve(dir, name), 'utf8')) as T
 
-describe('vendored contract file', () => {
-  it('matches its recorded checksum (copy it with the sync script, never edit it by hand)', () => {
-    const [recorded, name] = readFileSync(resolve(dir, 'CHECKSUMS.sha256'), 'utf8').trim().split(/\s+/)
-    expect(name).toBe('chat-contract.json')
-    expect(createHash('sha256').update(raw).digest('hex')).toBe(recorded)
+/**
+ * Two sets of frames live in the fixture directory:
+ *  - the BACKEND's (`server-events.json`, `client-messages.json`,
+ *    `control-frames.json`, `SHA256SUMS`), copied as is by the sync script:
+ *    what the backend emits TODAY. Authoritative.
+ *  - `chat-contract.json` + `CHECKSUMS.sha256`, hand-written TARGET frames:
+ *    the same wire plus the fields the provider work adds (provider,
+ *    capabilities, tool policy, cost basis, tool category…), from the nexus
+ *    agent contract. They keep the frontend types honest about a wire the
+ *    backend does not emit yet, and go away when the backend's examples
+ *    carry those fields.
+ */
+const fromBackend = existsSync(resolve(dir, 'server-events.json'))
+const backendFiles: BackendContractFiles | null = fromBackend
+  ? {
+      serverEvents: readJson('server-events.json'),
+      clientMessages: existsSync(resolve(dir, 'client-messages.json')) ? readJson('client-messages.json') : undefined,
+      controlFrames: existsSync(resolve(dir, 'control-frames.json')) ? readJson('control-frames.json') : undefined,
+    }
+  : null
+const target: ContractFile | null = existsSync(resolve(dir, 'chat-contract.json')) ? readJson<ContractFile>('chat-contract.json') : null
+const contract: ContractFile = backendFiles ? fromBackendContract(backendFiles) : target!
+
+describe('vendored contract files', () => {
+  it('match their recorded checksums (copy them with the sync script, never edit them by hand)', () => {
+    const checked: string[] = []
+    for (const sumsFile of ['SHA256SUMS', 'CHECKSUMS.sha256']) {
+      if (!existsSync(resolve(dir, sumsFile))) continue
+      const lines = readFileSync(resolve(dir, sumsFile), 'utf8').trim().split('\n').map((line) => line.trim().split(/\s+/))
+      for (const [recorded, rawName] of lines) {
+        const name = rawName.replace(/^\*/, '')
+        expect(sha256(name), name).toBe(recorded)
+        checked.push(name)
+      }
+    }
+    if (fromBackend) expect(checked).toEqual(expect.arrayContaining(['server-events.json', 'client-messages.json', 'control-frames.json']))
+    if (target) expect(checked).toContain('chat-contract.json')
+    expect(checked.length).toBeGreaterThan(0)
+  })
+
+  it.runIf(fromBackend)('agree with the frontend on which fields may be absent', () => {
+    expect(checkBackendFields(backendFiles!.serverEvents.events)).toEqual([])
   })
 })
 
 describe('chat contract — field level', () => {
   it('types every field of every frame the backend sends, and knows every variant', () => {
     expect(checkContract(contract)).toEqual([])
+  })
+
+  it.runIf(target !== null)('types every field of the target frames too (provider, capabilities, cost basis…)', () => {
+    expect(checkContract(target!)).toEqual([])
   })
 
   it('counts 32 event variants and 9 client messages', () => {
@@ -99,13 +147,19 @@ describe('negative controls — the check really fails on a drift', () => {
 describe('the frames replay in the reducers', () => {
   it('assembles every frame without throwing', () => {
     expect(() => historyEventsToMessages(contract.events as never[])).not.toThrow()
+    if (target) expect(() => historyEventsToMessages(target.events as never[])).not.toThrow()
   })
 
-  it('reads every system_init frame: provider or none, and all 18 capability fields when carried', () => {
-    const inits = contract.events.filter((e) => e.type === 'system_init')
-    expect(inits.length).toBeGreaterThanOrEqual(2)
-    const legacy = inits.find((e) => !('provider' in e))!
+  it('reads a system_init without provider as a Claude Code session', () => {
+    const legacy = contract.events.find((e) => e.type === 'system_init' && !('provider' in e))
+    expect(legacy).toBeDefined()
     expect(readSystemInitRuntime(legacy).provider).toBeNull()
+    expect(readSystemInitRuntime(legacy).capabilities).toBeNull()
+  })
+
+  it.runIf(target !== null)('reads every target system_init frame: all 18 capability fields when carried', () => {
+    const inits = target!.events.filter((e) => e.type === 'system_init')
+    expect(inits.length).toBeGreaterThanOrEqual(2)
 
     for (const init of inits.filter((e) => 'capabilities' in e)) {
       const rt = readSystemInitRuntime(init)
@@ -120,5 +174,51 @@ describe('the frames replay in the reducers', () => {
       expect(Array.isArray(caps.permission_scopes)).toBe(true)
       expect(['none', 'workspace', 'full']).toContain(caps.sandbox)
     }
+  })
+})
+
+describe('backend-generated layout', () => {
+  const files: BackendContractFiles = {
+    serverEvents: {
+      events: {
+        user_message: {
+          fields: { content: { type: 'string', required: true } },
+          examples: { full: { content: 'hi' }, minimal: { content: '' } },
+        },
+        tool_result: {
+          fields: {
+            id: { type: 'string', required: true },
+            result: { type: 'string', required: true },
+            is_error: { type: 'boolean', required: true },
+            parent_tool_use_id: { type: 'string', required: false },
+          },
+          examples: {
+            full: { id: 't', result: 'ok', is_error: false, parent_tool_use_id: 'p' },
+            minimal: { id: 't', result: 'ok', is_error: false },
+          },
+        },
+      },
+    },
+    clientMessages: { messages: { interrupt: { fields: {}, examples: { full: {}, minimal: {} } } } },
+    controlFrames: { frames: { replay_complete: { examples: { full: {} } } } },
+  }
+
+  it('flattens every example into a typed frame', () => {
+    const flat = fromBackendContract(files)
+    expect(flat.events).toHaveLength(4)
+    expect(flat.events[0]).toEqual({ type: 'user_message', content: 'hi' })
+    expect(flat.client_messages).toEqual([{ type: 'interrupt' }, { type: 'interrupt' }])
+    expect(flat.control_frames).toEqual([{ type: 'replay_complete' }])
+    for (const frame of flat.events) expect(checkEventFrame(frame)).toEqual([])
+  })
+
+  it('reports a field the backend describes and the frontend does not type, even without an example', () => {
+    const events = { user_message: { fields: { content: { required: true }, origin: { required: false } } } }
+    expect(checkBackendFields(events)).toEqual(['`user_message.origin` is described by the backend but not typed by the frontend'])
+  })
+
+  it('reports a field the frontend requires and the backend may omit', () => {
+    const events = { tool_use: { fields: { id: { required: true }, tool: { required: false }, input: { required: true } } } }
+    expect(checkBackendFields(events)).toEqual(['`tool_use.tool` may be absent on the wire but the frontend types it as required'])
   })
 })
