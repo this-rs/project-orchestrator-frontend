@@ -88,6 +88,18 @@ describe('run launch gate', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  it('Escape cancels the dialog and focus moves into it', async () => {
+    list.mockResolvedValue({ providers: [CLAUDE, DEEPSEEK] })
+    const run = vi.fn()
+    mount([CLAUDE, DEEPSEEK], { title: 'Plan A', run })
+    fireEvent.click(screen.getByText('go'))
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog.contains(document.activeElement)).toBe(true)
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(run).not.toHaveBeenCalled()
+  })
+
   it("takes consent from the plan's project, not from the chat's list", async () => {
     // The chat's list says deepseek is allowed; the plan's project says it is not.
     list.mockImplementation((params?: { project_slug?: string }) =>

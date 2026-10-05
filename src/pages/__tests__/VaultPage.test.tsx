@@ -112,8 +112,11 @@ describe('VaultPage', () => {
     // The built-in Claude Code has no endpoint to authenticate to: not offered.
     expect(screen.queryByRole('option', { name: 'Claude Code' })).toBeNull()
     fireEvent.change(instance, { target: { value: 'deepseek' } })
-    // "all secrets" cannot be granted to a provider.
+    // "all secrets" cannot be granted to a provider: it is no longer offered, and the page says why Grant is off.
+    expect(screen.queryByRole('option', { name: 'all secrets' })).toBeNull()
+    expect((screen.getByLabelText('Secrets') as HTMLSelectElement).value).toBe('')
     expect(grant.disabled).toBe(true)
+    expect(screen.getByTestId('provider-grant-why').textContent).toMatch(/one secret/)
     fireEvent.change(screen.getByLabelText('Secrets'), { target: { value: 'acme-api-token' } })
     expect(grant.disabled).toBe(false)
     fireEvent.click(grant)

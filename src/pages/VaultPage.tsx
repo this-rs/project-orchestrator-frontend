@@ -479,7 +479,11 @@ function GrantsPanel({
         <div className="flex flex-wrap items-center gap-2 p-4 text-sm text-gray-400">
           <span>Allow</span>
           <select className={select} value={which} onChange={(e) => setWhich(e.target.value)} aria-label="Secrets">
-            <option value="__all__">all secrets</option>
+            {scopeKind === 'provider' ? (
+              <option value="">choose a secret…</option>
+            ) : (
+              <option value="__all__">all secrets</option>
+            )}
             {overview.secrets.map((s) => (
               <option key={s.name} value={s.name}>
                 {s.name}
@@ -490,7 +494,12 @@ function GrantsPanel({
           <select
             className={select}
             value={scopeKind}
-            onChange={(e) => setScopeKind(e.target.value as 'anywhere' | 'project' | 'provider')}
+            onChange={(e) => {
+              const kind = e.target.value as 'anywhere' | 'project' | 'provider'
+              setScopeKind(kind)
+              // A provider reads ONE named secret: "all secrets" cannot carry over to it.
+              setWhich(kind === 'provider' ? '' : '__all__')
+            }}
             aria-label="Scope"
           >
             <option value="project">project…</option>
@@ -532,7 +541,7 @@ function GrantsPanel({
               </option>
             ))}
           </select>
-          <Button size="sm" onClick={create} disabled={!canChange || (scopeKind === 'project' && !project.trim()) || (scopeKind === 'provider' && (!instance.trim() || which === '__all__'))}>
+          <Button size="sm" onClick={create} disabled={!canChange || (scopeKind === 'project' && !project.trim()) || (scopeKind === 'provider' && (!instance.trim() || !which))}>
             Grant
           </Button>
         </div>
@@ -541,6 +550,13 @@ function GrantsPanel({
         <p className="mt-2 text-xs text-gray-500">
           The server reads this one secret to sign in to the instance. Pick the secret named by the instance&apos;s credential
           reference; it is never given to an agent.
+          {(!instance.trim() || !which) && (
+            <span data-testid="provider-grant-why" className="mt-1 block text-amber-300">
+              Grant is disabled until you choose {!instance.trim() ? 'the instance' : ''}
+              {!instance.trim() && !which ? ' and ' : ''}
+              {!which ? 'one secret' : ''}.
+            </span>
+          )}
         </p>
       )}
       {error && (
