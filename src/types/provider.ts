@@ -460,7 +460,6 @@ export type ProviderErrorCode =
   | 'endpoint_unresolvable'
   | 'endpoint_redirects_not_allowed'
   | 'credential_test_requires_saved_instance'
-  | 'probe_unavailable'
   /** 409 on resuming a session opened on the agent engine once it is switched off. */
   | 'engine_unavailable'
 
@@ -509,7 +508,6 @@ export const PROVIDER_ERROR_CODES: readonly ProviderErrorCode[] = [
   'endpoint_unresolvable',
   'endpoint_redirects_not_allowed',
   'credential_test_requires_saved_instance',
-  'probe_unavailable',
   'engine_unavailable',
 ]
 

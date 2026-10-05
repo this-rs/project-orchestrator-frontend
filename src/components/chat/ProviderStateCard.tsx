@@ -183,6 +183,9 @@ export function ProviderStateCard({
     case 'credential_test_requires_saved_instance':
       action = <SettingsLink to={providerInstancePath(error.provider_id)}>Open the instance settings</SettingsLink>
       break
+    case 'provider_error':
+      action = <SettingsLink to={PROVIDER_SETTINGS_PATH}>Choose another provider</SettingsLink>
+      break
     case 'engine_unavailable':
     case 'instance_not_found':
       action = onNewConversation ? (

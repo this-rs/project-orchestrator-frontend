@@ -231,7 +231,6 @@ describe('ProviderStateCard — every code the backend can send', () => {
     'endpoint_unresolvable',
     'endpoint_redirects_not_allowed',
     'credential_test_requires_saved_instance',
-    'probe_unavailable',
     'engine_unavailable',
   ] as const
 
@@ -247,6 +246,14 @@ describe('ProviderStateCard — every code the backend can send', () => {
   it('security_gate_closed — says authentication must be on', () => {
     const { card } = mount(err('security_gate_closed'))
     expect(card.textContent).toMatch(/authentication/i)
+  })
+
+  it('provider_error — says it failed to open, offers another provider, and Retry only when retryable', () => {
+    const { card, link } = mount(err('provider_error', { message: 'upstream said 502', retryable: true }), { onRetry: vi.fn() })
+    expect(card.textContent).toContain('The provider failed to open the session')
+    expect(card.textContent).toContain('upstream said 502')
+    expect(link(/another provider/i).getAttribute('href')).toBe('/providers')
+    expect(within(card).getByRole('button', { name: /retry/i })).toBeTruthy()
   })
 
   it('engine_unavailable — offers a new conversation, never a retry', () => {

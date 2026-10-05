@@ -30,7 +30,7 @@ export const PROVIDER_ERROR_TITLES: Readonly<Record<ProviderErrorCode, string>> 
   instance_not_found: 'Provider no longer exists',
   provider_conflict: 'Provider conflict',
   cli_not_found: 'Command-line tool not found',
-  provider_error: 'Provider error',
+  provider_error: 'The provider failed to open the session',
   provider_unknown: 'Unknown provider',
   provider_unavailable: 'Provider unavailable',
   auth_required: 'Sign-in required',
@@ -70,7 +70,6 @@ export const PROVIDER_ERROR_TITLES: Readonly<Record<ProviderErrorCode, string>> 
   endpoint_redirects_not_allowed: 'Redirects are not followed',
   credential_test_requires_saved_instance: 'Save the instance to test its key',
   engine_unavailable: 'The engine of this conversation is switched off',
-  probe_unavailable: 'Connection test unavailable',
 }
 
 /** `12 s`, `2 min` — how long a rate limit asks to wait. */
@@ -143,7 +142,7 @@ export function providerErrorExplanation(error: ProviderErrorInfo, projectSlug?:
     case 'provider_conflict':
       return 'This conversation already runs on another provider. A conversation stays on its provider.'
     case 'provider_error':
-      return error.message || 'The provider reported an error.'
+      return 'The provider could not open the session. Try again, or choose another provider.'
     case 'provider_unknown':
       return 'The provider named in this request is not configured on this server. Choose one of the listed instances.'
     case 'provider_unavailable':
@@ -192,8 +191,6 @@ export function providerErrorExplanation(error: ProviderErrorInfo, projectSlug?:
       return 'A test that uses a key is only run on an instance that is already saved, with the same endpoint and key reference. Save the instance first, then test it again.'
     case 'engine_unavailable':
       return 'This conversation was opened on the agent engine, and the server no longer runs it, so it cannot be resumed. Start a new conversation, or ask whoever runs the server to switch the agent engine back on (CHAT_PROVIDER_PATH).'
-    case 'probe_unavailable':
-      return 'The connection test could not be run for this instance (no tool-call probe is available). Save it and try a conversation, or check the instance settings and test again.'
   }
 }
 
