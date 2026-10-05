@@ -1,0 +1,490 @@
+{
+  "_provisional": "PROVISIONAL \u2014 hand-written by the frontend lane from backend/src/chat/types.rs (origin/main) and CONSOLIDATION A4/A5/A8/A42/A45. Replace with the backend-generated file (npm run contract:sync) as soon as it exists.",
+  "contract_version": "0-provisional",
+  "events": [
+    {
+      "type": "user_message",
+      "content": "hello"
+    },
+    {
+      "type": "assistant_text",
+      "content": "Hi."
+    },
+    {
+      "type": "assistant_text",
+      "content": "from a sub-agent",
+      "parent_tool_use_id": "toolu_task_1"
+    },
+    {
+      "type": "stream_delta",
+      "text": "Hi"
+    },
+    {
+      "type": "thinking",
+      "content": "Let me look."
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_1",
+      "tool": "Bash",
+      "input": {
+        "command": "ls"
+      }
+    },
+    {
+      "type": "tool_use",
+      "id": "call_7",
+      "tool": "shell",
+      "input": {
+        "command": [
+          "ls",
+          "-la"
+        ]
+      },
+      "category": "command",
+      "canonical": "Bash"
+    },
+    {
+      "type": "tool_result",
+      "id": "toolu_1",
+      "result": "a\nb",
+      "is_error": false
+    },
+    {
+      "type": "tool_use_input_resolved",
+      "id": "toolu_1",
+      "input": {
+        "command": "ls -la"
+      }
+    },
+    {
+      "type": "tool_cancelled",
+      "id": "toolu_1"
+    },
+    {
+      "type": "permission_request",
+      "id": "perm_1",
+      "tool": "Bash",
+      "input": {
+        "command": "rm -rf build"
+      }
+    },
+    {
+      "type": "permission_request",
+      "id": "perm_2",
+      "tool": "apply_patch",
+      "input": {
+        "path": "src/a.rs"
+      },
+      "category": "edit",
+      "canonical": "Edit"
+    },
+    {
+      "type": "permission_decision",
+      "id": "perm_1",
+      "allow": true
+    },
+    {
+      "type": "ask_user_question",
+      "id": "q_1",
+      "tool_call_id": "toolu_q1",
+      "questions": [
+        {
+          "question": "Which one?",
+          "header": "Pick",
+          "multiSelect": false,
+          "options": [
+            {
+              "label": "A"
+            },
+            {
+              "label": "B",
+              "description": "the other"
+            }
+          ]
+        }
+      ],
+      "input": {
+        "questions": []
+      }
+    },
+    {
+      "type": "ask_user_question",
+      "id": "q_2",
+      "tool_call_id": "q_2",
+      "questions": [
+        {
+          "question": "Proceed?",
+          "multiSelect": false,
+          "options": [
+            {
+              "label": "Yes"
+            },
+            {
+              "label": "No"
+            }
+          ]
+        }
+      ],
+      "input": {},
+      "synthetic": true
+    },
+    {
+      "type": "result",
+      "session_id": "s1",
+      "duration_ms": 1200,
+      "cost_usd": 0.0123,
+      "subtype": "success",
+      "is_error": false,
+      "num_turns": 2,
+      "result_text": "done"
+    },
+    {
+      "type": "result",
+      "session_id": "s2",
+      "duration_ms": 900,
+      "cost_usd": null,
+      "subtype": "success",
+      "is_error": false,
+      "cost": {
+        "usd": null,
+        "basis": "unknown"
+      },
+      "usage": {
+        "input_tokens": 1200,
+        "output_tokens": 300,
+        "cache_read_tokens": 0,
+        "cache_creation_tokens": 0,
+        "reasoning_tokens": 40
+      },
+      "model": "qwen2.5-coder-32b"
+    },
+    {
+      "type": "result",
+      "session_id": "s3",
+      "duration_ms": 900,
+      "cost_usd": 0.004,
+      "subtype": "success",
+      "is_error": false,
+      "cost": {
+        "usd": 0.004,
+        "basis": "priced"
+      },
+      "usage": {
+        "input_tokens": 1200,
+        "output_tokens": 300
+      },
+      "model": "deepseek-chat"
+    },
+    {
+      "type": "error",
+      "message": "boom"
+    },
+    {
+      "type": "streaming_status",
+      "is_streaming": true
+    },
+    {
+      "type": "permission_mode_changed",
+      "mode": "acceptEdits"
+    },
+    {
+      "type": "permission_mode_changed",
+      "mode": "acceptEdits",
+      "tool_policy": {
+        "mode": "auto_edits",
+        "allow": [],
+        "deny": []
+      }
+    },
+    {
+      "type": "model_changed",
+      "model": "claude-opus-4-5"
+    },
+    {
+      "type": "compaction_started",
+      "trigger": "auto"
+    },
+    {
+      "type": "compaction_recovery",
+      "hint_tokens": 812,
+      "build_latency_ms": 41,
+      "recovery_success": true
+    },
+    {
+      "type": "compact_boundary",
+      "trigger": "auto",
+      "pre_tokens": 150000
+    },
+    {
+      "type": "system_init",
+      "cli_session_id": "cli-1",
+      "model": "claude-sonnet-4-5",
+      "tools": [
+        "Bash",
+        "Read"
+      ],
+      "mcp_servers": [
+        {
+          "name": "project-orchestrator",
+          "status": "connected"
+        }
+      ],
+      "permission_mode": "default"
+    },
+    {
+      "type": "system_init",
+      "cli_session_id": "cli-2",
+      "model": "claude-sonnet-4-5",
+      "tools": [
+        "Bash"
+      ],
+      "permission_mode": "default",
+      "provider": {
+        "id": "claude-code",
+        "kind": "claude_code",
+        "label": "Claude Code"
+      },
+      "capabilities": {
+        "interactive_permissions": true,
+        "permission_scopes": true,
+        "sandbox": false,
+        "secret_isolation": false,
+        "per_session_mcp": true,
+        "hooks": "in_protocol",
+        "subagents": "nested",
+        "compaction_signal": true,
+        "thinking": true,
+        "images": true,
+        "tools": true,
+        "context_window": {
+          "value": 200000,
+          "source": "provider"
+        },
+        "set_model_live": true,
+        "native_question": true,
+        "tool_cancel": true,
+        "background_tasks": true,
+        "resume": true,
+        "cost": "reported"
+      },
+      "tool_policy": {
+        "mode": "ask",
+        "allow": [],
+        "deny": []
+      }
+    },
+    {
+      "type": "system_init",
+      "model": "qwen2.5-coder-32b",
+      "tools": [
+        "mcp__project-orchestrator__note"
+      ],
+      "permission_mode": "default",
+      "provider": {
+        "id": "local-llama",
+        "kind": "openai_compatible",
+        "label": "Local llama-server"
+      },
+      "capabilities": {
+        "interactive_permissions": false,
+        "permission_scopes": false,
+        "sandbox": false,
+        "secret_isolation": true,
+        "per_session_mcp": true,
+        "hooks": "none",
+        "subagents": "none",
+        "compaction_signal": true,
+        "thinking": false,
+        "images": false,
+        "tools": true,
+        "context_window": {
+          "value": 32768,
+          "source": "probe"
+        },
+        "set_model_live": false,
+        "native_question": false,
+        "tool_cancel": false,
+        "background_tasks": false,
+        "resume": true,
+        "cost": "free"
+      },
+      "tool_policy": {
+        "mode": "ask",
+        "allow": [],
+        "deny": [
+          "mcp__project-orchestrator__plan"
+        ]
+      }
+    },
+    {
+      "type": "auto_continue",
+      "session_id": "s1",
+      "delay_ms": 2000
+    },
+    {
+      "type": "auto_continue_state_changed",
+      "session_id": "s1",
+      "enabled": true
+    },
+    {
+      "type": "system_hint",
+      "content": "context restored"
+    },
+    {
+      "type": "retrying",
+      "attempt": 1,
+      "max_attempts": 3,
+      "delay_ms": 1000,
+      "error_message": "overloaded"
+    },
+    {
+      "type": "background_output",
+      "source": "Monitor",
+      "content": "line",
+      "received_at": "2026-10-05T10:00:00Z",
+      "correlation_id": "toolu_m1"
+    },
+    {
+      "type": "workflow",
+      "subtype": "task_started",
+      "data": {
+        "tool_use_id": "toolu_t1"
+      }
+    },
+    {
+      "type": "session_error",
+      "reason": "subprocess_died",
+      "message": "The agent process exited unexpectedly",
+      "received_at": "2026-10-05T10:00:00Z"
+    },
+    {
+      "type": "session_error",
+      "reason": "provider_error",
+      "message": "Sign in required",
+      "received_at": "2026-10-05T10:00:00Z",
+      "code": "auth_required"
+    },
+    {
+      "type": "tools_cancelled",
+      "cli_pid": 4242,
+      "killed_count": 1,
+      "requested_by": "user"
+    },
+    {
+      "type": "active_tasks_update",
+      "tasks": [
+        {
+          "id": "toolu_m1",
+          "kind": "monitor",
+          "description": "tail -F build.log",
+          "started_at": "2026-10-05T10:00:00Z",
+          "last_seen_at": "2026-10-05T10:00:05Z",
+          "pid": null,
+          "parent_tool_use_id": "toolu_m1"
+        }
+      ]
+    },
+    {
+      "type": "pending_queue",
+      "messages": [
+        {
+          "id": "8f0e9d0c-0000-4000-8000-000000000001",
+          "content": "after you finish",
+          "attachments": [],
+          "queued_at": "2026-10-05T10:00:00Z",
+          "prioritized": false
+        }
+      ]
+    },
+    {
+      "type": "secret_request",
+      "id": "sr_1",
+      "name": "DEEPSEEK_API_KEY",
+      "reason": "needed to call the endpoint",
+      "exists": false
+    },
+    {
+      "type": "secret_request_resolved",
+      "id": "sr_1",
+      "outcome": "provided"
+    }
+  ],
+  "control_frames": [
+    {
+      "type": "partial_text",
+      "content": "Hi, I am lo"
+    },
+    {
+      "type": "replay_complete"
+    },
+    {
+      "type": "events_lagged",
+      "skipped": 12
+    },
+    {
+      "type": "session_dormant"
+    },
+    {
+      "type": "session_closed"
+    },
+    {
+      "type": "auth_ok"
+    },
+    {
+      "type": "auth_error",
+      "message": "invalid ticket"
+    }
+  ],
+  "client_messages": [
+    {
+      "type": "user_message",
+      "content": "hello"
+    },
+    {
+      "type": "user_message",
+      "content": "later",
+      "attachments": [
+        "8f0e9d0c-0000-4000-8000-000000000002"
+      ],
+      "queue": true
+    },
+    {
+      "type": "queue_op",
+      "op": "remove",
+      "id": "8f0e9d0c-0000-4000-8000-000000000001"
+    },
+    {
+      "type": "interrupt"
+    },
+    {
+      "type": "cancel_tools"
+    },
+    {
+      "type": "permission_response",
+      "id": "perm_1",
+      "allow": true
+    },
+    {
+      "type": "input_response",
+      "id": "q_1",
+      "content": "A"
+    },
+    {
+      "type": "set_permission_mode",
+      "mode": "acceptEdits"
+    },
+    {
+      "type": "set_permission_mode",
+      "mode": "auto_edits"
+    },
+    {
+      "type": "set_model",
+      "model": "claude-opus-4-5"
+    },
+    {
+      "type": "set_auto_continue",
+      "enabled": true
+    }
+  ]
+}
