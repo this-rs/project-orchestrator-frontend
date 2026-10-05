@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 
-vi.mock('@/services/env', () => ({ getApiBase: () => '/api' }))
+vi.mock('@/services/env', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/env')>()),
+  getApiBase: () => '/api',
+}))
+const updateApi = vi.hoisted(() => ({ check: vi.fn(), install: vi.fn(), restart: vi.fn() }))
+vi.mock('@/services/update', () => ({ updateApi }))
+import type { ServerUpdateStatus } from '@/types/update'
 
 import { useUpdateCheck, parseSemver, isNewer, isDismissed } from '../useUpdateCheck'
 
@@ -141,5 +147,156 @@ describe('useUpdateCheck', () => {
       await vi.advanceTimersByTimeAsync(24 * 3600 * 1000)
     })
     expect(fetchMock.mock.calls.length).toBeGreaterThan(calls)
+  })
+})
+
+function serverStatus(over: Partial<ServerUpdateStatus> = {}): ServerUpdateStatus {
+  return {
+    current: '0.0.15',
+    current_build: '0.0.15',
+    latest: '0.0.16',
+    update_available: true,
+    release_url: 'https://gh/r16',
+    notes_excerpt: null,
+    published_at: null,
+    checked_at: null,
+    last_error: null,
+    check_enabled: true,
+    auto_update_enabled: false,
+    deployment_mode: 'standalone',
+    self_update_supported: true,
+    update_hint: 'orchestrator update',
+    installing: false,
+    install_error: null,
+    staged_version: null,
+    restart_required: false,
+    restart_supported: true,
+    ...over,
+  }
+}
+
+describe('useUpdateCheck — server update service', () => {
+  const fetchMock = vi.fn()
+  let current: ServerUpdateStatus
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    localStorage.clear()
+    current = serverStatus()
+    fetchMock.mockReset()
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith('/version')) return { ok: true, json: async () => ({ version: '0.0.15', update: current }) }
+      throw new Error(`unexpected fetch ${url}`)
+    })
+    updateApi.check.mockReset()
+    updateApi.install.mockReset()
+    updateApi.restart.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  async function run() {
+    const hook = renderHook(() => useUpdateCheck())
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+    return hook
+  }
+
+  it('uses the server status and never calls GitHub', async () => {
+    const { result } = await run()
+    expect(result.current.status?.deployment_mode).toBe('standalone')
+    expect(result.current.updateAvailable).toBe(true)
+    expect(result.current.latestVersion).toBe('0.0.16')
+    expect(result.current.currentVersion).toBe('0.0.15')
+    expect(result.current.releaseUrl).toBe('https://gh/r16')
+    expect(fetchMock.mock.calls.every(([u]) => String(u).endsWith('/version'))).toBe(true)
+  })
+
+  it('trusts the server when it says there is nothing newer', async () => {
+    current = serverStatus({ update_available: false, latest: '0.0.15' })
+    const { result } = await run()
+    expect(result.current.updateAvailable).toBe(false)
+  })
+
+  it('install applies the returned status', async () => {
+    const { result } = await run()
+    updateApi.install.mockResolvedValue(serverStatus({ installing: true }))
+    await act(async () => {
+      await result.current.install()
+    })
+    expect(updateApi.install).toHaveBeenCalledTimes(1)
+    expect(result.current.status?.installing).toBe(true)
+    expect(result.current.actionError).toBeNull()
+  })
+
+  it('follows an install in progress until the update is staged', async () => {
+    current = serverStatus({ installing: true })
+    const { result } = await run()
+    expect(result.current.status?.installing).toBe(true)
+    current = serverStatus({ installing: false, staged_version: '0.0.16', restart_required: true })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+    expect(result.current.status?.staged_version).toBe('0.0.16')
+    // Polling stops once it is no longer installing.
+    const calls = fetchMock.mock.calls.length
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000)
+    })
+    expect(fetchMock.mock.calls.length).toBe(calls)
+  })
+
+  it('surfaces a refused action to the user', async () => {
+    const { result } = await run()
+    const { ApiError } = await import('@/services/api')
+    updateApi.install.mockRejectedValue(new ApiError(409, JSON.stringify({ error: 'no newer release is known' })))
+    await act(async () => {
+      await result.current.install()
+    })
+    expect(result.current.actionError).toBe('no newer release is known')
+    expect(result.current.acting).toBe(false)
+  })
+
+  it('restart waits for the server to come back with nothing left to restart for', async () => {
+    current = serverStatus({ staged_version: '0.0.16', restart_required: true })
+    const { result } = await run()
+    updateApi.restart.mockResolvedValue({ restarting: true, in_ms: 750 })
+    await act(async () => {
+      await result.current.restart()
+    })
+    expect(result.current.restarting).toBe(true)
+    // Server down: fetch fails, still restarting.
+    fetchMock.mockRejectedValue(new Error('connection refused'))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+    expect(result.current.restarting).toBe(true)
+    // Back on the new binary.
+    fetchMock.mockImplementation(async () => ({
+      ok: true,
+      json: async () => ({
+        version: '0.0.16',
+        update: serverStatus({ current: '0.0.16', update_available: false, latest: '0.0.16' }),
+      }),
+    }))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+    expect(result.current.restarting).toBe(false)
+    expect(result.current.status?.current).toBe('0.0.16')
+  })
+
+  it('a failed restart request does not pretend to be restarting', async () => {
+    const { result } = await run()
+    updateApi.restart.mockRejectedValue(new Error('no supervisor'))
+    await act(async () => {
+      await result.current.restart()
+    })
+    expect(result.current.restarting).toBe(false)
+    expect(result.current.actionError).toBe('no supervisor')
   })
 })

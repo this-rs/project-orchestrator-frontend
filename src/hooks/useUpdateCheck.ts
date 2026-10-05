@@ -1,14 +1,20 @@
 /**
- * useUpdateCheck — periodically checks if a newer version of Project Orchestrator
- * is available on GitHub Releases.
+ * useUpdateCheck — "a newer version is available", plus the actions to apply it.
  *
- * Compares the server's current version (GET /api/version) with the latest
- * GitHub Release tag. Skips entirely when running inside Tauri (the Tauri
- * updater handles that case).
+ * Source of truth, in order:
+ * 1. The server's own update service: `GET /api/version` → `update` (backend ≥ 0.0.16).
+ *    It knows whether the deployment can update itself, the install progress and
+ *    whether a restart is pending, and exposes check / install / restart actions.
+ * 2. Older servers (no `update` field): compare `/api/version` with the latest
+ *    GitHub release in the browser. Notification only, no actions.
  *
+ * Skips entirely inside Tauri (the Tauri updater handles that case).
  * Dismiss state is persisted in localStorage with a 24h TTL.
  */
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { updateApi } from '@/services/update'
+import { apiErrorMessage } from '@/services/api'
+import type { ServerUpdateStatus } from '@/types/update'
 
 // ============================================================================
 // Types
@@ -22,6 +28,7 @@ interface GitHubRelease {
 
 interface VersionResponse {
   version: string
+  update?: ServerUpdateStatus | null
 }
 
 export interface UpdateCheckResult {
@@ -39,6 +46,20 @@ export interface UpdateCheckResult {
   dismiss: () => void
   /** Whether we're currently checking */
   loading: boolean
+  /** Server update state; null on servers without the update service (or before the first check) */
+  status: ServerUpdateStatus | null
+  /** Ask the server to query GitHub now */
+  check: () => Promise<void>
+  /** Download and stage the latest release (standalone deployments) */
+  install: () => Promise<void>
+  /** Restart the server to apply the staged update */
+  restart: () => Promise<void>
+  /** An action is in flight */
+  acting: boolean
+  /** The server was asked to restart and has not come back yet */
+  restarting: boolean
+  /** Last action failure, shown to the user */
+  actionError: string | null
 }
 
 // ============================================================================
@@ -47,6 +68,7 @@ export interface UpdateCheckResult {
 
 const GITHUB_REPO = 'this-rs/project-orchestrator'
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000 // 24 hours
+const INSTALL_POLL_MS = 2000 // while the server downloads
 const DISMISS_KEY = 'orchestrator-update-dismissed'
 const DISMISS_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
 
@@ -120,7 +142,29 @@ export function useUpdateCheck(): UpdateCheckResult {
   const [releaseUrl, setReleaseUrl] = useState<string | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [status, setStatus] = useState<ServerUpdateStatus | null>(null)
+  const [acting, setActing] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [restarting, setRestarting] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  /** Apply a server status to the derived fields. */
+  const applyStatus = useCallback((s: ServerUpdateStatus) => {
+    setStatus(s)
+    setCurrentVersion(s.current)
+    setLatestVersion(s.latest)
+    setReleaseUrl(s.release_url)
+    setUpdateAvailable(s.update_available)
+    setDismissed(s.update_available && s.latest ? isDismissed(s.latest) : false)
+  }, [])
+
+  /** Read the server's version (and its update status when it has one). */
+  const fetchVersion = useCallback(async (): Promise<VersionResponse | null> => {
+    const { getApiBase } = await import('@/services/env')
+    const resp = await fetch(`${getApiBase()}/version`)
+    if (!resp.ok) return null
+    return (await resp.json()) as VersionResponse
+  }, [])
 
   const checkForUpdate = useCallback(async () => {
     // Skip in Tauri mode
@@ -129,15 +173,18 @@ export function useUpdateCheck(): UpdateCheckResult {
     try {
       setLoading(true)
 
-      // 1. Get current server version
-      const { getApiBase } = await import('@/services/env')
-      const versionResp = await fetch(`${getApiBase()}/version`)
-      if (!versionResp.ok) return
-      const versionData = (await versionResp.json()) as VersionResponse
+      // 1. Current server version (and its update status, if it has the service)
+      const versionData = await fetchVersion()
+      if (!versionData) return
+      if (versionData.update) {
+        applyStatus(versionData.update)
+        return
+      }
       const current = versionData.version
       setCurrentVersion(current)
+      setStatus(null)
 
-      // 2. Get latest GitHub release
+      // 2. Older server: compare with the latest GitHub release ourselves
       const ghResp = await fetch(
         `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
         { headers: { Accept: 'application/vnd.github.v3+json' } },
@@ -161,7 +208,38 @@ export function useUpdateCheck(): UpdateCheckResult {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [applyStatus, fetchVersion])
+
+  /** Run a server action; the response is the new status when it has one. */
+  const act = useCallback(
+    async (run: () => Promise<ServerUpdateStatus | unknown>): Promise<boolean> => {
+      setActing(true)
+      setActionError(null)
+      try {
+        const result = await run()
+        if (result && typeof result === 'object' && 'update_available' in result) {
+          applyStatus(result as ServerUpdateStatus)
+        }
+        return true
+      } catch (e) {
+        setActionError(apiErrorMessage(e, 'Update action failed'))
+        return false
+      } finally {
+        setActing(false)
+      }
+    },
+    [applyStatus],
+  )
+
+  const check = useCallback(async () => {
+    await act(updateApi.check)
+  }, [act])
+  const install = useCallback(async () => {
+    await act(updateApi.install)
+  }, [act])
+  const restart = useCallback(async () => {
+    if (await act(updateApi.restart)) setRestarting(true)
+  }, [act])
 
   const dismiss = useCallback(() => {
     if (latestVersion) {
@@ -188,6 +266,39 @@ export function useUpdateCheck(): UpdateCheckResult {
     }
   }, [checkForUpdate])
 
+  // While the server downloads, follow its progress until it stages or fails.
+  const installing = status?.installing === true
+  useEffect(() => {
+    if (!installing) return
+    const id = setInterval(async () => {
+      try {
+        const data = await fetchVersion()
+        if (data?.update) applyStatus(data.update)
+      } catch {
+        // Server may be busy or restarting; the next tick retries
+      }
+    }, INSTALL_POLL_MS)
+    return () => clearInterval(id)
+  }, [installing, applyStatus, fetchVersion])
+
+  // After a restart request the server goes away and comes back with the new
+  // binary: poll until it answers with nothing left to restart for.
+  useEffect(() => {
+    if (!restarting) return
+    const id = setInterval(async () => {
+      try {
+        const data = await fetchVersion()
+        if (data?.update && !data.update.restart_required) {
+          applyStatus(data.update)
+          setRestarting(false)
+        }
+      } catch {
+        // Still down — expected while it restarts
+      }
+    }, INSTALL_POLL_MS)
+    return () => clearInterval(id)
+  }, [restarting, applyStatus, fetchVersion])
+
   return {
     updateAvailable,
     latestVersion,
@@ -196,5 +307,12 @@ export function useUpdateCheck(): UpdateCheckResult {
     dismissed,
     dismiss,
     loading,
+    status,
+    check,
+    install,
+    restart,
+    acting,
+    restarting,
+    actionError,
   }
 }
