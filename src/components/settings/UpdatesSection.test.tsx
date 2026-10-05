@@ -18,10 +18,19 @@ vi.mock('@tauri-apps/api/core', () => ({
   },
 }))
 
+const chat = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn() }))
+vi.mock('@/services/chat', () => ({
+  chatApi: { getChatConfig: () => chat.get(), updateChatConfig: (p: unknown) => chat.update(p) },
+}))
+
 import { UpdatesSection } from './UpdatesSection'
 
 describe('UpdatesSection', () => {
-  beforeEach(() => invoke.mockReset())
+  beforeEach(() => {
+    invoke.mockReset()
+    chat.get.mockReset().mockResolvedValue({ auto_update_app: true })
+    chat.update.mockReset()
+  })
 
   it('says up to date when check_update returns null', async () => {
     next = () => null
@@ -49,5 +58,35 @@ describe('UpdatesSection', () => {
     fireEvent.click(screen.getByRole('button', { name: /check for updates/i }))
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('offline'))
     expect((screen.getByRole('button', { name: /check for updates/i }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('the automatic-check switch reflects the stored value and saves a change', async () => {
+    chat.get.mockResolvedValue({ auto_update_app: true })
+    chat.update.mockResolvedValue({ auto_update_app: false })
+    render(<UpdatesSection />)
+    const sw = await screen.findByRole('switch')
+    await waitFor(() => expect((sw as HTMLButtonElement).disabled).toBe(false))
+    expect(sw.getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(sw)
+    await waitFor(() => expect(chat.update).toHaveBeenCalledWith({ auto_update_app: false }))
+    await waitFor(() => expect(sw.getAttribute('aria-checked')).toBe('false'))
+  })
+
+  it('rolls the switch back and says so when saving fails', async () => {
+    chat.get.mockResolvedValue({ auto_update_app: true })
+    chat.update.mockRejectedValue(new Error('disk is read-only'))
+    render(<UpdatesSection />)
+    const sw = await screen.findByRole('switch')
+    await waitFor(() => expect((sw as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(sw)
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('disk is read-only'))
+    expect(sw.getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('stays disabled and explains when the setting cannot be read', async () => {
+    chat.get.mockRejectedValue(new Error('backend down'))
+    render(<UpdatesSection />)
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('backend down'))
+    expect((screen.getByRole('switch') as HTMLButtonElement).disabled).toBe(true)
   })
 })

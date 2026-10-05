@@ -6,9 +6,12 @@
  * are rendered by the app-level UpdateBanner, which listens to the events
  * emitted by `install_update`.
  */
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Download, Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui'
+import { Switch } from '@/components/ui/Switch'
+import { chatApi } from '@/services/chat'
+import { apiErrorMessage } from '@/services/api'
 
 interface AvailableUpdate {
   version: string
@@ -31,6 +34,32 @@ async function invoke<T>(cmd: string): Promise<T> {
 
 export function UpdatesSection() {
   const [state, setState] = useState<State>({ kind: 'idle' })
+  // `chat.auto_update_app` — read live by the desktop update checker, so a change applies without a restart.
+  const [auto, setAuto] = useState<boolean | null>(null)
+  const [autoError, setAutoError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    chatApi
+      .getChatConfig()
+      .then((c) => alive && setAuto(c.auto_update_app))
+      .catch((e) => alive && setAutoError(apiErrorMessage(e, 'Could not read the setting')))
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const toggleAuto = useCallback(async (next: boolean) => {
+    setAuto(next) // optimistic
+    setAutoError(null)
+    try {
+      const saved = await chatApi.updateChatConfig({ auto_update_app: next })
+      setAuto(saved.auto_update_app)
+    } catch (e) {
+      setAuto(!next) // roll back to what is really stored
+      setAutoError(apiErrorMessage(e, 'Could not save the setting'))
+    }
+  }, [])
 
   const check = useCallback(async () => {
     setState({ kind: 'checking' })
@@ -54,7 +83,8 @@ export function UpdatesSection() {
   const busy = state.kind === 'checking' || state.kind === 'installing'
 
   return (
-    <div className="flex flex-wrap items-center gap-3 p-4" data-testid="updates-section">
+    <div data-testid="updates-section">
+    <div className="flex flex-wrap items-center gap-3 p-4">
       <div className="min-w-0 flex-1 text-sm" role="status" aria-live="polite">
         {state.kind === 'idle' && <span className="text-gray-400">Look for a newer version of the app.</span>}
         {state.kind === 'checking' && <span className="text-gray-400">Checking…</span>}
@@ -82,6 +112,20 @@ export function UpdatesSection() {
           Check for updates
         </Button>
       )}
+    </div>
+      <div className="border-t border-white/[0.06] px-4 py-2">
+        <Switch
+          label="Check for updates automatically (at launch, then every few hours)"
+          checked={auto ?? true}
+          disabled={auto === null}
+          onChange={toggleAuto}
+        />
+        {autoError && (
+          <p className="pb-1 text-xs text-red-400" role="alert">
+            {autoError}
+          </p>
+        )}
+      </div>
     </div>
   )
 }
