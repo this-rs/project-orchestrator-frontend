@@ -1,4 +1,12 @@
 import { api, ApiError, buildQuery } from './api'
+import type {
+  LlmConsent,
+  ModelPolicy,
+  ProviderDraft,
+  ProviderPatch,
+  ProviderTestResult,
+  RoleAssignments,
+} from '@/types/providerSettings'
 import {
   CLAUDE_CODE_PROVIDER_ID,
   readProviderError,
@@ -36,6 +44,44 @@ export const providersApi = {
   /** Model catalog of one instance. */
   models: (id: ProviderId) =>
     api.get<ProviderModel[]>(`/chat/providers/${encodeURIComponent(id)}/models`),
+
+  // ---- Settings (routes the backend is adding; shapes in types/providerSettings.ts) ----
+  // Every mutation needs a HUMAN token server-side: an agent's token gets a 403.
+  // No body below ever carries a secret value, only a credential reference.
+
+  /** Try a draft instance BEFORE saving it. */
+  test: (draft: ProviderDraft | (ProviderPatch & { id?: ProviderId })) =>
+    api.post<ProviderTestResult>('/chat/providers/test', draft),
+  create: (draft: ProviderDraft) => api.post<unknown>('/chat/providers', draft),
+  update: (id: ProviderId, patch: ProviderPatch) =>
+    api.patch<unknown>(`/chat/providers/${encodeURIComponent(id)}`, patch),
+  remove: (id: ProviderId) => api.delete<void>(`/chat/providers/${encodeURIComponent(id)}`),
+
+  /** What a project agreed to send to which endpoint. */
+  consents: (projectSlug: string) =>
+    api.get<LlmConsent[]>(`/projects/${encodeURIComponent(projectSlug)}/llm-consents`),
+  allow: (projectSlug: string, providerId: ProviderId, origin: string) =>
+    api.put<unknown>(
+      `/projects/${encodeURIComponent(projectSlug)}/llm-consents/${encodeURIComponent(providerId)}`,
+      { origin },
+    ),
+  revoke: (projectSlug: string, providerId: ProviderId) =>
+    api.delete<void>(
+      `/projects/${encodeURIComponent(projectSlug)}/llm-consents/${encodeURIComponent(providerId)}`,
+    ),
+
+  /** Pilot / executor roles, global then per project (an absent role inherits). */
+  roles: () => api.get<RoleAssignments>('/chat/roles'),
+  setRoles: (roles: RoleAssignments) => api.put<RoleAssignments>('/chat/roles', roles),
+  projectRoles: (projectSlug: string) =>
+    api.get<RoleAssignments>(`/projects/${encodeURIComponent(projectSlug)}/llm-roles`),
+  setProjectRoles: (projectSlug: string, roles: RoleAssignments) =>
+    api.put<RoleAssignments>(`/projects/${encodeURIComponent(projectSlug)}/llm-roles`, roles),
+
+  aliases: () => api.get<ModelAlias[]>('/chat/model-aliases'),
+  setAliases: (aliases: ModelAlias[]) => api.put<ModelAlias[]>('/chat/model-aliases', aliases),
+  policy: () => api.get<ModelPolicy>('/chat/model-policy'),
+  setPolicy: (policy: ModelPolicy) => api.put<ModelPolicy>('/chat/model-policy', policy),
 }
 
 /**

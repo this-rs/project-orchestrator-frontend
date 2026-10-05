@@ -58,6 +58,7 @@ import {
   NotFoundPage,
   SettingsPage,
   VaultPage,
+  ProvidersPage,
   SetupWizard,
 } from '@/pages'
 import { RfcDashboardPage } from '@/components/protocols'
@@ -185,6 +186,9 @@ function App() {
 
                     {/* Secrets vault (no sidebar, reachable from the user menu and chat cards) */}
                     <Route path="/vault" element={<VaultPage />} />
+
+                    {/* Agent providers: instances, project consent, roles, model policy (web and desktop) */}
+                    <Route path="/providers" element={<ProvidersPage />} />
 
                     {/* Application-level pages: global chrome, above the workspaces */}
                     <Route element={<GlobalRouteLayout />}>

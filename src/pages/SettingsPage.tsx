@@ -25,6 +25,7 @@ import { ArrowLeft } from 'lucide-react'
 import { Button, PageContainer, PageHeader, Section, surface } from '@/components/ui'
 import { isTauri } from '@/services/env'
 import { UpdatesSection } from '@/components/settings/UpdatesSection'
+import { ProviderSettings } from '@/components/settings/ProviderSettings'
 import { PermissionSettingsPanel } from '@/components/chat/PermissionSettingsPanel'
 import { settingsReturnUrlAtom } from '@/atoms/setup'
 import { activeWorkspaceSlugAtom } from '@/atoms'
@@ -95,6 +96,13 @@ export function SettingsPage() {
             <div className={`${surface} overflow-hidden`}>
               <UpdatesSection />
             </div>
+          </Section>
+
+          <Section
+            title="Providers"
+            description="Instances, project consent, roles and model policy. Also available at /providers."
+          >
+            <ProviderSettings />
           </Section>
         </PageContainer>
       </div>
