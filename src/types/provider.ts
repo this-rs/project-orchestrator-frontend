@@ -456,6 +456,11 @@ export type ProviderErrorCode =
   | 'envelope_workspace_mismatch'
   | 'envelope_not_a_child'
   | 'tool_not_in_profile'
+  /** Endpoint guard and connection test (`endpoint_guard.rs`, `provider_handlers.rs`). */
+  | 'endpoint_unresolvable'
+  | 'endpoint_redirects_not_allowed'
+  | 'credential_test_requires_saved_instance'
+  | 'probe_unavailable'
 
 export const PROVIDER_ERROR_CODES: readonly ProviderErrorCode[] = [
   'no_provider',
@@ -499,6 +504,10 @@ export const PROVIDER_ERROR_CODES: readonly ProviderErrorCode[] = [
   'envelope_workspace_mismatch',
   'envelope_not_a_child',
   'tool_not_in_profile',
+  'endpoint_unresolvable',
+  'endpoint_redirects_not_allowed',
+  'credential_test_requires_saved_instance',
+  'probe_unavailable',
 ]
 
 /** A provider error as the interface handles it. Never carries a credential. */

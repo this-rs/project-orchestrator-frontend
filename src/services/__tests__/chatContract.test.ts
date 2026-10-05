@@ -55,7 +55,7 @@ const contract: ContractFile = backendFiles ? fromBackendContract(backendFiles) 
 describe('vendored contract files', () => {
   it('match their recorded checksums (copy them with the sync script, never edit them by hand)', () => {
     const checked: string[] = []
-    for (const sumsFile of ['SHA256SUMS', 'PROVISIONAL-TARGET.sha256']) {
+    for (const sumsFile of ['SHA256SUMS', 'VENDORED-EXTRA.sha256', 'PROVISIONAL-TARGET.sha256']) {
       if (!existsSync(resolve(dir, sumsFile))) continue
       const lines = readFileSync(resolve(dir, sumsFile), 'utf8').trim().split('\n').map((line) => line.trim().split(/\s+/))
       for (const [recorded, rawName] of lines) {

@@ -177,6 +177,9 @@ export function ProviderStateCard({
     case 'endpoint_credentials_in_url':
     case 'endpoint_host_missing':
     case 'endpoint_private_address':
+    case 'endpoint_unresolvable':
+    case 'endpoint_redirects_not_allowed':
+    case 'credential_test_requires_saved_instance':
       action = <SettingsLink to={providerInstancePath(error.provider_id)}>Open the instance settings</SettingsLink>
       break
     case 'instance_not_found':

@@ -66,6 +66,10 @@ export const PROVIDER_ERROR_TITLES: Readonly<Record<ProviderErrorCode, string>> 
   envelope_workspace_mismatch: 'Delegation refused: other workspace',
   envelope_not_a_child: 'Delegation refused: not a child session',
   tool_not_in_profile: 'Tool not allowed for this session',
+  endpoint_unresolvable: 'Endpoint host not found',
+  endpoint_redirects_not_allowed: 'Redirects are not followed',
+  credential_test_requires_saved_instance: 'Save the instance to test its key',
+  probe_unavailable: 'Connection test unavailable',
 }
 
 /** `12 s`, `2 min` — how long a rate limit asks to wait. */
@@ -179,6 +183,14 @@ export function providerErrorExplanation(error: ProviderErrorInfo, projectSlug?:
       return 'This session is not a child of the session that tried to act on it.'
     case 'tool_not_in_profile':
       return 'This session is not allowed to call that tool. Third-party providers get a restricted tool profile.'
+    case 'endpoint_unresolvable':
+      return 'The server could not resolve the host name of this endpoint. Check the spelling of the base URL and that the server can reach DNS, then test again.'
+    case 'endpoint_redirects_not_allowed':
+      return 'The endpoint answered with a redirect, which the server does not follow (a key could be sent to another host). Use the final URL as the base URL.'
+    case 'credential_test_requires_saved_instance':
+      return 'A test that uses a key is only run on an instance that is already saved, with the same endpoint and key reference. Save the instance first, then test it again.'
+    case 'probe_unavailable':
+      return 'The connection test could not be run for this instance (no tool-call probe is available). Save it and try a conversation, or check the instance settings and test again.'
   }
 }
 

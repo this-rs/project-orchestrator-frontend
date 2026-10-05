@@ -26,6 +26,9 @@ const dir = resolve(root, 'src/services/__fixtures__/chat-contract')
 const PROVISIONAL = 'provisional-target-frames.json'
 const PROVISIONAL_SUMS = 'PROVISIONAL-TARGET.sha256'
 const BACKEND_SUMS = 'SHA256SUMS'
+// Files the backend publishes next to the generated ones but does not list in its
+// SHA256SUMS (provider-additions.json): recorded here at copy time, so a hand edit is caught.
+const EXTRA_SUMS = 'VENDORED-EXTRA.sha256'
 
 const sha256 = (path) => createHash('sha256').update(readFileSync(path)).digest('hex')
 
@@ -52,7 +55,7 @@ if (!arg) {
 
 if (arg === '--check') {
   let ok = true
-  for (const sums of [BACKEND_SUMS, PROVISIONAL_SUMS]) {
+  for (const sums of [BACKEND_SUMS, EXTRA_SUMS, PROVISIONAL_SUMS]) {
     if (existsSync(resolve(dir, sums))) ok = verify(sums) && ok
   }
   if (!ok) process.exit(1)
@@ -83,6 +86,12 @@ for (const name of readdirSync(source)) {
   }
 }
 if (!verify(BACKEND_SUMS)) process.exit(1)
+const listed = new Set(
+  readFileSync(resolve(dir, BACKEND_SUMS), 'utf8').trim().split('\n').map((l) => l.trim().split(/\s+/)[1].replace(/^\*/, '')),
+)
+const extra = readdirSync(source).filter((n) => n.endsWith('.json') && !listed.has(n))
+writeFileSync(resolve(dir, EXTRA_SUMS), extra.map((n) => `${sha256(resolve(dir, n))}  ${n}\n`).join(''))
+console.log(`recorded sha256 of ${extra.join(', ') || '(nothing extra)'}`)
 // `provisional-target-frames.json` stays: it holds the TARGET frames (fields the backend
 // does not emit yet — provider, capabilities, cost basis…). Delete it by hand
 // once the backend's own examples carry them.
