@@ -22,7 +22,7 @@ describe('system_init without a provider (session created before providers)', ()
   })
 
   it('reads the legacy permission mode as a neutral policy', () => {
-    expect(readSystemInitRuntime(LEGACY_SYSTEM_INIT).toolPolicy).toEqual({ mode: 'ask', allow: [], deny: [] })
+    expect(readSystemInitRuntime(LEGACY_SYSTEM_INIT).toolPolicy).toEqual({ mode: 'ask', native_mode: 'default', allow: [], deny: [] })
     expect(readSystemInitRuntime({ ...LEGACY_SYSTEM_INIT, permission_mode: 'bypassPermissions' }).toolPolicy?.mode).toBe('trust')
   })
 

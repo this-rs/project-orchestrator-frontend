@@ -36,8 +36,8 @@ export const providersApi = {
 /**
  * Read a typed provider error out of whatever a call threw.
  *
- * The server answers a provider failure as `{ code, error|message, … }` with a
- * status of its choosing; `ApiError.message` carries that raw body. Returns
+ * The server answers a provider failure as `{ code, error|message, … }` (`code`
+ * is the `kind` of the nexus `ProviderError`) with a status of its choosing; `ApiError.message` carries that raw body. Returns
  * `null` when the error is not a typed provider error — the caller then shows
  * its generic message. Never invents a code from a status alone.
  */
@@ -59,7 +59,7 @@ export function toProviderError(err: unknown): ProviderErrorInfo | null {
 export function readProviderError(body: unknown, status?: number): ProviderErrorInfo | null {
   if (typeof body !== 'object' || body === null) return null
   const b = body as Record<string, unknown>
-  const code = b.code
+  const code = b.code ?? b.kind
   if (typeof code !== 'string' || !(PROVIDER_ERROR_CODES as readonly string[]).includes(code)) return null
   const str = (v: unknown) => (typeof v === 'string' && v !== '' ? v : undefined)
   const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined)
@@ -68,7 +68,11 @@ export function readProviderError(body: unknown, status?: number): ProviderError
     message: str(b.error) ?? str(b.message) ?? '',
     provider_id: str(b.provider_id) ?? str(b.provider),
     login_hint: str(b.login_hint),
-    retry_after: num(b.retry_after),
+    retry_after_ms: num(b.retry_after_ms) ?? (num(b.retry_after) !== undefined ? num(b.retry_after)! * 1000 : undefined),
+    detail: str(b.detail),
+    program: str(b.program),
+    needed: num(b.needed),
+    available: num(b.available),
     capability: str(b.capability),
     retryable: typeof b.retryable === 'boolean' ? b.retryable : undefined,
     origin: str(b.origin),

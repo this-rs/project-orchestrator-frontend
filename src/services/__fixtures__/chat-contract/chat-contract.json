@@ -247,19 +247,23 @@
       },
       "capabilities": {
         "interactive_permissions": true,
-        "permission_scopes": true,
-        "sandbox": false,
-        "secret_isolation": false,
+        "permission_scopes": [
+          "once",
+          "session",
+          "always"
+        ],
+        "sandbox": "none",
+        "secret_isolation": true,
         "per_session_mcp": true,
         "hooks": "in_protocol",
         "subagents": "nested",
         "compaction_signal": true,
         "thinking": true,
-        "images": true,
+        "images": false,
         "tools": true,
         "context_window": {
           "value": 200000,
-          "source": "provider"
+          "source": "reported"
         },
         "set_model_live": true,
         "native_question": true,
@@ -271,7 +275,8 @@
       "tool_policy": {
         "mode": "ask",
         "allow": [],
-        "deny": []
+        "deny": [],
+        "native_mode": "default"
       }
     },
     {
@@ -288,8 +293,8 @@
       },
       "capabilities": {
         "interactive_permissions": false,
-        "permission_scopes": false,
-        "sandbox": false,
+        "permission_scopes": [],
+        "sandbox": "none",
         "secret_isolation": true,
         "per_session_mcp": true,
         "hooks": "none",
@@ -300,7 +305,7 @@
         "tools": true,
         "context_window": {
           "value": 32768,
-          "source": "probe"
+          "source": "probed"
         },
         "set_model_live": false,
         "native_question": false,

@@ -97,6 +97,9 @@ export function toToolPolicyMode(value: unknown): ToolPolicyMode | null {
 /** The policy of a session as `system_init` carries it. */
 export interface ToolPolicy {
   mode: ToolPolicyMode
+  /** Exact provider-native mode when known (`auto`, `dontAsk`…): kept so no information is lost. */
+  native_mode?: string
+  /** Patterns in Claude syntax: `Read`, `Bash(git *)`. */
   allow: string[]
   deny: string[]
 }
@@ -117,6 +120,10 @@ export function toToolCategory(value: unknown): ToolCategory | null {
 // ----------------------------------------------------------------------------
 
 export type HooksSupport = 'in_protocol' | 'command' | 'none'
+/** How long a permission answer may be remembered. */
+export type PermissionScope = 'once' | 'session' | 'always'
+export const PERMISSION_SCOPES: readonly PermissionScope[] = ['once', 'session', 'always']
+export type SandboxLevel = 'none' | 'workspace' | 'full'
 export type SubagentsSupport = 'nested' | 'separate_thread' | 'none'
 
 /**
@@ -132,9 +139,9 @@ export type CostBasis = 'reported' | 'priced' | 'free' | 'subscription' | 'unkno
 export const COST_BASES: readonly CostBasis[] = ['reported', 'priced', 'free', 'subscription', 'unknown']
 
 export interface ContextWindow {
-  /** Tokens. `null` when the provider cannot tell. */
-  value: number | null
-  /** Who said so: `provider`, `config`, `probe`, `default`, … */
+  /** Tokens. */
+  value: number
+  /** Who said so: `reported | catalog | configured | probed | assumed`. */
   source: string
 }
 
@@ -146,10 +153,10 @@ export interface ContextWindow {
 export interface ProviderCapabilities {
   /** The provider can pause a tool call and ask the human. */
   interactive_permissions: boolean
-  /** "Remember for this session / always" scopes on a permission answer. */
-  permission_scopes: boolean
-  /** Tool execution is sandboxed. Without it, `trust` is refused for a third-party model. */
-  sandbox: boolean
+  /** Scopes a permission answer may use. Only the listed ones are offered ("Remember for this session"…). */
+  permission_scopes: PermissionScope[]
+  /** Tool sandboxing. With `none`, `trust` is refused for a third-party model. */
+  sandbox: SandboxLevel
   /** Secrets are kept out of the model's reach. */
   secret_isolation: boolean
   /** MCP servers can be attached per session. */
@@ -164,7 +171,8 @@ export interface ProviderCapabilities {
   images: boolean
   /** The model can call tools at all. */
   tools: boolean
-  context_window: ContextWindow
+  /** `null` = unknown: no token budget possible, and never an implicit 200k. */
+  context_window: ContextWindow | null
   /** The model can be changed on a live session. */
   set_model_live: boolean
   /** The provider has a native "ask the user a question" tool. */
@@ -185,17 +193,19 @@ export interface ProviderCapabilities {
  */
 export const CLAUDE_CODE_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
   interactive_permissions: true,
-  permission_scopes: true,
-  sandbox: false,
-  secret_isolation: false,
+  permission_scopes: ['once', 'session', 'always'],
+  sandbox: 'none',
+  secret_isolation: true,
   per_session_mcp: true,
   hooks: 'in_protocol',
   subagents: 'nested',
   compaction_signal: true,
   thinking: true,
+  // The backend may declare `images: false` for Claude Code in v1; the FALLBACK
+  // keeps what a pre-provider session could do, which includes attachments.
   images: true,
   tools: true,
-  context_window: Object.freeze({ value: null, source: 'provider' }),
+  context_window: null,
   set_model_live: true,
   native_question: true,
   tool_cancel: true,
@@ -211,8 +221,8 @@ export const CLAUDE_CODE_CAPABILITIES: Readonly<ProviderCapabilities> = Object.f
  */
 export const MINIMAL_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
   interactive_permissions: false,
-  permission_scopes: false,
-  sandbox: false,
+  permission_scopes: [],
+  sandbox: 'none',
   secret_isolation: false,
   per_session_mcp: false,
   hooks: 'none',
@@ -221,7 +231,7 @@ export const MINIMAL_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freez
   thinking: false,
   images: false,
   tools: false,
-  context_window: Object.freeze({ value: null, source: 'unknown' }),
+  context_window: null,
   set_model_live: false,
   native_question: false,
   tool_cancel: false,
@@ -233,8 +243,6 @@ export const MINIMAL_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freez
 /** Boolean capability fields, for iteration (tests, settings table). */
 export const BOOLEAN_CAPABILITY_KEYS = [
   'interactive_permissions',
-  'permission_scopes',
-  'sandbox',
   'secret_isolation',
   'per_session_mcp',
   'compaction_signal',
@@ -251,6 +259,8 @@ export const BOOLEAN_CAPABILITY_KEYS = [
 /** Every key of `ProviderCapabilities` — the field-level contract test iterates over it. */
 export const CAPABILITY_KEYS = [
   ...BOOLEAN_CAPABILITY_KEYS,
+  'permission_scopes',
+  'sandbox',
   'hooks',
   'subagents',
   'context_window',
@@ -294,26 +304,45 @@ export function normalizeCapabilities(
   raw: unknown,
   base: Readonly<ProviderCapabilities> = CLAUDE_CODE_CAPABILITIES,
 ): ProviderCapabilities {
-  const out: ProviderCapabilities = { ...base, context_window: { ...base.context_window } }
+  const out: ProviderCapabilities = {
+    ...base,
+    permission_scopes: [...base.permission_scopes],
+    context_window: base.context_window ? { ...base.context_window } : null,
+  }
   if (typeof raw !== 'object' || raw === null) return out
   const r = raw as Record<string, unknown>
   for (const key of BOOLEAN_CAPABILITY_KEYS) {
     if (typeof r[key] === 'boolean') out[key] = r[key] as boolean
   }
+  if (Array.isArray(r.permission_scopes)) {
+    out.permission_scopes = r.permission_scopes
+      .map((v) => oneOf<PermissionScope>(v, PERMISSION_SCOPES))
+      .filter((v): v is PermissionScope => v !== null)
+  }
+  out.sandbox = oneOf<SandboxLevel>(r.sandbox, ['none', 'workspace', 'full']) ?? out.sandbox
   out.hooks = oneOf<HooksSupport>(r.hooks, ['in_protocol', 'command', 'none']) ?? out.hooks
   out.subagents = oneOf<SubagentsSupport>(r.subagents, ['nested', 'separate_thread', 'none']) ?? out.subagents
   out.cost = toCostBasis(r.cost) ?? out.cost
   const cw = r.context_window
-  if (typeof cw === 'number') {
-    out.context_window = { value: cw, source: 'provider' }
-  } else if (typeof cw === 'object' && cw !== null) {
+  if (cw === null) {
+    out.context_window = null
+  } else if (typeof cw === 'object') {
     const c = cw as Record<string, unknown>
-    out.context_window = {
-      value: typeof c.value === 'number' ? c.value : null,
-      source: typeof c.source === 'string' ? c.source : out.context_window.source,
+    if (typeof c.value === 'number') {
+      out.context_window = { value: c.value, source: typeof c.source === 'string' ? c.source : 'reported' }
     }
   }
   return out
+}
+
+/** Tools run in a sandbox (`workspace` or `full`). */
+export function hasSandbox(caps: Pick<ProviderCapabilities, 'sandbox'>): boolean {
+  return caps.sandbox !== 'none'
+}
+
+/** A permission answer may be remembered with this scope. */
+export function supportsScope(caps: Pick<ProviderCapabilities, 'permission_scopes'>, scope: PermissionScope): boolean {
+  return caps.permission_scopes.includes(scope)
 }
 
 /** The profile assumed for the fields a provider did not declare. */
@@ -357,7 +386,11 @@ export function toProviderRef(raw: unknown): ProviderRef | null {
 export function toToolPolicy(raw: unknown): ToolPolicy | null {
   if (typeof raw === 'string') {
     const mode = toToolPolicyMode(raw)
-    return mode ? { mode, allow: [], deny: [] } : null
+    if (!mode) return null
+    // A legacy string that is not one of the four neutral names IS the native mode.
+    return (TOOL_POLICY_MODES as readonly string[]).includes(raw)
+      ? { mode, allow: [], deny: [] }
+      : { mode, native_mode: raw, allow: [], deny: [] }
   }
   if (typeof raw !== 'object' || raw === null) return null
   const r = raw as Record<string, unknown>
@@ -365,7 +398,9 @@ export function toToolPolicy(raw: unknown): ToolPolicy | null {
   if (!mode) return null
   const strings = (v: unknown): string[] =>
     Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
-  return { mode, allow: strings(r.allow), deny: strings(r.deny) }
+  const policy: ToolPolicy = { mode, allow: strings(r.allow), deny: strings(r.deny) }
+  if (typeof r.native_mode === 'string' && r.native_mode !== '') policy.native_mode = r.native_mode
+  return policy
 }
 
 // ----------------------------------------------------------------------------
@@ -395,6 +430,9 @@ export type ProviderErrorCode =
   | 'process_exited'
   | 'protocol'
   | 'unsupported'
+  | 'turn_in_progress'
+  | 'invalid_request'
+  | 'closed'
 
 export const PROVIDER_ERROR_CODES: readonly ProviderErrorCode[] = [
   'no_provider',
@@ -414,6 +452,9 @@ export const PROVIDER_ERROR_CODES: readonly ProviderErrorCode[] = [
   'process_exited',
   'protocol',
   'unsupported',
+  'turn_in_progress',
+  'invalid_request',
+  'closed',
 ]
 
 /** A provider error as the interface handles it. Never carries a credential. */
@@ -424,8 +465,15 @@ export interface ProviderErrorInfo {
   provider_id?: ProviderId
   /** `auth_required`: the command the user must run in a terminal. */
   login_hint?: string
-  /** `rate_limited`: seconds to wait. */
-  retry_after?: number
+  /** `rate_limited`: milliseconds to wait. */
+  retry_after_ms?: number
+  /** Redacted technical detail (`endpoint_unreachable`, `protocol`, `invalid_request`). */
+  detail?: string
+  /** `cli_not_found`: the program that is missing. */
+  program?: string
+  /** `context_too_small`: tokens needed / available. */
+  needed?: number
+  available?: number
   /** `unsupported`: which capability. */
   capability?: string
   retryable?: boolean

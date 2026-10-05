@@ -117,6 +117,8 @@ describe('the frames replay in the reducers', () => {
         const sent = (rt.capabilities as Record<string, unknown>)[key]
         expect(caps[key], key).toEqual(sent)
       }
+      expect(Array.isArray(caps.permission_scopes)).toBe(true)
+      expect(['none', 'workspace', 'full']).toContain(caps.sandbox)
     }
   })
 })

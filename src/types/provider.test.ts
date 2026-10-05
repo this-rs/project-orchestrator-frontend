@@ -14,6 +14,8 @@ import {
   TOOL_POLICY_MODES,
   capabilitiesFallback,
   capabilitiesFor,
+  hasSandbox,
+  supportsScope,
   isClaudeCodeProvider,
   normalizeCapabilities,
   providerKindLabel,
@@ -71,7 +73,8 @@ describe('toToolPolicy', () => {
   })
   it('reads a bare mode, neutral or legacy', () => {
     expect(toToolPolicy('trust')).toEqual({ mode: 'trust', allow: [], deny: [] })
-    expect(toToolPolicy('acceptEdits')?.mode).toBe('auto_edits')
+    expect(toToolPolicy('acceptEdits')).toEqual({ mode: 'auto_edits', native_mode: 'acceptEdits', allow: [], deny: [] })
+    expect(toToolPolicy({ mode: 'auto_edits', native_mode: 'auto' })?.native_mode).toBe('auto')
   })
   it('refuses an unknown mode and non-objects', () => {
     expect(toToolPolicy({ mode: 'yolo' })).toBeNull()
@@ -91,9 +94,10 @@ describe('capabilities', () => {
     expect(normalizeCapabilities(undefined)).toEqual(CLAUDE_CODE_CAPABILITIES)
     expect(normalizeCapabilities(null)).toEqual(CLAUDE_CODE_CAPABILITIES)
     // Everything the interface gates on is on.
-    for (const key of ['interactive_permissions', 'permission_scopes', 'thinking', 'images', 'tools', 'set_model_live', 'native_question', 'tool_cancel', 'background_tasks', 'resume', 'compaction_signal'] as const) {
+    for (const key of ['interactive_permissions', 'thinking', 'images', 'tools', 'set_model_live', 'native_question', 'tool_cancel', 'background_tasks', 'resume', 'compaction_signal'] as const) {
       expect(CLAUDE_CODE_CAPABILITIES[key]).toBe(true)
     }
+    expect(CLAUDE_CODE_CAPABILITIES.permission_scopes).toEqual(['once', 'session', 'always'])
     expect(CLAUDE_CODE_CAPABILITIES.subagents).toBe('nested')
     expect(CLAUDE_CODE_CAPABILITIES.cost).toBe('reported')
   })
@@ -101,9 +105,9 @@ describe('capabilities', () => {
   it('does not hand out the shared constant (a caller mutating its copy must not change the profile)', () => {
     const a = normalizeCapabilities(null)
     a.images = false
-    a.context_window.value = 1
+    a.permission_scopes.push('once')
     expect(CLAUDE_CODE_CAPABILITIES.images).toBe(true)
-    expect(CLAUDE_CODE_CAPABILITIES.context_window.value).toBeNull()
+    expect(CLAUDE_CODE_CAPABILITIES.permission_scopes).toHaveLength(3)
   })
 
   it('reads declared fields and falls back to the base for the rest', () => {
@@ -126,13 +130,24 @@ describe('capabilities', () => {
   })
 
   it('ignores a field of the wrong type rather than coercing it', () => {
-    const caps = normalizeCapabilities({ images: 'yes', hooks: 7, cost: 'gratis', context_window: 'big' }, MINIMAL_CAPABILITIES)
+    const caps = normalizeCapabilities({ images: 'yes', hooks: 7, cost: 'gratis', context_window: 'big', sandbox: true, permission_scopes: 'all' }, MINIMAL_CAPABILITIES)
     expect(caps).toEqual(MINIMAL_CAPABILITIES)
   })
 
-  it('reads the context window as an object or as a bare number', () => {
-    expect(normalizeCapabilities({ context_window: { value: 32768, source: 'probe' } }).context_window).toEqual({ value: 32768, source: 'probe' })
-    expect(normalizeCapabilities({ context_window: 8192 }).context_window).toEqual({ value: 8192, source: 'provider' })
+  it('reads the context window, and keeps "unknown" as null (never an implicit size)', () => {
+    expect(normalizeCapabilities({ context_window: { value: 32768, source: 'probed' } }).context_window).toEqual({ value: 32768, source: 'probed' })
+    expect(normalizeCapabilities({ context_window: null }, { ...CLAUDE_CODE_CAPABILITIES, context_window: { value: 1, source: 'assumed' } }).context_window).toBeNull()
+    expect(MINIMAL_CAPABILITIES.context_window).toBeNull()
+  })
+
+  it('reads the sandbox level and the permission scopes, dropping unknown scopes', () => {
+    const caps = normalizeCapabilities({ sandbox: 'Workspace', permission_scopes: ['once', 'Session', 'forever'] }, MINIMAL_CAPABILITIES)
+    expect(caps.sandbox).toBe('workspace')
+    expect(caps.permission_scopes).toEqual(['once', 'session'])
+    expect(hasSandbox(caps)).toBe(true)
+    expect(hasSandbox(MINIMAL_CAPABILITIES)).toBe(false)
+    expect(supportsScope(caps, 'session')).toBe(true)
+    expect(supportsScope(caps, 'always')).toBe(false)
   })
 
   it('assumes nothing of a third-party provider that declares nothing', () => {

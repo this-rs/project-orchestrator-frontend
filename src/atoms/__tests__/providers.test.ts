@@ -77,7 +77,8 @@ describe('session capabilities', () => {
     expect(caps.images).toBe(false)
     expect(caps.subagents).toBe('none')
     expect(caps.cost).toBe('free')
-    expect(caps.context_window).toEqual({ value: 32768, source: 'probe' })
+    expect(caps.context_window).toEqual({ value: 32768, source: 'probed' })
+    expect(caps.permission_scopes).toEqual([])
     expect(caps.tools).toBe(true)
   })
 
