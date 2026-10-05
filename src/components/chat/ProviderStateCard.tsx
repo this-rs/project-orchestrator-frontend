@@ -168,6 +168,17 @@ export function ProviderStateCard({
     case 'unauthorized':
       action = <SettingsLink to={providerInstancePath(error.provider_id)}>Open the instance settings</SettingsLink>
       break
+    case 'origin_mismatch':
+      action = <SettingsLink to={providerConsentPath(error.project_slug ?? projectSlug)}>Review the project&apos;s consent</SettingsLink>
+      break
+    case 'endpoint_invalid_url':
+    case 'endpoint_scheme_not_allowed':
+    case 'endpoint_http_outside_loopback':
+    case 'endpoint_credentials_in_url':
+    case 'endpoint_host_missing':
+    case 'endpoint_private_address':
+      action = <SettingsLink to={providerInstancePath(error.provider_id)}>Open the instance settings</SettingsLink>
+      break
     case 'instance_not_found':
       action = onNewConversation ? (
         <button type="button" onClick={onNewConversation} className={ACTION_CLASS}>

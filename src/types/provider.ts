@@ -437,6 +437,25 @@ export type ProviderErrorCode =
   | 'provider_error'
   | 'provider_unknown'
   | 'provider_unavailable'
+  /** Refusals of the settings API and of the delegation envelope (`provider_handlers.rs`, `envelope.rs`). */
+  | 'security_gate_closed'
+  | 'origin_mismatch'
+  | 'endpoint_invalid_url'
+  | 'endpoint_scheme_not_allowed'
+  | 'endpoint_http_outside_loopback'
+  | 'endpoint_credentials_in_url'
+  | 'endpoint_host_missing'
+  | 'endpoint_private_address'
+  | 'envelope_unbound_token'
+  | 'envelope_parent_not_found'
+  | 'envelope_depth_exceeded'
+  | 'envelope_too_many_children'
+  | 'envelope_cwd_outside_parent'
+  | 'envelope_add_dir_outside_parent'
+  | 'envelope_project_mismatch'
+  | 'envelope_workspace_mismatch'
+  | 'envelope_not_a_child'
+  | 'tool_not_in_profile'
 
 export const PROVIDER_ERROR_CODES: readonly ProviderErrorCode[] = [
   'no_provider',
@@ -462,6 +481,24 @@ export const PROVIDER_ERROR_CODES: readonly ProviderErrorCode[] = [
   'provider_error',
   'provider_unknown',
   'provider_unavailable',
+  'security_gate_closed',
+  'origin_mismatch',
+  'endpoint_invalid_url',
+  'endpoint_scheme_not_allowed',
+  'endpoint_http_outside_loopback',
+  'endpoint_credentials_in_url',
+  'endpoint_host_missing',
+  'endpoint_private_address',
+  'envelope_unbound_token',
+  'envelope_parent_not_found',
+  'envelope_depth_exceeded',
+  'envelope_too_many_children',
+  'envelope_cwd_outside_parent',
+  'envelope_add_dir_outside_parent',
+  'envelope_project_mismatch',
+  'envelope_workspace_mismatch',
+  'envelope_not_a_child',
+  'tool_not_in_profile',
 ]
 
 /** A provider error as the interface handles it. Never carries a credential. */

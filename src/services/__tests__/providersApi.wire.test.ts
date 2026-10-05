@@ -139,8 +139,18 @@ describe('readProviderError — backend error body', () => {
     expect(err?.message).toBe('project demo may not send content to https://api.deepseek.com')
   })
 
+  it.each([
+    ['security_gate_closed: third-party providers need authentication enabled (bound session tokens)', 'security_gate_closed'],
+    ['origin_mismatch: the instance no longer points at the origin you were shown', 'origin_mismatch'],
+    ['endpoint_private_address: host resolves to a private address', 'endpoint_private_address'],
+    ['envelope_depth_exceeded: too deep', 'envelope_depth_exceeded'],
+    ['tool_not_in_profile: no', 'tool_not_in_profile'],
+  ])('reads the prefixed body "%s"', (body, code) => {
+    expect(readProviderError({ error: body })?.code).toBe(code)
+  })
+
   it('does not take an unrelated prefixed message for a code', () => {
     expect(readProviderError({ error: 'note: nothing to see' })).toBeNull()
-    expect(readProviderError({ error: 'envelope_depth_exceeded: too deep' })).toBeNull()
+    expect(readProviderError({ error: 'envelope_made_up: too deep' })).toBeNull()
   })
 })

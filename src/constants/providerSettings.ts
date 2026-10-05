@@ -4,6 +4,7 @@
 
 import { ApiError, apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
+import { providerErrorExplanation } from './providerErrors'
 import type { CostBasis, CredentialRef } from '@/types/provider'
 
 export const SETTINGS_FORBIDDEN_TEXT = 'Only a signed-in user can change this'
@@ -80,9 +81,10 @@ export function originOf(url: string): string | null {
 
 /** What to tell the user about a failed settings call. A 403 is the human-token rule of the server. */
 export function settingsErrorMessage(err: unknown): string {
-  if (err instanceof ApiError && err.status === 403) return SETTINGS_FORBIDDEN_TEXT
+  // A typed code (security gate, origin mismatch, endpoint refusals) says more than a bare 403.
   const typed = toProviderError(err)
-  if (typed?.message) return typed.message
+  if (typed) return providerErrorExplanation(typed)
+  if (err instanceof ApiError && err.status === 403) return SETTINGS_FORBIDDEN_TEXT
   return apiErrorMessage(err, 'The request failed')
 }
 

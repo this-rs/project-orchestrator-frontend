@@ -48,6 +48,24 @@ export const PROVIDER_ERROR_TITLES: Readonly<Record<ProviderErrorCode, string>> 
   turn_in_progress: 'A turn is already running',
   invalid_request: 'Request refused',
   closed: 'The session is closed',
+  security_gate_closed: 'Third-party providers are switched off',
+  origin_mismatch: 'The endpoint changed',
+  endpoint_invalid_url: 'Invalid endpoint URL',
+  endpoint_scheme_not_allowed: 'Endpoint scheme not allowed',
+  endpoint_http_outside_loopback: 'Plain http is not allowed here',
+  endpoint_credentials_in_url: 'Credentials in the URL',
+  endpoint_host_missing: 'Endpoint has no host',
+  endpoint_private_address: 'Private address refused',
+  envelope_unbound_token: 'Delegation refused: unbound token',
+  envelope_parent_not_found: 'Delegation refused: parent not found',
+  envelope_depth_exceeded: 'Delegation refused: too deep',
+  envelope_too_many_children: 'Delegation refused: too many children',
+  envelope_cwd_outside_parent: 'Delegation refused: folder outside the parent',
+  envelope_add_dir_outside_parent: 'Delegation refused: extra folder outside the parent',
+  envelope_project_mismatch: 'Delegation refused: other project',
+  envelope_workspace_mismatch: 'Delegation refused: other workspace',
+  envelope_not_a_child: 'Delegation refused: not a child session',
+  tool_not_in_profile: 'Tool not allowed for this session',
 }
 
 /** `12 s`, `2 min` — how long a rate limit asks to wait. */
@@ -125,6 +143,42 @@ export function providerErrorExplanation(error: ProviderErrorInfo, projectSlug?:
       return 'The provider named in this request is not configured on this server. Choose one of the listed instances.'
     case 'provider_unavailable':
       return 'This provider is not available right now (unhealthy, or refused by the security gate). Try another instance or check its settings.'
+    case 'security_gate_closed':
+      return 'Third-party providers need authentication to be enabled on this server, so that sessions get signed, bound tokens. Turn authentication on, then add the instance again. Claude Code is not affected.'
+    case 'origin_mismatch':
+      return 'The instance no longer points at the endpoint you were shown, so your consent was not recorded. Reload the settings and review the endpoint before allowing it.'
+    case 'endpoint_invalid_url':
+      return 'The base URL is not a valid URL. Enter it in full, for example https://api.example.com/v1.'
+    case 'endpoint_scheme_not_allowed':
+      return 'Only https is accepted, and http only for localhost. Change the scheme of the base URL.'
+    case 'endpoint_http_outside_loopback':
+      return 'Plain http is only accepted for localhost, 127.0.0.1 and ::1. Use https for any other host.'
+    case 'endpoint_credentials_in_url':
+      return 'The base URL contains a user name or password. Remove it: keys are given as a vault or environment reference, never inside the URL.'
+    case 'endpoint_host_missing':
+      return 'The base URL has no host. Enter it in full, for example https://api.example.com/v1.'
+    case 'endpoint_private_address':
+      return 'The host resolves to a private or internal address, which the server refuses to call. Use a public endpoint, or localhost for a local model.'
+    case 'envelope_unbound_token':
+      return 'This request came with a token that is not bound to a session, so it cannot start a child session.'
+    case 'envelope_parent_not_found':
+      return 'The parent session of this delegation does not exist any more.'
+    case 'envelope_depth_exceeded':
+      return 'This delegation chain is already as deep as allowed. Do the work in the current session instead.'
+    case 'envelope_too_many_children':
+      return 'This session already has as many live child sessions as allowed. Wait for one to finish.'
+    case 'envelope_cwd_outside_parent':
+      return "A child session cannot work in a folder outside its parent's folder."
+    case 'envelope_add_dir_outside_parent':
+      return "A child session cannot be given an extra folder outside its parent's folders."
+    case 'envelope_project_mismatch':
+      return 'A child session must stay in the project of its parent.'
+    case 'envelope_workspace_mismatch':
+      return 'A child session must stay in the workspace of its parent.'
+    case 'envelope_not_a_child':
+      return 'This session is not a child of the session that tried to act on it.'
+    case 'tool_not_in_profile':
+      return 'This session is not allowed to call that tool. Third-party providers get a restricted tool profile.'
   }
 }
 

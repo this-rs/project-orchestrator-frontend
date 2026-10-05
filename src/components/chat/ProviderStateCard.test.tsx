@@ -207,3 +207,50 @@ describe('ProviderStateCard', () => {
     expect(screen.getByRole('link', { name: /vault/i }).getAttribute('href')).toBe('/vault')
   })
 })
+
+describe('ProviderStateCard — every code the backend can send', () => {
+  const codes = [
+    'security_gate_closed',
+    'origin_mismatch',
+    'endpoint_invalid_url',
+    'endpoint_scheme_not_allowed',
+    'endpoint_http_outside_loopback',
+    'endpoint_credentials_in_url',
+    'endpoint_host_missing',
+    'endpoint_private_address',
+    'envelope_unbound_token',
+    'envelope_parent_not_found',
+    'envelope_depth_exceeded',
+    'envelope_too_many_children',
+    'envelope_cwd_outside_parent',
+    'envelope_add_dir_outside_parent',
+    'envelope_project_mismatch',
+    'envelope_workspace_mismatch',
+    'envelope_not_a_child',
+    'tool_not_in_profile',
+  ] as const
+
+  it.each(codes)('%s — has its own title and a sentence that says what to do', (code) => {
+    const { card } = mount(err(code))
+    expect(card.getAttribute('data-error-code')).toBe(code)
+    const [title, sentence] = Array.from(card.querySelectorAll('p')).map((p) => p.textContent ?? '')
+    expect(title.length).toBeGreaterThan(8)
+    expect(sentence.length).toBeGreaterThan(30)
+    expect(title).not.toBe(code)
+  })
+
+  it('security_gate_closed — says authentication must be on', () => {
+    const { card } = mount(err('security_gate_closed'))
+    expect(card.textContent).toMatch(/authentication/i)
+  })
+
+  it('origin_mismatch — links to the project consent', () => {
+    const { link } = mount(err('origin_mismatch', { project_slug: 'demo' }))
+    expect(link(/consent/i).getAttribute('href')).toBe('/providers?project=demo#consent')
+  })
+
+  it.each(['endpoint_invalid_url', 'endpoint_private_address', 'endpoint_http_outside_loopback'] as const)('%s — links to the instance settings', (code) => {
+    const { link } = mount(err(code, { provider_id: 'deepseek' }))
+    expect(link(/instance settings/i).getAttribute('href')).toBe('/providers?instance=deepseek')
+  })
+})
