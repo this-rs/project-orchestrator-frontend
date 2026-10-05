@@ -13,7 +13,8 @@ import { ChevronRight } from 'lucide-react'
 import { EntityList, MetaLine, focusRingInset, surface, ToneText } from '@/components/ui'
 import type { ActiveAgentSnapshot } from '@/services/runner'
 import type { AgentExecution } from '@/types'
-import { formatElapsed, formatCost, getWaveStatus, waveStateMeta } from './shared'
+import { formatElapsed, getWaveStatus, runCost, waveStateMeta } from './shared'
+import { COST_SUM_PARTIAL_HELP, formatCostSum, sumCosts } from '@/utils/cost'
 import { WaveAgentCard } from './WaveAgentCard'
 import { InlineConversation } from './InlineConversation'
 import { LiveProgress } from './LiveProgress'
@@ -50,7 +51,10 @@ export function WaveSection({
   const completedCount = agents.filter((a) => a.status === 'completed').length
   const failedCount = agents.filter((a) => a.status === 'failed').length
   const totalCount = taskIds.length
-  const waveCost = agents.reduce((sum, a) => sum + a.cost_usd, 0)
+  // A wave's cost is a sum: when some agents have no figure it is a floor
+  // ("≥ $x"), not a total.
+  const waveCostSum = sumCosts(agents.map(runCost))
+  const waveCost = waveCostSum.usd > 0 ? formatCostSum(waveCostSum) : null
   const waveTime = agents.reduce((max, a) => Math.max(max, a.elapsed_secs), 0)
 
   const conversationAgent = selectedConversation ? agents.find((a) => a.session_id === selectedConversation.sessionId) : null
@@ -76,7 +80,11 @@ export function WaveSection({
             items={[
               `${totalCount} ${totalCount === 1 ? 'task' : 'tasks'}`,
               failedCount > 0 ? <span key="f" className="text-red-400">{failedCount} failed</span> : null,
-              waveCost > 0 ? <span key="c" className="font-mono tabular-nums">{formatCost(waveCost)}</span> : null,
+              waveCost ? (
+                <span key="c" className="font-mono tabular-nums" title={waveCostSum.unknown > 0 ? COST_SUM_PARTIAL_HELP : undefined}>
+                  {waveCost}
+                </span>
+              ) : null,
               waveTime > 0 ? <span key="t" className="font-mono tabular-nums">{formatElapsed(waveTime)}</span> : null,
             ]}
           />

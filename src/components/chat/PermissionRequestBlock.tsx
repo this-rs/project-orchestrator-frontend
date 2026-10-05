@@ -1,47 +1,55 @@
 import { useState, useEffect, useRef } from 'react'
 import type { ContentBlock } from '@/types'
+import { supportsScope, type ToolCategory } from '@/types/provider'
+import { POLICY_ONLY_REQUEST_TEXT } from '@/constants/capabilities'
+import { useChatCapabilities } from './ChatSessionContext'
+import { useBlockProviderKind } from './useBlockProviderKind'
+import { commandText, getToolCategory } from './tools'
 import { Terminal, Eye, FileEdit, Zap, Globe, AlertTriangle, Check, X, ChevronRight } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
 // Tool category classification + colors
 // ---------------------------------------------------------------------------
 
-type ToolCategory = 'bash' | 'read' | 'edit' | 'mcp' | 'web' | 'other'
+// Which category a tool belongs to is decided by the registry
+// (`getToolCategory`): the provider adapter's `category` when the event carries
+// one, the Claude tool table otherwise. No tool name is known here.
 
-function classifyTool(toolName: string): ToolCategory {
-  const lower = toolName.toLowerCase()
-  if (lower === 'bash') return 'bash'
-  if (lower === 'read' || lower === 'glob' || lower === 'grep') return 'read'
-  if (lower === 'edit' || lower === 'write' || lower === 'notebookedit') return 'edit'
-  if (lower.startsWith('mcp__') || lower.startsWith('mcp_')) return 'mcp'
-  if (lower === 'webfetch' || lower === 'websearch') return 'web'
-  return 'other'
+type CategoryStyle = {
+  border: string
+  bg: string
+  text: string
+  icon: string
+  label: string
 }
 
-const CATEGORY_STYLES: Record<
-  ToolCategory,
-  {
-    border: string
-    bg: string
-    text: string
-    icon: string
-    label: string
-  }
-> = {
-  bash: {
+const READ_STYLE: CategoryStyle = {
+  border: 'border-l-emerald-500/40',
+  bg: 'bg-emerald-950/20',
+  text: 'text-emerald-400',
+  icon: 'text-emerald-400',
+  label: 'Read',
+}
+
+const OTHER_STYLE: CategoryStyle = {
+  border: 'border-l-gray-500/40',
+  bg: 'bg-gray-950/20',
+  text: 'text-gray-400',
+  icon: 'text-gray-400',
+  label: 'Tool',
+}
+
+const CATEGORY_STYLES: Record<ToolCategory, CategoryStyle> = {
+  command: {
     border: 'border-l-amber-500/40',
     bg: 'bg-amber-950/20',
     text: 'text-amber-400',
     icon: 'text-amber-400',
     label: 'Command',
   },
-  read: {
-    border: 'border-l-emerald-500/40',
-    bg: 'bg-emerald-950/20',
-    text: 'text-emerald-400',
-    icon: 'text-emerald-400',
-    label: 'Read',
-  },
+  read: READ_STYLE,
+  // Searching is reading: Glob and Grep have always been shown as "Read".
+  search: READ_STYLE,
   edit: {
     border: 'border-l-blue-500/40',
     bg: 'bg-blue-950/20',
@@ -63,13 +71,9 @@ const CATEGORY_STYLES: Record<
     icon: 'text-cyan-400',
     label: 'Web',
   },
-  other: {
-    border: 'border-l-gray-500/40',
-    bg: 'bg-gray-950/20',
-    text: 'text-gray-400',
-    icon: 'text-gray-400',
-    label: 'Tool',
-  },
+  // No dedicated style for sub-agents yet: shown like any other tool.
+  agent: OTHER_STYLE,
+  other: OTHER_STYLE,
 }
 
 // ---------------------------------------------------------------------------
@@ -79,20 +83,21 @@ const CATEGORY_STYLES: Record<
 function formatToolSummary(
   toolName: string,
   input: Record<string, unknown> | undefined,
+  category: ToolCategory,
 ): { summary: string; detail: string | null; language: string } {
   if (!input || Object.keys(input).length === 0) {
     return { summary: toolName, detail: null, language: 'text' }
   }
 
-  const category = classifyTool(toolName)
-
   switch (category) {
-    case 'bash': {
-      const command = (input.command as string) || ''
+    case 'command': {
+      // A string for Claude's Bash, an argv array for Codex's `shell`.
+      const command = commandText(input) || ''
       const desc = (input.description as string) || ''
       return { summary: desc || command.slice(0, 80) || 'Execute command', detail: command, language: 'bash' }
     }
-    case 'read': {
+    case 'read':
+    case 'search': {
       const filePath =
         (input.file_path as string) || (input.path as string) || (input.pattern as string) || ''
       return {
@@ -138,9 +143,10 @@ function formatToolSummary(
 function CategoryIcon({ category, className }: { category: ToolCategory; className?: string }) {
   const cls = className || 'w-3.5 h-3.5'
   switch (category) {
-    case 'bash':
+    case 'command':
       return <Terminal className={cls} />
     case 'read':
+    case 'search':
       return <Eye className={cls} />
     case 'edit':
       return <FileEdit className={cls} />
@@ -178,9 +184,18 @@ export function PermissionRequestBlock({
     ? (block.metadata.decision as 'allowed' | 'denied')
     : null
 
-  const category = classifyTool(toolName)
+  // What the provider of this conversation can do: ask at all, and remember an answer.
+  const caps = useChatCapabilities()
+  const canRemember = supportsScope(caps, 'session')
+  const providerKind = useBlockProviderKind()
+
+  const category = getToolCategory(toolName, {
+    providerKind,
+    category: block.metadata?.tool_category,
+    canonical: block.metadata?.tool_canonical as string | undefined,
+  })
   const styles = CATEGORY_STYLES[category]
-  const { summary, detail, language } = formatToolSummary(toolName, toolInput)
+  const { summary, detail, language } = formatToolSummary(toolName, toolInput, category)
 
   // Response state — auto-approved or persisted decisions start as already responded
   const initialDecision = autoApproved ? 'allowed' : persistedDecision
@@ -206,7 +221,7 @@ export function PermissionRequestBlock({
 
   const handleRespond = (allowed: boolean) => {
     if (responded) return
-    const remember = rememberChecked && allowed ? { toolName } : undefined
+    const remember = canRemember && rememberChecked && allowed ? { toolName } : undefined
     // Only show the decision once it was actually delivered: on a dead socket
     // onRespond returns false and the agent is still waiting for an answer.
     if (onRespond(toolCallId, allowed, remember) === false) {
@@ -245,6 +260,28 @@ export function PermissionRequestBlock({
             Denied
           </span>
         )}
+      </div>
+    )
+  }
+
+  // ─── No interactive permissions: nothing to answer ──────────────────
+  // The provider cannot pause a tool call, so Allow / Deny would be buttons
+  // that do nothing. The request is shown for what it is: decided by policy.
+  if (!caps.interactive_permissions) {
+    return (
+      <div
+        ref={containerRef}
+        data-testid="permission-policy-only"
+        className={`my-1 rounded border-l-2 ${styles.border} ${styles.bg} border-white/[0.04] px-2.5 py-1.5`}
+      >
+        <div className="flex items-center gap-2">
+          <CategoryIcon category={category} className={`w-3.5 h-3.5 shrink-0 ${styles.icon}`} />
+          <span className={`text-[11px] font-medium ${styles.text}`}>{styles.label}</span>
+          <span className="text-[11px] text-gray-400 truncate flex-1" title={toolName}>
+            {summary}
+          </span>
+        </div>
+        <p className="mt-0.5 text-[10px] text-gray-500">{POLICY_ONLY_REQUEST_TEXT}</p>
       </div>
     )
   }
@@ -327,15 +364,18 @@ export function PermissionRequestBlock({
             <X className="w-3 h-3" />
             Deny
           </button>
-          <label className="flex items-center gap-1 cursor-pointer ml-auto">
-            <input
-              type="checkbox"
-              checked={rememberChecked}
-              onChange={(e) => setRememberChecked(e.target.checked)}
-              className="w-3 h-3 rounded border-gray-600 bg-white/[0.04] text-indigo-500 focus:ring-indigo-500/30 focus:ring-offset-0"
-            />
-            <span className="text-[10px] text-gray-500">Remember</span>
-          </label>
+{/* Offered only when the provider can remember an answer for the session. */}
+          {canRemember && (
+                    <label className="flex items-center gap-1 cursor-pointer ml-auto">
+              <input
+                type="checkbox"
+                checked={rememberChecked}
+                onChange={(e) => setRememberChecked(e.target.checked)}
+                className="w-3 h-3 rounded border-gray-600 bg-white/[0.04] text-indigo-500 focus:ring-indigo-500/30 focus:ring-offset-0"
+              />
+              <span className="text-[10px] text-gray-500">Remember</span>
+            </label>
+          )}
         </div>
         {sendFailed && (
           <p role="alert" className="mt-1.5 text-[10px] text-red-400">

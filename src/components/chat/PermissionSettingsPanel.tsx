@@ -1,56 +1,25 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useAtom } from 'jotai'
-import { chatPermissionConfigAtom } from '@/atoms'
+import { useState, useEffect, useCallback, useId, useRef } from 'react'
+import { useAtom, useAtomValue } from 'jotai'
+import { chatPermissionConfigAtom, chatProviderTargetAtom } from '@/atoms'
 import { chatApi } from '@/services/chat'
 import { useToast } from '@/hooks'
 import type { PermissionMode } from '@/types'
+import type { ToolPolicyMode } from '@/types/provider'
+import {
+  MODE_DOT_COLORS,
+  RULES_UNSUPPORTED_TEXT,
+  TRUST_REQUIRES_SANDBOX_TEXT,
+  isTrustAllowed,
+  modeLabelSet,
+  readToolPolicyMode,
+  settingsModeOptions,
+  toWireMode,
+} from '@/constants/toolPolicy'
 import { X, Settings, Loader2 } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
-// Mode metadata
-// ---------------------------------------------------------------------------
-
-interface ModeInfo {
-  mode: PermissionMode
-  label: string
-  description: string
-  color: string // Tailwind color for the active dot/border
-  bgActive: string // Active background
-}
-
-const MODES: ModeInfo[] = [
-  {
-    mode: 'bypassPermissions',
-    label: 'Bypass',
-    description: 'Auto-approve all tools. No prompts.',
-    color: 'emerald',
-    bgActive: 'bg-emerald-500/10 border-emerald-500/40',
-  },
-  {
-    mode: 'acceptEdits',
-    label: 'Accept Edits',
-    description: 'Auto-approve file edits, prompt for commands.',
-    color: 'blue',
-    bgActive: 'bg-blue-500/10 border-blue-500/40',
-  },
-  {
-    mode: 'default',
-    label: 'Default',
-    description: 'Prompt for all tool usage.',
-    color: 'amber',
-    bgActive: 'bg-amber-500/10 border-amber-500/40',
-  },
-  {
-    mode: 'plan',
-    label: 'Plan Only',
-    description: 'Read-only mode. No writes or commands.',
-    color: 'gray',
-    bgActive: 'bg-gray-500/10 border-gray-400/40',
-  },
-]
-
-// ---------------------------------------------------------------------------
-// Tool pattern presets
+// Tool pattern presets — Claude Code's rule syntax (`Tool(pattern)`). Shown
+// only for a provider that applies such rules.
 // ---------------------------------------------------------------------------
 
 interface ToolPreset {
@@ -231,9 +200,14 @@ interface PermissionSettingsPanelProps {
 export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProps) {
   const [serverConfig, setServerConfig] = useAtom(chatPermissionConfigAtom)
   const toast = useToast()
+  const providerTarget = useAtomValue(chatProviderTargetAtom)
+  const modeOptions = settingsModeOptions(modeLabelSet(providerTarget.isClaudeCode))
+  const trustAllowed = isTrustAllowed(providerTarget)
+  const trustHelpId = useId()
 
-  // Local working copy — permissions
-  const [localMode, setLocalMode] = useState<PermissionMode>('bypassPermissions')
+  // Local working copy — permissions. The mode is held neutral; the server's
+  // own string (legacy or neutral) stays in `serverConfig`.
+  const [localMode, setLocalMode] = useState<ToolPolicyMode>('trust')
   const [localAllowed, setLocalAllowed] = useState<string[]>([])
   const [localDisallowed, setLocalDisallowed] = useState<string[]>([])
 
@@ -252,7 +226,7 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
 
         // Try the unified chat config endpoint first (includes env fields)
         // Falls back to permissions-only endpoint if the backend doesn't support it yet
-        let permMode: PermissionMode = 'bypassPermissions'
+        let permMode: PermissionMode = 'trust'
         let allowedTools: string[] = []
         let disallowedTools: string[] = []
         let defaultModel: string | undefined
@@ -282,7 +256,7 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
           default_model: defaultModel,
         })
         // Local permission state
-        setLocalMode(permMode)
+        setLocalMode(readToolPolicyMode(permMode))
         setLocalAllowed([...allowedTools])
         setLocalDisallowed([...disallowedTools])
       } catch (err) {
@@ -301,7 +275,7 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
   // Detect unsaved changes (permissions + env)
   const hasPermChanges =
     serverConfig !== null &&
-    (localMode !== serverConfig.mode ||
+    (localMode !== readToolPolicyMode(serverConfig.mode) ||
       JSON.stringify(localAllowed) !== JSON.stringify(serverConfig.allowed_tools) ||
       JSON.stringify(localDisallowed) !== JSON.stringify(serverConfig.disallowed_tools))
 
@@ -310,10 +284,18 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
   const handleSave = useCallback(async () => {
     try {
       setSaving(true)
+      // A mode the user did not touch is sent back exactly as the server gave
+      // it: saving a new rule must not rewrite a CLI-only mode (`auto`,
+      // `dontAsk`) into the neutral mode it was read as. A changed mode goes
+      // out in the form this provider's backend reads.
+      const mode: PermissionMode =
+        serverConfig && readToolPolicyMode(serverConfig.mode) === localMode
+          ? serverConfig.mode
+          : toWireMode(localMode, { neutral: providerTarget.neutralWire })
       // Try the unified PATCH endpoint first, fallback to permissions-only PUT
       try {
         const saved = await chatApi.updateChatConfig({
-          mode: localMode,
+          mode,
           allowed_tools: localAllowed,
           disallowed_tools: localDisallowed,
         })
@@ -326,7 +308,7 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
       } catch {
         // Unified endpoint not available — fallback to permissions-only
         const saved = await chatApi.updatePermissionConfig({
-          mode: localMode,
+          mode,
           allowed_tools: localAllowed,
           disallowed_tools: localDisallowed,
         })
@@ -343,18 +325,18 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
     } finally {
       setSaving(false)
     }
-  }, [localMode, localAllowed, localDisallowed, setServerConfig, toast])
+  }, [localMode, localAllowed, localDisallowed, serverConfig, providerTarget.neutralWire, setServerConfig, toast])
 
   const handleCancel = () => {
     if (serverConfig) {
-      setLocalMode(serverConfig.mode)
+      setLocalMode(readToolPolicyMode(serverConfig.mode))
       setLocalAllowed([...(serverConfig.allowed_tools ?? [])])
       setLocalDisallowed([...(serverConfig.disallowed_tools ?? [])])
     }
   }
 
   // Mode color dot for the active mode
-  const activeModeInfo = MODES.find((m) => m.mode === localMode)
+  const activeModeInfo = modeOptions.find((m) => m.mode === localMode)
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -395,23 +377,27 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
             <section>
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Permission Mode</h3>
               <div className="grid grid-cols-2 gap-2">
-                {MODES.map((m) => {
+                {modeOptions.map((m) => {
                   const isActive = localMode === m.mode
-                  const dotColor = {
-                    emerald: 'bg-emerald-400',
-                    blue: 'bg-blue-400',
-                    amber: 'bg-amber-400',
-                    gray: 'bg-gray-400',
-                  }[m.color]
+                  const dotColor = MODE_DOT_COLORS[m.mode]
+                  // Decision A35: no `trust` for a third-party model without a
+                  // sandbox. The option stays reachable and says why.
+                  const refused = m.mode === 'trust' && !trustAllowed
 
                   return (
                     <button
                       key={m.mode}
-                      onClick={() => setLocalMode(m.mode)}
+                      type="button"
+                      onClick={() => { if (!refused) setLocalMode(m.mode) }}
+                      aria-pressed={isActive}
+                      aria-disabled={refused || undefined}
+                      aria-describedby={refused ? trustHelpId : undefined}
                       className={`text-left rounded-lg border p-2.5 transition-all ${
                         isActive
                           ? m.bgActive
-                          : 'border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.02]'
+                          : refused
+                            ? 'border-white/[0.06] opacity-60 cursor-not-allowed'
+                            : 'border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.02]'
                       }`}
                     >
                       <div className="flex items-center gap-1.5 mb-1">
@@ -421,34 +407,51 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
                         </span>
                       </div>
                       <p className="text-[10px] text-gray-500 leading-tight">{m.description}</p>
+                      {refused && (
+                        <p id={trustHelpId} className="mt-1 text-[10px] text-amber-400/80 leading-tight">
+                          {TRUST_REQUIRES_SANDBOX_TEXT}
+                        </p>
+                      )}
                     </button>
                   )
                 })}
               </div>
             </section>
 
-            {/* --- Allowed tools --- */}
-            <section>
-              <PatternListEditor
-                label="Allowed Tools"
-                description="Tool patterns to auto-approve"
-                patterns={localAllowed}
-                onChange={setLocalAllowed}
-                presets={ALLOWED_PRESETS}
-              />
-            </section>
+            {providerTarget.ruleScopes ? (
+              <>
+                {/* --- Allowed tools --- */}
+                <section>
+                  <PatternListEditor
+                    label="Allowed Tools"
+                    description="Tool patterns to auto-approve"
+                    patterns={localAllowed}
+                    onChange={setLocalAllowed}
+                    presets={ALLOWED_PRESETS}
+                  />
+                </section>
 
-            {/* --- Disallowed tools --- */}
-            <section>
-              <PatternListEditor
-                label="Disallowed Tools"
-                description="Tool patterns to always block"
-                patterns={localDisallowed}
-                onChange={setLocalDisallowed}
-                presets={DISALLOWED_PRESETS}
-                danger
-              />
-            </section>
+                {/* --- Disallowed tools --- */}
+                <section>
+                  <PatternListEditor
+                    label="Disallowed Tools"
+                    description="Tool patterns to always block"
+                    patterns={localDisallowed}
+                    onChange={setLocalDisallowed}
+                    presets={DISALLOWED_PRESETS}
+                    danger
+                  />
+                </section>
+              </>
+            ) : (
+              // Rules are written in Claude Code's pattern syntax, which this
+              // provider does not read: offering them would be a control that
+              // silently does nothing.
+              <section>
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Tool rules</h3>
+                <p className="text-xs text-gray-500 leading-snug">{RULES_UNSUPPORTED_TEXT}</p>
+              </section>
+            )}
 
             {/* Current mode summary */}
             {activeModeInfo && (
@@ -456,10 +459,10 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
                 <p className="text-[10px] text-gray-500">
                   <span className="font-medium text-gray-400">Active:</span>{' '}
                   {activeModeInfo.label} &mdash; {activeModeInfo.description}
-                  {localAllowed.length > 0 && (
+                  {providerTarget.ruleScopes && localAllowed.length > 0 && (
                     <> &middot; {localAllowed.length} allowed pattern{localAllowed.length > 1 ? 's' : ''}</>
                   )}
-                  {localDisallowed.length > 0 && (
+                  {providerTarget.ruleScopes && localDisallowed.length > 0 && (
                     <> &middot; {localDisallowed.length} blocked pattern{localDisallowed.length > 1 ? 's' : ''}</>
                   )}
                 </p>

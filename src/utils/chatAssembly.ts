@@ -6,6 +6,7 @@
  */
 
 import { splitAttachments } from './messageAttachments'
+import { applyResultCost } from './cost'
 import type {
   BackgroundActivityMetadata,
   BackgroundOutputEntry,
@@ -13,6 +14,7 @@ import type {
   ContentBlock,
 } from '@/types'
 import { BACKGROUND_ACTIVITY_MAX_ENTRIES } from '@/types'
+import { readProviderError, toProviderRef, toToolPolicy, type ProviderCapabilities, type ProviderErrorInfo, type ProviderRef, type ToolPolicy } from '@/types/provider'
 
 // ---------------------------------------------------------------------------
 // ID generators
@@ -231,6 +233,19 @@ export function sessionErrorText(evt: { reason?: string; message?: string }): st
   return evt.reason ? `${message} (${evt.reason})` : message
 }
 
+/**
+ * What a `session_error` carrying a typed `code` leaves on its error block:
+ * the code and the whole typed error, so the transcript can render the card of
+ * that failure (sign-in, consent, retry…) instead of a bare red line.
+ *
+ * Empty for an event without a known code — the death of a Claude CLI keeps
+ * exactly the block it always had. Shared by BOTH reducers.
+ */
+export function sessionErrorMetadata(evt: unknown): { code?: string; provider_error?: ProviderErrorInfo } {
+  const info = readProviderError(evt)
+  return info ? { code: info.code, provider_error: info } : {}
+}
+
 /** Human text for a `tools_cancelled` event: how many processes were killed, and by whom. */
 export function toolsCancelledText(evt: { killed_count?: number; requested_by?: string }): string {
   const n = evt.killed_count ?? 0
@@ -296,6 +311,9 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
           }
         }
         lastEventWasMaxTurns = false
+        // The answer to a synthetic question IS this user turn.
+        const answered = answerSyntheticQuestion(messages, content)
+        if (answered !== messages) messages.splice(0, messages.length, ...answered)
         messages.push({
           id: evt.id || nextMessageId(),
           role: 'user',
@@ -331,7 +349,7 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
         const parent = getParentToolUseId(evt)
         const ts = createdAt.toISOString()
 
-        if (toolName === 'AskUserQuestion') {
+        if (isQuestionToolUse(evt)) {
           const questions = (toolInput as { questions?: { question: string }[] })?.questions
           if (questions && questions.length > 0) {
             // Dedup: skip if ask_user_question block with same tool_call_id already exists
@@ -352,7 +370,7 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
             id: nextBlockId(),
             type: 'tool_use',
             content: toolName,
-            metadata: withCreatedAt(withParent({ tool_call_id: toolId, tool_name: toolName, tool_input: toolInput }, parent), ts),
+            metadata: withCreatedAt(withParent({ tool_call_id: toolId, tool_name: toolName, tool_input: toolInput, ...toolHintMetadata(evt) }, parent), ts),
           })
         }
         break
@@ -445,7 +463,7 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
           id: nextBlockId(),
           type: 'permission_request',
           content: `Tool "${evt.tool}" wants to execute`,
-          metadata: withParent({ tool_call_id: evt.id, tool_name: evt.tool, tool_input: evt.input }, parent),
+          metadata: withParent({ tool_call_id: evt.id, tool_name: evt.tool, tool_input: evt.input, ...toolHintMetadata(evt) }, parent),
         })
         break
       }
@@ -481,7 +499,7 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
               id: nextBlockId(),
               type: 'ask_user_question',
               content: questions.map((q: { question: string }) => q.question).join('\n'),
-              metadata: withParent({ tool_call_id: toolCallId, questions }, parent),
+              metadata: withParent(questionMetadata(evt, toolCallId, questions), parent),
             })
           }
         }
@@ -504,10 +522,12 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
         // Emitted by the backend when the CLI subprocess dies (emit_subprocess_death).
         // Typed in ChatEvent but never reduced: the death of the CLI was invisible.
         const msg = lastAssistant(createdAt)
+        const typed = sessionErrorMetadata(evt)
         msg.blocks.push({
           id: nextBlockId(),
           type: 'error',
           content: sessionErrorText(evt),
+          ...(typed.code ? { metadata: typed } : {}),
         })
         break
       }
@@ -571,6 +591,7 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
               tools_count: initTools?.length ?? 0,
               mcp_servers_count: initMcpServers?.length ?? 0,
               permission_mode: initPermMode,
+              ...systemInitProviderMetadata(evt),
             },
           })
         }
@@ -585,7 +606,7 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
         // Store turn metrics on the assistant message
         const rMsg = lastAssistant(createdAt)
         if (evt.duration_ms != null) rMsg.duration_ms = evt.duration_ms as number
-        if (evt.cost_usd != null) rMsg.cost_usd = evt.cost_usd as number
+        applyResultCost(rMsg, evt)
 
         if (rSubtype === 'error_max_turns') {
           rMsg.blocks.push({
@@ -712,3 +733,128 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
 // ---------------------------------------------------------------------------
 
 export { nextBlockId, nextMessageId, getParentToolUseId, withParent, withCreatedAt }
+
+/**
+ * What the provider adapter said about a tool call (`tool_use`,
+ * `permission_request`), as block metadata: `tool_category` and
+ * `tool_canonical`. The renderer registry and the permission block read them
+ * instead of guessing from the tool's name.
+ *
+ * Only the fields the event carries are returned, so a Claude Code block —
+ * whose events carry neither — keeps exactly the metadata it always had.
+ * Shared by the history reducer (here) and the live one (`useChat`).
+ */
+export function toolHintMetadata(evt: unknown): { tool_category?: string; tool_canonical?: string } {
+  if (typeof evt !== 'object' || evt === null) return {}
+  const e = evt as Record<string, unknown>
+  const out: { tool_category?: string; tool_canonical?: string } = {}
+  if (typeof e.category === 'string' && e.category !== '') out.tool_category = e.category
+  if (typeof e.canonical === 'string' && e.canonical !== '') out.tool_canonical = e.canonical
+  return out
+}
+
+// ============================================================================
+// Questions to the user (shared by the live and the history reducers)
+// ============================================================================
+
+/** Claude's question tool. The ONE place its name is spelled in the reducers. */
+const QUESTION_TOOL = 'AskUserQuestion'
+
+/**
+ * Is this `tool_use` the provider's "ask the user a question" tool? Decided on
+ * the canonical alias its adapter supplied, and on Claude's own tool name for
+ * the events that carry no alias (Claude Code).
+ */
+export function isQuestionToolUse(evt: unknown): boolean {
+  if (typeof evt !== 'object' || evt === null) return false
+  const e = evt as Record<string, unknown>
+  return e.canonical === QUESTION_TOOL || e.tool === QUESTION_TOOL
+}
+
+/**
+ * Metadata of an `ask_user_question` block. `synthetic` is kept when the
+ * backend built the question for a provider with no native support: its answer
+ * goes back as a USER TURN, not as an `input_response`.
+ */
+export function questionMetadata(evt: unknown, toolCallId: string, questions: unknown): Record<string, unknown> {
+  const synthetic = typeof evt === 'object' && evt !== null && (evt as Record<string, unknown>).synthetic === true
+  return { tool_call_id: toolCallId, questions, ...(synthetic ? { synthetic: true } : {}) }
+}
+
+/**
+ * A user turn answers the SYNTHETIC question still open before it: the block
+ * is stamped `submitted` with the turn's text, as a native question is from
+ * its `tool_result`. Only the questions of the last assistant message are
+ * looked at. Returns the same array when there is nothing to stamp.
+ */
+export function answerSyntheticQuestion(messages: ChatMessage[], response: string): ChatMessage[] {
+  for (let mi = messages.length - 1; mi >= 0; mi--) {
+    const msg = messages[mi]
+    if (msg.role !== 'assistant') return messages
+    const bi = msg.blocks.findIndex(
+      (b) => b.type === 'ask_user_question' && b.metadata?.synthetic === true && !b.metadata.submitted,
+    )
+    if (bi === -1) continue
+    const blocks = [...msg.blocks]
+    blocks[bi] = { ...blocks[bi], metadata: { ...blocks[bi].metadata, submitted: true, response } }
+    const next = [...messages]
+    next[mi] = { ...msg, blocks }
+    return next
+  }
+  return messages
+}
+
+// ============================================================================
+// system_init → provider runtime (shared by the live and the history reducers)
+// ============================================================================
+
+/** What a `system_init` says about the harness behind the session. */
+export interface SystemInitRuntime {
+  /** `null` = the event names no provider: a pre-provider session, i.e. Claude Code. */
+  provider: ProviderRef | null
+  /** `null` = no capabilities carried: the fallback profile applies. */
+  capabilities: Partial<ProviderCapabilities> | null
+  toolPolicy: ToolPolicy | null
+  /**
+   * Engine that runs the session (`legacy` | `agent`). `undefined`/`null` = not
+   * said (the backend omits it on the legacy engine).
+   */
+  engine?: string | null
+  /** What this engine cannot do for the session (feature ids). Empty = nothing said. */
+  degradedFeatures?: string[]
+}
+
+/**
+ * Read provider, capabilities and tool policy off a `system_init` payload.
+ * Used by BOTH reducers so a session renders the same live and from history.
+ */
+export function readSystemInitRuntime(evt: unknown): SystemInitRuntime {
+  const e = (typeof evt === 'object' && evt !== null ? evt : {}) as Record<string, unknown>
+  const caps = e.capabilities
+  return {
+    provider: toProviderRef(e.provider),
+    capabilities: typeof caps === 'object' && caps !== null ? (caps as Partial<ProviderCapabilities>) : null,
+    toolPolicy: toToolPolicy(e.tool_policy) ?? toToolPolicy(e.policy_mode) ?? toToolPolicy(e.permission_mode),
+    engine: typeof e.engine === 'string' && e.engine ? e.engine : null,
+    degradedFeatures: Array.isArray(e.degraded_features) ? e.degraded_features.filter((f): f is string => typeof f === 'string') : [],
+  }
+}
+
+/** Runtime of the LAST `system_init` in a raw history window, or `null` when it holds none. */
+export function lastSystemInitRuntime(rawEvents: ReadonlyArray<unknown>): SystemInitRuntime | null {
+  for (let i = rawEvents.length - 1; i >= 0; i--) {
+    const evt = rawEvents[i] as { type?: string; data?: unknown } | null
+    if (evt?.type !== 'system_init') continue
+    // A replayed record may nest its payload under `data`.
+    const nested = typeof evt.data === 'object' && evt.data !== null ? (evt.data as object) : null
+    return readSystemInitRuntime(nested ? { ...evt, ...nested } : evt)
+  }
+  return null
+}
+
+/** Provider fields stored on a `system_init` block (absent for a legacy session). */
+export function systemInitProviderMetadata(evt: unknown): { provider?: string; provider_kind?: string; provider_label?: string } {
+  const ref = readSystemInitRuntime(evt).provider
+  if (!ref) return {}
+  return { provider: ref.id, provider_kind: ref.kind, provider_label: ref.label }
+}

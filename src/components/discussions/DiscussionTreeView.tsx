@@ -12,6 +12,7 @@ import { useDiscussionTree } from '@/hooks/useDiscussionTree'
 import { focusRing, pressFeedback } from '@/components/ui/classes'
 import { DiscussionNodeRow } from './DiscussionNode'
 import { InlineConversationPanel } from './InlineConversationPanel'
+import { SubtreeBreakdown } from './SubtreeBreakdown'
 
 // ---------------------------------------------------------------------------
 // Component
@@ -125,6 +126,9 @@ export function DiscussionForestView({
           }`}
         >
           {roots.map((root) => (
+            <SubtreeBreakdown key={`breakdown-${root.session_id}`} root={root} />
+          ))}
+          {roots.map((root) => (
             <DiscussionNodeRow
               key={root.session_id}
               node={root}
@@ -132,6 +136,7 @@ export function DiscussionForestView({
               selectedSessionId={selectedNodeId}
               onSelectNode={handleSelectNode}
               renderActions={renderActions}
+              onTreeChanged={onRefresh}
             />
           ))}
         </div>

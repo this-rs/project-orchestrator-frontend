@@ -20,6 +20,11 @@ import { BackgroundActivityGroup } from './BackgroundActivityBlock'
 import { VizBlockRenderer } from './viz'
 import { CopyMarkdownButton } from './CopyMarkdownButton'
 import { messageBodyToMarkdown } from '@/utils/chatExport'
+import { ProviderStateCard } from './ProviderStateCard'
+import { CostDisplay } from '@/components/ui/CostDisplay'
+import { costOfMessage } from '@/utils/cost'
+import type { ProviderErrorInfo, SubagentsSupport } from '@/types/provider'
+import { useChatCapabilities } from './ChatSessionContext'
 
 // ============================================================================
 // Agent grouping types & utilities
@@ -49,14 +54,23 @@ export type GroupedBlock =
  * 4. Return a flat array of GroupedBlock items preserving chronological order.
  *
  * Blocks without parent_tool_use_id are treated as top-level (no visual change).
+ *
+ * `subagents` is the capability of the session's provider (default: Claude's).
  */
-export function groupBlocksByAgent(blocks: ContentBlock[]): GroupedBlock[] {
+export function groupBlocksByAgent(blocks: ContentBlock[], subagents: SubagentsSupport = 'nested'): GroupedBlock[] {
+  // A provider without sub-agents has no agent to group under: whatever
+  // `parent_tool_use_id` its events carry is ignored and the blocks stay flat,
+  // in arrival order. `separate_thread` keeps the grouping, like `nested`.
+  const nested = subagents !== 'none'
+  const parentOf = (block: ContentBlock) =>
+    nested ? (block.metadata?.parent_tool_use_id as string | undefined) : undefined
+
   // Step 1: Collect all parent_tool_use_ids and their child blocks
   const childrenByParent = new Map<string, ContentBlock[]>()
   const parentIds = new Set<string>()
 
   for (const block of blocks) {
-    const parentId = block.metadata?.parent_tool_use_id as string | undefined
+    const parentId = parentOf(block)
     if (parentId) {
       parentIds.add(parentId)
       let children = childrenByParent.get(parentId)
@@ -74,7 +88,7 @@ export function groupBlocksByAgent(blocks: ContentBlock[]): GroupedBlock[] {
   const emittedParents = new Set<string>()
 
   for (const block of blocks) {
-    const parentId = block.metadata?.parent_tool_use_id as string | undefined
+    const parentId = parentOf(block)
 
     // Skip blocks that belong to a sub-agent — they'll be rendered inside their AgentGroupData
     if (parentId) {
@@ -158,6 +172,8 @@ interface ChatMessageBubbleProps {
  * ChatMessages to the last assistant bubble only.
  */
 export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isStreaming, onRespondPermission, onRespondInput, onContinue }: ChatMessageBubbleProps) {
+  // What the provider of this transcript can do (full Claude profile outside the chat panel).
+  const caps = useChatCapabilities()
   if (message.role === 'user') {
     return (
       <div className="flex flex-col items-end mb-4">
@@ -201,7 +217,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
   }
 
   // Assistant message - group blocks by agent and consecutive tool_use runs
-  const grouped = groupBlocksByAgent(message.blocks)
+  const grouped = groupBlocksByAgent(message.blocks, caps.subagents)
 
   return (
     <div className="mb-4">
@@ -248,6 +264,9 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
             }
 
             case 'thinking': {
+              // A provider that emits no reasoning: nothing to show, not an
+              // empty "Thought process" toggle.
+              if (!caps.thinking) return null
               const isLastBlock = index === grouped.length - 1
               return (
                 <ThinkingBlock
@@ -368,12 +387,19 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
               return <BackgroundActivityGroup key={block.id} blocks={run} />
             }
 
-            case 'error':
+            case 'error': {
+              // A `session_error` that carried a typed code: the card of that
+              // failure, with the action that gets out of it.
+              const providerError = block.metadata?.provider_error as ProviderErrorInfo | undefined
+              if (providerError) {
+                return <ProviderStateCard key={block.id} error={providerError} className="my-2" />
+              }
               return (
                 <div key={block.id} className="my-2 px-3 py-2 rounded-lg bg-red-900/10 border border-red-500/20 text-sm text-red-400">
                   {block.content}
                 </div>
               )
+            }
 
             default:
               return null
@@ -404,12 +430,8 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
                 <span>{formatDuration(message.duration_ms)}</span>
               </>
             )}
-            {message.cost_usd != null && (
-              <>
-                <span>·</span>
-                <span>${message.cost_usd < 0.01 ? message.cost_usd.toFixed(4) : message.cost_usd.toFixed(2)}</span>
-              </>
-            )}
+            {/* Amount, "est.", "local", "subscription" or tokens — by basis. Never "$0" for an unknown cost. */}
+            <CostDisplay cost={costOfMessage(message)} before={<span>·</span>} />
           </div>
         )}
       </div>

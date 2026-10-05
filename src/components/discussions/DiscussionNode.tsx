@@ -6,6 +6,14 @@
  * Clickable to select and view the inline conversation.
  */
 
+import { useAtomValue } from 'jotai'
+import { providersAtom } from '@/atoms'
+import { ProviderBadge } from '@/components/chat/ProviderBadge'
+import { describeSessionProvider, shouldShowProviderBadge } from '@/constants/providers'
+import { subtreeCost } from '@/utils/discussionTree'
+import { CostDisplay } from '@/components/ui/CostDisplay'
+import { StopSubtreeButton } from './StopSubtreeButton'
+import { costReport, costToText } from '@/utils/cost'
 import { useState, type ReactNode } from 'react'
 import { focusRing, pressFeedback } from '@/components/ui/classes'
 import {
@@ -88,6 +96,8 @@ interface DiscussionNodeRowProps {
   onSelectNode: (sessionId: string) => void
   /** Buttons shown under the node (attach, resume...). Return null for none. */
   renderActions?: (node: DiscussionNode) => ReactNode
+  /** Re-read the tree after a "Stop subtree". */
+  onTreeChanged?: () => void
 }
 
 export function DiscussionNodeRow({
@@ -96,13 +106,21 @@ export function DiscussionNodeRow({
   selectedSessionId,
   onSelectNode,
   renderActions,
+  onTreeChanged,
 }: DiscussionNodeRowProps) {
+  const instances = useAtomValue(providersAtom)?.providers ?? null
   const [expanded, setExpanded] = useState(true)
   const children = node.children ?? []
   const hasChildren = children.length > 0
   const isSelected = selectedSessionId === node.session_id
   const cfg = statusConfig[node.status] ?? statusConfig.idle
   const StatusIcon = cfg.icon
+  const cost = costReport(node.cost_usd, node.cost_basis)
+  const costText = costToText(cost, { format: formatCost })
+  // A node without `provider_id` is Claude Code (a session from before providers).
+  const provider = describeSessionProvider({ id: node.provider_id }, instances)
+  const showBadge = shouldShowProviderBadge(provider, instances)
+  const subtree = hasChildren ? subtreeCost(node) : null
 
   const title = node.title || node.metadata?.task_id || 'Session sans titre'
   const actions = renderActions?.(node)
@@ -181,10 +199,23 @@ export function DiscussionNodeRow({
             <Clock className="w-3 h-3" aria-hidden="true" />
             {formatDuration(node.duration_secs)}
           </span>
-          <span className="flex items-center gap-1 font-mono tabular-nums" aria-label={`Coût ${formatCost(node.cost_usd)}`}>
-            <DollarSign className="w-3 h-3" aria-hidden="true" />
-            {formatCost(node.cost_usd)}
-          </span>
+          {showBadge && <ProviderBadge description={provider} model={node.model} />}
+          {/* No figure, no cost shown — never a `$0.00` nobody reported. */}
+          {costText !== null && (
+            <span className="flex items-center gap-1 font-mono tabular-nums" aria-label={`Coût ${costText}`}>
+              <DollarSign className="w-3 h-3" aria-hidden="true" />
+              <CostDisplay cost={cost} format={formatCost} />
+            </span>
+          )}
+          {subtree?.text && (
+            <span
+              data-testid="node-subtree-cost"
+              className="flex items-center gap-1 font-mono tabular-nums"
+              aria-label={`Subtree cost ${subtree.text}`}
+            >
+              Σ {subtree.text}
+            </span>
+          )}
         </div>
       </div>
 
@@ -200,6 +231,10 @@ export function DiscussionNodeRow({
         </div>
       )}
 
+      <div className="pr-3" style={indent}>
+        <StopSubtreeButton node={node} onStopped={onTreeChanged} />
+      </div>
+
       {/* Children */}
       {hasChildren && expanded && (
         <div>
@@ -211,6 +246,7 @@ export function DiscussionNodeRow({
               selectedSessionId={selectedSessionId}
               onSelectNode={onSelectNode}
               renderActions={renderActions}
+              onTreeChanged={onTreeChanged}
             />
           ))}
         </div>

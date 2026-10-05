@@ -123,8 +123,12 @@ export const chatApi = {
    * the caller should clear its "stopping" state instead of waiting for a
    * `result` event that will never arrive.
    */
-  interruptSession: (sessionId: string, scope: InterruptScope = 'turn_and_tools') =>
-    api.post<InterruptOutcome>(`/chat/sessions/${sessionId}/interrupt`, { scope }),
+  interruptSession: (sessionId: string, scope: InterruptScope = 'turn_and_tools', options: { cascade?: boolean } = {}) =>
+    api.post<InterruptOutcome>(
+      `/chat/sessions/${sessionId}/interrupt`,
+      // `cascade` only when asked: the body of a plain interrupt is unchanged.
+      options.cascade ? { scope, cascade: true } : { scope },
+    ),
 
   /**
    * Cancel the currently-running tool subprocess(es) of a session WITHOUT

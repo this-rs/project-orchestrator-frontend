@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { KeyRound, LogOut, Settings } from 'lucide-react'
+import { Cpu, KeyRound, LogOut, Settings } from 'lucide-react'
 import { authModeAtom, currentUserAtom } from '@/atoms'
 import { clearChatDraftsAtom } from '@/atoms/chat'
 import { settingsReturnUrlAtom } from '@/atoms/setup'
@@ -143,6 +143,16 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
           >
             <KeyRound className="h-4 w-4" />
             Vault
+          </button>
+          <button
+            onClick={() => {
+              setOpen(false)
+              navigate('/providers')
+            }}
+            className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200"
+          >
+            <Cpu className="h-4 w-4" />
+            Providers
           </button>
           {isTauri && (
             <button

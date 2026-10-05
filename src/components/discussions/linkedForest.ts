@@ -12,12 +12,14 @@
 
 import type { DiscussionNode } from '@/services/discussions'
 import type { SessionTreeNode } from '@/types/chat'
+import type { CostBasis } from '@/types/provider'
 
 export interface LinkedSession {
   id: string
   title?: string | null
   streaming?: boolean
   costUsd?: number | null
+  costBasis?: CostBasis | null
   messageCount?: number | null
   createdAt?: string | null
   /** 'runner' | 'manual' | 'transitive' (plan/task routes only) */
@@ -40,6 +42,7 @@ interface Draft {
   taskId: string | null
   title: string | null
   costUsd: number | null
+  costBasis: CostBasis | null
   streaming: boolean
   order: number
 }
@@ -56,7 +59,7 @@ export function buildLinkedForest(
 
   // Listed sessions first: they exist whatever the tree route says.
   for (const l of linked) {
-    if (!drafts.has(l.id)) drafts.set(l.id, { id: l.id, parent: null, spawn: null, runId: null, taskId: null, title: null, costUsd: null, streaming: false, order: order++ })
+    if (!drafts.has(l.id)) drafts.set(l.id, { id: l.id, parent: null, spawn: null, runId: null, taskId: null, title: null, costUsd: null, costBasis: null, streaming: false, order: order++ })
   }
   // Then what the tree routes know (parent, spawn type, run, task).
   for (const l of linked) {
@@ -70,6 +73,7 @@ export function buildLinkedForest(
         known.taskId = known.taskId ?? f.task_id ?? null
         known.title = known.title ?? f.title ?? null
         known.costUsd = known.costUsd ?? f.total_cost_usd ?? null
+        known.costBasis = known.costBasis ?? f.cost_basis ?? null
         known.streaming = known.streaming || f.is_streaming
       } else {
         drafts.set(f.session_id, {
@@ -80,6 +84,7 @@ export function buildLinkedForest(
           taskId: f.task_id ?? null,
           title: f.title ?? null,
           costUsd: f.total_cost_usd ?? null,
+          costBasis: f.cost_basis ?? null,
           streaming: f.is_streaming,
           order: order++,
         })
@@ -112,7 +117,9 @@ export function buildLinkedForest(
       session_id: d.id,
       title: l?.title || d.title || `Session ${d.id.slice(0, 8)}`,
       status: l?.streaming || d.streaming ? 'streaming' : 'idle',
-      cost_usd: l?.costUsd ?? d.costUsd ?? 0,
+      // No figure on either side stays `null`: the node then shows no cost, not `$0.00`.
+      cost_usd: l?.costUsd ?? d.costUsd ?? null,
+      cost_basis: l?.costBasis ?? d.costBasis ?? null,
       duration_secs: 0,
       message_count: l?.messageCount ?? 0,
       children: [],

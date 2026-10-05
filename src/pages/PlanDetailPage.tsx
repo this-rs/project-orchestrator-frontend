@@ -845,11 +845,11 @@ export function PlanDetailPage() {
       <ImplementDialog
         open={implementDialogOpen}
         onClose={() => setImplementDialogOpen(false)}
-        onConfirm={async (maxCostUsd: number) => {
+        onConfirm={async (maxCostUsd, runOptions) => {
           setImplementLoading(true)
           try {
             const { cwd, projectSlug } = planRunTarget(linkedProject)
-            await runnerApi.startRun(plan.id, cwd, projectSlug, maxCostUsd)
+            await runnerApi.startRun(plan.id, cwd, projectSlug, maxCostUsd, runOptions)
             navigate(runnerPath, { type: 'card-click' })
           } catch (err) {
             // 409 = already running — go to the dashboard anyway
@@ -865,6 +865,7 @@ export function PlanDetailPage() {
           }
         }}
         mode="plan"
+        projectSlug={linkedProject?.slug}
         entityTitle={plan.title || 'Untitled Plan'}
         loading={implementLoading}
       />

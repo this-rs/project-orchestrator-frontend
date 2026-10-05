@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { setupStepAtom, setupConfigAtom, configExistsAtom, trayNavigationAtom, infraValidAtom, chatValidAtom, OIDC_PROVIDERS, type SetupConfig, type OidcProvider } from '@/atoms/setup'
-import { authModeAtom, currentUserAtom } from '@/atoms'
+import { authModeAtom, currentUserAtom, modelCatalogAtom } from '@/atoms'
+import { catalogDefaultModel } from '@/constants/models'
+import { isLegacyWireMode } from '@/constants/toolPolicy'
 import { fetchSetupStatus, isTauri } from '@/services/env'
 import { Spinner } from '@/components/ui'
 import { SetupLayout } from './SetupLayout'
@@ -47,6 +49,18 @@ export function SetupWizard() {
   const currentUser = useAtomValue(currentUserAtom)
   const [checking, setChecking] = useState(!isTrayNavigation)
   const [loadingConfig, setLoadingConfig] = useState(isTrayNavigation)
+  const modelCatalog = useAtomValue(modelCatalogAtom)
+
+  // ── Default chat model: read from the live catalog ─────────────────
+  // The config starts without a model (no id is hardcoded in the app). Done
+  // here rather than on the Chat step, which can be skipped: the Launch step
+  // writes `chatModel` to the config file whatever steps were visited. A model
+  // already chosen, or loaded from an existing config, is left alone.
+  useEffect(() => {
+    const fallback = catalogDefaultModel(modelCatalog)
+    if (!fallback) return
+    setSetupConfig((prev) => (prev.chatModel ? prev : { ...prev, chatModel: fallback.id }))
+  }, [modelCatalog, setSetupConfig])
 
   // ── First setup: check if backend is already configured ────────────
   useEffect(() => {
@@ -127,13 +141,14 @@ export function SetupWizard() {
             // Access restrictions
             allowedEmailDomain: (existing.allowedEmailDomain as string) || '',
             allowedEmails: (existing.allowedEmails as string) || '',
-            // Chat
+            // Chat (a config written before the engine choice existed is Claude Code)
+            chatProvider: existing.chatProvider === 'none' ? 'none' : 'claude-code',
             chatModel: (existing.chatModel as string) || prev.chatModel,
             chatMaxSessions: (existing.chatMaxSessions as number) || prev.chatMaxSessions,
             chatMaxTurns: (existing.chatMaxTurns as number) || prev.chatMaxTurns,
-            chatPermissionMode: (['default', 'acceptEdits', 'bypassPermissions', 'plan'].includes(existing.chatPermissionMode as string)
+            chatPermissionMode: isLegacyWireMode(existing.chatPermissionMode)
               ? existing.chatPermissionMode
-              : prev.chatPermissionMode) as SetupConfig['chatPermissionMode'],
+              : prev.chatPermissionMode,
             // Desktop-only settings (PATH, CLI, auto-update)
             chatProcessPath: (existing.chatProcessPath as string) || '',
             chatClaudeCliPath: (existing.chatClaudeCliPath as string) || '',

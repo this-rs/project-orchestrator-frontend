@@ -4,6 +4,7 @@
  * GET /api/chat/sessions/{sessionId}/tree -> DiscussionNode
  */
 
+import type { CostBasis, ProviderId } from '@/types/provider'
 import { api } from './api'
 
 // ---------------------------------------------------------------------------
@@ -29,7 +30,20 @@ export interface DiscussionNode {
   session_id: string
   title: string | null
   status: 'streaming' | 'completed' | 'failed' | 'idle'
-  cost_usd: number
+  /** `null` = no figure for this session. Not zero. */
+  cost_usd: number | null
+  /** Where `cost_usd` comes from. Absent = `reported`. */
+  cost_basis?: CostBasis | null
+  /** Provider instance of the session. Absent = Claude Code. */
+  provider_id?: ProviderId | null
+  model?: string | null
+  /** Cost of this node plus every descendant, when the server computes it. */
+  subtree_cost_usd?: number | null
+  input_tokens?: number | null
+  output_tokens?: number | null
+  /** Limits of the tree, when the server enforces them. */
+  max_depth?: number | null
+  max_children?: number | null
   duration_secs: number
   message_count: number
   children: DiscussionNode[]
@@ -49,6 +63,16 @@ export interface SessionTreeNode {
   task_id: string | null
   depth: number
   created_at: string | null
+  /** Enriched by the backend when it knows it (same fields as `SessionTreeNode` in `types/chat`). */
+  total_cost_usd?: number | null
+  cost_basis?: CostBasis | null
+  provider_id?: ProviderId | null
+  model?: string | null
+  subtree_cost_usd?: number | null
+  input_tokens?: number | null
+  output_tokens?: number | null
+  max_depth?: number | null
+  max_children?: number | null
 }
 
 // ---------------------------------------------------------------------------

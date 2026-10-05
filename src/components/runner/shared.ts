@@ -6,6 +6,7 @@
 import type { ActiveAgentSnapshot, PlanRun } from '@/services/runner'
 import type { AgentExecution } from '@/types'
 import type { StatusTone } from '@/components/ui/statusMeta'
+import { costReport, formatUsd2, type CostReport } from '@/utils/cost'
 
 // ---------------------------------------------------------------------------
 // Format helpers
@@ -19,8 +20,15 @@ export function formatElapsed(secs: number | undefined | null): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-export function formatCost(usd: number | undefined | null): string {
-  return `$${(usd ?? 0).toFixed(2)}`
+/** A KNOWN amount. A cost that may be unknown goes through `runCost` + `CostDisplay`, never through a `?? 0`. */
+export function formatCost(usd: number): string {
+  return formatUsd2(usd)
+}
+
+/** Cost of a run, an agent or an execution, with its basis (`reported` when the record names none). */
+export function runCost(record: { cost_usd?: number | null; cost_basis?: unknown; input_tokens?: number | null; output_tokens?: number | null }): CostReport | null {
+  // The record doubles as the usage: an execution without a price still shows its tokens.
+  return costReport(record.cost_usd, record.cost_basis, record)
 }
 
 /** Elapsed seconds of a plan run (until now while it is still running). */

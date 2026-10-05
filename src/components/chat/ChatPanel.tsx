@@ -1,15 +1,26 @@
 import { AttachSessionButton } from '@/components/discussions/AttachSessionButton'
 import { useAtom } from 'jotai'
 import { useChatUrlSync } from '@/hooks/useChatUrlSync'
-import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom } from '@/atoms'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom } from '@/atoms'
 import { useChat, useDetachedRuns, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
+import { useProviders } from '@/hooks/useProviders'
+import { useSessionLive } from '@/hooks/useSessionLive'
+import { describeSessionProvider, providerUnavailableReason, shouldShowProviderBadge } from '@/constants/providers'
+import { INSTANCE_MISSING_COMPOSER_TEXT, NO_PROVIDER_COMPOSER_TEXT, NO_PROVIDER_ERROR } from '@/constants/providerErrors'
+import { RESUME_UNSUPPORTED_TEXT } from '@/constants/capabilities'
+import type { BackgroundTaskInfo } from '@/types'
 import { chatApi } from '@/services/chat'
 import { Plus, X, Menu, Settings, Minimize2, Maximize2, Loader2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check } from 'lucide-react'
 import { ChatMessages } from './ChatMessages'
-import { ChatSessionProvider } from './ChatSessionContext'
+import { ChatCapabilitiesProvider, ChatSessionProvider } from './ChatSessionContext'
+import { ProviderStateCard } from './ProviderStateCard'
+import { ProviderBadge } from './ProviderBadge'
+import { PolicyOnlyBanner } from './PolicyOnlyBanner'
+import { EngineBanner } from './EngineBanner'
 import { ChatInput, type PrefillPayload } from './ChatInput'
 import { CompactionBanner } from './CompactionBanner'
 import { SecretRequestTray } from './SecretRequestTray'
+import { SessionOpenError } from './SessionOpenError'
 import { ComposerDock } from './ComposerDock'
 import { collectRunning } from './runningActivity'
 import type { RunActions } from './ActivityBar'
@@ -17,11 +28,13 @@ import { DetachedRunsPanel } from './DetachedRunsPanel'
 import { SessionList } from './SessionList'
 import { ProjectSelect } from './ProjectSelect'
 import { PermissionSettingsPanel } from './PermissionSettingsPanel'
+import { MODE_DOT_COLORS } from '@/constants/toolPolicy'
+import { toToolPolicyMode } from '@/types/provider'
 import { SessionBreadcrumb } from './SessionBreadcrumb'
 import { DiscussionTreeView } from '@/components/discussions/DiscussionTreeView'
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { messagesToMarkdown } from '@/utils/chatExport'
-import { useSetAtom, useAtomValue } from 'jotai'
+import { useSetAtom, useAtomValue, useStore } from 'jotai'
 import { Link, useNavigate } from 'react-router-dom'
 import { isTauri } from '@/services/env'
 import { workspacePath } from '@/utils/paths'
@@ -30,6 +43,8 @@ const MIN_WIDTH = 320
 const MAX_WIDTH = 800
 const MOBILE_BREAKPOINT = 768
 const NOOP = () => {}
+/** A provider without background tasks tracks none: nothing to list. */
+const NO_BACKGROUND_TASKS: BackgroundTaskInfo[] = []
 
 /** Small dot indicator for WebSocket status */
 function WsStatusDot({ status }: { status: string }) {
@@ -62,11 +77,25 @@ export function ChatPanel() {
   const [showAgentTree, setShowAgentTree] = useState(false)
   const [copiedChat, setCopiedChat] = useState(false)
   const chat = useChat()
+  // Provider instances of this server, for the project the chat is about. The
+  // composer reads them from the atoms; a backend without provider routes
+  // leaves everything as it was (Claude Code only).
+  const providers = useProviders()
+  const store = useStore()
+  // What the provider of the conversation on screen can do. Every absent
+  // capability removes or disables its control here and in the transcript.
+  const capabilities = useAtomValue(chatSessionCapabilitiesAtom)
+  const sessionProvider = useAtomValue(chatSessionProviderAtom)
+  const sessionModel = useAtomValue(chatSessionModelAtom)
+  const engine = useAtomValue(chatSessionEngineAtom)
+  const [sessionOpenError, setSessionOpenError] = useAtom(chatSessionOpenErrorAtom)
+  const dismissSessionOpenError = useCallback(() => setSessionOpenError(null), [setSessionOpenError])
   // Session + panel mode live in the URL, so a reload reopens the chat as it was.
   useChatUrlSync({ sessionId: chat.sessionId, mode, setMode, loadSession: chat.loadSession })
   const detachedRuns = useDetachedRuns(chat.sessionId)
   // One derivation of "what is running here", rendered above the composer (ActivityBar).
-  const backgroundTasks = useAtomValue(chatBackgroundTasksAtom)
+  const trackedBackgroundTasks = useAtomValue(chatBackgroundTasksAtom)
+  const backgroundTasks = capabilities.background_tasks ? trackedBackgroundTasks : NO_BACKGROUND_TASKS
   const activity = useMemo(
     () =>
       collectRunning({
@@ -88,7 +117,7 @@ export function ChatPanel() {
 
   // Mode-based color for gear icon badge
   const modeColor = permissionConfig
-    ? { bypassPermissions: 'bg-emerald-400', acceptEdits: 'bg-blue-400', default: 'bg-amber-400', plan: 'bg-gray-400' }[permissionConfig.mode] || 'bg-gray-400'
+    ? MODE_DOT_COLORS[toToolPolicyMode(permissionConfig.mode) ?? 'plan_only']
     : null
 
   const isOpen = mode !== 'closed'
@@ -173,20 +202,59 @@ export function ChatPanel() {
   // holds the send until every upload has resolved (see `attachmentState.ts`).
   const handleSend = useCallback((text: string, attachmentIds?: string[]) => {
     if (isNewConversation && !hasContext) return
+    // `sendMessage` reports a failed session creation itself (see
+    // `chatSessionOpenErrorAtom`). Anything else it could reject with is
+    // logged here: a send must never end as an unhandled rejection.
+    const send = (...args: Parameters<typeof chat.sendMessage>) => {
+      Promise.resolve(chat.sendMessage(...args)).catch((err: unknown) => console.error('Send failed', err))
+    }
     if (!isNewConversation) {
-      chat.sendMessage(text, undefined, attachmentIds)
+      send(text, undefined, attachmentIds)
       return
     }
     if (selectedProject) {
       // When allProjectsMode → send workspaceSlug (adds all project dirs)
       // When single project → send only projectSlug (no extra dirs)
-      chat.sendMessage(text, {
+      send(text, {
         cwd: selectedProject.root_path ?? '',
         workspaceSlug: allProjectsMode ? (activeWsSlug || undefined) : undefined,
         projectSlug: allProjectsMode ? undefined : selectedProject.slug,
       }, attachmentIds)
     }
   }, [isNewConversation, hasContext, selectedProject, allProjectsMode, activeWsSlug, chat.sendMessage])
+
+  // ── Provider state of the composer ────────────────────────────────────
+  // Nothing below applies to a backend without provider routes
+  // (`unsupported`): the list is never `ready` there, and a session names no
+  // provider — the chat behaves as it always has.
+  const providerList = providers.state === 'ready' ? providers.providers : null
+  // A new conversation with no instance that is both healthy and allowed.
+  const noProvider =
+    isNewConversation && providerList !== null && !providerList.some((p) => providerUnavailableReason(p) === null)
+  // The provider this conversation runs on, as its `system_init` named it.
+  const sessionProviderInfo = describeSessionProvider(sessionProvider, providerList)
+  const showProviderBadge = !isNewConversation && shouldShowProviderBadge(sessionProviderInfo, providerList)
+  // Its instance was deleted since: the conversation cannot be resumed.
+  const instanceMissing = !isNewConversation && sessionProviderInfo.unavailable
+  // A provider that cannot resume can only be talked to while its process lives.
+  const sessionLive = useSessionLive(chat.sessionId, !isNewConversation && !capabilities.resume, chat.isStreaming)
+  const cannotResume = !isNewConversation && !capabilities.resume && sessionLive === false
+  /** Why the composer is off, when a provider state (not a missing project) is the reason. */
+  const composerBlockedReason = noProvider
+    ? NO_PROVIDER_COMPOSER_TEXT
+    : instanceMissing
+      ? INSTANCE_MISSING_COMPOSER_TEXT
+      : cannotResume
+        ? RESUME_UNSUPPORTED_TEXT
+        : null
+  const composerDisabled = (isNewConversation && !hasContext) || composerBlockedReason !== null
+
+  /** Send again what could not open a conversation — the composer's text if it was edited since. */
+  const retrySessionOpen = useCallback(() => {
+    if (!sessionOpenError) return
+    const draft = store.get(chatDraftInputAtom).trim()
+    handleSend(draft || sessionOpenError.text, sessionOpenError.attachments.length > 0 ? sessionOpenError.attachments : undefined)
+  }, [sessionOpenError, store, handleSend])
 
   const handleContinue = useCallback(() => {
     chat.sendContinue()
@@ -236,6 +304,8 @@ export function ChatPanel() {
   const handleCopyChat = useCallback(async () => {
     const markdown = messagesToMarkdown(chat.messages, {
       sessionId: chat.sessionId ?? undefined,
+      provider: sessionProviderInfo.label,
+      model: sessionModel ?? undefined,
       projectSlug: chat.sessionMeta?.projectSlug,
       workspaceSlug: chat.sessionMeta?.workspaceSlug,
       exportedAt: new Date(),
@@ -252,7 +322,7 @@ export function ChatPanel() {
         win.document.title = 'Chat Export'
       }
     }
-  }, [chat.messages, chat.sessionId, chat.sessionMeta])
+  }, [chat.messages, chat.sessionId, chat.sessionMeta, sessionProviderInfo.label, sessionModel])
 
   const handleSelectSession = useCallback((sessionId: string, targetTurnIndex?: number, title?: string, searchHit?: { snippet: string; createdAt: number; role: 'user' | 'assistant' }) => {
     setScrollToTurn(targetTurnIndex != null ? { turnIndex: targetTurnIndex, snippet: searchHit?.snippet, createdAt: searchHit?.createdAt, role: searchHit?.role } : null)
@@ -307,11 +377,41 @@ export function ChatPanel() {
     setShowAgentTree(false)
   }, [chat.sessionId])
 
+  // Everything said above the composer about the provider, shared by both layouts.
+  const composerNotices = (
+    <>
+      {sessionOpenError && (
+        <SessionOpenError
+          error={sessionOpenError}
+          onDismiss={dismissSessionOpenError}
+          onRetry={retrySessionOpen}
+          projectSlug={selectedProject?.slug}
+        />
+      )}
+      {noProvider && !sessionOpenError && (
+        <ProviderStateCard error={NO_PROVIDER_ERROR} projectSlug={selectedProject?.slug} className="mx-3 mb-1" />
+      )}
+      {instanceMissing && (
+        <ProviderStateCard
+          error={{ code: 'instance_not_found', message: '', provider_id: sessionProvider?.id }}
+          onNewConversation={handleNewSession}
+          className="mx-3 mb-1"
+        />
+      )}
+      {!capabilities.interactive_permissions && !noProvider && !instanceMissing && <PolicyOnlyBanner />}
+      <EngineBanner degraded={engine.degraded} />
+    </>
+  )
+  const headerProviderBadge = showProviderBadge ? (
+    <ProviderBadge description={sessionProviderInfo} model={sessionModel} className="mt-0.5" />
+  ) : null
+
   // --- FULLSCREEN LAYOUT: sidebar + conversation side by side ---
   // On mobile (<768px): sidebar is a full-screen overlay toggled via hamburger
   // On desktop: sidebar is a permanent 288px column
   if (isFullscreen) {
     return (
+      <ChatCapabilitiesProvider capabilities={capabilities}>
       <div
         ref={panelRef}
         className={`fixed inset-0 z-30 bg-surface-raised flex ${isDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
@@ -415,6 +515,7 @@ export function ChatPanel() {
                     {chat.sessionMeta.projectSlug}
                   </Link>
                 )}
+                {headerProviderBadge}
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -557,18 +658,21 @@ export function ChatPanel() {
                     bottomInset={dockHeight}
                   />
                   <ComposerDock onHeight={setDockHeight}>
-                    <CompactionBanner visible={chat.isCompacting} />
+                    <CompactionBanner visible={chat.isCompacting && capabilities.compaction_signal} />
                     <SecretRequestTray sessionId={chat.sessionId} />
+                    {composerNotices}
                     <ChatInput
                       onSend={handleSend}
                       onQueue={chat.queueMessage}
                       onQueueOp={chat.queueOp}
                       onInterrupt={chat.interrupt}
                       isStreaming={chat.isStreaming}
-                      disabled={isNewConversation && !hasContext}
+                      disabled={composerDisabled}
+                disabledReason={composerBlockedReason}
                       sessionId={chat.sessionId}
                       onChangePermissionMode={chat.changePermissionMode}
                       onChangeModel={chat.changeModel}
+                      onNewConversation={handleNewSession}
                       onChangeAutoContinue={chat.changeAutoContinue}
                       prefill={prefill}
                       activity={activity}
@@ -588,12 +692,14 @@ export function ChatPanel() {
           )}
         </div>
       </div>
+      </ChatCapabilitiesProvider>
     )
   }
 
   // --- PANEL LAYOUT (non-fullscreen): toggle-based session list ---
   return (
     <ChatSessionProvider sessionId={chat.sessionId ?? null}>
+    <ChatCapabilitiesProvider capabilities={capabilities}>
     <div
       ref={panelRef}
       className={`fixed z-30 bg-surface-raised border-l border-border-subtle flex flex-col ${isDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isOpen ? 'translate-x-0' : 'translate-x-full'} top-0 right-0 bottom-0 w-full`}
@@ -640,6 +746,7 @@ export function ChatPanel() {
                   {chat.sessionMeta.projectSlug}
                 </Link>
               )}
+              {headerProviderBadge}
             </div>
           </div>
         </div>
@@ -791,18 +898,21 @@ export function ChatPanel() {
               bottomInset={dockHeight}
             />
             <ComposerDock onHeight={setDockHeight}>
-              <CompactionBanner visible={chat.isCompacting} />
+              <CompactionBanner visible={chat.isCompacting && capabilities.compaction_signal} />
               <SecretRequestTray sessionId={chat.sessionId} />
+              {composerNotices}
               <ChatInput
                 onSend={handleSend}
                 onQueue={chat.queueMessage}
                 onQueueOp={chat.queueOp}
                 onInterrupt={chat.interrupt}
                 isStreaming={chat.isStreaming}
-                disabled={isNewConversation && !hasContext}
+                disabled={composerDisabled}
+                disabledReason={composerBlockedReason}
                 sessionId={chat.sessionId}
                 onChangePermissionMode={chat.changePermissionMode}
                 onChangeModel={chat.changeModel}
+                onNewConversation={handleNewSession}
                 onChangeAutoContinue={chat.changeAutoContinue}
                 prefill={prefill}
                 activity={activity}
@@ -813,6 +923,7 @@ export function ChatPanel() {
         </>
       )}
     </div>
+    </ChatCapabilitiesProvider>
     </ChatSessionProvider>
   )
 }

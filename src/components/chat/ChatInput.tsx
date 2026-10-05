@@ -1,26 +1,37 @@
-import { memo, useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { memo, useState, useRef, useCallback, useEffect, useId } from 'react'
 import { useAtom, useAtomValue, useStore } from 'jotai'
-import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom, chatMessageQueuesAtom, draftKeyFor, modelCatalogAtom, modelCatalogLoadedAtom } from '@/atoms'
-import { DEFAULT_MODEL_ID, getModelShortLabel, getModelDotColor, groupModelsByFamily } from '@/constants/models'
+import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoContinueAtom, chatMessageQueuesAtom, draftKeyFor, chatProviderTargetAtom, chatSessionToolPolicyAtom, chatSessionCapabilitiesAtom } from '@/atoms'
 import { chatApi } from '@/services/chat'
 import { documentsApi } from '@/services/documents'
 import { ApiError } from '@/services/api'
 import { useIsMobile } from '@/hooks'
-import type { PermissionMode } from '@/types'
+import type { ToolPolicyMode } from '@/types/provider'
+import {
+  COMPOSER_MODE_LABELS,
+  COMPOSER_MODE_ORDER,
+  MODE_DOT_COLORS,
+  TRUST_REQUIRES_SANDBOX_TEXT,
+  claudeNativeModeLabel,
+  isTrustAllowed,
+  modeLabelSet,
+  readToolPolicyMode,
+} from '@/constants/toolPolicy'
 import { ChevronDown, Loader2, Paperclip, Square, ArrowRight } from 'lucide-react'
 import { ActivityBar, type RunActions } from './ActivityBar'
 import type { RunningItem } from './runningActivity'
-import { ModelFamilyPicker, type ModelSelectOptions } from './ModelFamilyPicker'
+import { ProviderModelPicker, type ProviderModelMenu } from './ProviderModelPicker'
 import { deriveInputAction, describeAction } from './inputAction'
 import { MessageQueueBar } from './MessageQueueBar'
 import { shouldEnqueue, type QueueOp, type QueuedMessage } from './messageQueue'
 import { Attachments } from './Attachments'
+import { imagesRefusedText } from '@/constants/capabilities'
 import {
   addAttachment,
   createAttachment,
   decideSend,
   describeUploadFailure,
   filesFromClipboard,
+  isImageFile,
   readyDocumentIds,
   removeAttachment,
   resolveDeferred,
@@ -31,20 +42,6 @@ import {
   withUploaded,
   type Attachment,
 } from './attachmentState'
-
-const MODE_LABELS: Record<PermissionMode, string> = {
-  bypassPermissions: 'Bypass',
-  acceptEdits: 'Accept Edits',
-  default: 'Default',
-  plan: 'Plan Only',
-}
-
-const MODE_DOT_COLORS: Record<PermissionMode, string> = {
-  bypassPermissions: 'bg-emerald-400',
-  acceptEdits: 'bg-blue-400',
-  default: 'bg-amber-400',
-  plan: 'bg-gray-400',
-}
 
 /** Payload for prefilling the textarea from an external source (e.g. quick actions) */
 export interface PrefillPayload {
@@ -83,11 +80,19 @@ interface ChatInputProps {
   /** Current session ID (null = new conversation) */
   sessionId?: string | null
   /** Callback to change permission mode on an active session (mid-session) */
-  onChangePermissionMode?: (mode: PermissionMode) => void
+  onChangePermissionMode?: (mode: ToolPolicyMode) => void
   /** Callback to change model on an active session (mid-session) */
   onChangeModel?: (model: string) => void
+  /** Start a new conversation — offered where a session is locked on its provider. */
+  onNewConversation?: () => void
   /** Callback to toggle auto-continue on an active session (sends WS message to backend) */
   onChangeAutoContinue?: (enabled: boolean) => void
+  /**
+   * Why `disabled` is set, when the reason is not obvious from the screen (no
+   * provider, a deleted instance, a provider that cannot resume). Shown above
+   * the box and tied to the textarea: a dead composer always says why.
+   */
+  disabledReason?: string | null
   /** When set, prefills the textarea and focuses it. Change the object reference to trigger. */
   prefill?: PrefillPayload | null
   /** What is running in this session (see `runningActivity.ts`); shown above the queue. */
@@ -99,24 +104,37 @@ interface ChatInputProps {
 /** A stable empty queue, so a conversation without one does not re-run the effects that read it. */
 const NO_QUEUE: QueuedMessage[] = []
 
+const NO_REFUSED_IMAGES: string[] = []
+
 /** A stable "nothing runs", so an absent prop does not re-render the bar. */
 const NO_ACTIVITY: ReadonlyArray<RunningItem> = []
 
-export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, onInterrupt, isStreaming, disabled, sessionId, onChangePermissionMode, onChangeModel, onChangeAutoContinue, prefill, activity = NO_ACTIVITY, runActions }: ChatInputProps) {
+export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, onInterrupt, isStreaming, disabled, disabledReason, sessionId, onChangePermissionMode, onChangeModel, onNewConversation, onChangeAutoContinue, prefill, activity = NO_ACTIVITY, runActions }: ChatInputProps) {
   const [value, setValue] = useAtom(chatDraftInputAtom)
   const isMobile = useIsMobile()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [modeOverride, setModeOverride] = useAtom(chatSessionPermissionOverrideAtom)
   const [serverConfig, setServerConfig] = useAtom(chatPermissionConfigAtom)
-  const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
   const autoContinue = useAtomValue(chatAutoContinueAtom)
-  const availableModels = useAtomValue(modelCatalogAtom)
-  const catalogLoaded = useAtomValue(modelCatalogLoadedAtom)
-  const modelGroups = useMemo(() => groupModelsByFamily(availableModels), [availableModels])
+  const providerTarget = useAtomValue(chatProviderTargetAtom)
+  const sessionPolicy = useAtomValue(chatSessionToolPolicyAtom)
+  const trustHelpId = useId()
+  const disabledHelpId = useId()
+  // Whether the model in front of the composer takes images. Read at add time
+  // through the store too (see `addFiles`), this value drives nothing else.
+  const acceptsImages = useAtomValue(chatSessionCapabilitiesAtom).images
+  /**
+   * Images turned away because the model takes none — said next to the
+   * attachments. Tagged with the session it happened in, so the notice does
+   * not follow the user into another conversation.
+   */
+  const [refusal, setRefusal] = useState<{ sessionId: string | null | undefined; names: string[] }>({ sessionId, names: [] })
+  const refusedImages = refusal.sessionId === sessionId ? refusal.names : NO_REFUSED_IMAGES
   const [showModeDropdown, setShowModeDropdown] = useState(false)
-  const [showModelDropdown, setShowModelDropdown] = useState(false)
+  // Provider and model menus (`ProviderModelPicker`): one open at a time, and
+  // never together with the mode menu.
+  const [pickerMenu, setPickerMenu] = useState<ProviderModelMenu>(null)
   const [modeJustChanged, setModeJustChanged] = useState(false)
-  const [modelJustChanged, setModelJustChanged] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
   // The queued messages of THIS composer's conversation — read only. The
   // session holds them and delivers them (`chat/pending_queue.rs`); this
@@ -139,8 +157,20 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   /** One AbortController per in-flight upload, so removing a chip cancels it. */
   const uploadsRef = useRef(new Map<string, AbortController>())
 
-  const effectiveMode = modeOverride ?? serverConfig?.mode ?? 'default'
-  const effectiveModel = sessionModel ?? serverConfig?.default_model ?? DEFAULT_MODEL_ID
+  // The server default arrives as a legacy Claude string (or a neutral mode):
+  // the composer works on the neutral one.
+  const serverMode = serverConfig ? readToolPolicyMode(serverConfig.mode) : null
+  const effectiveMode: ToolPolicyMode = modeOverride ?? readToolPolicyMode(serverConfig?.mode)
+  const modeLabels = COMPOSER_MODE_LABELS[modeLabelSet(providerTarget.isClaudeCode)]
+  // `auto` / `dontAsk` exist only in the Claude CLI and have no neutral twin:
+  // when the mode in force is one of them, say so instead of showing the
+  // neutral mode it was folded into.
+  const nativeMode = modeOverride === null
+    ? serverConfig?.mode
+    : sessionPolicy?.mode === effectiveMode ? sessionPolicy.native_mode : undefined
+  const effectiveModeLabel =
+    (providerTarget.isClaudeCode ? claudeNativeModeLabel(nativeMode, 'short') : null) ?? modeLabels[effectiveMode]
+  const trustAllowed = isTrustAllowed(providerTarget)
 
   /** Full re-measure: reset then fit (needed to let the box SHRINK). */
   const resize = useCallback(() => {
@@ -215,18 +245,18 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
 
   // Close dropdowns on outside click
   useEffect(() => {
-    if (!showModeDropdown && !showModelDropdown) return
+    if (!showModeDropdown && !pickerMenu) return
     const handler = (e: MouseEvent) => {
       if (showModeDropdown && dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setShowModeDropdown(false)
       }
-      if (showModelDropdown && modelDropdownRef.current && !modelDropdownRef.current.contains(e.target as Node)) {
-        setShowModelDropdown(false)
+      if (pickerMenu && modelDropdownRef.current && !modelDropdownRef.current.contains(e.target as Node)) {
+        setPickerMenu(null)
       }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [showModeDropdown, showModelDropdown])
+  }, [showModeDropdown, pickerMenu])
 
   // Load permission config from server on mount (so mode selector has the correct default)
   useEffect(() => {
@@ -340,7 +370,13 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
    */
   const addFiles = useCallback(
     (files: File[]) => {
+      // A model that takes no images: an image is turned away HERE, with the
+      // reason on screen, instead of being uploaded and silently ignored by
+      // the model. Any other document goes through.
+      const refused = acceptsImages ? [] : files.filter(isImageFile)
+      setRefusal({ sessionId, names: refused.map((f) => f.name || 'image') })
       for (const file of files) {
+        if (refused.includes(file)) continue
         const localId =
           typeof crypto !== 'undefined' && 'randomUUID' in crypto
             ? crypto.randomUUID()
@@ -391,7 +427,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           })
       }
     },
-    [store, selectedProject, sessionId, mutateAttachments, settleDeferredSend],
+    [store, selectedProject, sessionId, mutateAttachments, settleDeferredSend, acceptsImages],
   )
 
   const handleRemoveAttachment = useCallback(
@@ -561,13 +597,15 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
     }
   }
 
-  const handleSelectMode = (mode: PermissionMode) => {
+  const handleSelectMode = (mode: ToolPolicyMode) => {
+    // Refused, with the reason shown on the option itself.
+    if (mode === 'trust' && !trustAllowed) return
     if (sessionId && onChangePermissionMode) {
       // Active session — send WS message for mid-session mode change
       onChangePermissionMode(mode)
     } else {
       // No session yet — set override atom (used at session creation)
-      if (mode === serverConfig?.mode) {
+      if (mode === serverMode) {
         setModeOverride(null)
       } else {
         setModeOverride(mode)
@@ -579,19 +617,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
     setTimeout(() => setModeJustChanged(false), 1000)
   }
 
-  const handleSelectModel = (modelId: string, { close }: ModelSelectOptions = { close: true }) => {
-    if (sessionId && onChangeModel) {
-      // Active session — send WS message for mid-session model change
-      onChangeModel(modelId)
-    } else {
-      // No session yet — set atom directly (used at session creation)
-      setSessionModel(modelId)
-    }
-    if (close) setShowModelDropdown(false)
-    // Visual feedback: brief highlight
-    setModelJustChanged(true)
-    setTimeout(() => setModelJustChanged(false), 1000)
-  }
+  const handlePickerMenu = useCallback((menu: ProviderModelMenu) => {
+    setPickerMenu(menu)
+    if (menu) setShowModeDropdown(false)
+  }, [])
 
   return (
     // pb: with viewport-fit=cover, keep the input clear of the home
@@ -650,6 +679,24 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
         onRemove={handleRemoveAttachment}
         pendingSend={deferredSend}
       />
+      {refusedImages.length > 0 && (
+        <p
+          role="alert"
+          data-testid="images-refused"
+          className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-200"
+        >
+          {imagesRefusedText(refusedImages)}
+        </p>
+      )}
+      {disabled && disabledReason && (
+        <p
+          id={disabledHelpId}
+          data-testid="composer-disabled-reason"
+          className="rounded-lg border border-white/[0.1] bg-surface-base/80 px-2.5 py-1.5 text-[11px] text-gray-300"
+        >
+          {disabledReason}
+        </p>
+      )}
 
       {/* The composer is ONE box: the text on top, and under it, inside the
           same border, every control that shapes the message — attach, mode,
@@ -681,6 +728,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           disabled={disabled}
+          aria-describedby={disabled && disabledReason ? disabledHelpId : undefined}
           rows={2}
           // On mobile the return key inserts a newline (sending is via the button);
           // on desktop it submits, so hint the soft keyboard accordingly.
@@ -712,7 +760,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           <div className="flex items-center gap-1.5" ref={dropdownRef}>
             <div className="relative">
               <button
-                onClick={() => { setShowModeDropdown(!showModeDropdown); setShowModelDropdown(false) }}
+                onClick={() => { setShowModeDropdown(!showModeDropdown); setPickerMenu(null) }}
                 className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border text-gray-300 hover:bg-white/[0.06] transition-all duration-300 ${
                   modeJustChanged
                     ? 'border-indigo-400/50 ring-1 ring-indigo-400/30'
@@ -720,28 +768,44 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
                 }`}
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${MODE_DOT_COLORS[effectiveMode]}`} />
-                <span>{MODE_LABELS[effectiveMode]}</span>
+                <span>{effectiveModeLabel}</span>
                 {modeOverride && !sessionId && (
                   <span className="text-[8px] text-indigo-400 ml-0.5">(override)</span>
                 )}
                 <ChevronDown className="w-2.5 h-2.5 text-gray-500" />
               </button>
               {showModeDropdown && (
-                <div className="absolute bottom-full left-0 mb-1 z-20 w-40 bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl py-1">
-                  {(Object.keys(MODE_LABELS) as PermissionMode[]).map((mode) => {
+                <div className={`absolute bottom-full left-0 mb-1 z-20 ${trustAllowed ? 'w-40' : 'w-56'} bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl py-1`}>
+                  {COMPOSER_MODE_ORDER.map((mode) => {
                     const isActive = effectiveMode === mode
-                    const isDefault = mode === serverConfig?.mode
+                    const isDefault = mode === serverMode
+                    // Kept focusable and announced as disabled, with the reason
+                    // as visible text: a greyed-out option that says nothing
+                    // reads as a bug.
+                    const refused = mode === 'trust' && !trustAllowed
                     return (
                       <button
                         key={mode}
+                        type="button"
                         onClick={() => handleSelectMode(mode)}
-                        className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${
-                          isActive ? 'text-gray-100 bg-white/[0.04]' : 'text-gray-400 hover:bg-white/[0.04] hover:text-gray-200'
+                        aria-disabled={refused || undefined}
+                        aria-describedby={refused ? trustHelpId : undefined}
+                        className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
+                          refused
+                            ? 'text-gray-500 cursor-not-allowed'
+                            : isActive ? 'text-gray-100 bg-white/[0.04]' : 'text-gray-400 hover:bg-white/[0.04] hover:text-gray-200'
                         }`}
                       >
-                        <span className={`w-1.5 h-1.5 rounded-full ${MODE_DOT_COLORS[mode]}`} />
-                        <span>{MODE_LABELS[mode]}</span>
-                        {isDefault && <span className="text-[9px] text-gray-600 ml-auto">default</span>}
+                        <span className="flex items-center gap-1.5">
+                          <span className={`w-1.5 h-1.5 rounded-full ${refused ? 'bg-gray-600' : MODE_DOT_COLORS[mode]}`} />
+                          <span>{modeLabels[mode]}</span>
+                          {isDefault && <span className="text-[9px] text-gray-600 ml-auto">default</span>}
+                        </span>
+                        {refused && (
+                          <span id={trustHelpId} className="mt-0.5 block text-[10px] leading-snug text-gray-500">
+                            {TRUST_REQUIRES_SANDBOX_TEXT}
+                          </span>
+                        )}
                       </button>
                     )
                   })}
@@ -750,39 +814,16 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
             </div>
           </div>
 
-          {/* Model selector — always visible (new conversation + active session) */}
+          {/* Provider (when the server has several) and model — always visible
+              (new conversation + active session). */}
           <div className="flex items-center gap-1.5" ref={modelDropdownRef}>
-            {/* Positioned only from `sm` up. Below that the picker's containing
-                block is the whole toolbar row, so it spans the input's width
-                instead of hanging off a button that sits mid-row — anchored to
-                the button, a phone-width screen pushed it off the right edge. */}
-            <div className="sm:relative">
-              <button
-                onClick={() => { setShowModelDropdown(!showModelDropdown); setShowModeDropdown(false) }}
-                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border text-gray-300 hover:bg-white/[0.06] transition-all duration-300 ${
-                  modelJustChanged
-                    ? 'border-violet-400/50 ring-1 ring-violet-400/30'
-                    : 'border-white/[0.08]'
-                }`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${getModelDotColor(effectiveModel)}`} />
-                <span>{getModelShortLabel(effectiveModel)}</span>
-                <ChevronDown className="w-2.5 h-2.5 text-gray-500" />
-              </button>
-              {showModelDropdown && (
-                <div
-                  data-testid="model-picker-popover"
-                  className="absolute bottom-full left-0 right-0 sm:right-auto sm:w-64 mb-1 z-20 max-h-[min(18rem,45dvh)] overflow-y-auto overscroll-contain bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl"
-                >
-                  <ModelFamilyPicker
-                    groups={modelGroups}
-                    activeModelId={effectiveModel}
-                    loaded={catalogLoaded}
-                    onSelect={handleSelectModel}
-                  />
-                </div>
-              )}
-            </div>
+            <ProviderModelPicker
+              sessionId={sessionId}
+              open={pickerMenu}
+              onOpenChange={handlePickerMenu}
+              onChangeModel={onChangeModel}
+              onNewConversation={onNewConversation}
+            />
           </div>
 
           <div className="ml-auto flex items-center gap-2">

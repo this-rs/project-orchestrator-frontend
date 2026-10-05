@@ -21,7 +21,7 @@
  * - In no-auth mode, the server sends `auth_ok` automatically.
  */
 
-import type { ChatEvent, WsChatClientMessage, WsConnectionStatus } from '@/types'
+import type { ChatStreamEvent, WsChatClientMessage, WsConnectionStatus } from '@/types'
 import { getAuthMode, fetchWsTicket } from './auth'
 import { forceLogout } from './authManager'
 import { wsUrl } from './env'
@@ -49,7 +49,7 @@ const STALL_CHECK_INTERVAL_MS = 20_000
  */
 export const SKIP_REPLAY_THRESHOLD = 1_000_000_000_000
 
-export type ChatWsEventCallback = (event: ChatEvent & { seq?: number; replaying?: boolean }) => void
+export type ChatWsEventCallback = (event: ChatStreamEvent & { seq?: number; replaying?: boolean }) => void
 export type ChatWsStatusCallback = (status: WsConnectionStatus) => void
 export type ChatWsReplayCompleteCallback = () => void
 export type ChatWsResyncCallback = () => void
@@ -352,7 +352,7 @@ export class ChatWebSocket {
             // Forward as ChatEvent to the callback
             // The data has `type` field matching ChatEvent discriminant
             if (this.onEvent) {
-              this.onEvent(data as ChatEvent & { seq?: number; replaying?: boolean })
+              this.onEvent(data as ChatStreamEvent & { seq?: number; replaying?: boolean })
             }
           } catch {
             // Ignore malformed messages
@@ -508,6 +508,14 @@ export class ChatWebSocket {
    */
   sendInterrupt() {
     return this.send({ type: 'interrupt' })
+  }
+
+  /**
+   * Cancel the running tools WITHOUT ending the turn. Returns false on a dead
+   * socket — callers then fall back to REST (`chatApi.cancelTools`).
+   */
+  sendCancelTools() {
+    return this.send({ type: 'cancel_tools' })
   }
 
   /**

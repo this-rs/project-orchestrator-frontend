@@ -16,6 +16,7 @@
  * pollute the normal chat surface.
  */
 
+import { COST_SUM_PARTIAL_HELP, costReport, costToText, formatCostSum, formatUsd2, sumCosts, type CostReport } from '@/utils/cost'
 import { memo, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bot, Eye, Square, ExternalLink, Cpu, MemoryStick } from 'lucide-react'
@@ -49,9 +50,9 @@ function formatDuration(startedAt: string): string {
   return `${hrs}h ${mins % 60}m`
 }
 
-function formatCost(cost?: number | null): string {
-  if (cost == null || cost <= 0) return '—'
-  return `$${cost.toFixed(2)}`
+/** A cost by its basis (`$1.20`, `$1.20 est.`, `local`…), or `—` when there is no figure (or a zero). */
+function costLabel(report: CostReport | null): string {
+  return costToText(report, { format: formatUsd2, hideZero: true }) ?? '—'
 }
 
 function statusTint(status: ActiveAgentSnapshot['status']): string {
@@ -96,7 +97,7 @@ function AgentCard({
       {/* Metrics row */}
       <div className="flex items-center gap-2 text-[10px] opacity-75">
         <span title="Elapsed">{Math.floor(agent.elapsed_secs)}s</span>
-        <span title="Cost">{formatCost(agent.cost_usd)}</span>
+        <span title="Cost">{costLabel(costReport(agent.cost_usd, agent.cost_basis))}</span>
         <span className="capitalize text-[9px] uppercase tracking-wide opacity-60">{agent.status}</span>
       </div>
 
@@ -173,7 +174,7 @@ function RunSection({
 
   const agents = isThisRun ? (snapshot?.active_agents ?? []) : []
   const wave = isThisRun ? snapshot?.current_wave : null
-  const cost = isThisRun ? snapshot?.cost_usd : run.costUsd
+  const cost = isThisRun && snapshot ? costReport(snapshot.cost_usd, snapshot.cost_basis) : costReport(run.costUsd, run.costBasis)
   const progress = isThisRun ? snapshot?.progress_pct : null
 
   return (
@@ -189,7 +190,7 @@ function RunSection({
           </div>
           <div className="flex items-center gap-3 mt-0.5 text-[10px] text-slate-400">
             <span>⏱ {formatDuration(run.startedAt)}</span>
-            <span>💸 {formatCost(cost)}</span>
+            <span>💸 {costLabel(cost)}</span>
             {wave != null && <span>🌊 Wave {wave}</span>}
             {progress != null && <span>📊 {progress.toFixed(0)}%</span>}
             <span className="opacity-50">{run.model}</span>
@@ -244,8 +245,9 @@ export const AgenticModeBanner = memo(function AgenticModeBanner({
   // collapsible DetachedRunsPanel below takes over for the historical view.
   const activeRuns = useMemo(() => runs.filter((r) => r.isStreaming), [runs])
 
+  // A sum of costs some of which may have no figure: then it is a floor ("≥ $x").
   const cumulativeCost = useMemo(
-    () => activeRuns.reduce((acc, r) => acc + (r.costUsd ?? 0), 0),
+    () => sumCosts(activeRuns.map((r) => costReport(r.costUsd, r.costBasis))),
     [activeRuns],
   )
 
@@ -270,9 +272,9 @@ export const AgenticModeBanner = memo(function AgenticModeBanner({
           <span className="text-[11px] text-slate-400">
             · {activeRuns.length} run{activeRuns.length > 1 ? 's' : ''} active
           </span>
-          {cumulativeCost > 0 && (
-            <span className="text-[11px] text-slate-500">
-              · cumulative {formatCost(cumulativeCost)}
+          {cumulativeCost.usd > 0 && (
+            <span className="text-[11px] text-slate-500" title={cumulativeCost.unknown > 0 ? COST_SUM_PARTIAL_HELP : undefined}>
+              · cumulative {formatCostSum(cumulativeCost)}
             </span>
           )}
         </div>

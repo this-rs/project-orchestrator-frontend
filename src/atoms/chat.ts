@@ -1,6 +1,7 @@
 import { atom } from 'jotai'
 import { atomWithStorage, RESET } from 'jotai/utils'
-import type { BackgroundTaskInfo, ChatPanelMode, PermissionConfig, PermissionMode, Project, WsConnectionStatus } from '@/types'
+import type { BackgroundTaskInfo, ChatPanelMode, PermissionConfig, Project, WsConnectionStatus } from '@/types'
+import type { ToolPolicyMode } from '@/types/provider'
 import type { QueuedMessage } from '@/components/chat/messageQueue'
 import type { Attachment } from '@/components/chat/attachmentState'
 
@@ -33,8 +34,11 @@ export const chatScrollToTurnAtom = atom<{
 /** Runtime permission config (loaded from server, null = not yet loaded) */
 export const chatPermissionConfigAtom = atom<PermissionConfig | null>(null)
 
-/** Per-session permission mode override (null = use server default) */
-export const chatSessionPermissionOverrideAtom = atom<PermissionMode | null>(null)
+/**
+ * Per-session permission mode override (null = use server default).
+ * Neutral: whatever the backend sent was read with `readToolPolicyMode`.
+ */
+export const chatSessionPermissionOverrideAtom = atom<ToolPolicyMode | null>(null)
 
 /** Active model for the current session (null = not yet known / use default) */
 export const chatSessionModelAtom = atom<string | null>(null)
@@ -154,12 +158,6 @@ export const chatWorkspaceHasProjectsAtom = atom<boolean>(false)
 
 /** Whether spawned (child) sessions are visible in the session list */
 export const showSpawnedSessionsAtom = atomWithStorage<boolean>('show-spawned-sessions', true)
-
-/** Derived: true when permission mode requires interactive approval (not bypassPermissions) */
-export const chatPermissionInteractiveAtom = atom((get) => {
-  const config = get(chatPermissionConfigAtom)
-  return config !== null && config.mode !== 'bypassPermissions'
-})
 
 /**
  * Background subprocesses currently tracked for the active chat session.

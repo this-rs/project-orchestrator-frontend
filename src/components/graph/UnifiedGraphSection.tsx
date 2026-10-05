@@ -120,6 +120,7 @@ function toIntelligenceNodes(nodes: FractalNode[]): IntelligenceNode[] {
       model: n.data.model,
       messageCount: n.data.messageCount,
       totalCostUsd: n.data.totalCostUsd,
+      costBasis: n.data.costBasis,
       description: n.data.description,
       entity_count: n.data.entity_count,
     } as Record<string, unknown>,

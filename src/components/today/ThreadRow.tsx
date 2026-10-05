@@ -5,7 +5,9 @@ import { StatusIcon } from '@/components/ui/Status'
 import { RelativeTime } from '@/components/ui/MetaLine'
 import { ChevronRight } from 'lucide-react'
 import { focusRing, hitArea, inlineLink, metaTextReadable as metaText, pressFeedback } from '@/components/ui/classes'
-import { formatCost, formatDurationMs } from '@/components/ui/format'
+import { formatDurationMs } from '@/components/ui/format'
+import { CostDisplay } from '@/components/ui/CostDisplay'
+import { costReport, formatUsd2 } from '@/utils/cost'
 import { workspacePath } from '@/utils/paths'
 import type {
   AttentionThread,
@@ -303,7 +305,8 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
           <span>depuis {ageText(thread.age_secs)}</span>
           {thread.run && (
             <span data-testid="run-cost" className="tabular-nums">
-              {formatCost(thread.run.cost_usd) ?? '$0.00'}
+              {/* The attention contract carries a figure and no basis: a reported cost, zero included. */}
+              <CostDisplay cost={costReport(thread.run.cost_usd)} format={formatUsd2} />
             </span>
           )}
         </>

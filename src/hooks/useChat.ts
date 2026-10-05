@@ -1,10 +1,14 @@
 import { splitAttachments } from '@/utils/messageAttachments'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useSetAtom, useStore } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom } from '@/atoms'
+import { apiErrorMessage } from '@/services/api'
+import { toProviderError } from '@/services/providers'
+import { applyResultCost } from '@/utils/cost'
 import { chatApi, ChatWebSocket } from '@/services'
 import { applyQueueOp, enqueue, mergeServerQueue, type QueueOp, type QueuedMessage } from '@/components/chat/messageQueue'
-import type { ChatMessage, ChatEvent, PermissionMode } from '@/types'
+import type { ChatMessage, ChatStreamEvent, ContentBlock, PermissionMode } from '@/types'
+import { readToolPolicyMode, toWireMode } from '@/constants/toolPolicy'
 import {
   historyEventsToMessages,
   nextBlockId,
@@ -16,9 +20,19 @@ import {
   appendBackgroundActivity,
   workflowEventToTick,
   sessionErrorText,
+  sessionErrorMetadata,
   toolsCancelledText,
+  readSystemInitRuntime,
+  lastSystemInitRuntime,
+  systemInitProviderMetadata,
+  toolHintMetadata,
+  isQuestionToolUse,
+  questionMetadata,
+  answerSyntheticQuestion,
+  type SystemInitRuntime,
   type BackgroundTick,
 } from '@/utils/chatAssembly'
+import { toProviderRef, toToolPolicy, type ToolPolicyMode } from '@/types/provider'
 import type { BackgroundActivityMetadata, BackgroundOutputEntry } from '@/types'
 
 /** Number of messages to load per page via REST */
@@ -40,6 +54,8 @@ interface LoadedWindow {
   totalCount: number
   /** Last raw event, to tell a finished turn from a live one. */
   lastEvent?: { type?: string }
+  /** Provider runtime of the last `system_init` in the window, if it holds one. */
+  runtime: SystemInitRuntime | null
 }
 
 /** Whether a window shows the user any conversation, not only background-activity noise. */
@@ -56,6 +72,7 @@ async function fetchWindow(sid: string, offset: number, limit: number): Promise<
     offset,
     totalCount: data.total_count,
     lastEvent: data.messages[data.messages.length - 1] as { type?: string } | undefined,
+    runtime: lastSystemInitRuntime(data.messages),
   }
 }
 
@@ -159,7 +176,7 @@ function currentStreamWindow(messages: ReadonlyArray<ChatMessage>): StreamWindow
   let start = Math.max(0, messages.length - 30)
   for (let mi = messages.length - 2; mi >= start; mi--) {
     const msg = messages[mi]
-    if (msg.role === 'assistant' && (msg.duration_ms != null || msg.cost_usd != null)) {
+    if (msg.role === 'assistant' && (msg.duration_ms != null || msg.cost_usd != null || msg.cost_basis != null)) {
       start = mi + 1
       break
     }
@@ -221,6 +238,12 @@ export function useChat() {
   const moveDraft = useSetAtom(moveChatDraftAtom)
   const moveQueue = useSetAtom(moveChatQueueAtom)
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  // The messages as last rendered, for callbacks that must stay referentially
+  // stable (they are props of memoised bubbles) yet need to look a block up.
+  const messagesRef = useRef<ChatMessage[]>(messages)
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const wsRef = useRef<ChatWebSocket | null>(null)
   const [isSending, setIsSending] = useState(false)
@@ -246,7 +269,7 @@ export function useChat() {
   // Whether the loaded message window includes the tail (end) of the conversation.
   // When false (pagination centrée), live WS events are buffered to avoid disorder.
   const isAtTailRef = useRef(true)
-  const pendingTailEventsRef = useRef<Array<ChatEvent & { seq?: number; replaying?: boolean }>>([])
+  const pendingTailEventsRef = useRef<Array<ChatStreamEvent & { seq?: number; replaying?: boolean }>>([])
   // True when live WS events are being buffered (user is viewing centered pagination)
   const [hasLiveActivity, setHasLiveActivity] = useState(false)
 
@@ -255,7 +278,7 @@ export function useChat() {
   // The auto-connect useEffect sets it to false before starting REST,
   // then back to true after setMessages(history) + replaying buffered events.
   const historyLoadedRef = useRef(true)
-  const pendingEventsRef = useRef<Array<ChatEvent & { seq?: number; replaying?: boolean }>>([])
+  const pendingEventsRef = useRef<Array<ChatStreamEvent & { seq?: number; replaying?: boolean }>>([])
 
   // ------------------------------------------------------------------------
   // Replay reconciliation — APPEND-ONLY, NEVER DESTRUCTIVE.
@@ -301,11 +324,11 @@ export function useChat() {
   // these atoms, and updating them during handleEvent caused cross-component
   // setState-during-render. Tracked setters keep refs in sync for callback access.
   const autoApprovedToolsRef = useRef<Set<string>>(new Set())
-  const permissionOverrideRef = useRef<PermissionMode | null>(null)
+  const permissionOverrideRef = useRef<ToolPolicyMode | null>(null)
   const sessionModelRef = useRef<string | null>(null)
 
   // Tracked setters: update ref + atom atomically
-  const setPermissionOverride = useCallback((value: PermissionMode | null) => {
+  const setPermissionOverride = useCallback((value: ToolPolicyMode | null) => {
     permissionOverrideRef.current = value
     _setPermissionOverride(value)
   }, [_setPermissionOverride])
@@ -323,10 +346,28 @@ export function useChat() {
     }
   }, [_setAutoApprovedTools])
 
+  // The permission mode of a NEW session, in the form its backend reads: the
+  // legacy Claude string, unless the session opens on another provider (then
+  // the neutral name). Nothing chosen → nothing sent, the server default applies.
+  const wirePermissionMode = useCallback((mode: PermissionMode | null | undefined) => {
+    if (!mode) return undefined
+    return toWireMode(readToolPolicyMode(mode), { neutral: store.get(chatProviderTargetAtom).neutralWire })
+  }, [store])
+
   const setSessionModel = useCallback((value: string | null) => {
     sessionModelRef.current = value
     _setSessionModel(value)
   }, [_setSessionModel])
+
+  // Provider runtime of the session (provider, capabilities, tool policy).
+  // Written from `system_init` — the LAST one wins: a resume may change the
+  // capabilities after a provider update — and from the session record.
+  const applySessionRuntime = useCallback((runtime: SystemInitRuntime | null) => {
+    store.set(chatSessionProviderAtom, runtime?.provider ?? null)
+    store.set(chatSessionCapabilitiesSnapshotAtom, runtime?.capabilities ?? null)
+    store.set(chatSessionToolPolicyAtom, runtime?.toolPolicy ?? null)
+    store.set(chatSessionEngineAtom, { engine: runtime?.engine ?? null, degraded: runtime?.degradedFeatures ?? [] })
+  }, [store])
 
   // Auto-continue: atom is now synced from backend events (not local-only)
   const setAutoContinue = useSetAtom(chatAutoContinueAtom)
@@ -347,7 +388,7 @@ export function useChat() {
   // ========================================================================
   // Event handler — processes LIVE events only (no more replay)
   // ========================================================================
-  const handleEvent = useCallback((event: ChatEvent & { seq?: number; replaying?: boolean }) => {
+  const handleEvent = useCallback((event: ChatStreamEvent & { seq?: number; replaying?: boolean }) => {
     // The messages the session holds until the running turn ends — always the
     // full list, published to EVERY device connected to the session, so a
     // message queued on one shows on the others. It replaces what we showed for
@@ -490,7 +531,10 @@ export function useChat() {
       // text alone and the chips from the references.
       const { text: content, attachments: sentAttachments } = splitAttachments(rawContent)
 
-      setMessages((prev) => {
+      setMessages((current) => {
+        // The answer to a synthetic question IS this user turn (history does
+        // the same): the question above it stops being answerable.
+        const prev = answerSyntheticQuestion(current, content)
         // "Continue" after max_turns: if a continue_indicator was already added
         // by sendContinue(), suppress the broadcast user_message to avoid a duplicate bubble.
         if (content === 'Continue') {
@@ -677,7 +721,7 @@ export function useChat() {
             break
           }
 
-          if (toolName === 'AskUserQuestion') {
+          if (isQuestionToolUse(data)) {
             const questions = (toolInput as { questions?: unknown[] })?.questions
             if (questions && questions.length > 0) {
               // Dedup: skip if an ask_user_question block with same tool_call_id already exists
@@ -735,6 +779,7 @@ export function useChat() {
                     tool_call_id: toolId,
                     tool_name: toolName,
                     tool_input: toolInput,
+                    ...toolHintMetadata(data),
                     ...(initialChildOutputs.length > 0
                       ? { child_outputs: initialChildOutputs }
                       : {}),
@@ -864,6 +909,7 @@ export function useChat() {
               tool_call_id: (data as { id?: string }).id,
               tool_name: (data as { tool?: string }).tool,
               tool_input: (data as { input?: Record<string, unknown> }).input,
+              ...toolHintMetadata(data),
             }, prParent),
           })
           break
@@ -907,7 +953,7 @@ export function useChat() {
                 id: nextBlockId(),
                 type: 'ask_user_question',
                 content: questions.map((q) => q.question).join('\n'),
-                metadata: withParent({ tool_call_id: toolCallId, questions }, auqParent),
+                metadata: withParent(questionMetadata(data, toolCallId, questions), auqParent),
               })
             }
           }
@@ -940,7 +986,14 @@ export function useChat() {
             id: nextBlockId(),
             type: 'error',
             content: sessionErrorText(data as { reason?: string; message?: string }),
-            metadata: withParent(undefined, getParentToolUseId(event)),
+            // A typed failure keeps its `code`: the transcript renders its card.
+            metadata: withParent(
+              (() => {
+                const typed = sessionErrorMetadata(data)
+                return typed.code ? typed : undefined
+              })(),
+              getParentToolUseId(event),
+            ),
           })
           if (!event.replaying) {
             setIsStreaming(false)
@@ -982,9 +1035,23 @@ export function useChat() {
 
         case 'permission_mode_changed': {
           // Server confirmed the mode change — update local atom
-          const newMode = (event as { mode?: string }).mode
-          if (newMode) {
-            setPermissionOverride(newMode as PermissionMode)
+          // The mode arrives as a legacy Claude string or a neutral one, and a
+          // provider-aware backend adds `tool_policy` (with the exact native
+          // mode). Either way the interface keeps the neutral mode.
+          const changed = event as { mode?: string; tool_policy?: unknown; policy_mode?: unknown }
+          const policy = toToolPolicy(changed.tool_policy) ?? toToolPolicy(changed.policy_mode) ?? toToolPolicy(changed.mode)
+          if (changed.mode || policy) {
+            setPermissionOverride(policy?.mode ?? readToolPolicyMode(changed.mode))
+          }
+          if (policy) {
+            // Keep the session policy in step (its native mode is what a Claude
+            // session shows). A bare mode string says nothing about the rules:
+            // the ones already known stay.
+            const previous = store.get(chatSessionToolPolicyAtom)
+            const carriesRules = typeof changed.tool_policy === 'object' && changed.tool_policy !== null
+            store.set(chatSessionToolPolicyAtom, carriesRules || !previous
+              ? policy
+              : { ...policy, allow: previous.allow, deny: previous.deny })
           }
           break
         }
@@ -1101,6 +1168,10 @@ export function useChat() {
           if (siModel) {
             setSessionModel(siModel)
           }
+          // Provider, capabilities and policy: read on EVERY system_init (the
+          // block below is deduped, this state is not). No provider on the
+          // event = a pre-provider session = Claude Code, full profile.
+          applySessionRuntime(readSystemInitRuntime(siData))
           // Dedup: only show the first system_init per conversation
           const alreadyHasSystemInit = updated.some((m) =>
             m.blocks.some((b) => b.type === 'system_init'),
@@ -1115,6 +1186,7 @@ export function useChat() {
                 tools_count: siTools?.length ?? 0,
                 mcp_servers_count: siMcpServers?.length ?? 0,
                 permission_mode: siPermMode,
+                ...systemInitProviderMetadata(siData),
               },
             })
           }
@@ -1131,9 +1203,9 @@ export function useChat() {
 
           // Store turn metrics on the assistant message
           const rDuration = (rData as { duration_ms?: number }).duration_ms
-          const rCost = (rData as { cost_usd?: number }).cost_usd
           if (rDuration != null) lastMsg.duration_ms = rDuration
-          if (rCost != null) lastMsg.cost_usd = rCost
+          // Figure, basis and usage — same helper as the history reducer.
+          applyResultCost(lastMsg, rData)
 
           if (rSubtype === 'error_max_turns') {
             lastMsg.blocks.push({
@@ -1228,7 +1300,7 @@ export function useChat() {
       return finalize(updated)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- tracked setters are stable (useCallback with stable deps)
-  }, [setIsStreaming, setPermissionOverride, setSessionModel, setAutoContinue, setIsCompacting, setBackgroundTasks, setSecretRequests])
+  }, [setIsStreaming, setPermissionOverride, setSessionModel, setAutoContinue, setIsCompacting, setBackgroundTasks, setSecretRequests, applySessionRuntime])
 
   // ========================================================================
   // REST resync — after a reconnect that the server cannot replay
@@ -1272,9 +1344,10 @@ export function useChat() {
         const total = meta.total_count
         const win: LoadedWindow =
           total === 0
-            ? { messages: [], rawCount: 0, offset: 0, totalCount: 0 }
+            ? { messages: [], rawCount: 0, offset: 0, totalCount: 0, runtime: null }
             : await fetchRenderableTail(sid, total)
         if (gen !== resyncGenRef.current) return
+        if (win.runtime) applySessionRuntime(win.runtime)
 
         setMessages(win.messages)
         paginationRef.current = {
@@ -1304,7 +1377,7 @@ export function useChat() {
           handleEvent(evt)
         }
       })
-  }, [handleEvent, setIsStreaming])
+  }, [handleEvent, setIsStreaming, applySessionRuntime])
 
   // ========================================================================
   // Setup WS callbacks
@@ -1524,6 +1597,9 @@ export function useChat() {
               ? await fetchWindow(sessionId, loadOffset, PAGE_SIZE)
               : await fetchRenderableTail(sessionId, total)
             if (cancelled) return
+            // A `system_init` in the loaded window is more precise than the
+            // session record (it carries the frozen capabilities).
+            if (win.runtime) applySessionRuntime(win.runtime)
 
             setMessages(win.messages)
 
@@ -1731,6 +1807,11 @@ export function useChat() {
    * `attachments` field on the `user_message` frame for follow-ups.
    */
   const sendMessage = useCallback(async (text: string, options?: SendMessageOptions, attachments?: string[]) => {
+    // A new attempt: whatever the previous one failed on is no longer the news.
+    store.set(chatSessionOpenErrorAtom, null)
+    // Known before the optimistic bubble is added, so a failed creation can
+    // take exactly that bubble back out.
+    const userMessageId = nextMessageId()
     // Clear draft for this session after sending
     const draftKey = draftKeyFor(sessionId)
     setDraftsMap((prev) => {
@@ -1766,7 +1847,7 @@ export function useChat() {
       }
 
       updated.push({
-        id: nextMessageId(),
+        id: userMessageId,
         role: 'user',
         blocks: [{ id: nextBlockId(), type: 'text', content: text }],
         timestamp: new Date(),
@@ -1779,13 +1860,26 @@ export function useChat() {
       setIsSending(true)
       setIsStreaming(true)
       try {
+        // The provider is named ONLY when the user picked an instance this
+        // server lists. Otherwise the field is left out and the server
+        // resolves its default (project rule, global rule…) — sending the
+        // id the interface merely DISPLAYS would freeze that routing.
+        const picked = store.get(chatSelectedProviderAtom)
+        const provider =
+          picked &&
+          store.get(providersLoadStateAtom) !== 'unsupported' &&
+          store.get(providersAtom)?.providers.some((p) => p.id === picked)
+            ? picked
+            : undefined
         const response = await chatApi.createSession({
           message: text,
           cwd: options!.cwd,
           project_slug: options?.projectSlug,
           workspace_slug: options?.workspaceSlug,
-          permission_mode: options?.permissionMode ?? store.get(chatSessionPermissionOverrideAtom) ?? undefined,
+          permission_mode: wirePermissionMode(options?.permissionMode ?? store.get(chatSessionPermissionOverrideAtom)),
+          // A model id, or the NAME of an alias (`fast`, `deep`…) of the instance.
           model: options?.model ?? store.get(chatSessionModelAtom) ?? undefined,
+          ...(provider ? { provider } : {}),
           attachments: attachments && attachments.length > 0 ? attachments : undefined,
         })
         // Signal that the upcoming sessionId change is from a first send,
@@ -1802,6 +1896,20 @@ export function useChat() {
         }
         // Reset override after use
         if (store.get(chatSessionPermissionOverrideAtom)) setPermissionOverride(null)
+      } catch (err) {
+        // No session was opened: nothing will ever stream, so the indicator
+        // goes off, and the bubble shown optimistically was never sent.
+        setIsStreaming(false)
+        setMessages((prev) => prev.filter((m) => m.id !== userMessageId))
+        // The text goes back to the composer rather than being lost; anything
+        // typed while the request was pending is kept after it.
+        store.set(chatDraftInputAtom, (typed) => (typed.trim() === '' ? text : `${text}\n${typed}`))
+        store.set(chatSessionOpenErrorAtom, {
+          info: toProviderError(err),
+          message: apiErrorMessage(err, 'The conversation could not be started'),
+          text,
+          attachments: attachments ?? [],
+        })
       } finally {
         setIsSending(false)
       }
@@ -1818,7 +1926,7 @@ export function useChat() {
         pendingSendRef.current.push({ text, attachments })
       }
     }
-  }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride, setDraftsMap, moveDraft, moveQueue, store])
+  }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride, setDraftsMap, moveDraft, moveQueue, store, wirePermissionMode])
 
   /**
    * Send "Continue" after max_turns — adds a discreet inline indicator instead of a user bubble.
@@ -1894,20 +2002,33 @@ export function useChat() {
     return true
   }, [sessionId, getWs, setAutoApprovedTools])
 
-  /** Returns true when the answer was handed to the socket, false otherwise. */
+  /**
+   * Answer a question the agent asked. Returns true when the answer was handed
+   * to the socket, false otherwise.
+   *
+   * A NATIVE question (Claude's `AskUserQuestion`) is answered in-band with an
+   * `input_response`. A question the provider has no native support for — the
+   * backend marked it `synthetic`, or the session's capabilities say
+   * `native_question: false` — is answered by a USER TURN: nothing on the
+   * provider's side is waiting for an `input_response`.
+   */
   const respondInput = useCallback((requestId: string, response: string): boolean => {
     if (!sessionId) return false
     const ws = getWs()
+    const isTarget = (b: ContentBlock) =>
+      b.type === 'ask_user_question' && (b.metadata?.tool_call_id === requestId || b.id === requestId)
+    const target = messagesRef.current.flatMap((m) => m.blocks).find(isTarget)
+    const asUserTurn =
+      target?.metadata?.synthetic === true || !store.get(chatSessionCapabilitiesAtom).native_question
+
     // Not delivered (dead socket): leave the question open so it can be re-answered.
-    if (!ws.sendInputResponse(requestId, response)) return false
+    if (asUserTurn ? !ws.sendUserMessage(response) : !ws.sendInputResponse(requestId, response)) return false
 
     // Stamp the block's metadata with the response so it persists across
     // page reloads and renders as read-only in history/replay.
-    setMessages((prev) =>
-      prev.map((msg) => {
-        const blockIdx = msg.blocks.findIndex(
-          (b) => b.type === 'ask_user_question' && (b.metadata?.tool_call_id === requestId || b.id === requestId),
-        )
+    setMessages((prev) => {
+      const stamped = prev.map((msg) => {
+        const blockIdx = msg.blocks.findIndex(isTarget)
         if (blockIdx === -1) return msg
         const updatedBlocks = [...msg.blocks]
         updatedBlocks[blockIdx] = {
@@ -1919,10 +2040,23 @@ export function useChat() {
           },
         }
         return { ...msg, blocks: updatedBlocks }
-      }),
-    )
+      })
+      if (!asUserTurn) return stamped
+      // The answer is a turn of the conversation: it shows as one, exactly as
+      // the history will replay it (the broadcast echo is deduplicated on its text).
+      return [
+        ...stamped,
+        {
+          id: nextMessageId(),
+          role: 'user' as const,
+          blocks: [{ id: nextBlockId(), type: 'text' as const, content: response }],
+          timestamp: new Date(),
+        },
+      ]
+    })
+    if (asUserTurn) setIsStreaming(true)
     return true
-  }, [sessionId, getWs])
+  }, [sessionId, getWs, store, setIsStreaming])
 
   const interrupt = useCallback(async () => {
     if (!sessionId) return
@@ -2048,15 +2182,17 @@ export function useChat() {
     setPermissionOverride(null)
     setSessionModel(null)
     setAutoContinue(false)
-  }, [getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride, setSessionModel, setAutoContinue, sessionId])
+    applySessionRuntime(null)
+    store.set(chatSessionOpenErrorAtom, null)
+  }, [store, getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride, setSessionModel, setAutoContinue, sessionId, applySessionRuntime])
 
-  const changePermissionMode = useCallback((mode: PermissionMode) => {
+  const changePermissionMode = useCallback((mode: ToolPolicyMode) => {
     if (!sessionId) return
     const ws = getWs()
-    ws.sendSetPermissionMode(mode)
+    ws.sendSetPermissionMode(toWireMode(mode, { neutral: store.get(chatProviderTargetAtom).neutralWire }))
     // Optimistically update local state (server will confirm via permission_mode_changed event)
     setPermissionOverride(mode)
-  }, [sessionId, getWs, setPermissionOverride])
+  }, [sessionId, getWs, setPermissionOverride, store])
 
   const changeModel = useCallback((model: string) => {
     if (!sessionId) return
@@ -2084,12 +2220,24 @@ export function useChat() {
     setHasNewerMessages(false)
     setHasLiveActivity(false)
     paginationRef.current = { offset: 0, tailOffset: 0, totalCount: 0 }
+    // The previous conversation's provider must not leak into this one.
+    applySessionRuntime(null)
+    // Neither must the failure of a conversation that never opened.
+    store.set(chatSessionOpenErrorAtom, null)
 
     // Fetch session metadata (cwd, project, permission mode) for display in header
     chatApi.getSession(sid).then((session) => {
+      // Provider of the session record. Absent (session created before
+      // providers existed) = Claude Code with the full profile.
+      const provider = toProviderRef(
+        session.provider_id ? { id: session.provider_id, kind: session.provider_kind ?? undefined } : null,
+      )
+      if (provider || session.capabilities || session.engine) {
+        applySessionRuntime({ provider, capabilities: session.capabilities ?? null, toolPolicy: null, engine: session.engine ?? null, degradedFeatures: session.degraded_features ?? [] })
+      }
       setSessionMeta({ cwd: session.cwd, projectSlug: session.project_slug, workspaceSlug: session.workspace_slug, spawnedBy: session.spawned_by ?? null })
       // Restore the session's permission mode override
-      setPermissionOverride((session.permission_mode as PermissionMode) ?? null)
+      setPermissionOverride(session.permission_mode ? readToolPolicyMode(session.permission_mode) : null)
       // Restore the session's model
       setSessionModel(session.model ?? null)
     }).catch(() => {
@@ -2099,7 +2247,7 @@ export function useChat() {
 
     // WS will auto-connect via the useEffect above when sessionId changes
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setPermissionOverride and setSessionModel are stable Jotai setters
-  }, [sessionId, getWs, setSessionId, setIsStreaming, setIsReplaying])
+  }, [sessionId, getWs, setSessionId, setIsStreaming, setIsReplaying, applySessionRuntime, store])
 
   return {
     messages,

@@ -1,6 +1,16 @@
 import { useState } from 'react'
 import { Rocket, AlertTriangle, DollarSign } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { RunTargetPicker } from '@/components/runner/RunTargetPicker'
+import { useRunTarget } from '@/hooks/useRunTarget'
+import {
+  RUN_BUDGET_TOKENS_HELP,
+  RUN_BUDGET_TOKENS_LABEL,
+  RUN_BUDGET_USD_DISABLED_ID,
+  RUN_TARGET_NO_PRICE_TEXT,
+  hasKnownPrice,
+} from '@/constants/runProviders'
+import type { StartRunOptions } from '@/services/runner'
 export type ImplementMode = 'plan' | 'task' | 'milestone'
 
 // ---------------------------------------------------------------------------
@@ -12,8 +22,12 @@ interface ImplementDialogProps {
   open: boolean
   /** Close the dialog */
   onClose: () => void
-  /** Confirm and launch implementation — receives the budget limit */
-  onConfirm: (maxCostUsd: number) => void
+  /**
+   * Confirm and launch implementation. The USD budget is `undefined` when the
+   * chosen provider has no price (a token budget is in `options` instead);
+   * `options` carries only what was chosen (provider, model, token budget).
+   */
+  onConfirm: (maxCostUsd: number | undefined, options: StartRunOptions) => void
   /** What kind of entity is being implemented */
   mode: ImplementMode
   /** Human-readable name of the entity */
@@ -22,6 +36,8 @@ interface ImplementDialogProps {
   loading?: boolean
   /** Default budget in USD (defaults to 10) */
   defaultBudget?: number
+  /** Project of the entity being launched: consent is checked for it, not for the chat's project. */
+  projectSlug?: string | null
 }
 
 const modeLabels: Record<ImplementMode, string> = {
@@ -46,8 +62,13 @@ export function ImplementDialog({
   entityTitle,
   loading = false,
   defaultBudget = 10,
+  projectSlug,
 }: ImplementDialogProps) {
   const [budget, setBudget] = useState<number>(defaultBudget)
+  const [tokenBudget, setTokenBudget] = useState<number>(1_000_000)
+  const target = useRunTarget(projectSlug)
+  // Said before launch, not after a refusal: no price, no USD budget.
+  const usdDisabled = target.visible && !hasKnownPrice(target.instance)
 
   if (!open) return null
 
@@ -88,6 +109,8 @@ export function ImplementDialog({
           </p>
         </div>
 
+        <RunTargetPicker target={target} />
+
         {/* Budget configuration */}
         <div className="p-3 bg-white/[0.04] rounded-lg space-y-2">
           <div className="flex items-center gap-2">
@@ -101,14 +124,18 @@ export function ImplementDialog({
               max={500}
               step={5}
               value={budget}
+              disabled={usdDisabled}
+              aria-label="Budget limit in USD"
+              aria-describedby={usdDisabled ? RUN_BUDGET_USD_DISABLED_ID : undefined}
               onChange={(e) => setBudget(Math.max(1, Number(e.target.value)))}
-              className="w-24 px-3 py-1.5 bg-white/[0.06] border border-white/[0.08] rounded-lg text-sm text-gray-200 font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500/50 focus:border-indigo-500/50"
+              className="w-24 px-3 py-1.5 bg-white/[0.06] border border-white/[0.08] rounded-lg text-sm text-gray-200 font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500/50 focus:border-indigo-500/50 disabled:opacity-40"
             />
             <span className="text-sm text-gray-400">USD</span>
             <div className="flex-1" />
             {[10, 25, 50, 100].map((preset) => (
               <button
                 key={preset}
+                disabled={usdDisabled}
                 onClick={() => setBudget(preset)}
                 className={`px-2 py-1 text-xs rounded-md transition-colors ${
                   budget === preset
@@ -123,6 +150,28 @@ export function ImplementDialog({
           <p className="text-xs text-gray-500">
             Execution stops when cumulated API cost reaches this limit.
           </p>
+          {usdDisabled && (
+            <div className="space-y-1.5 pt-1">
+              <p id={RUN_BUDGET_USD_DISABLED_ID} className="text-xs text-amber-300">
+                {RUN_TARGET_NO_PRICE_TEXT}
+              </p>
+              <label className="flex items-center gap-2 text-sm text-gray-300">
+                <span>{RUN_BUDGET_TOKENS_LABEL}</span>
+                <input
+                  type="number"
+                  min={1000}
+                  step={100000}
+                  value={tokenBudget}
+                  aria-describedby="run-budget-tokens-help"
+                  onChange={(e) => setTokenBudget(Math.max(1000, Number(e.target.value)))}
+                  className="w-32 px-3 py-1.5 bg-white/[0.06] border border-white/[0.08] rounded-lg text-sm text-gray-200 font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
+                />
+              </label>
+              <p id="run-budget-tokens-help" className="text-xs text-gray-500">
+                {RUN_BUDGET_TOKENS_HELP}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Warning */}
@@ -142,7 +191,9 @@ export function ImplementDialog({
           <Button
             variant="primary"
             size="sm"
-            onClick={() => onConfirm(budget)}
+            onClick={() =>
+              onConfirm(usdDisabled ? undefined : budget, usdDisabled ? { ...target.options, maxTokens: tokenBudget } : target.options)
+            }
             loading={loading}
             className="bg-indigo-600 hover:bg-indigo-500"
           >

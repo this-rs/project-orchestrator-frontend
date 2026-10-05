@@ -34,15 +34,6 @@ export interface ModelDefinition {
   description: string
 }
 
-/**
- * Last-resort default model ID.
- *
- * Only reached when the backend advertises no `default_model`
- * (see `ChatInput`: `sessionModel ?? serverConfig?.default_model ?? DEFAULT_MODEL_ID`).
- * Keep in sync with `ChatConfig::default_model` in backend/src/chat/config.rs.
- */
-export const DEFAULT_MODEL_ID = 'claude-sonnet-5'
-
 // ============================================================================
 // Family presentation
 // ============================================================================
@@ -196,4 +187,28 @@ export function defaultModelForFamily(
   const current = ascending.filter((m) => m.tier === 'current')
   const pool = current.length > 0 ? current : ascending
   return pool[pool.length - 1]
+}
+
+// ============================================================================
+// Default of the catalog
+// ============================================================================
+
+/**
+ * The model to preselect where one MUST be chosen and nobody chose (the setup
+ * wizard writes it to the config file).
+ *
+ * No model id is hardcoded in this app any more: the default shown in the chat
+ * comes from the backend. The catalog carries no "default" marker, so the rule
+ * here is its own order — the backend lists models in its preferred order —
+ * restricted to the current lineup when there is one.
+ */
+export function catalogDefaultModel(models: readonly ModelDefinition[]): ModelDefinition | undefined {
+  // Sonnet first: it is what a fresh install has always started on, and the
+  // catalog order is "most capable first", which would silently make every
+  // new install default to the most expensive model.
+  return (
+    models.find((m) => m.tier === 'current' && m.family === 'sonnet') ??
+    models.find((m) => m.tier === 'current') ??
+    models[0]
+  )
 }

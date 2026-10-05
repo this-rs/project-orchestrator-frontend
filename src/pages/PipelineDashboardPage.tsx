@@ -41,7 +41,8 @@ import {
 } from '@/components/ui'
 import { PlanRunRow } from '@/components/runner/PlanRunRow'
 import { Explainer } from '@/components/protocols/Explainer'
-import { formatCost } from '@/components/runner/shared'
+import { runCost } from '@/components/runner/shared'
+import { COST_SUM_PARTIAL_HELP, formatCostSum, sumCosts } from '@/utils/cost'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { NOMENCLATURE } from '@/constants/nomenclature'
@@ -191,7 +192,8 @@ export function PipelineDashboardPage() {
       running: runs.filter((r) => r.status === 'running').length,
       completed: runs.filter((r) => r.status === 'completed').length,
       failed: runs.filter((r) => FAILED_LIKE.has(r.status)).length,
-      cost: runs.reduce((acc, r) => acc + (r.cost_usd ?? 0), 0),
+      // Runs without a figure make the total a floor ("≥ $x"), not an exact sum.
+      cost: sumCosts(runs.map(runCost)),
     }),
     [runs],
   )
@@ -270,7 +272,11 @@ export function PipelineDashboardPage() {
                   ) : null,
                   stats.completed > 0 ? <span key="c" className="text-emerald-400">{stats.completed} completed</span> : null,
                   stats.failed > 0 ? <span key="f" className="text-red-400">{stats.failed} failed</span> : null,
-                  <span key="$" className="font-mono tabular-nums">{formatCost(stats.cost)} total</span>,
+                  formatCostSum(stats.cost) ? (
+                    <span key="$" className="font-mono tabular-nums" title={stats.cost.unknown > 0 ? COST_SUM_PARTIAL_HELP : undefined}>
+                      {formatCostSum(stats.cost)} total
+                    </span>
+                  ) : null,
                 ]}
               />
               <div>

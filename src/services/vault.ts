@@ -16,6 +16,8 @@ export type GrantScope =
   | { kind: 'session'; value: string }
   | { kind: 'project'; value: string }
   | { kind: 'anywhere' }
+  /** Lets the SERVER read the secret to authenticate to that provider instance's endpoint; never covers an agent. */
+  | { kind: 'provider'; value: string }
 
 export type SecretSelector = { kind: 'all' } | { kind: 'names'; names: string[] }
 

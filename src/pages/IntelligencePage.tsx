@@ -1,3 +1,4 @@
+import { costReport, costToText } from '@/utils/cost'
 import { createElement, useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAtom } from 'jotai'
@@ -702,7 +703,7 @@ export function IntelligencePage() {
               { label: 'Sessions', value: s.chat.sessions },
               { label: 'Messages', value: s.chat.total_messages },
               { label: 'Entities discussed', value: s.chat.discussed_entity_count },
-              { label: 'Cost', value: formatCost(s.chat.total_cost_usd) },
+              { label: 'Cost', value: costToText(costReport(s.chat.total_cost_usd, undefined), { hideZero: true, format: (usd) => formatCost(usd) ?? '' }) ?? '—' },
             ]}
           />
         </Section>

@@ -3,6 +3,7 @@ import type { ContentBlock } from '@/types'
 import { ToolCallBlock } from './ToolCallBlock'
 import { ThinkingBlock } from './ThinkingBlock'
 import { MarkdownText } from './MarkdownText'
+import { useChatCapabilities } from './ChatSessionContext'
 import { ChevronRight } from 'lucide-react'
 
 // ============================================================================
@@ -43,6 +44,7 @@ interface AgentGroupProps {
 }
 
 export function AgentGroup({ parentBlock, childBlocks, allBlocks, isStreaming }: AgentGroupProps) {
+  const caps = useChatCapabilities()
   // Extract agent description from the Task tool input
   const toolInput = (parentBlock.metadata?.tool_input as Record<string, unknown>) ?? {}
   const description = (toolInput.description as string)
@@ -63,7 +65,8 @@ export function AgentGroup({ parentBlock, childBlocks, allBlocks, isStreaming }:
   // Separate child blocks by type for rendering
   const childToolBlocks = childBlocks.filter((b) => b.type === 'tool_use')
   const childTextBlocks = childBlocks.filter((b) => b.type === 'text')
-  const childThinkingBlocks = childBlocks.filter((b) => b.type === 'thinking')
+  // Same guard as the top-level transcript: no reasoning blocks for a provider that emits none.
+  const childThinkingBlocks = caps.thinking ? childBlocks.filter((b) => b.type === 'thinking') : []
   const childErrorBlocks = childBlocks.filter((b) => b.type === 'error')
 
   // Count completed vs running child tools

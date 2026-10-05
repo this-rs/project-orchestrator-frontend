@@ -62,6 +62,42 @@ describe('protocolApi dead calls', () => {
   })
 })
 
+describe('runnerApi.startRun', () => {
+  it('sends the exact body it always did when no provider or model is chosen', async () => {
+    await runnerApi.startRun('plan-1', '/repo', 'proj', 12)
+    expect(post).toHaveBeenCalledWith('/plans/plan-1/run', {
+      cwd: '/repo',
+      triggered_by: 'manual',
+      project_slug: 'proj',
+      max_cost_usd: 12,
+    })
+    await runnerApi.startRun('plan-1', '/repo', undefined, undefined, { provider: null, model: null })
+    expect(post).toHaveBeenLastCalledWith('/plans/plan-1/run', { cwd: '/repo', triggered_by: 'manual' })
+  })
+
+  it('adds provider, model and a token budget only when they are chosen', async () => {
+    await runnerApi.startRun('plan-1', '/repo', 'proj', undefined, { provider: 'deepseek', model: 'fast', maxTokens: 500000 })
+    expect(post).toHaveBeenCalledWith('/plans/plan-1/run', {
+      cwd: '/repo',
+      triggered_by: 'manual',
+      project_slug: 'proj',
+      provider: 'deepseek',
+      model: 'fast',
+      max_tokens: 500000,
+    })
+  })
+})
+
+describe('chatApi.interruptSession', () => {
+  it('keeps the plain body and adds `cascade: true` only when asked', async () => {
+    const { chatApi } = await import('../chat')
+    await chatApi.interruptSession('s1')
+    expect(post).toHaveBeenLastCalledWith('/chat/sessions/s1/interrupt', { scope: 'turn_and_tools' })
+    await chatApi.interruptSession('s1', 'turn_and_tools', { cascade: true })
+    expect(post).toHaveBeenLastCalledWith('/chat/sessions/s1/interrupt', { scope: 'turn_and_tools', cascade: true })
+  })
+})
+
 describe('runnerApi.retryTask', () => {
   it('posts to the per-task retry route of the plan run', async () => {
     await runnerApi.retryTask('plan-1', 'task-9')

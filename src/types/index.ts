@@ -1,4 +1,5 @@
 export * from './chat'
+export * from './provider'
 export * from './documents'
 export * from './events'
 
@@ -107,6 +108,8 @@ export interface Task {
   affected_files: string[]
   estimated_complexity?: number
   actual_complexity?: number
+  /** Logical model name this task runs on (`fast`, `deep`…). Absent/null = inherits. */
+  model_alias?: string | null
   created_at: string
   updated_at?: string
   started_at?: string
@@ -1428,6 +1431,8 @@ export interface UpdateTaskRequest {
   tags?: string[]
   estimated_complexity?: number
   actual_complexity?: number
+  /** `null` clears the override (the task inherits again). */
+  model_alias?: string | null
 }
 
 export interface CreateNoteRequest {

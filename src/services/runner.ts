@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, ApiError, buildQuery } from './api'
 import type { GateResultsResponse, ProgressScoreResponse } from '@/types/chat'
+import type { CostBasis } from '@/types/provider'
 
 // ---------------------------------------------------------------------------
 // Types — aligned with backend RunStatus
@@ -49,7 +50,10 @@ export interface ActiveAgentSnapshot {
   /** OS pid of the Claude Code subprocess (when the backend has set_pid). */
   pid?: number | null
   elapsed_secs: number
-  cost_usd: number
+  /** `null` = no figure (never run, or a provider with no known price). Not zero. */
+  cost_usd: number | null
+  /** Where `cost_usd` comes from. Absent = `reported` (Claude Code). */
+  cost_basis?: CostBasis | null
   status: AgentStatus
   /** Live OS metrics — only present when the backend returns them. */
   resources?: ActiveAgentResources | null
@@ -74,7 +78,10 @@ export interface RunSnapshot {
   tasks_completed: number
   tasks_total: number
   elapsed_secs: number
-  cost_usd: number
+  /** `null` = no figure (never run, or a provider with no known price). Not zero. */
+  cost_usd: number | null
+  /** Where `cost_usd` comes from. Absent = `reported` (Claude Code). */
+  cost_basis?: CostBasis | null
   max_cost_usd: number
 }
 
@@ -107,7 +114,10 @@ export interface PlanRun {
   started_at: string
   completed_at: string | null
   status: PlanRunStatus
-  cost_usd: number
+  /** `null` = no figure (never run, or a provider with no known price). Not zero. */
+  cost_usd: number | null
+  /** Where `cost_usd` comes from. Absent = `reported` (Claude Code). */
+  cost_basis?: CostBasis | null
   triggered_by: string | { chat: { session_id: string | null } } | { schedule: { trigger_id: string } } | { webhook: { trigger_id: string; payload_hash: string | null } } | { event: { trigger_id: string; source_event: string } }
   project_id: string | null
 }
@@ -136,16 +146,38 @@ export function planRunTarget(project?: { root_path?: string; slug: string } | n
   return { cwd: project?.root_path || '.', projectSlug: project?.slug }
 }
 
+/**
+ * Where a run executes. All optional: nothing chosen = the server default.
+ * `provider` is an instance id, `model` a model id or an alias.
+ */
+export interface StartRunOptions {
+  provider?: string | null
+  model?: string | null
+  /** Token budget, for an instance with no price (a USD budget could never trigger). */
+  maxTokens?: number
+}
+
 export const runnerApi = {
   /**
    * Start a plan run. The backend spawns agents and executes tasks in wave order.
    * Returns 202 Accepted with run metadata.
    * Throws 409 if the plan already has an active run.
    */
-  startRun: async (planId: string, cwd: string, projectSlug?: string, maxCostUsd?: number): Promise<StartRunResponse> => {
+  startRun: async (
+    planId: string,
+    cwd: string,
+    projectSlug?: string,
+    maxCostUsd?: number,
+    options: StartRunOptions = {},
+  ): Promise<StartRunResponse> => {
     const body: Record<string, unknown> = { cwd, triggered_by: 'manual' }
     if (projectSlug) body.project_slug = projectSlug
     if (maxCostUsd !== undefined && maxCostUsd > 0) body.max_cost_usd = maxCostUsd
+    // Additive fields: sent only when chosen, so a run launched without a choice
+    // has the exact body it always had and an older backend never sees them.
+    if (options.provider) body.provider = options.provider
+    if (options.model) body.model = options.model
+    if (options.maxTokens !== undefined && options.maxTokens > 0) body.max_tokens = options.maxTokens
     return api.post<StartRunResponse>(`/plans/${planId}/run`, body)
   },
 

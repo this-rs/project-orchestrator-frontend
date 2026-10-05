@@ -33,6 +33,21 @@ vi.mock('@/services/plans', () => ({ plansApi: { list: plansList } }))
 vi.mock('@/services/tasks', () => ({ tasksApi: { list: tasksList } }))
 vi.mock('@/services/projects', () => ({ projectsApi: { list: vi.fn(async () => ({ items: [{ id: 'proj1', slug: 'alpha' }] })) } }))
 
+
+const providersList = vi.hoisted(() => vi.fn())
+vi.mock('@/services/providers', async (orig) => ({
+  ...(await orig<typeof import('@/services/providers')>()),
+  providersApi: { list: (...a: unknown[]) => providersList(...a) },
+}))
+const ONE = { providers: [{ id: 'claude-code', kind: 'claude_code', label: 'Claude Code', builtin: true, health: { status: 'healthy' }, models: [] }] }
+const TWO = (allowedForProject: boolean | undefined) => ({
+  providers: [
+    ...ONE.providers,
+    { id: 'deepseek', kind: 'openai_compatible', label: 'DeepSeek', cost_source: 'priced', health: { status: 'healthy' }, models: [], allowed_for_project: allowedForProject },
+  ],
+  default: { provider: 'claude-code', model: null, routed_by: 'default' },
+})
+
 const wsProjects = vi.hoisted(() => vi.fn())
 vi.mock('@/services/workspaces', async () => {
   const actual = await vi.importActual<typeof import('@/services/workspaces')>('@/services/workspaces')
@@ -87,6 +102,7 @@ beforeEach(() => {
   chat.associateSession.mockResolvedValue({})
   plansList.mockResolvedValue({ items: [{ id: 'planB', title: 'Plan B' }], total: 1 })
   tasksList.mockResolvedValue({ items: [{ id: 'taskB', title: 'Tâche B', plan_title: 'Plan B' }], total: 1 })
+  providersList.mockResolvedValue(ONE)
   runner.startRun.mockResolvedValue({})
   runner.retryTask.mockResolvedValue(undefined)
   attention.sendMessage.mockResolvedValue(undefined)
@@ -321,5 +337,45 @@ describe('LinkedDiscussions — resume buttons', () => {
     await screen.findByText('Session morte')
     const b = within(nodeOf('Session morte')).getByRole('button', { name: ROW_TEXT.resumeSession }) as HTMLButtonElement
     expect(b.disabled).toBe(false)
+  })
+})
+
+describe('LinkedDiscussions — the provider choice of a resume', () => {
+  const resumeProps = { resume: { planId: 'plan1', project: { slug: 'alpha', root_path: '/p/alpha' }, run: { id: 'run1', status: 'failed' } } }
+
+  it('asks which provider first: nothing starts until one is chosen, then it starts with that choice', async () => {
+    providersList.mockResolvedValue(TWO(true))
+    setup(resumeProps)
+    await screen.findByText('Session morte')
+    await waitFor(() => expect(providersList).toHaveBeenCalled())
+    await new Promise((r) => setTimeout(r, 50))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Reprendre le run' })[0])
+    expect(runner.startRun).not.toHaveBeenCalled()
+    fireEvent.click(await screen.findByRole('radio', { name: /DeepSeek/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Launch$/ }))
+    await waitFor(() => expect(runner.startRun).toHaveBeenCalledWith('plan1', '/p/alpha', 'alpha', undefined, { provider: 'deepseek' }))
+  })
+
+  it('Escape closes the dialog and starts nothing', async () => {
+    providersList.mockResolvedValue(TWO(true))
+    setup(resumeProps)
+    await screen.findByText('Session morte')
+    await waitFor(() => expect(providersList).toHaveBeenCalled())
+    await new Promise((r) => setTimeout(r, 50))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Reprendre le run' })[0])
+    fireEvent.keyDown(await screen.findByRole('dialog'), { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(runner.startRun).not.toHaveBeenCalled()
+  })
+
+  it("reads the consent of the PLAN's project, not the chat's", async () => {
+    providersList.mockImplementation(async (params?: { project_slug?: string }) => TWO(params?.project_slug === 'alpha' ? false : true))
+    setup(resumeProps)
+    await screen.findByText('Session morte')
+    await waitFor(() => expect(providersList).toHaveBeenCalled())
+    await new Promise((r) => setTimeout(r, 50))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Reprendre le run' })[0])
+    await waitFor(() => expect(providersList).toHaveBeenCalledWith({ project_slug: 'alpha' }))
+    await waitFor(() => expect(screen.getByRole('radio', { name: /DeepSeek/ }).getAttribute('aria-disabled')).toBe('true'))
   })
 })

@@ -1,8 +1,12 @@
 import { useState } from 'react'
 import { useAtom, useSetAtom } from 'jotai'
 import { Check, X, Loader2, Rocket, RefreshCw, ChevronDown } from 'lucide-react'
-import { setupConfigAtom, configExistsAtom } from '@/atoms/setup'
+import { setupConfigAtom, configExistsAtom, withSetupModelFallback } from '@/atoms/setup'
+import { toToolPolicyMode } from '@/types/provider'
+import { SETUP_MODE_SUMMARIES } from '@/constants/toolPolicy'
 import { isTauri } from '@/services/env'
+import { Link } from 'react-router-dom'
+import { SETUP_LAUNCH_NO_ENGINE_SUMMARY } from '@/constants/setupProviders'
 
 type LaunchPhase = 'review' | 'generating' | 'generated' | 'restarting' | 'error'
 
@@ -26,7 +30,7 @@ export function LaunchPage() {
 
     try {
       const { invoke } = await import('@tauri-apps/api/core')
-      const path = await invoke<string>('generate_config', { config })
+      const path = await invoke<string>('generate_config', { config: withSetupModelFallback(config) })
       setConfigPath(path)
       setConfigExists(true)
       setPhase('generated')
@@ -132,17 +136,16 @@ export function LaunchPage() {
 
         <div className="border-t border-white/[0.04] pt-2" />
 
-        <SummaryRow label="Chat Model" value={config.chatModel} />
+        {config.chatProvider === 'none' ? (
+          <SummaryRow label="Chat provider" value={SETUP_LAUNCH_NO_ENGINE_SUMMARY} />
+        ) : (
+          <>
+        <SummaryRow label="Chat Model" value={config.chatModel || 'Not selected'} />
         <SummaryRow label="Max Sessions" value={String(config.chatMaxSessions)} />
         <SummaryRow label="Max Turns" value={String(config.chatMaxTurns)} />
         <SummaryRow
           label="Permissions"
-          value={
-            config.chatPermissionMode === 'bypassPermissions' ? 'Bypass (all auto-approved)'
-            : config.chatPermissionMode === 'default' ? 'Default (ask for edits & shell)'
-            : config.chatPermissionMode === 'acceptEdits' ? 'Accept Edits (ask for shell only)'
-            : 'Plan Only (read-only)'
-          }
+          value={SETUP_MODE_SUMMARIES[toToolPolicyMode(config.chatPermissionMode) ?? 'plan_only']}
         />
         {config.chatProcessPath && (
           <SummaryRow label="Process PATH" value={config.chatProcessPath.length > 60 ? config.chatProcessPath.slice(0, 57) + '...' : config.chatProcessPath} />
@@ -151,6 +154,8 @@ export function LaunchPage() {
           <SummaryRow label="CLI Path" value={config.chatClaudeCliPath} />
         )}
         <SummaryRow label="Auto-update CLI" value={config.chatAutoUpdateCli ? 'Enabled' : 'Disabled'} />
+          </>
+        )}
 
         <div className="border-t border-white/[0.04] pt-2" />
 
@@ -181,6 +186,12 @@ export function LaunchPage() {
               <p className="mt-2 text-xs text-gray-400">
                 The application needs to restart to apply the new configuration.
               </p>
+              {config.chatProvider === 'none' && (
+                <p className="text-xs text-gray-400">
+                  Next: <Link to="/providers" className="text-indigo-300 underline">add a chat provider</Link>{' '}
+                  once the app has restarted.
+                </p>
+              )}
             </div>
           </div>
         </div>

@@ -19,6 +19,7 @@
 // to avoid creating unique textures per node when possible.
 // ============================================================================
 
+import { costReport, costToText } from '@/utils/cost'
 import * as THREE from 'three'
 import SpriteText from 'three-spritetext'
 import { ENTITY_COLORS } from '@/constants/intelligence'
@@ -728,9 +729,11 @@ function getNodeSubtitle(node: Graph3DNode): string | undefined {
     const parts: string[] = []
     if (data.model) parts.push(String(data.model))
     if (data.messageCount) parts.push(`${data.messageCount} msgs`)
-    if (data.totalCostUsd && Number(data.totalCostUsd) > 0) {
-      parts.push(`$${Number(data.totalCostUsd).toFixed(3)}`)
-    }
+    const cost = costToText(costReport(data.totalCostUsd == null ? null : Number(data.totalCostUsd), data.costBasis), {
+      hideZero: true,
+      format: (usd) => `$${usd.toFixed(3)}`,
+    })
+    if (cost) parts.push(cost)
     return parts.length > 0 ? parts.join(' · ') : undefined
   }
 

@@ -1,5 +1,6 @@
 import { atom } from 'jotai'
-import { DEFAULT_MODEL_ID } from '@/constants/models'
+import { DEFAULT_TOOL_POLICY_MODE, type LegacyWireMode } from '@/constants/toolPolicy'
+import { POLICY_TO_LEGACY_MODE } from '@/types/provider'
 
 // ============================================================================
 // Setup wizard configuration atoms
@@ -83,6 +84,9 @@ export const OIDC_PROVIDERS: Record<OidcProvider, OidcProviderDef> = {
   },
 }
 
+/** `none` = no engine picked here: the user adds one later in Settings → Providers. */
+export type ChatProviderChoice = 'claude-code' | 'none'
+
 export interface SetupConfig {
   // Step 1 — Infrastructure
   infraMode: InfraMode
@@ -117,10 +121,13 @@ export interface SetupConfig {
   allowedEmails: string // newline-separated list
 
   // Step 3 — Chat AI
+  /** Which engine the chat step was configured for. Absent in old configs = 'claude-code'. */
+  chatProvider: ChatProviderChoice
   chatModel: string
   chatMaxSessions: number
   chatMaxTurns: number
-  chatPermissionMode: 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions'
+  /** Written to the config file the desktop (Rust) reads: always a legacy Claude string. */
+  chatPermissionMode: LegacyWireMode
   claudeCodeDetected: boolean
   mcpSetupStatus: McpSetupStatus
   mcpSetupMessage: string
@@ -180,10 +187,13 @@ export const defaultSetupConfig: SetupConfig = {
   allowedEmails: '',
 
   // Chat
-  chatModel: DEFAULT_MODEL_ID,
+  chatProvider: 'claude-code',
+  // Empty until the wizard reads the live catalog (ChatPage): no model id is
+  // hardcoded here, the lineup changes without this file.
+  chatModel: '',
   chatMaxSessions: 3,
   chatMaxTurns: 50,
-  chatPermissionMode: 'default',
+  chatPermissionMode: POLICY_TO_LEGACY_MODE[DEFAULT_TOOL_POLICY_MODE],
   claudeCodeDetected: false,
   mcpSetupStatus: 'idle' as McpSetupStatus,
   mcpSetupMessage: '',
@@ -280,3 +290,29 @@ export const infraValidAtom = atom<boolean>(false)
  * Defaults to `false` — the user must satisfy the prerequisites to proceed.
  */
 export const chatValidAtom = atom<boolean>(false)
+
+/**
+ * Model written to the config file when the wizard reaches "Launch" with no
+ * model selected — i.e. when the live catalog could not be read (first run,
+ * backend not up yet). The wizard is the one place that may have to decide
+ * without a backend; an EMPTY `default_model` in the generated file would
+ * leave Claude Code sessions without a model. Everywhere else the default
+ * comes from the backend.
+ */
+export const SETUP_FALLBACK_CHAT_MODEL = 'claude-sonnet-5'
+
+/**
+ * The config as it is handed to `generate_config`.
+ *
+ * Claude Code: never with an empty chat model. Any other engine: no Claude
+ * field is written with an invented value (model, CLI path, CLI auto-update),
+ * the user picks the engine later in Settings → Providers.
+ */
+export function withSetupModelFallback<
+  T extends { chatModel: string; chatProvider?: ChatProviderChoice; chatClaudeCliPath?: string; chatAutoUpdateCli?: boolean },
+>(config: T): T {
+  if (config.chatProvider === 'none') {
+    return { ...config, chatModel: '', chatClaudeCliPath: '', chatAutoUpdateCli: false }
+  }
+  return config.chatModel ? config : { ...config, chatModel: SETUP_FALLBACK_CHAT_MODEL }
+}

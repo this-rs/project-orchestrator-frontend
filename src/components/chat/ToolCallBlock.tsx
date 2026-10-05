@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { useAtomValue } from 'jotai'
 import { chatBackgroundTasksAtom } from '@/atoms'
 import { buildActivityFromToolCall } from '@/utils/backgroundActivity'
@@ -7,7 +7,9 @@ import type { ContentBlock } from '@/types'
 import { chatApi } from '@/services'
 import { ToolContent, getToolSummary, getToolIcon } from './tools'
 import { useElapsedMs, formatDurationShort } from './useElapsedMs'
-import { useChatSessionId } from './ChatSessionContext'
+import { useChatCapabilities, useChatSessionId } from './ChatSessionContext'
+import { useBlockProviderKind } from './useBlockProviderKind'
+import { TOOL_CANCEL_UNSUPPORTED_TEXT } from '@/constants/capabilities'
 import { ChevronRight, Square } from 'lucide-react'
 
 const MCP_PREFIX = 'mcp__project-orchestrator__'
@@ -46,8 +48,20 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
   const createdAt = block.metadata?.created_at as string | undefined
   const elapsedMs = useElapsedMs(createdAt, isLoading)
 
-  const icon = getToolIcon(toolName, toolInput)
-  const summary = getToolSummary(toolName, toolInput)
+  // Which provider's tool this is (see `useBlockProviderKind`).
+  const providerKind = useBlockProviderKind()
+  const caps = useChatCapabilities()
+  const stopHelpId = useId()
+  const toolContext = useMemo(
+    () => ({
+      providerKind,
+      canonical: block.metadata?.tool_canonical as string | undefined,
+    }),
+    [providerKind, block.metadata?.tool_canonical],
+  )
+
+  const icon = getToolIcon(toolName, toolInput, toolContext)
+  const summary = getToolSummary(toolName, toolInput, toolContext)
   const headerText = summary || toolName
 
   // Plan 5985a7c4 (F5+F6): when this tool_use is a Monitor / Bash bg
@@ -81,10 +95,13 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
   // the CLI's descendant process(es). The agent receives a cancelled
   // tool_result and continues its turn (does NOT end it).
   const canStop = isLoading && !isCancelled && sessionId !== null && !stopRequested
+  // The provider cannot stop one tool: the chip stays where it is expected,
+  // disabled, and says what to use instead (the turn-level Stop still works).
+  const stopSupported = caps.tool_cancel
   const handleStop = async (e: React.MouseEvent) => {
     // Don't toggle the expansion when clicking the Stop chip.
     e.stopPropagation()
-    if (!sessionId) return
+    if (!sessionId || !stopSupported) return
     setStopRequested(true)
     try {
       const result = await chatApi.cancelTools(sessionId)
@@ -143,11 +160,26 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
                 handleStop(e as unknown as React.MouseEvent)
               }
             }}
-            title="Stop this tool (sends SIGINT to the running subprocess; the agent's turn continues)"
-            className="ml-2 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono text-red-300 bg-red-500/10 hover:bg-red-500/20 transition-colors shrink-0"
+            aria-disabled={!stopSupported || undefined}
+            aria-describedby={!stopSupported ? stopHelpId : undefined}
+            title={
+              stopSupported
+                ? "Stop this tool (sends SIGINT to the running subprocess; the agent's turn continues)"
+                : TOOL_CANCEL_UNSUPPORTED_TEXT
+            }
+            className={`ml-2 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono transition-colors shrink-0 ${
+              stopSupported
+                ? 'text-red-300 bg-red-500/10 hover:bg-red-500/20'
+                : 'text-gray-500 bg-white/[0.04] cursor-not-allowed'
+            }`}
           >
             <Square className="w-2.5 h-2.5" />
             stop
+            {!stopSupported && (
+              <span id={stopHelpId} className="sr-only">
+                {TOOL_CANCEL_UNSUPPORTED_TEXT}
+              </span>
+            )}
           </span>
         )}
         {stopRequested && isLoading && !isCancelled && (
@@ -162,6 +194,8 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
           <ToolContent
             toolName={toolName}
             toolInput={toolInput}
+            providerKind={toolContext.providerKind}
+            canonical={toolContext.canonical}
             resultContent={resultBlock?.content}
             isError={isError}
             isLoading={isLoading}

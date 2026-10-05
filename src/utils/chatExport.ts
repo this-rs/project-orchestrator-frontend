@@ -1,10 +1,19 @@
 import type { ChatMessage, ContentBlock } from '@/types'
+import { costOfMessage, costToText } from './cost'
 
 export interface ChatExportMeta {
   sessionId?: string
   projectSlug?: string
   workspaceSlug?: string
+  /** Label of the provider instance the conversation ran on (`Claude Code` for a session without one). */
+  provider?: string
+  model?: string
   exportedAt: Date
+}
+
+/** `Provider: X / Model: Y`, with whichever half is known. Empty when neither is. */
+function providerModelLine(provider?: string, model?: string): string {
+  return [provider ? `Provider: ${provider}` : '', model ? `Model: ${model}` : ''].filter(Boolean).join(' / ')
 }
 
 /**
@@ -47,7 +56,18 @@ function blockToMarkdown(block: ContentBlock): string {
     case 'compact_boundary':
       return `---\n*Context compacted*\n---`
 
-    case 'system_init':
+    case 'system_init': {
+      // Which harness and model answered: a session without provider predates
+      // providers, i.e. Claude Code.
+      const model = block.metadata?.model as string | undefined
+      const provider =
+        (block.metadata?.provider_label as string | undefined) ??
+        (block.metadata?.provider as string | undefined) ??
+        (model ? 'Claude Code' : undefined)
+      const line = providerModelLine(provider, model)
+      return line ? `> *System: ${block.content} — ${line}*` : `> *System: ${block.content}*`
+    }
+
     case 'system_hint':
       return `> *System: ${block.content}*`
 
@@ -84,7 +104,9 @@ function blockToMarkdown(block: ContentBlock): string {
 function messageToMarkdown(msg: ChatMessage, index: number): string {
   const role = msg.role === 'user' ? 'User' : 'Assistant'
   const time = msg.timestamp ? new Date(msg.timestamp).toLocaleString() : ''
-  const costInfo = msg.cost_usd ? ` ($${msg.cost_usd.toFixed(4)})` : ''
+  // By basis: `$0.0123`, `$0.0420 est.`, `local`, `subscription`, tokens — or nothing. Never `$0` for an unknown cost.
+  const costText = costToText(costOfMessage(msg), { format: (usd) => `$${usd.toFixed(4)}`, hideZero: true })
+  const costInfo = costText ? ` (${costText})` : ''
   const durationInfo = msg.duration_ms ? ` (${(msg.duration_ms / 1000).toFixed(1)}s)` : ''
 
   const header = `### ${index + 1}. ${role}${time ? ` — ${time}` : ''}${costInfo}${durationInfo}`
@@ -128,6 +150,13 @@ export function messagesToMarkdown(
   if (meta?.sessionId) lines.push(`**Session:** \`${meta.sessionId}\``)
   if (meta?.projectSlug) lines.push(`**Project:** ${meta.projectSlug}`)
   if (meta?.workspaceSlug) lines.push(`**Workspace:** ${meta.workspaceSlug}`)
+  if (meta?.provider || meta?.model) {
+    lines.push(
+      [meta.provider ? `**Provider:** ${meta.provider}` : '', meta.model ? `**Model:** ${meta.model}` : '']
+        .filter(Boolean)
+        .join(' / '),
+    )
+  }
   lines.push(`**Exported:** ${(meta?.exportedAt ?? new Date()).toLocaleString()}`)
   lines.push(`**Messages:** ${messages.length}`)
   lines.push('')

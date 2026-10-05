@@ -6,6 +6,8 @@
  * against `generated_at`.
  */
 
+import type { CostBasis } from './provider'
+
 export const LIVE_AGENT_STATES = ['waiting_input', 'streaming', 'idle'] as const
 export type LiveAgentState = (typeof LIVE_AGENT_STATES)[number]
 
@@ -31,6 +33,8 @@ export interface LiveAgent {
   idle_secs: number
   message_count: number
   total_cost_usd: number | null
+  /** Where `total_cost_usd` comes from. Absent = `reported` (Claude Code). */
+  cost_basis?: CostBasis | null
 }
 
 export interface LiveAgentsResponse {

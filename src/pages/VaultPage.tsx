@@ -12,6 +12,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import { useProviders } from '@/hooks/useProviders'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Eye, EyeOff, KeyRound, Lock, LockOpen, Trash2 } from 'lucide-react'
 import { Button, PageContainer, PageHeader, Section, surface } from '@/components/ui'
@@ -47,6 +48,8 @@ function describeScope(scope: GrantScope): string {
       return `project ${scope.value}`
     case 'session':
       return `conversation ${scope.value.slice(0, 8)}`
+    case 'provider':
+      return `provider ${scope.value} (server-side, never an agent)`
   }
 }
 
@@ -419,15 +422,23 @@ function GrantsPanel({
   onChange: () => void
 }) {
   const [which, setWhich] = useState<string>('__all__')
-  const [scopeKind, setScopeKind] = useState<'anywhere' | 'project'>('project')
+  const [scopeKind, setScopeKind] = useState<'anywhere' | 'project' | 'provider'>('project')
   const [project, setProject] = useState('')
+  const [instance, setInstance] = useState('')
+  const { providers } = useProviders()
+  const instances = providers.filter((p) => !p.builtin)
   const [minutes, setMinutes] = useState(1440)
   const [error, setError] = useState<string | null>(null)
 
   const create = async () => {
     setError(null)
     const secrets: SecretSelector = which === '__all__' ? { kind: 'all' } : { kind: 'names', names: [which] }
-    const scope: GrantScope = scopeKind === 'anywhere' ? { kind: 'anywhere' } : { kind: 'project', value: project.trim() }
+    const scope: GrantScope =
+      scopeKind === 'anywhere'
+        ? { kind: 'anywhere' }
+        : scopeKind === 'provider'
+          ? { kind: 'provider', value: instance.trim() }
+          : { kind: 'project', value: project.trim() }
     try {
       await vaultApi.createGrant({ secrets, scope, minutes })
       onChange()
@@ -468,7 +479,11 @@ function GrantsPanel({
         <div className="flex flex-wrap items-center gap-2 p-4 text-sm text-gray-400">
           <span>Allow</span>
           <select className={select} value={which} onChange={(e) => setWhich(e.target.value)} aria-label="Secrets">
-            <option value="__all__">all secrets</option>
+            {scopeKind === 'provider' ? (
+              <option value="">choose a secret…</option>
+            ) : (
+              <option value="__all__">all secrets</option>
+            )}
             {overview.secrets.map((s) => (
               <option key={s.name} value={s.name}>
                 {s.name}
@@ -479,12 +494,37 @@ function GrantsPanel({
           <select
             className={select}
             value={scopeKind}
-            onChange={(e) => setScopeKind(e.target.value as 'anywhere' | 'project')}
+            onChange={(e) => {
+              const kind = e.target.value as 'anywhere' | 'project' | 'provider'
+              setScopeKind(kind)
+              // A provider reads ONE named secret: "all secrets" cannot carry over to it.
+              setWhich(kind === 'provider' ? '' : '__all__')
+            }}
             aria-label="Scope"
           >
             <option value="project">project…</option>
             <option value="anywhere">every agent</option>
+            <option value="provider">provider…</option>
           </select>
+          {scopeKind === 'provider' &&
+            (instances.length > 0 ? (
+              <select className={select} value={instance} onChange={(e) => setInstance(e.target.value)} aria-label="Provider instance">
+                <option value="">choose an instance…</option>
+                {instances.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label || p.id}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                className={`${input} w-40 font-mono`}
+                placeholder="instance-id"
+                value={instance}
+                onChange={(e) => setInstance(e.target.value)}
+                aria-label="Provider instance"
+              />
+            ))}
           {scopeKind === 'project' && (
             <input
               className={`${input} w-40 font-mono`}
@@ -501,11 +541,24 @@ function GrantsPanel({
               </option>
             ))}
           </select>
-          <Button size="sm" onClick={create} disabled={!canChange || (scopeKind === 'project' && !project.trim())}>
+          <Button size="sm" onClick={create} disabled={!canChange || (scopeKind === 'project' && !project.trim()) || (scopeKind === 'provider' && (!instance.trim() || !which))}>
             Grant
           </Button>
         </div>
       </div>
+      {scopeKind === 'provider' && (
+        <p className="mt-2 text-xs text-gray-500">
+          The server reads this one secret to sign in to the instance. Pick the secret named by the instance&apos;s credential
+          reference; it is never given to an agent.
+          {(!instance.trim() || !which) && (
+            <span data-testid="provider-grant-why" className="mt-1 block text-amber-300">
+              Grant is disabled until you choose {!instance.trim() ? 'the instance' : ''}
+              {!instance.trim() && !which ? ' and ' : ''}
+              {!which ? 'one secret' : ''}.
+            </span>
+          )}
+        </p>
+      )}
       {error && (
         <p className="mt-2 text-xs text-red-400" role="alert">
           {error}

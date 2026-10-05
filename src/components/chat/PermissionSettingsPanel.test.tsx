@@ -1,0 +1,127 @@
+/**
+ * Permission settings: Claude Code keeps its modes, rule lists and wire
+ * strings; another provider gets neutral modes, no Claude rule presets, and a
+ * refused `trust` when it has no sandbox.
+ *
+ * Run with: npx vitest run src/components/chat/PermissionSettingsPanel.test.tsx
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { Provider, createStore } from 'jotai'
+import {
+  chatSessionCapabilitiesSnapshotAtom,
+  chatSessionIdAtom,
+  chatSessionProviderAtom,
+  providersLoadStateAtom,
+} from '@/atoms'
+import { RULES_UNSUPPORTED_TEXT, TRUST_REQUIRES_SANDBOX_TEXT } from '@/constants/toolPolicy'
+
+const api = vi.hoisted(() => ({
+  getChatConfig: vi.fn(),
+  getPermissionConfig: vi.fn(),
+  updateChatConfig: vi.fn(),
+  updatePermissionConfig: vi.fn(),
+}))
+vi.mock('@/services/chat', () => ({ chatApi: api }))
+vi.mock('@/hooks', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }))
+
+import { PermissionSettingsPanel } from './PermissionSettingsPanel'
+
+type Store = ReturnType<typeof createStore>
+
+async function mount(serverMode: string, prepare?: (store: Store) => void) {
+  api.getChatConfig.mockResolvedValue({ mode: serverMode, allowed_tools: ['Read'], disallowed_tools: [], default_model: 'm' })
+  api.updateChatConfig.mockImplementation(async (patch: Record<string, unknown>) => ({ default_model: 'm', ...patch }))
+  const store = createStore()
+  store.set(chatSessionIdAtom, 's1')
+  prepare?.(store)
+  render(
+    <Provider store={store}>
+      <PermissionSettingsPanel />
+    </Provider>,
+  )
+  await waitFor(() => expect(screen.getByText('Permission Mode')).toBeTruthy())
+  return store
+}
+
+const option = (label: string) => screen.getByRole('button', { name: new RegExp(`^${label}`) })
+
+const thirdParty = (capabilities: Record<string, unknown>) => (store: Store) => {
+  store.set(providersLoadStateAtom, 'ready')
+  store.set(chatSessionProviderAtom, { id: 'local-llama', kind: 'openai_compatible' })
+  store.set(chatSessionCapabilitiesSnapshotAtom, capabilities)
+}
+
+describe('PermissionSettingsPanel — Claude Code', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('shows its four modes and both rule lists, as before', async () => {
+    await mount('default')
+    for (const label of ['Bypass', 'Accept Edits', 'Default', 'Plan Only']) expect(option(label)).toBeTruthy()
+    expect(option('Default').getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByText('Allowed Tools')).toBeTruthy()
+    expect(screen.getByText('Disallowed Tools')).toBeTruthy()
+    expect(screen.getAllByText('+ Presets')).toHaveLength(2)
+    expect(screen.queryByText(RULES_UNSUPPORTED_TEXT)).toBeNull()
+    expect(option('Bypass').getAttribute('aria-disabled')).toBeNull()
+  })
+
+  it('saves a picked mode as the legacy Claude string', async () => {
+    await mount('default')
+    fireEvent.click(option('Bypass'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.updateChatConfig).toHaveBeenCalled())
+    expect(api.updateChatConfig).toHaveBeenCalledWith({ mode: 'bypassPermissions', allowed_tools: ['Read'], disallowed_tools: [] })
+  })
+
+  it('reads a CLI-only mode without crashing, and does not rewrite it when only a rule changes', async () => {
+    await mount('auto')
+    // `auto` is read as the closest neutral mode.
+    expect(option('Accept Edits').getAttribute('aria-pressed')).toBe('true')
+    fireEvent.change(screen.getAllByPlaceholderText('e.g. Bash(git *)')[0], { target: { value: 'Edit' } })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.updateChatConfig).toHaveBeenCalled())
+    expect(api.updateChatConfig).toHaveBeenCalledWith({ mode: 'auto', allowed_tools: ['Read', 'Edit'], disallowed_tools: [] })
+  })
+})
+
+describe('PermissionSettingsPanel — third-party provider', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('hides the Claude rule presets and lists when the provider has no rule scopes, and says why', async () => {
+    await mount('default', thirdParty({ permission_scopes: [], sandbox: 'workspace' }))
+    expect(screen.getByText(RULES_UNSUPPORTED_TEXT)).toBeTruthy()
+    expect(screen.queryByText('Allowed Tools')).toBeNull()
+    expect(screen.queryByText('Disallowed Tools')).toBeNull()
+    expect(screen.queryByText('+ Presets')).toBeNull()
+    expect(screen.queryByPlaceholderText('e.g. Bash(git *)')).toBeNull()
+  })
+
+  it('keeps the rule lists for a provider that applies them', async () => {
+    await mount('default', thirdParty({ permission_scopes: ['session'], sandbox: 'workspace' }))
+    expect(screen.getByText('Allowed Tools')).toBeTruthy()
+    expect(screen.queryByText(RULES_UNSUPPORTED_TEXT)).toBeNull()
+  })
+
+  it('uses neutral labels and saves a picked mode as its neutral name, the hidden rules untouched', async () => {
+    await mount('default', thirdParty({ permission_scopes: [], sandbox: 'workspace' }))
+    expect(option('Ask').getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(option('Trust'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.updateChatConfig).toHaveBeenCalled())
+    expect(api.updateChatConfig).toHaveBeenCalledWith({ mode: 'trust', allowed_tools: ['Read'], disallowed_tools: [] })
+  })
+
+  it('refuses Trust without a sandbox: aria-disabled, explained in visible text, and not selectable', async () => {
+    await mount('default', thirdParty({ permission_scopes: [], sandbox: 'none' }))
+    const trust = option('Trust') as HTMLButtonElement
+    expect(trust.getAttribute('aria-disabled')).toBe('true')
+    expect(trust.disabled).toBe(false)
+    expect(document.getElementById(trust.getAttribute('aria-describedby') ?? '')?.textContent).toBe(TRUST_REQUIRES_SANDBOX_TEXT)
+    fireEvent.click(trust)
+    expect(trust.getAttribute('aria-pressed')).toBe('false')
+    expect(option('Ask').getAttribute('aria-pressed')).toBe('true')
+    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+})

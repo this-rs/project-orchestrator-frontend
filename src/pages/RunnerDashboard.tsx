@@ -28,6 +28,8 @@ import { plansApi } from '@/services/plans'
 import { projectsApi } from '@/services/projects'
 import type { Project } from '@/types'
 import { useToast, useWorkspaceSlug } from '@/hooks'
+import { RunTargetDialog } from '@/components/runner/RunTargetDialog'
+import { launchRun, useRunTargetGate } from '@/hooks/useRunTargetGate'
 import { workspacePath } from '@/utils/paths'
 import { useAgentExecutionsMap, useLatestPlanRun, useWavesData } from '@/hooks/runner'
 
@@ -82,7 +84,8 @@ export function RunnerDashboard() {
         progress_pct: latestRun.total_tasks > 0 ? (totalDone / latestRun.total_tasks) * 100 : 0,
         tasks_completed: latestRun.completed_tasks.length,
         tasks_total: latestRun.total_tasks,
-        elapsed_secs: elapsed, cost_usd: latestRun.cost_usd ?? 0, max_cost_usd: 0,
+        // No figure stays no figure: `null` is shown as "—", a `?? 0` would claim the run was free.
+        elapsed_secs: elapsed, cost_usd: latestRun.cost_usd ?? null, cost_basis: latestRun.cost_basis, max_cost_usd: 0,
       }
     }
     return snapshot
@@ -130,7 +133,7 @@ export function RunnerDashboard() {
         task_id: exec.task_id,
         task_title: taskTitleMap.get(exec.task_id) ?? exec.task_id.slice(0, 8),
         session_id: exec.session_id ?? null,
-        elapsed_secs: finalDurationSecs(exec) ?? 0, cost_usd: exec.cost_usd,
+        elapsed_secs: finalDurationSecs(exec) ?? 0, cost_usd: exec.cost_usd, cost_basis: exec.cost_basis,
         status: exec.status === 'timeout' ? 'failed' : (exec.status as ActiveAgentSnapshot['status']),
       }))
     return [...liveAgents, ...historicalAgents]
@@ -162,7 +165,8 @@ export function RunnerDashboard() {
         ? wave.tasks.filter((t) => !agentTaskIds.has(t.id)).map((t) => ({
             task_id: t.id,
             task_title: t.title ?? t.id.slice(0, 8),
-            session_id: null, elapsed_secs: 0, cost_usd: 0,
+            // No agent ran this task here: there is no cost to report, not a cost of zero.
+            session_id: null, elapsed_secs: 0, cost_usd: null,
             status: (t.status === 'completed' ? 'completed'
               : t.status === 'failed' ? 'failed'
               : t.status === 'pending' || t.status === 'blocked' ? 'failed'
@@ -195,20 +199,28 @@ export function RunnerDashboard() {
   }, [planId, retryingTaskId, refresh])
 
   const [retryingRun, setRetryingRun] = useState(false)
+  const runGate = useRunTargetGate()
   const handleRetryRun = useCallback(async () => {
     if (!planId || retryingRun) return
-    setRetryingRun(true)
-    try {
-      await runnerApi.startRun(planId, '.', undefined, effectiveSnapshot?.max_cost_usd)
-      toast.success('Run started')
-      refresh()
-    } catch {
-      toast.error('Failed to start the run')
-    } finally {
-      setRetryingRun(false)
-    }
+    await runGate.ask({
+      title: planTitle ?? `Plan ${planId.slice(0, 8)}…`,
+      projectSlug: project?.slug,
+      run: async (options, unpriced) => {
+        setRetryingRun(true)
+        try {
+          // An unpriced instance cannot honour a USD budget: it is left out.
+          await launchRun(planId, '.', undefined, options, unpriced ? undefined : effectiveSnapshot?.max_cost_usd)
+          toast.success('Run started')
+          refresh()
+        } catch {
+          toast.error('Failed to start the run')
+        } finally {
+          setRetryingRun(false)
+        }
+      },
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable (Jotai setter)
-  }, [planId, retryingRun, effectiveSnapshot?.max_cost_usd, refresh])
+  }, [planId, planTitle, project?.slug, retryingRun, effectiveSnapshot?.max_cost_usd, refresh, runGate])
 
   const runTaskStatuses = useMemo(() => {
     const out: Record<string, string> = {}
@@ -241,6 +253,7 @@ export function RunnerDashboard() {
 
   return (
     <PageContainer width="wide" className="space-y-6">
+      <RunTargetDialog pending={runGate.pending} onCancel={runGate.cancel} />
       <RunnerHeader
         planId={planId!} planTitle={title} wsSlug={wsSlug} workspacePath={workspacePath}
         effectiveSnapshot={effectiveSnapshot} isRunning={isRunning}
