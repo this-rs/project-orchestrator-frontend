@@ -22,6 +22,7 @@ import {
 } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { LinkedDiscussions } from '@/components/discussions/LinkedDiscussions'
+import { TaskModelAlias } from '@/components/tasks/TaskModelAlias'
 import { tasksApi, plansApi, projectsApi, workspacesApi, decisionsApi } from '@/services'
 import { useFormDialog, useLinkDialog, useToast, useWorkspaceSlug, useViewTransition, useViewMode } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
@@ -383,6 +384,17 @@ export function TaskDetailPage() {
     })
   }
 
+  const handleModelAliasChange = async (alias: string | null) => {
+    try {
+      await tasksApi.update(task.id, { model_alias: alias })
+      setTask({ ...task, model_alias: alias })
+      toast.success('Model alias updated')
+    } catch (err) {
+      toast.error('Failed to update the model alias')
+      throw err
+    }
+  }
+
   const handleTaskStatusChange = async (newStatus: TaskStatus) => {
     try {
       await tasksApi.update(task.id, { status: newStatus })
@@ -619,6 +631,7 @@ export function TaskDetailPage() {
             { label: 'ID', value: <span className="font-mono text-xs text-gray-400 break-all">{task.id}</span> },
           ]}
         />
+        <TaskModelAlias value={task.model_alias} onChange={handleModelAliasChange} />
       </Section>
 
       {/* ENTITY_GRAPH_SLOT entity_type="task" entity_id={task.id} */}

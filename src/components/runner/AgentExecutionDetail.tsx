@@ -11,6 +11,7 @@ import { PulseIndicator } from '@/components/ui'
 import { useElapsedTime } from '@/hooks/useElapsedTime'
 import { finalDurationSecs, runCost, statusStyle } from './shared'
 import { CostDisplay } from '@/components/ui/CostDisplay'
+import { ExecutionModel } from './ExecutionModel'
 import { formatUsd2, hasCost } from '@/utils/cost'
 import type { AgentExecution } from '@/types'
 
@@ -103,6 +104,8 @@ export function AgentExecutionDetail({
           )}
         </span>
       </div>
+
+      <ExecutionModel execution={execution} />
 
       {/* Files modified */}
       {execution.files_modified.length > 0 && (

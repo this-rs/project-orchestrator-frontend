@@ -26,8 +26,9 @@ export function formatCost(usd: number): string {
 }
 
 /** Cost of a run, an agent or an execution, with its basis (`reported` when the record names none). */
-export function runCost(record: { cost_usd?: number | null; cost_basis?: unknown }): CostReport | null {
-  return costReport(record.cost_usd, record.cost_basis)
+export function runCost(record: { cost_usd?: number | null; cost_basis?: unknown; input_tokens?: number | null; output_tokens?: number | null }): CostReport | null {
+  // The record doubles as the usage: an execution without a price still shows its tokens.
+  return costReport(record.cost_usd, record.cost_basis, record)
 }
 
 /** Elapsed seconds of a plan run (until now while it is still running). */

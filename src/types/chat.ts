@@ -1,5 +1,5 @@
 import type { MessageAttachment } from '@/utils/messageAttachments'
-import type { CostBasis, LegacyPermissionMode, ProviderCapabilities, ProviderId, ProviderKind, ToolCategory, ToolPolicy, ToolPolicyMode } from './provider'
+import type { CostBasis, LegacyPermissionMode, ProviderCapabilities, ProviderId, ProviderKind, RoutedBy, ToolCategory, ToolPolicy, ToolPolicyMode } from './provider'
 // ============================================================================
 // PERMISSION CONFIG
 // ============================================================================
@@ -144,6 +144,8 @@ export interface DetachedSession {
   total_cost_usd?: number
   /** Where the cost figure comes from. Absent = `reported` (Claude Code). */
   cost_basis?: CostBasis | null
+  /** Provider instance of the child. Absent = `claude-code`. */
+  provider_id?: ProviderId | null
   spawned_by: SpawnedBy
   is_streaming: boolean
 }
@@ -560,6 +562,12 @@ export interface InterruptOutcome {
   cli_pid: number | null
   /** PIDs that received SIGINT. Always empty for scope `turn`. */
   killed_pids: number[]
+  /**
+   * Answer to `cascade: true`: how many sessions of the subtree were stopped out
+   * of how many were live. Absent = the server does not know `cascade`, and only
+   * the session itself was interrupted.
+   */
+  cascade?: { stopped: number; total: number } | null
 }
 
 /** Result returned by POST /api/chat/sessions/:id/cancel-tools (T2/T3 of plan 28e9afe3). */
@@ -816,6 +824,12 @@ export interface SessionTreeNode {
   cost_basis?: CostBasis | null
   /** Cost of this node plus every descendant, when the server computes it. */
   subtree_cost_usd?: number | null
+  /** Tokens of this node alone, when the provider reported them (cost breakdown by model). */
+  input_tokens?: number | null
+  output_tokens?: number | null
+  /** Limits of the tree, when the server enforces them (usually on the root). */
+  max_depth?: number | null
+  max_children?: number | null
 }
 
 /** An agent execution record for a plan run */
@@ -837,6 +851,28 @@ export interface AgentExecution {
   files_modified: string[]
   commits: string[]
   persona_profile?: string | null
+  // Routing facts (all additive: a pre-provider backend sends none, which reads as Claude Code).
+  /** Provider instance that ran it. Absent = `claude-code`. */
+  provider_id?: ProviderId | null
+  /** What the caller asked for (model id or alias) — may differ from `model`. */
+  model_requested?: string | null
+  /** Model that actually ran. */
+  model?: string | null
+  /** Alias the request went through, if any. */
+  model_alias?: string | null
+  /** Which rule chose the provider/model (`routed_by` of the resolved default). */
+  routed_by?: RoutedBy | null
+  /** Name of the project/global rule, when a rule chose. */
+  route_rule?: string | null
+  /** Why the run left the requested model (`fallback`, `provider_unavailable`…). */
+  fallback_reason?: string | null
+  /** Model a shadow routing policy WOULD have used (observation only, nothing ran on it). */
+  shadow_model?: string | null
+  task_class?: string | null
+  /** 1 = first try; above = a retry. */
+  attempt?: number | null
+  input_tokens?: number | null
+  output_tokens?: number | null
 }
 
 /** Lightweight session info returned by run-level endpoints */

@@ -22,6 +22,7 @@ import type { ActiveAgentSnapshot } from '@/services/runner'
 import type { AgentExecution } from '@/types'
 import { formatElapsed, agentStateMeta, runCost } from './shared'
 import { CostDisplay } from '@/components/ui/CostDisplay'
+import { ExecutionModel, hasExecutionRouting } from './ExecutionModel'
 import { formatUsd2, hasCost } from '@/utils/cost'
 
 export interface WaveAgentCardProps {
@@ -70,6 +71,7 @@ export function WaveAgentCard({ agent, execution, isSelected, onToggleConversati
         hasCost(cost, { format: formatUsd2 }) ? (
           <CostDisplay key="c" cost={cost} format={formatUsd2} className="font-mono tabular-nums" />
         ) : null,
+        execution && hasExecutionRouting(execution) ? <ExecutionModel key="m" execution={execution} compact /> : null,
         files.length > 0 ? pluralize(files.length, 'file') : null,
         commits.length > 0 ? pluralize(commits.length, 'commit') : null,
       ]}

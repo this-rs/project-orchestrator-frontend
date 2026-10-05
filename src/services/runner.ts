@@ -146,16 +146,38 @@ export function planRunTarget(project?: { root_path?: string; slug: string } | n
   return { cwd: project?.root_path || '.', projectSlug: project?.slug }
 }
 
+/**
+ * Where a run executes. All optional: nothing chosen = the server default.
+ * `provider` is an instance id, `model` a model id or an alias.
+ */
+export interface StartRunOptions {
+  provider?: string | null
+  model?: string | null
+  /** Token budget, for an instance with no price (a USD budget could never trigger). */
+  maxTokens?: number
+}
+
 export const runnerApi = {
   /**
    * Start a plan run. The backend spawns agents and executes tasks in wave order.
    * Returns 202 Accepted with run metadata.
    * Throws 409 if the plan already has an active run.
    */
-  startRun: async (planId: string, cwd: string, projectSlug?: string, maxCostUsd?: number): Promise<StartRunResponse> => {
+  startRun: async (
+    planId: string,
+    cwd: string,
+    projectSlug?: string,
+    maxCostUsd?: number,
+    options: StartRunOptions = {},
+  ): Promise<StartRunResponse> => {
     const body: Record<string, unknown> = { cwd, triggered_by: 'manual' }
     if (projectSlug) body.project_slug = projectSlug
     if (maxCostUsd !== undefined && maxCostUsd > 0) body.max_cost_usd = maxCostUsd
+    // Additive fields: sent only when chosen, so a run launched without a choice
+    // has the exact body it always had and an older backend never sees them.
+    if (options.provider) body.provider = options.provider
+    if (options.model) body.model = options.model
+    if (options.maxTokens !== undefined && options.maxTokens > 0) body.max_tokens = options.maxTokens
     return api.post<StartRunResponse>(`/plans/${planId}/run`, body)
   },
 

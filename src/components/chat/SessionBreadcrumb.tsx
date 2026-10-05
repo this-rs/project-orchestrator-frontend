@@ -7,7 +7,11 @@
  */
 
 import { ChevronRight } from 'lucide-react'
+import { useAtomValue } from 'jotai'
+import { providersAtom } from '@/atoms'
+import { describeSessionProvider, shouldShowProviderBadge } from '@/constants/providers'
 import { useSessionTree } from '@/hooks'
+import { ProviderBadge } from './ProviderBadge'
 import type { SessionTreeNode } from '@/types'
 
 interface SessionBreadcrumbProps {
@@ -49,6 +53,7 @@ function buildPath(tree: SessionTreeNode[], targetId: string): SessionTreeNode[]
 
 export function SessionBreadcrumb({ sessionId, rootSessionId, onNavigate, isStreaming }: SessionBreadcrumbProps) {
   const { tree } = useSessionTree(rootSessionId, isStreaming)
+  const instances = useAtomValue(providersAtom)?.providers ?? null
 
   if (tree.length === 0) return null
 
@@ -62,6 +67,11 @@ export function SessionBreadcrumb({ sessionId, rootSessionId, onNavigate, isStre
       {path.map((node, i) => {
         const isLast = i === path.length - 1
         const label = node.title || `Session ${node.session_id.slice(0, 8)}`
+        // Which provider each hop of the chain runs on; a node without one is Claude Code.
+        const provider = describeSessionProvider({ id: node.provider_id }, instances)
+        const badge = shouldShowProviderBadge(provider, instances) ? (
+          <ProviderBadge description={provider} model={node.model} />
+        ) : null
 
         return (
           <span key={node.session_id} className="flex items-center gap-1 shrink-0">
@@ -76,6 +86,7 @@ export function SessionBreadcrumb({ sessionId, rootSessionId, onNavigate, isStre
                 {label}
               </button>
             )}
+            {badge}
           </span>
         )
       })}

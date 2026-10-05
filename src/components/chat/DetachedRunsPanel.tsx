@@ -1,5 +1,9 @@
 import { memo, useState, useEffect } from 'react'
+import { useAtomValue } from 'jotai'
+import { providersAtom } from '@/atoms'
+import { describeSessionProvider, shouldShowProviderBadge } from '@/constants/providers'
 import { CostDisplay } from '@/components/ui/CostDisplay'
+import { ProviderBadge } from './ProviderBadge'
 import { costReport, formatUsd2, hasCost } from '@/utils/cost'
 import { PulseIndicator } from '@/components/ui'
 import { ChevronDown, ChevronUp, Eye, Square, Clock, DollarSign } from 'lucide-react'
@@ -84,6 +88,8 @@ function RunRow({
   onStopRun: (sessionId: string) => void
 }) {
   const { executions, loading } = useAgentExecutions(isExpanded ? run.runId : undefined)
+  const instances = useAtomValue(providersAtom)?.providers ?? null
+  const provider = describeSessionProvider({ id: run.providerId }, instances)
 
   return (
     <div>
@@ -114,9 +120,13 @@ function RunRow({
                 <CostDisplay cost={costReport(run.costUsd, run.costBasis)} {...RUN_COST_FORMAT} />
               </span>
             )}
-            <span className="text-[10px] text-gray-600 truncate max-w-[60px]">
-              {run.model}
-            </span>
+            {shouldShowProviderBadge(provider, instances) ? (
+              <ProviderBadge description={provider} model={run.model} />
+            ) : (
+              <span className="text-[10px] text-gray-600 truncate max-w-[60px]">
+                {run.model}
+              </span>
+            )}
           </div>
         </div>
 

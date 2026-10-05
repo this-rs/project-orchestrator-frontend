@@ -13,6 +13,8 @@ export interface DetachedRun {
   costUsd?: number
   /** Where `costUsd` comes from. Absent = `reported`. */
   costBasis?: CostBasis | null
+  /** Provider instance of the child. Absent = Claude Code. */
+  providerId?: string | null
   startedAt: string
   /** If spawned by a runner, the plan ID */
   planId?: string
@@ -39,6 +41,7 @@ function toDetachedRun(s: DetachedSession): DetachedRun {
     isStreaming: s.is_streaming,
     costUsd: s.total_cost_usd,
     costBasis: s.cost_basis,
+    providerId: s.provider_id,
     startedAt: s.created_at,
     planId: s.spawned_by?.type === 'runner' ? s.spawned_by.plan_id : undefined,
     runId: s.spawned_by?.type === 'runner' ? s.spawned_by.run_id : undefined,
