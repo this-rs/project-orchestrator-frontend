@@ -6,7 +6,16 @@
 // picked, where the default comes from. Kind labels live with the types
 // (`providerKindLabel` in `types/provider.ts`).
 
-import type { ModelAlias, ProviderHealthStatus, ProviderInstance, RoutedBy } from '@/types/provider'
+import {
+  isClaudeCodeProvider,
+  providerKindLabel,
+  type ModelAlias,
+  type ProviderHealthStatus,
+  type ProviderId,
+  type ProviderInstance,
+  type ProviderKind,
+  type RoutedBy,
+} from '@/types/provider'
 
 /** Shown where a model would be named and the server named none. Never an invented id. */
 export const DEFAULT_MODEL_LABEL = 'Default model'
@@ -119,4 +128,60 @@ export function aliasesForInstance(
 /** How a model of a NON-Claude instance is named: its label, else its id as is. */
 export function providerModelLabel(instance: ProviderInstance | null | undefined, modelId: string): string {
   return instance?.models?.find((m) => m.id === modelId)?.label || modelId
+}
+
+// ----------------------------------------------------------------------------
+// Which provider a conversation runs on (badge, export)
+// ----------------------------------------------------------------------------
+
+export const PROVIDER_BADGE_UNAVAILABLE_TEXT = 'unavailable'
+export const PROVIDER_BADGE_UNAVAILABLE_HELP =
+  'The provider instance of this conversation has been deleted: it cannot be resumed.'
+
+/** What a session says about its provider: its record, or its `system_init`. */
+export interface SessionProviderRef {
+  id?: ProviderId | null
+  kind?: ProviderKind | null
+  label?: string | null
+}
+
+export interface SessionProviderDescription {
+  /** Instance label, else the kind, else the raw id. `Claude Code` for a session without provider. */
+  label: string
+  isClaudeCode: boolean
+  /** The instance is absent from the LOADED list: it was deleted, the conversation cannot be resumed. */
+  unavailable: boolean
+}
+
+/**
+ * Name the provider of a session.
+ *
+ * `instances` is the loaded list, or `null` while it is not known (not loaded,
+ * or a backend without provider routes): an instance can only be declared
+ * missing against a list that was actually read. A session WITHOUT a provider
+ * id predates providers — it is Claude Code, and never "unavailable".
+ */
+export function describeSessionProvider(
+  ref: SessionProviderRef | null | undefined,
+  instances: readonly ProviderInstance[] | null | undefined,
+): SessionProviderDescription {
+  const id = ref?.id || null
+  if (!id) return { label: providerKindLabel('claude_code'), isClaudeCode: true, unavailable: false }
+  const instance = instances?.find((p) => p.id === id) ?? null
+  const kind = ref?.kind ?? instance?.kind ?? null
+  const isClaudeCode = isClaudeCodeProvider(id, kind)
+  const label = instance?.label || ref?.label || (kind || isClaudeCode ? providerKindLabel(kind) : id)
+  return { label, isClaudeCode, unavailable: !!instances && !instance && !isClaudeCode }
+}
+
+/**
+ * A list of conversations that are all Claude Code on a server with a single
+ * instance gains nothing from a badge on every row: it is shown only when
+ * there is something to tell apart.
+ */
+export function shouldShowProviderBadge(
+  description: SessionProviderDescription,
+  instances: readonly ProviderInstance[] | null | undefined,
+): boolean {
+  return (instances?.length ?? 0) > 1 || !description.isClaudeCode
 }

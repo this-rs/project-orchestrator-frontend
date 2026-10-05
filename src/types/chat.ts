@@ -142,6 +142,8 @@ export interface DetachedSession {
   created_at: string
   updated_at: string
   total_cost_usd?: number
+  /** Where the cost figure comes from. Absent = `reported` (Claude Code). */
+  cost_basis?: CostBasis | null
   spawned_by: SpawnedBy
   is_streaming: boolean
 }
@@ -185,6 +187,8 @@ export interface SessionWithLinks {
     updated_at: string
     message_count: number
     total_cost_usd?: number
+    /** Where the cost figure comes from. Absent = `reported` (Claude Code). */
+    cost_basis?: CostBasis | null
     preview?: string
   }
   links: {
@@ -766,8 +770,12 @@ export interface ChatMessage {
   timestamp: Date
   /** Total turn duration in ms (from backend result event) */
   duration_ms?: number
-  /** Total turn cost in USD (from backend result event) */
+  /** Total turn cost in USD (from backend result event). Absent when there is no figure — never zero by default. */
   cost_usd?: number
+  /** Where `cost_usd` comes from. Absent on a message built before this existed: read as `reported`. */
+  cost_basis?: CostBasis
+  /** Token usage of the turn, as far as the provider reported it. */
+  usage?: TurnUsage
   /** True when the agent is actively streaming this message */
   isStreaming?: boolean
 }
@@ -808,7 +816,10 @@ export interface AgentExecution {
   session_id?: string | null
   started_at: string
   completed_at?: string | null
-  cost_usd: number
+  /** `null` = no figure. Not zero. */
+  cost_usd: number | null
+  /** Where `cost_usd` comes from. Absent = `reported`. */
+  cost_basis?: CostBasis | null
   duration_secs: number
   /** `interrupted`: left `running` by a process that is gone; whether it finished is unknown. */
   status: 'running' | 'completed' | 'failed' | 'timeout' | 'interrupted'
@@ -826,6 +837,8 @@ export interface SessionInfo {
   created_at: string
   updated_at?: string | null
   total_cost_usd?: number | null
+  /** Where `total_cost_usd` comes from. Absent = `reported`. */
+  cost_basis?: CostBasis | null
   is_streaming: boolean
 }
 

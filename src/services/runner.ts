@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, ApiError, buildQuery } from './api'
 import type { GateResultsResponse, ProgressScoreResponse } from '@/types/chat'
+import type { CostBasis } from '@/types/provider'
 
 // ---------------------------------------------------------------------------
 // Types — aligned with backend RunStatus
@@ -49,7 +50,10 @@ export interface ActiveAgentSnapshot {
   /** OS pid of the Claude Code subprocess (when the backend has set_pid). */
   pid?: number | null
   elapsed_secs: number
-  cost_usd: number
+  /** `null` = no figure (never run, or a provider with no known price). Not zero. */
+  cost_usd: number | null
+  /** Where `cost_usd` comes from. Absent = `reported` (Claude Code). */
+  cost_basis?: CostBasis | null
   status: AgentStatus
   /** Live OS metrics — only present when the backend returns them. */
   resources?: ActiveAgentResources | null
@@ -74,7 +78,10 @@ export interface RunSnapshot {
   tasks_completed: number
   tasks_total: number
   elapsed_secs: number
-  cost_usd: number
+  /** `null` = no figure (never run, or a provider with no known price). Not zero. */
+  cost_usd: number | null
+  /** Where `cost_usd` comes from. Absent = `reported` (Claude Code). */
+  cost_basis?: CostBasis | null
   max_cost_usd: number
 }
 
@@ -107,7 +114,10 @@ export interface PlanRun {
   started_at: string
   completed_at: string | null
   status: PlanRunStatus
-  cost_usd: number
+  /** `null` = no figure (never run, or a provider with no known price). Not zero. */
+  cost_usd: number | null
+  /** Where `cost_usd` comes from. Absent = `reported` (Claude Code). */
+  cost_basis?: CostBasis | null
   triggered_by: string | { chat: { session_id: string | null } } | { schedule: { trigger_id: string } } | { webhook: { trigger_id: string; payload_hash: string | null } } | { event: { trigger_id: string; source_event: string } }
   project_id: string | null
 }

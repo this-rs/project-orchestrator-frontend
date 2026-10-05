@@ -82,7 +82,8 @@ export function RunnerDashboard() {
         progress_pct: latestRun.total_tasks > 0 ? (totalDone / latestRun.total_tasks) * 100 : 0,
         tasks_completed: latestRun.completed_tasks.length,
         tasks_total: latestRun.total_tasks,
-        elapsed_secs: elapsed, cost_usd: latestRun.cost_usd ?? 0, max_cost_usd: 0,
+        // No figure stays no figure: `null` is shown as "—", a `?? 0` would claim the run was free.
+        elapsed_secs: elapsed, cost_usd: latestRun.cost_usd ?? null, cost_basis: latestRun.cost_basis, max_cost_usd: 0,
       }
     }
     return snapshot
@@ -130,7 +131,7 @@ export function RunnerDashboard() {
         task_id: exec.task_id,
         task_title: taskTitleMap.get(exec.task_id) ?? exec.task_id.slice(0, 8),
         session_id: exec.session_id ?? null,
-        elapsed_secs: finalDurationSecs(exec) ?? 0, cost_usd: exec.cost_usd,
+        elapsed_secs: finalDurationSecs(exec) ?? 0, cost_usd: exec.cost_usd, cost_basis: exec.cost_basis,
         status: exec.status === 'timeout' ? 'failed' : (exec.status as ActiveAgentSnapshot['status']),
       }))
     return [...liveAgents, ...historicalAgents]
@@ -162,7 +163,8 @@ export function RunnerDashboard() {
         ? wave.tasks.filter((t) => !agentTaskIds.has(t.id)).map((t) => ({
             task_id: t.id,
             task_title: t.title ?? t.id.slice(0, 8),
-            session_id: null, elapsed_secs: 0, cost_usd: 0,
+            // No agent ran this task here: there is no cost to report, not a cost of zero.
+            session_id: null, elapsed_secs: 0, cost_usd: null,
             status: (t.status === 'completed' ? 'completed'
               : t.status === 'failed' ? 'failed'
               : t.status === 'pending' || t.status === 'blocked' ? 'failed'

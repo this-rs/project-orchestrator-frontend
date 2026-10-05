@@ -398,3 +398,15 @@ export function filesFromClipboard(items: DataTransferItemList | null | undefine
   }
   return files
 }
+
+/** Extensions treated as images when the browser gave the file no MIME type. */
+const IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|webp|bmp|svg|heic|heif|avif|tiff?)$/i
+
+/**
+ * Is this file an image? Decided on the MIME type, and on the extension when
+ * the browser supplied none (drag & drop from some file managers).
+ */
+export function isImageFile(file: Pick<File, 'type' | 'name'>): boolean {
+  if (file.type) return file.type.startsWith('image/')
+  return IMAGE_EXTENSIONS.test(file.name ?? '')
+}

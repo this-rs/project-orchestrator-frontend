@@ -3,6 +3,7 @@
  * decisions, linked chat sessions, commit-SHA field). All built on EntityRow
  * so both detail pages read the same.
  */
+import { costReport, costToText, formatUsd2 } from '@/utils/cost'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { CheckCircle2, ListChecks, MessageCircle, Pencil, Plus, ScrollText, ShieldCheck, Trash2, type LucideIcon } from 'lucide-react'
@@ -15,7 +16,6 @@ import {
   RelativeTime,
   StatusMenu,
   StatusText,
-  formatCost,
   humanizeStatus,
   inlineLink,
   pluralize,
@@ -271,7 +271,7 @@ export function SessionRow({ item, onOpen, showTasks }: SessionRowProps) {
           </span>
         ) : null,
         pluralize(session.message_count, 'msg'),
-        formatCost(session.total_cost_usd),
+        costToText(costReport(session.total_cost_usd, session.cost_basis), { format: formatUsd2, hideZero: true }),
       ]}
       context={context}
       chevron

@@ -9,7 +9,9 @@
 import { FileCode2, Clock, DollarSign, GitCommitHorizontal, Wrench, Eye, X } from 'lucide-react'
 import { PulseIndicator } from '@/components/ui'
 import { useElapsedTime } from '@/hooks/useElapsedTime'
-import { finalDurationSecs, statusStyle } from './shared'
+import { finalDurationSecs, runCost, statusStyle } from './shared'
+import { CostDisplay } from '@/components/ui/CostDisplay'
+import { formatUsd2, hasCost } from '@/utils/cost'
 import type { AgentExecution } from '@/types'
 
 // ---------------------------------------------------------------------------
@@ -54,6 +56,7 @@ export function AgentExecutionDetail({
   const cfg = statusStyle(execution.status)
   const elapsed = useElapsedTime(execution.started_at, isRunning, finalDurationSecs(execution))
   const tools = parseToolsUsed(execution.tools_used)
+  const cost = runCost(execution)
 
   return (
     <div className="rounded-lg border border-border-subtle bg-white/[0.03] p-4 space-y-4">
@@ -92,7 +95,12 @@ export function AgentExecutionDetail({
         </span>
         <span className="inline-flex items-center gap-1">
           <DollarSign className="w-3.5 h-3.5 text-gray-500" />
-          <span className="font-mono tabular-nums">${execution.cost_usd.toFixed(2)}</span>
+          {hasCost(cost, { format: formatUsd2 }) ? (
+            <CostDisplay cost={cost} format={formatUsd2} className="font-mono tabular-nums" />
+          ) : (
+            // No figure for this execution: said as such, not as $0.00.
+            <span className="font-mono tabular-nums" title="Cost unknown">—</span>
+          )}
         </span>
       </div>
 

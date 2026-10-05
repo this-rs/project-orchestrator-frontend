@@ -2,6 +2,7 @@
 // INTELLIGENCE VISUALIZATION — Types
 // ============================================================================
 
+import type { CostBasis } from './provider'
 import type { Node, Edge } from '@xyflow/react'
 
 // ============================================================================
@@ -213,7 +214,10 @@ export interface ChatSessionNodeData extends BaseNodeData {
   layer: 'chat'
   model?: string
   messageCount: number
-  totalCostUsd: number
+  /** `null` = the session has no known cost. Not zero. */
+  totalCostUsd: number | null
+  /** Where `totalCostUsd` comes from. Absent = `reported`. */
+  costBasis?: CostBasis | null
 }
 
 export type IntelligenceNodeData =

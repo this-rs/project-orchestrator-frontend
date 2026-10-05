@@ -20,19 +20,15 @@ export interface UseProvidersResult {
 }
 
 /**
- * Load the provider instances for the chat, and again whenever the selected
- * project changes: `allowed_for_project` is an answer about ONE project.
+ * Re-read the provider instances for the project the chat is about.
  *
- * `state === 'unsupported'` (backend without provider routes) means one
- * provider, Claude Code: callers render no provider selector at all.
+ * Separate from `useProviders` so a card that only needs to REFRESH the list
+ * (after a sign-in, a retry) does not also trigger the load-on-mount.
  */
-export function useProviders(): UseProvidersResult {
+export function useRefreshProviders(): () => Promise<void> {
   const store = useStore()
-  const list = useAtomValue(providersAtom)
-  const state = useAtomValue(providersLoadStateAtom)
   const projectSlug = useAtomValue(chatSelectedProjectAtom)?.slug
-
-  const refresh = useCallback(
+  return useCallback(
     () =>
       fetchProviders(
         (value) => store.set(providersAtom, value),
@@ -47,6 +43,19 @@ export function useProviders(): UseProvidersResult {
       ),
     [store, projectSlug],
   )
+}
+
+/**
+ * Load the provider instances for the chat, and again whenever the selected
+ * project changes: `allowed_for_project` is an answer about ONE project.
+ *
+ * `state === 'unsupported'` (backend without provider routes) means one
+ * provider, Claude Code: callers render no provider selector at all.
+ */
+export function useProviders(): UseProvidersResult {
+  const list = useAtomValue(providersAtom)
+  const state = useAtomValue(providersLoadStateAtom)
+  const refresh = useRefreshProviders()
 
   useEffect(() => {
     void refresh()

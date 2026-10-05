@@ -11,7 +11,9 @@ import { GitBranch } from 'lucide-react'
 import { EntityRow, RelativeTime, StatusDot, formatDurationMs, pluralize, ToneText } from '@/components/ui'
 import type { PlanRun } from '@/services/runner'
 import { LiveProgress } from './LiveProgress'
-import { formatCost, planRunElapsedSecs, planRunTriggerLabel, runStateMeta } from './shared'
+import { planRunElapsedSecs, planRunTriggerLabel, runCost, runStateMeta } from './shared'
+import { CostDisplay } from '@/components/ui/CostDisplay'
+import { formatUsd2, hasCost } from '@/utils/cost'
 
 interface PlanRunRowProps {
   run: PlanRun
@@ -28,6 +30,7 @@ export function PlanRunRow({ run, title, href }: PlanRunRowProps) {
   const failed = run.failed_tasks.length
   const agents = run.active_agents?.length ?? 0
   const elapsed = planRunElapsedSecs(run)
+  const cost = runCost(run)
 
   return (
     <EntityRow
@@ -48,7 +51,10 @@ export function PlanRunRow({ run, title, href }: PlanRunRowProps) {
         <span key="t" className="tabular-nums">{done}/{run.total_tasks} tasks</span>,
         failed > 0 ? <span key="f" className="text-red-400">{failed} failed</span> : null,
         <span key="d" className="tabular-nums">{formatDurationMs(elapsed * 1000)}</span>,
-        <span key="c" className="font-mono tabular-nums">{formatCost(run.cost_usd)}</span>,
+        // Amount by basis; a run with no known cost shows none — never `$0.00`.
+        hasCost(cost, { format: formatUsd2 }) ? (
+          <CostDisplay key="c" cost={cost} format={formatUsd2} className="font-mono tabular-nums" />
+        ) : null,
         running && agents > 0 ? pluralize(agents, 'agent') : null,
       ]}
       context={

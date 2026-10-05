@@ -1,4 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react'
+import { CLAUDE_CODE_CAPABILITIES, type ProviderCapabilities } from '@/types/provider'
 
 /**
  * Lightweight context exposing the current chat `sessionId` to descendants
@@ -32,4 +33,33 @@ export function ChatSessionProvider({
 // eslint-disable-next-line react-refresh/only-export-components
 export function useChatSessionId(): string | null {
   return useContext(ChatSessionContext).sessionId
+}
+
+// ----------------------------------------------------------------------------
+// Capabilities of the conversation a transcript belongs to
+// ----------------------------------------------------------------------------
+
+/**
+ * What the provider behind THIS transcript can do. The default is the full
+ * Claude profile: a transcript rendered outside the chat panel (runner, linked
+ * discussion, read-only page) belongs to another session than the one the
+ * provider atoms describe, and must render exactly as it always has.
+ *
+ * `ChatPanel` provides the capabilities of the session it shows.
+ */
+const ChatCapabilitiesContext = createContext<Readonly<ProviderCapabilities>>(CLAUDE_CODE_CAPABILITIES)
+
+export function ChatCapabilitiesProvider({
+  capabilities,
+  children,
+}: {
+  capabilities: Readonly<ProviderCapabilities>
+  children: ReactNode
+}) {
+  return <ChatCapabilitiesContext.Provider value={capabilities}>{children}</ChatCapabilitiesContext.Provider>
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function useChatCapabilities(): Readonly<ProviderCapabilities> {
+  return useContext(ChatCapabilitiesContext)
 }

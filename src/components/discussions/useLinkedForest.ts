@@ -17,6 +17,7 @@ function fromWithLinks(items: SessionWithLinks[], showTasks: boolean): LinkedSes
       id: session.id,
       title: session.title,
       costUsd: session.total_cost_usd,
+      costBasis: session.cost_basis,
       messageCount: session.message_count,
       createdAt: session.created_at,
       source,
@@ -31,6 +32,7 @@ function fromInfo(items: SessionInfo[]): LinkedSession[] {
     title: s.title,
     streaming: s.is_streaming,
     costUsd: s.total_cost_usd,
+    costBasis: s.cost_basis,
     createdAt: s.created_at,
     source: 'runner',
   }))

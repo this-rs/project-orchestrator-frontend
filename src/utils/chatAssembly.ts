@@ -6,6 +6,7 @@
  */
 
 import { splitAttachments } from './messageAttachments'
+import { applyResultCost } from './cost'
 import type {
   BackgroundActivityMetadata,
   BackgroundOutputEntry,
@@ -13,7 +14,7 @@ import type {
   ContentBlock,
 } from '@/types'
 import { BACKGROUND_ACTIVITY_MAX_ENTRIES } from '@/types'
-import { toProviderRef, toToolPolicy, type ProviderCapabilities, type ProviderRef, type ToolPolicy } from '@/types/provider'
+import { readProviderError, toProviderRef, toToolPolicy, type ProviderCapabilities, type ProviderErrorInfo, type ProviderRef, type ToolPolicy } from '@/types/provider'
 
 // ---------------------------------------------------------------------------
 // ID generators
@@ -232,6 +233,19 @@ export function sessionErrorText(evt: { reason?: string; message?: string }): st
   return evt.reason ? `${message} (${evt.reason})` : message
 }
 
+/**
+ * What a `session_error` carrying a typed `code` leaves on its error block:
+ * the code and the whole typed error, so the transcript can render the card of
+ * that failure (sign-in, consent, retry…) instead of a bare red line.
+ *
+ * Empty for an event without a known code — the death of a Claude CLI keeps
+ * exactly the block it always had. Shared by BOTH reducers.
+ */
+export function sessionErrorMetadata(evt: unknown): { code?: string; provider_error?: ProviderErrorInfo } {
+  const info = readProviderError(evt)
+  return info ? { code: info.code, provider_error: info } : {}
+}
+
 /** Human text for a `tools_cancelled` event: how many processes were killed, and by whom. */
 export function toolsCancelledText(evt: { killed_count?: number; requested_by?: string }): string {
   const n = evt.killed_count ?? 0
@@ -297,6 +311,9 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
           }
         }
         lastEventWasMaxTurns = false
+        // The answer to a synthetic question IS this user turn.
+        const answered = answerSyntheticQuestion(messages, content)
+        if (answered !== messages) messages.splice(0, messages.length, ...answered)
         messages.push({
           id: evt.id || nextMessageId(),
           role: 'user',
@@ -332,7 +349,7 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
         const parent = getParentToolUseId(evt)
         const ts = createdAt.toISOString()
 
-        if (toolName === 'AskUserQuestion') {
+        if (isQuestionToolUse(evt)) {
           const questions = (toolInput as { questions?: { question: string }[] })?.questions
           if (questions && questions.length > 0) {
             // Dedup: skip if ask_user_question block with same tool_call_id already exists
@@ -482,7 +499,7 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
               id: nextBlockId(),
               type: 'ask_user_question',
               content: questions.map((q: { question: string }) => q.question).join('\n'),
-              metadata: withParent({ tool_call_id: toolCallId, questions }, parent),
+              metadata: withParent(questionMetadata(evt, toolCallId, questions), parent),
             })
           }
         }
@@ -505,10 +522,12 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
         // Emitted by the backend when the CLI subprocess dies (emit_subprocess_death).
         // Typed in ChatEvent but never reduced: the death of the CLI was invisible.
         const msg = lastAssistant(createdAt)
+        const typed = sessionErrorMetadata(evt)
         msg.blocks.push({
           id: nextBlockId(),
           type: 'error',
           content: sessionErrorText(evt),
+          ...(typed.code ? { metadata: typed } : {}),
         })
         break
       }
@@ -587,7 +606,7 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
         // Store turn metrics on the assistant message
         const rMsg = lastAssistant(createdAt)
         if (evt.duration_ms != null) rMsg.duration_ms = evt.duration_ms as number
-        if (evt.cost_usd != null) rMsg.cost_usd = evt.cost_usd as number
+        applyResultCost(rMsg, evt)
 
         if (rSubtype === 'error_max_turns') {
           rMsg.blocks.push({
@@ -732,6 +751,57 @@ export function toolHintMetadata(evt: unknown): { tool_category?: string; tool_c
   if (typeof e.category === 'string' && e.category !== '') out.tool_category = e.category
   if (typeof e.canonical === 'string' && e.canonical !== '') out.tool_canonical = e.canonical
   return out
+}
+
+// ============================================================================
+// Questions to the user (shared by the live and the history reducers)
+// ============================================================================
+
+/** Claude's question tool. The ONE place its name is spelled in the reducers. */
+const QUESTION_TOOL = 'AskUserQuestion'
+
+/**
+ * Is this `tool_use` the provider's "ask the user a question" tool? Decided on
+ * the canonical alias its adapter supplied, and on Claude's own tool name for
+ * the events that carry no alias (Claude Code).
+ */
+export function isQuestionToolUse(evt: unknown): boolean {
+  if (typeof evt !== 'object' || evt === null) return false
+  const e = evt as Record<string, unknown>
+  return e.canonical === QUESTION_TOOL || e.tool === QUESTION_TOOL
+}
+
+/**
+ * Metadata of an `ask_user_question` block. `synthetic` is kept when the
+ * backend built the question for a provider with no native support: its answer
+ * goes back as a USER TURN, not as an `input_response`.
+ */
+export function questionMetadata(evt: unknown, toolCallId: string, questions: unknown): Record<string, unknown> {
+  const synthetic = typeof evt === 'object' && evt !== null && (evt as Record<string, unknown>).synthetic === true
+  return { tool_call_id: toolCallId, questions, ...(synthetic ? { synthetic: true } : {}) }
+}
+
+/**
+ * A user turn answers the SYNTHETIC question still open before it: the block
+ * is stamped `submitted` with the turn's text, as a native question is from
+ * its `tool_result`. Only the questions of the last assistant message are
+ * looked at. Returns the same array when there is nothing to stamp.
+ */
+export function answerSyntheticQuestion(messages: ChatMessage[], response: string): ChatMessage[] {
+  for (let mi = messages.length - 1; mi >= 0; mi--) {
+    const msg = messages[mi]
+    if (msg.role !== 'assistant') return messages
+    const bi = msg.blocks.findIndex(
+      (b) => b.type === 'ask_user_question' && b.metadata?.synthetic === true && !b.metadata.submitted,
+    )
+    if (bi === -1) continue
+    const blocks = [...msg.blocks]
+    blocks[bi] = { ...blocks[bi], metadata: { ...blocks[bi].metadata, submitted: true, response } }
+    const next = [...messages]
+    next[mi] = { ...msg, blocks }
+    return next
+  }
+  return messages
 }
 
 // ============================================================================

@@ -1,12 +1,13 @@
 import { splitAttachments } from '@/utils/messageAttachments'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useSetAtom, useStore } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatSessionOpenErrorAtom, providersAtom, providersLoadStateAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
+import { applyResultCost } from '@/utils/cost'
 import { chatApi, ChatWebSocket } from '@/services'
 import { applyQueueOp, enqueue, mergeServerQueue, type QueueOp, type QueuedMessage } from '@/components/chat/messageQueue'
-import type { ChatMessage, ChatStreamEvent, PermissionMode } from '@/types'
+import type { ChatMessage, ChatStreamEvent, ContentBlock, PermissionMode } from '@/types'
 import { readToolPolicyMode, toWireMode } from '@/constants/toolPolicy'
 import {
   historyEventsToMessages,
@@ -19,11 +20,15 @@ import {
   appendBackgroundActivity,
   workflowEventToTick,
   sessionErrorText,
+  sessionErrorMetadata,
   toolsCancelledText,
   readSystemInitRuntime,
   lastSystemInitRuntime,
   systemInitProviderMetadata,
   toolHintMetadata,
+  isQuestionToolUse,
+  questionMetadata,
+  answerSyntheticQuestion,
   type SystemInitRuntime,
   type BackgroundTick,
 } from '@/utils/chatAssembly'
@@ -171,7 +176,7 @@ function currentStreamWindow(messages: ReadonlyArray<ChatMessage>): StreamWindow
   let start = Math.max(0, messages.length - 30)
   for (let mi = messages.length - 2; mi >= start; mi--) {
     const msg = messages[mi]
-    if (msg.role === 'assistant' && (msg.duration_ms != null || msg.cost_usd != null)) {
+    if (msg.role === 'assistant' && (msg.duration_ms != null || msg.cost_usd != null || msg.cost_basis != null)) {
       start = mi + 1
       break
     }
@@ -233,6 +238,12 @@ export function useChat() {
   const moveDraft = useSetAtom(moveChatDraftAtom)
   const moveQueue = useSetAtom(moveChatQueueAtom)
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  // The messages as last rendered, for callbacks that must stay referentially
+  // stable (they are props of memoised bubbles) yet need to look a block up.
+  const messagesRef = useRef<ChatMessage[]>(messages)
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const wsRef = useRef<ChatWebSocket | null>(null)
   const [isSending, setIsSending] = useState(false)
@@ -519,7 +530,10 @@ export function useChat() {
       // text alone and the chips from the references.
       const { text: content, attachments: sentAttachments } = splitAttachments(rawContent)
 
-      setMessages((prev) => {
+      setMessages((current) => {
+        // The answer to a synthetic question IS this user turn (history does
+        // the same): the question above it stops being answerable.
+        const prev = answerSyntheticQuestion(current, content)
         // "Continue" after max_turns: if a continue_indicator was already added
         // by sendContinue(), suppress the broadcast user_message to avoid a duplicate bubble.
         if (content === 'Continue') {
@@ -706,7 +720,7 @@ export function useChat() {
             break
           }
 
-          if (toolName === 'AskUserQuestion') {
+          if (isQuestionToolUse(data)) {
             const questions = (toolInput as { questions?: unknown[] })?.questions
             if (questions && questions.length > 0) {
               // Dedup: skip if an ask_user_question block with same tool_call_id already exists
@@ -938,7 +952,7 @@ export function useChat() {
                 id: nextBlockId(),
                 type: 'ask_user_question',
                 content: questions.map((q) => q.question).join('\n'),
-                metadata: withParent({ tool_call_id: toolCallId, questions }, auqParent),
+                metadata: withParent(questionMetadata(data, toolCallId, questions), auqParent),
               })
             }
           }
@@ -971,7 +985,14 @@ export function useChat() {
             id: nextBlockId(),
             type: 'error',
             content: sessionErrorText(data as { reason?: string; message?: string }),
-            metadata: withParent(undefined, getParentToolUseId(event)),
+            // A typed failure keeps its `code`: the transcript renders its card.
+            metadata: withParent(
+              (() => {
+                const typed = sessionErrorMetadata(data)
+                return typed.code ? typed : undefined
+              })(),
+              getParentToolUseId(event),
+            ),
           })
           if (!event.replaying) {
             setIsStreaming(false)
@@ -1181,9 +1202,9 @@ export function useChat() {
 
           // Store turn metrics on the assistant message
           const rDuration = (rData as { duration_ms?: number }).duration_ms
-          const rCost = (rData as { cost_usd?: number }).cost_usd
           if (rDuration != null) lastMsg.duration_ms = rDuration
-          if (rCost != null) lastMsg.cost_usd = rCost
+          // Figure, basis and usage — same helper as the history reducer.
+          applyResultCost(lastMsg, rData)
 
           if (rSubtype === 'error_max_turns') {
             lastMsg.blocks.push({
@@ -1980,20 +2001,33 @@ export function useChat() {
     return true
   }, [sessionId, getWs, setAutoApprovedTools])
 
-  /** Returns true when the answer was handed to the socket, false otherwise. */
+  /**
+   * Answer a question the agent asked. Returns true when the answer was handed
+   * to the socket, false otherwise.
+   *
+   * A NATIVE question (Claude's `AskUserQuestion`) is answered in-band with an
+   * `input_response`. A question the provider has no native support for — the
+   * backend marked it `synthetic`, or the session's capabilities say
+   * `native_question: false` — is answered by a USER TURN: nothing on the
+   * provider's side is waiting for an `input_response`.
+   */
   const respondInput = useCallback((requestId: string, response: string): boolean => {
     if (!sessionId) return false
     const ws = getWs()
+    const isTarget = (b: ContentBlock) =>
+      b.type === 'ask_user_question' && (b.metadata?.tool_call_id === requestId || b.id === requestId)
+    const target = messagesRef.current.flatMap((m) => m.blocks).find(isTarget)
+    const asUserTurn =
+      target?.metadata?.synthetic === true || !store.get(chatSessionCapabilitiesAtom).native_question
+
     // Not delivered (dead socket): leave the question open so it can be re-answered.
-    if (!ws.sendInputResponse(requestId, response)) return false
+    if (asUserTurn ? !ws.sendUserMessage(response) : !ws.sendInputResponse(requestId, response)) return false
 
     // Stamp the block's metadata with the response so it persists across
     // page reloads and renders as read-only in history/replay.
-    setMessages((prev) =>
-      prev.map((msg) => {
-        const blockIdx = msg.blocks.findIndex(
-          (b) => b.type === 'ask_user_question' && (b.metadata?.tool_call_id === requestId || b.id === requestId),
-        )
+    setMessages((prev) => {
+      const stamped = prev.map((msg) => {
+        const blockIdx = msg.blocks.findIndex(isTarget)
         if (blockIdx === -1) return msg
         const updatedBlocks = [...msg.blocks]
         updatedBlocks[blockIdx] = {
@@ -2005,10 +2039,23 @@ export function useChat() {
           },
         }
         return { ...msg, blocks: updatedBlocks }
-      }),
-    )
+      })
+      if (!asUserTurn) return stamped
+      // The answer is a turn of the conversation: it shows as one, exactly as
+      // the history will replay it (the broadcast echo is deduplicated on its text).
+      return [
+        ...stamped,
+        {
+          id: nextMessageId(),
+          role: 'user' as const,
+          blocks: [{ id: nextBlockId(), type: 'text' as const, content: response }],
+          timestamp: new Date(),
+        },
+      ]
+    })
+    if (asUserTurn) setIsStreaming(true)
     return true
-  }, [sessionId, getWs])
+  }, [sessionId, getWs, store, setIsStreaming])
 
   const interrupt = useCallback(async () => {
     if (!sessionId) return

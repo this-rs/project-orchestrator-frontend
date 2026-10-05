@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useCallback, useEffect, useId } from 'react'
 import { useAtom, useAtomValue, useStore } from 'jotai'
-import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoContinueAtom, chatMessageQueuesAtom, draftKeyFor, chatProviderTargetAtom, chatSessionToolPolicyAtom } from '@/atoms'
+import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoContinueAtom, chatMessageQueuesAtom, draftKeyFor, chatProviderTargetAtom, chatSessionToolPolicyAtom, chatSessionCapabilitiesAtom } from '@/atoms'
 import { chatApi } from '@/services/chat'
 import { documentsApi } from '@/services/documents'
 import { ApiError } from '@/services/api'
@@ -24,12 +24,14 @@ import { deriveInputAction, describeAction } from './inputAction'
 import { MessageQueueBar } from './MessageQueueBar'
 import { shouldEnqueue, type QueueOp, type QueuedMessage } from './messageQueue'
 import { Attachments } from './Attachments'
+import { imagesRefusedText } from '@/constants/capabilities'
 import {
   addAttachment,
   createAttachment,
   decideSend,
   describeUploadFailure,
   filesFromClipboard,
+  isImageFile,
   readyDocumentIds,
   removeAttachment,
   resolveDeferred,
@@ -85,6 +87,12 @@ interface ChatInputProps {
   onNewConversation?: () => void
   /** Callback to toggle auto-continue on an active session (sends WS message to backend) */
   onChangeAutoContinue?: (enabled: boolean) => void
+  /**
+   * Why `disabled` is set, when the reason is not obvious from the screen (no
+   * provider, a deleted instance, a provider that cannot resume). Shown above
+   * the box and tied to the textarea: a dead composer always says why.
+   */
+  disabledReason?: string | null
   /** When set, prefills the textarea and focuses it. Change the object reference to trigger. */
   prefill?: PrefillPayload | null
   /** What is running in this session (see `runningActivity.ts`); shown above the queue. */
@@ -96,10 +104,12 @@ interface ChatInputProps {
 /** A stable empty queue, so a conversation without one does not re-run the effects that read it. */
 const NO_QUEUE: QueuedMessage[] = []
 
+const NO_REFUSED_IMAGES: string[] = []
+
 /** A stable "nothing runs", so an absent prop does not re-render the bar. */
 const NO_ACTIVITY: ReadonlyArray<RunningItem> = []
 
-export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, onInterrupt, isStreaming, disabled, sessionId, onChangePermissionMode, onChangeModel, onNewConversation, onChangeAutoContinue, prefill, activity = NO_ACTIVITY, runActions }: ChatInputProps) {
+export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, onInterrupt, isStreaming, disabled, disabledReason, sessionId, onChangePermissionMode, onChangeModel, onNewConversation, onChangeAutoContinue, prefill, activity = NO_ACTIVITY, runActions }: ChatInputProps) {
   const [value, setValue] = useAtom(chatDraftInputAtom)
   const isMobile = useIsMobile()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -109,6 +119,17 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   const providerTarget = useAtomValue(chatProviderTargetAtom)
   const sessionPolicy = useAtomValue(chatSessionToolPolicyAtom)
   const trustHelpId = useId()
+  const disabledHelpId = useId()
+  // Whether the model in front of the composer takes images. Read at add time
+  // through the store too (see `addFiles`), this value drives nothing else.
+  const acceptsImages = useAtomValue(chatSessionCapabilitiesAtom).images
+  /**
+   * Images turned away because the model takes none — said next to the
+   * attachments. Tagged with the session it happened in, so the notice does
+   * not follow the user into another conversation.
+   */
+  const [refusal, setRefusal] = useState<{ sessionId: string | null | undefined; names: string[] }>({ sessionId, names: [] })
+  const refusedImages = refusal.sessionId === sessionId ? refusal.names : NO_REFUSED_IMAGES
   const [showModeDropdown, setShowModeDropdown] = useState(false)
   // Provider and model menus (`ProviderModelPicker`): one open at a time, and
   // never together with the mode menu.
@@ -349,7 +370,13 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
    */
   const addFiles = useCallback(
     (files: File[]) => {
+      // A model that takes no images: an image is turned away HERE, with the
+      // reason on screen, instead of being uploaded and silently ignored by
+      // the model. Any other document goes through.
+      const refused = acceptsImages ? [] : files.filter(isImageFile)
+      setRefusal({ sessionId, names: refused.map((f) => f.name || 'image') })
       for (const file of files) {
+        if (refused.includes(file)) continue
         const localId =
           typeof crypto !== 'undefined' && 'randomUUID' in crypto
             ? crypto.randomUUID()
@@ -400,7 +427,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           })
       }
     },
-    [store, selectedProject, sessionId, mutateAttachments, settleDeferredSend],
+    [store, selectedProject, sessionId, mutateAttachments, settleDeferredSend, acceptsImages],
   )
 
   const handleRemoveAttachment = useCallback(
@@ -652,6 +679,24 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
         onRemove={handleRemoveAttachment}
         pendingSend={deferredSend}
       />
+      {refusedImages.length > 0 && (
+        <p
+          role="alert"
+          data-testid="images-refused"
+          className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-200"
+        >
+          {imagesRefusedText(refusedImages)}
+        </p>
+      )}
+      {disabled && disabledReason && (
+        <p
+          id={disabledHelpId}
+          data-testid="composer-disabled-reason"
+          className="rounded-lg border border-white/[0.1] bg-surface-base/80 px-2.5 py-1.5 text-[11px] text-gray-300"
+        >
+          {disabledReason}
+        </p>
+      )}
 
       {/* The composer is ONE box: the text on top, and under it, inside the
           same border, every control that shapes the message — attach, mode,
@@ -683,6 +728,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           disabled={disabled}
+          aria-describedby={disabled && disabledReason ? disabledHelpId : undefined}
           rows={2}
           // On mobile the return key inserts a newline (sending is via the button);
           // on desktop it submits, so hint the soft keyboard accordingly.

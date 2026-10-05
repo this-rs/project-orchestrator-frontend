@@ -411,7 +411,8 @@ export const MilestoneGraphAdapter: GraphAdapter<MilestoneGraphData> = {
         {
           model: session.model,
           messageCount: session.message_count ?? 0,
-          totalCostUsd: session.total_cost_usd ?? 0,
+          totalCostUsd: session.total_cost_usd ?? null,
+          costBasis: session.cost_basis,
           energy: 0.4,
         },
         { energy: 0.4, subtitle: session.model },

@@ -4,7 +4,9 @@ import { ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { StatusDot } from '@/components/ui/Status'
 import { focusRing, hitArea, metaTextReadable as metaText } from '@/components/ui/classes'
-import { formatCost, formatDurationMs } from '@/components/ui/format'
+import { formatDurationMs } from '@/components/ui/format'
+import { CostDisplay } from '@/components/ui/CostDisplay'
+import { costReport, formatUsd2 } from '@/utils/cost'
 import type { AttentionThread, WaveSummaryDto } from '@/types/attention'
 import { workspacePath } from '@/utils/paths'
 import { PlanStateBar, countPlanStates, stateSegments } from './PlanStateBar'
@@ -115,7 +117,10 @@ export function PlanRunRow({ thread, others = [], laneName, renderDiscussions, c
             {run && (
               <span className={`flex shrink-0 items-center gap-2 leading-5 tabular-nums ${metaText}`}>
                 <span data-testid="run-duration">{formatDurationMs(run.duration_secs * 1000)}</span>
-                <span data-testid="run-cost">{formatCost(run.cost_usd) ?? '$0.00'}</span>
+                <span data-testid="run-cost">
+                  {/* The attention contract carries a figure and no basis: a reported cost, zero included. */}
+                  <CostDisplay cost={costReport(run.cost_usd)} format={formatUsd2} />
+                </span>
               </span>
             )}
           </div>

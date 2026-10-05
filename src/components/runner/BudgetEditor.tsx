@@ -7,20 +7,27 @@ import { useCallback, useState } from 'react'
 import { Check, Pencil, X } from 'lucide-react'
 import { Button, focusRing, hitArea, textLink } from '@/components/ui'
 import { formatCost } from './shared'
+import { costReport, costToText, formatUsd2 } from '@/utils/cost'
+import type { CostBasis } from '@/types/provider'
 
 interface BudgetEditorProps {
-  costUsd: number
+  /** `null` = the run has no known cost (never `$0.00`). */
+  costUsd: number | null
+  /** Where `costUsd` comes from. Absent = `reported`. */
+  costBasis?: CostBasis | null
   maxCostUsd: number
   onSave: (value: number) => Promise<void>
 }
 
-export function BudgetEditor({ costUsd, maxCostUsd, onSave }: BudgetEditorProps) {
+export function BudgetEditor({ costUsd, costBasis, maxCostUsd, onSave }: BudgetEditorProps) {
+  // What was spent, by basis ("$1.20", "$1.20 est.", "local"…). No figure is "—", never "$0.00".
+  const spent = costToText(costReport(costUsd, costBasis), { format: formatUsd2 }) ?? '—'
   const [editing, setEditing] = useState(false)
   const [input, setInput] = useState('')
   const [saving, setSaving] = useState(false)
 
   const start = useCallback(() => {
-    setInput(String(maxCostUsd || Math.ceil(costUsd * 2) || 10))
+    setInput(String(maxCostUsd || Math.ceil((costUsd ?? 0) * 2) || 10))
     setEditing(true)
   }, [maxCostUsd, costUsd])
 
@@ -41,7 +48,7 @@ export function BudgetEditor({ costUsd, maxCostUsd, onSave }: BudgetEditorProps)
   if (editing) {
     return (
       <span className="inline-flex flex-wrap items-center gap-1.5">
-        <span className="font-mono tabular-nums text-gray-300">{formatCost(costUsd)} /</span>
+        <span className="font-mono tabular-nums text-gray-300">{spent} /</span>
         <label className="inline-flex items-center gap-1">
           <span className="text-gray-500">$</span>
           <span className="sr-only">Budget limit in dollars</span>
@@ -74,7 +81,7 @@ export function BudgetEditor({ costUsd, maxCostUsd, onSave }: BudgetEditorProps)
   return (
     <span className="inline-flex flex-wrap items-center gap-x-2">
       <span className="font-mono tabular-nums">
-        {formatCost(costUsd)}
+        {spent}
         {maxCostUsd > 0 && <span className="text-gray-500"> / {formatCost(maxCostUsd)}</span>}
       </span>
       <button type="button" onClick={start} className={`${hitArea} inline-flex items-center gap-1 text-xs ${textLink}`}>

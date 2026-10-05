@@ -1,7 +1,11 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
-import { chatSessionRefreshAtom, showSpawnedSessionsAtom } from '@/atoms'
-import { isClaudeCodeProvider } from '@/types/provider'
+import { chatSessionRefreshAtom, providersAtom, showSpawnedSessionsAtom } from '@/atoms'
+import { isClaudeCodeProvider, type ProviderInstance } from '@/types/provider'
+import { describeSessionProvider, shouldShowProviderBadge } from '@/constants/providers'
+import { ProviderBadge } from './ProviderBadge'
+import { CostDisplay } from '@/components/ui/CostDisplay'
+import { costReport, formatUsd2 } from '@/utils/cost'
 import { chatApi, getEventBus, workspacesApi } from '@/services'
 import { useActiveRunTracker, useDetachedRuns, useWorkspaceSlug } from '@/hooks'
 import type {
@@ -47,7 +51,6 @@ import {
 import {
   countActiveFilters,
   formatAbsolute,
-  formatCost,
   formatDuration,
   formatMessageCount,
   formatRelativeShort,
@@ -357,6 +360,8 @@ interface SessionRowProps {
   isMenuOpen: boolean
   isConfirmingDelete: boolean
   wsSlug: string | null
+  /** Loaded provider instances, or `null` while unknown (then no instance is ever "missing"). */
+  providers?: readonly ProviderInstance[] | null
   onSelect: (sessionId: string, turnIndex?: number, title?: string) => void
   onClose: () => void
   onStartRename: (sessionId: string) => void
@@ -385,6 +390,7 @@ export const SessionRow = memo(function SessionRow({
   isMenuOpen,
   isConfirmingDelete,
   wsSlug,
+  providers = null,
   onSelect,
   onClose,
   onStartRename,
@@ -401,7 +407,9 @@ export const SessionRow = memo(function SessionRow({
   const mode = permissionModeMeta(session.permission_mode, {
     isClaudeCode: isClaudeCodeProvider(session.provider_id, session.provider_kind),
   })
-  const cost = formatCost(session.total_cost_usd)
+  const cost = costReport(session.total_cost_usd, session.cost_basis)
+  const provider = describeSessionProvider({ id: session.provider_id, kind: session.provider_kind }, providers)
+  const showProvider = shouldShowProviderBadge(provider, providers)
   const spawn = session.spawned_by ? spawnLabel(session.spawned_by) : null
   const activate = () => { onCloseMenu(); if (isActive) { onClose() } else { onSelect(session.id, undefined, title) } }
 
@@ -490,6 +498,13 @@ export const SessionRow = memo(function SessionRow({
             )}
             {scope && <Sep />}
             <span className="tabular-nums whitespace-nowrap">{formatMessageCount(session.message_count)}</span>
+            {showProvider && (
+              <>
+                <Sep />
+                {/* The model has its own slot right after: the badge names the provider only. */}
+                <ProviderBadge description={provider} />
+              </>
+            )}
             {session.model && (
               <>
                 <Sep />
@@ -512,12 +527,7 @@ export const SessionRow = memo(function SessionRow({
                 <span role="img" aria-label={mode.label} title={mode.label} className={`w-1.5 h-1.5 rounded-full shrink-0 ${mode.dot}`} />
               </>
             )}
-            {cost && (
-              <>
-                <Sep />
-                <span className="tabular-nums whitespace-nowrap">{cost}</span>
-              </>
-            )}
+            <CostDisplay cost={cost} before={<Sep />} format={formatUsd2} hideZero className="tabular-nums whitespace-nowrap" />
             {spawn && (
               <>
                 <Sep />
@@ -634,6 +644,8 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
 
   // Live refresh via WebSocket CRUD events
   const chatSessionRefresh = useAtomValue(chatSessionRefreshAtom)
+  // Stable reference between loads, so the memoised rows are not re-rendered for nothing.
+  const providerInstances = useAtomValue(providersAtom)?.providers ?? null
 
   // Track active detached runs per parent session
   const activeRuns = useActiveRunTracker()
@@ -1316,6 +1328,7 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
                       isMenuOpen={menuSessionId === session.id}
                       isConfirmingDelete={confirmDeleteId === session.id}
                       wsSlug={activeWsSlug ?? null}
+                      providers={providerInstances}
                       onSelect={stableSelect}
                       onClose={stableClose}
                       onStartRename={handleStartRename}

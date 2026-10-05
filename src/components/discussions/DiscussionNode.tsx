@@ -6,6 +6,8 @@
  * Clickable to select and view the inline conversation.
  */
 
+import { CostDisplay } from '@/components/ui/CostDisplay'
+import { costReport, costToText } from '@/utils/cost'
 import { useState, type ReactNode } from 'react'
 import { focusRing, pressFeedback } from '@/components/ui/classes'
 import {
@@ -103,6 +105,8 @@ export function DiscussionNodeRow({
   const isSelected = selectedSessionId === node.session_id
   const cfg = statusConfig[node.status] ?? statusConfig.idle
   const StatusIcon = cfg.icon
+  const cost = costReport(node.cost_usd, node.cost_basis)
+  const costText = costToText(cost, { format: formatCost })
 
   const title = node.title || node.metadata?.task_id || 'Session sans titre'
   const actions = renderActions?.(node)
@@ -181,10 +185,13 @@ export function DiscussionNodeRow({
             <Clock className="w-3 h-3" aria-hidden="true" />
             {formatDuration(node.duration_secs)}
           </span>
-          <span className="flex items-center gap-1 font-mono tabular-nums" aria-label={`Coût ${formatCost(node.cost_usd)}`}>
-            <DollarSign className="w-3 h-3" aria-hidden="true" />
-            {formatCost(node.cost_usd)}
-          </span>
+          {/* No figure, no cost shown — never a `$0.00` nobody reported. */}
+          {costText !== null && (
+            <span className="flex items-center gap-1 font-mono tabular-nums" aria-label={`Coût ${costText}`}>
+              <DollarSign className="w-3 h-3" aria-hidden="true" />
+              <CostDisplay cost={cost} format={formatCost} />
+            </span>
+          )}
         </div>
       </div>
 

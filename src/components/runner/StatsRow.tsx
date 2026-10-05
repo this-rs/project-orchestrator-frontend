@@ -67,7 +67,7 @@ export function StatsRow({ effectiveSnapshot, isRunning, resolvedAgents, wavesTo
         items={[
           {
             label: 'Budget',
-            value: <BudgetEditor costUsd={effectiveSnapshot.cost_usd} maxCostUsd={effectiveSnapshot.max_cost_usd} onSave={handleBudgetSave} />,
+            value: <BudgetEditor costUsd={effectiveSnapshot.cost_usd} costBasis={effectiveSnapshot.cost_basis} maxCostUsd={effectiveSnapshot.max_cost_usd} onSave={handleBudgetSave} />,
           },
           {
             label: 'Agents',

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { CostBasis } from '@/types/provider'
 import { getEventBus } from '@/services'
 import { chatApi } from '@/services/chat'
 import type { CrudEvent, DetachedSession } from '@/types'
@@ -10,6 +11,8 @@ export interface DetachedRun {
   model: string
   isStreaming: boolean
   costUsd?: number
+  /** Where `costUsd` comes from. Absent = `reported`. */
+  costBasis?: CostBasis | null
   startedAt: string
   /** If spawned by a runner, the plan ID */
   planId?: string
@@ -35,6 +38,7 @@ function toDetachedRun(s: DetachedSession): DetachedRun {
     model: s.model,
     isStreaming: s.is_streaming,
     costUsd: s.total_cost_usd,
+    costBasis: s.cost_basis,
     startedAt: s.created_at,
     planId: s.spawned_by?.type === 'runner' ? s.spawned_by.plan_id : undefined,
     runId: s.spawned_by?.type === 'runner' ? s.spawned_by.run_id : undefined,

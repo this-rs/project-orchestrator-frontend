@@ -6,7 +6,7 @@ import { PulseIndicator } from '@/components/ui/PulseIndicator'
 import { ErrorState, Skeleton } from '@/components/ui'
 import { Button } from '@/components/ui/Button'
 import { focusRing, metaTextReadable as metaText, pressFeedback } from '@/components/ui/classes'
-import { formatCost } from '@/components/ui/format'
+import { costReport, costToText, formatCostSum, formatUsd2, sumCosts } from '@/utils/cost'
 import { useLiveAgents } from '@/hooks/useLiveAgents'
 import { StackedBar } from '../charts'
 import type { LiveAgent } from '@/types/liveAgents'
@@ -26,7 +26,7 @@ function StateDot({ state }: { state: LiveAgent['state'] }) {
 export function LiveAgentRow({ agent, onOpen, scale }: { agent: LiveAgent; onOpen: (sessionId: string) => void; /** Longest age on screen, in seconds: the row's time bar is drawn against it. */ scale?: number }) {
   const waiting = agent.state === 'waiting_input'
   const since = agent.state === 'idle' ? formatSecs(agent.idle_secs) : formatSecs(agent.age_secs)
-  const cost = formatCost(agent.total_cost_usd)
+  const cost = costToText(costReport(agent.total_cost_usd, agent.cost_basis), { format: formatUsd2, hideZero: true })
   const detail = [agent.project_slug, agent.model, `${agent.message_count} msg`, cost].filter(Boolean).join(' · ')
   return (
     <li data-testid="live-agent" data-state={agent.state}>
@@ -81,7 +81,9 @@ export function LiveAgents() {
   const idle = (data?.agents ?? []).filter((a) => a.state === 'idle')
 
   const scale = Math.max(0, ...active.map((a) => a.age_secs))
-  const cost = formatCost((data?.agents ?? []).reduce((n, a) => n + (a.total_cost_usd ?? 0), 0))
+  // Agents without a figure make this a floor ("≥ $x"); nothing known, or a zero, shows nothing.
+  const costSum = sumCosts((data?.agents ?? []).map((a) => costReport(a.total_cost_usd, a.cost_basis)))
+  const cost = costSum.usd > 0 ? formatCostSum(costSum) : null
 
   return (
     <section aria-label={LIVE_TEXT.region} className="@container/live min-w-0 space-y-2 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3.5">

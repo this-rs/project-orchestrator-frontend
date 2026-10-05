@@ -1,4 +1,6 @@
 import { memo } from 'react'
+import { CostDisplay } from '@/components/ui/CostDisplay'
+import { costReport, hasCost } from '@/utils/cost'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { selectedNodeAtom, selectedNodeIdAtom } from '@/atoms/intelligence'
 import { ENTITY_COLORS } from '@/constants/intelligence'
@@ -178,7 +180,11 @@ function TaskDetailPanel({ data }: { data: TaskNodeData }) {
 // CHAT DETAIL PANEL
 // ============================================================================
 
+/** Four decimals: a session's cost is often under a cent. */
+const SESSION_COST_FORMAT = { format: (usd: number) => `$${usd.toFixed(4)}` } as const
+
 function ChatSessionDetailPanel({ data }: { data: ChatSessionNodeData }) {
+  const sessionCost = costReport(data.totalCostUsd, data.costBasis)
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
@@ -188,7 +194,14 @@ function ChatSessionDetailPanel({ data }: { data: ChatSessionNodeData }) {
         </div>
         <div className="bg-indigo-950/30 rounded-md p-2 border border-indigo-800/40">
           <p className="text-[10px] text-indigo-400 font-medium">Cost</p>
-          <p className="text-sm text-slate-200 font-semibold">${data.totalCostUsd.toFixed(4)}</p>
+          <p className="text-sm text-slate-200 font-semibold">
+            {hasCost(sessionCost, SESSION_COST_FORMAT) ? (
+              <CostDisplay cost={sessionCost} {...SESSION_COST_FORMAT} />
+            ) : (
+              // No figure for this session: said as such, not as $0.0000.
+              <span title="Cost unknown">—</span>
+            )}
+          </p>
         </div>
       </div>
       {data.model && (

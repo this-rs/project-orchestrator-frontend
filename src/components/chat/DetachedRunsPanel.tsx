@@ -1,4 +1,6 @@
 import { memo, useState, useEffect } from 'react'
+import { CostDisplay } from '@/components/ui/CostDisplay'
+import { costReport, formatUsd2, hasCost } from '@/utils/cost'
 import { PulseIndicator } from '@/components/ui'
 import { ChevronDown, ChevronUp, Eye, Square, Clock, DollarSign } from 'lucide-react'
 import { AgentExecutionDetail } from '@/components/runner/AgentExecutionDetail'
@@ -51,10 +53,8 @@ function formatDuration(startedAt: string): string {
   return `${diffHours}h ${diffMins % 60}m`
 }
 
-function formatCost(cost?: number): string | null {
-  if (!cost) return null
-  return `$${cost.toFixed(2)}`
-}
+/** Two decimals, and a reported zero is not shown — as this panel always did. */
+const RUN_COST_FORMAT = { format: formatUsd2, hideZero: true } as const
 
 /**
  * Collapsible panel showing detached child runs at the top of ChatPanel.
@@ -108,10 +108,10 @@ function RunRow({
               <Clock className="w-2.5 h-2.5" />
               {formatDuration(run.startedAt)}
             </span>
-            {formatCost(run.costUsd) && (
+            {hasCost(costReport(run.costUsd, run.costBasis), RUN_COST_FORMAT) && (
               <span className="inline-flex items-center gap-0.5 text-[10px] text-gray-500">
                 <DollarSign className="w-2.5 h-2.5" />
-                {formatCost(run.costUsd)}
+                <CostDisplay cost={costReport(run.costUsd, run.costBasis)} {...RUN_COST_FORMAT} />
               </span>
             )}
             <span className="text-[10px] text-gray-600 truncate max-w-[60px]">

@@ -20,7 +20,9 @@ import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import type { ActiveAgentSnapshot } from '@/services/runner'
 import type { AgentExecution } from '@/types'
-import { formatElapsed, formatCost, agentStateMeta } from './shared'
+import { formatElapsed, agentStateMeta, runCost } from './shared'
+import { CostDisplay } from '@/components/ui/CostDisplay'
+import { formatUsd2, hasCost } from '@/utils/cost'
 
 export interface WaveAgentCardProps {
   agent: ActiveAgentSnapshot
@@ -38,6 +40,7 @@ export function WaveAgentCard({ agent, execution, isSelected, onToggleConversati
   const wsSlug = useWorkspaceSlug()
   const navigate = useNavigate()
   const meta = agentStateMeta(agent.status)
+  const cost = runCost(agent)
   const [detailOpen, setDetailOpen] = useState(false)
 
   const tools = useMemo(() => {
@@ -63,7 +66,10 @@ export function WaveAgentCard({ agent, execution, isSelected, onToggleConversati
       trailing={<span className="font-mono">{formatElapsed(agent.elapsed_secs)}</span>}
       meta={[
         <span key="s" className={TONE_CLASSES[meta.tone].text}>{meta.label}</span>,
-        <span key="c" className="font-mono tabular-nums">{formatCost(agent.cost_usd)}</span>,
+        // A task no agent ran has no cost to show — never `$0.00`.
+        hasCost(cost, { format: formatUsd2 }) ? (
+          <CostDisplay key="c" cost={cost} format={formatUsd2} className="font-mono tabular-nums" />
+        ) : null,
         files.length > 0 ? pluralize(files.length, 'file') : null,
         commits.length > 0 ? pluralize(commits.length, 'commit') : null,
       ]}

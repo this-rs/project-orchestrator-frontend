@@ -1,7 +1,6 @@
 import { api, ApiError, buildQuery } from './api'
 import {
-  PROVIDER_ERROR_CODES,
-  type ProviderErrorCode,
+  readProviderError,
   type ProviderErrorInfo,
   type ProviderHealth,
   type ProviderId,
@@ -55,29 +54,4 @@ export function toProviderError(err: unknown): ProviderErrorInfo | null {
   return readProviderError(body, status)
 }
 
-/** Same, for an already-parsed object (WS `session_error`, `health.error`). */
-export function readProviderError(body: unknown, status?: number): ProviderErrorInfo | null {
-  if (typeof body !== 'object' || body === null) return null
-  const b = body as Record<string, unknown>
-  const code = b.code ?? b.kind
-  if (typeof code !== 'string' || !(PROVIDER_ERROR_CODES as readonly string[]).includes(code)) return null
-  const str = (v: unknown) => (typeof v === 'string' && v !== '' ? v : undefined)
-  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined)
-  return {
-    code: code as ProviderErrorCode,
-    message: str(b.error) ?? str(b.message) ?? '',
-    provider_id: str(b.provider_id) ?? str(b.provider),
-    login_hint: str(b.login_hint),
-    retry_after_ms: num(b.retry_after_ms) ?? (num(b.retry_after) !== undefined ? num(b.retry_after)! * 1000 : undefined),
-    detail: str(b.detail),
-    program: str(b.program),
-    needed: num(b.needed),
-    available: num(b.available),
-    capability: str(b.capability),
-    retryable: typeof b.retryable === 'boolean' ? b.retryable : undefined,
-    origin: str(b.origin),
-    project_slug: str(b.project_slug),
-    model: str(b.model),
-    status,
-  }
-}
+export { readProviderError }

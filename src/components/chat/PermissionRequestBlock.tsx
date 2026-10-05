@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import type { ContentBlock } from '@/types'
-import type { ToolCategory } from '@/types/provider'
+import { supportsScope, type ToolCategory } from '@/types/provider'
+import { POLICY_ONLY_REQUEST_TEXT } from '@/constants/capabilities'
+import { useChatCapabilities } from './ChatSessionContext'
+import { useBlockProviderKind } from './useBlockProviderKind'
 import { commandText, getToolCategory } from './tools'
 import { Terminal, Eye, FileEdit, Zap, Globe, AlertTriangle, Check, X, ChevronRight } from 'lucide-react'
 
@@ -181,7 +184,13 @@ export function PermissionRequestBlock({
     ? (block.metadata.decision as 'allowed' | 'denied')
     : null
 
+  // What the provider of this conversation can do: ask at all, and remember an answer.
+  const caps = useChatCapabilities()
+  const canRemember = supportsScope(caps, 'session')
+  const providerKind = useBlockProviderKind()
+
   const category = getToolCategory(toolName, {
+    providerKind,
     category: block.metadata?.tool_category,
     canonical: block.metadata?.tool_canonical as string | undefined,
   })
@@ -212,7 +221,7 @@ export function PermissionRequestBlock({
 
   const handleRespond = (allowed: boolean) => {
     if (responded) return
-    const remember = rememberChecked && allowed ? { toolName } : undefined
+    const remember = canRemember && rememberChecked && allowed ? { toolName } : undefined
     // Only show the decision once it was actually delivered: on a dead socket
     // onRespond returns false and the agent is still waiting for an answer.
     if (onRespond(toolCallId, allowed, remember) === false) {
@@ -251,6 +260,28 @@ export function PermissionRequestBlock({
             Denied
           </span>
         )}
+      </div>
+    )
+  }
+
+  // ─── No interactive permissions: nothing to answer ──────────────────
+  // The provider cannot pause a tool call, so Allow / Deny would be buttons
+  // that do nothing. The request is shown for what it is: decided by policy.
+  if (!caps.interactive_permissions) {
+    return (
+      <div
+        ref={containerRef}
+        data-testid="permission-policy-only"
+        className={`my-1 rounded border-l-2 ${styles.border} ${styles.bg} border-white/[0.04] px-2.5 py-1.5`}
+      >
+        <div className="flex items-center gap-2">
+          <CategoryIcon category={category} className={`w-3.5 h-3.5 shrink-0 ${styles.icon}`} />
+          <span className={`text-[11px] font-medium ${styles.text}`}>{styles.label}</span>
+          <span className="text-[11px] text-gray-400 truncate flex-1" title={toolName}>
+            {summary}
+          </span>
+        </div>
+        <p className="mt-0.5 text-[10px] text-gray-500">{POLICY_ONLY_REQUEST_TEXT}</p>
       </div>
     )
   }
@@ -333,15 +364,18 @@ export function PermissionRequestBlock({
             <X className="w-3 h-3" />
             Deny
           </button>
-          <label className="flex items-center gap-1 cursor-pointer ml-auto">
-            <input
-              type="checkbox"
-              checked={rememberChecked}
-              onChange={(e) => setRememberChecked(e.target.checked)}
-              className="w-3 h-3 rounded border-gray-600 bg-white/[0.04] text-indigo-500 focus:ring-indigo-500/30 focus:ring-offset-0"
-            />
-            <span className="text-[10px] text-gray-500">Remember</span>
-          </label>
+{/* Offered only when the provider can remember an answer for the session. */}
+          {canRemember && (
+                    <label className="flex items-center gap-1 cursor-pointer ml-auto">
+              <input
+                type="checkbox"
+                checked={rememberChecked}
+                onChange={(e) => setRememberChecked(e.target.checked)}
+                className="w-3 h-3 rounded border-gray-600 bg-white/[0.04] text-indigo-500 focus:ring-indigo-500/30 focus:ring-offset-0"
+              />
+              <span className="text-[10px] text-gray-500">Remember</span>
+            </label>
+          )}
         </div>
         {sendFailed && (
           <p role="alert" className="mt-1.5 text-[10px] text-red-400">

@@ -34,7 +34,9 @@ function buildTreeFromFlat(flatNodes: SessionTreeNode[]): DiscussionNode | null 
       session_id: flat.session_id,
       title: null,
       status: 'idle',
-      cost_usd: 0,
+      // The tree row's own figure, or none at all — never a made-up zero.
+      cost_usd: flat.total_cost_usd ?? null,
+      cost_basis: flat.cost_basis,
       duration_secs: 0,
       message_count: 0,
       children: [],
