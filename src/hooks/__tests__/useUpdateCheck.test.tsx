@@ -290,6 +290,21 @@ describe('useUpdateCheck — server update service', () => {
     expect(result.current.status?.current).toBe('0.0.16')
   })
 
+  it('gives up waiting for a server that never comes back and says so', async () => {
+    current = serverStatus({ staged_version: '0.0.16', restart_required: true })
+    const { result } = await run()
+    updateApi.restart.mockResolvedValue({ restarting: true, in_ms: 750 })
+    await act(async () => {
+      await result.current.restart()
+    })
+    fetchMock.mockRejectedValue(new Error('connection refused'))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2 * 60 * 1000 + 1000)
+    })
+    expect(result.current.restarting).toBe(false)
+    expect(result.current.actionError).toMatch(/did not come back/)
+  })
+
   it('a failed restart request does not pretend to be restarting', async () => {
     const { result } = await run()
     updateApi.restart.mockRejectedValue(new Error('no supervisor'))

@@ -69,6 +69,7 @@ export interface UpdateCheckResult {
 const GITHUB_REPO = 'this-rs/project-orchestrator'
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000 // 24 hours
 const INSTALL_POLL_MS = 2000 // while the server downloads
+const RESTART_GIVE_UP_MS = 2 * 60 * 1000 // a restart takes seconds; beyond this something is wrong
 const DISMISS_KEY = 'orchestrator-update-dismissed'
 const DISMISS_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
 
@@ -285,6 +286,10 @@ export function useUpdateCheck(): UpdateCheckResult {
   // binary: poll until it answers with nothing left to restart for.
   useEffect(() => {
     if (!restarting) return
+    const giveUp = setTimeout(() => {
+      setRestarting(false)
+      setActionError('The server did not come back after restarting. Check it, then reload this page.')
+    }, RESTART_GIVE_UP_MS)
     const id = setInterval(async () => {
       try {
         const data = await fetchVersion()
@@ -296,7 +301,10 @@ export function useUpdateCheck(): UpdateCheckResult {
         // Still down — expected while it restarts
       }
     }, INSTALL_POLL_MS)
-    return () => clearInterval(id)
+    return () => {
+      clearInterval(id)
+      clearTimeout(giveUp)
+    }
   }, [restarting, applyStatus, fetchVersion])
 
   return {
