@@ -142,7 +142,7 @@ export function providerErrorExplanation(error: ProviderErrorInfo, projectSlug?:
     case 'provider_unknown':
       return 'The provider named in this request is not configured on this server. Choose one of the listed instances.'
     case 'provider_unavailable':
-      return 'This provider is not available right now (unhealthy, or refused by the security gate). Try another instance or check its settings.'
+      return 'This provider is not available right now: it is unhealthy, refused by the security gate, or this conversation was opened on the agent engine and the server is no longer running it. Try another instance, check its settings, or ask whoever runs the server to switch the agent engine back on.'
     case 'security_gate_closed':
       return 'Third-party providers need authentication to be enabled on this server, so that sessions get signed, bound tokens. Turn authentication on, then add the instance again. Claude Code is not affected.'
     case 'origin_mismatch':

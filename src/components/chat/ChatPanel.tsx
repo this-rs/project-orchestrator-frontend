@@ -1,7 +1,7 @@
 import { AttachSessionButton } from '@/components/discussions/AttachSessionButton'
 import { useAtom } from 'jotai'
 import { useChatUrlSync } from '@/hooks/useChatUrlSync'
-import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom } from '@/atoms'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom } from '@/atoms'
 import { useChat, useDetachedRuns, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { useProviders } from '@/hooks/useProviders'
 import { useSessionLive } from '@/hooks/useSessionLive'
@@ -16,6 +16,7 @@ import { ChatCapabilitiesProvider, ChatSessionProvider } from './ChatSessionCont
 import { ProviderStateCard } from './ProviderStateCard'
 import { ProviderBadge } from './ProviderBadge'
 import { PolicyOnlyBanner } from './PolicyOnlyBanner'
+import { EngineBanner } from './EngineBanner'
 import { ChatInput, type PrefillPayload } from './ChatInput'
 import { CompactionBanner } from './CompactionBanner'
 import { SecretRequestTray } from './SecretRequestTray'
@@ -86,6 +87,7 @@ export function ChatPanel() {
   const capabilities = useAtomValue(chatSessionCapabilitiesAtom)
   const sessionProvider = useAtomValue(chatSessionProviderAtom)
   const sessionModel = useAtomValue(chatSessionModelAtom)
+  const engine = useAtomValue(chatSessionEngineAtom)
   const [sessionOpenError, setSessionOpenError] = useAtom(chatSessionOpenErrorAtom)
   const dismissSessionOpenError = useCallback(() => setSessionOpenError(null), [setSessionOpenError])
   // Session + panel mode live in the URL, so a reload reopens the chat as it was.
@@ -397,6 +399,7 @@ export function ChatPanel() {
         />
       )}
       {!capabilities.interactive_permissions && !noProvider && !instanceMissing && <PolicyOnlyBanner />}
+      <EngineBanner degraded={engine.degraded} />
     </>
   )
   const headerProviderBadge = showProviderBadge ? (

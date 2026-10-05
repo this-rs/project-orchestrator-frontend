@@ -815,6 +815,13 @@ export interface SystemInitRuntime {
   /** `null` = no capabilities carried: the fallback profile applies. */
   capabilities: Partial<ProviderCapabilities> | null
   toolPolicy: ToolPolicy | null
+  /**
+   * Engine that runs the session (`legacy` | `agent`). `undefined`/`null` = not
+   * said. NAME ASSUMED: the backend contract does not carry it yet.
+   */
+  engine?: string | null
+  /** What this engine cannot do for the session (feature ids). Empty = nothing said. ASSUMED name. */
+  degradedFeatures?: string[]
 }
 
 /**
@@ -828,6 +835,8 @@ export function readSystemInitRuntime(evt: unknown): SystemInitRuntime {
     provider: toProviderRef(e.provider),
     capabilities: typeof caps === 'object' && caps !== null ? (caps as Partial<ProviderCapabilities>) : null,
     toolPolicy: toToolPolicy(e.tool_policy) ?? toToolPolicy(e.policy_mode) ?? toToolPolicy(e.permission_mode),
+    engine: typeof e.engine === 'string' && e.engine ? e.engine : null,
+    degradedFeatures: Array.isArray(e.degraded_features) ? e.degraded_features.filter((f): f is string => typeof f === 'string') : [],
   }
 }
 

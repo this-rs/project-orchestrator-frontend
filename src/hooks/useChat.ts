@@ -1,7 +1,7 @@
 import { splitAttachments } from '@/utils/messageAttachments'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useSetAtom, useStore } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { applyResultCost } from '@/utils/cost'
@@ -366,6 +366,7 @@ export function useChat() {
     store.set(chatSessionProviderAtom, runtime?.provider ?? null)
     store.set(chatSessionCapabilitiesSnapshotAtom, runtime?.capabilities ?? null)
     store.set(chatSessionToolPolicyAtom, runtime?.toolPolicy ?? null)
+    store.set(chatSessionEngineAtom, { engine: runtime?.engine ?? null, degraded: runtime?.degradedFeatures ?? [] })
   }, [store])
 
   // Auto-continue: atom is now synced from backend events (not local-only)
@@ -2231,8 +2232,8 @@ export function useChat() {
       const provider = toProviderRef(
         session.provider_id ? { id: session.provider_id, kind: session.provider_kind ?? undefined } : null,
       )
-      if (provider || session.capabilities) {
-        applySessionRuntime({ provider, capabilities: session.capabilities ?? null, toolPolicy: null })
+      if (provider || session.capabilities || session.engine) {
+        applySessionRuntime({ provider, capabilities: session.capabilities ?? null, toolPolicy: null, engine: session.engine ?? null, degradedFeatures: session.degraded_features ?? [] })
       }
       setSessionMeta({ cwd: session.cwd, projectSlug: session.project_slug, workspaceSlug: session.workspace_slug, spawnedBy: session.spawned_by ?? null })
       // Restore the session's permission mode override

@@ -35,3 +35,21 @@ describe('historyEventsToMessages — session_error', () => {
     expect(assistant[0].blocks.map((b) => b.type)).toEqual(['text', 'error'])
   })
 })
+
+describe('historyEventsToMessages — an agent session resumed without the agent engine', () => {
+  it('keeps the typed code, so the transcript shows the provider card, not a bare sentence', () => {
+    const messages = historyEventsToMessages([
+      { type: 'user_message', content: 'hello', created_at: 1_700_000_000 },
+      {
+        type: 'session_error',
+        reason: 'provider_unavailable',
+        message: 'The agent engine is not enabled on this server',
+        code: 'provider_unavailable',
+        received_at: '2026-10-05T10:00:00Z',
+        created_at: 1_700_000_002,
+      },
+    ])
+    const err = messages.flatMap((m) => m.blocks).find((b) => b.type === 'error')
+    expect(err?.metadata).toMatchObject({ code: 'provider_unavailable' })
+  })
+})

@@ -267,6 +267,10 @@ export interface ChatSession {
   provider_kind?: ProviderKind | null
   /** Capabilities frozen on the session when it opened. Absent = read them from the provider list. */
   capabilities?: Partial<ProviderCapabilities> | null
+  /** Engine that runs the session (`legacy` | `agent`). NAME ASSUMED (not in the backend contract yet). */
+  engine?: string | null
+  /** Features the engine cannot provide for this session. NAME ASSUMED. */
+  degraded_features?: string[] | null
   /** Which rule picked the provider/model (`request`, `project_rule`, …). */
   routed_by?: string | null
   /** Where the session's cost figure comes from. Absent = `reported` (Claude Code). */
@@ -443,6 +447,10 @@ export type ChatEvent =
       tool_policy?: ToolPolicy | ToolPolicyMode
       /** Neutral form of `permission_mode` (which keeps being emitted). */
       policy_mode?: ToolPolicyMode
+      /** Engine running the session (`legacy` | `agent`). NAME ASSUMED. */
+      engine?: string
+      /** Feature ids the engine cannot provide for this session. NAME ASSUMED. */
+      degraded_features?: string[]
     }
   | { type: 'auto_continue'; session_id: string; delay_ms: number }
   | { type: 'auto_continue_state_changed'; session_id: string; enabled: boolean }
@@ -493,7 +501,7 @@ export const CHAT_EVENT_FIELDS = {
   session_closed: { session_id: 'required', reason: 'optional' },
   compaction_recovery: { hint_tokens: 'required', build_latency_ms: 'required', recovery_success: 'required' },
   compact_boundary: { trigger: 'required', pre_tokens: 'optional' },
-  system_init: { cli_session_id: 'optional', model: 'optional', tools: 'optional', mcp_servers: 'optional', permission_mode: 'optional', provider: 'optional', capabilities: 'optional', tool_policy: 'optional', policy_mode: 'optional' },
+  system_init: { cli_session_id: 'optional', model: 'optional', tools: 'optional', mcp_servers: 'optional', permission_mode: 'optional', provider: 'optional', capabilities: 'optional', tool_policy: 'optional', policy_mode: 'optional', engine: 'optional', degraded_features: 'optional' },
   auto_continue: { session_id: 'required', delay_ms: 'required' },
   auto_continue_state_changed: { session_id: 'required', enabled: 'required' },
   system_hint: { content: 'required' },

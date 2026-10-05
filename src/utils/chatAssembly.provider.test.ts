@@ -77,3 +77,17 @@ describe('lastSystemInitRuntime', () => {
     expect(lastSystemInitRuntime([{ type: 'assistant_text', content: 'x' }, null])).toBeNull()
   })
 })
+
+describe('readSystemInitRuntime — engine', () => {
+  it('reads the engine and what it cannot do', () => {
+    const rt = readSystemInitRuntime({ type: 'system_init', engine: 'agent', degraded_features: ['hooks', 'retry', 3] })
+    expect(rt.engine).toBe('agent')
+    expect(rt.degradedFeatures).toEqual(['hooks', 'retry'])
+  })
+
+  it('says nothing for a system_init without them (legacy, or an older backend)', () => {
+    const rt = readSystemInitRuntime(LEGACY_SYSTEM_INIT)
+    expect(rt.engine).toBeNull()
+    expect(rt.degradedFeatures).toEqual([])
+  })
+})

@@ -113,6 +113,17 @@ export const chatSessionProviderAtom = atom<ProviderRef | null>(null)
  */
 export const chatSessionCapabilitiesSnapshotAtom = atom<Partial<ProviderCapabilities> | null>(null)
 
+/**
+ * Engine of the current session and what it cannot do (`system_init.engine`,
+ * `degraded_features`; names assumed until the backend contract carries them).
+ * Empty = nothing said: no banner.
+ */
+export interface ChatSessionEngine {
+  engine: string | null
+  degraded: string[]
+}
+export const chatSessionEngineAtom = atom<ChatSessionEngine>({ engine: null, degraded: [] })
+
 /** Neutral tool policy of the current session, from `system_init.tool_policy`. */
 export const chatSessionToolPolicyAtom = atom<ToolPolicy | null>(null)
 
