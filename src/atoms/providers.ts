@@ -115,7 +115,7 @@ export const chatSessionCapabilitiesSnapshotAtom = atom<Partial<ProviderCapabili
 
 /**
  * Engine of the current session and what it cannot do (`system_init.engine`,
- * `degraded_features`; names assumed until the backend contract carries them).
+ * `degraded_features`, as the backend emits them).
  * Empty = nothing said: no banner.
  */
 export interface ChatSessionEngine {

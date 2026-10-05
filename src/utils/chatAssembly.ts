@@ -817,10 +817,10 @@ export interface SystemInitRuntime {
   toolPolicy: ToolPolicy | null
   /**
    * Engine that runs the session (`legacy` | `agent`). `undefined`/`null` = not
-   * said. NAME ASSUMED: the backend contract does not carry it yet.
+   * said (the backend omits it on the legacy engine).
    */
   engine?: string | null
-  /** What this engine cannot do for the session (feature ids). Empty = nothing said. ASSUMED name. */
+  /** What this engine cannot do for the session (feature ids). Empty = nothing said. */
   degradedFeatures?: string[]
 }
 

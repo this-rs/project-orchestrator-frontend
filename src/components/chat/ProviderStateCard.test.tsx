@@ -232,6 +232,7 @@ describe('ProviderStateCard — every code the backend can send', () => {
     'endpoint_redirects_not_allowed',
     'credential_test_requires_saved_instance',
     'probe_unavailable',
+    'engine_unavailable',
   ] as const
 
   it.each(codes)('%s — has its own title and a sentence that says what to do', (code) => {
@@ -246,6 +247,14 @@ describe('ProviderStateCard — every code the backend can send', () => {
   it('security_gate_closed — says authentication must be on', () => {
     const { card } = mount(err('security_gate_closed'))
     expect(card.textContent).toMatch(/authentication/i)
+  })
+
+  it('engine_unavailable — offers a new conversation, never a retry', () => {
+    const onNewConversation = vi.fn()
+    const { card } = mount(err('engine_unavailable', { retryable: true }), { onNewConversation, onRetry: vi.fn() })
+    expect(within(card).queryByRole('button', { name: /^retry$/i })).toBeNull()
+    fireEvent.click(within(card).getByRole('button', { name: /new conversation/i }))
+    expect(onNewConversation).toHaveBeenCalled()
   })
 
   it('origin_mismatch — links to the project consent', () => {

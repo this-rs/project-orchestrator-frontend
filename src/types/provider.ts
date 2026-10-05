@@ -461,6 +461,8 @@ export type ProviderErrorCode =
   | 'endpoint_redirects_not_allowed'
   | 'credential_test_requires_saved_instance'
   | 'probe_unavailable'
+  /** 409 on resuming a session opened on the agent engine once it is switched off. */
+  | 'engine_unavailable'
 
 export const PROVIDER_ERROR_CODES: readonly ProviderErrorCode[] = [
   'no_provider',
@@ -508,6 +510,7 @@ export const PROVIDER_ERROR_CODES: readonly ProviderErrorCode[] = [
   'endpoint_redirects_not_allowed',
   'credential_test_requires_saved_instance',
   'probe_unavailable',
+  'engine_unavailable',
 ]
 
 /** A provider error as the interface handles it. Never carries a credential. */

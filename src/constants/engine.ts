@@ -4,7 +4,7 @@
 //
 // With `CHAT_PROVIDER_PATH=agent` the session runs on the nexus engine, which
 // does not (yet) do everything the legacy Claude Code engine does. The server
-// lists what is missing in `system_init.degraded_features` (NAME ASSUMED); each
+// lists what is missing in `system_init.degraded_features` (confirmed by the backend); each
 // id gets a plain sentence, an unknown id is shown humanised rather than hidden.
 
 export const ENGINE_BANNER_TITLE = 'Agent engine: some features are not available in this conversation'

@@ -145,6 +145,7 @@ describe('readProviderError — backend error body', () => {
     ['endpoint_private_address: host resolves to a private address', 'endpoint_private_address'],
     ['envelope_depth_exceeded: too deep', 'envelope_depth_exceeded'],
     ['tool_not_in_profile: no', 'tool_not_in_profile'],
+    ['engine_unavailable: the agent engine is switched off', 'engine_unavailable'],
     ['endpoint_unresolvable: host not found', 'endpoint_unresolvable'],
     ['endpoint_redirects_not_allowed: redirect', 'endpoint_redirects_not_allowed'],
   ])('reads the prefixed body "%s"', (body, code) => {

@@ -69,6 +69,7 @@ export const PROVIDER_ERROR_TITLES: Readonly<Record<ProviderErrorCode, string>> 
   endpoint_unresolvable: 'Endpoint host not found',
   endpoint_redirects_not_allowed: 'Redirects are not followed',
   credential_test_requires_saved_instance: 'Save the instance to test its key',
+  engine_unavailable: 'The engine of this conversation is switched off',
   probe_unavailable: 'Connection test unavailable',
 }
 
@@ -189,6 +190,8 @@ export function providerErrorExplanation(error: ProviderErrorInfo, projectSlug?:
       return 'The endpoint answered with a redirect, which the server does not follow (a key could be sent to another host). Use the final URL as the base URL.'
     case 'credential_test_requires_saved_instance':
       return 'A test that uses a key is only run on an instance that is already saved, with the same endpoint and key reference. Save the instance first, then test it again.'
+    case 'engine_unavailable':
+      return 'This conversation was opened on the agent engine, and the server no longer runs it, so it cannot be resumed. Start a new conversation, or ask whoever runs the server to switch the agent engine back on (CHAT_PROVIDER_PATH).'
     case 'probe_unavailable':
       return 'The connection test could not be run for this instance (no tool-call probe is available). Save it and try a conversation, or check the instance settings and test again.'
   }

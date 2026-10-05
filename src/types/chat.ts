@@ -267,9 +267,9 @@ export interface ChatSession {
   provider_kind?: ProviderKind | null
   /** Capabilities frozen on the session when it opened. Absent = read them from the provider list. */
   capabilities?: Partial<ProviderCapabilities> | null
-  /** Engine that runs the session (`legacy` | `agent`). NAME ASSUMED (not in the backend contract yet). */
+  /** Engine of the session (`agent`; absent = legacy). Same name as on `system_init`; NOT yet in the contract's ChatSession DTO. */
   engine?: string | null
-  /** Features the engine cannot provide for this session. NAME ASSUMED. */
+  /** Features the engine cannot provide (same name as on `system_init`; NOT yet in the contract's ChatSession DTO). */
   degraded_features?: string[] | null
   /** Which rule picked the provider/model (`request`, `project_rule`, …). */
   routed_by?: string | null
@@ -447,9 +447,9 @@ export type ChatEvent =
       tool_policy?: ToolPolicy | ToolPolicyMode
       /** Neutral form of `permission_mode` (which keeps being emitted). */
       policy_mode?: ToolPolicyMode
-      /** Engine running the session (`legacy` | `agent`). NAME ASSUMED. */
+      /** Engine running the session: `agent`; absent = the legacy Claude Code engine. */
       engine?: string
-      /** Feature ids the engine cannot provide for this session. NAME ASSUMED. */
+      /** Feature ids the engine cannot provide for this session. Only present when Claude Code is forced onto `agent`. */
       degraded_features?: string[]
     }
   | { type: 'auto_continue'; session_id: string; delay_ms: number }

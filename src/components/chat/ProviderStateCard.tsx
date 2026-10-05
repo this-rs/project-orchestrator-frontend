@@ -145,6 +145,7 @@ export function ProviderStateCard({
       error.code !== 'auth_required' &&
       error.code !== 'credentials_locked' &&
       error.code !== 'instance_not_found' &&
+      error.code !== 'engine_unavailable' &&
       error.code !== 'no_provider')
   const showDetail =
     !!error.detail && (error.code === 'endpoint_unreachable' || error.code === 'protocol' || error.code === 'invalid_request')
@@ -182,6 +183,7 @@ export function ProviderStateCard({
     case 'credential_test_requires_saved_instance':
       action = <SettingsLink to={providerInstancePath(error.provider_id)}>Open the instance settings</SettingsLink>
       break
+    case 'engine_unavailable':
     case 'instance_not_found':
       action = onNewConversation ? (
         <button type="button" onClick={onNewConversation} className={ACTION_CLASS}>
