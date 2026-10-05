@@ -18,12 +18,14 @@ import {
   type ViewTab,
 } from '@/components/ui'
 import { useToast } from '@/hooks/useToast'
-import { runnerApi, planRunTarget } from '@/services/runner'
+import { planRunTarget } from '@/services/runner'
 import { tasksApi } from '@/services/tasks'
 import type { TaskStatus } from '@/types'
 import { workspacePath } from '@/utils/paths'
 import { addToDay, loadDayPlan, moveInDay, removeFromDay, saveDayPlan, type DayPlan } from './dayPlan'
 import type { WorkChain, WorkTask } from './model'
+import { RunTargetDialog } from '@/components/runner/RunTargetDialog'
+import { launchRun, useRunTargetGate } from '@/hooks/useRunTargetGate'
 import { WORK_TEXT } from './text'
 import { useWorkDashboard } from './useWorkDashboard'
 
@@ -70,6 +72,7 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
   /** Tabs whose list is shown whole. */
   const [expanded, setExpanded] = useState<ReadonlySet<WorkTab>>(new Set())
 
+  const gate = useRunTargetGate()
   const { status, data, refresh, refreshing, stale, error } = useWorkDashboard(workspaces, plan.ids)
 
   const edit = useCallback((fn: (p: DayPlan) => DayPlan) => {
@@ -107,12 +110,16 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
   )
 
   const launch = useCallback(
-    (c: WorkChain) => {
+    async (c: WorkChain) => {
       const project = c.project ?? projects.find((p) => p.id === c.plan.project_id) ?? null
       const { cwd, projectSlug } = planRunTarget(project)
-      return run(c.plan.id, () => runnerApi.startRun(c.plan.id, cwd, projectSlug), WORK_TEXT.launched)
+      await gate.ask({
+        title: c.plan.title ?? c.plan.id,
+        projectSlug,
+        run: (options) => run(c.plan.id, () => launchRun(c.plan.id, cwd, projectSlug, options), WORK_TEXT.launched),
+      })
     },
-    [run, projects],
+    [run, projects, gate],
   )
 
   const dayIds = useMemo(() => new Set(plan.ids), [plan.ids])
@@ -272,6 +279,7 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
 
   return (
     <div className="@container/tasks min-w-0 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3.5" data-testid="work-dashboard">
+      <RunTargetDialog pending={gate.pending} onCancel={gate.cancel} />
       <div aria-live="polite">
         {stale && <p className="mb-2 text-xs text-amber-300">{WORK_TEXT.stale}</p>}
         {refreshing && !stale && <span className="sr-only">Actualisation…</span>}

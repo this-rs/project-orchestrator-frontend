@@ -36,6 +36,8 @@ interface ImplementDialogProps {
   loading?: boolean
   /** Default budget in USD (defaults to 10) */
   defaultBudget?: number
+  /** Project of the entity being launched: consent is checked for it, not for the chat's project. */
+  projectSlug?: string | null
 }
 
 const modeLabels: Record<ImplementMode, string> = {
@@ -60,10 +62,11 @@ export function ImplementDialog({
   entityTitle,
   loading = false,
   defaultBudget = 10,
+  projectSlug,
 }: ImplementDialogProps) {
   const [budget, setBudget] = useState<number>(defaultBudget)
   const [tokenBudget, setTokenBudget] = useState<number>(1_000_000)
-  const target = useRunTarget()
+  const target = useRunTarget(projectSlug)
   // Said before launch, not after a refusal: no price, no USD budget.
   const usdDisabled = target.visible && !hasKnownPrice(target.instance)
 

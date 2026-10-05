@@ -28,6 +28,8 @@ import { plansApi } from '@/services/plans'
 import { projectsApi } from '@/services/projects'
 import type { Project } from '@/types'
 import { useToast, useWorkspaceSlug } from '@/hooks'
+import { RunTargetDialog } from '@/components/runner/RunTargetDialog'
+import { launchRun, useRunTargetGate } from '@/hooks/useRunTargetGate'
 import { workspacePath } from '@/utils/paths'
 import { useAgentExecutionsMap, useLatestPlanRun, useWavesData } from '@/hooks/runner'
 
@@ -197,20 +199,28 @@ export function RunnerDashboard() {
   }, [planId, retryingTaskId, refresh])
 
   const [retryingRun, setRetryingRun] = useState(false)
+  const runGate = useRunTargetGate()
   const handleRetryRun = useCallback(async () => {
     if (!planId || retryingRun) return
-    setRetryingRun(true)
-    try {
-      await runnerApi.startRun(planId, '.', undefined, effectiveSnapshot?.max_cost_usd)
-      toast.success('Run started')
-      refresh()
-    } catch {
-      toast.error('Failed to start the run')
-    } finally {
-      setRetryingRun(false)
-    }
+    await runGate.ask({
+      title: planTitle ?? `Plan ${planId.slice(0, 8)}…`,
+      projectSlug: project?.slug,
+      run: async (options, unpriced) => {
+        setRetryingRun(true)
+        try {
+          // An unpriced instance cannot honour a USD budget: it is left out.
+          await launchRun(planId, '.', undefined, options, unpriced ? undefined : effectiveSnapshot?.max_cost_usd)
+          toast.success('Run started')
+          refresh()
+        } catch {
+          toast.error('Failed to start the run')
+        } finally {
+          setRetryingRun(false)
+        }
+      },
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable (Jotai setter)
-  }, [planId, retryingRun, effectiveSnapshot?.max_cost_usd, refresh])
+  }, [planId, planTitle, project?.slug, retryingRun, effectiveSnapshot?.max_cost_usd, refresh, runGate])
 
   const runTaskStatuses = useMemo(() => {
     const out: Record<string, string> = {}
@@ -243,6 +253,7 @@ export function RunnerDashboard() {
 
   return (
     <PageContainer width="wide" className="space-y-6">
+      <RunTargetDialog pending={runGate.pending} onCancel={runGate.cancel} />
       <RunnerHeader
         planId={planId!} planTitle={title} wsSlug={wsSlug} workspacePath={workspacePath}
         effectiveSnapshot={effectiveSnapshot} isRunning={isRunning}

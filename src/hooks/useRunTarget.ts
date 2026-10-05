@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAtomValue } from 'jotai'
 import { providersAtom, providersLoadStateAtom } from '@/atoms'
+import { providersApi } from '@/services/providers'
 import type { StartRunOptions } from '@/services/runner'
-import type { ProviderInstance } from '@/types/provider'
+import type { ModelAlias, ProviderInstance, ProvidersResponse, ResolvedDefault } from '@/types/provider'
 import { useProviders } from './useProviders'
 
 export interface RunTargetChoice {
@@ -22,6 +23,9 @@ export interface RunTarget {
   /** The instance the run will use (the chosen one, else the server default). */
   instance: ProviderInstance | null
   providers: ProviderInstance[]
+  /** Server default for THIS run's project. */
+  resolved: ResolvedDefault | null
+  aliases: readonly ModelAlias[] | undefined
   /** Fields for `runnerApi.startRun`: only what was chosen. */
   options: StartRunOptions
 }
@@ -29,12 +33,43 @@ export interface RunTarget {
 /**
  * State of the "Provider / model" choice of a run launcher. Nothing chosen
  * stays nothing: `options` is empty and the run takes the server default.
+ *
+ * `projectSlug` is the project of the PLAN being launched: `allowed_for_project`
+ * is an answer about one project, and the chat's selected project is another
+ * one. Without it the list is the chat's, as before. While the project's own
+ * answer loads, no consent is claimed either way (the server still refuses).
  */
-export function useRunTarget(): RunTarget {
-  const { providers, state } = useProviders()
-  const resolved = useAtomValue(providersAtom)?.default ?? null
+export function useRunTarget(projectSlug?: string | null): RunTarget {
+  const { providers: chatProviders, state } = useProviders()
+  const chatTable = useAtomValue(providersAtom)
   const loadState = useAtomValue(providersLoadStateAtom)
   const [choice, setChoice] = useState<RunTargetChoice>(SERVER_DEFAULT_TARGET)
+  const [scoped, setScoped] = useState<{ slug: string; table: ProvidersResponse } | null>(null)
+
+  useEffect(() => {
+    if (!projectSlug) return
+    let live = true
+    providersApi
+      .list({ project_slug: projectSlug })
+      .then((table) => {
+        if (live) setScoped({ slug: projectSlug, table })
+      })
+      .catch(() => {
+        /* keep the unscoped list: the server decides at launch */
+      })
+    return () => {
+      live = false
+    }
+  }, [projectSlug])
+
+  const own = projectSlug && scoped?.slug === projectSlug ? scoped.table : null
+  const providers = useMemo<ProviderInstance[]>(() => {
+    if (own) return own.providers
+    if (!projectSlug) return chatProviders
+    return chatProviders.map((p) => ({ ...p, allowed_for_project: undefined }))
+  }, [own, projectSlug, chatProviders])
+  const table = own ?? chatTable
+  const resolved = table?.default ?? null
 
   const visible = (state === 'ready' || loadState === 'ready') && providers.length > 1
   const instance = useMemo(() => {
@@ -51,5 +86,5 @@ export function useRunTarget(): RunTarget {
     return o
   }, [visible, choice])
 
-  return { visible, choice, setChoice, instance, providers, options }
+  return { visible, choice, setChoice, instance, providers, resolved, aliases: table?.aliases, options }
 }

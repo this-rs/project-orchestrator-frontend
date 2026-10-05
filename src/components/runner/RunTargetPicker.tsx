@@ -1,7 +1,5 @@
 import { useId } from 'react'
-import { useAtomValue } from 'jotai'
 import { Link } from 'react-router-dom'
-import { providersAtom } from '@/atoms'
 import { aliasesForInstance, healthDotColor, healthLabel, providerUnavailableReason } from '@/constants/providers'
 import {
   RUN_TARGET_CONSENT_LINK,
@@ -32,12 +30,10 @@ const SELECT =
  */
 export function RunTargetPicker({ target }: RunTargetPickerProps) {
   const base = useId()
-  const table = useAtomValue(providersAtom)
-  const { visible, choice, setChoice, instance, providers } = target
+  const { visible, choice, setChoice, instance, providers, resolved, aliases: aliasTable } = target
   if (!visible) return null
 
-  const resolved = table?.default ?? null
-  const aliases = aliasesForInstance(instance, table?.aliases)
+  const aliases = aliasesForInstance(instance, aliasTable)
   const aliasNames = new Set(aliases.map((a) => a.alias))
   const models = (instance?.models ?? []).filter((m) => !aliasNames.has(m.id))
   const anyNotAllowed = providers.some((p) => p.allowed_for_project === false)

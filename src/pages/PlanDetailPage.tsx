@@ -865,6 +865,7 @@ export function PlanDetailPage() {
           }
         }}
         mode="plan"
+        projectSlug={linkedProject?.slug}
         entityTitle={plan.title || 'Untitled Plan'}
         loading={implementLoading}
       />

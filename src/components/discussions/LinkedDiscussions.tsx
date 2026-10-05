@@ -12,6 +12,8 @@ import { workspacePath } from '@/utils/paths'
 import type { DiscussionNode } from '@/services/discussions'
 import { AttachSessionButton } from './AttachSessionButton'
 import { DiscussionForestView } from './DiscussionTreeView'
+import { RunTargetDialog } from '@/components/runner/RunTargetDialog'
+import { launchRun, useRunTargetGate } from '@/hooks/useRunTargetGate'
 import { countNodes } from './linkedForest'
 import { computeOwners, resumeActionsFor, type BusyReason, type ResumeAction, type ResumeContext } from './resumeActions'
 import { useLinkedForest, type LinkedEntity } from './useLinkedForest'
@@ -84,6 +86,7 @@ function ActionButton({
 }) {
   const toast = useToast()
   const [pending, setPending] = useState(false)
+  const gate = useRunTargetGate()
   const disabled = action.disabled !== null || pending
 
   const click = async () => {
@@ -92,7 +95,22 @@ function ActionButton({
       if (action.kind === 'run') {
         if (resume?.project) {
           const { cwd, projectSlug } = planRunTarget(resume.project)
-          await runnerApi.startRun(action.planId, cwd, projectSlug)
+          // Several providers: the choice comes first (the toast and refresh follow the launch).
+          const launched = gate.ask({
+            title: action.label,
+            projectSlug,
+            run: async (options) => {
+              try {
+                await launchRun(action.planId, cwd, projectSlug, options)
+                toast.success(LINKED_TEXT.resumeStarted)
+                onDone()
+              } catch (e) {
+                toast.error(e instanceof Error && e.message ? e.message : LINKED_TEXT.actionFailed)
+              }
+            },
+          })
+          await launched
+          return
         } else {
           await attentionApi.resumeRun(action.planId)
         }
@@ -111,6 +129,7 @@ function ActionButton({
 
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
+      <RunTargetDialog pending={gate.pending} onCancel={gate.cancel} />
       <button
         type="button"
         data-action={action.kind}
