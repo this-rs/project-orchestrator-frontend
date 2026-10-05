@@ -6,16 +6,22 @@
  * passphrase when this tab holds no unlock proof (e.g. after a reload).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { VaultPage } from '../VaultPage'
 import type { VaultOverview } from '@/services/vault'
 
 let proofHeld = true
 const overview = vi.fn<() => Promise<VaultOverview>>()
+const createGrant = vi.fn()
+const listProviders = vi.fn()
+vi.mock('@/services/providers', async (orig) => ({
+  ...(await orig<typeof import('@/services/providers')>()),
+  providersApi: { list: (...a: unknown[]) => listProviders(...a) },
+}))
 vi.mock('@/services/vault', async (orig) => ({
   ...(await orig<typeof import('@/services/vault')>()),
-  vaultApi: { overview: () => overview() },
+  vaultApi: { overview: () => overview(), createGrant: (...a: unknown[]) => createGrant(...a) },
   hasUnlockProof: () => proofHeld,
 }))
 
@@ -56,6 +62,13 @@ function mount() {
 beforeEach(() => {
   proofHeld = true
   overview.mockReset()
+  createGrant.mockReset().mockResolvedValue({})
+  listProviders.mockReset().mockResolvedValue({
+    providers: [
+      { id: 'claude-code', kind: 'claude_code', label: 'Claude Code', builtin: true, models: [] },
+      { id: 'deepseek', kind: 'openai_compatible', label: 'DeepSeek', models: [] },
+    ],
+  })
 })
 
 describe('VaultPage', () => {
@@ -86,5 +99,40 @@ describe('VaultPage', () => {
     overview.mockResolvedValue({ ...OPEN, unavailable: 'malformed file' })
     mount()
     expect((await screen.findByRole('alert')).textContent).toContain('malformed file')
+  })
+
+  it('grants a secret to a provider instance (server-side read), for one named secret only', async () => {
+    overview.mockResolvedValue(OPEN)
+    mount()
+    await screen.findByText('Agent access')
+    fireEvent.change(screen.getByLabelText('Scope'), { target: { value: 'provider' } })
+    const grant = screen.getByRole('button', { name: 'Grant' }) as HTMLButtonElement
+    const instance = await screen.findByLabelText('Provider instance')
+    await waitFor(() => expect(screen.getByRole('option', { name: 'DeepSeek' })).toBeTruthy())
+    // The built-in Claude Code has no endpoint to authenticate to: not offered.
+    expect(screen.queryByRole('option', { name: 'Claude Code' })).toBeNull()
+    fireEvent.change(instance, { target: { value: 'deepseek' } })
+    // "all secrets" cannot be granted to a provider.
+    expect(grant.disabled).toBe(true)
+    fireEvent.change(screen.getByLabelText('Secrets'), { target: { value: 'acme-api-token' } })
+    expect(grant.disabled).toBe(false)
+    fireEvent.click(grant)
+    await waitFor(() =>
+      expect(createGrant).toHaveBeenCalledWith(
+        expect.objectContaining({
+          secrets: { kind: 'names', names: ['acme-api-token'] },
+          scope: { kind: 'provider', value: 'deepseek' },
+        }),
+      ),
+    )
+  })
+
+  it('shows an existing provider grant as "provider <id>", not as a blank scope', async () => {
+    overview.mockResolvedValue({
+      ...OPEN,
+      grants: [{ ...OPEN.grants[0], id: 'g2', scope: { kind: 'provider', value: 'deepseek' } }],
+    })
+    mount()
+    expect(await screen.findByText(/→ provider deepseek/)).toBeTruthy()
   })
 })
