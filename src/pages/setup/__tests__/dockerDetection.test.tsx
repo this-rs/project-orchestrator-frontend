@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, configure } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { Provider, createStore } from 'jotai'
-import { setupConfigAtom, defaultSetupConfig } from '@/atoms/setup'
+import { setupConfigAtom, defaultSetupConfig, infraValidAtom } from '@/atoms/setup'
 
 const invokeMock = vi.hoisted(() => vi.fn())
 
@@ -33,6 +33,7 @@ function renderDockerMode() {
       </MemoryRouter>
     </Provider>,
   )
+  return store
 }
 
 /** What `check_docker` answers; every other command resolves with nothing. */
@@ -65,6 +66,28 @@ describe('setup wizard: what the Docker banner says', () => {
     expect(screen.getByText(/quit it/i)).toBeTruthy()
     expect(screen.queryByText('Docker Desktop is not running')).toBeNull()
     expect(screen.queryByText('Docker Desktop is required')).toBeNull()
+  })
+
+  // The reporter's real case: Docker Desktop running, containers serving, its control socket
+  // stuck. The banner used to say "restart Docker", which would have stopped working services.
+  it('says the services run, and lets the user continue, when Docker does not answer but the services do', async () => {
+    checkDockerAnswers(() =>
+      Promise.resolve({ available: false, status: 'unresponsive', servicesReachable: true }),
+    )
+    const store = renderDockerMode()
+    expect(await screen.findByText('Docker Desktop is running your services')).toBeTruthy()
+    expect(screen.queryByText('Docker Desktop is not responding')).toBeNull()
+    expect(screen.getByText(/do not restart/i)).toBeTruthy()
+    await waitFor(() => expect(store.get(infraValidAtom)).toBe(true))
+  })
+
+  it('blocks when Docker does not answer and the services do not either', async () => {
+    checkDockerAnswers(() =>
+      Promise.resolve({ available: false, status: 'unresponsive', servicesReachable: false }),
+    )
+    const store = renderDockerMode()
+    expect(await screen.findByText('Docker Desktop is not responding')).toBeTruthy()
+    expect(store.get(infraValidAtom)).toBe(false)
   })
 
   it('says it is required only when no trace of Docker was found', async () => {

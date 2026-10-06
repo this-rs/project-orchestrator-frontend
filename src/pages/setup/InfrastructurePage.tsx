@@ -27,6 +27,8 @@ export function InfrastructurePage() {
   /** Why the last Docker check failed (only with `check_failed`). */
   const [dockerError, setDockerError] = useState<string | null>(null)
   const [dockerChecking, setDockerChecking] = useState(false)
+  /** Docker's API does not answer but every configured service does: the containers run on. */
+  const [dockerServicesUp, setDockerServicesUp] = useState(false)
 
   // ── Connection test state (external mode only) ─────────────────────
   const [connectionTested, setConnectionTested] = useState<ConnectionTestMap>({
@@ -45,8 +47,11 @@ export function InfrastructurePage() {
     if (!isTauri) return
     try {
       const { invoke } = await import('@tauri-apps/api/core')
-      const result = await invoke<{ available: boolean; status: string }>('check_docker')
+      const result = await invoke<{ available: boolean; status: string; servicesReachable?: boolean }>('check_docker')
       setDockerError(null)
+      // Only ever meaningful with `unresponsive`: the desktop asked Neo4j, Meilisearch and NATS
+      // themselves (each with its own protocol) because the Docker socket did not answer.
+      setDockerServicesUp(result.status === 'unresponsive' && result.servicesReachable === true)
       if (result.status === 'running') {
         setDockerStatus('running')
       } else if (result.status === 'unresponsive') {
@@ -172,7 +177,9 @@ export function InfrastructurePage() {
     }
 
     if (config.infraMode === 'docker') {
-      setInfraValid(dockerStatus === 'running')
+      // A Docker whose API is stuck but whose services answer is as good as a running one: the
+      // services are what the app needs, and asking to restart Docker would stop them.
+      setInfraValid(dockerStatus === 'running' || (dockerStatus === 'unresponsive' && dockerServicesUp))
     } else {
       // External mode: neo4j + meilisearch + nats must all pass
       const neo4jOk = connectionTested.neo4j === true
@@ -180,7 +187,7 @@ export function InfrastructurePage() {
       const natsOk = connectionTested.nats === true
       setInfraValid(neo4jOk && meiliOk && natsOk)
     }
-  }, [config.infraMode, dockerStatus, connectionTested, isTrayNavigation, setInfraValid])
+  }, [config.infraMode, dockerStatus, dockerServicesUp, connectionTested, isTrayNavigation, setInfraValid])
 
   return (
     <div className="space-y-8">
@@ -292,6 +299,7 @@ export function InfrastructurePage() {
           {isTauri && (
             <DockerBanner
               status={dockerStatus}
+              servicesUp={dockerServicesUp}
               checking={dockerChecking}
               error={dockerError}
               onInstall={handleInstallDocker}
@@ -472,6 +480,7 @@ function Field({
 
 function DockerBanner({
   status,
+  servicesUp,
   checking,
   error,
   onInstall,
@@ -479,6 +488,8 @@ function DockerBanner({
   onRetry,
 }: {
   status: DockerStatus
+  /** With `unresponsive`: the services answer anyway. */
+  servicesUp: boolean
   checking: boolean
   error: string | null
   onRetry: () => void
@@ -536,6 +547,23 @@ function DockerBanner({
               <Download className="h-4 w-4" />
               Install Docker Desktop
             </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (status === 'unresponsive' && servicesUp) {
+    return (
+      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.08] p-4">
+        <div className="flex items-start gap-3">
+          <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-emerald-400">Docker Desktop is running your services</p>
+            <p className="mt-1 text-xs text-gray-400">
+              Neo4j, Meilisearch and NATS answer, but Docker Desktop&apos;s control API does not. You
+              can continue. Do not restart Docker Desktop for this: it would stop them.
+            </p>
           </div>
         </div>
       </div>
