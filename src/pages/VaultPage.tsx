@@ -15,10 +15,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { useProviders } from '@/hooks/useProviders'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Eye, EyeOff, KeyRound, Lock, LockOpen, Trash2 } from 'lucide-react'
+import { SecretRequestCard } from '@/components/chat/SecretRequestTray'
 import { Button, PageContainer, PageHeader, Section, surface } from '@/components/ui'
 import {
   vaultApi,
   vaultErrorMessage,
+  isVaultLockedError,
   hasUnlockProof,
   DURATION_CHOICES,
   GRANT_DURATION_CHOICES,
@@ -49,7 +51,7 @@ function describeScope(scope: GrantScope): string {
     case 'session':
       return `conversation ${scope.value.slice(0, 8)}`
     case 'provider':
-      return `provider ${scope.value} (server-side, never an agent)`
+      return `Instance de provider : ${scope.value} (lecture côté serveur, jamais un agent)`
   }
 }
 
@@ -135,6 +137,7 @@ export function VaultPanel() {
             <>
               <LockPanel overview={overview} onChange={refresh} />
               <SecretsPanel overview={overview} unlocked={canChange} onChange={refresh} />
+              <RequestsPanel overview={overview} onChange={refresh} />
               <GrantsPanel overview={overview} canChange={canChange} onChange={refresh} />
             </>
           )}
@@ -284,6 +287,15 @@ export function LockPanel({ overview, onChange }: { overview: VaultOverview; onC
   )
 }
 
+/** Same rules as the backend (`validate_name`): 1-64 chars of [A-Za-z0-9_.-]. */
+export const SECRET_NAME_RE = /^[A-Za-z0-9_.-]{1,64}$/
+
+function secretError(e: unknown): string {
+  return isVaultLockedError(e)
+    ? 'Le coffre est verrouillé ou la confirmation a expiré : déverrouillez-le avec votre phrase secrète ci-dessus, puis réessayez.'
+    : vaultErrorMessage(e)
+}
+
 function SecretsPanel({
   overview,
   unlocked,
@@ -297,17 +309,41 @@ function SecretsPanel({
   const [value, setValue] = useState('')
   const [description, setDescription] = useState('')
   const [reveal, setReveal] = useState(false)
+  const [confirmOverwrite, setConfirmOverwrite] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const trimmed = name.trim()
+  const nameInvalid = trimmed.length > 0 && !SECRET_NAME_RE.test(trimmed)
+  const exists = overview.secrets.some((s) => s.name === trimmed)
+
+  const save = async () => {
+    setError(null)
+    // The value leaves component state as soon as it is handed over, win or lose.
+    const sent = value
+    setValue('')
+    setReveal(false)
+    setConfirmOverwrite(false)
+    try {
+      await vaultApi.putSecret(trimmed, sent, description.trim() || undefined)
+      setName('')
+      setDescription('')
+      onChange()
+    } catch (err) {
+      setError(secretError(err))
+    }
+  }
 
   return (
     <Section
       title="Secrets"
       count={overview.secrets.length}
-      description={unlocked ? 'Names only — values are never shown.' : 'Unlock the vault to add or replace a secret.'}
+      description={
+        unlocked ? 'Noms uniquement : les valeurs ne sont jamais affichées.' : 'Déverrouillez le coffre pour ajouter ou remplacer un secret.'
+      }
     >
       <div className={`${surface} divide-y divide-white/[0.06]`}>
-        {overview.secrets.length === 0 && <p className="p-4 text-sm text-gray-500">No secrets yet.</p>}
+        {overview.secrets.length === 0 && <p className="p-4 text-sm text-gray-500">Aucun secret pour l&apos;instant.</p>}
         {overview.secrets.map((s) => (
           <div key={s.name} className="flex items-center gap-3 px-4 py-2.5">
             <KeyRound className="h-4 w-4 text-amber-400" aria-hidden />
@@ -315,7 +351,9 @@ function SecretsPanel({
               <code className="text-sm text-gray-200">{s.name}</code>
               {s.description && <p className="truncate text-xs text-gray-500">{s.description}</p>}
             </div>
-            <span className="text-xs text-gray-600">updated {formatUntil(s.updated_at)}</span>
+            <span className="text-xs text-gray-600">
+              créé {formatUntil(s.created_at)} · modifié {formatUntil(s.updated_at)}
+            </span>
             {confirmDelete === s.name ? (
               <span className="flex items-center gap-1">
                 <Button
@@ -327,21 +365,22 @@ function SecretsPanel({
                       setConfirmDelete(null)
                       onChange()
                     } catch (e) {
-                      setError(vaultErrorMessage(e))
+                      setConfirmDelete(null)
+                      setError(secretError(e))
                     }
                   }}
                 >
-                  Delete
+                  Confirmer la suppression
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(null)}>
-                  Cancel
+                  Annuler
                 </Button>
               </span>
             ) : (
               <button
                 className="rounded p-1 text-gray-500 hover:text-red-400"
                 onClick={() => setConfirmDelete(s.name)}
-                aria-label={`Delete secret ${s.name}`}
+                aria-label={`Supprimer le secret ${s.name}`}
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -350,58 +389,86 @@ function SecretsPanel({
         ))}
         {unlocked && (
           <form
-            className="flex flex-wrap items-center gap-2 p-4"
-            onSubmit={async (e) => {
+            className="space-y-2 p-4"
+            autoComplete="off"
+            onSubmit={(e) => {
               e.preventDefault()
-              setError(null)
-              try {
-                await vaultApi.putSecret(name.trim(), value, description.trim() || undefined)
-                setName('')
-                setValue('')
-                setDescription('')
-                onChange()
-              } catch (err) {
-                setError(vaultErrorMessage(err))
+              if (exists && !confirmOverwrite) {
+                setConfirmOverwrite(true)
+                return
               }
+              void save()
             }}
           >
             <input
-              className={`${input} w-40 font-mono`}
-              placeholder="name"
+              className={`${input} w-full font-mono sm:w-72`}
+              placeholder="nom (lettres, chiffres, _ - .)"
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              aria-label="Secret name"
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              onChange={(e) => {
+                setName(e.target.value)
+                setConfirmOverwrite(false)
+              }}
+              aria-label="Nom du secret"
+              aria-invalid={nameInvalid}
             />
-            <span className="flex flex-1 items-center gap-1">
-              <input
-                type={reveal ? 'text' : 'password'}
-                autoComplete="off"
-                spellCheck={false}
-                className={`${input} flex-1 font-mono`}
-                placeholder="value"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                aria-label="Secret value"
-              />
-              <button
-                type="button"
-                className="rounded p-1 text-gray-500 hover:text-gray-300"
-                onClick={() => setReveal((r) => !r)}
-                aria-label={reveal ? 'Hide value' : 'Show value'}
-              >
-                {reveal ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </span>
+            {nameInvalid && (
+              <p className="text-xs text-red-400">
+                Nom invalide : 1 à 64 caractères parmi lettres, chiffres, « _ », « - » et « . ».
+              </p>
+            )}
+            <textarea
+              rows={6}
+              autoComplete="off"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              data-masked={reveal ? 'false' : 'true'}
+              className={`${input} w-full font-mono ${reveal ? '' : '[-webkit-text-security:disc]'}`}
+              placeholder="valeur (peut tenir sur plusieurs lignes)"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              aria-label="Valeur du secret"
+            />
+            <button
+              type="button"
+              className="flex items-center gap-1 rounded text-xs text-gray-400 hover:text-gray-200"
+              onClick={() => setReveal((r) => !r)}
+              aria-pressed={reveal}
+            >
+              {reveal ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+              {reveal ? 'Masquer' : 'Afficher'}
+            </button>
+            <p className="text-xs text-gray-500">
+              Pour une clé SSH : collez la clé privée complète (-----BEGIN … END-----). Utilisez une clé dédiée, sans phrase
+              secrète : la connexion distante est non interactive et n&apos;utilise pas d&apos;agent SSH.
+            </p>
             <input
               className={`${input} w-full`}
-              placeholder="What it is for (optional — shown to agents)"
+              placeholder="À quoi il sert (facultatif, visible des agents)"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              aria-label="Secret description"
+              aria-label="Description du secret"
             />
-            <Button type="submit" size="sm" disabled={!name.trim() || value.length < 8}>
-              Save secret
-            </Button>
+            {confirmOverwrite ? (
+              <div className="flex flex-wrap items-center gap-2" role="alert">
+                <span className="text-xs text-amber-300">
+                  Un secret nommé « {trimmed} » existe déjà : sa valeur sera remplacée.
+                </span>
+                <Button type="button" variant="danger" size="sm" onClick={() => void save()}>
+                  Remplacer
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmOverwrite(false)}>
+                  Annuler
+                </Button>
+              </div>
+            ) : (
+              <Button type="submit" size="sm" disabled={!trimmed || nameInvalid || value.length < 8}>
+                Enregistrer
+              </Button>
+            )}
           </form>
         )}
       </div>
@@ -410,6 +477,27 @@ function SecretsPanel({
           {error}
         </p>
       )}
+    </Section>
+  )
+}
+
+/** Secrets agents are waiting for (all conversations): same card as in the chat, so one answering path. */
+function RequestsPanel({ overview, onChange }: { overview: VaultOverview; onChange: () => void }) {
+  if (overview.requests.length === 0) return null
+  return (
+    <Section title="Demandes en attente" count={overview.requests.length} description="Secrets demandés par des agents.">
+      <div className="space-y-2">
+        {overview.requests.map((r) => (
+          <SecretRequestCard
+            key={r.id}
+            request={{ id: r.id, name: r.name, reason: r.reason, exists: r.exists }}
+            sessionId={r.session_id}
+            projectSlug={r.project_slug ?? null}
+            overview={overview}
+            onDone={onChange}
+          />
+        ))}
+      </div>
     </Section>
   )
 }
@@ -431,6 +519,7 @@ function GrantsPanel({
   const instances = providers.filter((p) => !p.builtin)
   const [minutes, setMinutes] = useState(1440)
   const [error, setError] = useState<string | null>(null)
+  const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null)
 
   const create = async () => {
     setError(null)
@@ -466,16 +555,33 @@ function GrantsPanel({
               {g.note && <p className="truncate text-xs text-gray-500">{g.note}</p>}
             </div>
             <span className="text-xs text-gray-500">until {formatUntil(g.expires_at)}</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={async () => {
-                await vaultApi.revokeGrant(g.id)
-                onChange()
-              }}
-            >
-              Revoke
-            </Button>
+            {confirmRevoke === g.id ? (
+              <span className="flex items-center gap-1">
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await vaultApi.revokeGrant(g.id)
+                      setConfirmRevoke(null)
+                      onChange()
+                    } catch (e) {
+                      setConfirmRevoke(null)
+                      setError(vaultErrorMessage(e))
+                    }
+                  }}
+                >
+                  Confirmer la révocation
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setConfirmRevoke(null)}>
+                  Annuler
+                </Button>
+              </span>
+            ) : (
+              <Button variant="ghost" size="sm" onClick={() => setConfirmRevoke(g.id)}>
+                Revoke
+              </Button>
+            )}
           </div>
         ))}
         <div className="flex flex-wrap items-center gap-2 p-4 text-sm text-gray-400">

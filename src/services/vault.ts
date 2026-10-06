@@ -135,6 +135,11 @@ export const vaultApi = {
     ).then(remember),
 }
 
+/** Locked vault (409) or missing/stale unlock proof (403 asking for the passphrase). */
+export function isVaultLockedError(e: unknown): boolean {
+  return e instanceof ApiError && (e.status === 409 || (e.status === 403 && /passphrase/i.test(e.message)))
+}
+
 /** The server answers `{"error": "..."}`; show the sentence, not the JSON. */
 export const vaultErrorMessage = apiErrorMessage
 
