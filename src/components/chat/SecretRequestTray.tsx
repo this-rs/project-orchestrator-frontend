@@ -91,7 +91,7 @@ interface CardProps {
   onDone: () => void
 }
 
-function SecretRequestCard({ request, sessionId, projectSlug, overview, onDone }: CardProps) {
+export function SecretRequestCard({ request, sessionId, projectSlug, overview, onDone }: CardProps) {
   const [value, setValue] = useState('')
   const [reveal, setReveal] = useState(false)
   const [passphrase, setPassphrase] = useState('')
