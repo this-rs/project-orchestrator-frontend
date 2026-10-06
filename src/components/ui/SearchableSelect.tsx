@@ -53,7 +53,8 @@ export interface SearchableSelectProps {
   className?: string
 }
 
-const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+/** Lower-cased, accents removed: what search compares. */
+export const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
 /** Folded text with, per folded char, the index of the original char it came from. */
 function foldWithMap(s: string): { text: string; map: number[] } {
@@ -67,7 +68,8 @@ function foldWithMap(s: string): { text: string; map: number[] } {
   return { text, map }
 }
 
-function Highlight({ text, query }: { text: string; query: string }): ReactNode {
+/** `text` with the part that matches `query` (case and accents ignored) in a <mark>. */
+export function Highlight({ text, query }: { text: string; query: string }): ReactNode {
   const q = fold(query.trim())
   if (!q) return text
   const { text: folded, map } = foldWithMap(text)
