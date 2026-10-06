@@ -319,15 +319,14 @@ describe('ProviderInstanceForm (edit)', () => {
     ])
     get.mockResolvedValue({ ...stored(DEEPSEEK), default_model: 'deepseek-v4-pro' })
     await mount()
-    const select = await screen
-      .findByRole('combobox', { name: 'Modèle par défaut' })
-      .catch(() => null)
-    const el = (select ?? field('Modèle par défaut')) as HTMLSelectElement
-    await waitFor(() => expect(el.tagName).toBe('SELECT'))
+    const box = (await screen.findByRole('combobox', { name: 'Modèle par défaut' })) as HTMLInputElement
+    await waitFor(() => expect(box.value).toBe('deepseek-v4-pro'))
+    fireEvent.click(box)
     expect(
-      within(el).getByRole('option', { name: /deepseek-flash — outils : non · 1\s048\s576 tokens/ })
+      screen.getByRole('option', { name: /deepseek-flash\s*outils : non · 1\s048\s576 tokens/ })
     ).toBeTruthy()
-    expect(el.value).toBe('deepseek-v4-pro')
+    expect(screen.getByRole('option', { name: /deepseek-v4-pro/ }).getAttribute('aria-selected')).toBe('true')
+    fireEvent.keyDown(box, { key: 'Escape' })
     expect(models).toHaveBeenCalledTimes(1)
     fireEvent.click(screen.getByRole('button', { name: /Actualiser la liste des modèles/ }))
     await waitFor(() => expect(models).toHaveBeenCalledTimes(2))

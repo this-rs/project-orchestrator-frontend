@@ -1,6 +1,8 @@
 import { useId, useMemo, useState } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { ChevronDown, Lock } from 'lucide-react'
+import { ChevronDown, Lock, Search } from 'lucide-react'
+import { Highlight } from '@/components/ui/SearchableSelect'
+import { fold } from '@/components/ui/searchFold'
 import {
   chatDefaultModelAtom,
   chatEffectiveProviderAtom,
@@ -330,6 +332,9 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
   )
 }
 
+/** More models than this: the list gets a search field. */
+const SEARCH_FROM = 6
+
 interface ProviderModelListProps {
   instance: ProviderInstance | null
   activeModelId: string
@@ -343,28 +348,67 @@ interface ProviderModelListProps {
  */
 function ProviderModelList({ instance, activeModelId, onSelect }: ProviderModelListProps) {
   const models = instance?.models ?? []
+  const [query, setQuery] = useState('')
   if (models.length === 0) {
     return <div className="px-3 py-2 text-xs text-gray-500">No models listed for this provider</div>
   }
+  // A short list stays a plain group of buttons; a long one gets a search
+  // field (the same matching as the settings combobox: id and label, case and
+  // accents ignored).
+  const searchable = models.length > SEARCH_FROM
+  const q = searchable ? fold(query.trim()) : ''
+  const shown = q ? models.filter((m) => fold(`${m.id}\n${m.label ?? ''}`).includes(q)) : models
   return (
-    <div role="group" aria-label="Models" className="py-1">
-      {models.map((m) => {
-        const active = m.id === activeModelId
-        return (
-          <button
-            key={m.id}
-            type="button"
-            aria-pressed={active}
-            onClick={() => onSelect(m.id)}
-            title={m.label || m.id}
-            className={`w-full text-left px-3 py-1.5 text-xs truncate transition-colors ${
-              active ? 'text-gray-100 bg-white/[0.04]' : 'text-gray-400 hover:bg-white/[0.04] hover:text-gray-200'
-            }`}
-          >
-            {m.label || m.id}
-          </button>
-        )
-      })}
+    <div>
+      {searchable && (
+        <div className="sticky top-0 z-10 border-b border-white/[0.06] bg-surface-popover px-2 py-1.5">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-gray-500" aria-hidden="true" />
+            <input
+              type="search"
+              aria-label="Search models"
+              placeholder="Search models…"
+              autoComplete="off"
+              spellCheck={false}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                // Clear first; a second Escape reaches the composer and closes the menu.
+                if (e.key === 'Escape' && query) {
+                  e.stopPropagation()
+                  setQuery('')
+                }
+              }}
+              className="w-full rounded border border-white/[0.08] bg-surface-base py-1 pl-7 pr-2 text-base text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-400/50 sm:text-xs"
+            />
+          </div>
+          <p className="mt-1 px-0.5 text-[10px] text-gray-500" aria-live="polite">
+            {q ? `${shown.length} of ${models.length}` : `${models.length} models`}
+          </p>
+        </div>
+      )}
+      <div role="group" aria-label="Models" className="py-1">
+        {shown.map((m) => {
+          const active = m.id === activeModelId
+          return (
+            <button
+              key={m.id}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onSelect(m.id)}
+              title={m.label || m.id}
+              className={`w-full text-left px-3 py-1.5 text-xs truncate transition-colors ${
+                active ? 'text-gray-100 bg-white/[0.04]' : 'text-gray-400 hover:bg-white/[0.04] hover:text-gray-200'
+              }`}
+            >
+              <Highlight text={m.label || m.id} query={q ? query : ''} />
+            </button>
+          )
+        })}
+        {shown.length === 0 && (
+          <div className="px-3 py-2 text-xs text-gray-500">{`No model matches “${query.trim()}”`}</div>
+        )}
+      </div>
     </div>
   )
 }

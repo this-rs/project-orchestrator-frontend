@@ -1,6 +1,7 @@
 import { AlertTriangle, X } from 'lucide-react'
 import type { ChatSessionOpenError } from '@/atoms'
 import { ProviderStateCard } from './ProviderStateCard'
+import { panelGlass } from '@/components/ui/panelGlass'
 
 interface SessionOpenErrorProps {
   error: ChatSessionOpenError
@@ -27,6 +28,7 @@ export function SessionOpenError({ error, onDismiss, onRetry, projectSlug }: Ses
         projectSlug={projectSlug}
         onRetry={onRetry}
         onDismiss={onDismiss}
+        floating
         className="mx-3 mb-1"
         testId="session-open-error"
       />
@@ -36,7 +38,7 @@ export function SessionOpenError({ error, onDismiss, onRetry, projectSlug }: Ses
     <div
       role="alert"
       data-testid="session-open-error"
-      className="mx-3 mb-1 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200"
+      className={`mx-3 mb-1 flex items-start gap-2 rounded-lg border border-red-500/30 ${panelGlass.error} px-3 py-2 text-xs text-red-200`}
     >
       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-400" aria-hidden="true" />
       <div className="min-w-0 flex-1">

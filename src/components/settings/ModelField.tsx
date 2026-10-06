@@ -1,26 +1,27 @@
 /**
- * Model picker fed by the provider's real catalog, with free typing as a
- * fallback (catalog empty, unavailable, or a model the endpoint does not list):
+ * Model picker fed by the provider's real catalog: a searchable list, with
+ * free typing as a fallback.
  *
  * ```
  * Modèle par défaut                                 [Actualiser]
- * [ filtre… ]                 (only when more than 8 models)
- * [ deepseek-v4-pro · outils · 1 048 576 tokens   v ]
+ * [ deepseek-v4-pro                               v ]   search + list
+ *   (list: "3 sur 12", capabilities under each model, « Utiliser “x” »)
  * help / capabilities / error
  * ```
  *
- * The choice "Saisir un autre nom…" switches to a text field. A value absent
- * from the catalog is kept and shown as such, never replaced silently.
+ * With no catalog (not loaded, empty, or failed) the field is a plain text
+ * input. With one, a model the endpoint does not list is typed in the search
+ * and chosen with « Utiliser “…” ». A value absent from the catalog is kept
+ * and shown as such, never replaced silently.
  */
 import { useId, useMemo, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
-import { Button, Input } from '@/components/ui'
+import { Button, Input, SearchableSelect, type SearchableOption } from '@/components/ui'
 import type { ProviderModel } from '@/types/provider'
 import { modelCapabilities } from '@/constants/providerWizard'
-import { FIELD_LABEL, NativeSelect } from './FormField'
+import { FIELD_LABEL } from './FormField'
 
-const OTHER = '__other__'
-const NONE = ''
+const MODEL_NOUN = { one: 'modèle', other: 'modèles' }
 
 interface ModelFieldProps {
   id?: string
@@ -53,23 +54,22 @@ export function ModelField({
 }: ModelFieldProps) {
   const autoId = useId().replace(/:/g, '')
   const fieldId = id ?? `model-${autoId}`
-  const [filter, setFilter] = useState('')
   const listed = !!models && models.some((m) => m.id === value)
-  const [typing, setTyping] = useState(false)
   /** After "Actualiser": a short confirmation of what came back. */
   const [refreshed, setRefreshed] = useState(false)
-  const free = typing || !models || models.length === 0 || (!!value && !listed)
-  const shown = useMemo(() => {
-    const all = models ?? []
-    const q = filter.trim().toLowerCase()
-    const hits = q
-      ? all.filter((m) => m.id.toLowerCase().includes(q) || m.label?.toLowerCase().includes(q))
-      : all
-    // Keep the current choice visible even when filtered out.
-    return value && listed && !hits.some((m) => m.id === value)
-      ? [...all.filter((m) => m.id === value), ...hits]
-      : hits
-  }, [models, filter, value, listed])
+  const free = !models || models.length === 0
+  const options = useMemo<SearchableOption[]>(
+    () =>
+      (models ?? []).map((m) => {
+        const caps = modelCapabilities(m)
+        return {
+          value: m.id,
+          label: m.label ?? m.id,
+          description: [m.label && m.label !== m.id ? m.id : null, caps].filter(Boolean).join(' · ') || undefined,
+        }
+      }),
+    [models],
+  )
   const current = models?.find((m) => m.id === value)
   const caps = modelCapabilities(current)
 
@@ -82,7 +82,7 @@ export function ModelField({
     note = 'Ce provider ne liste aucun modèle : saisissez le nom.'
   else if (value && models && !listed)
     note = `« ${value} » n’est pas dans le catalogue de ce provider.`
-  // The capabilities are already in the option label: the note keeps the help.
+  // The capabilities are already under each option: the note keeps the help.
   else note = help ?? caps ?? ''
 
   return (
@@ -110,68 +110,31 @@ export function ModelField({
           </Button>
         )}
       </div>
-      {!free && models && models.length > 8 && (
-        <Input
-          aria-label={`Filtrer les modèles de ${label}`}
-          placeholder="Filtrer…"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="mb-2"
-        />
-      )}
       {free ? (
-        <div className="flex gap-2">
-          <Input
-            id={fieldId}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            disabled={disabled}
-            placeholder="nom du modèle"
-            autoComplete="off"
-            spellCheck={false}
-            aria-describedby={note ? `${fieldId}-note` : undefined}
-          />
-          {models && models.length > 0 && (
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={() => {
-                setTyping(false)
-                if (!listed) onChange(noneLabel !== undefined ? NONE : models[0].id)
-              }}
-            >
-              Liste
-            </Button>
-          )}
-        </div>
-      ) : (
-        <NativeSelect
+        <Input
           id={fieldId}
           value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          placeholder="nom du modèle"
+          autoComplete="off"
+          spellCheck={false}
+          aria-describedby={note ? `${fieldId}-note` : undefined}
+        />
+      ) : (
+        <SearchableSelect
+          id={fieldId}
+          value={value}
+          onChange={onChange}
+          options={options}
+          noneLabel={noneLabel}
+          allowCustom
+          noun={MODEL_NOUN}
+          placeholder={noneLabel === undefined ? 'Choisir un modèle…' : undefined}
+          loading={loading}
           disabled={disabled}
           aria-describedby={note ? `${fieldId}-note` : undefined}
-          onChange={(e) => {
-            if (e.target.value === OTHER) {
-              setTyping(true)
-              return
-            }
-            onChange(e.target.value)
-          }}
-        >
-          {noneLabel !== undefined && <option value={NONE}>{noneLabel}</option>}
-          {noneLabel === undefined && !value && <option value={NONE}>Choisir un modèle…</option>}
-          {shown.map((m) => {
-            const c = modelCapabilities(m)
-            return (
-              <option key={m.id} value={m.id}>
-                {m.label ?? m.id}
-                {c ? ` — ${c}` : ''}
-              </option>
-            )
-          })}
-          <option value={OTHER}>Saisir un autre nom…</option>
-        </NativeSelect>
+        />
       )}
       {note && (
         <p

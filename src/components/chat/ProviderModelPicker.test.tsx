@@ -328,6 +328,58 @@ describe('ProviderModelPicker — remote Claude Code', () => {
   })
 })
 
+describe('ProviderModelPicker — long model list', () => {
+  const many = (n: number): ProvidersResponse => ({
+    providers: [
+      {
+        id: 'big',
+        kind: 'openai_compatible',
+        label: 'Big host',
+        health: { status: 'healthy' },
+        default_model: 'model-0',
+        models: Array.from({ length: n }, (_, i) => ({ id: `model-${i}`, ...(i === 3 ? { label: 'Édition spéciale' } : {}) })),
+      },
+    ],
+    default: { provider: 'big', model: 'model-0', routed_by: 'default' },
+  })
+
+  it('up to 6 models there is no search field, the buttons stay as they were', () => {
+    mount({ prepare: withProviders(many(6)) })
+    const menu = openModels()
+    expect(menu.queryByRole('searchbox')).toBeNull()
+    expect(menu.getAllByRole('button', { name: /^model-|Édition/ }).length).toBe(6)
+  })
+
+  it('past 6 models a search field filters by id and label, ignoring case and accents, and counts', () => {
+    mount({ prepare: withProviders(many(12)) })
+    const menu = openModels()
+    const search = menu.getByRole('searchbox', { name: 'Search models' })
+    expect(menu.getByText('12 models')).toBeTruthy()
+    fireEvent.change(search, { target: { value: 'MODEL-1' } })
+    // model-1, model-10, model-11
+    expect(menu.getAllByRole('button').length).toBe(3)
+    expect(menu.getByText('3 of 12')).toBeTruthy()
+    fireEvent.change(search, { target: { value: 'edition' } })
+    expect(menu.getAllByRole('button').map((b) => b.textContent)).toEqual(['Édition spéciale'])
+    fireEvent.change(search, { target: { value: 'nope' } })
+    expect(menu.getByText('No model matches “nope”')).toBeTruthy()
+    expect(menu.queryAllByRole('button').length).toBe(0)
+  })
+
+  it('picking from a filtered list sets the model; Escape in the field clears it first', () => {
+    const { store } = mount({ prepare: withProviders(many(12)) })
+    const menu = openModels()
+    const search = menu.getByRole('searchbox') as HTMLInputElement
+    fireEvent.change(search, { target: { value: 'model-7' } })
+    fireEvent.keyDown(search, { key: 'Escape' })
+    expect(search.value).toBe('')
+    expect(screen.queryByTestId('model-picker-popover')).toBeTruthy()
+    fireEvent.change(search, { target: { value: 'model-7' } })
+    fireEvent.click(menu.getByRole('button', { name: 'model-7' }))
+    expect(store.get(chatSessionModelAtom)).toBe('model-7')
+  })
+})
+
 describe('ProviderModelPicker — backend without provider routes', () => {
   const unsupported = (s: Store) => {
     s.set(providersLoadStateAtom, 'unsupported')

@@ -1,5 +1,6 @@
 import { Info } from 'lucide-react'
 import { ENGINE_BANNER_TITLE, engineFeatureLabel } from '@/constants/engine'
+import { panelGlass } from '@/components/ui/panelGlass'
 
 /**
  * Above the composer when the engine running this session lists features it
@@ -11,7 +12,7 @@ export function EngineBanner({ degraded }: { degraded: readonly string[] }) {
     <div
       role="note"
       data-testid="engine-banner"
-      className="mx-3 mb-1 flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-200"
+      className={`mx-3 mb-1 flex items-start gap-2 rounded-lg border border-amber-500/25 ${panelGlass.warning} px-3 py-1.5 text-[11px] text-amber-200`}
     >
       <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" aria-hidden="true" />
       <div className="min-w-0">

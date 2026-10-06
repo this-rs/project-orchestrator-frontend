@@ -162,6 +162,14 @@ describe('ChatInput — trust downgraded when a provider without a sandbox is ta
     expect(screen.getByTestId('trust-downgraded').textContent).toContain(TRUST_DOWNGRADED_TEXT)
   })
 
+  it('the notice floats over the transcript: readable base surface and a backdrop blur', () => {
+    mount({ mode: 'bypassPermissions', sessionId: null, prepare: thirdParty() })
+    const notice = screen.getByTestId('trust-downgraded')
+    expect(notice.className).toContain('backdrop-blur-md')
+    expect(notice.className).toMatch(/(?:^|\s)bg-surface-base\/(?:[6-9]\d|100)(?:\s|$)/)
+    expect(notice.className).toContain('from-amber-500/10')
+  })
+
   it('Claude Code keeps trust, with no notice', () => {
     const { store } = mount({ mode: 'bypassPermissions', sessionId: null })
     expect(store.get(chatSessionPermissionOverrideAtom)).toBeNull()

@@ -504,6 +504,16 @@ export class ChatWebSocket {
   }
 
   /**
+   * Ask the session for the messages it holds. The server answers with a
+   * `pending_queue` event, to every client of the session. A fresh socket (a
+   * reload, a reconnect) knows nothing of the queue: the server only publishes it
+   * when it changes or when asked.
+   */
+  sendQueueSnapshot() {
+    return this.send({ type: 'queue_op', op: 'snapshot' })
+  }
+
+  /**
    * Send an interrupt signal
    */
   sendInterrupt() {
