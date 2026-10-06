@@ -1420,8 +1420,11 @@ export function useChat() {
       onReplayComplete: () => {
         setIsReplaying(false)
         setIsLoadingHistory(false)
-        // The socket is usable again: hand over what was queued without it.
+        // The socket is usable again: hand over what was queued without it...
         syncLocalQueueRef.current()
+        // ...and learn what the session already holds. A reload starts with an empty
+        // page; without this the messages queued before it stay invisible.
+        ws.sendQueueSnapshot()
         // Flush messages that failed on a dead socket (their failure triggered
         // this very reconnect). The replay just brought us up to date, so
         // sending now preserves ordering.

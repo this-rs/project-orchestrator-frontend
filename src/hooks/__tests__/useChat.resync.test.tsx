@@ -57,6 +57,9 @@ vi.mock('@/services', () => {
     send() {
       return true
     }
+    sendQueueSnapshot() {
+      return true
+    }
     sendUserMessage() {
       return true
     }
