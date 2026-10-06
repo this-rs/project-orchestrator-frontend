@@ -14,6 +14,7 @@ import {
 import { credentialLabel } from '@/constants/providerSettings'
 import {
   isClaudeCodeProvider,
+  providerDisplayName,
   type ProviderErrorInfo,
   type ProviderHealth,
   type ProviderInstance,
@@ -89,7 +90,7 @@ function InstanceCard({
     >
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-semibold text-gray-100">{instance.label}</h3>
+          <h3 className="truncate text-sm font-semibold text-gray-100">{providerDisplayName(instance)}</h3>
           <p className="text-xs text-gray-500">
             {kindLabelFr(instance.kind)}
             {instance.id.toLowerCase() !== instance.label.toLowerCase() &&
@@ -138,10 +139,29 @@ function InstanceCard({
               ),
             },
             { label: 'Version', value: health.version, hidden: !health.version },
+            {
+              label: 'Empreinte de la machine',
+              value: <code className="break-all font-mono">{instance.host_key_fingerprint}</code>,
+              hidden: !instance.host_key_fingerprint,
+            },
+            {
+              label: 'Rock’n roll',
+              value: instance.allow_trust ? 'autorisé sur cette machine' : 'non autorisé',
+              hidden: instance.kind !== 'claude_code_remote',
+            },
           ]}
         />
       )}
 
+      {status.key === 'unreachable' && health.error?.message && (
+        <p
+          role="alert"
+          data-testid={`instance-reason-${instance.id}`}
+          className="mt-3 break-words rounded-lg border border-red-500/25 bg-red-500/[0.06] px-3 py-2 text-xs text-red-200"
+        >
+          Injoignable : {health.error.message}
+        </p>
+      )}
       {error && (
         <SettingsErrorCard
           error={error}

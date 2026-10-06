@@ -8,6 +8,8 @@
 
 import {
   isClaudeCodeProvider,
+  isRemoteClaudeCode,
+  providerDisplayName,
   providerKindLabel,
   type ModelAlias,
   type ProviderHealthStatus,
@@ -150,6 +152,8 @@ export interface SessionProviderDescription {
   /** Instance label, else the kind, else the raw id. `Claude Code` for a session without provider. */
   label: string
   isClaudeCode: boolean
+  /** A Claude Code on another machine (SSH): its label is its id, `claude-code@<name>`. */
+  isRemote: boolean
   /** The instance is absent from the LOADED list: it was deleted, the conversation cannot be resumed. */
   unavailable: boolean
 }
@@ -167,12 +171,18 @@ export function describeSessionProvider(
   instances: readonly ProviderInstance[] | null | undefined,
 ): SessionProviderDescription {
   const id = ref?.id || null
-  if (!id) return { label: providerKindLabel('claude_code'), isClaudeCode: true, unavailable: false }
+  if (!id) return { label: providerKindLabel('claude_code'), isClaudeCode: true, isRemote: false, unavailable: false }
   const instance = instances?.find((p) => p.id === id) ?? null
   const kind = ref?.kind ?? instance?.kind ?? null
   const isClaudeCode = isClaudeCodeProvider(id, kind)
-  const label = instance?.label || ref?.label || (kind || isClaudeCode ? providerKindLabel(kind) : id)
-  return { label, isClaudeCode, unavailable: !!instances && !instance && !isClaudeCode }
+  const isRemote = isRemoteClaudeCode(kind)
+  // A remote Claude Code is always named by its id, never by a label that could read "Claude Code".
+  const label = isRemote
+    ? id
+    : instance
+      ? providerDisplayName(instance)
+      : ref?.label || (kind || isClaudeCode ? providerKindLabel(kind) : id)
+  return { label, isClaudeCode, isRemote, unavailable: !!instances && !instance && !isClaudeCode }
 }
 
 /**

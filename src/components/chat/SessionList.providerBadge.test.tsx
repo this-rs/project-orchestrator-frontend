@@ -41,6 +41,8 @@ const instance = (id: string, kind: string, label: string): ProviderInstance => 
 
 const CLAUDE = instance('claude-code', 'claude_code', 'Claude Code')
 const LLAMA = instance('local-llama', 'openai_compatible', 'Local llama-server')
+// Labelled "Claude Code" on purpose: only its id tells it from the local one.
+const REMOTE = instance('claude-code@lab', 'claude_code_remote', 'Claude Code')
 
 const session = (partial: Partial<ChatSession> & { id: string }): ChatSession => ({
   cwd: '/repo',
@@ -126,8 +128,8 @@ describe('SessionRow — provider badge', () => {
 
 describe('describeSessionProvider / ProviderBadge', () => {
   it('a session without provider is Claude Code and never unavailable', () => {
-    expect(describeSessionProvider(null, [LLAMA])).toEqual({ label: 'Claude Code', isClaudeCode: true, unavailable: false })
-    expect(describeSessionProvider({ id: null }, [])).toEqual({ label: 'Claude Code', isClaudeCode: true, unavailable: false })
+    expect(describeSessionProvider(null, [LLAMA])).toEqual({ label: 'Claude Code', isClaudeCode: true, isRemote: false, unavailable: false })
+    expect(describeSessionProvider({ id: null }, [])).toEqual({ label: 'Claude Code', isClaudeCode: true, isRemote: false, unavailable: false })
   })
 
   it('the built-in instance is never declared missing, even absent from the list', () => {
@@ -144,5 +146,20 @@ describe('describeSessionProvider / ProviderBadge', () => {
   it('shows the short model next to the label when asked', () => {
     render(<ProviderBadge description={describeSessionProvider(null, null)} model="claude-opus-4-5-20251101" />)
     expect(screen.getByTestId('provider-badge').textContent).toBe('Claude Code· opus-4-5')
+  })
+})
+
+describe('remote Claude Code — identity is always visible', () => {
+  it('is named by its id, never by a label that reads "Claude Code"', () => {
+    const d = describeSessionProvider({ id: 'claude-code@lab', kind: 'claude_code_remote' }, [CLAUDE, REMOTE])
+    expect(d).toEqual({ label: 'claude-code@lab', isClaudeCode: false, isRemote: true, unavailable: false })
+  })
+
+  it('is badged even on a server whose only other instance is the local Claude Code, and by id when the list is not loaded', () => {
+    const d = describeSessionProvider({ id: 'claude-code@lab', kind: 'claude_code_remote' }, [CLAUDE])
+    expect(d.unavailable).toBe(true) // deleted since: said, not hidden
+    render(<ProviderBadge description={describeSessionProvider({ id: 'claude-code@lab', kind: 'claude_code_remote' }, null)} />)
+    expect(screen.getByTestId('provider-badge').textContent).toBe('claude-code@lab')
+    expect(shouldShowProviderBadge(describeSessionProvider({ id: 'claude-code@lab', kind: 'claude_code_remote' }, null), null)).toBe(true)
   })
 })

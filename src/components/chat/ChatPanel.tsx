@@ -16,6 +16,7 @@ import { ChatCapabilitiesProvider, ChatSessionProvider } from './ChatSessionCont
 import { ProviderStateCard } from './ProviderStateCard'
 import { ProviderBadge } from './ProviderBadge'
 import { PolicyOnlyBanner } from './PolicyOnlyBanner'
+import { RemoteNoToolsBanner } from './RemoteNoToolsBanner'
 import { EngineBanner } from './EngineBanner'
 import { ChatInput, type PrefillPayload } from './ChatInput'
 import { CompactionBanner } from './CompactionBanner'
@@ -399,6 +400,9 @@ export function ChatPanel() {
         />
       )}
       {!capabilities.interactive_permissions && !noProvider && !instanceMissing && <PolicyOnlyBanner />}
+      {!isNewConversation && sessionProviderInfo.isRemote && !capabilities.per_session_mcp && (
+        <RemoteNoToolsBanner machine={sessionProviderInfo.label} />
+      )}
       <EngineBanner degraded={engine.degraded} />
     </>
   )

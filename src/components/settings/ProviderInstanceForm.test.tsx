@@ -34,7 +34,7 @@ import { validateBaseUrl } from '@/constants/providerSettings'
 import { validateBaseUrlFr } from '@/constants/providerWizard'
 import { ProviderInstanceForm } from './ProviderInstanceForm'
 import { clearModelCatalogCache } from './useModelCatalog'
-import { DEEPSEEK, LOCAL, mountSettings } from './settingsTestKit'
+import { DEEPSEEK, LOCAL, REMOTE, mountSettings } from './settingsTestKit'
 import type { ProviderInstance } from '@/types/provider'
 
 const onSaved = vi.fn()
@@ -57,6 +57,12 @@ const stored = (i: ProviderInstance) => ({
   default_model: i.default_model ?? null,
   cost_source: i.cost_source ?? null,
   credential_ref: i.credential_ref ?? null,
+  host: i.host ?? null,
+  ssh_user: i.ssh_user ?? null,
+  ssh_port: i.ssh_port ?? null,
+  remote_cwd: i.remote_cwd ?? null,
+  allow_trust: i.allow_trust ?? false,
+  host_key_fingerprint: i.host_key_fingerprint ?? null,
 })
 const field = (name: RegExp | string) => screen.getByLabelText(name) as HTMLInputElement
 function pick(combo: string, option: string) {
@@ -72,7 +78,7 @@ beforeEach(() => {
   get
     .mockReset()
     .mockImplementation(async (id: string) =>
-      stored([DEEPSEEK, LOCAL].find((i) => i.id === id) ?? { ...LOCAL, id })
+      stored([DEEPSEEK, LOCAL, REMOTE].find((i) => i.id === id) ?? { ...LOCAL, id })
     )
   models.mockReset().mockResolvedValue([])
   update.mockResolvedValue({})
@@ -336,5 +342,57 @@ describe('ProviderInstanceForm (edit)', () => {
     expect(input.tagName).toBe('INPUT')
     fireEvent.change(input, { target: { value: 'deepseek-chat' } })
     expect(input.value).toBe('deepseek-chat')
+  })
+})
+
+describe('ProviderInstanceForm — Claude Code distant (SSH)', () => {
+  it('shows the machine as stored, the pinned fingerprint, and Rock’n roll off', async () => {
+    await mount(REMOTE)
+    expect(field('Machine (nom ou adresse)').value).toBe('lab.example.com')
+    expect(field('Utilisateur').value).toBe('me')
+    expect(field('Port SSH').value).toBe('2222')
+    expect(screen.getByTestId('remote-hostkey-kept').textContent).toContain('SHA256:abc123fingerprintOfTheMachine')
+    expect((screen.getByRole('checkbox', { name: /Rock’n roll/ }) as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('a plain edit keeps the pinned key: the PATCH carries no host_key, and no private key anywhere', async () => {
+    await mount(REMOTE)
+    fireEvent.change(field('Dossier de travail sur la machine'), { target: { value: '/srv/other' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }))
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1))
+    const [id, patch] = update.mock.calls[0] as [string, Record<string, unknown>]
+    expect(id).toBe('claude-code@lab')
+    expect(patch).toMatchObject({ host: 'lab.example.com', ssh_port: 2222, remote_cwd: '/srv/other', allow_trust: false, credential_ref: 'vault:lab-ssh-key' })
+    expect(patch).not.toHaveProperty('host_key')
+    expect(patch).not.toHaveProperty('base_url')
+  })
+
+  it('changing the machine drops the pinned key, warns that consents are revoked, and blocks saving until a new fingerprint is confirmed', async () => {
+    await mount(REMOTE)
+    fireEvent.change(field('Machine (nom ou adresse)'), { target: { value: 'other.example.com' } })
+    expect(screen.getByTestId('remote-origin-moved').textContent).toContain('révoque')
+    expect(screen.queryByTestId('remote-hostkey-kept')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }))
+    await new Promise((r) => setTimeout(r, 20))
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('the key reference is a vault name: a pasted private key is refused and nothing is sent', async () => {
+    overview.mockResolvedValue({ secrets: [] }) // empty vault → the name is typed
+    await mount(REMOTE)
+    const name = field('Nom de la clé dans le coffre')
+    fireEvent.change(name, { target: { value: '-----BEGIN OPENSSH PRIVATE KEY-----' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }))
+    expect(await screen.findByText(/ressemble à une clé privée/)).toBeTruthy()
+    expect(update).not.toHaveBeenCalled()
+    expect(test).not.toHaveBeenCalled()
+  })
+
+  it('only a vault reference can be chosen: no env, no "none"', async () => {
+    await mount(REMOTE)
+    const trigger = screen.getByRole('combobox', { name: 'Référence de la clé' })
+    fireEvent.click(trigger)
+    const listbox = document.getElementById(trigger.getAttribute('aria-controls')!)!
+    expect(within(listbox).getAllByRole('option', { hidden: true }).map((o) => o.textContent)).toEqual(['Clé du coffre'])
   })
 })

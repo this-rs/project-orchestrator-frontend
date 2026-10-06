@@ -10,7 +10,7 @@ import {
   kindLabelFr,
   wizardErrorMessage,
 } from '@/constants/providerWizard'
-import { isClaudeCodeProvider, type ProviderInstance } from '@/types/provider'
+import { isClaudeCodeProvider, providerDisplayName, type ProviderInstance } from '@/types/provider'
 import type { LlmConsent } from '@/types/providerSettings'
 import { ConfirmPanel } from './ConfirmPanel'
 import { ErrorLine, Loading, Panel, ProjectPicker } from './SettingsPanel'
@@ -133,7 +133,7 @@ export function ProjectConsent({ onAddProvider }: { onAddProvider?: () => void }
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <div className="min-w-0 flex-[1_1_16rem]">
                   <p className="text-sm font-medium text-gray-100">
-                    {p.label}{' '}
+                    {providerDisplayName(p)}{' '}
                     <span className="font-normal text-gray-500">· {kindLabelFr(p.kind)}</span>
                   </p>
                   <p className="break-all font-mono text-xs text-gray-400">
@@ -150,7 +150,7 @@ export function ProjectConsent({ onAddProvider }: { onAddProvider?: () => void }
                         size="sm"
                         variant="secondary"
                         onClick={() => setRevoking(p)}
-                        aria-label={`Retirer l’autorisation de ${p.label}`}
+                        aria-label={`Retirer l’autorisation de ${providerDisplayName(p)}`}
                       >
                         Retirer
                       </Button>
@@ -161,7 +161,7 @@ export function ProjectConsent({ onAddProvider }: { onAddProvider?: () => void }
                         onClick={() => origin && setAllowing(p)}
                         aria-disabled={!origin || undefined}
                         aria-describedby={!origin ? `consent-${p.id}-noorigin` : undefined}
-                        aria-label={`Autoriser ${p.label}`}
+                        aria-label={`Autoriser ${providerDisplayName(p)}`}
                       >
                         {state === 'invalidated' ? 'Autoriser à nouveau' : 'Autoriser'}
                       </Button>
@@ -196,18 +196,18 @@ export function ProjectConsent({ onAddProvider }: { onAddProvider?: () => void }
                   onCancel={() => setAllowing(null)}
                 >
                   Les prompts, fichiers et résultats d’outils des conversations de ce projet sur{' '}
-                  {p.label} quittent cette machine pour cette origine.
+                  {providerDisplayName(p)} quittent cette machine pour cette origine.
                 </ConfirmPanel>
               )}
               {revoking?.id === p.id && (
                 <ConfirmPanel
-                  title={`Ne plus envoyer le contenu du projet ${projectName} à ${p.label} ?`}
+                  title={`Ne plus envoyer le contenu du projet ${projectName} à ${providerDisplayName(p)} ?`}
                   confirmLabel="Retirer l’autorisation"
                   tone="danger"
                   onConfirm={() => act(() => providersApi.revoke(slug, p.id))}
                   onCancel={() => setRevoking(null)}
                 >
-                  Les conversations de ce projet ne pourront plus utiliser {p.label}.
+                  Les conversations de ce projet ne pourront plus utiliser {providerDisplayName(p)}.
                 </ConfirmPanel>
               )}
             </li>

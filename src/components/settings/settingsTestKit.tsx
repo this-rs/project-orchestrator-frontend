@@ -42,6 +42,24 @@ export const LOCAL: ProviderInstance = {
   models: [{ id: 'qwen3' }],
 }
 
+/** A Claude Code on another machine. Its label says "Claude Code" on purpose: the id is what tells it apart. */
+export const REMOTE: ProviderInstance = {
+  id: 'claude-code@lab',
+  kind: 'claude_code_remote',
+  label: 'Claude Code',
+  origin: 'ssh:me@lab.example.com:2222',
+  credential_ref: 'vault:lab-ssh-key',
+  cost_source: 'subscription',
+  host: 'lab.example.com',
+  ssh_user: 'me',
+  ssh_port: 2222,
+  remote_cwd: '/srv/work',
+  allow_trust: false,
+  host_key_fingerprint: 'SHA256:abc123fingerprintOfTheMachine',
+  health: { status: 'healthy', version: '2.1.0', checked_at: '2026-10-01T10:00:00Z' },
+  models: [],
+}
+
 export function response(providers: ProviderInstance[], extra: Partial<ProvidersResponse> = {}): ProvidersResponse {
   return { providers, default: { provider: 'claude-code', model: null, routed_by: 'default' }, ...extra }
 }

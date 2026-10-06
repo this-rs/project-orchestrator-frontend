@@ -294,6 +294,40 @@ describe('ProviderModelPicker — new conversation', () => {
   })
 })
 
+describe('ProviderModelPicker — remote Claude Code', () => {
+  const remote = (health: ProvidersResponse['providers'][number]['health']): ProvidersResponse => ({
+    providers: [
+      PROVIDERS.providers[0],
+      { id: 'claude-code@lab', kind: 'claude_code_remote', label: 'Claude Code', health, models: [{ id: 'claude-sonnet-5' }] },
+    ],
+    default: { provider: 'claude-code', routed_by: 'default' },
+  })
+
+  it('lists the machine as claude-code@lab (not a second "Claude Code") with its kind', () => {
+    mount({ prepare: withProviders(remote({ status: 'healthy' })) })
+    const menu = openProviders()
+    const rows = menu.getAllByRole('radio')
+    expect(rows).toHaveLength(2)
+    const row = rows.find((r) => r.textContent?.includes('claude-code@lab'))!
+    expect(row.textContent).toContain('Claude Code (SSH)')
+    // Beyond its id and its kind, the row carries no bare "Claude Code" name.
+    expect((row.textContent ?? '').replace('Claude Code (SSH)', '')).not.toContain('Claude Code')
+    fireEvent.click(row)
+    expect(providerChip().textContent).toContain('claude-code@lab')
+  })
+
+  it('an unreachable machine is disabled with its reason, and picking it never falls back to the local Claude Code', () => {
+    const reason = 'lab: the machine cannot be reached'
+    const { store } = mount({ prepare: withProviders(remote({ status: 'unhealthy', error: { code: 'provider_unavailable', message: reason } })) })
+    const menu = openProviders()
+    const row = menu.getByRole('radio', { name: /claude-code@lab/ })
+    expect(row.getAttribute('aria-disabled')).toBe('true')
+    expect(menu.getByText(reason)).toBeTruthy()
+    fireEvent.click(row)
+    expect(store.get(chatSelectedProviderAtom)).toBeNull()
+  })
+})
+
 describe('ProviderModelPicker — backend without provider routes', () => {
   const unsupported = (s: Store) => {
     s.set(providersLoadStateAtom, 'unsupported')

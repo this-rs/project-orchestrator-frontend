@@ -22,11 +22,12 @@ export const CLAUDE_CODE_PROVIDER_ID: ProviderId = 'claude-code'
  * - `openai_compatible` — the native harness on an OpenAI-compatible endpoint.
  * - `codex` — Codex `app-server`.
  * - `acp` — a generic ACP agent over stdio (opencode, Gemini CLI).
+ * - `claude_code_remote` — the Claude Code CLI on ANOTHER machine, over SSH (id `claude-code@<name>`).
  *
  * Open-ended on purpose: the backend enum is `#[non_exhaustive]`, so an unknown
  * kind must render (as a generic provider), never throw.
  */
-export type KnownProviderKind = 'claude_code' | 'openai_compatible' | 'codex' | 'acp'
+export type KnownProviderKind = 'claude_code' | 'openai_compatible' | 'codex' | 'acp' | 'claude_code_remote'
 export type ProviderKind = KnownProviderKind | (string & {})
 
 /** Presets of the OpenAI-compatible kind offered by the "add instance" form. */
@@ -289,6 +290,21 @@ export function toCostBasis(value: unknown): CostBasis | null {
 export function isClaudeCodeProvider(provider: ProviderId | null | undefined, kind?: ProviderKind | null): boolean {
   if (kind) return snake(kind) === 'claude_code'
   return provider == null || provider === '' || provider === CLAUDE_CODE_PROVIDER_ID
+}
+
+/** True for a Claude Code on another machine (`claude_code_remote`). Never the local built-in. */
+export function isRemoteClaudeCode(kind: ProviderKind | null | undefined): boolean {
+  return !!kind && snake(kind) === 'claude_code_remote'
+}
+
+/**
+ * How an instance is named where a human picks or reads it. A remote Claude
+ * Code is ALWAYS shown by its id (`claude-code@<name>`), whatever its label: it
+ * must never be mistaken for the local `claude-code`.
+ */
+export function providerDisplayName(instance: { id: ProviderId; kind?: ProviderKind | null; label?: string | null }): string {
+  if (isRemoteClaudeCode(instance.kind)) return instance.id
+  return instance.label || instance.id
 }
 
 /**
@@ -633,6 +649,13 @@ export interface ProviderInstance {
   allowed_for_project?: boolean | null
   /** The server's default instance (`GET /api/chat/providers`). */
   is_default?: boolean
+  /** `claude_code_remote` only: the machine, as stored. The pinned key itself is never listed, only its fingerprint. */
+  host?: string | null
+  ssh_user?: string | null
+  ssh_port?: number | null
+  remote_cwd?: string | null
+  allow_trust?: boolean | null
+  host_key_fingerprint?: string | null
 }
 
 /** Which rule picked the default (persisted server-side as `routed_by`). */
@@ -676,6 +699,7 @@ export const PROVIDER_KIND_LABELS: Readonly<Record<KnownProviderKind, string>> =
   openai_compatible: 'OpenAI-compatible',
   codex: 'Codex',
   acp: 'ACP agent',
+  claude_code_remote: 'Claude Code (SSH)',
 }
 
 export function providerKindLabel(kind: ProviderKind | null | undefined): string {

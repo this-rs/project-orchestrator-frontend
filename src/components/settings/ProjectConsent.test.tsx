@@ -25,7 +25,7 @@ vi.mock('@/services/projects', () => ({
 }))
 
 import { ProjectConsent } from './ProjectConsent'
-import { CLAUDE, DEEPSEEK, LOCAL, mountSettings, response } from './settingsTestKit'
+import { CLAUDE, DEEPSEEK, LOCAL, REMOTE, mountSettings, response } from './settingsTestKit'
 
 beforeEach(() => {
   consents.mockReset().mockResolvedValue([])
@@ -136,5 +136,32 @@ describe('ProjectConsent', () => {
     expect((await screen.findByRole('alert')).textContent).toBe(
       'Le serveur a répondu autre chose que du JSON : GET /api/projects/acme/llm-consent → 502 (text/html)',
     )
+  })
+})
+
+describe('ProjectConsent — Claude Code distant (SSH)', () => {
+  it('names the machine by its id and shows its ssh origin; Allow names that exact origin', async () => {
+    list.mockResolvedValue(response([CLAUDE, REMOTE]))
+    mountSettings(<ProjectConsent />, { list, providers: [CLAUDE, REMOTE], url: '/providers?project=acme' })
+    const row = await screen.findByTestId('consent-claude-code@lab')
+    expect(row.textContent).toContain('claude-code@lab')
+    expect(row.textContent).toContain('ssh:me@lab.example.com:2222')
+    fireEvent.click(within(row).getByRole('button', { name: 'Autoriser claude-code@lab' }))
+    const dialog = screen.getByRole('alertdialog')
+    expect(dialog.textContent).toContain('partira vers ssh:me@lab.example.com:2222')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Autoriser ssh:me@lab.example.com:2222' }))
+    await waitFor(() => expect(allow).toHaveBeenCalledWith('acme', 'claude-code@lab', 'ssh:me@lab.example.com:2222'))
+  })
+
+  it('a consent given for another host is out of date once host/port/user changed', async () => {
+    consents.mockResolvedValue([
+      { provider_id: 'claude-code@lab', origin: 'ssh:me@old.example.com:22', consented_by: 'alice', consented_at: '2026-10-01T10:00:00Z', valid: false },
+    ])
+    list.mockResolvedValue(response([CLAUDE, REMOTE]))
+    mountSettings(<ProjectConsent />, { list, providers: [CLAUDE, REMOTE], url: '/providers?project=acme' })
+    const row = await screen.findByTestId('consent-claude-code@lab')
+    expect(row.getAttribute('data-state')).toBe('invalidated')
+    expect(row.textContent).toContain('ssh:me@old.example.com:22')
+    expect(row.textContent).toContain('ssh:me@lab.example.com:2222')
   })
 })

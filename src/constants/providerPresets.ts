@@ -9,12 +9,14 @@
 // - `codex`: the `codex` program on the server's PATH, no URL;
 // - `acp`: an agent DECLARED on the server in `CHAT_PROVIDER_ACP_COMMANDS`,
 //   named by `preset` (here `opencode`), no URL and no credential.
+// - `claude_code_remote`: the Claude Code CLI on ANOTHER machine, over SSH; the key
+//   is a vault reference, the host key is pinned by a human.
 // Every value is a suggestion the user can change.
 
 import type { CostBasis, ProviderPreset } from '@/types/provider'
 
 export type CredentialKind = 'vault' | 'env' | 'none'
-export type PresetKind = 'openai_compatible' | 'codex' | 'acp'
+export type PresetKind = 'openai_compatible' | 'codex' | 'acp' | 'claude_code_remote'
 
 export interface ProviderPresetInfo {
   /** Unique key of the choice in the wizard. */
@@ -134,6 +136,19 @@ export const PROVIDER_PRESETS: readonly ProviderPresetInfo[] = [
     default_model: '',
     credential_kind: 'none',
     cost_source: 'unknown',
+  },
+  {
+    key: 'claude_code_remote',
+    kind: 'claude_code_remote',
+    preset: null,
+    label: 'Claude Code distant (SSH)',
+    description:
+      'Le Claude Code d’une autre machine, joint en SSH avec une clé du coffre. Le contenu des projets autorisés part vers cette machine.',
+    id: '',
+    base_url: '',
+    default_model: '',
+    credential_kind: 'vault',
+    cost_source: 'subscription',
   },
 ]
 

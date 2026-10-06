@@ -26,7 +26,9 @@ import {
   type ProviderInstance,
 } from '@/types/provider'
 import type { ProviderPatch, ProviderTestResult } from '@/types/providerSettings'
+import { REMOTE_KIND, validateVaultKeyName } from '@/constants/remoteClaudeCode'
 import { ConfirmPanel } from './ConfirmPanel'
+import { RemoteHostFields, remoteErrors, type RemoteField, type RemoteState } from './RemoteHostFields'
 import { FieldNote, FormField } from './FormField'
 import { ModelField } from './ModelField'
 import { SettingsErrorCard } from './SettingsErrorCard'
@@ -120,6 +122,7 @@ function EditForm({
   const kind = stored?.kind ?? instance.kind
   const process = isProcessKind(kind)
   const acp = kind === 'acp'
+  const isRemote = kind === REMOTE_KIND
   /** The full URL is unknown (no read route): an empty field then means "unchanged", not "none". */
   const urlUnknown = !process && !savedUrl
   const [label, setLabel] = useState(stored?.label ?? instance.label ?? '')
@@ -128,6 +131,41 @@ function EditForm({
   const [cost, setCost] = useState<CostBasis>(
     stored?.cost_source ?? instance.cost_source ?? 'unknown'
   )
+  const savedRemote: RemoteState = {
+    host: stored?.host ?? instance.host ?? '',
+    sshUser: stored?.ssh_user ?? instance.ssh_user ?? '',
+    sshPort:
+      stored?.ssh_port != null
+        ? String(stored.ssh_port)
+        : instance.ssh_port != null
+          ? String(instance.ssh_port)
+          : '',
+    remoteCwd: stored?.remote_cwd ?? instance.remote_cwd ?? '',
+    allowTrust: stored?.allow_trust ?? instance.allow_trust ?? false,
+    hostKey: '',
+    hostKeyFingerprint: stored?.host_key_fingerprint ?? instance.host_key_fingerprint ?? '',
+    hostKeyConfirmed: false,
+    // The server holds a pinned key: kept as is until the machine or the port changes.
+    hostKeyKept: !!(stored?.host_key_fingerprint ?? instance.host_key_fingerprint),
+  }
+  const [remote, setRemote] = useState<RemoteState>(savedRemote)
+  const [remoteTouched, setRemoteTouched] = useState<Partial<Record<RemoteField, boolean>>>({})
+  const remoteErrs = useMemo(() => (isRemote ? remoteErrors(remote) : {}), [isRemote, remote])
+  /** Anything about the machine differs from what is saved: a test needs the saved instance first. */
+  const remoteDirty =
+    isRemote &&
+    (remote.host !== savedRemote.host ||
+      remote.sshUser !== savedRemote.sshUser ||
+      remote.sshPort !== savedRemote.sshPort ||
+      remote.remoteCwd !== savedRemote.remoteCwd ||
+      remote.allowTrust !== savedRemote.allowTrust ||
+      !remote.hostKeyKept)
+  /** Host, port or user changed: the consent of every project is revoked. */
+  const originMoved =
+    isRemote &&
+    (remote.host !== savedRemote.host ||
+      remote.sshUser !== savedRemote.sshUser ||
+      remote.sshPort !== savedRemote.sshPort)
   const catalog = useModelCatalog(instance.id)
   const testingRef = useRef(false)
   const [testBlocked, setTestBlocked] = useState<string | null>(null)
@@ -168,14 +206,18 @@ function EditForm({
       const url = validateBaseUrlFr(baseUrl)
       if (url) e.url = url
     }
-    if (credKind === 'vault' && !credName.trim()) e.cred = 'Choisissez la clé du coffre utilisée.'
+    if (credKind === 'vault' && isRemote) {
+      const bad = validateVaultKeyName(credName)
+      if (bad) e.cred = bad
+    } else if (credKind === 'vault' && !credName.trim())
+      e.cred = 'Choisissez la clé du coffre utilisée.'
     if (credKind === 'env') {
       const env = validateEnvName(credName)
       if (env) e.cred = env
     }
     return e
-  }, [baseUrl, credKind, credName, process, urlUnknown])
-  const valid = Object.keys(errors).length === 0
+  }, [baseUrl, credKind, credName, process, urlUnknown, isRemote])
+  const valid = Object.keys(errors).length === 0 && Object.keys(remoteErrs).length === 0
 
   const patch = (): ProviderPatch => {
     const p: ProviderPatch = {
@@ -190,6 +232,15 @@ function EditForm({
     // A codex / acp instance has no URL: the backend refuses one in a patch.
     // An unknown URL left empty is not sent: the stored one stays.
     if (!process && baseUrl.trim()) p.base_url = baseUrl.trim()
+    if (isRemote) {
+      p.host = remote.host.trim()
+      p.ssh_user = remote.sshUser.trim()
+      if (remote.sshPort.trim()) p.ssh_port = Number(remote.sshPort)
+      p.remote_cwd = remote.remoteCwd.trim()
+      p.allow_trust = remote.allowTrust
+      // The pinned key is only sent when a human just confirmed a new one.
+      if (!remote.hostKeyKept) p.host_key = remote.hostKey.trim()
+    }
     return p
   }
 
@@ -215,7 +266,7 @@ function EditForm({
     // A test that sends a key runs only on the SAVED instance, same origin and same key reference.
     if (
       credentialRef !== 'none' &&
-      (credentialRef !== savedRef || (!process && originNow !== savedOrigin))
+      (credentialRef !== savedRef || remoteDirty || (!process && originNow !== savedOrigin))
     ) {
       return 'Enregistrez d’abord l’instance : un test qui envoie une clé exige une instance enregistrée, avec la même URL et la même référence de clé.'
     }
@@ -343,6 +394,25 @@ function EditForm({
             />
           </FormField>
         )}
+        {isRemote && (
+          <RemoteHostFields
+            uid={uid}
+            value={remote}
+            errors={remoteErrs}
+            touched={remoteTouched}
+            onChange={(patch) => {
+              setRemote((r) => ({ ...r, ...patch }))
+              edited()
+            }}
+            onTouch={(f) => setRemoteTouched((t) => ({ ...t, [f]: true }))}
+          />
+        )}
+        {originMoved && (
+          <p role="note" data-testid="remote-origin-moved" className="text-xs text-amber-300 sm:col-span-2">
+            Changer la machine, le port ou l’utilisateur révoque l’autorisation de chaque projet : il
+            faudra la redonner.
+          </p>
+        )}
         <ModelField
           id={`${uid}-model`}
           label="Modèle par défaut"
@@ -370,7 +440,13 @@ function EditForm({
         <div className="min-w-0">
           <Select
             label="Référence de la clé"
-            options={acp ? CRED_OPTIONS.filter((o) => o.value === 'none') : CRED_OPTIONS}
+            options={
+              acp
+                ? CRED_OPTIONS.filter((o) => o.value === 'none')
+                : isRemote
+                  ? CRED_OPTIONS.filter((o) => o.value === 'vault')
+                  : CRED_OPTIONS
+            }
             value={credKind}
             onChange={(v) => {
               setCredKind(v as CredentialKind)
@@ -383,7 +459,9 @@ function EditForm({
             help={
               acp
                 ? 'Un agent ACP gère sa propre connexion.'
-                : 'Changer la référence invalide les autorisations des projets.'
+                : isRemote
+                  ? 'La clé privée SSH, par son nom dans le coffre.'
+                  : 'Changer la référence invalide les autorisations des projets.'
             }
           />
         </div>
