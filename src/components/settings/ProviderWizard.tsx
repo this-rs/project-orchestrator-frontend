@@ -192,6 +192,8 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
   const [defaultBusy, setDefaultBusy] = useState(false)
   const [defaultError, setDefaultError] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
+  /** Synchronous guard: a double click must not start the chain (or a test) twice. */
+  const runningRef = useRef(false)
 
   const [projectSlug, setProjectSlug] = useState('')
   const [consented, setConsented] = useState<{ slug: string; origin: string } | null>(null)
@@ -337,6 +339,8 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
     /** Model to probe instead of the draft's default (only the test uses it). */
     testModel?: string
   ) => {
+    if (runningRef.current) return
+    runningRef.current = true
     setRunning(true)
     setFailure(null)
     const state = { ...from }
@@ -387,11 +391,13 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
           task: t,
           message: err instanceof WizardStop ? err.message : wizardErrorMessage(err),
         })
+        runningRef.current = false
         setRunning(false)
         if (done.instance) void refresh()
         return
       }
     }
+    runningRef.current = false
     setRunning(false)
     void refresh()
   }

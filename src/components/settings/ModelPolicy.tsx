@@ -7,9 +7,15 @@ import { hasUsdPrice } from '@/constants/providerSettings'
 import {
   POLICY_MODES_FR,
   POLICY_ROLE_LABELS_FR,
+  modelCapabilities,
   wizardErrorMessage,
 } from '@/constants/providerWizard'
-import { capabilitiesFor, type ModelAlias, type ProviderInstance } from '@/types/provider'
+import {
+  capabilitiesFor,
+  type ModelAlias,
+  type ProviderInstance,
+  type ProviderModel,
+} from '@/types/provider'
 import {
   POLICY_RULE_ROLES,
   type ModelPolicy as Policy,
@@ -18,6 +24,7 @@ import {
 import { ConfirmPanel } from './ConfirmPanel'
 import { ChoiceRow, FieldNote, FIELD_LABEL, FormField, NativeSelect } from './FormField'
 import { ErrorLine, Loading, Panel, SaveStatus } from './SettingsPanel'
+import { useModelCatalog } from './useModelCatalog'
 
 const FIXED_ALIASES = ['fast', 'default', 'deep', 'utility'] as const
 const OFF_POLICY: Policy = { mode: 'off', rules: {}, fallback: [], caps: {} }
@@ -40,9 +47,69 @@ function withFixedRows(aliases: ModelAlias[]): ModelAlias[] {
   ]
 }
 
+/**
+ * The model of one alias, from the instance's catalog (loaded on demand,
+ * cached for the session), with capabilities when known; free typing when the
+ * catalog is empty or unavailable. A model outside the catalog stays visible.
+ */
+function AliasModelSelect({
+  id,
+  provider,
+  fallback,
+  value,
+  onChange,
+}: {
+  id: string
+  provider: string
+  fallback: ProviderModel[]
+  value: string
+  onChange: (model: string) => void
+}) {
+  const catalog = useModelCatalog(provider || null, !!provider)
+  const models = catalog.models && catalog.models.length > 0 ? catalog.models : fallback
+  if (!provider || models.length === 0) {
+    return (
+      <Input
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={!provider}
+        title={catalog.error ? `Catalogue indisponible : ${catalog.error}` : undefined}
+        placeholder={
+          !provider ? '—' : catalog.loading ? 'Chargement des modèles…' : 'nom du modèle'
+        }
+      />
+    )
+  }
+  const listed = models.some((m) => m.id === value)
+  return (
+    <NativeSelect id={id} value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">Choisir un modèle…</option>
+      {value && !listed && <option value={value}>{value} (hors catalogue)</option>}
+      {models.map((m) => {
+        const caps = modelCapabilities(m)
+        return (
+          <option key={m.id} value={m.id}>
+            {m.label ?? m.id}
+            {caps ? ` — ${caps}` : ''}
+          </option>
+        )
+      })}
+    </NativeSelect>
+  )
+}
+
 const ALIAS_GRID = 'grid gap-3 sm:grid-cols-[8rem_minmax(0,1fr)_minmax(0,1fr)_6rem] sm:items-center'
 
-function AliasTable({ instances }: { instances: ProviderInstance[] }) {
+function AliasTable({
+  instances,
+  collapsible,
+  defaultOpen,
+}: {
+  instances: ProviderInstance[]
+  collapsible?: boolean
+  defaultOpen?: boolean
+}) {
   const [saved, setSaved] = useState<ModelAlias[] | null>(null)
   const [rows, setRows] = useState<ModelAlias[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -91,6 +158,8 @@ function AliasTable({ instances }: { instances: ProviderInstance[] }) {
   return (
     <Panel
       testId="aliases-panel"
+      collapsible={collapsible}
+      defaultOpen={defaultOpen}
       title="Alias de modèles"
       description="Un alias est un nom logique (fast, default, deep, utility…) qui pointe vers un modèle d’un provider ; la politique ci-dessous s’en sert. Un alias sans provider n’est simplement pas utilisable."
       status={<SaveStatus error={error} done={done} doneText="Alias enregistrés." />}
@@ -195,28 +264,13 @@ function AliasTable({ instances }: { instances: ProviderInstance[] }) {
                     <label htmlFor={`alias-model-${i}`} className={`${FIELD_LABEL} sm:sr-only`}>
                       Modèle de {name}
                     </label>
-                    {models.length > 0 ? (
-                      <NativeSelect
-                        id={`alias-model-${i}`}
-                        value={row.model}
-                        onChange={(e) => set(i, { model: e.target.value })}
-                      >
-                        <option value="">Choisir un modèle…</option>
-                        {models.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.label ?? m.id}
-                          </option>
-                        ))}
-                      </NativeSelect>
-                    ) : (
-                      <Input
-                        id={`alias-model-${i}`}
-                        value={row.model}
-                        onChange={(e) => set(i, { model: e.target.value })}
-                        disabled={!row.provider}
-                        placeholder={row.provider ? 'nom du modèle' : '—'}
-                      />
-                    )}
+                    <AliasModelSelect
+                      id={`alias-model-${i}`}
+                      provider={row.provider}
+                      fallback={models}
+                      value={row.model}
+                      onChange={(model) => set(i, { model })}
+                    />
                   </div>
                   <div className="flex items-center justify-end gap-2">
                     {unhealthy && (
@@ -248,7 +302,15 @@ function AliasTable({ instances }: { instances: ProviderInstance[] }) {
 const USD_CAP_HELP_FR =
   'Un plafond en dollars a besoin d’un prix : une exécution plafonnée en USD est refusée si son modèle n’en a pas. Les modèles sans prix se plafonnent en tokens.'
 
-function PolicyForm({ instances }: { instances: ProviderInstance[] }) {
+function PolicyForm({
+  instances,
+  collapsible,
+  defaultOpen,
+}: {
+  instances: ProviderInstance[]
+  collapsible?: boolean
+  defaultOpen?: boolean
+}) {
   const [saved, setSaved] = useState<Policy | null>(null)
   const [draft, setDraft] = useState<Policy>(OFF_POLICY)
   const [aliases, setAliases] = useState<ModelAlias[]>([])
@@ -394,6 +456,8 @@ function PolicyForm({ instances }: { instances: ProviderInstance[] }) {
   return (
     <Panel
       testId="policy-panel"
+      collapsible={collapsible}
+      defaultOpen={defaultOpen}
       title="Politique de modèle"
       description="Choisit le modèle de chaque usage (conversation, runner…) à partir des alias, avec une chaîne de repli et des plafonds. Désactivée, rien ne change : chaque rôle garde son modèle."
       status={<SaveStatus error={error} done={done} doneText="Politique enregistrée." />}
@@ -616,12 +680,15 @@ function PolicyForm({ instances }: { instances: ProviderInstance[] }) {
 }
 
 /** Model aliases and the routing policy (delivered `off`). */
-export function ModelPolicy() {
+export function ModelPolicy({
+  collapsible,
+  defaultOpen,
+}: { collapsible?: boolean; defaultOpen?: boolean } = {}) {
   const { providers } = useProviders()
   return (
     <div className="space-y-6">
-      <AliasTable instances={providers} />
-      <PolicyForm instances={providers} />
+      <AliasTable instances={providers} collapsible={collapsible} defaultOpen={defaultOpen} />
+      <PolicyForm instances={providers} collapsible={collapsible} defaultOpen={defaultOpen} />
     </div>
   )
 }

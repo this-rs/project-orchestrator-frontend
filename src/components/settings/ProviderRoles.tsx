@@ -51,7 +51,10 @@ const same = (a: RoleAssignments | null, b: RoleAssignments) =>
  * project (global) or for one project. A role left empty inherits — a project
  * role from the global role, the global role from the server default.
  */
-export function ProviderRoles() {
+export function ProviderRoles({
+  collapsible,
+  defaultOpen,
+}: { collapsible?: boolean; defaultOpen?: boolean } = {}) {
   const refreshChat = useRefreshProviders()
   const projects = useProjectOptions()
   const [params, setParams] = useSearchParams()
@@ -134,6 +137,8 @@ export function ProviderRoles() {
   return (
     <Panel
       testId={`roles-${scopeId}`}
+      collapsible={collapsible}
+      defaultOpen={defaultOpen}
       title="Rôles"
       description={
         <>

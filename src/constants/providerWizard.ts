@@ -17,6 +17,7 @@ import type {
   ProviderErrorInfo,
   ProviderHealth,
   ProviderInstance,
+  ProviderModel,
 } from '@/types/provider'
 
 // ---------------------------------------------------------------------------
@@ -224,6 +225,9 @@ export function wizardErrorMessage(err: unknown): string {
 export type InstanceStatusKey =
   | 'connected'
   | 'key_missing'
+  | 'login_required'
+  | 'vault_locked'
+  | 'key_refused'
   | 'not_allowed'
   | 'unreachable'
   | 'degraded'
@@ -235,12 +239,17 @@ export interface InstanceStatus {
   variant: 'success' | 'warning' | 'error' | 'default'
 }
 
-const KEY_CODES = new Set(['auth_required', 'credentials_locked', 'unauthorized'])
-
 export function instanceStatus(instance: ProviderInstance, health: ProviderHealth): InstanceStatus {
   const code = health.error?.code
-  if (health.status === 'auth_required' || (code && KEY_CODES.has(code))) {
-    return { key: 'key_missing', label: 'Clé manquante', variant: 'warning' }
+  if (code === 'credentials_locked')
+    return { key: 'vault_locked', label: 'Coffre verrouillé', variant: 'warning' }
+  if (code === 'unauthorized') return { key: 'key_refused', label: 'Clé refusée', variant: 'error' }
+  if (health.status === 'auth_required' || code === 'auth_required') {
+    // A key reference that cannot be read (missing from the vault, not granted) vs. a program to sign in to.
+    const usesKey = !!instance.credential_ref && instance.credential_ref !== 'none'
+    return usesKey && !health.login_hint
+      ? { key: 'key_missing', label: 'Clé manquante', variant: 'warning' }
+      : { key: 'login_required', label: 'Connexion requise', variant: 'warning' }
   }
   if (health.status === 'unhealthy')
     return { key: 'unreachable', label: 'Injoignable', variant: 'error' }
@@ -325,4 +334,23 @@ export const POLICY_ROLE_LABELS_FR: Readonly<Record<string, string>> = {
   'runner.retry': 'Runner, nouvel essai',
   'utility.feature_graph': 'Graphe de fonctionnalités',
   'utility.compaction': 'Compaction du contexte',
+}
+
+/** "outils : oui · 131 072 tokens" when known. */
+export function modelCapabilities(m: ProviderModel | undefined): string | null {
+  const c = m?.capabilities
+  if (!c) return null
+  const parts: string[] = []
+  if (typeof c.tools === 'boolean') parts.push(`outils : ${c.tools ? 'oui' : 'non'}`)
+  if (c.context_window?.value)
+    parts.push(`${c.context_window.value.toLocaleString('fr-FR')} tokens`)
+  return parts.length ? parts.join(' · ') : null
+}
+
+/** A credential reference in words: « Coffre : deepseek », « Variable : DEEPSEEK_API_KEY », « aucune ». */
+export function credentialLabelFr(ref: string | null | undefined): string {
+  if (!ref || ref === 'none') return 'aucune'
+  if (ref.startsWith('vault:')) return `Coffre : ${ref.slice(6)}`
+  if (ref.startsWith('env:')) return `Variable : ${ref.slice(4)}`
+  return ref
 }

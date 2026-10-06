@@ -19,10 +19,20 @@ vi.mock('@/services/providers', async (orig) => ({
     consents: vi.fn().mockResolvedValue([]),
   },
 }))
-vi.mock('@/services/projects', () => ({ projectsApi: { list: vi.fn().mockResolvedValue({ items: [] }) } }))
+vi.mock('@/services/projects', () => ({
+  projectsApi: { list: vi.fn().mockResolvedValue({ items: [] }) },
+}))
 vi.mock('@/services/vault', async (orig) => ({
   ...(await orig<typeof import('@/services/vault')>()),
-  vaultApi: { overview: vi.fn().mockResolvedValue({ initialized: false, unlocked_until: null, secrets: [], grants: [], requests: [] }) },
+  vaultApi: {
+    overview: vi.fn().mockResolvedValue({
+      initialized: false,
+      unlocked_until: null,
+      secrets: [],
+      grants: [],
+      requests: [],
+    }),
+  },
 }))
 
 import { providersApi } from '@/services/providers'
@@ -43,23 +53,29 @@ describe('ProviderSettings', () => {
     expect(container.querySelector('form, button, select, input')).toBeNull()
   })
 
-  it('renders the anchored sections; roles and policy are folded under "Avancé"', () => {
+  it('renders the anchored sections; roles, aliases and policy are folded panels under "Avancé"', () => {
     vi.mocked(providersApi.list).mockResolvedValue(response([CLAUDE]))
-    const { container } = mountSettings(<ProviderSettings />)
-    for (const id of ['instances', 'consent', 'advanced']) expect(container.querySelector(`section#${id}`)).not.toBeNull()
-    expect(container.querySelector('#roles')).toBeNull()
-    expect(container.querySelector('#models')).toBeNull()
+    mountSettings(<ProviderSettings />)
+    const { container } = { container: document.body }
+    for (const id of ['instances', 'consent', 'advanced'])
+      expect(container.querySelector(`section#${id}`)).not.toBeNull()
     expect(screen.getByRole('link', { name: 'Avancé' }).getAttribute('href')).toBe('#advanced')
-    fireEvent.click(screen.getByRole('button', { name: 'Avancé' }))
-    expect(container.querySelector('#roles')).not.toBeNull()
-    expect(container.querySelector('#models')).not.toBeNull()
-    expect(screen.getByRole('region', { name: 'Rôles' })).toBeTruthy()
+    for (const id of ['roles-global', 'aliases-panel', 'policy-panel'])
+      expect(screen.getByTestId(id).getAttribute('data-open')).toBe('false')
+    expect(screen.queryByLabelText('Pilote')).toBeNull()
+    const toggle = screen.getByRole('button', { name: 'Rôles' })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(toggle)
+    expect(screen.getByTestId('roles-global').getAttribute('data-open')).toBe('true')
+    expect(screen.getByTestId('policy-panel').getAttribute('data-open')).toBe('false')
   })
 
-  it('a link to #roles or #models opens the fold', () => {
+  it('a link to #roles or #models opens that panel', () => {
     vi.mocked(providersApi.list).mockResolvedValue(response([CLAUDE]))
-    const { container } = mountSettings(<ProviderSettings />, { url: '/providers#roles' })
-    expect(container.querySelector('#roles')).not.toBeNull()
+    mountSettings(<ProviderSettings />, { url: '/providers#models' })
+    expect(screen.getByTestId('policy-panel').getAttribute('data-open')).toBe('true')
+    expect(screen.getByTestId('aliases-panel').getAttribute('data-open')).toBe('true')
+    expect(screen.getByTestId('roles-global').getAttribute('data-open')).toBe('false')
   })
 
   it('"Ajouter un provider" opens the wizard in place of the button', () => {
@@ -75,10 +91,13 @@ describe('ProviderSettings', () => {
   it('every button of the page is a kit Button, and the sections have one right-aligned footer each', async () => {
     vi.mocked(providersApi.list).mockResolvedValue(response([CLAUDE]))
     const { container } = mountSettings(<ProviderSettings />, { url: '/providers#advanced' })
+    for (const name of ['Rôles', 'Alias de modèles', 'Politique de modèle'])
+      fireEvent.click(screen.getByRole('button', { name }))
     await screen.findByRole('radio', { name: /Désactivée/ })
+    await screen.findByLabelText('Pilote')
     for (const b of container.querySelectorAll('button')) {
       if (b.getAttribute('role') === 'combobox' || b.getAttribute('role') === 'option') continue
-      if (b.getAttribute('aria-expanded') !== null) continue // the "Avancé" toggle of the kit Section
+      if (b.getAttribute('aria-expanded') !== null) continue // the toggles of the folded panels
       expect(b.className).toMatch(/inline-flex items-center justify-center font-medium rounded-lg/)
     }
     for (const id of ['roles-global', 'aliases-panel', 'policy-panel']) {
@@ -87,7 +106,9 @@ describe('ProviderSettings', () => {
       expect(footers[0].className).toContain('justify-end')
       const save = within(footers[0] as HTMLElement).getByRole('button', { name: 'Enregistrer' })
       expect(save.className).toContain('bg-indigo-600')
-      expect(within(footers[0] as HTMLElement).getByRole('button', { name: 'Annuler' }).className).toContain('hover:bg-white/[0.06] text-gray-300')
+      expect(
+        within(footers[0] as HTMLElement).getByRole('button', { name: 'Annuler' }).className
+      ).toContain('hover:bg-white/[0.06] text-gray-300')
     }
   })
 })

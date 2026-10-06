@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Badge, Button, Facts, surface } from '@/components/ui'
-import { ProviderStateCard } from '@/components/chat/ProviderStateCard'
 import { useProviders, useRefreshProviders } from '@/hooks/useProviders'
 import { providersApi } from '@/services/providers'
 import {
   COST_LABELS_FR,
+  credentialLabelFr,
   formatWhenFr,
   instanceStatus,
   kindLabelFr,
@@ -19,6 +19,7 @@ import {
   type ProviderInstance,
 } from '@/types/provider'
 import { ConfirmPanel } from './ConfirmPanel'
+import { SettingsErrorCard } from './SettingsErrorCard'
 import { ProviderInstanceForm } from './ProviderInstanceForm'
 
 /** The error card of a not-healthy instance. `auth_required` always gets one: it carries the login command. */
@@ -90,41 +91,59 @@ function InstanceCard({
         <div className="min-w-0">
           <h3 className="truncate text-sm font-semibold text-gray-100">{instance.label}</h3>
           <p className="text-xs text-gray-500">
-            {kindLabelFr(instance.kind)} · <span className="font-mono">{instance.id}</span>
+            {kindLabelFr(instance.kind)}
+            {instance.id.toLowerCase() !== instance.label.toLowerCase() &&
+              instance.id.replace(/-/g, ' ') !== instance.label.toLowerCase() && (
+                <>
+                  {' '}
+                  · <span className="font-mono">{instance.id}</span>
+                </>
+              )}
+            {health.checked_at && (
+              <span className="text-gray-600"> · vérifié {formatWhenFr(health.checked_at)}</span>
+            )}
           </p>
         </div>
         <Badge variant={status.variant}>{status.label}</Badge>
       </div>
 
-      <Facts
-        className="mt-3"
-        columns={2}
-        items={[
-          {
-            label: 'Point d’accès',
-            value: (
-              <span className="break-all">
-                {instance.origin ?? (builtin ? 'programme local' : 'inconnu')}
-              </span>
-            ),
-          },
-          { label: 'Modèle', value: instance.default_model ?? 'aucun par défaut' },
-          { label: 'Coût', value: COST_LABELS_FR[instance.cost_source ?? 'unknown'] },
-          {
-            label: 'Clé',
-            value: (
-              <span className="font-mono">
-                {builtin ? 'gérée par le programme' : credentialLabel(instance.credential_ref)}
-              </span>
-            ),
-          },
-          { label: 'Version', value: health.version ?? 'inconnue' },
-          { label: 'Vérifié', value: formatWhenFr(health.checked_at) },
-        ]}
-      />
+      {!editing && (
+        <Facts
+          className="mt-3"
+          columns={2}
+          items={[
+            {
+              label: 'Point d’accès',
+              value: (
+                <span className="break-all">
+                  {instance.origin ?? (builtin ? 'programme local' : 'inconnu')}
+                </span>
+              ),
+            },
+            // Only the lines that say something: the list carries no default model, an unknown cost or version says nothing.
+            { label: 'Modèle', value: instance.default_model, hidden: !instance.default_model },
+            {
+              label: 'Coût',
+              value: COST_LABELS_FR[instance.cost_source ?? 'unknown'],
+              hidden: !instance.cost_source || instance.cost_source === 'unknown',
+            },
+            {
+              label: 'Clé',
+              value: builtin ? (
+                'gérée par le programme'
+              ) : (
+                <span title={credentialLabel(instance.credential_ref)}>
+                  {credentialLabelFr(instance.credential_ref)}
+                </span>
+              ),
+            },
+            { label: 'Version', value: health.version, hidden: !health.version },
+          ]}
+        />
+      )}
 
       {error && (
-        <ProviderStateCard
+        <SettingsErrorCard
           error={error}
           className="mt-3"
           testId={`instance-error-${instance.id}`}

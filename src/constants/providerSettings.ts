@@ -114,6 +114,3 @@ export const PROVIDER_SECTIONS = [
   { id: 'consent', title: 'Autorisations des projets' },
   { id: 'advanced', title: 'Avancé' },
 ] as const
-
-/** Anchors that live inside the folded "Avancé" zone: reaching one unfolds it. */
-export const ADVANCED_ANCHORS = ['#advanced', '#roles', '#models'] as const

@@ -21,6 +21,7 @@ vi.mock('@/services/providers', async (orig) => ({
     setPolicy: (...a: unknown[]) => setPolicy(...a),
     list: (...a: unknown[]) => list(...a),
     status: vi.fn(),
+    models: vi.fn().mockRejectedValue(new Error('no catalog in this test')),
   },
 }))
 
@@ -34,7 +35,8 @@ const ALIASES = [
 ]
 const OFF = { mode: 'off', rules: {}, fallback: [], caps: {} }
 
-const el = (name: RegExp | string) => screen.getByLabelText(name) as HTMLInputElement & HTMLSelectElement
+const el = (name: RegExp | string) =>
+  screen.getByLabelText(name) as HTMLInputElement & HTMLSelectElement
 const policyPanel = () => within(screen.getByTestId('policy-panel'))
 const aliasPanel = () => within(screen.getByTestId('aliases-panel'))
 
@@ -77,7 +79,9 @@ describe('alias table', () => {
 
   it('an alias that could not be read: the error and a retry, never an empty table that would overwrite', async () => {
     const { ApiError } = await import('@/services/api')
-    aliases.mockRejectedValueOnce(new ApiError(500, '{"error":"boom"}')).mockRejectedValueOnce(new ApiError(500, '{"error":"boom"}'))
+    aliases
+      .mockRejectedValueOnce(new ApiError(500, '{"error":"boom"}'))
+      .mockRejectedValueOnce(new ApiError(500, '{"error":"boom"}'))
     mountSettings(<ModelPolicy />, { providers: [CLAUDE, DEEPSEEK, LOCAL], list })
     expect(await aliasPanel().findByRole('alert')).toBeTruthy()
     expect(screen.queryByTestId('alias-fast')).toBeNull()
@@ -90,13 +94,21 @@ describe('alias table', () => {
 describe('policy', () => {
   it('is delivered "Désactivée"; the modes are translated, and "Observer seulement" says it applies nothing', async () => {
     await mount()
-    expect((screen.getByRole('radio', { name: /Désactivée/ }) as HTMLInputElement).checked).toBe(true)
-    expect(screen.getByRole('radio', { name: /Observer seulement.*N’applique rien, enregistre ce qu’elle aurait choisi/ })).toBeTruthy()
+    expect((screen.getByRole('radio', { name: /Désactivée/ }) as HTMLInputElement).checked).toBe(
+      true
+    )
+    expect(
+      screen.getByRole('radio', {
+        name: /Observer seulement.*N’applique rien, enregistre ce qu’elle aurait choisi/,
+      })
+    ).toBeTruthy()
     expect(screen.getByRole('radio', { name: /Appliquer/ })).toBeTruthy()
     expect(screen.getByTestId('policy-panel').textContent).not.toMatch(/shadow|enforce/i)
     expect(screen.queryByText(/sans l’appliquer/)).toBeNull()
     fireEvent.click(screen.getByRole('radio', { name: /Observer seulement/ }))
-    expect(screen.getByText(/la politique calcule et enregistre son choix, sans l’appliquer/)).toBeTruthy()
+    expect(
+      screen.getByText(/la politique calcule et enregistre son choix, sans l’appliquer/)
+    ).toBeTruthy()
   })
 
   it('"Appliquer" lists the usages whose model changes and only saves once confirmed', async () => {
@@ -106,12 +118,17 @@ describe('policy', () => {
     fireEvent.click(screen.getByRole('radio', { name: /Appliquer/ }))
     save()
     const dialog = screen.getByRole('alertdialog')
-    expect(dialog.textContent).toContain('Runner, tâche complexe : DeepSeek / deepseek-chat → DeepSeek / deepseek-reasoner')
+    expect(dialog.textContent).toContain(
+      'Runner, tâche complexe : DeepSeek / deepseek-chat → DeepSeek / deepseek-reasoner'
+    )
     expect(dialog.textContent).not.toContain('Conversation :')
     expect(setPolicy).not.toHaveBeenCalled()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Appliquer' }))
     await waitFor(() => expect(setPolicy).toHaveBeenCalledTimes(1))
-    expect(setPolicy.mock.calls[0][0]).toMatchObject({ mode: 'enforce', rules: { 'runner.complex': 'deep', chat: 'default' } })
+    expect(setPolicy.mock.calls[0][0]).toMatchObject({
+      mode: 'enforce',
+      rules: { 'runner.complex': 'deep', chat: 'default' },
+    })
   })
 
   it('"Observer seulement" saves without a confirmation', async () => {
@@ -127,16 +144,25 @@ describe('policy', () => {
     policy.mockResolvedValue({ ...OFF, fallback: ['default', 'deep', 'fast'] })
     await mount()
     const chain = screen.getByRole('list', { name: 'Chaîne de repli' })
-    const order = () => within(chain).getAllByRole('listitem').map((li) => li.textContent!.replace(/^\d\./, '').trim().split(' ')[0])
+    const order = () =>
+      within(chain)
+        .getAllByRole('listitem')
+        .map((li) => li.textContent!.replace(/^\d\./, '').trim().split(' ')[0])
     expect(order()).toEqual(['default', 'deep', 'fast'])
     fireEvent.click(screen.getByRole('button', { name: 'Monter fast' }))
     expect(order()).toEqual(['default', 'fast', 'deep'])
     fireEvent.click(screen.getByRole('button', { name: 'Descendre default' }))
     expect(order()).toEqual(['fast', 'default', 'deep'])
-    expect((screen.getByRole('button', { name: 'Monter fast' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(
+      (screen.getByRole('button', { name: 'Monter fast' }) as HTMLButtonElement).disabled
+    ).toBe(true)
     save()
-    await waitFor(() => expect(setPolicy.mock.calls[0][0]).toMatchObject({ fallback: ['fast', 'default', 'deep'] }))
-    expect(screen.getByText(/n’atteint jamais une origine que le projet n’a pas autorisée/)).toBeTruthy()
+    await waitFor(() =>
+      expect(setPolicy.mock.calls[0][0]).toMatchObject({ fallback: ['fast', 'default', 'deep'] })
+    )
+    expect(
+      screen.getByText(/n’atteint jamais une origine que le projet n’a pas autorisée/)
+    ).toBeTruthy()
   })
 
   it('USD caps need a price on every aliased instance; otherwise explained and tokens only', async () => {
@@ -144,12 +170,19 @@ describe('policy', () => {
     await mount()
     const usd = el('Par exécution (USD)')
     expect(usd.getAttribute('aria-disabled')).toBe('true')
-    expect(document.getElementById(usd.getAttribute('aria-describedby')!)?.textContent).toContain('refusée si son modèle n’en a pas')
+    expect(document.getElementById(usd.getAttribute('aria-describedby')!)?.textContent).toContain(
+      'refusée si son modèle n’en a pas'
+    )
     fireEvent.change(usd, { target: { value: '5' } })
     expect(usd.value).toBe('')
     fireEvent.change(el('Par exécution (tokens)'), { target: { value: '50000' } })
     save()
-    await waitFor(() => expect(setPolicy.mock.calls[0][0].caps).toMatchObject({ per_run_tokens: 50000, per_run_usd: null }))
+    await waitFor(() =>
+      expect(setPolicy.mock.calls[0][0].caps).toMatchObject({
+        per_run_tokens: 50000,
+        per_run_usd: null,
+      })
+    )
   })
 
   it('USD caps are offered when every aliased instance is priced', async () => {
@@ -169,7 +202,9 @@ describe('policy', () => {
     fireEvent.click(screen.getByRole('radio', { name: /Appliquer/ }))
     expect(cancel.disabled).toBe(false)
     fireEvent.click(cancel)
-    expect((screen.getByRole('radio', { name: /Désactivée/ }) as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByRole('radio', { name: /Désactivée/ }) as HTMLInputElement).checked).toBe(
+      true
+    )
   })
 
   it('a 403 reads as the human-only rule, in French', async () => {
@@ -177,15 +212,21 @@ describe('policy', () => {
     setPolicy.mockRejectedValue(new ApiError(403, ''))
     await mount()
     save()
-    expect((await policyPanel().findByRole('alert')).textContent).toBe('Seule une personne connectée peut faire ce changement (un agent ne le peut pas).')
+    expect((await policyPanel().findByRole('alert')).textContent).toBe(
+      'Seule une personne connectée peut faire ce changement (un agent ne le peut pas).'
+    )
   })
 
   it('a policy answer that is not JSON: the named request, and no form that would save "Désactivée" over it', async () => {
     const { NonJsonResponseError } = await import('@/services/api')
-    policy.mockRejectedValueOnce(new NonJsonResponseError(200, 'GET', '/api/chat/model-policy', 'text/html'))
+    policy.mockRejectedValueOnce(
+      new NonJsonResponseError(200, 'GET', '/api/chat/model-policy', 'text/html')
+    )
     mountSettings(<ModelPolicy />, { providers: [CLAUDE, DEEPSEEK, LOCAL], list })
     const alert = await policyPanel().findByRole('alert')
-    expect(alert.textContent).toBe('Le serveur a répondu autre chose que du JSON : GET /api/chat/model-policy → 200 (text/html)')
+    expect(alert.textContent).toBe(
+      'Le serveur a répondu autre chose que du JSON : GET /api/chat/model-policy → 200 (text/html)'
+    )
     expect(screen.queryByRole('radio', { name: /Désactivée/ })).toBeNull()
     expect(policyPanel().queryByRole('button', { name: 'Enregistrer' })).toBeNull()
     fireEvent.click(policyPanel().getByRole('button', { name: 'Réessayer' }))

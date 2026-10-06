@@ -68,14 +68,23 @@ const OPEN_VAULT = {
 }
 
 function mount() {
-  return mountSettings(<ProviderWizard existingIds={['claude-code', 'deepseek']} onClose={onClose} onFinished={onFinished} />, {
-    providers: [CLAUDE, DEEPSEEK],
-    list,
-  })
+  return mountSettings(
+    <ProviderWizard
+      existingIds={['claude-code', 'deepseek']}
+      onClose={onClose}
+      onFinished={onFinished}
+    />,
+    {
+      providers: [CLAUDE, DEEPSEEK],
+      list,
+    }
+  )
 }
 const field = (name: string | RegExp) => screen.getByLabelText(name) as HTMLInputElement
 const button = (name: string | RegExp) => screen.getByRole('button', { name })
-const current = () => screen.getByRole('list', { name: 'Étapes de l’assistant' }).querySelector('[aria-current="step"]')?.textContent
+const current = () =>
+  screen.getByRole('list', { name: 'Étapes de l’assistant' }).querySelector('[aria-current="step"]')
+    ?.textContent
 
 /** Pick an option of a kit Select (a combobox + listbox, not a native select). */
 function pick(combo: string, option: string) {
@@ -88,7 +97,19 @@ function pick(combo: string, option: string) {
 beforeEach(() => {
   list.mockReset().mockResolvedValue(response([CLAUDE, DEEPSEEK]))
   update.mockReset().mockResolvedValue({})
-  for (const m of [test, create, remove, allow, putSecret, createGrant, deleteSecret, revokeGrant, onClose, onFinished]) m.mockReset()
+  for (const m of [
+    test,
+    create,
+    remove,
+    allow,
+    putSecret,
+    createGrant,
+    deleteSecret,
+    revokeGrant,
+    onClose,
+    onFinished,
+  ])
+    m.mockReset()
   proof = true
   overview.mockReset().mockResolvedValue(OPEN_VAULT)
   create.mockResolvedValue({})
@@ -98,14 +119,27 @@ beforeEach(() => {
   createGrant.mockResolvedValue({ id: 'grant-1' })
   deleteSecret.mockResolvedValue({})
   revokeGrant.mockResolvedValue({})
-  test.mockResolvedValue({ ok: true, health: { state: 'ok' }, models: [{ id: 'qwen3' }, { id: 'llama3' }], probe: { tools: true, context_window: 131072 } })
+  test.mockResolvedValue({
+    ok: true,
+    health: { state: 'ok' },
+    models: [{ id: 'qwen3' }, { id: 'llama3' }],
+    probe: { tools: true, context_window: 131072 },
+  })
 })
 
 describe('ProviderWizard — steps and presets', () => {
   it('shows five numbered steps and starts on "Modèle"', () => {
     mount()
-    const steps = within(screen.getByRole('list', { name: 'Étapes de l’assistant' })).getAllByRole('listitem')
-    expect(steps.map((s) => s.textContent)).toEqual(['1Modèle', '2Clé', '3Connexion', '4Projet', '5Récapitulatif'])
+    const steps = within(screen.getByRole('list', { name: 'Étapes de l’assistant' })).getAllByRole(
+      'listitem'
+    )
+    expect(steps.map((s) => s.textContent)).toEqual([
+      '1Modèle',
+      '2Clé',
+      '3Connexion',
+      '4Projet',
+      '5Récapitulatif',
+    ])
     expect(current()).toContain('Modèle')
     expect(screen.getByText('Étape 1 sur 5')).toBeTruthy()
   })
@@ -116,9 +150,13 @@ describe('ProviderWizard — steps and presets', () => {
     expect(field('Identifiant').value).toBe('ollama')
     expect(field('Nom affiché').value).toBe('Ollama (local)')
     expect(field('URL de base').value).toBe('http://localhost:11434/v1')
-    expect(screen.getByRole('combobox', { name: 'Source du coût' }).textContent).toContain('Gratuit (local)')
+    expect(screen.getByRole('combobox', { name: 'Source du coût' }).textContent).toContain(
+      'Gratuit (local)'
+    )
     fireEvent.click(button('Suivant'))
-    expect((screen.getByRole('radio', { name: /Aucune clé/ }) as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByRole('radio', { name: /Aucune clé/ }) as HTMLInputElement).checked).toBe(
+      true
+    )
     expect(screen.getByTestId('wizard-credential-ref').textContent).toBe('none')
   })
 
@@ -128,7 +166,9 @@ describe('ProviderWizard — steps and presets', () => {
     expect(field('Modèle par défaut').value).toBe('deepseek-chat')
     expect(field('URL de base').value).toBe('https://api.deepseek.com')
     fireEvent.click(button('Suivant'))
-    expect((screen.getByRole('radio', { name: /Saisir une nouvelle clé/ }) as HTMLInputElement).checked).toBe(true)
+    expect(
+      (screen.getByRole('radio', { name: /Saisir une nouvelle clé/ }) as HTMLInputElement).checked
+    ).toBe(true)
     expect(field('Nom dans le coffre').value).toBe('ds')
     expect(screen.getByTestId('wizard-credential-ref').textContent).toBe('vault:ds')
   })
@@ -139,8 +179,12 @@ describe('ProviderWizard — steps and presets', () => {
     expect(screen.queryByLabelText('URL de base')).toBeNull()
     expect(screen.getByText(/CHAT_PROVIDER_ACP_COMMANDS/, { selector: 'p' })).toBeTruthy()
     fireEvent.click(button('Suivant'))
-    expect((screen.getByRole('radio', { name: /Saisir une nouvelle clé/ }) as HTMLInputElement).disabled).toBe(true)
-    expect((screen.getByRole('radio', { name: /Aucune clé/ }) as HTMLInputElement).checked).toBe(true)
+    expect(
+      (screen.getByRole('radio', { name: /Saisir une nouvelle clé/ }) as HTMLInputElement).disabled
+    ).toBe(true)
+    expect((screen.getByRole('radio', { name: /Aucune clé/ }) as HTMLInputElement).checked).toBe(
+      true
+    )
   })
 
   it('"Précédent" goes back and keeps what was typed', () => {
@@ -160,7 +204,9 @@ describe('ProviderWizard — validation blocks "Suivant"', () => {
     mount()
     // The DeepSeek preset suggests `deepseek`, which exists already.
     expect((button('Suivant') as HTMLButtonElement).disabled).toBe(true)
-    expect(screen.getByTestId('wizard-blocker').textContent).toContain('Un provider porte déjà cet identifiant.')
+    expect(screen.getByTestId('wizard-blocker').textContent).toContain(
+      'Un provider porte déjà cet identifiant.'
+    )
     fireEvent.change(field('Identifiant'), { target: { value: 'deepseek-2' } })
     expect((button('Suivant') as HTMLButtonElement).disabled).toBe(false)
   })
@@ -196,7 +242,9 @@ describe('ProviderWizard — validation blocks "Suivant"', () => {
     fireEvent.change(field('Clé d’API'), { target: { value: 'sk-x' } })
     fireEvent.change(field('Nom dans le coffre'), { target: { value: 'old-key' } })
     expect(go.disabled).toBe(true)
-    expect(screen.getByTestId('wizard-blocker').textContent).toContain('Une clé porte déjà ce nom dans le coffre')
+    expect(screen.getByTestId('wizard-blocker').textContent).toContain(
+      'Une clé porte déjà ce nom dans le coffre'
+    )
     fireEvent.change(field('Nom dans le coffre'), { target: { value: 'ds-key' } })
     expect(go.disabled).toBe(false)
   })
@@ -242,7 +290,12 @@ describe('ProviderWizard — the chain and the test', () => {
     expect(result.textContent).toContain('Appel d’outil')
     expect(result.textContent).toContain('131')
     expect(create).toHaveBeenCalledTimes(1)
-    expect(create.mock.calls[0][0]).toMatchObject({ id: 'ollama', kind: 'openai_compatible', preset: 'ollama', credential_ref: 'none' })
+    expect(create.mock.calls[0][0]).toMatchObject({
+      id: 'ollama',
+      kind: 'openai_compatible',
+      preset: 'ollama',
+      credential_ref: 'none',
+    })
     expect(putSecret).not.toHaveBeenCalled()
     expect(createGrant).not.toHaveBeenCalled()
     expect(screen.getByTestId('wizard-task-instance').getAttribute('data-state')).toBe('done')
@@ -252,7 +305,9 @@ describe('ProviderWizard — the chain and the test', () => {
     fireEvent.click(button('Suivant'))
     expect(current()).toContain('Projet')
     expect(screen.getByTestId('wizard-origin').textContent).toBe('http://localhost:11434')
-    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Projet' }).hasAttribute('disabled')).toBe(false))
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: 'Projet' }).hasAttribute('disabled')).toBe(false)
+    )
     pick('Projet', 'Acme')
     fireEvent.click(button('Autoriser http://localhost:11434'))
     await screen.findByTestId('wizard-consented')
@@ -279,19 +334,28 @@ describe('ProviderWizard — the chain and the test', () => {
   })
 
   it('a failed test is translated from its code, and does not hide that the instance exists', async () => {
-    test.mockResolvedValue({ ok: false, health: { state: 'unreachable', code: 'endpoint_unreachable' } })
+    test.mockResolvedValue({
+      ok: false,
+      health: { state: 'unreachable', code: 'endpoint_unreachable' },
+    })
     mount()
     fireEvent.click(screen.getByRole('radio', { name: /Ollama/ }))
     fireEvent.click(button('Suivant'))
     fireEvent.click(button('Enregistrer et tester'))
     const result = await screen.findByTestId('wizard-test-result')
     expect(result.textContent).toContain('Échec du test')
-    expect(screen.getByTestId('wizard-test-problem').textContent).toBe('Le point d’accès ne répond pas. Vérifiez l’URL et que le service tourne.')
+    expect(screen.getByTestId('wizard-test-problem').textContent).toBe(
+      'Le point d’accès ne répond pas. Vérifiez l’URL et que le service tourne.'
+    )
     expect(result.textContent).toContain('Non')
     expect(screen.getByText(/Vous pouvez continuer : l’instance existe/)).toBeTruthy()
     test.mockResolvedValue({ ok: true, health: { state: 'ok' }, models: [] })
     fireEvent.click(button('Tester à nouveau'))
-    await waitFor(() => expect(screen.getByTestId('wizard-test-result').textContent).toContain('La connexion fonctionne.'))
+    await waitFor(() =>
+      expect(screen.getByTestId('wizard-test-result').textContent).toContain(
+        'La connexion fonctionne.'
+      )
+    )
     expect(create).toHaveBeenCalledTimes(1)
   })
 
@@ -313,10 +377,14 @@ describe('ProviderWizard — the chain and the test', () => {
     })
     const order = [putSecret, create, createGrant, test].map((m) => m.mock.invocationCallOrder[0])
     expect([...order].sort((a, b) => a - b)).toEqual(order)
-    for (const body of [create.mock.calls[0][0], test.mock.calls[0][0]] as Record<string, unknown>[]) {
+    for (const body of [create.mock.calls[0][0], test.mock.calls[0][0]] as Record<
+      string,
+      unknown
+    >[]) {
       expect(body.credential_ref).toBe('vault:ds')
       expect(JSON.stringify(body)).not.toContain('sk-very-secret')
-      for (const k of ['api_key', 'key', 'secret', 'token', 'value', 'password']) expect(body).not.toHaveProperty(k)
+      for (const k of ['api_key', 'key', 'secret', 'token', 'value', 'password'])
+        expect(body).not.toHaveProperty(k)
     }
   })
 
@@ -331,11 +399,15 @@ describe('ProviderWizard — the chain and the test', () => {
     await screen.findByTestId('wizard-test-result')
     expect(putSecret).not.toHaveBeenCalled()
     expect(create.mock.calls[0][0]).toMatchObject({ credential_ref: 'vault:old-key' })
-    expect(createGrant.mock.calls[0][0]).toMatchObject({ secrets: { kind: 'names', names: ['old-key'] } })
+    expect(createGrant.mock.calls[0][0]).toMatchObject({
+      secrets: { kind: 'names', names: ['old-key'] },
+    })
   })
 
   it('a failure half-way says exactly what exists, offers to resume, or to cancel and remove it', async () => {
-    create.mockRejectedValueOnce(new ApiError(409, '{"error":"security_gate_closed: authentication is off"}'))
+    create.mockRejectedValueOnce(
+      new ApiError(409, '{"error":"security_gate_closed: authentication is off"}')
+    )
     mount()
     fireEvent.change(field('Identifiant'), { target: { value: 'ds' } })
     fireEvent.click(button('Suivant'))
@@ -346,7 +418,7 @@ describe('ProviderWizard — the chain and the test', () => {
     expect(failure.textContent).toContain('Échec : Créer l’instance.')
     expect(failure.textContent).toContain('authentification soit activée')
     expect(screen.getByTestId('wizard-already-done').textContent).toBe(
-      'Déjà fait : la clé « ds » est enregistrée dans le coffre. Rien d’autre n’a été créé.',
+      'Déjà fait : la clé « ds » est enregistrée dans le coffre. Rien d’autre n’a été créé.'
     )
     expect(screen.getByTestId('wizard-task-secret').getAttribute('data-state')).toBe('done')
     expect(screen.getByTestId('wizard-task-instance').getAttribute('data-state')).toBe('error')
@@ -356,7 +428,9 @@ describe('ProviderWizard — the chain and the test', () => {
     expect(document.body.innerHTML).not.toContain('sk-half-way')
 
     // Cancel: removes the secret THIS wizard wrote, and nothing else.
-    fireEvent.click(within(failure).getByRole('button', { name: 'Annuler et supprimer ce qui a été créé' }))
+    fireEvent.click(
+      within(failure).getByRole('button', { name: 'Annuler et supprimer ce qui a été créé' })
+    )
     const confirm = screen.getByRole('alertdialog')
     expect(confirm.textContent).toContain('la clé « ds » est enregistrée dans le coffre')
     fireEvent.click(within(confirm).getByRole('button', { name: 'Supprimer ce qui a été créé' }))
@@ -367,7 +441,9 @@ describe('ProviderWizard — the chain and the test', () => {
   })
 
   it('"Reprendre" continues from the failed sub-step without writing the secret again', async () => {
-    createGrant.mockRejectedValueOnce(new ApiError(400, '{"error":"a provider grant names its secret"}'))
+    createGrant.mockRejectedValueOnce(
+      new ApiError(400, '{"error":"a provider grant names its secret"}')
+    )
     mount()
     fireEvent.change(field('Identifiant'), { target: { value: 'ds' } })
     fireEvent.click(button('Suivant'))
@@ -375,7 +451,9 @@ describe('ProviderWizard — the chain and the test', () => {
     fireEvent.change(field('Clé d’API'), { target: { value: 'sk-resume' } })
     fireEvent.click(button('Enregistrer et tester'))
     await screen.findByTestId('wizard-failure')
-    expect(screen.getByTestId('wizard-already-done').textContent).toContain('l’instance « ds » est créée')
+    expect(screen.getByTestId('wizard-already-done').textContent).toContain(
+      'l’instance « ds » est créée'
+    )
     fireEvent.click(button('Reprendre'))
     await screen.findByTestId('wizard-test-result')
     expect(putSecret).toHaveBeenCalledTimes(1)
@@ -393,7 +471,9 @@ describe('ProviderWizard — the chain and the test', () => {
     fireEvent.change(field('Clé d’API'), { target: { value: 'sk-first' } })
     fireEvent.click(button('Enregistrer et tester'))
     await screen.findByTestId('wizard-failure')
-    expect(screen.getByTestId('wizard-already-done').textContent).toBe('Rien n’a été créé : ni clé, ni instance, ni accord.')
+    expect(screen.getByTestId('wizard-already-done').textContent).toBe(
+      'Rien n’a été créé : ni clé, ni instance, ni accord.'
+    )
     expect(create).not.toHaveBeenCalled()
     fireEvent.click(button('Revenir à l’étape Clé'))
     expect(current()).toContain('Clé')
@@ -417,10 +497,16 @@ describe('ProviderWizard — buttons', () => {
       for (const b of wizard.querySelectorAll('button')) {
         const role = b.getAttribute('role')
         if (role === 'combobox' || role === 'option') continue
-        expect(b.className).toMatch(/inline-flex items-center justify-center font-medium rounded-lg/)
+        expect(b.className).toMatch(
+          /inline-flex items-center justify-center font-medium rounded-lg/
+        )
       }
       const footer = wizard.querySelector('footer')!
-      const sizes = new Set([...footer.querySelectorAll('button')].map((b) => /min-h-9 px-3 py-2 text-sm/.test(b.className)))
+      const sizes = new Set(
+        [...footer.querySelectorAll('button')].map((b) =>
+          /min-h-9 px-3 py-2 text-sm/.test(b.className)
+        )
+      )
       expect(sizes).toEqual(new Set([true]))
     }
     check()
@@ -434,7 +520,9 @@ describe('ProviderWizard — buttons', () => {
     const { container } = mount()
     const footers = container.querySelectorAll('[data-testid="provider-wizard"] footer')
     expect(footers).toHaveLength(1)
-    const right = within(footers[0] as HTMLElement).getByRole('button', { name: 'Suivant' }).parentElement!
+    const right = within(footers[0] as HTMLElement).getByRole('button', {
+      name: 'Suivant',
+    }).parentElement!
     expect(right.className).toContain('justify-end')
   })
 })
@@ -468,14 +556,16 @@ describe('ProviderWizard — the model the tool test is about', () => {
   async function toFirstVerdict(model?: string) {
     mount()
     fireEvent.change(field('Identifiant'), { target: { value: 'ds' } })
-    if (model !== undefined) fireEvent.change(field('Modèle par défaut'), { target: { value: model } })
+    if (model !== undefined)
+      fireEvent.change(field('Modèle par défaut'), { target: { value: model } })
     fireEvent.click(button('Suivant'))
     await screen.findByTestId('wizard-vault-open')
     fireEvent.change(field('Clé d’API'), { target: { value: 'sk-model-test' } })
     fireEvent.click(button('Enregistrer et tester'))
     await screen.findByTestId('wizard-test-result')
   }
-  const radio = (name: string) => screen.getByRole('radio', { name: new RegExp(name) }) as HTMLInputElement
+  const radio = (name: string) =>
+    screen.getByRole('radio', { name: new RegExp(name) }) as HTMLInputElement
 
   it('(a) tools=false with two models: both are offered, the model tested is named, the message is nuanced', async () => {
     test.mockResolvedValue(NO_TOOLS)
@@ -484,33 +574,54 @@ describe('ProviderWizard — the model the tool test is about', () => {
     expect(result.textContent).toContain('Modèle testé')
     expect(result.textContent).toContain('deepseek-flash')
     expect(screen.getByTestId('wizard-test-problem').textContent).toBe(
-      'Ce modèle n’a pas appelé l’outil de test (certains modèles de raisonnement ne le font pas) : essayez un autre modèle listé.',
+      'Ce modèle n’a pas appelé l’outil de test (certains modèles de raisonnement ne le font pas) : essayez un autre modèle listé.'
     )
     expect(result.textContent).not.toContain('ne peut pas appeler')
     const picker = screen.getByTestId('wizard-model-picker')
     expect(within(picker).getByText('Modèle à tester')).toBeTruthy()
     expect(radio('deepseek-flash').checked).toBe(true)
-    expect(within(picker).getByRole('radio', { name: /deepseek-flash.*Testé : échec/ })).toBeTruthy()
-    expect(within(picker).getByRole('radio', { name: /deepseek-v4-pro.*Pas encore testé/ })).toBeTruthy()
+    expect(
+      within(picker).getByRole('radio', { name: /deepseek-flash.*Testé : échec/ })
+    ).toBeTruthy()
+    expect(
+      within(picker).getByRole('radio', { name: /deepseek-v4-pro.*Pas encore testé/ })
+    ).toBeTruthy()
     expect(test.mock.calls[0][0]).toMatchObject({ default_model: 'deepseek-flash' })
   })
 
   it('(b) "Tester ce modèle" posts a test with the chosen model, and touches neither the vault nor the instance', async () => {
     test.mockResolvedValue(NO_TOOLS)
     await toFirstVerdict('deepseek-flash')
-    const before = { put: putSecret.mock.calls.length, grant: createGrant.mock.calls.length, create: create.mock.calls.length }
-    test.mockResolvedValue({ ...NO_TOOLS, ok: true, health: { state: 'ok' }, probe: { tools: true, context_window: 1048576 } })
+    const before = {
+      put: putSecret.mock.calls.length,
+      grant: createGrant.mock.calls.length,
+      create: create.mock.calls.length,
+    }
+    test.mockResolvedValue({
+      ...NO_TOOLS,
+      ok: true,
+      health: { state: 'ok' },
+      probe: { tools: true, context_window: 1048576 },
+    })
     fireEvent.click(radio('deepseek-v4-pro'))
     fireEvent.click(button('Tester ce modèle'))
     await waitFor(() => expect(test).toHaveBeenCalledTimes(2))
     const body = test.mock.calls[1][0] as Record<string, unknown>
-    expect(body).toMatchObject({ id: 'ds', default_model: 'deepseek-v4-pro', credential_ref: 'vault:ds' })
+    expect(body).toMatchObject({
+      id: 'ds',
+      default_model: 'deepseek-v4-pro',
+      credential_ref: 'vault:ds',
+    })
     expect(JSON.stringify(body)).not.toContain('sk-model-test')
     expect(putSecret.mock.calls.length).toBe(before.put)
     expect(createGrant.mock.calls.length).toBe(before.grant)
     expect(create.mock.calls.length).toBe(before.create)
     expect(overview).toHaveBeenCalledTimes(1) // the initial read, nothing since
-    await waitFor(() => expect(screen.getByTestId('wizard-test-result').textContent).toContain('La connexion fonctionne.'))
+    await waitFor(() =>
+      expect(screen.getByTestId('wizard-test-result').textContent).toContain(
+        'La connexion fonctionne.'
+      )
+    )
     expect(screen.getByTestId('wizard-test-result').textContent).toContain('deepseek-v4-pro')
   })
 
@@ -519,14 +630,25 @@ describe('ProviderWizard — the model the tool test is about', () => {
     await toFirstVerdict('deepseek-flash')
     expect(screen.getByTestId('wizard-saved-default').textContent).toContain('deepseek-flash')
     expect(screen.queryByRole('button', { name: 'Utiliser ce modèle par défaut' })).toBeNull()
-    test.mockResolvedValue({ ...NO_TOOLS, ok: true, health: { state: 'ok' }, probe: { tools: true } })
+    test.mockResolvedValue({
+      ...NO_TOOLS,
+      ok: true,
+      health: { state: 'ok' },
+      probe: { tools: true },
+    })
     fireEvent.click(radio('deepseek-v4-pro'))
     fireEvent.click(button('Tester ce modèle'))
     const offer = await screen.findByRole('button', { name: 'Utiliser ce modèle par défaut' })
-    expect(screen.getByTestId('wizard-default-offer').textContent).toContain('deepseek-v4-pro a réussi le test')
+    expect(screen.getByTestId('wizard-default-offer').textContent).toContain(
+      'deepseek-v4-pro a réussi le test'
+    )
     fireEvent.click(offer)
-    await waitFor(() => expect(update).toHaveBeenCalledWith('ds', { default_model: 'deepseek-v4-pro' }))
-    await waitFor(() => expect(screen.getByTestId('wizard-saved-default').textContent).toContain('deepseek-v4-pro'))
+    await waitFor(() =>
+      expect(update).toHaveBeenCalledWith('ds', { default_model: 'deepseek-v4-pro' })
+    )
+    await waitFor(() =>
+      expect(screen.getByTestId('wizard-saved-default').textContent).toContain('deepseek-v4-pro')
+    )
     expect(screen.queryByRole('button', { name: 'Utiliser ce modèle par défaut' })).toBeNull()
     fireEvent.click(button('Suivant'))
     fireEvent.click(button('Passer cette étape'))
@@ -534,11 +656,16 @@ describe('ProviderWizard — the model the tool test is about', () => {
   })
 
   it('a success with the model already saved as default: no offer, the saved default is named', async () => {
-    test.mockResolvedValue({ ...NO_TOOLS, ok: true, health: { state: 'ok' }, probe: { tools: true } })
+    test.mockResolvedValue({
+      ...NO_TOOLS,
+      ok: true,
+      health: { state: 'ok' },
+      probe: { tools: true },
+    })
     await toFirstVerdict('deepseek-flash')
     expect(screen.queryByRole('button', { name: 'Utiliser ce modèle par défaut' })).toBeNull()
     expect(screen.getByTestId('wizard-saved-default').textContent).toBe(
-      'Modèle enregistré par défaut pour cette instance : deepseek-flash.',
+      'Modèle enregistré par défaut pour cette instance : deepseek-flash.'
     )
   })
 
@@ -547,7 +674,7 @@ describe('ProviderWizard — the model the tool test is about', () => {
     await toFirstVerdict() // DeepSeek preset suggests deepseek-chat
     expect(test.mock.calls[0][0]).toMatchObject({ default_model: 'deepseek-chat' })
     expect(screen.getByTestId('wizard-model-missing').textContent).toContain(
-      'Le modèle proposé par défaut (deepseek-chat) n’est pas proposé par ce serveur',
+      'Le modèle proposé par défaut (deepseek-chat) n’est pas proposé par ce serveur'
     )
     expect(radio('deepseek-flash').checked).toBe(true)
     expect(screen.queryByRole('radio', { name: /deepseek-chat/ })).toBeNull()
@@ -560,5 +687,60 @@ describe('ProviderWizard — the model the tool test is about', () => {
     test.mockResolvedValue(NO_TOOLS)
     await toFirstVerdict()
     expect(screen.getByText(/Le test d’appel d’outil porte sur UN modèle/)).toBeTruthy()
+  })
+})
+
+describe('ProviderWizard — test button robustness', () => {
+  it('a double click on "Enregistrer et tester" runs the chain once', async () => {
+    mount()
+    fireEvent.click(screen.getByRole('radio', { name: /Ollama/ }))
+    fireEvent.click(button('Suivant'))
+    const go = button('Enregistrer et tester')
+    fireEvent.click(go)
+    fireEvent.click(go)
+    await screen.findByTestId('wizard-test-result')
+    expect(create).toHaveBeenCalledTimes(1)
+    expect(test).toHaveBeenCalledTimes(1)
+  })
+
+  it('a double click on "Tester ce modèle" sends one test', async () => {
+    test.mockResolvedValue({
+      ok: false,
+      health: { state: 'ok', code: 'model_no_tools' },
+      models: [{ id: 'a' }, { id: 'b' }],
+      probe: { tools: false },
+    })
+    mount()
+    fireEvent.click(screen.getByRole('radio', { name: /Ollama/ }))
+    fireEvent.click(button('Suivant'))
+    fireEvent.click(button('Enregistrer et tester'))
+    await screen.findByTestId('wizard-model-picker')
+    const b = button('Tester ce modèle')
+    fireEvent.click(b)
+    fireEvent.click(b)
+    await waitFor(() => expect(test).toHaveBeenCalledTimes(2))
+  })
+
+  it('more than 8 models: a filterable select instead of radios, the first listed pre-selected', async () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({ id: `model-${i}` }))
+    test.mockResolvedValue({
+      ok: false,
+      health: { state: 'ok', code: 'model_no_tools' },
+      models: many,
+      probe: { tools: false },
+    })
+    mount()
+    fireEvent.click(screen.getByRole('radio', { name: /Ollama/ }))
+    fireEvent.click(button('Suivant'))
+    fireEvent.click(button('Enregistrer et tester'))
+    const picker = await screen.findByTestId('wizard-model-picker')
+    const select = within(picker).getByLabelText('Modèle à tester') as HTMLSelectElement
+    expect(select.tagName).toBe('SELECT')
+    expect(select.value).toBe('model-0')
+    fireEvent.change(within(picker).getByLabelText('Filtrer les modèles de Modèle à tester'), {
+      target: { value: 'model-11' },
+    })
+    expect(within(select).queryByRole('option', { name: 'model-3' })).toBeNull()
+    expect(within(select).getByRole('option', { name: 'model-11' })).toBeTruthy()
   })
 })

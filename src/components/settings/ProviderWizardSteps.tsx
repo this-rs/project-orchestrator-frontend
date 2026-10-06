@@ -25,6 +25,7 @@ import { VAULT_PATH } from '@/constants/providerErrors'
 import { COST_BASES, type CostBasis } from '@/types/provider'
 import type { VaultOverview } from '@/services/vault'
 import { ChoiceRow, FieldNote, FormField } from './FormField'
+import { ModelField } from './ModelField'
 import type { ProjectOption } from './useProjectOptions'
 
 // ---------------------------------------------------------------------------
@@ -669,33 +670,49 @@ export function ModelPicker({
           premier modèle listé est présélectionné ci-dessous.
         </p>
       )}
-      <fieldset>
-        <legend className="mb-2 text-sm font-medium text-gray-300">Modèle à tester</legend>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {models.map((m) => (
-            <ChoiceRow
-              key={m}
-              name={`${uid}-model-to-test`}
-              value={m}
-              checked={selected === m}
-              disabled={running}
-              onChange={onSelect}
-              title={<span className="font-mono">{m}</span>}
-              description={
-                m === testedModel
-                  ? lastOk
-                    ? 'Testé : réussi'
-                    : 'Testé : échec'
-                  : 'Pas encore testé'
-              }
-            />
-          ))}
-        </div>
-        <p className="mt-1 text-xs text-gray-500">
-          L’appel d’outil dépend du modèle : un modèle qui échoue n’empêche pas un autre du même
-          serveur de réussir.
-        </p>
-      </fieldset>
+      {models.length > 8 ? (
+        <ModelField
+          id={`${uid}-model-to-test`}
+          label="Modèle à tester"
+          value={selected}
+          onChange={onSelect}
+          models={models.map((id) => ({ id }))}
+          disabled={running}
+          help={
+            testedModel
+              ? `Modèle testé : ${testedModel} (${lastOk ? 'réussi' : 'échec'}).`
+              : undefined
+          }
+        />
+      ) : (
+        <fieldset>
+          <legend className="mb-2 text-sm font-medium text-gray-300">Modèle à tester</legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {models.map((m) => (
+              <ChoiceRow
+                key={m}
+                name={`${uid}-model-to-test`}
+                value={m}
+                checked={selected === m}
+                disabled={running}
+                onChange={onSelect}
+                title={<span className="font-mono">{m}</span>}
+                description={
+                  m === testedModel
+                    ? lastOk
+                      ? 'Testé : réussi'
+                      : 'Testé : échec'
+                    : 'Pas encore testé'
+                }
+              />
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-gray-500">
+            L’appel d’outil dépend du modèle : un modèle qui échoue n’empêche pas un autre du même
+            serveur de réussir.
+          </p>
+        </fieldset>
+      )}
       <p data-testid="wizard-saved-default" className="text-xs text-gray-400">
         Modèle enregistré par défaut pour cette instance :{' '}
         {savedDefault ? (

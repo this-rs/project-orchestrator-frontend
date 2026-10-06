@@ -6,7 +6,6 @@ import { Button, Section, EmptyState } from '@/components/ui'
 import { providersLoadStateAtom } from '@/atoms'
 import { useProviders } from '@/hooks/useProviders'
 import {
-  ADVANCED_ANCHORS,
   PROVIDER_SECTIONS,
   UNSUPPORTED_TEXT,
   UNSUPPORTED_TITLE,
@@ -29,7 +28,6 @@ export function ProviderSettings() {
   const { hash } = useLocation()
   const navigate = useNavigate()
   const [adding, setAdding] = useState(false)
-  const advancedOpen = (ADVANCED_ANCHORS as readonly string[]).includes(hash)
 
   // Router does not scroll to an anchor by itself.
   useEffect(() => {
@@ -94,19 +92,16 @@ export function ProviderSettings() {
         <ProjectConsent onAddProvider={() => setAdding(true)} />
       </Section>
       <Section
-        key={advancedOpen ? 'advanced-open' : 'advanced'}
         id="advanced"
         title="Avancé"
         description="Rôles, alias et politique de modèle. Rien à régler pour un premier provider : sans réglage, tout passe par le provider par défaut."
-        collapsible
-        defaultOpen={advancedOpen}
       >
-        <div className="space-y-6">
+        <div className="space-y-4">
           <div id="roles" className="scroll-mt-16">
-            <ProviderRoles />
+            <ProviderRoles key={`roles-${hash}`} collapsible defaultOpen={hash === '#roles'} />
           </div>
           <div id="models" className="scroll-mt-16">
-            <ModelPolicy />
+            <ModelPolicy key={`models-${hash}`} collapsible defaultOpen={hash === '#models'} />
           </div>
         </div>
       </Section>
