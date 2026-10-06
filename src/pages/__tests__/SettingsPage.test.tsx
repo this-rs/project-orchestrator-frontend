@@ -32,4 +32,17 @@ describe('SettingsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back' }))
     expect(screen.getByText('home')).toBeTruthy()
   })
+
+  it('does not embed the provider settings: it links to /providers, their only page', () => {
+    render(
+      <Provider>
+        <MemoryRouter initialEntries={['/settings']}>
+          <SettingsPage />
+        </MemoryRouter>
+      </Provider>,
+    )
+    expect(screen.queryByRole('region', { name: 'Providers' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Ajouter un provider/ })).toBeNull()
+    expect(screen.getByRole('link', { name: 'Providers → /providers' }).getAttribute('href')).toBe('/providers')
+  })
 })
