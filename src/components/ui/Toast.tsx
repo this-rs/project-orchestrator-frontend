@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { Check, X, Info, AlertCircle } from 'lucide-react'
 import { toastMessagesAtom } from '@/atoms'
+import { panelGlass } from './panelGlass'
 
 type ToastType = 'success' | 'error' | 'info' | 'warning'
 
@@ -41,7 +42,7 @@ export function ToastContainer() {
         return (
           <div
             key={toast.id}
-            className="relative pointer-events-auto flex items-stretch glass-medium rounded-xl shadow-md overflow-hidden ui-toast-in min-w-[300px] max-w-[420px]"
+            className={`relative pointer-events-auto flex items-stretch border border-white/[0.08] ${panelGlass.neutral} rounded-xl shadow-md overflow-hidden ui-toast-in min-w-[300px] max-w-[420px]`}
           >
             {/* Color bar */}
             <div className={`w-1 shrink-0 ${config.bar}`} />

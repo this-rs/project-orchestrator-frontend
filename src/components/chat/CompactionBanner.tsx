@@ -10,6 +10,7 @@
  */
 
 import { Scissors } from 'lucide-react'
+import { panelGlass } from '@/components/ui/panelGlass'
 
 interface CompactionBannerProps {
   visible: boolean
@@ -19,7 +20,7 @@ export function CompactionBanner({ visible }: CompactionBannerProps) {
   if (!visible) return null
 
   return (
-    <div className="flex items-center justify-center gap-2 px-4 py-2 mx-3 mb-2 select-none">
+    <div className={`flex items-center justify-center gap-2 px-4 py-2 mx-3 mb-2 rounded-lg select-none ${panelGlass.neutral}`}>
       {/* Left dashed line */}
       <div className="flex-1 border-t border-dashed border-gray-700/60" />
 

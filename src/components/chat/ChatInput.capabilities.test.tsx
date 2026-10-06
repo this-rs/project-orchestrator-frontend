@@ -81,6 +81,10 @@ describe('images: false', () => {
     })
     expect(uploadMock).not.toHaveBeenCalled()
     expect(screen.getByRole('alert').textContent).toContain(IMAGES_UNSUPPORTED_TEXT)
+    // It floats over the transcript: glass, not a see-through tint.
+    const notice = screen.getByTestId('images-refused')
+    expect(notice.className).toContain('backdrop-blur-md')
+    expect(notice.className).toMatch(/(?:^|\s)bg-surface-base\/(?:[6-9]\d|100)(?:\s|$)/)
   })
 
   it('an image the browser gave no MIME type is recognised by its extension', () => {

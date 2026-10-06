@@ -27,6 +27,7 @@ import { MessageQueueBar } from './MessageQueueBar'
 import { shouldEnqueue, type QueueOp, type QueuedMessage } from './messageQueue'
 import { Attachments } from './Attachments'
 import { imagesRefusedText } from '@/constants/capabilities'
+import { panelGlass } from '@/components/ui/panelGlass'
 import {
   addAttachment,
   createAttachment,
@@ -700,7 +701,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
         <p
           role="alert"
           data-testid="images-refused"
-          className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-200"
+          className={`rounded-lg border border-amber-500/30 ${panelGlass.warning} px-2.5 py-1.5 text-[11px] text-amber-200`}
         >
           {imagesRefusedText(refusedImages)}
         </p>
@@ -709,7 +710,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
         <p
           role="status"
           data-testid="trust-downgraded"
-          className="flex items-start justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-200"
+          className={`flex items-start justify-between gap-2 rounded-lg border border-amber-500/30 ${panelGlass.warning} px-2.5 py-1.5 text-[11px] text-amber-200`}
         >
           <span className="min-w-0">{TRUST_DOWNGRADED_TEXT}</span>
           <button

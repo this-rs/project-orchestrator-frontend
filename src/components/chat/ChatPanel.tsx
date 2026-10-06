@@ -389,12 +389,13 @@ export function ChatPanel() {
         />
       )}
       {noProvider && !sessionOpenError && (
-        <ProviderStateCard error={NO_PROVIDER_ERROR} projectSlug={selectedProject?.slug} className="mx-3 mb-1" />
+        <ProviderStateCard error={NO_PROVIDER_ERROR} projectSlug={selectedProject?.slug} floating className="mx-3 mb-1" />
       )}
       {instanceMissing && (
         <ProviderStateCard
           error={{ code: 'instance_not_found', message: '', provider_id: sessionProvider?.id }}
           onNewConversation={handleNewSession}
+          floating
           className="mx-3 mb-1"
         />
       )}
