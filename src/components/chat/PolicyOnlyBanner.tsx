@@ -1,5 +1,6 @@
 import { ShieldAlert } from 'lucide-react'
 import { POLICY_ONLY_DETAIL, POLICY_ONLY_TEXT } from '@/constants/capabilities'
+import { panelGlass } from '@/components/ui/panelGlass'
 
 /**
  * Shown above the composer when the provider cannot pause a tool call to ask:
@@ -10,7 +11,7 @@ export function PolicyOnlyBanner() {
     <div
       role="note"
       data-testid="policy-only-banner"
-      className="mx-3 mb-1 flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-200"
+      className={`mx-3 mb-1 flex items-start gap-2 rounded-lg border border-amber-500/25 ${panelGlass.warning} px-3 py-1.5 text-[11px] text-amber-200`}
     >
       <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" aria-hidden="true" />
       <p className="min-w-0">

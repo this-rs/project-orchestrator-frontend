@@ -1,6 +1,7 @@
 import { useCallback, useState, type ReactNode } from 'react'
 import { Link, useInRouterContext } from 'react-router-dom'
 import { AlertTriangle, Check, ClipboardCopy, Loader2, RefreshCw, X } from 'lucide-react'
+import { panelGlass } from '@/components/ui/panelGlass'
 import { useRefreshProviders } from '@/hooks/useProviders'
 import { providersApi } from '@/services/providers'
 import { healthLabel } from '@/constants/providers'
@@ -30,6 +31,8 @@ interface ProviderStateCardProps {
   onNewConversation?: () => void
   onDismiss?: () => void
   className?: string
+  /** Floats over the scrolling conversation (above the composer): glass instead of a bare tint. */
+  floating?: boolean
   testId?: string
 }
 
@@ -139,6 +142,7 @@ export function ProviderStateCard({
   onNewConversation,
   onDismiss,
   className = '',
+  floating = false,
   testId = 'provider-state-card',
 }: ProviderStateCardProps) {
   const setModeOverride = useSetAtom(chatSessionPermissionOverrideAtom)
@@ -231,7 +235,7 @@ export function ProviderStateCard({
       role="alert"
       data-testid={testId}
       data-error-code={error.code}
-      className={`flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200 ${className}`}
+      className={`flex items-start gap-2 rounded-lg border border-red-500/30 ${floating ? panelGlass.error : 'bg-red-500/10'} px-3 py-2 text-xs text-red-200 ${className}`}
     >
       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-400" aria-hidden="true" />
       <div className="min-w-0 flex-1">

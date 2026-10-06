@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useAtom } from 'jotai'
 import { KeyRound, Eye, EyeOff, Lock, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { panelGlass } from '@/components/ui/panelGlass'
 import { chatSecretRequestsAtom, type PendingSecretRequest } from '@/atoms'
 import {
   vaultApi,
@@ -140,7 +141,7 @@ function SecretRequestCard({ request, sessionId, projectSlug, overview, onDone }
 
   return (
     <form
-      className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm"
+      className={`rounded-lg border border-amber-500/30 ${panelGlass.warning} p-3 text-sm`}
       onSubmit={(e) => {
         e.preventDefault()
         if (canSubmit) void submit(offerGrant ? 'grant' : 'provide')
