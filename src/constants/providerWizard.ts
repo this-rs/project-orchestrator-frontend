@@ -127,12 +127,17 @@ export function suggestedSecretName(instanceId: string): string {
 // Errors in plain French
 // ---------------------------------------------------------------------------
 
+const TOOLS_NOT_CALLED_FR_TEXT =
+  'Ce modèle n’a pas appelé l’outil de test (certains modèles de raisonnement ne le font pas) : essayez un autre modèle listé.'
+/** The probe ran and the model did not call the test tool: about THIS model, not the endpoint. */
+export const TOOLS_NOT_CALLED_FR = TOOLS_NOT_CALLED_FR_TEXT
+
 const ERRORS_FR: Partial<Record<string, string>> = {
   credentials_locked: 'Le coffre est verrouillé : la clé ne peut pas être lue. Déverrouillez-le, puis testez à nouveau.',
   auth_required: 'Ce provider demande une connexion ou une clé accordée à l’instance. Lancez la commande indiquée, ou accordez la clé à l’instance.',
   unauthorized: 'Le provider a refusé la clé. Vérifiez la clé enregistrée dans le coffre.',
   endpoint_unreachable: 'Le point d’accès ne répond pas. Vérifiez l’URL et que le service tourne.',
-  model_no_tools: 'Ce modèle ne sait pas appeler d’outils : il est inutilisable ici. Choisissez un autre modèle.',
+  model_no_tools: TOOLS_NOT_CALLED_FR_TEXT,
   context_too_small: 'La fenêtre de contexte de ce modèle est trop petite pour les outils. Choisissez un modèle plus grand.',
   cli_not_found: 'Le programme de ce provider n’est pas installé sur le serveur (ou pas dans son PATH).',
   rate_limited: 'Le provider limite le nombre de requêtes. Réessayez dans un moment.',

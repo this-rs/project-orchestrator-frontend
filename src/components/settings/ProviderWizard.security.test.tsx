@@ -64,8 +64,14 @@ function route(method: string, path: string): Response {
     return createStatus === 201 ? json(201, { id: 'ds' }) : json(createStatus, { error: 'security_gate_closed: authentication is off' })
   }
   if (method === 'POST' && path === '/api/chat/providers/test') {
-    return json(200, { ok: true, health: { state: 'ok' }, models: [{ id: 'deepseek-chat' }], probe: { tools: true, context_window: 65536 } })
+    return json(200, {
+      ok: false,
+      health: { state: 'ok', code: 'model_no_tools' },
+      models: [{ id: 'deepseek-flash' }, { id: 'deepseek-v4-pro' }],
+      probe: { tools: false, context_window: 1048576 },
+    })
   }
+  if (method === 'PUT' && path.startsWith('/api/chat/providers/')) return json(200, { id: 'ds' })
   if (method === 'GET' && path === '/api/chat/providers') return json(200, { providers: [{ id: 'claude-code', kind: 'claude_code', health: { state: 'ok' } }] })
   if (method === 'GET' && path === '/api/projects') return json(200, { items: [] })
   return json(404, { error: 'unexpected route' })
@@ -178,6 +184,23 @@ describe('the API key of the wizard', () => {
     await new Promise((r) => setTimeout(r, 20))
     expect(calls.filter((c) => c.method !== 'GET')).toEqual([])
     expect(calls.filter(carries)).toEqual([])
+  })
+
+  it('testing another model and making it the default: still no key outside the vault request', async () => {
+    await vaultApi.unlock('the passphrase', 60)
+    await fillUpToKey()
+    await screen.findByTestId('wizard-vault-open')
+    fireEvent.change(screen.getByLabelText('Clé d’API'), { target: { value: SECRET } })
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer et tester' }))
+    await screen.findByTestId('wizard-model-picker')
+    fireEvent.click(screen.getByRole('radio', { name: /deepseek-v4-pro/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Tester ce modèle' }))
+    await waitFor(() => expect(calls.filter((c) => c.path === '/api/chat/providers/test')).toHaveLength(2))
+    const retest = calls.filter((c) => c.path === '/api/chat/providers/test')[1]
+    expect(JSON.parse(retest.body)).toMatchObject({ default_model: 'deepseek-v4-pro', credential_ref: 'vault:ds' })
+    expect(calls.filter((c) => c.path.startsWith('/api/vault/secrets'))).toHaveLength(1)
+    expect(calls.filter(carries).map((c) => `${c.method} ${c.path}`)).toEqual(['PUT /api/vault/secrets/ds'])
+    expect(document.body.innerHTML).not.toContain(SECRET)
   })
 
   it('is never written to browser storage', async () => {

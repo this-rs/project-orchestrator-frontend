@@ -32,6 +32,7 @@ import {
   COST_LABELS_FR,
   GRANT_CHOICES_FR,
   TASK_LABELS,
+  TOOLS_NOT_CALLED_FR,
   WIZARD_STEPS,
   type TaskKey,
   type TaskState,
@@ -56,6 +57,7 @@ import { ConfirmPanel } from './ConfirmPanel'
 import { useProjectOptions } from './useProjectOptions'
 import {
   KeyStep,
+  ModelPicker,
   PresetStep,
   ProjectStep,
   StepIntro,
@@ -128,9 +130,12 @@ function toVerdict(result: ProviderTestResult, id: string): VerdictView {
       models.length === 0
         ? 'Aucun listé'
         : `${models.length} trouvé${models.length > 1 ? 's' : ''} : ${shown}${models.length > 6 ? '…' : ''}`,
-    tools: result.probe ? (result.probe.tools ? 'Oui' : 'Non : ce modèle ne peut pas appeler d’outils') : 'Non testé',
+    tools: result.probe ? (result.probe.tools ? 'Oui' : 'Non') : 'Non testé',
     context: result.probe?.context_window != null ? `${result.probe.context_window.toLocaleString('fr-FR')} tokens` : 'Inconnue',
-    problem: problem ?? (result.ok ? null : 'Le provider n’a pas passé le test.'),
+    problem:
+      result.probe && !result.probe.tools && (!health.error || health.error.code === 'model_no_tools')
+        ? TOOLS_NOT_CALLED_FR
+        : (problem ?? (result.ok ? null : 'Le provider n’a pas passé le test.')),
     loginHint: health.login_hint ?? null,
   }
 }
@@ -156,6 +161,14 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
   const [failure, setFailure] = useState<{ task: TaskKey; message: string } | null>(null)
   const [created, setCreated] = useState<Created>({})
   const [test, setTest] = useState<ProviderTestResult | null>(null)
+  /** The model sent as `default_model` in the last test ('' = none: the server probes the first model it lists). */
+  const [testedModel, setTestedModel] = useState<string | null>(null)
+  /** Model chosen in "Modèle à tester" (null = the suggestion of the list). */
+  const [pickedModel, setPickedModel] = useState<string | null>(null)
+  /** `default_model` of the instance as SAVED on the server ('' = none). */
+  const [savedDefault, setSavedDefault] = useState<string | null>(null)
+  const [defaultBusy, setDefaultBusy] = useState(false)
+  const [defaultError, setDefaultError] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
 
   const [projectSlug, setProjectSlug] = useState('')
@@ -287,7 +300,13 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
    * failure. `secretValue` is only given on the first run, from the password
    * input (already emptied); it is dropped as soon as the vault has it.
    */
-  const run = async (secretValue: string | null, from: Record<TaskKey, TaskState>, already: Created) => {
+  const run = async (
+    secretValue: string | null,
+    from: Record<TaskKey, TaskState>,
+    already: Created,
+    /** Model to probe instead of the draft's default (only the test uses it). */
+    testModel?: string,
+  ) => {
     setRunning(true)
     setFailure(null)
     const state = { ...from }
@@ -308,6 +327,7 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
         } else if (t === 'instance') {
           await providersApi.create(d)
           done.instance = d.id
+          setSavedDefault(d.default_model ?? '')
         } else if (t === 'grant') {
           const grant = await vaultApi.createGrant({
             secrets: { kind: 'names', names: [vaultName] },
@@ -317,7 +337,12 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
           })
           done.grantId = grant.id
         } else {
-          setTest(await providersApi.test(d))
+          const probed = testModel ?? d.default_model ?? ''
+          const result = await providersApi.test({ ...d, default_model: probed || null })
+          setTestedModel(probed)
+          setPickedModel(null)
+          setDefaultError(null)
+          setTest(result)
         }
         state[t] = 'done'
         setTasks({ ...state })
@@ -350,7 +375,29 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
   }
 
   const retestOnly = () => {
-    void run(null, { ...tasks, test: 'todo' }, created)
+    void run(null, { ...tasks, test: 'todo' }, created, testedModel ?? undefined)
+  }
+
+  /** Probe another model of the list. The secret, the instance and the grant are not touched again. */
+  const testModel = (model: string) => {
+    void run(null, { ...tasks, test: 'todo' }, created, model)
+  }
+
+  /** Make the model that just passed the test the default of the saved instance (one field). */
+  const makeDefault = async (model: string) => {
+    if (!created.instance) return
+    setDefaultBusy(true)
+    setDefaultError(null)
+    try {
+      await providersApi.update(created.instance, { default_model: model })
+      setSavedDefault(model)
+      setIdentity((cur) => ({ ...cur, model }))
+      void refresh()
+    } catch (err) {
+      setDefaultError(wizardErrorMessage(err))
+    } finally {
+      setDefaultBusy(false)
+    }
   }
 
   /** Removes what this wizard created, newest first; says what could not be removed. */
@@ -440,6 +487,12 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
   }
 
   const verdict = test ? toVerdict(test, identity.id.trim()) : null
+  const catalogue = (test?.models ?? []).map((m) => m.id)
+  const proposed = identity.model.trim()
+  const proposedMissing = !!test && catalogue.length > 0 && !!proposed && !catalogue.includes(proposed)
+  /** Pre-selection: the model just tested when listed, else the first model listed. */
+  const selectedModel =
+    pickedModel ?? (testedModel && catalogue.includes(testedModel) ? testedModel : (catalogue[0] ?? ''))
   const createdList = [
     created.secret && `la clé « ${created.secret} » est enregistrée dans le coffre`,
     created.instance && `l’instance « ${created.instance} » est créée`,
@@ -527,7 +580,7 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
           <StepIntro
             title="3. Tester la connexion"
             what="L’assistant enregistre ce qu’il faut, dans cet ordre, puis teste la connexion. Chaque étape affiche son état."
-            why="Un test qui utilise une clé n’est fait que sur une instance enregistrée, et le serveur ne lit la clé que si elle est accordée à l’instance."
+            why="Le test d’appel d’outil porte sur UN modèle : celui envoyé comme modèle par défaut (ou, sans modèle, le premier listé par le serveur). Un échec ne vaut que pour ce modèle : vous pourrez en tester un autre de la liste. Un test qui utilise une clé n’est fait que sur une instance enregistrée."
           />
           <TaskList tasks={tasks} plan={plan} />
           {failure && (
@@ -558,8 +611,25 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
               </div>
             </div>
           )}
-          {verdict && <Verdict verdict={verdict} />}
-          {verdict && !running && (
+          {verdict && <Verdict verdict={verdict} testedModel={testedModel ?? ''} />}
+          {verdict && catalogue.length > 0 && (
+            <ModelPicker
+              uid={uid}
+              models={catalogue}
+              selected={selectedModel}
+              testedModel={testedModel ?? ''}
+              proposedMissing={proposedMissing ? proposed : null}
+              lastOk={verdict.ok}
+              savedDefault={savedDefault}
+              running={running}
+              defaultBusy={defaultBusy}
+              defaultError={defaultError}
+              onSelect={setPickedModel}
+              onTest={() => testModel(selectedModel)}
+              onUseAsDefault={() => void makeDefault(testedModel ?? '')}
+            />
+          )}
+          {verdict && !running && catalogue.length === 0 && (
             <div className="flex justify-end">
               <Button size="sm" variant="secondary" onClick={retestOnly}>
                 Tester à nouveau
@@ -607,7 +677,7 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
                 { label: 'Provider', value: `${draft().label} (${identity.id.trim()})` },
                 { label: 'Type', value: kindLabelFr(preset.kind) },
                 { label: 'Origine', value: origin ?? 'inconnue' },
-                { label: 'Modèle', value: identity.model.trim() || 'aucun par défaut' },
+                { label: 'Modèle', value: (savedDefault ?? identity.model.trim()) || 'aucun par défaut' },
                 { label: 'Coût', value: COST_LABELS_FR[identity.cost] },
                 { label: 'Clé', value: <code className="font-mono">{credentialRef}</code> },
                 {
@@ -616,7 +686,10 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
                     ? `clé accordée à l’instance pour ${GRANT_CHOICES_FR.find((c) => c.value === String(keyState.grantMinutes))?.label ?? `${keyState.grantMinutes} min`}`
                     : 'sans objet',
                 },
-                { label: 'Test', value: verdict ? (verdict.ok ? 'réussi' : 'en échec') : 'non fait' },
+                {
+                  label: 'Test',
+                  value: verdict ? `${verdict.ok ? 'réussi' : 'en échec'}${testedModel ? ` avec ${testedModel}` : ''}` : 'non fait',
+                },
                 { label: 'Projet', value: consented ? `${consented.slug} autorisé` : 'aucun autorisé pour l’instant' },
               ]}
             />

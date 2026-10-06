@@ -20,6 +20,7 @@ vi.mock('@/services/providers', async (orig) => ({
     create: (...a: unknown[]) => create(...a),
     remove: (...a: unknown[]) => remove(...a),
     allow: (...a: unknown[]) => allow(...a),
+    update: (...a: unknown[]) => update(...a),
     list: (...a: unknown[]) => list(...a),
     status: vi.fn(),
   },
@@ -53,6 +54,7 @@ import { ApiError } from '@/services/api'
 import { ProviderWizard } from './ProviderWizard'
 import { CLAUDE, DEEPSEEK, mountSettings, response } from './settingsTestKit'
 
+const update = vi.fn()
 const onClose = vi.fn()
 const onFinished = vi.fn()
 const OPEN_VAULT = {
@@ -85,6 +87,7 @@ function pick(combo: string, option: string) {
 
 beforeEach(() => {
   list.mockReset().mockResolvedValue(response([CLAUDE, DEEPSEEK]))
+  update.mockReset().mockResolvedValue({})
   for (const m of [test, create, remove, allow, putSecret, createGrant, deleteSecret, revokeGrant, onClose, onFinished]) m.mockReset()
   proof = true
   overview.mockReset().mockResolvedValue(OPEN_VAULT)
@@ -450,5 +453,112 @@ describe('ProviderWizard — list refresh', () => {
     fireEvent.click(button('Enregistrer et tester'))
     await screen.findByTestId('wizard-test-result')
     await waitFor(() => expect(list.mock.calls.length).toBeGreaterThan(before))
+  })
+})
+
+describe('ProviderWizard — the model the tool test is about', () => {
+  const NO_TOOLS = {
+    ok: false,
+    health: { state: 'ok', code: 'model_no_tools' },
+    models: [{ id: 'deepseek-flash' }, { id: 'deepseek-v4-pro' }],
+    probe: { tools: false, context_window: 1048576 },
+  }
+
+  /** DeepSeek preset (model `deepseek-chat`), a new key, up to the first verdict. */
+  async function toFirstVerdict(model?: string) {
+    mount()
+    fireEvent.change(field('Identifiant'), { target: { value: 'ds' } })
+    if (model !== undefined) fireEvent.change(field('Modèle par défaut'), { target: { value: model } })
+    fireEvent.click(button('Suivant'))
+    await screen.findByTestId('wizard-vault-open')
+    fireEvent.change(field('Clé d’API'), { target: { value: 'sk-model-test' } })
+    fireEvent.click(button('Enregistrer et tester'))
+    await screen.findByTestId('wizard-test-result')
+  }
+  const radio = (name: string) => screen.getByRole('radio', { name: new RegExp(name) }) as HTMLInputElement
+
+  it('(a) tools=false with two models: both are offered, the model tested is named, the message is nuanced', async () => {
+    test.mockResolvedValue(NO_TOOLS)
+    await toFirstVerdict('deepseek-flash')
+    const result = screen.getByTestId('wizard-test-result')
+    expect(result.textContent).toContain('Modèle testé')
+    expect(result.textContent).toContain('deepseek-flash')
+    expect(screen.getByTestId('wizard-test-problem').textContent).toBe(
+      'Ce modèle n’a pas appelé l’outil de test (certains modèles de raisonnement ne le font pas) : essayez un autre modèle listé.',
+    )
+    expect(result.textContent).not.toContain('ne peut pas appeler')
+    const picker = screen.getByTestId('wizard-model-picker')
+    expect(within(picker).getByText('Modèle à tester')).toBeTruthy()
+    expect(radio('deepseek-flash').checked).toBe(true)
+    expect(within(picker).getByRole('radio', { name: /deepseek-flash.*Testé : échec/ })).toBeTruthy()
+    expect(within(picker).getByRole('radio', { name: /deepseek-v4-pro.*Pas encore testé/ })).toBeTruthy()
+    expect(test.mock.calls[0][0]).toMatchObject({ default_model: 'deepseek-flash' })
+  })
+
+  it('(b) "Tester ce modèle" posts a test with the chosen model, and touches neither the vault nor the instance', async () => {
+    test.mockResolvedValue(NO_TOOLS)
+    await toFirstVerdict('deepseek-flash')
+    const before = { put: putSecret.mock.calls.length, grant: createGrant.mock.calls.length, create: create.mock.calls.length }
+    test.mockResolvedValue({ ...NO_TOOLS, ok: true, health: { state: 'ok' }, probe: { tools: true, context_window: 1048576 } })
+    fireEvent.click(radio('deepseek-v4-pro'))
+    fireEvent.click(button('Tester ce modèle'))
+    await waitFor(() => expect(test).toHaveBeenCalledTimes(2))
+    const body = test.mock.calls[1][0] as Record<string, unknown>
+    expect(body).toMatchObject({ id: 'ds', default_model: 'deepseek-v4-pro', credential_ref: 'vault:ds' })
+    expect(JSON.stringify(body)).not.toContain('sk-model-test')
+    expect(putSecret.mock.calls.length).toBe(before.put)
+    expect(createGrant.mock.calls.length).toBe(before.grant)
+    expect(create.mock.calls.length).toBe(before.create)
+    expect(overview).toHaveBeenCalledTimes(1) // the initial read, nothing since
+    await waitFor(() => expect(screen.getByTestId('wizard-test-result').textContent).toContain('La connexion fonctionne.'))
+    expect(screen.getByTestId('wizard-test-result').textContent).toContain('deepseek-v4-pro')
+  })
+
+  it('(c) success with another model: "Utiliser ce modèle par défaut" updates that single field', async () => {
+    test.mockResolvedValue(NO_TOOLS)
+    await toFirstVerdict('deepseek-flash')
+    expect(screen.getByTestId('wizard-saved-default').textContent).toContain('deepseek-flash')
+    expect(screen.queryByRole('button', { name: 'Utiliser ce modèle par défaut' })).toBeNull()
+    test.mockResolvedValue({ ...NO_TOOLS, ok: true, health: { state: 'ok' }, probe: { tools: true } })
+    fireEvent.click(radio('deepseek-v4-pro'))
+    fireEvent.click(button('Tester ce modèle'))
+    const offer = await screen.findByRole('button', { name: 'Utiliser ce modèle par défaut' })
+    expect(screen.getByTestId('wizard-default-offer').textContent).toContain('deepseek-v4-pro a réussi le test')
+    fireEvent.click(offer)
+    await waitFor(() => expect(update).toHaveBeenCalledWith('ds', { default_model: 'deepseek-v4-pro' }))
+    await waitFor(() => expect(screen.getByTestId('wizard-saved-default').textContent).toContain('deepseek-v4-pro'))
+    expect(screen.queryByRole('button', { name: 'Utiliser ce modèle par défaut' })).toBeNull()
+    fireEvent.click(button('Suivant'))
+    fireEvent.click(button('Passer cette étape'))
+    expect(screen.getByTestId('wizard-summary').textContent).toContain('deepseek-v4-pro')
+  })
+
+  it('a success with the model already saved as default: no offer, the saved default is named', async () => {
+    test.mockResolvedValue({ ...NO_TOOLS, ok: true, health: { state: 'ok' }, probe: { tools: true } })
+    await toFirstVerdict('deepseek-flash')
+    expect(screen.queryByRole('button', { name: 'Utiliser ce modèle par défaut' })).toBeNull()
+    expect(screen.getByTestId('wizard-saved-default').textContent).toBe(
+      'Modèle enregistré par défaut pour cette instance : deepseek-flash.',
+    )
+  })
+
+  it('(d) the suggested default model is not listed: said explicitly, and the first listed is pre-selected', async () => {
+    test.mockResolvedValue(NO_TOOLS)
+    await toFirstVerdict() // DeepSeek preset suggests deepseek-chat
+    expect(test.mock.calls[0][0]).toMatchObject({ default_model: 'deepseek-chat' })
+    expect(screen.getByTestId('wizard-model-missing').textContent).toContain(
+      'Le modèle proposé par défaut (deepseek-chat) n’est pas proposé par ce serveur',
+    )
+    expect(radio('deepseek-flash').checked).toBe(true)
+    expect(screen.queryByRole('radio', { name: /deepseek-chat/ })).toBeNull()
+    fireEvent.click(button('Tester ce modèle'))
+    await waitFor(() => expect(test).toHaveBeenCalledTimes(2))
+    expect(test.mock.calls[1][0]).toMatchObject({ default_model: 'deepseek-flash' })
+  })
+
+  it('the step explains that the tool test depends on the model', async () => {
+    test.mockResolvedValue(NO_TOOLS)
+    await toFirstVerdict()
+    expect(screen.getByText(/Le test d’appel d’outil porte sur UN modèle/)).toBeTruthy()
   })
 })

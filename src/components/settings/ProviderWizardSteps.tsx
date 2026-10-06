@@ -9,7 +9,7 @@
 import type { ReactNode, RefObject } from 'react'
 import { Link } from 'react-router-dom'
 import { Check, CircleDashed, Loader2, Lock, LockOpen, X } from 'lucide-react'
-import { Badge, Facts, Input, Select, surface } from '@/components/ui'
+import { Badge, Button, Facts, Input, Select, surface } from '@/components/ui'
 import { CreateVault, LockPanel } from '@/pages/VaultPage'
 import { PROVIDER_PRESETS, type ProviderPresetInfo } from '@/constants/providerPresets'
 import { COST_LABELS_FR, GRANT_CHOICES_FR, TASK_LABELS, isProcessKind, kindLabelFr, type TaskKey, type TaskState } from '@/constants/providerWizard'
@@ -197,7 +197,7 @@ export function PresetStep({
             />
           </FormField>
         )}
-        <FormField id={`${uid}-model`} label="Modèle par défaut" help="Facultatif : le modèle utilisé quand rien d’autre n’est choisi.">
+        <FormField id={`${uid}-model`} label="Modèle par défaut" help="Facultatif, valeur proposée : le modèle utilisé quand rien d’autre n’est choisi. Le test vous montrera les modèles que le serveur propose vraiment.">
           <Input
             id={`${uid}-model`}
             value={identity.model}
@@ -548,7 +548,7 @@ export interface VerdictView {
   loginHint: string | null
 }
 
-export function Verdict({ verdict }: { verdict: VerdictView }) {
+export function Verdict({ verdict, testedModel }: { verdict: VerdictView; testedModel: string }) {
   return (
     <div role="status" data-testid="wizard-test-result" className={`${surface} space-y-3 p-3`}>
       <div className="flex items-center gap-2">
@@ -558,6 +558,10 @@ export function Verdict({ verdict }: { verdict: VerdictView }) {
       <Facts
         columns={2}
         items={[
+          {
+            label: 'Modèle testé',
+            value: testedModel ? <span className="font-mono">{testedModel}</span> : 'aucun indiqué (le serveur sonde le premier de sa liste)',
+          },
           { label: 'Joignable', value: verdict.reachable },
           { label: 'Modèles', value: verdict.models },
           { label: 'Appel d’outil', value: verdict.tools },
@@ -574,6 +578,99 @@ export function Verdict({ verdict }: { verdict: VerdictView }) {
           Commande à lancer sur le serveur : <code className="font-mono text-gray-200">{verdict.loginHint}</code>
         </p>
       )}
+    </div>
+  )
+}
+
+/**
+ * "Modèle à tester": the models the endpoint listed, the one tested named, a
+ * button to probe the chosen one, and — once a model passed — the offer to make
+ * it the default of the saved instance.
+ */
+export function ModelPicker({
+  uid,
+  models,
+  selected,
+  testedModel,
+  proposedMissing,
+  lastOk,
+  savedDefault,
+  running,
+  defaultBusy,
+  defaultError,
+  onSelect,
+  onTest,
+  onUseAsDefault,
+}: {
+  uid: string
+  models: string[]
+  selected: string
+  testedModel: string
+  /** The suggested default model, when the endpoint does not list it. */
+  proposedMissing: string | null
+  lastOk: boolean
+  savedDefault: string | null
+  running: boolean
+  defaultBusy: boolean
+  defaultError: string | null
+  onSelect: (model: string) => void
+  onTest: () => void
+  onUseAsDefault: () => void
+}) {
+  // Offered for the model that just PASSED, when the saved default is another one.
+  const offerDefault = lastOk && !!testedModel && savedDefault !== null && savedDefault !== testedModel
+  return (
+    <div data-testid="wizard-model-picker" className={`${surface} space-y-3 p-3`}>
+      {proposedMissing && (
+        <p data-testid="wizard-model-missing" className="text-sm text-amber-200">
+          Le modèle proposé par défaut ({proposedMissing}) n’est pas proposé par ce serveur. Le premier modèle listé est
+          présélectionné ci-dessous.
+        </p>
+      )}
+      <fieldset>
+        <legend className="mb-2 text-sm font-medium text-gray-300">Modèle à tester</legend>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {models.map((m) => (
+            <ChoiceRow
+              key={m}
+              name={`${uid}-model-to-test`}
+              value={m}
+              checked={selected === m}
+              disabled={running}
+              onChange={onSelect}
+              title={<span className="font-mono">{m}</span>}
+              description={m === testedModel ? (lastOk ? 'Testé : réussi' : 'Testé : échec') : 'Pas encore testé'}
+            />
+          ))}
+        </div>
+        <p className="mt-1 text-xs text-gray-500">
+          L’appel d’outil dépend du modèle : un modèle qui échoue n’empêche pas un autre du même serveur de réussir.
+        </p>
+      </fieldset>
+      <p data-testid="wizard-saved-default" className="text-xs text-gray-400">
+        Modèle enregistré par défaut pour cette instance :{' '}
+        {savedDefault ? <code className="font-mono text-gray-200">{savedDefault}</code> : 'aucun (le serveur choisit le premier de sa liste)'}.
+      </p>
+      {offerDefault && (
+        <p data-testid="wizard-default-offer" className="text-sm text-emerald-300">
+          {testedModel} a réussi le test, mais l’instance enregistre {savedDefault ? savedDefault : 'aucun modèle'} par défaut.
+        </p>
+      )}
+      {defaultError && (
+        <p role="alert" className="text-xs text-red-400">
+          {defaultError}
+        </p>
+      )}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {offerDefault && (
+          <Button size="sm" variant="secondary" onClick={onUseAsDefault} loading={defaultBusy} disabled={running}>
+            Utiliser ce modèle par défaut
+          </Button>
+        )}
+        <Button size="sm" variant="secondary" onClick={onTest} loading={running} disabled={!selected}>
+          Tester ce modèle
+        </Button>
+      </div>
     </div>
   )
 }
