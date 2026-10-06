@@ -184,11 +184,11 @@ export const SETUP_MODE_SUMMARIES: PerMode<string> = {
 
 /** Decision A35: a third-party model never runs unattended outside a sandbox. */
 export const TRUST_REQUIRES_SANDBOX_TEXT =
-  'Not available: this provider runs tools without a sandbox, so a third-party model cannot be trusted to run them unattended.'
+  'Indisponible : ce provider exécute les outils sans bac à sable, un modèle tiers ne peut donc pas les lancer sans surveillance.'
 
 /** Allow/deny rules use Claude Code's pattern syntax (`Bash(git *)`), which other providers do not read. */
 export const RULES_UNSUPPORTED_TEXT =
-  'Allow and block rules are specific to Claude Code. This provider does not apply them, so they are not shown here: the permission mode above is what governs its tools.'
+  'Les règles d’autorisation et de blocage sont propres à Claude Code. Ce provider ne les applique pas, elles ne sont donc pas affichées : c’est le mode de permission ci-dessus qui encadre ses outils.'
 
 /**
  * Whether `trust` may be picked: always for Claude Code (unchanged), and for
@@ -196,4 +196,24 @@ export const RULES_UNSUPPORTED_TEXT =
  */
 export function isTrustAllowed(target: { isClaudeCode: boolean; sandboxed: boolean }): boolean {
   return target.isClaudeCode || target.sandboxed
+}
+
+/** The mode a refused `trust` falls back to: the closest mode every provider accepts. */
+export const TRUST_FALLBACK_MODE: ToolPolicyMode = 'ask'
+
+/** Shown when `trust` was replaced because the target provider has no sandbox. */
+export const TRUST_DOWNGRADED_TEXT =
+  'Le mode « Tout autoriser » a été remplacé par « Demander » : ce provider n’a pas de bac à sable.'
+
+/**
+ * The mode actually usable on `target`: `trust` on a provider that refuses it
+ * becomes `ask` (decision A35, refused server-side otherwise). Other modes,
+ * and `trust` on Claude Code or a sandboxed provider, are kept.
+ */
+export function usableMode(
+  mode: ToolPolicyMode | null | undefined,
+  target: { isClaudeCode: boolean; sandboxed: boolean },
+): ToolPolicyMode | null {
+  if (!mode) return null
+  return mode === 'trust' && !isTrustAllowed(target) ? TRUST_FALLBACK_MODE : mode
 }

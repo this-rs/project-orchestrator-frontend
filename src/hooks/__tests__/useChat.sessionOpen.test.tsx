@@ -10,6 +10,8 @@ import type { ReactNode } from 'react'
 import { Provider, createStore } from 'jotai'
 import {
   chatDraftInputAtom,
+  chatPermissionConfigAtom,
+  chatSessionPermissionOverrideAtom,
   chatSelectedProviderAtom,
   chatSessionIdAtom,
   chatSessionModelAtom,
@@ -238,5 +240,47 @@ describe('useChat.sendMessage — provider and model of a new session', () => {
   it('sends no model when none was picked (the server default applies)', async () => {
     const request = await send(ready)
     expect(request.model).toBeUndefined()
+  })
+})
+
+describe('useChat.sendMessage — trust on a provider without a sandbox (A35)', () => {
+  const send = async (prepare: (store: ReturnType<typeof createStore>) => void) => {
+    vi.mocked(chatApi.createSession).mockResolvedValue({ session_id: 'sess-1' } as never)
+    const { result } = setup(prepare)
+    await act(async () => {
+      await result.current.sendMessage('hello', OPTIONS)
+    })
+    return created()
+  }
+  const onLlama = (store: ReturnType<typeof createStore>) => {
+    store.set(providersAtom, PROVIDERS)
+    store.set(providersLoadStateAtom, 'ready')
+    store.set(chatSelectedProviderAtom, 'local-llama')
+  }
+
+  it('a remembered trust is downgraded to ask before it reaches the server', async () => {
+    const request = await send((store) => {
+      onLlama(store)
+      store.set(chatSessionPermissionOverrideAtom, 'trust')
+    })
+    expect(request.permission_mode).toBe('ask')
+  })
+
+  it('a server default of trust (bypassPermissions) is not left to apply: ask is sent', async () => {
+    const request = await send((store) => {
+      onLlama(store)
+      store.set(chatPermissionConfigAtom, { mode: 'bypassPermissions', allowed_tools: [], disallowed_tools: [] } as never)
+    })
+    expect(request.permission_mode).toBe('ask')
+  })
+
+  it('Claude Code keeps trust', async () => {
+    const request = await send((store) => {
+      store.set(providersAtom, PROVIDERS)
+      store.set(providersLoadStateAtom, 'ready')
+      store.set(chatSelectedProviderAtom, 'claude-code')
+      store.set(chatSessionPermissionOverrideAtom, 'trust')
+    })
+    expect(request.permission_mode).toBe('bypassPermissions')
   })
 })

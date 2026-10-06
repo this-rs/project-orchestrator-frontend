@@ -11,6 +11,8 @@ import {
   COMPOSER_MODE_ORDER,
   MODE_DOT_COLORS,
   TRUST_REQUIRES_SANDBOX_TEXT,
+  TRUST_DOWNGRADED_TEXT,
+  TRUST_FALLBACK_MODE,
   claudeNativeModeLabel,
   isTrustAllowed,
   modeLabelSet,
@@ -171,6 +173,21 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   const effectiveModeLabel =
     (providerTarget.isClaudeCode ? claudeNativeModeLabel(nativeMode, 'short') : null) ?? modeLabels[effectiveMode]
   const trustAllowed = isTrustAllowed(providerTarget)
+
+  // A `trust` in force (chosen, remembered, or the server default) on a
+  // provider without a sandbox would make the server refuse the opening (A35):
+  // downgrade it to `ask` as soon as such a provider is targeted, and say so.
+  const [trustDowngraded, setTrustDowngraded] = useState(false)
+  useEffect(() => {
+    if (sessionId) return
+    if (effectiveMode === 'trust' && !trustAllowed) {
+      setModeOverride(TRUST_FALLBACK_MODE)
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reacting to a provider change made elsewhere
+      setTrustDowngraded(true)
+    } else if (trustAllowed) {
+      setTrustDowngraded(false)
+    }
+  }, [effectiveMode, trustAllowed, sessionId, setModeOverride])
 
   /** Full re-measure: reset then fit (needed to let the box SHRINK). */
   const resize = useCallback(() => {
@@ -686,6 +703,23 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-200"
         >
           {imagesRefusedText(refusedImages)}
+        </p>
+      )}
+      {trustDowngraded && !sessionId && (
+        <p
+          role="status"
+          data-testid="trust-downgraded"
+          className="flex items-start justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-200"
+        >
+          <span className="min-w-0">{TRUST_DOWNGRADED_TEXT}</span>
+          <button
+            type="button"
+            onClick={() => setTrustDowngraded(false)}
+            aria-label="Fermer"
+            className="shrink-0 rounded px-1 text-amber-200/80 hover:bg-amber-500/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-300"
+          >
+            ×
+          </button>
         </p>
       )}
       {disabled && disabledReason && (
