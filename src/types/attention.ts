@@ -80,6 +80,8 @@ export interface AttentionRunRef {
   duration_secs: number
   /** Updated in place by clients, never interpolated. */
   cost_usd: number
+  /** Where `cost_usd` comes from (`reported`, `priced`, `free`, `subscription`, `unknown`). Absent on an older backend. */
+  cost_basis?: string
 }
 
 /** What "Resume" would do — shown BEFORE the click (runner skips done AND blocked). */
