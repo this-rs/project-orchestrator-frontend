@@ -1,7 +1,8 @@
 import { useId, useMemo, useState } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { ChevronDown, Lock, Search } from 'lucide-react'
-import { fold, Highlight } from '@/components/ui/SearchableSelect'
+import { Highlight } from '@/components/ui/SearchableSelect'
+import { fold } from '@/components/ui/searchFold'
 import {
   chatDefaultModelAtom,
   chatEffectiveProviderAtom,

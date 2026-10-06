@@ -18,6 +18,7 @@
  */
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Check, ChevronDown, Loader2 } from 'lucide-react'
+import { fold } from './searchFold'
 
 export interface SearchableOption {
   value: string
@@ -52,9 +53,6 @@ export interface SearchableSelectProps {
   'aria-label'?: string
   className?: string
 }
-
-/** Lower-cased, accents removed: what search compares. */
-export const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
 /** Folded text with, per folded char, the index of the original char it came from. */
 function foldWithMap(s: string): { text: string; map: number[] } {
