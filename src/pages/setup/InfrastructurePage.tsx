@@ -4,7 +4,7 @@ import { Package, Link as LinkIcon, Info, Globe, Loader2, Wifi, Check, X, AlertT
 import { setupConfigAtom, infraValidAtom, trayNavigationAtom } from '@/atoms/setup'
 import { isTauri } from '@/services/env'
 
-type DockerStatus = 'unknown' | 'not_installed' | 'installed' | 'running'
+type DockerStatus = 'unknown' | 'not_installed' | 'installed' | 'running' | 'check_failed'
 
 /** Connection test result: null = not tested, true = success, false = failure */
 type ConnectionTestMap = {
@@ -24,6 +24,8 @@ export function InfrastructurePage() {
 
   // ── Docker state (docker mode only) ────────────────────────────────
   const [dockerStatus, setDockerStatus] = useState<DockerStatus>('unknown')
+  /** Why the last Docker check failed (only with `check_failed`). */
+  const [dockerError, setDockerError] = useState<string | null>(null)
   const [dockerChecking, setDockerChecking] = useState(false)
 
   // ── Connection test state (external mode only) ─────────────────────
@@ -44,6 +46,7 @@ export function InfrastructurePage() {
     try {
       const { invoke } = await import('@tauri-apps/api/core')
       const result = await invoke<{ available: boolean; status: string }>('check_docker')
+      setDockerError(null)
       if (result.status === 'running') {
         setDockerStatus('running')
       } else if (result.available || result.status === 'installed') {
@@ -52,10 +55,11 @@ export function InfrastructurePage() {
         setDockerStatus('not_installed')
       }
     } catch (e) {
-      // Never swallow this silently: "not installed" for a failed call sends people to install
-      // a Docker they already have.
+      // A check that FAILS says nothing about whether Docker is there: reporting "not installed"
+      // sent people who have Docker to install it. Say it failed, and why.
       console.warn('check_docker failed:', e)
-      setDockerStatus('not_installed')
+      setDockerError(e instanceof Error ? e.message : String(e))
+      setDockerStatus('check_failed')
     }
   }, [])
 
@@ -285,8 +289,10 @@ export function InfrastructurePage() {
             <DockerBanner
               status={dockerStatus}
               checking={dockerChecking}
+              error={dockerError}
               onInstall={handleInstallDocker}
               onOpen={handleOpenDocker}
+              onRetry={() => void checkDocker()}
             />
           )}
 
@@ -463,11 +469,15 @@ function Field({
 function DockerBanner({
   status,
   checking,
+  error,
   onInstall,
   onOpen,
+  onRetry,
 }: {
   status: DockerStatus
   checking: boolean
+  error: string | null
+  onRetry: () => void
   onInstall: () => void
   onOpen: () => void
 }) {
@@ -476,6 +486,30 @@ function DockerBanner({
       <div className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
         <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
         <span className="text-sm text-gray-400">Detecting Docker Desktop...</span>
+      </div>
+    )
+  }
+
+  if (status === 'check_failed') {
+    return (
+      <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.08] p-4">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-400">Could not check Docker</p>
+            <p className="mt-1 text-xs text-gray-400">
+              Docker may well be installed: the check itself failed, so nothing is known about it.
+              It is retried automatically.
+            </p>
+            {error && <p className="mt-2 break-words font-mono text-xs text-gray-500">{error}</p>}
+            <button
+              onClick={onRetry}
+              className="mt-3 flex items-center gap-2 rounded-lg bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-300 transition hover:bg-amber-500/30"
+            >
+              Check again
+            </button>
+          </div>
+        </div>
       </div>
     )
   }
