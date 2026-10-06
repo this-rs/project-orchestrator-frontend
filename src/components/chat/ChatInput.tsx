@@ -780,7 +780,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
 
         {/* Controls row. `relative` makes it the model picker's containing
             block on mobile, so the picker spans the composer's width. */}
-        <div className="relative flex items-center gap-1.5 pt-0.5">
+        <div className="relative flex items-center gap-1.5 pt-0.5" data-testid="composer-controls">
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled}
@@ -790,8 +790,13 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           >
             <Paperclip className="w-4 h-4" />
           </button>
+          {/* The chips (mode, provider, model) share ONE flexible group that
+              wraps onto a second line when the row is too narrow; attach and
+              send keep their place at both ends. Without it the row could not
+              shrink and pushed the send button out of the composer at 390 px. */}
+          <div data-testid="composer-chips" className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
           {/* Permission mode selector */}
-          <div className="flex items-center gap-1.5" ref={dropdownRef}>
+          <div className="flex min-w-0 items-center gap-1.5" ref={dropdownRef}>
             <div className="relative">
               <button
                 onClick={() => { setShowModeDropdown(!showModeDropdown); setPickerMenu(null) }}
@@ -804,7 +809,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
                 <span className={`w-1.5 h-1.5 rounded-full ${MODE_DOT_COLORS[effectiveMode]}`} />
                 <span>{effectiveModeLabel}</span>
                 {modeOverride && !sessionId && (
-                  <span className="text-[8px] text-indigo-400 ml-0.5">(override)</span>
+                  <span className="hidden sm:inline text-[8px] text-indigo-400 ml-0.5">(override)</span>
                 )}
                 <ChevronDown className="w-2.5 h-2.5 text-gray-500" />
               </button>
@@ -850,7 +855,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
 
           {/* Provider (when the server has several) and model — always visible
               (new conversation + active session). */}
-          <div className="flex items-center gap-1.5" ref={modelDropdownRef}>
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5" ref={modelDropdownRef}>
             <ProviderModelPicker
               sessionId={sessionId}
               open={pickerMenu}
@@ -859,8 +864,9 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
               onNewConversation={onNewConversation}
             />
           </div>
+          </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             {/* Auto-continue toggle */}
             <div className="flex items-center gap-1.5">
               <span className={`hidden sm:inline text-[10px] ${autoContinue ? 'text-gray-400' : 'text-gray-500'} transition-colors`}>Auto</span>

@@ -168,3 +168,25 @@ describe('ChatInput — trust downgraded when a provider without a sandbox is ta
     expect(screen.queryByTestId('trust-downgraded')).toBeNull()
   })
 })
+
+describe('ChatInput — controls row never overflows', () => {
+  it('the chips share one wrapping, shrinkable group; attach and send stay outside it', () => {
+    mount({ sessionId: null })
+    const row = screen.getByTestId('composer-controls')
+    const chips = screen.getByTestId('composer-chips')
+    expect(chips.className).toMatch(/\bflex-wrap\b/)
+    expect(chips.className).toMatch(/\bmin-w-0\b/)
+    expect(chips.className).toMatch(/\bflex-1\b/)
+    expect(chips.parentElement).toBe(row)
+    expect(within(chips).queryByRole('button', { name: 'Attach a file' })).toBeNull()
+    expect(within(row).getByRole('button', { name: 'Attach a file' })).toBeTruthy()
+  })
+
+  it('a long model name is truncated with the full name as a tooltip', () => {
+    mount({ sessionId: null })
+    const chip = screen.getByTestId('model-chip')
+    const label = chip.querySelector('span.truncate') as HTMLElement
+    expect(label.className).toContain('min-w-0')
+    expect(label.getAttribute('title')).toBe(label.textContent)
+  })
+})
