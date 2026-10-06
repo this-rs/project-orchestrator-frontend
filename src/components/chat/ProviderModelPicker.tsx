@@ -46,7 +46,7 @@ interface ProviderModelPickerProps {
 }
 
 const CHIP =
-  'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border text-gray-300 hover:bg-white/[0.06] transition-all duration-300'
+  'inline-flex min-w-0 max-w-full items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border text-gray-300 hover:bg-white/[0.06] transition-all duration-300'
 
 const POPOVER =
   'absolute bottom-full left-0 right-0 sm:right-auto sm:w-64 mb-1 z-20 max-h-[min(18rem,45dvh)] overflow-y-auto overscroll-contain bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl'
@@ -137,7 +137,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
   return (
     <>
       {showProviders && (
-        <div className="sm:relative">
+        <div className="min-w-0 sm:relative">
           <button
             type="button"
             onClick={() => toggle('provider')}
@@ -152,7 +152,9 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
             ) : (
               <span className={`w-1.5 h-1.5 rounded-full ${healthDotColor(instance?.health?.status)}`} aria-hidden="true" />
             )}
-            <span className="max-w-[7rem] truncate">{providerLabel}</span>
+            <span className="min-w-0 max-w-[7rem] truncate" title={providerLabel}>
+              {providerLabel}
+            </span>
             {isDefaultProvider && (
               <span className="hidden sm:inline text-[9px] text-gray-500">{routedByLabel(resolvedDefault?.routed_by)}</span>
             )}
@@ -244,7 +246,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
           block is the whole toolbar row, so it spans the input's width
           instead of hanging off a button that sits mid-row — anchored to
           the button, a phone-width screen pushed it off the right edge. */}
-      <div className="sm:relative">
+      <div className="min-w-0 sm:relative">
         <button
           type="button"
           onClick={() => toggle('model')}
@@ -261,7 +263,9 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
           } ${modelLocked ? 'text-gray-500 cursor-not-allowed' : ''}`}
         >
           {modelDot && <span className={`w-1.5 h-1.5 rounded-full ${modelDot}`} />}
-          <span className="max-w-[9rem] truncate">{modelChipLabel}</span>
+          <span className="min-w-0 max-w-[9rem] truncate" title={modelChipLabel}>
+            {modelChipLabel}
+          </span>
           {modelLocked ? (
             <Lock className="w-2.5 h-2.5 text-gray-500" aria-hidden="true" />
           ) : (
@@ -352,6 +356,7 @@ function ProviderModelList({ instance, activeModelId, onSelect }: ProviderModelL
             type="button"
             aria-pressed={active}
             onClick={() => onSelect(m.id)}
+            title={m.label || m.id}
             className={`w-full text-left px-3 py-1.5 text-xs truncate transition-colors ${
               active ? 'text-gray-100 bg-white/[0.04]' : 'text-gray-400 hover:bg-white/[0.04] hover:text-gray-200'
             }`}

@@ -12,7 +12,11 @@ import {
   providerConsentPath,
   providerErrorExplanation,
   providerInstancePath,
+  isSandboxRefusal,
 } from '@/constants/providerErrors'
+import { useSetAtom } from 'jotai'
+import { chatSessionPermissionOverrideAtom } from '@/atoms'
+import { TRUST_FALLBACK_MODE } from '@/constants/toolPolicy'
 import type { ProviderErrorInfo } from '@/types/provider'
 
 interface ProviderStateCardProps {
@@ -137,8 +141,12 @@ export function ProviderStateCard({
   className = '',
   testId = 'provider-state-card',
 }: ProviderStateCardProps) {
+  const setModeOverride = useSetAtom(chatSessionPermissionOverrideAtom)
+  const sandboxRefusal = isSandboxRefusal(error)
+  const [modeSwitched, setModeSwitched] = useState(false)
   const explanation = providerErrorExplanation(error, projectSlug)
-  const serverSentence = error.message && error.message !== explanation ? error.message : null
+  // The French explanation of a sandbox refusal says it all: no raw English sentence under it.
+  const serverSentence = error.message && error.message !== explanation && !isSandboxRefusal(error) ? error.message : null
   const canRetry =
     error.code === 'endpoint_unreachable' ||
     (error.retryable === true &&
@@ -195,6 +203,26 @@ export function ProviderStateCard({
       ) : null
       break
     default:
+      if (sandboxRefusal) {
+        action = modeSwitched ? (
+          <span role="status" className="text-[11px] text-red-100/90">
+            Mode « Demander » choisi. Envoyez votre message à nouveau.
+          </span>
+        ) : (
+          <button
+            type="button"
+            className={ACTION_CLASS}
+            onClick={() => {
+              // The next opening uses `ask`, a mode every provider accepts.
+              setModeOverride(TRUST_FALLBACK_MODE)
+              setModeSwitched(true)
+              onRetry?.()
+            }}
+          >
+            Passer en mode « Demander »
+          </button>
+        )
+      }
       break
   }
 
@@ -207,7 +235,9 @@ export function ProviderStateCard({
     >
       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-400" aria-hidden="true" />
       <div className="min-w-0 flex-1">
-        <p className="font-medium text-red-100">{PROVIDER_ERROR_TITLES[error.code]}</p>
+        <p className="font-medium text-red-100">
+          {sandboxRefusal ? 'Mode « Tout autoriser » refusé' : PROVIDER_ERROR_TITLES[error.code]}
+        </p>
         <p className="mt-0.5 break-words text-red-200/90">{explanation}</p>
         {/* The server's own sentence (already redacted), when it adds something. */}
         {serverSentence && <p className="mt-0.5 break-words text-red-200/70">{serverSentence}</p>}

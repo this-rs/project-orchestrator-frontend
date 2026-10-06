@@ -11,6 +11,8 @@ import {
   COMPOSER_MODE_ORDER,
   MODE_DOT_COLORS,
   TRUST_REQUIRES_SANDBOX_TEXT,
+  TRUST_DOWNGRADED_TEXT,
+  TRUST_FALLBACK_MODE,
   claudeNativeModeLabel,
   isTrustAllowed,
   modeLabelSet,
@@ -171,6 +173,21 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   const effectiveModeLabel =
     (providerTarget.isClaudeCode ? claudeNativeModeLabel(nativeMode, 'short') : null) ?? modeLabels[effectiveMode]
   const trustAllowed = isTrustAllowed(providerTarget)
+
+  // A `trust` in force (chosen, remembered, or the server default) on a
+  // provider without a sandbox would make the server refuse the opening (A35):
+  // downgrade it to `ask` as soon as such a provider is targeted, and say so.
+  const [trustDowngraded, setTrustDowngraded] = useState(false)
+  useEffect(() => {
+    if (sessionId) return
+    if (effectiveMode === 'trust' && !trustAllowed) {
+      setModeOverride(TRUST_FALLBACK_MODE)
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reacting to a provider change made elsewhere
+      setTrustDowngraded(true)
+    } else if (trustAllowed) {
+      setTrustDowngraded(false)
+    }
+  }, [effectiveMode, trustAllowed, sessionId, setModeOverride])
 
   /** Full re-measure: reset then fit (needed to let the box SHRINK). */
   const resize = useCallback(() => {
@@ -688,6 +705,23 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           {imagesRefusedText(refusedImages)}
         </p>
       )}
+      {trustDowngraded && !sessionId && (
+        <p
+          role="status"
+          data-testid="trust-downgraded"
+          className="flex items-start justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-200"
+        >
+          <span className="min-w-0">{TRUST_DOWNGRADED_TEXT}</span>
+          <button
+            type="button"
+            onClick={() => setTrustDowngraded(false)}
+            aria-label="Fermer"
+            className="shrink-0 rounded px-1 text-amber-200/80 hover:bg-amber-500/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-300"
+          >
+            ×
+          </button>
+        </p>
+      )}
       {disabled && disabledReason && (
         <p
           id={disabledHelpId}
@@ -746,7 +780,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
 
         {/* Controls row. `relative` makes it the model picker's containing
             block on mobile, so the picker spans the composer's width. */}
-        <div className="relative flex items-center gap-1.5 pt-0.5">
+        <div className="relative flex items-center gap-1.5 pt-0.5" data-testid="composer-controls">
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled}
@@ -756,8 +790,13 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           >
             <Paperclip className="w-4 h-4" />
           </button>
+          {/* The chips (mode, provider, model) share ONE flexible group that
+              wraps onto a second line when the row is too narrow; attach and
+              send keep their place at both ends. Without it the row could not
+              shrink and pushed the send button out of the composer at 390 px. */}
+          <div data-testid="composer-chips" className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
           {/* Permission mode selector */}
-          <div className="flex items-center gap-1.5" ref={dropdownRef}>
+          <div className="flex min-w-0 items-center gap-1.5" ref={dropdownRef}>
             <div className="relative">
               <button
                 onClick={() => { setShowModeDropdown(!showModeDropdown); setPickerMenu(null) }}
@@ -770,7 +809,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
                 <span className={`w-1.5 h-1.5 rounded-full ${MODE_DOT_COLORS[effectiveMode]}`} />
                 <span>{effectiveModeLabel}</span>
                 {modeOverride && !sessionId && (
-                  <span className="text-[8px] text-indigo-400 ml-0.5">(override)</span>
+                  <span className="hidden sm:inline text-[8px] text-indigo-400 ml-0.5">(override)</span>
                 )}
                 <ChevronDown className="w-2.5 h-2.5 text-gray-500" />
               </button>
@@ -816,7 +855,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
 
           {/* Provider (when the server has several) and model — always visible
               (new conversation + active session). */}
-          <div className="flex items-center gap-1.5" ref={modelDropdownRef}>
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5" ref={modelDropdownRef}>
             <ProviderModelPicker
               sessionId={sessionId}
               open={pickerMenu}
@@ -825,8 +864,9 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
               onNewConversation={onNewConversation}
             />
           </div>
+          </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             {/* Auto-continue toggle */}
             <div className="flex items-center gap-1.5">
               <span className={`hidden sm:inline text-[10px] ${autoContinue ? 'text-gray-400' : 'text-gray-500'} transition-colors`}>Auto</span>

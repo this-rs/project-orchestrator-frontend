@@ -1,14 +1,14 @@
 import { splitAttachments } from '@/utils/messageAttachments'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useSetAtom, useStore } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { applyResultCost } from '@/utils/cost'
 import { chatApi, ChatWebSocket } from '@/services'
 import { applyQueueOp, enqueue, mergeServerQueue, type QueueOp, type QueuedMessage } from '@/components/chat/messageQueue'
 import type { ChatMessage, ChatStreamEvent, ContentBlock, PermissionMode } from '@/types'
-import { readToolPolicyMode, toWireMode } from '@/constants/toolPolicy'
+import { isTrustAllowed, readToolPolicyMode, toWireMode, TRUST_FALLBACK_MODE, usableMode } from '@/constants/toolPolicy'
 import {
   historyEventsToMessages,
   nextBlockId,
@@ -353,6 +353,22 @@ export function useChat() {
     if (!mode) return undefined
     return toWireMode(readToolPolicyMode(mode), { neutral: store.get(chatProviderTargetAtom).neutralWire })
   }, [store])
+
+  // The mode a NEW session opens with. A `trust` (chosen, remembered, or the
+  // server default) is not sent to a provider without a sandbox: the server
+  // would refuse the opening (A35). It is downgraded to `ask`, and the
+  // composer shows why (TRUST_DOWNGRADED_TEXT).
+  const openingPermissionMode = useCallback(
+    (explicit: PermissionMode | null | undefined): ToolPolicyMode | null => {
+      const target = store.get(chatProviderTargetAtom)
+      const chosen = explicit ?? store.get(chatSessionPermissionOverrideAtom)
+      if (chosen) return usableMode(readToolPolicyMode(chosen), target)
+      const serverDefault = store.get(chatPermissionConfigAtom)?.mode
+      if (serverDefault && readToolPolicyMode(serverDefault) === 'trust' && !isTrustAllowed(target)) return TRUST_FALLBACK_MODE
+      return null
+    },
+    [store],
+  )
 
   const setSessionModel = useCallback((value: string | null) => {
     sessionModelRef.current = value
@@ -1876,7 +1892,7 @@ export function useChat() {
           cwd: options!.cwd,
           project_slug: options?.projectSlug,
           workspace_slug: options?.workspaceSlug,
-          permission_mode: wirePermissionMode(options?.permissionMode ?? store.get(chatSessionPermissionOverrideAtom)),
+          permission_mode: wirePermissionMode(openingPermissionMode(options?.permissionMode)),
           // A model id, or the NAME of an alias (`fast`, `deep`…) of the instance.
           model: options?.model ?? store.get(chatSessionModelAtom) ?? undefined,
           ...(provider ? { provider } : {}),
@@ -1926,7 +1942,7 @@ export function useChat() {
         pendingSendRef.current.push({ text, attachments })
       }
     }
-  }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride, setDraftsMap, moveDraft, moveQueue, store, wirePermissionMode])
+  }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride, setDraftsMap, moveDraft, moveQueue, store, wirePermissionMode, openingPermissionMode])
 
   /**
    * Send "Continue" after max_turns — adds a discreet inline indicator instead of a user bubble.
