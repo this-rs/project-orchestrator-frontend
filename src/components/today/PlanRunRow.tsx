@@ -118,8 +118,8 @@ export function PlanRunRow({ thread, others = [], laneName, renderDiscussions, c
               <span className={`flex shrink-0 items-center gap-2 leading-5 tabular-nums ${metaText}`}>
                 <span data-testid="run-duration">{formatDurationMs(run.duration_secs * 1000)}</span>
                 <span data-testid="run-cost">
-                  {/* The attention contract carries a figure and no basis: a reported cost, zero included. */}
-                  <CostDisplay cost={costReport(run.cost_usd)} format={formatUsd2} />
+                  {/* The basis comes with the figure; without one (an older backend) it is a reported cost, zero included. */}
+                  <CostDisplay cost={costReport(run.cost_usd, run.cost_basis)} format={formatUsd2} />
                 </span>
               </span>
             )}

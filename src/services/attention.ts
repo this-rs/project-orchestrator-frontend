@@ -32,11 +32,15 @@ function fail(path: string, why: string): never {
   throw new Error(`attention contract: ${path}: ${why}`)
 }
 
-function obj(v: unknown, path: string, keys: readonly string[]): Rec {
+/**
+ * `keys` are required, `optional` may be absent (the Rust side skips a `None`): any other key is
+ * still refused, so a backend field this reader does not know fails loudly.
+ */
+function obj(v: unknown, path: string, keys: readonly string[], optional: readonly string[] = []): Rec {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) fail(path, 'expected an object')
   const r = v as Rec
   for (const k of keys) if (!(k in r)) fail(path, `missing field "${k}"`)
-  for (const k of Object.keys(r)) if (!keys.includes(k)) fail(path, `unknown field "${k}"`)
+  for (const k of Object.keys(r)) if (!keys.includes(k) && !optional.includes(k)) fail(path, `unknown field "${k}"`)
   return r
 }
 
@@ -120,13 +124,16 @@ export function parseAttentionResponse(input: unknown): AttentionResponse {
         stuck_reason: nullable(x.stuck_reason, `${p}.stuck_reason`, oneOf(STUCK_REASONS)),
         plan: nullable(x.plan, `${p}.plan`, planRef),
         run: nullable(x.run, `${p}.run`, (rv, rp) => {
-          const y = obj(rv, rp, ['id', 'status', 'started_at', 'duration_secs', 'cost_usd'])
+          // `cost_basis` (reported | priced | free | subscription | unknown) is absent on a backend
+          // that predates the two-counter cost and whenever the runner has no basis to give.
+          const y = obj(rv, rp, ['id', 'status', 'started_at', 'duration_secs', 'cost_usd'], ['cost_basis'])
           return {
             id: str(y.id, `${rp}.id`),
             status: oneOf(ATTENTION_RUN_STATUSES)(y.status, `${rp}.status`),
             started_at: str(y.started_at, `${rp}.started_at`),
             duration_secs: num(y.duration_secs, `${rp}.duration_secs`),
             cost_usd: num(y.cost_usd, `${rp}.cost_usd`),
+            ...('cost_basis' in y ? { cost_basis: str(y.cost_basis, `${rp}.cost_basis`) } : {}),
           }
         }),
         session_ids: list(x.session_ids, `${p}.session_ids`, str),

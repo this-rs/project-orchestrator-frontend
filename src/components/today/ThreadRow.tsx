@@ -305,8 +305,8 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
           <span>depuis {ageText(thread.age_secs)}</span>
           {thread.run && (
             <span data-testid="run-cost" className="tabular-nums">
-              {/* The attention contract carries a figure and no basis: a reported cost, zero included. */}
-              <CostDisplay cost={costReport(thread.run.cost_usd)} format={formatUsd2} />
+              {/* The basis comes with the figure; without one (an older backend) it is a reported cost, zero included. */}
+              <CostDisplay cost={costReport(thread.run.cost_usd, thread.run.cost_basis)} format={formatUsd2} />
             </span>
           )}
         </>

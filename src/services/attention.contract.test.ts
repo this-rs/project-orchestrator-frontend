@@ -193,3 +193,42 @@ describe('attention contract (shared fixtures)', () => {
     })
   })
 })
+
+describe('attention contract: run.cost_basis', () => {
+  type Payload = { threads: { run: Record<string, unknown> | null }[] }
+
+  /** A deep copy of a fixture whose first thread with a run is returned together with that run. */
+  const withRun = () => {
+    for (const name of DATASETS) {
+      const raw = JSON.parse(JSON.stringify(read(name))) as Payload
+      const thread = raw.threads.find((t) => t.run !== null)
+      if (thread && thread.run) return { raw, run: thread.run }
+    }
+    throw new Error('no fixture carries a run')
+  }
+
+  it('accepts the optional basis the backend sends and keeps it', () => {
+    const { raw, run } = withRun()
+    run.cost_basis = 'priced'
+    const parsed = parseAttentionResponse(raw)
+    expect(parsed.threads.find((t) => t.run)?.run?.cost_basis).toBe('priced')
+  })
+
+  it('still accepts a run without a basis (an older backend, or none to give)', () => {
+    const { raw, run } = withRun()
+    delete run.cost_basis
+    expect(() => parseAttentionResponse(raw)).not.toThrow()
+  })
+
+  it('refuses a basis that is not a string', () => {
+    const { raw, run } = withRun()
+    run.cost_basis = 3
+    expect(() => parseAttentionResponse(raw)).toThrow(/cost_basis: expected a string/)
+  })
+
+  it('still refuses any other field it does not know', () => {
+    const { raw, run } = withRun()
+    run.surprise = 1
+    expect(() => parseAttentionResponse(raw)).toThrow(/unknown field "surprise"/)
+  })
+})
