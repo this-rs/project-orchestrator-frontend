@@ -135,13 +135,12 @@ describe('toWireMode', () => {
   })
 })
 
-describe('isTrustAllowed (decision A35)', () => {
-  it('is always allowed for Claude Code, sandbox or not', () => {
-    expect(isTrustAllowed({ isClaudeCode: true, sandboxed: false })).toBe(true)
+describe('isTrustAllowed (decision of 2026-10-07, replaces A35)', () => {
+  it('is allowed on every provider: a third party behaves like Claude Code, sandbox or not', () => {
+    expect(isTrustAllowed({ trustHeldBack: false })).toBe(true)
   })
 
-  it('needs a sandbox for a third-party provider', () => {
-    expect(isTrustAllowed({ isClaudeCode: false, sandboxed: false })).toBe(false)
-    expect(isTrustAllowed({ isClaudeCode: false, sandboxed: true })).toBe(true)
+  it('is held back only for a remote machine whose record does not allow it', () => {
+    expect(isTrustAllowed({ trustHeldBack: true })).toBe(false)
   })
 })

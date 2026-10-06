@@ -120,7 +120,7 @@ export const RETRY_BY_TESTING_TEXT_FR = 'Cliquez sur Tester pour réessayer.'
  * (`unsupported` with capability `sandbox`, backend A35).
  */
 export const SANDBOX_TRUST_REFUSED_TEXT =
-  'Le mode « Rock’n roll » est refusé pour ce provider : il n’a pas de bac à sable. Choisissez un autre mode (Demander, Éditions auto ou Plan) puis réessayez.'
+  'Le mode « Rock’n roll » est refusé pour cette machine distante : son instance ne l’autorise pas. Activez-le dans les réglages de l’instance, ou choisissez un autre mode (Demander, Éditions auto ou Plan), puis réessayez.'
 
 export function isSandboxRefusal(
   error: Pick<ProviderErrorInfo, 'code' | 'capability' | 'message'>

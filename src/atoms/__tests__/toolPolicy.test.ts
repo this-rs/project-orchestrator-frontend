@@ -24,6 +24,7 @@ describe('chatProviderTargetAtom', () => {
       providerKind: 'claude_code',
       neutralWire: false,
       sandboxed: false,
+      trustHeldBack: false,
       ruleScopes: true,
     })
     // Still legacy once the backend exposes providers.

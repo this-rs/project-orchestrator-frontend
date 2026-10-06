@@ -60,6 +60,10 @@ const PROVIDERS: ProvidersResponse = {
       default_model: 'qwen2.5-coder-32b',
       models: [{ id: 'qwen2.5-coder-32b', aliases: ['fast'] }],
     },
+    // A Claude Code on another machine whose record does NOT allow trust (its tools run
+    // where nobody is watching) and one that does.
+    { id: 'claude-code@lab', kind: 'claude_code_remote', label: 'Claude Code', health: { status: 'healthy' }, models: [], allow_trust: false },
+    { id: 'claude-code@home', kind: 'claude_code_remote', label: 'Claude Code', health: { status: 'healthy' }, models: [], allow_trust: true },
   ],
   default: { provider: 'local-llama', routed_by: 'project_rule' },
 }
@@ -258,20 +262,50 @@ describe('useChat.sendMessage — trust on a provider without a sandbox (A35)', 
     store.set(chatSelectedProviderAtom, 'local-llama')
   }
 
-  it('a remembered trust is downgraded to ask before it reaches the server', async () => {
+  const onRemote = (id: string) => (store: ReturnType<typeof createStore>) => {
+    store.set(providersAtom, PROVIDERS)
+    store.set(providersLoadStateAtom, 'ready')
+    store.set(chatSelectedProviderAtom, id)
+  }
+
+  it('a remembered trust is kept on a third-party provider with no sandbox: it behaves like Claude Code', async () => {
     const request = await send((store) => {
       onLlama(store)
+      store.set(chatSessionPermissionOverrideAtom, 'trust')
+    })
+    expect(request.permission_mode).toBe('trust')
+  })
+
+  it('a server default of trust (bypassPermissions) is left to apply on a third party: nothing is overridden', async () => {
+    const request = await send((store) => {
+      onLlama(store)
+      store.set(chatPermissionConfigAtom, { mode: 'bypassPermissions', allowed_tools: [], disallowed_tools: [] } as never)
+    })
+    expect(request.permission_mode).toBeUndefined()
+  })
+
+  it('a remembered trust is downgraded to ask only for a remote machine that does not allow it', async () => {
+    const request = await send((store) => {
+      onRemote('claude-code@lab')(store)
       store.set(chatSessionPermissionOverrideAtom, 'trust')
     })
     expect(request.permission_mode).toBe('ask')
   })
 
-  it('a server default of trust (bypassPermissions) is not left to apply: ask is sent', async () => {
+  it('a server default of trust is not left to apply on a remote machine that does not allow it: ask is sent', async () => {
     const request = await send((store) => {
-      onLlama(store)
+      onRemote('claude-code@lab')(store)
       store.set(chatPermissionConfigAtom, { mode: 'bypassPermissions', allowed_tools: [], disallowed_tools: [] } as never)
     })
     expect(request.permission_mode).toBe('ask')
+  })
+
+  it('a remote machine that allows it keeps trust', async () => {
+    const request = await send((store) => {
+      onRemote('claude-code@home')(store)
+      store.set(chatSessionPermissionOverrideAtom, 'trust')
+    })
+    expect(request.permission_mode).toBe('trust')
   })
 
   it('Claude Code keeps trust', async () => {
