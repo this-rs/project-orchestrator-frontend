@@ -18,6 +18,11 @@ import { InfrastructurePage } from '../InfrastructurePage'
 
 configure({ asyncUtilTimeout: 10_000 })
 
+// vitest cuts a test at 5 s by default, shorter than the waits below (10 s, and 9 s for the
+// poll that recovers): on a loaded machine the page's first render alone can take that long,
+// so the test was cut before its own wait ended. Give the whole file the time it asks for.
+vi.setConfig({ testTimeout: 30_000 })
+
 function renderDockerMode() {
   const store = createStore()
   store.set(setupConfigAtom, { ...defaultSetupConfig, infraMode: 'docker' })

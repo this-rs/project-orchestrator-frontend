@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Plus } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { Badge, Button, Facts, surface } from '@/components/ui'
 import { useProviders, useRefreshProviders } from '@/hooks/useProviders'
@@ -241,7 +242,30 @@ function InstanceCard({
 }
 
 /** Instances of this server as cards: state, credential reference, test / edit / delete. */
-export function ProviderInstances() {
+/**
+ * The last entry of the list: connecting another provider is offered where the providers
+ * are, not only by a button above them. It opens the same wizard.
+ */
+function AddProviderCard({ onAdd }: { onAdd: () => void }) {
+  return (
+    <li
+      className={`${surface} flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-dashed p-4`}
+    >
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-gray-100">Un autre provider ?</p>
+        <p className="text-xs text-gray-500">
+          Une clé d’API, un serveur local ou une autre machine : l’assistant vous guide.
+        </p>
+      </div>
+      <Button type="button" size="sm" variant="secondary" onClick={onAdd}>
+        <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
+        Connecter un provider
+      </Button>
+    </li>
+  )
+}
+
+export function ProviderInstances({ onAdd }: { onAdd?: () => void } = {}) {
   const { providers, refresh } = useProviders()
   const [params] = useSearchParams()
   const focus = params.get('instance')
@@ -287,6 +311,7 @@ export function ProviderInstances() {
             onDelete={() => remove(p)}
           />
         ))}
+        {onAdd && <AddProviderCard onAdd={onAdd} />}
       </ul>
       {error && (
         <p role="alert" className="text-xs text-red-400">

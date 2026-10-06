@@ -81,7 +81,7 @@ export function ProviderSettings() {
               }}
             />
           )}
-          <ProviderInstances />
+          <ProviderInstances onAdd={adding ? undefined : () => setAdding(true)} />
         </div>
       </Section>
       <Section

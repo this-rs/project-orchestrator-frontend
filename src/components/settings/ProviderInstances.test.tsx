@@ -291,3 +291,28 @@ describe('normalizeProvidersResponse — remote instance', () => {
     expect(providers[0].health.error?.message).toBe('lab: Claude Code CLI is missing')
   })
 })
+
+describe('ProviderInstances — the list offers to connect another provider', () => {
+  it('ends the list with a « Connecter un provider » card that opens the wizard', async () => {
+    const onAdd = vi.fn()
+    mountSettings(<ProviderInstances onAdd={onAdd} />)
+    await screen.findByTestId('instance-deepseek')
+    const items = within(screen.getByRole('list', { name: 'Providers' })).getAllByRole('listitem')
+    const last = items[items.length - 1]
+    const card = within(last).getByRole('button', { name: /Connecter un provider/ })
+    fireEvent.click(card)
+    expect(onAdd).toHaveBeenCalledTimes(1)
+  })
+
+  it('is there with only Claude Code, where it is the natural next step', async () => {
+    list.mockResolvedValue(response([CLAUDE]))
+    mountSettings(<ProviderInstances onAdd={vi.fn()} />)
+    expect(await screen.findByRole('button', { name: /Connecter un provider/ })).toBeTruthy()
+  })
+
+  it('is absent when the page gives no way to add (the list alone, as before)', async () => {
+    mountSettings(<ProviderInstances />)
+    await screen.findByTestId('instance-deepseek')
+    expect(screen.queryByRole('button', { name: /Connecter un provider/ })).toBeNull()
+  })
+})
