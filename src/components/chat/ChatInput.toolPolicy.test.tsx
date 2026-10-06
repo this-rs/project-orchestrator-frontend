@@ -192,7 +192,7 @@ describe('ChatInput — controls row never overflows', () => {
 
   it('a long model name is truncated with the full name as a tooltip', () => {
     mount({ sessionId: null })
-    const chip = screen.getByTestId('model-chip')
+    const chip = screen.getByTestId('target-chip')
     const label = chip.querySelector('span.truncate') as HTMLElement
     expect(label.className).toContain('min-w-0')
     expect(label.getAttribute('title')).toBe(label.textContent)
