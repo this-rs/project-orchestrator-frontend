@@ -57,18 +57,18 @@ describe('PermissionSettingsPanel — Claude Code', () => {
 
   it('shows its four modes and both rule lists, as before', async () => {
     await mount('default')
-    for (const label of ['Bypass', 'Accept Edits', 'Default', 'Plan Only']) expect(option(label)).toBeTruthy()
+    for (const label of ["Rock'n roll", 'Accept Edits', 'Default', 'Plan Only']) expect(option(label)).toBeTruthy()
     expect(option('Default').getAttribute('aria-pressed')).toBe('true')
     expect(screen.getByText('Allowed Tools')).toBeTruthy()
     expect(screen.getByText('Disallowed Tools')).toBeTruthy()
     expect(screen.getAllByText('+ Presets')).toHaveLength(2)
     expect(screen.queryByText(RULES_UNSUPPORTED_TEXT)).toBeNull()
-    expect(option('Bypass').getAttribute('aria-disabled')).toBeNull()
+    expect(option("Rock'n roll").getAttribute('aria-disabled')).toBeNull()
   })
 
   it('saves a picked mode as the legacy Claude string', async () => {
     await mount('default')
-    fireEvent.click(option('Bypass'))
+    fireEvent.click(option("Rock'n roll"))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(api.updateChatConfig).toHaveBeenCalled())
     expect(api.updateChatConfig).toHaveBeenCalledWith({ mode: 'bypassPermissions', allowed_tools: ['Read'], disallowed_tools: [] })
@@ -107,7 +107,7 @@ describe('PermissionSettingsPanel — third-party provider', () => {
   it('uses neutral labels and saves a picked mode as its neutral name, the hidden rules untouched', async () => {
     await mount('default', thirdParty({ permission_scopes: [], sandbox: 'workspace' }))
     expect(option('Ask').getAttribute('aria-pressed')).toBe('true')
-    fireEvent.click(option('Trust'))
+    fireEvent.click(option("Rock'n roll"))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(api.updateChatConfig).toHaveBeenCalled())
     expect(api.updateChatConfig).toHaveBeenCalledWith({ mode: 'trust', allowed_tools: ['Read'], disallowed_tools: [] })
@@ -115,7 +115,7 @@ describe('PermissionSettingsPanel — third-party provider', () => {
 
   it('refuses Trust without a sandbox: aria-disabled, explained in visible text, and not selectable', async () => {
     await mount('default', thirdParty({ permission_scopes: [], sandbox: 'none' }))
-    const trust = option('Trust') as HTMLButtonElement
+    const trust = option("Rock'n roll") as HTMLButtonElement
     expect(trust.getAttribute('aria-disabled')).toBe('true')
     expect(trust.disabled).toBe(false)
     expect(document.getElementById(trust.getAttribute('aria-describedby') ?? '')?.textContent).toBe(TRUST_REQUIRES_SANDBOX_TEXT)

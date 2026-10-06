@@ -116,11 +116,11 @@ export const PROVIDER_ERROR_TITLES_SETTINGS_FR: Readonly<
 export const RETRY_BY_TESTING_TEXT_FR = 'Cliquez sur Tester pour réessayer.'
 
 /**
- * Trust ("Tout autoriser") refused because the provider has no sandbox
+ * Trust ("Rock’n roll") refused because the provider has no sandbox
  * (`unsupported` with capability `sandbox`, backend A35).
  */
 export const SANDBOX_TRUST_REFUSED_TEXT =
-  'Le mode « Tout autoriser » est refusé pour ce provider : il n’a pas de bac à sable. Choisissez un autre mode (Demander, Éditions auto ou Plan) puis réessayez.'
+  'Le mode « Rock’n roll » est refusé pour ce provider : il n’a pas de bac à sable. Choisissez un autre mode (Demander, Éditions auto ou Plan) puis réessayez.'
 
 export function isSandboxRefusal(
   error: Pick<ProviderErrorInfo, 'code' | 'capability' | 'message'>

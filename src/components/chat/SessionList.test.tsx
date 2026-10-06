@@ -136,7 +136,7 @@ describe('<SessionList />', () => {
     expect(p.getByText('main-ws')).toBeInTheDocument()
     expect(p.getByText('4 msgs')).toBeInTheDocument()
     expect(p.getByText('opus-4-5')).toBeInTheDocument()
-    expect(p.getByRole('img', { name: 'Bypass permissions' })).toBeInTheDocument()
+    expect(p.getByRole('img', { name: "Rock'n roll" })).toBeInTheDocument()
     expect(p.getByText('$1.23')).toBeInTheDocument()
     expect(p.getByText('~/projects/app')).toBeInTheDocument()
     expect(p.getByRole('link', { name: 'Plan: Plan one' })).toHaveAttribute('href', expect.stringContaining('/plans/p1'))

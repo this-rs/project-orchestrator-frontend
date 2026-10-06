@@ -63,7 +63,7 @@ describe('ChatInput — permission mode selector, Claude Code', () => {
   it('lists the four modes with the labels it always had', () => {
     mount()
     openMenu('Default')
-    const labels = ['Bypass', 'Accept Edits', 'Default', 'Plan Only']
+    const labels = ["Rock'n roll", 'Accept Edits', 'Default', 'Plan Only']
     for (const label of labels) {
       expect(screen.getAllByRole('button', { name: new RegExp(`^${label}`) }).length).toBeGreaterThan(0)
     }
@@ -71,7 +71,7 @@ describe('ChatInput — permission mode selector, Claude Code', () => {
   })
 
   it.each([
-    ['bypassPermissions', 'Bypass'],
+    ['bypassPermissions', "Rock'n roll"],
     ['acceptEdits', 'Accept Edits'],
     ['default', 'Default'],
     ['plan', 'Plan Only'],
@@ -96,10 +96,10 @@ describe('ChatInput — permission mode selector, Claude Code', () => {
     expect(screen.getByRole('button', { name: /^Auto$/ })).toBeTruthy()
   })
 
-  it('hands the picked mode over as a neutral mode, Bypass included', () => {
+  it("hands the picked mode over as a neutral mode, Rock'n roll included", () => {
     const { onChangePermissionMode } = mount()
     openMenu('Default')
-    const bypass = screen.getByRole('button', { name: /^Bypass/ })
+    const bypass = screen.getByRole('button', { name: /^Rock/ })
     expect(bypass.getAttribute('aria-disabled')).toBeNull()
     fireEvent.click(bypass)
     expect(onChangePermissionMode).toHaveBeenCalledWith('trust')
@@ -121,7 +121,7 @@ describe('ChatInput — permission mode selector, third-party provider', () => {
   it('uses the neutral labels', () => {
     mount({ prepare: thirdParty({ sandbox: 'workspace' }) })
     openMenu('Ask')
-    for (const label of ['Trust', 'Auto-approve edits', 'Plan only']) {
+    for (const label of ["Rock'n roll", 'Auto-approve edits', 'Plan only']) {
       expect(screen.getByRole('button', { name: new RegExp(`^${label}`) })).toBeTruthy()
     }
     expect(screen.queryByText('Bypass')).toBeNull()
@@ -130,7 +130,7 @@ describe('ChatInput — permission mode selector, third-party provider', () => {
   it('refuses Trust without a sandbox: disabled for assistive tech, explained in visible text, still focusable', () => {
     const { onChangePermissionMode } = mount({ prepare: thirdParty({ sandbox: 'none' }) })
     openMenu('Ask')
-    const trust = screen.getByRole('button', { name: /^Trust/ }) as HTMLButtonElement
+    const trust = screen.getByRole('button', { name: /^Rock/ }) as HTMLButtonElement
     expect(trust.getAttribute('aria-disabled')).toBe('true')
     // Not the native `disabled`: the option stays reachable with the keyboard.
     expect(trust.disabled).toBe(false)
@@ -148,7 +148,7 @@ describe('ChatInput — permission mode selector, third-party provider', () => {
   it('offers Trust when the provider sandboxes its tools', () => {
     const { onChangePermissionMode } = mount({ prepare: thirdParty({ sandbox: 'full' }) })
     openMenu('Ask')
-    const trust = screen.getByRole('button', { name: /^Trust/ })
+    const trust = screen.getByRole('button', { name: /^Rock/ })
     expect(trust.getAttribute('aria-disabled')).toBeNull()
     fireEvent.click(trust)
     expect(onChangePermissionMode).toHaveBeenCalledWith('trust')
