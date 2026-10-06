@@ -1,5 +1,5 @@
 import { atom } from 'jotai'
-import { hasSandbox, isClaudeCodeProvider, type ProviderKind } from '@/types/provider'
+import { hasSandbox, isClaudeCodeProvider, isRemoteClaudeCode, type ProviderKind } from '@/types/provider'
 import {
   chatEffectiveProviderAtom,
   chatEffectiveProviderIdAtom,
@@ -20,8 +20,13 @@ export interface ChatProviderTarget {
    * it has always understood.
    */
   neutralWire: boolean
-  /** Tools run in a sandbox. Without one, `trust` is refused for a third-party model. */
+  /** Tools run in a sandbox. Information for the user, not a gate on any mode. */
   sandboxed: boolean
+  /**
+   * `trust` cannot be picked: a Claude Code on another machine whose record does not allow it.
+   * Every other provider behaves like Claude Code (decision of 2026-10-07, replaces A35).
+   */
+  trustHeldBack: boolean
   /** The provider applies allow/deny rules and can remember a permission answer. */
   ruleScopes: boolean
 }
@@ -37,11 +42,13 @@ export const chatProviderTargetAtom = atom<ChatProviderTarget>((get) => {
   // "last picked provider" in local storage says.
   const isClaudeCode = loadState === 'unsupported' || isClaudeCodeProvider(get(chatEffectiveProviderIdAtom), kind)
   const caps = get(chatSessionCapabilitiesAtom)
+  const instance = get(chatEffectiveProviderAtom)
   return {
     isClaudeCode,
     providerKind: isClaudeCode ? 'claude_code' : (kind ?? 'unknown'),
     neutralWire: !isClaudeCode && loadState === 'ready',
     sandboxed: hasSandbox(caps),
+    trustHeldBack: isRemoteClaudeCode(kind) && instance?.allow_trust !== true,
     ruleScopes: isClaudeCode || caps.permission_scopes.length > 0,
   }
 })

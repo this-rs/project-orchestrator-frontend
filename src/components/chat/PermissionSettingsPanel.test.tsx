@@ -12,6 +12,7 @@ import {
   chatSessionCapabilitiesSnapshotAtom,
   chatSessionIdAtom,
   chatSessionProviderAtom,
+  providersAtom,
   providersLoadStateAtom,
 } from '@/atoms'
 import { RULES_UNSUPPORTED_TEXT, TRUST_REQUIRES_SANDBOX_TEXT } from '@/constants/toolPolicy'
@@ -45,6 +46,17 @@ async function mount(serverMode: string, prepare?: (store: Store) => void) {
 }
 
 const option = (label: string) => screen.getByRole('button', { name: new RegExp(`^${label}`) })
+
+/** A Claude Code on another machine; `allow_trust` is the per-machine switch of its record. */
+const remoteMachine = ({ allow_trust }: { allow_trust: boolean }) => (store: Store) => {
+  store.set(providersLoadStateAtom, 'ready')
+  store.set(providersAtom, {
+    providers: [{ id: 'claude-code@lab', kind: 'claude_code_remote', label: 'Claude Code', health: { status: 'healthy' }, models: [], allow_trust }],
+    default: { provider: 'claude-code@lab', routed_by: 'default' },
+  } as never)
+  store.set(chatSessionProviderAtom, { id: 'claude-code@lab', kind: 'claude_code_remote' })
+  store.set(chatSessionCapabilitiesSnapshotAtom, { sandbox: 'none' })
+}
 
 const thirdParty = (capabilities: Record<string, unknown>) => (store: Store) => {
   store.set(providersLoadStateAtom, 'ready')
@@ -113,8 +125,16 @@ describe('PermissionSettingsPanel — third-party provider', () => {
     expect(api.updateChatConfig).toHaveBeenCalledWith({ mode: 'trust', allowed_tools: ['Read'], disallowed_tools: [] })
   })
 
-  it('refuses Trust without a sandbox: aria-disabled, explained in visible text, and not selectable', async () => {
+  it('offers Trust on a third-party provider with no sandbox, like on Claude Code', async () => {
     await mount('default', thirdParty({ permission_scopes: [], sandbox: 'none' }))
+    const trust = option("Rock'n roll") as HTMLButtonElement
+    expect(trust.getAttribute('aria-disabled')).toBeNull()
+    fireEvent.click(trust)
+    expect(trust.getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('refuses Trust only for a remote machine whose record does not allow it', async () => {
+    await mount('default', remoteMachine({ allow_trust: false }))
     const trust = option("Rock'n roll") as HTMLButtonElement
     expect(trust.getAttribute('aria-disabled')).toBe('true')
     expect(trust.disabled).toBe(false)
@@ -122,6 +142,10 @@ describe('PermissionSettingsPanel — third-party provider', () => {
     fireEvent.click(trust)
     expect(trust.getAttribute('aria-pressed')).toBe('false')
     expect(option('Ask').getAttribute('aria-pressed')).toBe('true')
-    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('offers Trust on a remote machine that allows it', async () => {
+    await mount('default', remoteMachine({ allow_trust: true }))
+    expect(option("Rock'n roll").getAttribute('aria-disabled')).toBeNull()
   })
 })

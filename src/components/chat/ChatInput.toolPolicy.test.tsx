@@ -15,6 +15,8 @@ import {
   chatSessionPermissionOverrideAtom,
   chatSessionProviderAtom,
   chatSessionToolPolicyAtom,
+  providersAtom,
+  providersLoadStateAtom,
 } from '@/atoms'
 import { TRUST_DOWNGRADED_TEXT, TRUST_REQUIRES_SANDBOX_TEXT } from '@/constants/toolPolicy'
 import { ChatInput } from './ChatInput'
@@ -52,6 +54,17 @@ function mount({ mode = 'default', sessionId = 's1' as string | null, prepare }:
 /** Open the mode menu from its trigger (the button showing the current mode). */
 function openMenu(currentLabel: string) {
   fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${currentLabel}`) }))
+}
+
+/** A Claude Code on another machine; `allow_trust` is the per-machine switch of its record. */
+const remoteMachine = ({ allow_trust }: { allow_trust: boolean }) => (store: Store) => {
+  store.set(providersLoadStateAtom, 'ready')
+  store.set(providersAtom, {
+    providers: [{ id: 'claude-code@lab', kind: 'claude_code_remote', label: 'Claude Code', health: { status: 'healthy' }, models: [], allow_trust }],
+    default: { provider: 'claude-code@lab', routed_by: 'default' },
+  } as never)
+  store.set(chatSessionProviderAtom, { id: 'claude-code@lab', kind: 'claude_code_remote' })
+  store.set(chatSessionCapabilitiesSnapshotAtom, { sandbox: 'none' })
 }
 
 const thirdParty = (capabilities: Record<string, unknown> = {}) => (store: Store) => {
@@ -127,8 +140,18 @@ describe('ChatInput — permission mode selector, third-party provider', () => {
     expect(screen.queryByText('Bypass')).toBeNull()
   })
 
-  it('refuses Trust without a sandbox: disabled for assistive tech, explained in visible text, still focusable', () => {
+  it('offers Trust on a third-party provider that has no sandbox: it behaves like Claude Code', () => {
     const { onChangePermissionMode } = mount({ prepare: thirdParty({ sandbox: 'none' }) })
+    openMenu('Ask')
+    const trust = screen.getByRole('button', { name: /^Rock/ })
+    expect(trust.getAttribute('aria-disabled')).toBeNull()
+    expect(screen.queryByText(TRUST_REQUIRES_SANDBOX_TEXT)).toBeNull()
+    fireEvent.click(trust)
+    expect(onChangePermissionMode).toHaveBeenCalledWith('trust')
+  })
+
+  it('refuses Trust only for a remote machine whose record does not allow it: disabled for assistive tech, explained in visible text, still focusable', () => {
+    const { onChangePermissionMode } = mount({ prepare: remoteMachine({ allow_trust: false }) })
     openMenu('Ask')
     const trust = screen.getByRole('button', { name: /^Rock/ }) as HTMLButtonElement
     expect(trust.getAttribute('aria-disabled')).toBe('true')
@@ -145,6 +168,12 @@ describe('ChatInput — permission mode selector, third-party provider', () => {
     expect(onChangePermissionMode).toHaveBeenCalledWith('plan_only')
   })
 
+  it('offers Trust on a remote machine that allows it', () => {
+    mount({ prepare: remoteMachine({ allow_trust: true }) })
+    openMenu('Ask')
+    expect(screen.getByRole('button', { name: /^Rock/ }).getAttribute('aria-disabled')).toBeNull()
+  })
+
   it('offers Trust when the provider sandboxes its tools', () => {
     const { onChangePermissionMode } = mount({ prepare: thirdParty({ sandbox: 'full' }) })
     openMenu('Ask')
@@ -155,15 +184,21 @@ describe('ChatInput — permission mode selector, third-party provider', () => {
   })
 })
 
-describe('ChatInput — trust downgraded when a provider without a sandbox is targeted', () => {
-  it('a new conversation with trust in force on such a provider: replaced by ask, and said', () => {
+describe('ChatInput — trust downgraded only for a remote machine that does not allow it', () => {
+  it('a third-party provider with no sandbox keeps trust: nothing is replaced, nothing is said', () => {
     const { store } = mount({ mode: 'bypassPermissions', sessionId: null, prepare: thirdParty() })
+    expect(store.get(chatSessionPermissionOverrideAtom)).toBeNull()
+    expect(screen.queryByTestId('trust-downgraded')).toBeNull()
+  })
+
+  it('a new conversation with trust in force on such a machine: replaced by ask, and said', () => {
+    const { store } = mount({ mode: 'bypassPermissions', sessionId: null, prepare: remoteMachine({ allow_trust: false }) })
     expect(store.get(chatSessionPermissionOverrideAtom)).toBe('ask')
     expect(screen.getByTestId('trust-downgraded').textContent).toContain(TRUST_DOWNGRADED_TEXT)
   })
 
   it('the notice floats over the transcript: readable base surface and a backdrop blur', () => {
-    mount({ mode: 'bypassPermissions', sessionId: null, prepare: thirdParty() })
+    mount({ mode: 'bypassPermissions', sessionId: null, prepare: remoteMachine({ allow_trust: false }) })
     const notice = screen.getByTestId('trust-downgraded')
     expect(notice.className).toContain('backdrop-blur-md')
     expect(notice.className).toMatch(/(?:^|\s)bg-surface-base\/(?:[6-9]\d|100)(?:\s|$)/)
