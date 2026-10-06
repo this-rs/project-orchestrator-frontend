@@ -19,13 +19,12 @@
  */
 
 import { useCallback } from 'react'
-import { useNavigate, Navigate } from 'react-router-dom'
+import { Link, useNavigate, Navigate } from 'react-router-dom'
 import { useAtom, useAtomValue } from 'jotai'
 import { ArrowLeft } from 'lucide-react'
 import { Button, PageContainer, PageHeader, Section, surface } from '@/components/ui'
 import { isTauri } from '@/services/env'
 import { UpdatesSection } from '@/components/settings/UpdatesSection'
-import { ProviderSettings } from '@/components/settings/ProviderSettings'
 import { PermissionSettingsPanel } from '@/components/chat/PermissionSettingsPanel'
 import { settingsReturnUrlAtom } from '@/atoms/setup'
 import { activeWorkspaceSlugAtom } from '@/atoms'
@@ -98,12 +97,12 @@ export function SettingsPage() {
             </div>
           </Section>
 
-          <Section
-            title="Providers"
-            description="Instances, project consent, roles and model policy. Also available at /providers."
-          >
-            <ProviderSettings />
-          </Section>
+          <p className="text-xs text-gray-500">
+            Providers (instances, project consent, roles and model policy) have their own page:{' '}
+            <Link to="/providers" className="text-indigo-400 hover:text-indigo-300">
+              Providers → /providers
+            </Link>
+          </p>
         </PageContainer>
       </div>
     </div>
