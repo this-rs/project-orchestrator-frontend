@@ -909,6 +909,8 @@ export type WsChatClientMessage =
   // it ends instead of interrupting it. Omitted otherwise.
   | { type: 'user_message'; content: string; attachments?: string[]; queue?: true }
   | ({ type: 'queue_op' } & import('@/components/chat/messageQueue').QueueOp)
+  /** Ask the session for the messages it holds; answered by a `pending_queue` event. */
+  | { type: 'queue_op'; op: 'snapshot' }
   | { type: 'interrupt' }
   /** Cancel the running tools WITHOUT ending the turn. */
   | { type: 'cancel_tools' }

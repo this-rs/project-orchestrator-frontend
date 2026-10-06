@@ -55,6 +55,10 @@ vi.mock('@/services', () => {
       if (FakeChatWebSocket.sendResult) this.sent.push(['queue_op', action])
       return FakeChatWebSocket.sendResult
     }
+    sendQueueSnapshot() {
+      if (FakeChatWebSocket.sendResult) this.sent.push(['queue_op', { op: 'snapshot' }])
+      return FakeChatWebSocket.sendResult
+    }
     sendInterrupt() {
       return true
     }
@@ -136,6 +140,17 @@ describe('useChat — queued messages are held by the session', () => {
     expect(result.current.messages).toEqual([])
   })
 
+  // A reload opens a fresh socket: the page knows nothing of what the session holds.
+  // The server only publishes the list when it changes or when asked, so the page
+  // must ask once the replay is done, or a message queued before the reload stays
+  // invisible (and gets typed again) until the queue next changes.
+  it('asks the server for the messages it holds once the replay is complete (a reload forgets nothing)', async () => {
+    const { ws } = await setup()
+    ws.sent.length = 0
+    act(() => ws.callbacks.onReplayComplete())
+    expect(ws.sent).toContainEqual(['queue_op', { op: 'snapshot' }])
+  })
+
   it('shows the list the server publishes for the conversation', async () => {
     const { result, store, ws } = await setup()
     act(() => {
@@ -189,7 +204,12 @@ describe('useChat — queued messages are held by the session', () => {
 
     FakeWS.sendResult = true
     act(() => ws.callbacks.onReplayComplete())
-    expect(ws.sent).toEqual([['user_message', 'socket is down', undefined, { queue: true }]])
+    // The held message leaves first, then the page asks what the session holds, so
+    // the server's answer already includes the message just handed over.
+    expect(ws.sent).toEqual([
+      ['user_message', 'socket is down', undefined, { queue: true }],
+      ['queue_op', { op: 'snapshot' }],
+    ])
     expect(queueOf(store)).toEqual([])
   })
 
