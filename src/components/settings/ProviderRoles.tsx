@@ -1,20 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui'
-import { useProviders, useRefreshProviders } from '@/hooks/useProviders'
+import { useRefreshProviders } from '@/hooks/useProviders'
 import { providersApi } from '@/services/providers'
-import {
-  RESOLUTION_ORDER_TEXT,
-  ROLE_HELP,
-  ROLE_LABELS,
-  SINGLE_PROVIDER_ROLES_TEXT,
-  settingsErrorMessage,
-} from '@/constants/providerSettings'
+import { ROLE_LABELS_FR, routedByFr, wizardErrorMessage } from '@/constants/providerWizard'
 import { providerConsentPath } from '@/constants/providerErrors'
-import { routedByLabel } from '@/constants/providers'
 import type { ProviderInstance, ProvidersResponse } from '@/types/provider'
-import { PROVIDER_ROLES, type ProviderRole, type RoleAssignments, type RoleTarget } from '@/types/providerSettings'
-import { FIELD, LABEL } from './ConfirmPanel'
+import {
+  PROVIDER_ROLES,
+  type ProviderRole,
+  type RoleAssignments,
+  type RoleTarget,
+} from '@/types/providerSettings'
+import { FieldNote, FIELD_LABEL, NativeSelect } from './FormField'
+import { ErrorLine, Loading, Panel, ProjectPicker, SaveStatus } from './SettingsPanel'
 import { useProjectOptions } from './useProjectOptions'
 
 // A target is one <option>: `m|<provider>|<model>`, `a|<provider>|<alias>`, or `d|<provider>|` (the instance's default model).
@@ -36,24 +35,36 @@ const decode = (value: string): RoleTarget | undefined => {
   return { provider }
 }
 
-function describeTarget(t: RoleTarget | null | undefined, instances: readonly ProviderInstance[]): string {
-  if (!t) return SINGLE_PROVIDER_ROLES_TEXT
+function describeTarget(
+  t: { provider: string; model?: string | null; alias?: string | null },
+  instances: readonly ProviderInstance[]
+): string {
   const label = instances.find((p) => p.id === t.provider)?.label ?? t.provider
-  return `${label} / ${t.alias ?? t.model ?? 'default model'}`
+  return `${label} · ${t.alias ? `alias ${t.alias}` : (t.model ?? 'modèle par défaut')}`
 }
 
-interface ScopeProps {
-  /** `null` = the global assignment. */
-  slug: string | null
-  projectName?: string
-}
+const same = (a: RoleAssignments | null, b: RoleAssignments) =>
+  JSON.stringify(a ?? {}) === JSON.stringify(b)
 
-/** One scope (global or one project): a target per role, the effective default and a Save. */
-function RoleScope({ slug, projectName }: ScopeProps) {
+/**
+ * Pilot and executor roles: which instance and model each one uses, for every
+ * project (global) or for one project. A role left empty inherits — a project
+ * role from the global role, the global role from the server default.
+ */
+export function ProviderRoles({
+  collapsible,
+  defaultOpen,
+}: { collapsible?: boolean; defaultOpen?: boolean } = {}) {
   const refreshChat = useRefreshProviders()
+  const projects = useProjectOptions()
+  const [params, setParams] = useSearchParams()
+  const slug = params.get('project') ?? ''
+  const project = projects?.find((p) => p.slug === slug)
+
   const [list, setList] = useState<ProvidersResponse | null>(null)
   const [saved, setSaved] = useState<RoleAssignments | null>(null)
   const [draft, setDraft] = useState<RoleAssignments>({})
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -66,30 +77,37 @@ function RoleScope({ slug, projectName }: ScopeProps) {
     if (roles.status === 'fulfilled') {
       setSaved(roles.value ?? {})
       setDraft(roles.value ?? {})
-      setError(null)
+      setLoadError(null)
     } else {
-      setError(settingsErrorMessage(roles.reason))
+      setLoadError(wizardErrorMessage(roles.reason))
     }
-    if (providers.status === 'fulfilled' && Array.isArray(providers.value?.providers)) setList(providers.value)
+    if (providers.status === 'fulfilled' && Array.isArray(providers.value?.providers))
+      setList(providers.value)
   }, [slug])
 
   useEffect(() => {
     setSaved(null)
     setList(null)
     setDone(false)
+    setError(null)
     void load()
   }, [load])
 
   const instances = list?.providers ?? []
   const aliases = list?.aliases ?? []
-  const disallowed = (providerId: string) => slug !== null && instances.find((p) => p.id === providerId)?.allowed_for_project === false
+  const disallowed = (providerId: string) =>
+    !!slug && instances.find((p) => p.id === providerId)?.allowed_for_project === false
+  const anyDisallowed = !!slug && instances.some((p) => p.allowed_for_project === false)
+  const dirty = saved !== null && !same(saved, draft)
 
   const save = async () => {
     setError(null)
     setDone(false)
     const blocked = PROVIDER_ROLES.find((r) => draft[r] && disallowed(draft[r]!.provider))
     if (blocked) {
-      setError(`${ROLE_LABELS[blocked]}: this project has not agreed to send its content to that instance.`)
+      setError(
+        `${ROLE_LABELS_FR[blocked]} : ce projet n’a pas autorisé l’envoi de son contenu à ce provider.`
+      )
       return
     }
     setBusy(true)
@@ -100,161 +118,172 @@ function RoleScope({ slug, projectName }: ScopeProps) {
       // The new default is what the selector of a new conversation preselects.
       await Promise.all([load(), refreshChat()])
     } catch (err) {
-      setError(settingsErrorMessage(err))
+      setError(wizardErrorMessage(err))
     } finally {
       setBusy(false)
     }
   }
 
+  const choose = (value: string) => {
+    const next = new URLSearchParams(params)
+    if (value) next.set('project', value)
+    else next.delete('project')
+    setParams(next, { replace: true })
+  }
+
   const effective = list?.default
-  const effectiveInstance = effective ? instances.find((p) => p.id === effective.provider) : undefined
-  const anyDisallowed = slug !== null && instances.some((p) => p.allowed_for_project === false)
-
-  if (saved === null && !error) return <p className="text-sm text-gray-500">Loading roles…</p>
+  const scopeId = slug || 'global'
 
   return (
-    <div className="space-y-3" data-testid={slug ? `roles-${slug}` : 'roles-global'}>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {PROVIDER_ROLES.map((role: ProviderRole) => {
-          const id = `role-${slug ?? 'global'}-${role}`
-          return (
-            <div key={role}>
-              <label htmlFor={id} className={LABEL}>
-                {ROLE_LABELS[role]}
-              </label>
-              <select
-                id={id}
-                className={FIELD}
-                value={encode(draft[role])}
-                aria-describedby={`${id}-help`}
-                onChange={(e) => {
-                  const target = decode(e.target.value)
-                  setDraft((d) => {
-                    const next = { ...d }
-                    if (target) next[role] = target
-                    else delete next[role]
-                    return next
-                  })
-                  setDone(false)
-                }}
-              >
-                <option value="">{slug ? 'Inherit the global role' : `Not set — ${SINGLE_PROVIDER_ROLES_TEXT}`}</option>
-                {instances.map((p) => {
-                  const blocked = disallowed(p.id)
-                  const own = aliases.filter((a) => a.provider === p.id)
-                  return (
-                    <optgroup key={p.id} label={blocked ? `${p.label} (not allowed for this project)` : p.label}>
-                      <option value={`d|${p.id}|`} disabled={blocked}>
-                        {p.label}, default model
-                      </option>
-                      {p.models.map((m) => (
-                        <option key={m.id} value={`m|${p.id}|${m.id}`} disabled={blocked}>
-                          {p.label} / {m.label ?? m.id}
-                        </option>
-                      ))}
-                      {own.map((a) => (
-                        <option key={a.alias} value={`a|${p.id}|${a.alias}`} disabled={blocked}>
-                          {p.label} / alias {a.alias}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )
-                })}
-              </select>
-              <p id={`${id}-help`} className="mt-1 text-xs text-gray-500">
-                {ROLE_HELP[role]} Now: {describeTarget(draft[role], instances)}
-              </p>
-            </div>
-          )
-        })}
-      </div>
-
-      {anyDisallowed && slug && (
-        <p className="text-xs text-amber-300">
-          Some instances are not allowed for this project and cannot be chosen.{' '}
-          <Link to={providerConsentPath(slug)} className="underline">
-            Review the project&apos;s consent
-          </Link>
-        </p>
-      )}
-
-      <p className="text-xs text-gray-400" data-testid="effective-default">
-        Effective default{projectName ? ` for ${projectName}` : ''}:{' '}
-        {effective ? (
-          <>
-            <strong className="text-gray-200">{effectiveInstance?.label ?? effective.provider}</strong>
-            {` / ${effective.alias ?? effective.model ?? 'default model'}`} ({routedByLabel(effective.routed_by)})
-          </>
+    <Panel
+      testId={`roles-${scopeId}`}
+      collapsible={collapsible}
+      defaultOpen={defaultOpen}
+      title="Rôles"
+      description={
+        <>
+          <strong className="font-medium text-gray-300">Pilote</strong> : le modèle qui décide et
+          planifie (conversations ouvertes par une personne).{' '}
+          <strong className="font-medium text-gray-300">Exécutant</strong> : celui qui exécute les
+          tâches. Un rôle vide hérite du rôle global, puis du provider par défaut du serveur.
+        </>
+      }
+      aside={
+        <ProjectPicker
+          id="roles-project"
+          label="Pour"
+          projects={projects}
+          value={slug}
+          onChange={choose}
+          allLabel="Tous les projets (rôles globaux)"
+        />
+      }
+      status={<SaveStatus error={error} done={done} doneText="Rôles enregistrés." />}
+      actions={
+        saved === null && loadError ? (
+          <Button size="sm" variant="secondary" onClick={() => void load()}>
+            Réessayer
+          </Button>
         ) : (
-          'none resolved'
-        )}
-      </p>
+          saved !== null && (
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setDraft(saved)}
+                disabled={!dirty || busy}
+              >
+                Annuler
+              </Button>
+              <Button size="sm" variant="primary" onClick={save} loading={busy}>
+                Enregistrer
+              </Button>
+            </>
+          )
+        )
+      }
+    >
+      {saved === null && !loadError && <Loading>Chargement des rôles…</Loading>}
+      {loadError && <ErrorLine>{loadError}</ErrorLine>}
+      {saved !== null && (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {PROVIDER_ROLES.map((role: ProviderRole) => {
+              const id = `role-${scopeId}-${role}`
+              const current = draft[role]
+              return (
+                <div key={role} className="min-w-0">
+                  <label htmlFor={id} className={FIELD_LABEL}>
+                    {ROLE_LABELS_FR[role]}
+                  </label>
+                  <NativeSelect
+                    id={id}
+                    value={encode(current)}
+                    aria-describedby={`${id}-help`}
+                    onChange={(e) => {
+                      const target = decode(e.target.value)
+                      setDraft((d) => {
+                        const next = { ...d }
+                        if (target) next[role] = target
+                        else delete next[role]
+                        return next
+                      })
+                      setDone(false)
+                    }}
+                  >
+                    <option value="">
+                      {slug
+                        ? 'Hériter du rôle global'
+                        : 'Non réglé : provider par défaut du serveur'}
+                    </option>
+                    {instances.map((p) => {
+                      const blocked = disallowed(p.id)
+                      const own = aliases.filter((a) => a.provider === p.id)
+                      return (
+                        <optgroup
+                          key={p.id}
+                          label={blocked ? `${p.label} (non autorisé pour ce projet)` : p.label}
+                        >
+                          <option value={`d|${p.id}|`} disabled={blocked}>
+                            {p.label} · modèle par défaut
+                          </option>
+                          {p.models.map((m) => (
+                            <option key={m.id} value={`m|${p.id}|${m.id}`} disabled={blocked}>
+                              {p.label} · {m.label ?? m.id}
+                            </option>
+                          ))}
+                          {own.map((a) => (
+                            <option key={a.alias} value={`a|${p.id}|${a.alias}`} disabled={blocked}>
+                              {p.label} · alias {a.alias}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )
+                    })}
+                  </NativeSelect>
+                  <FieldNote
+                    id={id}
+                    help={
+                      current
+                        ? `Réglé : ${describeTarget(current, instances)}.`
+                        : slug
+                          ? 'Hérite du rôle global.'
+                          : 'Non réglé : le provider par défaut du serveur.'
+                    }
+                  />
+                </div>
+              )
+            })}
+          </div>
 
-      {error && (
-        <p role="alert" className="text-xs text-red-400">
-          {error}
-        </p>
-      )}
-      {done && (
-        <p role="status" className="text-xs text-emerald-300">
-          Saved.
-        </p>
-      )}
-      <Button size="sm" onClick={save} loading={busy}>
-        Save roles
-      </Button>
-    </div>
-  )
-}
+          {anyDisallowed && (
+            <p className="text-xs text-amber-300">
+              Certains providers ne sont pas autorisés pour ce projet et ne peuvent pas être
+              choisis.{' '}
+              <Link to={providerConsentPath(slug)} className="underline">
+                Voir les autorisations du projet
+              </Link>
+            </p>
+          )}
 
-/** Pilot and executor roles, globally and per project. */
-export function ProviderRoles() {
-  const { providers } = useProviders()
-  const projects = useProjectOptions()
-  const [params, setParams] = useSearchParams()
-  const slug = params.get('project') ?? ''
-  const project = projects?.find((p) => p.slug === slug)
-
-  return (
-    <div className="space-y-5">
-      <p className="text-xs text-gray-400">
-        Two roles, no master instance. The pilot answers conversations opened by a person; the executor runs the runner, delegations, protocols and one-shot calls.{' '}
-        {RESOLUTION_ORDER_TEXT}
-      </p>
-      {providers.length <= 1 && (
-        <p className="text-xs text-gray-500">Only Claude Code is configured: add an instance to assign it a role.</p>
-      )}
-      <section aria-label="Global roles" className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Global</h3>
-        <RoleScope slug={null} />
-      </section>
-      <section aria-label="Project override" className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Override for one project</h3>
-        <div className="max-w-sm">
-          <label htmlFor="roles-project" className={LABEL}>
-            Project
-          </label>
-          <select
-            id="roles-project"
-            className={FIELD}
-            value={slug}
-            onChange={(e) => {
-              const next = new URLSearchParams(params)
-              if (e.target.value) next.set('project', e.target.value)
-              else next.delete('project')
-              setParams(next, { replace: true })
-            }}
+          <p
+            className="rounded-lg bg-white/[0.03] px-3 py-2 text-xs text-gray-400"
+            data-testid="effective-default"
           >
-            <option value="">Choose a project…</option>
-            {(projects ?? []).map((p) => (
-              <option key={p.slug} value={p.slug}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        {slug ? <RoleScope slug={slug} projectName={project?.name ?? slug} /> : <p className="text-xs text-gray-500">An unset role inherits the global one.</p>}
-      </section>
-    </div>
+            Utilisé maintenant{project ? ` pour ${project.name}` : ''} :{' '}
+            {effective ? (
+              <>
+                <strong className="font-medium text-gray-200">
+                  {describeTarget(effective, instances)}
+                </strong>
+                , choisi par {routedByFr(effective.routed_by)}.
+              </>
+            ) : (
+              'aucun provider utilisable.'
+            )}
+          </p>
+        </>
+      )}
+    </Panel>
   )
 }

@@ -21,7 +21,9 @@ export function providerConsentPath(projectSlug: string | null | undefined): str
 
 /** The settings of one instance. */
 export function providerInstancePath(providerId: string | null | undefined): string {
-  return providerId ? `${PROVIDER_SETTINGS_PATH}?instance=${encodeURIComponent(providerId)}` : PROVIDER_SETTINGS_PATH
+  return providerId
+    ? `${PROVIDER_SETTINGS_PATH}?instance=${encodeURIComponent(providerId)}`
+    : PROVIDER_SETTINGS_PATH
 }
 
 export const PROVIDER_ERROR_TITLES: Readonly<Record<ProviderErrorCode, string>> = {
@@ -72,6 +74,63 @@ export const PROVIDER_ERROR_TITLES: Readonly<Record<ProviderErrorCode, string>> 
   engine_unavailable: 'The engine of this conversation is switched off',
 }
 
+/**
+ * French titles for the SETTINGS context (the Providers page and its cards).
+ * The chat keeps `PROVIDER_ERROR_TITLES`; a code missing here falls back to it.
+ */
+export const PROVIDER_ERROR_TITLES_SETTINGS_FR: Readonly<
+  Partial<Record<ProviderErrorCode, string>>
+> = {
+  auth_required: 'Connexion requise',
+  credentials_locked: 'Coffre verrouillé',
+  unauthorized: 'Clé refusée',
+  endpoint_unreachable: 'Point d’accès injoignable',
+  model_no_tools: 'Le modèle n’a pas appelé l’outil de test',
+  context_too_small: 'Fenêtre de contexte trop petite',
+  cli_not_found: 'Programme introuvable',
+  rate_limited: 'Trop de requêtes',
+  overloaded: 'Provider surchargé',
+  timeout: 'Délai dépassé',
+  process_exited: 'Le programme s’est arrêté',
+  protocol: 'Réponse incompréhensible',
+  unsupported: 'Non pris en charge par ce provider',
+  invalid_request: 'Requête refusée',
+  provider_unknown: 'Provider inconnu',
+  provider_unavailable: 'Provider indisponible',
+  provider_error: 'Échec du provider',
+  security_gate_closed: 'Providers tiers désactivés',
+  origin_mismatch: 'L’origine a changé',
+  endpoint_not_allowed: 'Origine non autorisée pour ce projet',
+  endpoint_invalid_url: 'URL invalide',
+  endpoint_scheme_not_allowed: 'Schéma d’URL refusé',
+  endpoint_http_outside_loopback: 'http refusé ici',
+  endpoint_credentials_in_url: 'Identifiants dans l’URL',
+  endpoint_host_missing: 'URL sans hôte',
+  endpoint_private_address: 'Adresse privée refusée',
+  endpoint_unresolvable: 'Hôte introuvable',
+  endpoint_redirects_not_allowed: 'Redirection refusée',
+  credential_test_requires_saved_instance: 'Enregistrez l’instance pour tester sa clé',
+}
+
+/** On the settings page, a retryable failure is retried with "Tester". */
+export const RETRY_BY_TESTING_TEXT_FR = 'Cliquez sur Tester pour réessayer.'
+
+/**
+ * Trust ("Tout autoriser") refused because the provider has no sandbox
+ * (`unsupported` with capability `sandbox`, backend A35).
+ */
+export const SANDBOX_TRUST_REFUSED_TEXT =
+  'Le mode « Tout autoriser » est refusé pour ce provider : il n’a pas de bac à sable. Choisissez un autre mode (Demander, Éditions auto ou Plan) puis réessayez.'
+
+export function isSandboxRefusal(
+  error: Pick<ProviderErrorInfo, 'code' | 'capability' | 'message'>
+): boolean {
+  return (
+    error.code === 'unsupported' &&
+    (error.capability === 'sandbox' || /\bsandbox\b/i.test(error.message ?? ''))
+  )
+}
+
 /** `12 s`, `2 min` — how long a rate limit asks to wait. */
 export function formatRetryDelay(ms: number): string {
   const seconds = Math.max(1, Math.ceil(ms / 1000))
@@ -82,7 +141,10 @@ export function formatRetryDelay(ms: number): string {
 const tokens = (n: number) => n.toLocaleString('en-US')
 
 /** What happened and what to do, in one or two sentences. Never carries a credential. */
-export function providerErrorExplanation(error: ProviderErrorInfo, projectSlug?: string | null): string {
+export function providerErrorExplanation(
+  error: ProviderErrorInfo,
+  projectSlug?: string | null
+): string {
   switch (error.code) {
     case 'no_provider':
       return 'No provider instance is healthy and allowed for this project, so a conversation cannot be started. Add or repair one in the provider settings.'
@@ -130,6 +192,7 @@ export function providerErrorExplanation(error: ProviderErrorInfo, projectSlug?:
     case 'protocol':
       return 'The provider sent an answer that could not be understood.'
     case 'unsupported':
+      if (isSandboxRefusal(error)) return SANDBOX_TRUST_REFUSED_TEXT
       return error.capability
         ? `This provider does not support "${error.capability}".`
         : 'This provider does not support what was asked.'

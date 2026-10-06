@@ -142,7 +142,8 @@ export function VaultPanel() {
   )
 }
 
-function CreateVault({ onDone }: { onDone: () => void }) {
+/** Exported for the provider wizard, which creates the vault in place. */
+export function CreateVault({ onDone }: { onDone: () => void }) {
   const [pass, setPass] = useState('')
   const [confirm, setConfirm] = useState('')
   const [busy, setBusy] = useState(false)
@@ -204,7 +205,8 @@ function CreateVault({ onDone }: { onDone: () => void }) {
   )
 }
 
-function LockPanel({ overview, onChange }: { overview: VaultOverview; onChange: () => void }) {
+/** Exported for the provider wizard, which unlocks the vault in place (same flow, same proof). */
+export function LockPanel({ overview, onChange }: { overview: VaultOverview; onChange: () => void }) {
   const [pass, setPass] = useState('')
   const [minutes, setMinutes] = useState(60)
   const [busy, setBusy] = useState(false)

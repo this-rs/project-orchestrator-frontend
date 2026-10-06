@@ -1,28 +1,44 @@
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Button } from '@/components/ui'
-import { ProviderStateCard } from '@/components/chat/ProviderStateCard'
-import { PROVIDER_PRESETS, presetInfo, type CredentialKind } from '@/constants/providerPresets'
-import { COST_BASIS_LABELS, settingsErrorMessage, validateBaseUrl } from '@/constants/providerSettings'
+import { Button, Input, Select } from '@/components/ui'
+import type { CredentialKind } from '@/constants/providerPresets'
+import {
+  COST_LABELS_FR,
+  isProcessKind,
+  validateBaseUrlFr,
+  validateEnvName,
+  wizardErrorMessage,
+} from '@/constants/providerWizard'
 import { VAULT_PATH } from '@/constants/providerErrors'
-import { providersApi, toProviderError } from '@/services/providers'
+import {
+  normalizeProviderHealth,
+  providersApi,
+  toProviderError,
+  type StoredInstance,
+} from '@/services/providers'
+import { ApiError } from '@/services/api'
 import { vaultApi } from '@/services/vault'
-import { COST_BASES, type CostBasis, type CredentialRef, type ProviderInstance, type ProviderPreset } from '@/types/provider'
-import type { ProviderDraft, ProviderTestResult } from '@/types/providerSettings'
-import type { ProviderErrorInfo } from '@/types/provider'
-import { ConfirmPanel, FIELD, LABEL } from './ConfirmPanel'
+import {
+  COST_BASES,
+  type CostBasis,
+  type CredentialRef,
+  type ProviderErrorInfo,
+  type ProviderInstance,
+} from '@/types/provider'
+import type { ProviderPatch, ProviderTestResult } from '@/types/providerSettings'
+import { ConfirmPanel } from './ConfirmPanel'
+import { FieldNote, FormField } from './FormField'
+import { ModelField } from './ModelField'
+import { SettingsErrorCard } from './SettingsErrorCard'
+import { ErrorLine, Loading } from './SettingsPanel'
+import { useModelCatalog } from './useModelCatalog'
 
 interface ProviderInstanceFormProps {
-  /** Present when editing: the id is then fixed. */
-  instance?: ProviderInstance
-  /** Ids already taken, for the uniqueness check. */
-  existingIds: readonly string[]
+  /** The instance edited: its id and kind never change. Adding goes through `ProviderWizard`. */
+  instance: ProviderInstance
   onSaved: () => void | Promise<void>
   onCancel: () => void
 }
-
-const SLUG = /^[a-z0-9][a-z0-9_-]*$/
-const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
 
 function splitRef(ref: CredentialRef | null | undefined): { kind: CredentialKind; name: string } {
   if (ref && ref.startsWith('vault:')) return { kind: 'vault', name: ref.slice(6) }
@@ -30,28 +46,101 @@ function splitRef(ref: CredentialRef | null | undefined): { kind: CredentialKind
   return { kind: 'none', name: '' }
 }
 
+const COST_OPTIONS = COST_BASES.map((c) => ({ value: c, label: COST_LABELS_FR[c] }))
+const CRED_OPTIONS = [
+  { value: 'vault', label: 'Clé du coffre' },
+  { value: 'env', label: 'Variable d’environnement du serveur' },
+  { value: 'none', label: 'Aucune' },
+]
+
 /**
- * Add or edit an OpenAI-compatible instance.
- *
- * There is deliberately NO field for a key: the instance stores a REFERENCE
- * (`vault:<name>`, `env:<VAR>`, `none`), and the value is typed into the vault.
+ * The list (`GET /chat/providers`) carries neither `base_url` nor
+ * `default_model`: the form loads the stored instance first
+ * (`GET /chat/providers/{id}`). A backend without that route (404) or a
+ * refusal falls back to the list entry and SAYS what is unknown.
  */
-export function ProviderInstanceForm({ instance, existingIds, onSaved, onCancel }: ProviderInstanceFormProps) {
-  const uid = useId()
-  const editing = !!instance
-  const initialRef = splitRef(instance?.credential_ref)
-  const [preset, setPreset] = useState<string>(instance?.preset ?? 'custom')
-  const [id, setId] = useState(instance?.id ?? '')
-  const [label, setLabel] = useState(instance?.label ?? '')
-  const [baseUrl, setBaseUrl] = useState(instance?.base_url ?? '')
-  const [model, setModel] = useState(instance?.default_model ?? '')
-  const [cost, setCost] = useState<CostBasis>(instance?.cost_source ?? 'unknown')
+export function ProviderInstanceForm(props: ProviderInstanceFormProps) {
+  const { instance } = props
+  const [stored, setStored] = useState<StoredInstance | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    let live = true
+    providersApi
+      .get(instance.id)
+      .then((s) => {
+        if (!live) return
+        setStored(s)
+        setLoaded(true)
+      })
+      .catch((err) => {
+        if (!live) return
+        setLoadError(
+          err instanceof ApiError && (err.status === 404 || err.status === 405)
+            ? 'Ce serveur ne sait pas encore relire une instance enregistrée (GET /api/chat/providers/{id} absent) : l’URL complète et le modèle par défaut ne sont pas disponibles.'
+            : `Impossible de relire l’instance enregistrée : ${wizardErrorMessage(err)}`
+        )
+        setLoaded(true)
+      })
+    return () => {
+      live = false
+    }
+  }, [instance.id])
+
+  if (!loaded) {
+    return (
+      <div className="border-t border-white/[0.06] pt-4">
+        <Loading>Chargement de l’instance enregistrée…</Loading>
+      </div>
+    )
+  }
+  return <EditForm {...props} stored={stored} loadError={loadError} />
+}
+
+/**
+ * Edit an instance: label, URL, model, cost and the credential REFERENCE.
+ *
+ * There is deliberately NO field for a key here: the instance stores a
+ * reference (`vault:<name>`, `env:<VAR>`, `none`). A new key is typed in the
+ * "Ajouter un provider" wizard or in the vault, never in this form.
+ */
+function EditForm({
+  instance,
+  stored,
+  loadError,
+  onSaved,
+  onCancel,
+}: ProviderInstanceFormProps & { stored: StoredInstance | null; loadError: string | null }) {
+  const uid = useId().replace(/:/g, '')
+  const savedRef = (stored?.credential_ref ?? instance.credential_ref ?? 'none') as CredentialRef
+  const savedUrl = stored?.base_url ?? instance.base_url ?? ''
+  const savedOrigin = stored?.origin ?? instance.origin ?? null
+  const initialRef = splitRef(savedRef)
+  const kind = stored?.kind ?? instance.kind
+  const process = isProcessKind(kind)
+  const acp = kind === 'acp'
+  /** The full URL is unknown (no read route): an empty field then means "unchanged", not "none". */
+  const urlUnknown = !process && !savedUrl
+  const [label, setLabel] = useState(stored?.label ?? instance.label ?? '')
+  const [baseUrl, setBaseUrl] = useState(savedUrl)
+  const [model, setModel] = useState(stored?.default_model ?? instance.default_model ?? '')
+  const [cost, setCost] = useState<CostBasis>(
+    stored?.cost_source ?? instance.cost_source ?? 'unknown'
+  )
+  const catalog = useModelCatalog(instance.id)
+  const testingRef = useRef(false)
+  const [testBlocked, setTestBlocked] = useState<string | null>(null)
   const [credKind, setCredKind] = useState<CredentialKind>(initialRef.kind)
   const [credName, setCredName] = useState(initialRef.name)
   const [vaultNames, setVaultNames] = useState<string[] | null>(null)
   const [touched, setTouched] = useState(false)
   const [testing, setTesting] = useState(false)
-  const [test, setTest] = useState<{ result?: ProviderTestResult; error?: ProviderErrorInfo | null; message?: string } | null>(null)
+  const [test, setTest] = useState<{
+    result?: ProviderTestResult
+    error?: ProviderErrorInfo | null
+    message?: string
+  } | null>(null)
   const [saving, setSaving] = useState(false)
   const [confirmSave, setConfirmSave] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -73,58 +162,96 @@ export function ProviderInstanceForm({ instance, existingIds, onSaved, onCancel 
     }
   }, [])
 
-  const choosePreset = (value: string) => {
-    setPreset(value)
-    if (editing) return
-    const info = presetInfo(value)
-    setBaseUrl(info.base_url)
-    setCost(info.cost_source)
-    setCredKind(info.credential_kind)
-    setCredName('')
-    if (value !== 'custom') {
-      if (!id) setId(value.replace(/_/g, '-'))
-      if (!label) setLabel(info.label)
-    }
-    setTest(null)
-  }
-
   const errors = useMemo(() => {
-    const e: Partial<Record<'id' | 'url' | 'cred', string>> = {}
-    const trimmed = id.trim()
-    if (!trimmed) e.id = 'The id is required.'
-    else if (!SLUG.test(trimmed)) e.id = 'Use lowercase letters, digits, "-" and "_".'
-    else if (!editing && existingIds.includes(trimmed)) e.id = 'An instance with this id already exists.'
-    const url = validateBaseUrl(baseUrl)
-    if (url) e.url = url
-    if (credKind === 'vault' && !credName.trim()) e.cred = 'Choose the secret this instance uses.'
-    if (credKind === 'env' && !ENV_NAME.test(credName.trim())) e.cred = 'Enter an environment variable name.'
+    const e: Partial<Record<'url' | 'cred', string>> = {}
+    if (!process && !(urlUnknown && !baseUrl.trim())) {
+      const url = validateBaseUrlFr(baseUrl)
+      if (url) e.url = url
+    }
+    if (credKind === 'vault' && !credName.trim()) e.cred = 'Choisissez la clé du coffre utilisée.'
+    if (credKind === 'env') {
+      const env = validateEnvName(credName)
+      if (env) e.cred = env
+    }
     return e
-  }, [id, baseUrl, credKind, credName, editing, existingIds])
+  }, [baseUrl, credKind, credName, process, urlUnknown])
   const valid = Object.keys(errors).length === 0
 
-  const draft = (): ProviderDraft => ({
-    id: id.trim(),
-    kind: 'openai_compatible',
-    preset: preset === 'custom' ? null : (preset as ProviderPreset),
-    label: label.trim() || id.trim(),
-    base_url: baseUrl.trim(),
-    default_model: model.trim() || null,
-    cost_source: cost,
-    credential_ref: (credKind === 'none' ? 'none' : `${credKind}:${credName.trim()}`) as CredentialRef,
-  })
+  const patch = (): ProviderPatch => {
+    const p: ProviderPatch = {
+      preset: (stored?.preset ?? instance.preset ?? null) as ProviderPatch['preset'],
+      label: label.trim() || instance.id,
+      default_model: model.trim() || null,
+      cost_source: cost,
+      credential_ref: (credKind === 'none'
+        ? 'none'
+        : `${credKind}:${credName.trim()}`) as CredentialRef,
+    }
+    // A codex / acp instance has no URL: the backend refuses one in a patch.
+    // An unknown URL left empty is not sent: the stored one stays.
+    if (!process && baseUrl.trim()) p.base_url = baseUrl.trim()
+    return p
+  }
+
+  const credentialRef = (
+    credKind === 'none' ? 'none' : `${credKind}:${credName.trim()}`
+  ) as CredentialRef
+  const originNow =
+    !process && baseUrl.trim()
+      ? (() => {
+          try {
+            return new URL(baseUrl.trim()).origin
+          } catch {
+            return null
+          }
+        })()
+      : savedOrigin
+
+  /** Why the server would refuse to test this draft, or null. */
+  const whyNoTest = (): string | null => {
+    if (urlUnknown && !baseUrl.trim()) {
+      return 'L’URL complète de cette instance n’est pas connue : saisissez-la pour tester.'
+    }
+    // A test that sends a key runs only on the SAVED instance, same origin and same key reference.
+    if (
+      credentialRef !== 'none' &&
+      (credentialRef !== savedRef || (!process && originNow !== savedOrigin))
+    ) {
+      return 'Enregistrez d’abord l’instance : un test qui envoie une clé exige une instance enregistrée, avec la même URL et la même référence de clé.'
+    }
+    return null
+  }
 
   const runTest = async () => {
     setTouched(true)
-    if (!valid) return
+    if (!valid || testingRef.current) return
+    const blocked = whyNoTest()
+    setTestBlocked(blocked)
+    if (blocked) return
+    testingRef.current = true
     setTesting(true)
     setTest(null)
     try {
-      setTest({ result: await providersApi.test(draft()) })
+      setTest({
+        result: await providersApi.test({
+          id: instance.id,
+          kind,
+          ...patch(),
+          base_url: process ? '' : baseUrl.trim(),
+        } as ProviderPatch),
+      })
     } catch (err) {
-      setTest({ error: toProviderError(err), message: settingsErrorMessage(err) })
+      setTest({ error: toProviderError(err), message: wizardErrorMessage(err) })
     } finally {
+      testingRef.current = false
       setTesting(false)
     }
+  }
+
+  /** Any edit makes the last verdict obsolete. */
+  const edited = () => {
+    setTest(null)
+    setTestBlocked(null)
   }
 
   const testFailed = !!test && (!!test.error || !!test.message || test.result?.ok === false)
@@ -133,18 +260,10 @@ export function ProviderInstanceForm({ instance, existingIds, onSaved, onCancel 
     setSaving(true)
     setSaveError(null)
     try {
-      const d = draft()
-      if (editing) {
-        const { id: _id, kind: _kind, ...patch } = d
-        void _id
-        void _kind
-        await providersApi.update(instance!.id, patch)
-      } else {
-        await providersApi.create(d)
-      }
+      await providersApi.update(instance.id, patch())
       await onSaved()
     } catch (err) {
-      setSaveError(settingsErrorMessage(err))
+      setSaveError(wizardErrorMessage(err))
     } finally {
       setSaving(false)
       setConfirmSave(false)
@@ -158,182 +277,218 @@ export function ProviderInstanceForm({ instance, existingIds, onSaved, onCancel 
     else void save()
   }
 
-  const shown = (key: 'id' | 'url' | 'cred') => (touched ? errors[key] : undefined)
-  const cardError: ProviderErrorInfo | null | undefined = test?.error ?? test?.result?.health?.error
+  const shown = (key: 'url' | 'cred') => (touched ? errors[key] : undefined)
+  const resultHealth = test?.result
+    ? normalizeProviderHealth(test.result.health, instance.id)
+    : null
+  const cardError: ProviderErrorInfo | null | undefined = test?.error ?? resultHealth?.error
 
   return (
     <form
-      aria-label={editing ? `Edit ${instance!.label}` : 'Add a provider instance'}
-      className="space-y-3 rounded-lg border border-gray-800 bg-gray-900/40 p-3"
+      aria-label={`Modifier ${instance.label}`}
+      className="space-y-6 border-t border-white/[0.06] pt-4"
       onSubmit={(e) => {
         e.preventDefault()
         onSave()
       }}
     >
-      {!editing && (
-        <div>
-          <label htmlFor={`${uid}-preset`} className={LABEL}>
-            Preset
-          </label>
-          <select id={`${uid}-preset`} className={FIELD} value={preset} onChange={(e) => choosePreset(e.target.value)}>
-            {PROVIDER_PRESETS.map((p) => (
-              <option key={p.preset} value={p.preset}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <label htmlFor={`${uid}-id`} className={LABEL}>
-            Id
-          </label>
-          <input
+      {loadError && <ErrorLine>{loadError}</ErrorLine>}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormField id={`${uid}-id`} label="Identifiant" help="Ne change jamais.">
+          <Input
             id={`${uid}-id`}
-            className={FIELD}
-            value={id}
-            disabled={editing}
-            onChange={(e) => setId(e.target.value)}
-            aria-invalid={!!shown('id')}
-            aria-describedby={shown('id') ? `${uid}-id-err` : undefined}
+            value={instance.id}
+            disabled
+            aria-describedby={`${uid}-id-help`}
           />
-          {shown('id') && (
-            <p id={`${uid}-id-err`} role="alert" className="mt-1 text-xs text-red-400">
-              {errors.id}
-            </p>
-          )}
-        </div>
-        <div>
-          <label htmlFor={`${uid}-label`} className={LABEL}>
-            Label
-          </label>
-          <input id={`${uid}-label`} className={FIELD} value={label} onChange={(e) => setLabel(e.target.value)} />
-        </div>
-        <div className="sm:col-span-2">
-          <label htmlFor={`${uid}-url`} className={LABEL}>
-            Base URL
-          </label>
-          <input
+        </FormField>
+        <FormField
+          id={`${uid}-label`}
+          label="Nom affiché"
+          help="Ce que l’on voit dans le sélecteur de provider."
+        >
+          <Input
+            id={`${uid}-label`}
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            aria-describedby={`${uid}-label-help`}
+          />
+        </FormField>
+        {!process && (
+          <FormField
             id={`${uid}-url`}
-            className={FIELD}
-            value={baseUrl}
-            onChange={(e) => {
-              setBaseUrl(e.target.value)
-              setTest(null)
-            }}
-            placeholder="https://api.example.com/v1"
-            aria-invalid={!!shown('url')}
-            aria-describedby={shown('url') ? `${uid}-url-err` : undefined}
+            className="sm:col-span-2"
+            label="URL de base"
+            help={
+              urlUnknown
+                ? `URL enregistrée : ${savedOrigin ?? 'inconnue'} (le chemin n’est pas disponible). Laissez vide pour la garder, ou saisissez l’URL complète.`
+                : 'Changer l’URL invalide les autorisations des projets : il faudra les redonner.'
+            }
+            error={shown('url')}
+          >
+            <Input
+              id={`${uid}-url`}
+              value={baseUrl}
+              onChange={(e) => {
+                setBaseUrl(e.target.value)
+                edited()
+              }}
+              placeholder={
+                urlUnknown && savedOrigin ? `${savedOrigin}/…` : 'https://api.example.com/v1'
+              }
+              aria-invalid={!!shown('url')}
+              aria-describedby={shown('url') ? `${uid}-url-error` : `${uid}-url-help`}
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </FormField>
+        )}
+        <ModelField
+          id={`${uid}-model`}
+          label="Modèle par défaut"
+          value={model}
+          onChange={(m) => {
+            setModel(m)
+            edited()
+          }}
+          models={catalog.models}
+          loading={catalog.loading}
+          error={catalog.error}
+          onRefresh={catalog.refresh}
+          noneLabel="Aucun (le serveur choisit le premier listé)"
+          help="Facultatif. Le test d’appel d’outil porte sur ce modèle."
+        />
+        <div className="min-w-0">
+          <Select
+            label="Source du coût"
+            options={COST_OPTIONS}
+            value={cost}
+            onChange={(v) => setCost(v as CostBasis)}
           />
-          {shown('url') && (
-            <p id={`${uid}-url-err`} role="alert" className="mt-1 text-xs text-red-400">
-              {errors.url}
-            </p>
-          )}
+          <FieldNote id={`${uid}-cost`} help="Comment le coût des sessions sera compté." />
         </div>
-        <div>
-          <label htmlFor={`${uid}-model`} className={LABEL}>
-            Default model
-          </label>
-          <input id={`${uid}-model`} className={FIELD} value={model} onChange={(e) => setModel(e.target.value)} />
+        <div className="min-w-0">
+          <Select
+            label="Référence de la clé"
+            options={acp ? CRED_OPTIONS.filter((o) => o.value === 'none') : CRED_OPTIONS}
+            value={credKind}
+            onChange={(v) => {
+              setCredKind(v as CredentialKind)
+              setCredName('')
+              edited()
+            }}
+          />
+          <FieldNote
+            id={`${uid}-ckind`}
+            help={
+              acp
+                ? 'Un agent ACP gère sa propre connexion.'
+                : 'Changer la référence invalide les autorisations des projets.'
+            }
+          />
         </div>
-        <div>
-          <label htmlFor={`${uid}-cost`} className={LABEL}>
-            Cost basis
-          </label>
-          <select id={`${uid}-cost`} className={FIELD} value={cost} onChange={(e) => setCost(e.target.value as CostBasis)}>
-            {COST_BASES.map((c) => (
-              <option key={c} value={c}>
-                {COST_BASIS_LABELS[c]}
-              </option>
-            ))}
-          </select>
-        </div>
+        {credKind === 'vault' &&
+          (vaultNames && vaultNames.length > 0 ? (
+            <div className="min-w-0">
+              <Select
+                label="Clé du coffre"
+                placeholder="Choisir une clé…"
+                options={vaultNames.map((n) => ({ value: n, label: n }))}
+                value={credName}
+                onChange={(v) => {
+                  setCredName(v)
+                  edited()
+                }}
+              />
+              <FieldNote
+                id={`${uid}-cname`}
+                error={shown('cred')}
+                help="Seuls les noms sont affichés, jamais les valeurs."
+              />
+            </div>
+          ) : (
+            <FormField
+              id={`${uid}-cname`}
+              label="Nom de la clé dans le coffre"
+              help="Le nom seulement."
+              error={shown('cred')}
+            >
+              <Input
+                id={`${uid}-cname`}
+                value={credName}
+                onChange={(e) => setCredName(e.target.value)}
+                placeholder="deepseek"
+                aria-describedby={shown('cred') ? `${uid}-cname-error` : `${uid}-cname-help`}
+                autoComplete="off"
+              />
+            </FormField>
+          ))}
+        {credKind === 'env' && (
+          <FormField
+            id={`${uid}-cname`}
+            label="Nom de la variable"
+            help="Doit être déclarée dans CHAT_PROVIDER_ENV_CREDENTIALS."
+            error={shown('cred')}
+          >
+            <Input
+              id={`${uid}-cname`}
+              value={credName}
+              onChange={(e) => setCredName(e.target.value)}
+              placeholder="DEEPSEEK_API_KEY"
+              aria-describedby={shown('cred') ? `${uid}-cname-error` : `${uid}-cname-help`}
+              autoComplete="off"
+            />
+          </FormField>
+        )}
       </div>
 
-      <fieldset className="space-y-2">
-        <legend className={LABEL}>Credential</legend>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label htmlFor={`${uid}-ckind`} className={LABEL}>
-              Credential type
-            </label>
-            <select
-              id={`${uid}-ckind`}
-              className={FIELD}
-              value={credKind}
-              onChange={(e) => {
-                setCredKind(e.target.value as CredentialKind)
-                setCredName('')
-              }}
-            >
-              <option value="vault">Secret in the vault</option>
-              <option value="env">Environment variable</option>
-              <option value="none">None</option>
-            </select>
-          </div>
-          {credKind === 'vault' && (
-            <div>
-              <label htmlFor={`${uid}-cname`} className={LABEL}>
-                Secret name
-              </label>
-              {vaultNames && vaultNames.length > 0 ? (
-                <select id={`${uid}-cname`} className={FIELD} value={credName} onChange={(e) => setCredName(e.target.value)}>
-                  <option value="">Choose a secret…</option>
-                  {vaultNames.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input id={`${uid}-cname`} className={FIELD} value={credName} onChange={(e) => setCredName(e.target.value)} placeholder="deepseek-api-key" />
-              )}
-            </div>
-          )}
-          {credKind === 'env' && (
-            <div>
-              <label htmlFor={`${uid}-cname`} className={LABEL}>
-                Variable name
-              </label>
-              <input id={`${uid}-cname`} className={FIELD} value={credName} onChange={(e) => setCredName(e.target.value)} placeholder="DEEPSEEK_API_KEY" />
-            </div>
-          )}
-        </div>
-        {shown('cred') && (
-          <p role="alert" className="text-xs text-red-400">
-            {errors.cred}
-          </p>
-        )}
-        <p className="text-xs text-gray-500">
-          The key itself is never typed here: only the name of where it lives is stored.{' '}
-          <Link to={VAULT_PATH} className="text-indigo-400 underline hover:text-indigo-300">
-            Add the key in the vault
-          </Link>
-        </p>
-      </fieldset>
+      <p className="text-xs text-gray-500">
+        La clé elle-même ne se saisit pas ici : seule sa référence est enregistrée.{' '}
+        <Link to={VAULT_PATH} className="text-indigo-400 underline hover:text-indigo-300">
+          Ajouter ou remplacer la clé dans le coffre
+        </Link>
+      </p>
 
-      {testing && (
-        <p role="status" className="text-xs text-gray-400">
-          Testing the connection…
-        </p>
-      )}
       {test?.result && (
-        <div role="status" data-testid="provider-test-result" className="rounded border border-gray-800 px-3 py-2 text-xs text-gray-300">
-          <p className="font-medium">{test.result.ok ? 'Connection works.' : 'Connection failed.'}</p>
+        <div role="status" data-testid="provider-test-result" className="text-sm text-gray-300">
+          <p className="font-medium">
+            {test.result.ok ? 'La connexion fonctionne.' : 'La connexion a échoué.'}
+          </p>
           {test.result.models && (
-            <p>
-              {test.result.models.length} model{test.result.models.length === 1 ? '' : 's'} found
-              {test.result.models.length > 0 && `: ${test.result.models.slice(0, 8).map((m) => m.id).join(', ')}`}
+            <p className="text-xs text-gray-400">
+              {test.result.models.length} modèle{test.result.models.length > 1 ? 's' : ''} trouvé
+              {test.result.models.length > 1 ? 's' : ''}
+              {test.result.models.length > 0 &&
+                ` : ${test.result.models
+                  .slice(0, 8)
+                  .map((m) => m.id)
+                  .join(', ')}`}
               {test.result.models.length > 8 && '…'}
             </p>
           )}
-          {test.result.probe && <p>Tool calls: {test.result.probe.tools ? 'OK' : 'KO (this model cannot call tools)'}</p>}
-          {test.result.probe?.context_window != null && <p>Context window: {test.result.probe.context_window.toLocaleString('en-US')} tokens</p>}
+          {test.result.probe && (
+            <p className="text-xs text-gray-400">
+              Appel d’outil :{' '}
+              {test.result.probe.tools
+                ? 'oui'
+                : 'non — ce modèle n’a pas appelé l’outil de test ; essayez un autre modèle listé'}
+              {model ? ` (modèle testé : ${model})` : ''}
+            </p>
+          )}
+          {test.result.probe?.context_window != null && (
+            <p className="text-xs text-gray-400">
+              Fenêtre de contexte : {test.result.probe.context_window.toLocaleString('fr-FR')}{' '}
+              tokens
+            </p>
+          )}
         </div>
       )}
-      {cardError && <ProviderStateCard error={cardError} testId="provider-test-error" />}
+      {testBlocked && (
+        <p role="alert" data-testid="provider-test-blocked" className="text-xs text-amber-300">
+          {testBlocked}
+        </p>
+      )}
+      {cardError && <SettingsErrorCard error={cardError} testId="provider-test-error" />}
       {test?.message && !cardError && (
         <p role="alert" className="text-xs text-red-400">
           {test.message}
@@ -346,24 +501,25 @@ export function ProviderInstanceForm({ instance, existingIds, onSaved, onCancel 
       )}
       {confirmSave && (
         <ConfirmPanel
-          title="The connection test failed. Save this instance anyway?"
-          confirmLabel="Save anyway"
+          title="Le test de connexion a échoué. Enregistrer quand même ?"
+          confirmLabel="Enregistrer quand même"
+          cancelLabel="Annuler"
           onConfirm={save}
           onCancel={() => setConfirmSave(false)}
         >
-          Conversations on this instance will fail until the problem is fixed.
+          Les conversations sur cette instance échoueront tant que le problème n’est pas réglé.
         </ConfirmPanel>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" size="sm" variant="secondary" onClick={runTest} loading={testing}>
-          Test connection
-        </Button>
-        <Button type="submit" size="sm" loading={saving}>
-          Save
-        </Button>
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
-          Cancel
+          Annuler
+        </Button>
+        <Button type="button" size="sm" variant="secondary" onClick={runTest} loading={testing}>
+          Tester
+        </Button>
+        <Button type="submit" size="sm" variant="primary" loading={saving}>
+          Enregistrer
         </Button>
       </div>
     </form>

@@ -1,43 +1,70 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Plus } from 'lucide-react'
-import { Button } from '@/components/ui'
-import { ProviderStateCard } from '@/components/chat/ProviderStateCard'
+import { Badge, Button, Facts, surface } from '@/components/ui'
 import { useProviders, useRefreshProviders } from '@/hooks/useProviders'
 import { providersApi } from '@/services/providers'
-import { healthDotColor, healthLabel } from '@/constants/providers'
-import { COST_BASIS_LABELS, credentialLabel, formatWhen, settingsErrorMessage } from '@/constants/providerSettings'
-import { isClaudeCodeProvider, providerKindLabel, type ProviderErrorInfo, type ProviderHealth, type ProviderInstance } from '@/types/provider'
+import {
+  COST_LABELS_FR,
+  credentialLabelFr,
+  formatWhenFr,
+  instanceStatus,
+  kindLabelFr,
+  wizardErrorMessage,
+} from '@/constants/providerWizard'
+import { credentialLabel } from '@/constants/providerSettings'
+import {
+  isClaudeCodeProvider,
+  type ProviderErrorInfo,
+  type ProviderHealth,
+  type ProviderInstance,
+} from '@/types/provider'
 import { ConfirmPanel } from './ConfirmPanel'
+import { SettingsErrorCard } from './SettingsErrorCard'
 import { ProviderInstanceForm } from './ProviderInstanceForm'
 
 /** The error card of a not-healthy instance. `auth_required` always gets one: it carries the login command. */
 function healthError(instance: ProviderInstance, health: ProviderHealth): ProviderErrorInfo | null {
   if (health.error) return { ...health.error, provider_id: health.error.provider_id ?? instance.id }
   if (health.status === 'auth_required') {
-    return { code: 'auth_required', message: '', provider_id: instance.id, login_hint: health.login_hint ?? undefined }
+    return {
+      code: 'auth_required',
+      message: '',
+      provider_id: instance.id,
+      login_hint: health.login_hint ?? undefined,
+    }
   }
   return null
 }
 
-function InstanceRow({
+/**
+ * One provider as a card: its state at a glance (badge), what it points at,
+ * and the useful actions in one click — Tester, Modifier, Supprimer (with a
+ * confirmation). Actions sit on the right of a single footer.
+ */
+function InstanceCard({
   instance,
   highlighted,
+  editing,
   onEdit,
+  onCloseEdit,
   onDelete,
 }: {
   instance: ProviderInstance
   highlighted: boolean
+  editing: boolean
   onEdit: () => void
-  onDelete: () => void
+  onCloseEdit: () => void
+  onDelete: () => Promise<void>
 }) {
   const refresh = useRefreshProviders()
   const [fresh, setFresh] = useState<ProviderHealth | null>(null)
   const [checking, setChecking] = useState(false)
   const [checkError, setCheckError] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const health = fresh ?? instance.health
   const builtin = instance.builtin || isClaudeCodeProvider(instance.id, instance.kind)
   const error = healthError(instance, health)
+  const status = instanceStatus(instance, health)
 
   const recheck = async () => {
     setChecking(true)
@@ -46,7 +73,7 @@ function InstanceRow({
       setFresh(await providersApi.status(instance.id))
       await refresh()
     } catch (err) {
-      setCheckError(settingsErrorMessage(err))
+      setCheckError(wizardErrorMessage(err))
     } finally {
       setChecking(false)
     }
@@ -56,110 +83,188 @@ function InstanceRow({
     <li
       id={`instance-${instance.id}`}
       data-testid={`instance-${instance.id}`}
+      data-status={status.key}
       aria-current={highlighted ? 'true' : undefined}
-      className={`rounded-lg border px-3 py-2 ${highlighted ? 'border-indigo-500/60' : 'border-gray-800'}`}
+      className={`${surface} p-4 ${highlighted ? 'ring-1 ring-indigo-500/60' : ''}`}
     >
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="min-w-0 truncate text-sm font-medium text-gray-100">{instance.label}</span>
-        <span className="text-xs text-gray-500">{providerKindLabel(instance.kind)}</span>
-        <span className="inline-flex items-center gap-1.5 text-xs text-gray-300">
-          <span aria-hidden="true" className={`h-2 w-2 rounded-full ${healthDotColor(health.status)}`} />
-          {healthLabel(health.status)}
-        </span>
-        <span className="ml-auto flex flex-wrap gap-2">
-          {health.status !== 'auth_required' && (
-            <Button size="sm" variant="ghost" onClick={recheck} loading={checking}>
-              Re-check
-            </Button>
-          )}
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+        <div className="min-w-0">
+          <h3 className="truncate text-sm font-semibold text-gray-100">{instance.label}</h3>
+          <p className="text-xs text-gray-500">
+            {kindLabelFr(instance.kind)}
+            {instance.id.toLowerCase() !== instance.label.toLowerCase() &&
+              instance.id.replace(/-/g, ' ') !== instance.label.toLowerCase() && (
+                <>
+                  {' '}
+                  · <span className="font-mono">{instance.id}</span>
+                </>
+              )}
+            {health.checked_at && (
+              <span className="text-gray-600"> · vérifié {formatWhenFr(health.checked_at)}</span>
+            )}
+          </p>
+        </div>
+        <Badge variant={status.variant}>{status.label}</Badge>
+      </div>
+
+      {!editing && (
+        <Facts
+          className="mt-3"
+          columns={2}
+          items={[
+            {
+              label: 'Point d’accès',
+              value: (
+                <span className="break-all">
+                  {instance.origin ?? (builtin ? 'programme local' : 'inconnu')}
+                </span>
+              ),
+            },
+            // Only the lines that say something: the list carries no default model, an unknown cost or version says nothing.
+            { label: 'Modèle', value: instance.default_model, hidden: !instance.default_model },
+            {
+              label: 'Coût',
+              value: COST_LABELS_FR[instance.cost_source ?? 'unknown'],
+              hidden: !instance.cost_source || instance.cost_source === 'unknown',
+            },
+            {
+              label: 'Clé',
+              value: builtin ? (
+                'gérée par le programme'
+              ) : (
+                <span title={credentialLabel(instance.credential_ref)}>
+                  {credentialLabelFr(instance.credential_ref)}
+                </span>
+              ),
+            },
+            { label: 'Version', value: health.version, hidden: !health.version },
+          ]}
+        />
+      )}
+
+      {error && (
+        <SettingsErrorCard
+          error={error}
+          className="mt-3"
+          testId={`instance-error-${instance.id}`}
+        />
+      )}
+      {checkError && (
+        <p role="alert" className="mt-2 text-xs text-red-400">
+          {checkError}
+        </p>
+      )}
+
+      {confirmDelete && (
+        <ConfirmPanel
+          title={`Supprimer ${instance.label} ?`}
+          confirmLabel={`Supprimer ${instance.label}`}
+          cancelLabel="Garder"
+          tone="danger"
+          onConfirm={async () => {
+            await onDelete()
+            setConfirmDelete(false)
+          }}
+          onCancel={() => setConfirmDelete(false)}
+        >
+          Les conversations existantes sur {instance.label} ne pourront plus être reprises. La clé
+          reste dans le coffre.
+        </ConfirmPanel>
+      )}
+
+      {editing ? (
+        <div className="mt-4">
+          <ProviderInstanceForm
+            instance={instance}
+            onSaved={async () => {
+              onCloseEdit()
+              await refresh()
+            }}
+            onCancel={onCloseEdit}
+          />
+        </div>
+      ) : (
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-white/[0.06] pt-3">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={recheck}
+            loading={checking}
+            aria-label={`Tester ${instance.label}`}
+          >
+            Tester
+          </Button>
           {!builtin && (
             <>
-              <Button size="sm" variant="ghost" onClick={onEdit} aria-label={`Edit ${instance.label}`}>
-                Edit
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={onEdit}
+                aria-label={`Modifier ${instance.label}`}
+              >
+                Modifier
               </Button>
-              <Button size="sm" variant="ghost" onClick={onDelete} aria-label={`Delete ${instance.label}`} className="text-red-300">
-                Delete
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setConfirmDelete(true)}
+                aria-label={`Supprimer ${instance.label}`}
+              >
+                Supprimer
               </Button>
             </>
           )}
-        </span>
-      </div>
-      <dl className="mt-1 grid gap-x-4 gap-y-0.5 text-xs text-gray-400 sm:grid-cols-2">
-        <div>
-          <dt className="inline text-gray-500">Endpoint: </dt>
-          <dd className="inline break-all">{instance.origin ?? (builtin ? 'local CLI' : 'unknown')}</dd>
         </div>
-        <div>
-          <dt className="inline text-gray-500">Default model: </dt>
-          <dd className="inline">{instance.default_model ?? 'none set'}</dd>
-        </div>
-        <div>
-          <dt className="inline text-gray-500">Cost: </dt>
-          <dd className="inline">{COST_BASIS_LABELS[instance.cost_source ?? 'unknown']}</dd>
-        </div>
-        <div>
-          <dt className="inline text-gray-500">Credential: </dt>
-          <dd className="inline font-mono">{builtin ? 'managed by the CLI' : credentialLabel(instance.credential_ref)}</dd>
-        </div>
-        <div>
-          <dt className="inline text-gray-500">Version: </dt>
-          <dd className="inline">{health.version ?? 'unknown'}</dd>
-        </div>
-        <div>
-          <dt className="inline text-gray-500">Last checked: </dt>
-          <dd className="inline">{formatWhen(health.checked_at)}</dd>
-        </div>
-      </dl>
-      {error && <ProviderStateCard error={error} className="mt-2" testId={`instance-error-${instance.id}`} />}
-      {checkError && (
-        <p role="alert" className="mt-1 text-xs text-red-400">
-          {checkError}
-        </p>
       )}
     </li>
   )
 }
 
-/** Instances of this server: health, credential reference, add / edit / delete. */
+/** Instances of this server as cards: state, credential reference, test / edit / delete. */
 export function ProviderInstances() {
   const { providers, refresh } = useProviders()
   const [params] = useSearchParams()
   const focus = params.get('instance')
-  const [form, setForm] = useState<{ mode: 'add' } | { mode: 'edit'; instance: ProviderInstance } | null>(null)
-  const [deleting, setDeleting] = useState<ProviderInstance | null>(null)
+  const [editing, setEditing] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (focus) document.getElementById(`instance-${focus}`)?.scrollIntoView?.({ block: 'center' })
   }, [focus, providers.length])
 
-  const saved = useCallback(async () => {
-    setForm(null)
-    await refresh()
-  }, [refresh])
+  const remove = useCallback(
+    async (instance: ProviderInstance) => {
+      setError(null)
+      try {
+        await providersApi.remove(instance.id)
+        await refresh()
+      } catch (err) {
+        setError(wizardErrorMessage(err))
+      }
+    },
+    [refresh]
+  )
 
-  const remove = async (instance: ProviderInstance) => {
-    setError(null)
-    try {
-      await providersApi.remove(instance.id)
-      setDeleting(null)
-      await refresh()
-    } catch (err) {
-      setError(settingsErrorMessage(err))
-      setDeleting(null)
-    }
-  }
+  const thirdParty = providers.filter((p) => !(p.builtin || isClaudeCodeProvider(p.id, p.kind)))
 
   return (
     <div className="space-y-3">
-      <ul className="space-y-2" aria-label="Provider instances">
+      {thirdParty.length === 0 && (
+        <p className="text-sm text-gray-500">
+          Aucun provider tiers pour l’instant : seul Claude Code est disponible. « Ajouter un
+          provider » vous guide.
+        </p>
+      )}
+      <ul className="grid gap-3" aria-label="Providers">
         {providers.map((p) => (
-          <InstanceRow
+          <InstanceCard
             key={p.id}
             instance={p}
             highlighted={focus === p.id}
-            onEdit={() => setForm({ mode: 'edit', instance: p })}
-            onDelete={() => setDeleting(p)}
+            editing={editing === p.id}
+            onEdit={() => setEditing(p.id)}
+            onCloseEdit={() => setEditing(null)}
+            onDelete={() => remove(p)}
           />
         ))}
       </ul>
@@ -167,31 +272,6 @@ export function ProviderInstances() {
         <p role="alert" className="text-xs text-red-400">
           {error}
         </p>
-      )}
-      {deleting && (
-        <ConfirmPanel
-          title={`Delete ${deleting.label}?`}
-          confirmLabel={`Delete ${deleting.label}`}
-          tone="danger"
-          onConfirm={() => remove(deleting)}
-          onCancel={() => setDeleting(null)}
-        >
-          Existing conversations on {deleting.label} will no longer be resumable.
-        </ConfirmPanel>
-      )}
-      {form ? (
-        <ProviderInstanceForm
-          key={form.mode === 'edit' ? form.instance.id : 'add'}
-          instance={form.mode === 'edit' ? form.instance : undefined}
-          existingIds={providers.map((p) => p.id)}
-          onSaved={saved}
-          onCancel={() => setForm(null)}
-        />
-      ) : (
-        <Button size="sm" variant="secondary" onClick={() => setForm({ mode: 'add' })}>
-          <Plus className="mr-1 h-4 w-4" aria-hidden="true" />
-          Add an instance
-        </Button>
       )}
     </div>
   )

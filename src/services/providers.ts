@@ -41,6 +41,14 @@ export const providersApi = {
   status: (id: ProviderId) =>
     api.get<ProviderHealth>(`/chat/providers/${encodeURIComponent(id)}/status`),
 
+  /**
+   * One saved instance as stored (`GET /chat/providers/{id}`, human route):
+   * unlike the list, it carries `base_url` and `default_model`. A backend
+   * without this route answers 404: the caller falls back to the list entry.
+   */
+  get: (id: ProviderId) =>
+    api.get<unknown>(`/chat/providers/${encodeURIComponent(id)}`).then((raw) => normalizeStoredInstance(raw, id)),
+
   /** Model catalog of one instance. */
   models: (id: ProviderId) =>
     api.get<ProviderModel[]>(`/chat/providers/${encodeURIComponent(id)}/models`),
@@ -199,6 +207,35 @@ function normalizeInstance(raw: unknown): ProviderInstance | null {
     instance.allowed_for_project = p.allowed_for_project as boolean | null
   }
   return instance
+}
+
+/** The stored fields of `GET /chat/providers/{id}` (`instance_view` of the backend). */
+export interface StoredInstance {
+  id: ProviderId
+  kind: string
+  preset: string | null
+  label: string
+  base_url: string | null
+  origin: string | null
+  default_model: string | null
+  cost_source: ReturnType<typeof toCostBasis>
+  credential_ref: string | null
+}
+
+export function normalizeStoredInstance(raw: unknown, id: ProviderId): StoredInstance {
+  const r = obj(raw)
+  if (!r) throw new Error(`GET /api/chat/providers/${id} : réponse inattendue`)
+  return {
+    id: str(r.id) ?? id,
+    kind: str(r.kind) ?? 'openai_compatible',
+    preset: str(r.preset) ?? null,
+    label: str(r.label) ?? id,
+    base_url: str(r.base_url) ?? null,
+    origin: str(r.origin) ?? str(r.endpoint_origin) ?? null,
+    default_model: str(r.default_model) ?? null,
+    cost_source: toCostBasis(r.cost_source),
+    credential_ref: str(r.credential_ref) ?? str(r.credential) ?? null,
+  }
 }
 
 /** Whatever `GET /api/chat/providers` answered → `ProvidersResponse`. A body without `providers` is returned as is (the caller rejects it). */
