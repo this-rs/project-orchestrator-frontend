@@ -13,6 +13,10 @@ type ConnectionTestMap = {
   nats: boolean | null
 }
 
+/** Why a test failed, or how far it could check (from the desktop's `test_connection_detailed`). */
+type ConnectionDetail = { hint: string | null; verifiedBy: string | null }
+type ConnectionDetailMap = Partial<Record<keyof ConnectionTestMap, ConnectionDetail | null>>
+
 export function InfrastructurePage() {
   const [config, setConfig] = useAtom(setupConfigAtom)
   const setInfraValid = useSetAtom(infraValidAtom)
@@ -28,6 +32,8 @@ export function InfrastructurePage() {
     meilisearch: null,
     nats: null,
   })
+
+  const [connectionDetail, setConnectionDetail] = useState<ConnectionDetailMap>({})
 
   const update = (patch: Partial<typeof config>) =>
     setConfig((prev) => ({ ...prev, ...patch }))
@@ -45,7 +51,10 @@ export function InfrastructurePage() {
       } else {
         setDockerStatus('not_installed')
       }
-    } catch {
+    } catch (e) {
+      // Never swallow this silently: "not installed" for a failed call sends people to install
+      // a Docker they already have.
+      console.warn('check_docker failed:', e)
       setDockerStatus('not_installed')
     }
   }, [])
@@ -101,9 +110,13 @@ export function InfrastructurePage() {
   }
 
   // ── Connection test callback (external mode) ───────────────────────
-  const handleConnectionTestResult = useCallback((service: keyof ConnectionTestMap, success: boolean) => {
-    setConnectionTested((prev) => ({ ...prev, [service]: success }))
-  }, [])
+  const handleConnectionTestResult = useCallback(
+    (service: keyof ConnectionTestMap, success: boolean, detail?: ConnectionDetail) => {
+      setConnectionTested((prev) => ({ ...prev, [service]: success }))
+      setConnectionDetail((prev) => ({ ...prev, [service]: detail ?? null }))
+    },
+    [],
+  )
 
   // ── Reset connection test when URL/credentials change ──────────────
   const prevNeo4jRef = useRef(config.neo4jUri + config.neo4jUser + config.neo4jPassword)
@@ -115,6 +128,7 @@ export function InfrastructurePage() {
     if (key !== prevNeo4jRef.current) {
       prevNeo4jRef.current = key
       setConnectionTested((prev) => ({ ...prev, neo4j: null }))
+      setConnectionDetail((prev) => ({ ...prev, neo4j: null }))
     }
   }, [config.neo4jUri, config.neo4jUser, config.neo4jPassword])
 
@@ -123,6 +137,7 @@ export function InfrastructurePage() {
     if (key !== prevMeiliRef.current) {
       prevMeiliRef.current = key
       setConnectionTested((prev) => ({ ...prev, meilisearch: null }))
+      setConnectionDetail((prev) => ({ ...prev, meilisearch: null }))
     }
   }, [config.meilisearchUrl, config.meilisearchKey])
 
@@ -130,6 +145,7 @@ export function InfrastructurePage() {
     if (config.natsUrl !== prevNatsRef.current) {
       prevNatsRef.current = config.natsUrl
       setConnectionTested((prev) => ({ ...prev, nats: null }))
+      setConnectionDetail((prev) => ({ ...prev, nats: null }))
     }
   }, [config.natsUrl])
 
@@ -191,8 +207,9 @@ export function InfrastructurePage() {
           <div>
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium text-gray-300">Neo4j Connection</h3>
-              <TestConnectionButton service="neo4j" url={config.neo4jUri} tested={connectionTested.neo4j} onResult={(ok) => handleConnectionTestResult('neo4j', ok)} />
+              <TestConnectionButton service="neo4j" url={config.neo4jUri} tested={connectionTested.neo4j} onResult={(ok, detail) => handleConnectionTestResult('neo4j', ok, detail)} />
             </div>
+            <ConnectionHint tested={connectionTested.neo4j} detail={connectionDetail.neo4j} />
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
               <Field
                 label="URI"
@@ -221,8 +238,9 @@ export function InfrastructurePage() {
           <div className="border-t border-white/[0.06] pt-6">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium text-gray-300">MeiliSearch Connection</h3>
-              <TestConnectionButton service="meilisearch" url={config.meilisearchUrl} tested={connectionTested.meilisearch} onResult={(ok) => handleConnectionTestResult('meilisearch', ok)} />
+              <TestConnectionButton service="meilisearch" url={config.meilisearchUrl} tested={connectionTested.meilisearch} onResult={(ok, detail) => handleConnectionTestResult('meilisearch', ok, detail)} />
             </div>
+            <ConnectionHint tested={connectionTested.meilisearch} detail={connectionDetail.meilisearch} />
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
               <Field
                 label="URL"
@@ -245,7 +263,7 @@ export function InfrastructurePage() {
           <div className="border-t border-white/[0.06] pt-6">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium text-gray-300">NATS Connection</h3>
-              <TestConnectionButton service="nats" url={config.natsUrl || 'nats://localhost:4222'} tested={connectionTested.nats} onResult={(ok) => handleConnectionTestResult('nats', ok)} />
+              <TestConnectionButton service="nats" url={config.natsUrl || 'nats://localhost:4222'} tested={connectionTested.nats} onResult={(ok, detail) => handleConnectionTestResult('nats', ok, detail)} />
             </div>
             <div className="mt-3">
               <Field
@@ -538,7 +556,7 @@ function TestConnectionButton({
   service: string
   url: string
   tested: boolean | null
-  onResult: (success: boolean) => void
+  onResult: (success: boolean, detail?: ConnectionDetail) => void
 }) {
   const [testing, setTesting] = useState(false)
 
@@ -547,10 +565,23 @@ function TestConnectionButton({
     setTesting(true)
     try {
       const { invoke } = await import('@tauri-apps/api/core')
-      const ok = await invoke<boolean>('test_connection', { service, url })
-      onResult(ok)
-    } catch {
-      onResult(false)
+      try {
+        const result = await invoke<{ ok: boolean; hint?: string | null; verifiedBy?: string | null }>(
+          'test_connection_detailed',
+          { service, url },
+        )
+        onResult(result.ok, { hint: result.hint ?? null, verifiedBy: result.verifiedBy ?? null })
+      } catch (e) {
+        if (/not found|unknown command/i.test(String(e))) {
+          // A desktop build older than the detailed command: the plain answer, without a reason.
+          onResult(await invoke<boolean>('test_connection', { service, url }))
+        } else {
+          // Say what happened ("not an address", a failed call): a bare "Failed" tells nothing.
+          onResult(false, { hint: typeof e === 'string' ? e : String(e), verifiedBy: null })
+        }
+      }
+    } catch (e) {
+      onResult(false, { hint: String(e), verifiedBy: null })
     } finally {
       setTesting(false)
     }
@@ -595,4 +626,25 @@ function TestConnectionButton({
       </button>
     </div>
   )
+}
+
+/** The reason a test failed (a refused port, an unreachable host, the macOS local-network
+ * permission...), or what could not be checked on a TLS address. */
+function ConnectionHint({ tested, detail }: { tested: boolean | null; detail?: ConnectionDetail | null }) {
+  if (!isTauri || !detail) return null
+  if (tested === false && detail.hint) {
+    return (
+      <p role="alert" className="mt-2 text-xs leading-relaxed text-red-300">
+        {detail.hint}
+      </p>
+    )
+  }
+  if (tested === true && detail.verifiedBy === 'tcp') {
+    return (
+      <p className="mt-2 text-xs leading-relaxed text-gray-500">
+        Reachable. This address uses TLS, so the handshake itself was not checked.
+      </p>
+    )
+  }
+  return null
 }
