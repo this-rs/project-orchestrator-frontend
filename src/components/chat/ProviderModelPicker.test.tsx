@@ -7,7 +7,7 @@
  * Run with: npx vitest run src/components/chat/ProviderModelPicker.test.tsx
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'
 import {
   chatPermissionConfigAtom,
@@ -31,11 +31,17 @@ import {
   SET_MODEL_UNSUPPORTED_TEXT,
 } from '@/constants/providers'
 import type { ProvidersResponse } from '@/types/provider'
+import { clearModelCatalogCache } from '@/components/settings/useModelCatalog'
+import { providersApi } from '@/services/providers'
 import { ChatInput } from './ChatInput'
 
 vi.mock('@/hooks', () => ({ useIsMobile: () => false }))
 vi.mock('@/services/chat', () => ({
   chatApi: { getPermissionConfig: () => new Promise(() => {}) },
+}))
+vi.mock('@/services/providers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/providers')>()),
+  providersApi: { models: vi.fn(), list: vi.fn() },
 }))
 vi.mock('@/services/documents', () => ({ documentsApi: { upload: vi.fn() } }))
 
@@ -144,6 +150,8 @@ const openModels = () => {
 }
 
 beforeEach(() => {
+  clearModelCatalogCache()
+  vi.mocked(providersApi.models).mockReset().mockResolvedValue([])
   localStorage.clear()
 })
 
@@ -282,7 +290,8 @@ describe('ProviderModelPicker — new conversation', () => {
     expect(screen.getByTestId('model-family-sonnet')).toBeTruthy()
   })
 
-  it('names no model when the server names none', () => {
+  it('names no model when the server names none', async () => {
+    vi.mocked(providersApi.models).mockResolvedValue([])
     mount({
       prepare: withProviders({
         providers: [{ id: 'acp-agent', kind: 'acp', label: 'opencode', health: { status: 'unknown' }, models: [] }],
@@ -290,7 +299,35 @@ describe('ProviderModelPicker — new conversation', () => {
       }),
     })
     expect(modelChip().textContent).toBe(DEFAULT_MODEL_LABEL)
-    expect(openModels().getByText('No models listed for this provider')).toBeTruthy()
+    expect(await openModels().findByText('No models listed for this provider')).toBeTruthy()
+  })
+
+  it("lists the provider's own models, not only the one stored with the instance", async () => {
+    vi.mocked(providersApi.models).mockResolvedValue([{ id: 'deepseek-chat' }, { id: 'deepseek-reasoner' }])
+    mount({
+      prepare: withProviders({
+        providers: [{ id: 'deepseek', kind: 'openai_compatible', label: 'DeepSeek', health: { status: 'unknown' }, models: [] }],
+        default: { provider: 'deepseek', routed_by: 'default' },
+      }),
+    })
+    const menu = openModels()
+    expect(await menu.findByRole('button', { name: 'deepseek-reasoner' })).toBeTruthy()
+    expect(menu.getByRole('button', { name: 'deepseek-chat' })).toBeTruthy()
+    expect(providersApi.models).toHaveBeenCalledWith('deepseek')
+  })
+
+  it('says why no model is listed and offers a retry when the catalog cannot load', async () => {
+    vi.mocked(providersApi.models).mockRejectedValueOnce(new Error('boom'))
+    vi.mocked(providersApi.models).mockResolvedValueOnce([{ id: 'deepseek-chat' }])
+    mount({
+      prepare: withProviders({
+        providers: [{ id: 'deepseek', kind: 'openai_compatible', label: 'DeepSeek', health: { status: 'unknown' }, models: [] }],
+        default: { provider: 'deepseek', routed_by: 'default' },
+      }),
+    })
+    const menu = openModels()
+    fireEvent.click(await menu.findByRole('button', { name: /retry/i }))
+    await waitFor(() => expect(menu.getByRole('button', { name: 'deepseek-chat' })).toBeTruthy())
   })
 })
 

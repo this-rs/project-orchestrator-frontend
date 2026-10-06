@@ -1,6 +1,6 @@
 import { useId, useMemo, useState } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { ChevronDown, Lock, Search } from 'lucide-react'
+import { ChevronDown, Lock, RefreshCw, Search } from 'lucide-react'
 import { Highlight } from '@/components/ui/SearchableSelect'
 import { fold } from '@/components/ui/searchFold'
 import {
@@ -30,6 +30,7 @@ import {
   providerUnavailableReason,
   routedByLabel,
 } from '@/constants/providers'
+import { useModelCatalog } from '@/components/settings/useModelCatalog'
 import { providerDisplayName, providerKindLabel, type ProviderInstance } from '@/types/provider'
 import { ModelFamilyPicker, type ModelSelectOptions } from './ModelFamilyPicker'
 
@@ -347,10 +348,32 @@ interface ProviderModelListProps {
  * Anthropic model ids and mean nothing for `qwen2.5-coder-32b`.
  */
 function ProviderModelList({ instance, activeModelId, onSelect }: ProviderModelListProps) {
-  const models = instance?.models ?? []
+  // The instance's own `models` is only what was stored with it (its default
+  // model, often nothing): the provider's real list comes from its catalog.
+  // Mounted only while the menu is open, so it loads on demand.
+  const catalog = useModelCatalog(instance?.id)
+  const models = catalog.models && catalog.models.length > 0 ? catalog.models : (instance?.models ?? [])
   const [query, setQuery] = useState('')
   if (models.length === 0) {
-    return <div className="px-3 py-2 text-xs text-gray-500">No models listed for this provider</div>
+    return (
+      <div className="px-3 py-2 text-xs text-gray-500" aria-live="polite">
+        {catalog.loading ? (
+          'Loading models…'
+        ) : (
+          <>
+            <p>{catalog.error ? `Could not load the models: ${catalog.error}` : 'No models listed for this provider'}</p>
+            <button
+              type="button"
+              onClick={catalog.refresh}
+              className="mt-1 inline-flex items-center gap-1 text-indigo-300 hover:text-indigo-200 underline underline-offset-2"
+            >
+              <RefreshCw className="h-3 w-3" aria-hidden="true" />
+              Retry
+            </button>
+          </>
+        )}
+      </div>
+    )
   }
   // A short list stays a plain group of buttons; a long one gets a search
   // field (the same matching as the settings combobox: id and label, case and
