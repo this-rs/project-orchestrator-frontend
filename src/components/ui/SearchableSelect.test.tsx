@@ -161,7 +161,8 @@ describe('SearchableSelect', () => {
     type('llama-3')
     expect(names().some((n) => n?.includes('Utiliser'))).toBe(false)
     type('xyz')
-    expect(screen.queryByText('Aucun modèle ne correspond à « xyz »')).toBeNull()
+    // The empty state is still said, above the offer to use the text as is.
+    expect(screen.getByText('Aucun modèle ne correspond à « xyz »')).toBeTruthy()
     const last = screen.getAllByRole('option').at(-1)!
     expect(last.textContent).toBe('Utiliser “xyz”')
     fireEvent.keyDown(box(), { key: 'Enter' })

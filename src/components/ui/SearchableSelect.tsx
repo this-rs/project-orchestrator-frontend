@@ -272,7 +272,7 @@ export function SearchableSelect({
           setActive(0)
         }}
         onKeyDown={onKeyDown}
-        className="w-full truncate rounded-lg border border-border-default bg-surface-base py-2 pl-3 pr-9 text-base text-gray-100 placeholder-gray-500 input-focus-glow focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+        className={`w-full truncate rounded-lg border border-border-default bg-surface-base py-2 pl-3 pr-9 text-base text-gray-100 ${open && closedText ? 'placeholder-gray-400' : 'placeholder-gray-500'} input-focus-glow focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm`}
       />
       {loading ? (
         <Loader2
@@ -295,6 +295,15 @@ export function SearchableSelect({
             {loading && <span>Chargement…</span>}
           </div>
           <ul id={listId} role="listbox" aria-label="Choix" className="max-h-64 overflow-y-auto py-1">
+            {matches === 0 && (!!q || rows.length === 0) && (
+              <li role="presentation" className="px-3 py-3 text-sm text-gray-500">
+                {loading
+                  ? 'Chargement…'
+                  : q
+                    ? `Aucun ${noun.one} ne correspond à « ${query.trim()} »`
+                    : `Aucun ${noun.one}`}
+              </li>
+            )}
             {rows.map((r, i) => {
               const heading = r.group && r.group !== lastGroup ? r.group : null
               lastGroup = r.group
@@ -333,15 +342,6 @@ export function SearchableSelect({
                 </li>,
               ]
             })}
-            {rows.length === 0 && (
-              <li role="presentation" className="px-3 py-3 text-sm text-gray-500">
-                {loading
-                  ? 'Chargement…'
-                  : q
-                    ? `Aucun ${noun.one} ne correspond à « ${query.trim()} »`
-                    : `Aucun ${noun.one}`}
-              </li>
-            )}
           </ul>
         </div>
       )}
