@@ -47,6 +47,23 @@ describe('providersApi settings routes', () => {
     expect(get).toHaveBeenCalledWith('/chat/providers/a%20b/status')
   })
 
+  // The backend answers `{ state, code, action, checked_at }`; the page reads
+  // `status`/`error`. Without the same conversion as the list, a re-check left
+  // `status` undefined: the date moved but the badge stayed "Non vérifié".
+  it('status — converts the wire health like the list does (state → status)', async () => {
+    get.mockResolvedValueOnce({ state: 'ok', checked_at: '2026-10-06T12:00:00Z' })
+    const health = await providersApi.status('deepseek')
+    expect(health.status).toBe('healthy')
+    expect(health.checked_at).toBe('2026-10-06T12:00:00Z')
+  })
+
+  it('status — an unreachable endpoint keeps its explanation (state + code → status + error)', async () => {
+    get.mockResolvedValueOnce({ state: 'unreachable', code: 'endpoint_unreachable', checked_at: '2026-10-06T12:00:00Z' })
+    const health = await providersApi.status('deepseek')
+    expect(health.status).toBe('unhealthy')
+    expect(health.error?.code).toBe('endpoint_unreachable')
+  })
+
   it('test — POST /chat/providers/test with the draft', async () => {
     await providersApi.test(draft)
     expect(post).toHaveBeenCalledWith('/chat/providers/test', draft)

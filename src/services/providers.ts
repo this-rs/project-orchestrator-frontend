@@ -38,8 +38,11 @@ export const providersApi = {
     api.get<unknown>(`/chat/providers${buildQuery(params)}`).then(normalizeProvidersResponse),
 
   /** Health of one instance, re-checked now ("re-check" button, auth state, login command). */
-  status: (id: ProviderId) =>
-    api.get<ProviderHealth>(`/chat/providers/${encodeURIComponent(id)}/status`),
+  status: (id: ProviderId): Promise<ProviderHealth> =>
+    api
+      .get<unknown>(`/chat/providers/${encodeURIComponent(id)}/status`)
+      // Same conversion as the list: the wire says `state`/`code`, the page reads `status`/`error`.
+      .then((raw) => normalizeProviderHealth(raw, id)),
 
   /**
    * One saved instance as stored (`GET /chat/providers/{id}`, human route):
