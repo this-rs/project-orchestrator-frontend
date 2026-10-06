@@ -791,13 +791,15 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           >
             <Paperclip className="w-4 h-4" />
           </button>
-          {/* The chips (mode, provider, model) share ONE flexible group that
-              wraps onto a second line when the row is too narrow; attach and
-              send keep their place at both ends. Without it the row could not
-              shrink and pushed the send button out of the composer at 390 px. */}
-          <div data-testid="composer-chips" className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+          {/* The chips (mode, then provider and model) share ONE flexible group
+              on ONE line: the target chip is the one that truncates, the mode
+              chip keeps its size, attach and send keep their place at both ends.
+              The group used to wrap onto a second line when the row was too
+              narrow, which doubled the height of the composer for the same
+              information. */}
+          <div data-testid="composer-chips" className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5">
           {/* Permission mode selector */}
-          <div className="flex min-w-0 items-center gap-1.5" ref={dropdownRef}>
+          <div className="flex shrink-0 items-center gap-1.5" ref={dropdownRef}>
             <div className="relative">
               <button
                 onClick={() => { setShowModeDropdown(!showModeDropdown); setPickerMenu(null) }}
@@ -856,7 +858,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
 
           {/* Provider (when the server has several) and model — always visible
               (new conversation + active session). */}
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5" ref={modelDropdownRef}>
+          <div className="flex min-w-0 flex-1 items-center gap-1.5" ref={modelDropdownRef}>
             <ProviderModelPicker
               sessionId={sessionId}
               open={pickerMenu}
