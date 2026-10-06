@@ -56,6 +56,17 @@ describe('setup wizard: what the Docker banner says', () => {
     expect(screen.queryByText('Docker Desktop is required')).toBeNull()
   })
 
+  // The bug: a frozen Docker Desktop takes the connection and never answers. It was shown as
+  // "not running" with an Open button that cannot help, and the page waited for ever.
+  it('says Docker is not responding, not that it is not running, when the daemon takes the connection and never answers', async () => {
+    checkDockerAnswers(() => Promise.resolve({ available: false, status: 'unresponsive' }))
+    renderDockerMode()
+    expect(await screen.findByText('Docker Desktop is not responding')).toBeTruthy()
+    expect(screen.getByText(/quit it/i)).toBeTruthy()
+    expect(screen.queryByText('Docker Desktop is not running')).toBeNull()
+    expect(screen.queryByText('Docker Desktop is required')).toBeNull()
+  })
+
   it('says it is required only when no trace of Docker was found', async () => {
     checkDockerAnswers(() => Promise.resolve({ available: false, status: 'not_installed' }))
     renderDockerMode()
