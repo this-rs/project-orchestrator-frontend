@@ -1,26 +1,41 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Button } from '@/components/ui'
+import { Badge, Button } from '@/components/ui'
 import { useProviders } from '@/hooks/useProviders'
 import { providersApi } from '@/services/providers'
-import { NO_PROJECT_TEXT, formatWhen, originOf, settingsErrorMessage } from '@/constants/providerSettings'
+import { originOf } from '@/constants/providerSettings'
+import {
+  CONSENT_STATE_FR,
+  formatWhenFr,
+  kindLabelFr,
+  wizardErrorMessage,
+} from '@/constants/providerWizard'
 import { isClaudeCodeProvider, type ProviderInstance } from '@/types/provider'
 import type { LlmConsent } from '@/types/providerSettings'
-import { ConfirmPanel, FIELD, LABEL } from './ConfirmPanel'
+import { ConfirmPanel } from './ConfirmPanel'
+import { ErrorLine, Loading, Panel, ProjectPicker } from './SettingsPanel'
 import { useProjectOptions } from './useProjectOptions'
 
 function instanceOrigin(instance: ProviderInstance): string | null {
   return instance.origin ?? (instance.base_url ? originOf(instance.base_url) : null)
 }
 
+type ConsentState = keyof typeof CONSENT_STATE_FR
+
+const BADGE: Readonly<Record<ConsentState, 'success' | 'default' | 'warning'>> = {
+  allowed: 'success',
+  denied: 'default',
+  invalidated: 'warning',
+}
+
 /**
  * Which projects agreed to send their content to which endpoint.
  *
- * Consent is bound to an ORIGIN: when an instance's origin changes, the old
- * consent stops holding and is shown as invalidated. A local endpoint asks for
- * it too: "local" says nothing about who is listening.
+ * Consent is bound to an ORIGIN (and to the credential reference): when either
+ * changes, the old consent stops holding and is shown as out of date. A local
+ * endpoint asks for it too: "local" says nothing about who is listening.
  */
-export function ProjectConsent() {
+export function ProjectConsent({ onAddProvider }: { onAddProvider?: () => void }) {
   const { providers } = useProviders()
   const projects = useProjectOptions()
   const [params, setParams] = useSearchParams()
@@ -30,7 +45,6 @@ export function ProjectConsent() {
   const [error, setError] = useState<string | null>(null)
   const [allowing, setAllowing] = useState<ProviderInstance | null>(null)
   const [revoking, setRevoking] = useState<ProviderInstance | null>(null)
-
   const [reloadTick, setReloadTick] = useState(0)
 
   useEffect(() => {
@@ -46,7 +60,7 @@ export function ProjectConsent() {
       .catch((err) => {
         if (!live) return
         setConsents(null)
-        setError(settingsErrorMessage(err))
+        setError(wizardErrorMessage(err))
       })
     return () => {
       live = false
@@ -58,7 +72,7 @@ export function ProjectConsent() {
       await fn()
       setError(null)
     } catch (err) {
-      setError(settingsErrorMessage(err))
+      setError(wizardErrorMessage(err))
     }
     setAllowing(null)
     setRevoking(null)
@@ -66,117 +80,154 @@ export function ProjectConsent() {
   }
 
   const external = providers.filter((p) => !(p.builtin || isClaudeCodeProvider(p.id, p.kind)))
+  const projectName = project?.name ?? slug
 
-  return (
-    <div className="space-y-3">
-      <p className="text-xs text-gray-400">{NO_PROJECT_TEXT}</p>
-      <div className="max-w-sm">
-        <label htmlFor="consent-project" className={LABEL}>
-          Project
-        </label>
-        <select
-          id="consent-project"
-          className={FIELD}
-          value={slug}
-          onChange={(e) => {
-            const next = new URLSearchParams(params)
-            if (e.target.value) next.set('project', e.target.value)
-            else next.delete('project')
-            setConsents(null)
-            setAllowing(null)
-            setRevoking(null)
-            setParams(next, { replace: true })
-          }}
-        >
-          <option value="">Choose a project…</option>
-          {(projects ?? []).map((p) => (
-            <option key={p.slug} value={p.slug}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </div>
+  const choose = (value: string) => {
+    const next = new URLSearchParams(params)
+    if (value) next.set('project', value)
+    else next.delete('project')
+    setConsents(null)
+    setAllowing(null)
+    setRevoking(null)
+    setParams(next, { replace: true })
+  }
 
-      {!slug && <p className="text-sm text-gray-500">Choose a project to see where it may send its content.</p>}
-      {slug && external.length === 0 && (
-        <p className="text-sm text-gray-500">No provider instance other than Claude Code is configured, so there is nothing to allow.</p>
-      )}
-      {error && (
-        <p role="alert" className="text-xs text-red-400">
-          {error}
+  let body
+  if (external.length === 0) {
+    body = (
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-gray-400">
+          Aucun provider enregistré : ajoutez-en un pour pouvoir l’autoriser.
         </p>
-      )}
-
-      {slug && consents && (
-        <ul className="space-y-2" aria-label="Consent per instance">
-          {external.map((p) => {
-            const consent = consents.find((c) => c.provider_id === p.id)
-            const origin = instanceOrigin(p)
-            const state = !consent ? 'denied' : consent.valid ? 'allowed' : 'invalidated'
-            return (
-              <li key={p.id} data-testid={`consent-${p.id}`} data-state={state} className="rounded-lg border border-gray-800 px-3 py-2">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span className="text-sm font-medium text-gray-100">{p.label}</span>
-                  <span className="break-all text-xs text-gray-500">{origin ?? 'unknown endpoint'}</span>
-                  <span className="text-xs font-medium text-gray-300">
-                    {state === 'allowed' ? 'Allowed' : state === 'denied' ? 'Not allowed' : 'Invalidated'}
-                  </span>
-                  <span className="ml-auto flex gap-2">
-                    {state !== 'allowed' && (
+        {onAddProvider && (
+          <Button size="sm" variant="secondary" onClick={onAddProvider}>
+            Ajouter un provider
+          </Button>
+        )}
+      </div>
+    )
+  } else if (!slug) {
+    body = (
+      <p className="text-sm text-gray-400">
+        Choisissez un projet pour voir vers quelles origines il peut envoyer son contenu.
+      </p>
+    )
+  } else if (!consents && !error) {
+    body = <Loading>Chargement des autorisations…</Loading>
+  } else if (consents) {
+    body = (
+      <ul
+        className="-mx-4 -my-4 divide-y divide-white/[0.05]"
+        aria-label="Autorisation par provider"
+      >
+        {external.map((p) => {
+          const consent = consents.find((c) => c.provider_id === p.id)
+          const origin = instanceOrigin(p)
+          const state: ConsentState = !consent
+            ? 'denied'
+            : consent.valid
+              ? 'allowed'
+              : 'invalidated'
+          return (
+            <li key={p.id} data-testid={`consent-${p.id}`} data-state={state} className="px-4 py-3">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <div className="min-w-0 flex-[1_1_16rem]">
+                  <p className="text-sm font-medium text-gray-100">
+                    {p.label}{' '}
+                    <span className="font-normal text-gray-500">· {kindLabelFr(p.kind)}</span>
+                  </p>
+                  <p className="break-all font-mono text-xs text-gray-400">
+                    {origin ?? 'origine inconnue'}
+                  </p>
+                </div>
+                <div className="flex w-full items-center justify-between gap-3 sm:w-auto">
+                  <div className="flex sm:w-40 sm:justify-end">
+                    <Badge variant={BADGE[state]}>{CONSENT_STATE_FR[state]}</Badge>
+                  </div>
+                  <div className="flex justify-end sm:w-44">
+                    {state === 'allowed' ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setRevoking(p)}
+                        aria-label={`Retirer l’autorisation de ${p.label}`}
+                      >
+                        Retirer
+                      </Button>
+                    ) : (
                       <Button
                         size="sm"
                         variant="secondary"
                         onClick={() => origin && setAllowing(p)}
-                        aria-disabled={!origin}
+                        aria-disabled={!origin || undefined}
                         aria-describedby={!origin ? `consent-${p.id}-noorigin` : undefined}
+                        aria-label={`Autoriser ${p.label}`}
                       >
-                        Allow…
+                        {state === 'invalidated' ? 'Autoriser à nouveau' : 'Autoriser'}
                       </Button>
                     )}
-                    {consent && (
-                      <Button size="sm" variant="ghost" className="text-red-300" onClick={() => setRevoking(p)}>
-                        Revoke
-                      </Button>
-                    )}
-                  </span>
+                  </div>
                 </div>
-                {!origin && (
-                  <p id={`consent-${p.id}-noorigin`} className="mt-1 text-xs text-gray-500">
-                    The endpoint of this instance is unknown, so there is nothing to consent to yet.
-                  </p>
-                )}
-                {consent && (
-                  <p className="mt-1 text-xs text-gray-400">
-                    {state === 'invalidated'
-                      ? `Consent was given for ${consent.origin}, but this instance now points to ${origin ?? 'another endpoint'}. Allow it again to send content there. `
-                      : `Allowed for ${consent.origin}. `}
-                    By {consent.consented_by}, {formatWhen(consent.consented_at)}.
-                  </p>
-                )}
-                {allowing?.id === p.id && origin && (
-                  <ConfirmPanel
-                    title={`Content of project ${project?.name ?? slug} will be sent to ${origin}`}
-                    confirmLabel={`Allow ${origin}`}
-                    onConfirm={() => act(() => providersApi.allow(slug, p.id, origin))}
-                    onCancel={() => setAllowing(null)}
-                  >
-                    Prompts, files and tool results of this project's conversations on {p.label} leave this machine for that endpoint.
-                  </ConfirmPanel>
-                )}
-                {revoking?.id === p.id && (
-                  <ConfirmPanel
-                    title={`Stop sending content of project ${project?.name ?? slug} to ${p.label}?`}
-                    confirmLabel="Revoke"
-                    tone="danger"
-                    onConfirm={() => act(() => providersApi.revoke(slug, p.id))}
-                    onCancel={() => setRevoking(null)}
-                  />
-                )}
-              </li>
-            )
-          })}
-        </ul>
-      )}
-    </div>
+              </div>
+              {!origin && (
+                <p id={`consent-${p.id}-noorigin`} className="mt-1 text-xs text-gray-500">
+                  L’origine de ce provider est inconnue : il n’y a encore rien à autoriser.
+                </p>
+              )}
+              {consent && state === 'allowed' && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Autorisé pour {consent.origin} par {consent.consented_by},{' '}
+                  {formatWhenFr(consent.consented_at)}.
+                </p>
+              )}
+              {consent && state === 'invalidated' && (
+                <p className="mt-1 text-xs text-amber-300">
+                  L’origine ou la référence de clé a changé : l’autorisation donnée pour{' '}
+                  {consent.origin} ({consent.consented_by}, {formatWhenFr(consent.consented_at)}) ne
+                  vaut plus{origin ? ` pour ${origin}` : ''}. Rien n’est envoyé tant qu’elle n’est
+                  pas redonnée.
+                </p>
+              )}
+              {allowing?.id === p.id && origin && (
+                <ConfirmPanel
+                  title={`Le contenu du projet ${projectName} partira vers ${origin}`}
+                  confirmLabel={`Autoriser ${origin}`}
+                  onConfirm={() => act(() => providersApi.allow(slug, p.id, origin))}
+                  onCancel={() => setAllowing(null)}
+                >
+                  Les prompts, fichiers et résultats d’outils des conversations de ce projet sur{' '}
+                  {p.label} quittent cette machine pour cette origine.
+                </ConfirmPanel>
+              )}
+              {revoking?.id === p.id && (
+                <ConfirmPanel
+                  title={`Ne plus envoyer le contenu du projet ${projectName} à ${p.label} ?`}
+                  confirmLabel="Retirer l’autorisation"
+                  tone="danger"
+                  onConfirm={() => act(() => providersApi.revoke(slug, p.id))}
+                  onCancel={() => setRevoking(null)}
+                >
+                  Les conversations de ce projet ne pourront plus utiliser {p.label}.
+                </ConfirmPanel>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    )
+  }
+
+  return (
+    <Panel
+      testId="consent-panel"
+      aside={
+        <ProjectPicker id="consent-project" projects={projects} value={slug} onChange={choose} />
+      }
+      title={slug ? `Origines autorisées pour ${projectName}` : 'Origines autorisées'}
+      description="Une conversation sans projet ne peut utiliser que Claude Code : aucun contenu de projet ne part ailleurs."
+    >
+      {body}
+      {error && <ErrorLine>{error}</ErrorLine>}
+    </Panel>
   )
 }

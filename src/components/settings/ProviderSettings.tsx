@@ -5,7 +5,12 @@ import { Plus } from 'lucide-react'
 import { Button, Section, EmptyState } from '@/components/ui'
 import { providersLoadStateAtom } from '@/atoms'
 import { useProviders } from '@/hooks/useProviders'
-import { ADVANCED_ANCHORS, PROVIDER_SECTIONS, UNSUPPORTED_TEXT, UNSUPPORTED_TITLE } from '@/constants/providerSettings'
+import {
+  ADVANCED_ANCHORS,
+  PROVIDER_SECTIONS,
+  UNSUPPORTED_TEXT,
+  UNSUPPORTED_TITLE,
+} from '@/constants/providerSettings'
 import { providerInstancePath } from '@/constants/providerErrors'
 import { ModelPolicy } from './ModelPolicy'
 import { ProjectConsent } from './ProjectConsent'
@@ -28,7 +33,8 @@ export function ProviderSettings() {
 
   // Router does not scroll to an anchor by itself.
   useEffect(() => {
-    if (hash && state !== 'idle' && state !== 'loading') document.getElementById(hash.slice(1))?.scrollIntoView?.()
+    if (hash && state !== 'idle' && state !== 'loading')
+      document.getElementById(hash.slice(1))?.scrollIntoView?.()
   }, [hash, state])
 
   if (state === 'unsupported') {
@@ -80,24 +86,28 @@ export function ProviderSettings() {
           <ProviderInstances />
         </div>
       </Section>
-      <Section id="consent" title="Autorisations des projets" description="Le contenu d’un projet ne part que vers les points d’accès qu’il a autorisés.">
-        <ProjectConsent />
+      <Section
+        id="consent"
+        title="Autorisations des projets"
+        description="Le contenu d’un projet (prompts, fichiers, résultats d’outils) ne part que vers les origines qu’il a autorisées ; sans autorisation, il ne part nulle part ailleurs que vers Claude Code."
+      >
+        <ProjectConsent onAddProvider={() => setAdding(true)} />
       </Section>
       <Section
         key={advancedOpen ? 'advanced-open' : 'advanced'}
         id="advanced"
         title="Avancé"
-        description="Rôles, alias et politique de modèle. Rien à régler pour un premier provider."
+        description="Rôles, alias et politique de modèle. Rien à régler pour un premier provider : sans réglage, tout passe par le provider par défaut."
         collapsible
         defaultOpen={advancedOpen}
       >
-        <div className="space-y-8">
-          <Section id="roles" title="Roles" description="Which instance and model each role uses by default.">
+        <div className="space-y-6">
+          <div id="roles" className="scroll-mt-16">
             <ProviderRoles />
-          </Section>
-          <Section id="models" title="Models and policy" description="Aliases, routing rules, fallback and caps.">
+          </div>
+          <div id="models" className="scroll-mt-16">
             <ModelPolicy />
-          </Section>
+          </div>
         </div>
       </Section>
     </div>

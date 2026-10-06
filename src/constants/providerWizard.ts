@@ -12,7 +12,12 @@
 import { ApiError, apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { providerErrorExplanation } from './providerErrors'
-import type { CostBasis, ProviderErrorInfo, ProviderHealth, ProviderInstance } from '@/types/provider'
+import type {
+  CostBasis,
+  ProviderErrorInfo,
+  ProviderHealth,
+  ProviderInstance,
+} from '@/types/provider'
 
 // ---------------------------------------------------------------------------
 // Labels
@@ -82,7 +87,8 @@ const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
 export function validateInstanceId(raw: string, taken: readonly string[]): string | null {
   const id = raw.trim()
   if (!id) return 'L’identifiant est obligatoire.'
-  if (id.length > 48 || !INSTANCE_ID.test(id)) return 'Lettres minuscules, chiffres et « - » uniquement (48 caractères au plus).'
+  if (id.length > 48 || !INSTANCE_ID.test(id))
+    return 'Lettres minuscules, chiffres et « - » uniquement (48 caractères au plus).'
   if (id === 'claude-code') return '« claude-code » est réservé au provider intégré.'
   if (taken.includes(id)) return 'Un provider porte déjà cet identifiant.'
   return null
@@ -91,14 +97,16 @@ export function validateInstanceId(raw: string, taken: readonly string[]): strin
 export function validateSecretName(raw: string): string | null {
   const name = raw.trim()
   if (!name) return 'Donnez un nom à la clé.'
-  if (name.length > 64 || !SECRET_NAME.test(name)) return 'Lettres, chiffres, « _ », « - » et « . » uniquement (64 caractères au plus).'
+  if (name.length > 64 || !SECRET_NAME.test(name))
+    return 'Lettres, chiffres, « _ », « - » et « . » uniquement (64 caractères au plus).'
   return null
 }
 
 export function validateEnvName(raw: string): string | null {
   const name = raw.trim()
   if (!name) return 'Indiquez le nom de la variable.'
-  if (!ENV_NAME.test(name)) return 'Un nom de variable : lettres, chiffres et « _ », sans commencer par un chiffre.'
+  if (!ENV_NAME.test(name))
+    return 'Un nom de variable : lettres, chiffres et « _ », sans commencer par un chiffre.'
   return null
 }
 
@@ -114,7 +122,8 @@ export function validateBaseUrlFr(raw: string): string | null {
   }
   if (url.protocol === 'https:') return null
   const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase()
-  if (url.protocol === 'http:' && (host === 'localhost' || host === '127.0.0.1' || host === '::1')) return null
+  if (url.protocol === 'http:' && (host === 'localhost' || host === '127.0.0.1' || host === '::1'))
+    return null
   return 'Utilisez https. Le http simple n’est accepté que pour localhost, 127.0.0.1 et ::1.'
 }
 
@@ -133,13 +142,17 @@ const TOOLS_NOT_CALLED_FR_TEXT =
 export const TOOLS_NOT_CALLED_FR = TOOLS_NOT_CALLED_FR_TEXT
 
 const ERRORS_FR: Partial<Record<string, string>> = {
-  credentials_locked: 'Le coffre est verrouillé : la clé ne peut pas être lue. Déverrouillez-le, puis testez à nouveau.',
-  auth_required: 'Ce provider demande une connexion ou une clé accordée à l’instance. Lancez la commande indiquée, ou accordez la clé à l’instance.',
+  credentials_locked:
+    'Le coffre est verrouillé : la clé ne peut pas être lue. Déverrouillez-le, puis testez à nouveau.',
+  auth_required:
+    'Ce provider demande une connexion ou une clé accordée à l’instance. Lancez la commande indiquée, ou accordez la clé à l’instance.',
   unauthorized: 'Le provider a refusé la clé. Vérifiez la clé enregistrée dans le coffre.',
   endpoint_unreachable: 'Le point d’accès ne répond pas. Vérifiez l’URL et que le service tourne.',
   model_no_tools: TOOLS_NOT_CALLED_FR_TEXT,
-  context_too_small: 'La fenêtre de contexte de ce modèle est trop petite pour les outils. Choisissez un modèle plus grand.',
-  cli_not_found: 'Le programme de ce provider n’est pas installé sur le serveur (ou pas dans son PATH).',
+  context_too_small:
+    'La fenêtre de contexte de ce modèle est trop petite pour les outils. Choisissez un modèle plus grand.',
+  cli_not_found:
+    'Le programme de ce provider n’est pas installé sur le serveur (ou pas dans son PATH).',
   rate_limited: 'Le provider limite le nombre de requêtes. Réessayez dans un moment.',
   overloaded: 'Le provider est surchargé. Réessayez dans un moment.',
   timeout: 'Le provider n’a pas répondu à temps.',
@@ -151,22 +164,29 @@ const ERRORS_FR: Partial<Record<string, string>> = {
   provider_unavailable: 'Ce provider n’est pas disponible pour l’instant.',
   security_gate_closed:
     'Les providers tiers exigent que l’authentification soit activée sur ce serveur. Activez-la, puis recommencez. Claude Code n’est pas concerné.',
-  origin_mismatch: 'L’instance ne pointe plus vers l’origine affichée : l’autorisation n’a pas été enregistrée. Rechargez la page et vérifiez l’origine.',
+  origin_mismatch:
+    'L’instance ne pointe plus vers l’origine affichée : l’autorisation n’a pas été enregistrée. Rechargez la page et vérifiez l’origine.',
   endpoint_not_allowed: 'Ce projet n’a pas autorisé ce point d’accès.',
-  endpoint_invalid_url: 'L’URL de base n’est pas valide. Saisissez-la en entier, par exemple https://api.example.com/v1.',
+  endpoint_invalid_url:
+    'L’URL de base n’est pas valide. Saisissez-la en entier, par exemple https://api.example.com/v1.',
   endpoint_scheme_not_allowed: 'Seul https est accepté (http uniquement pour localhost).',
-  endpoint_http_outside_loopback: 'Le http simple n’est accepté que pour localhost, 127.0.0.1 et ::1. Utilisez https.',
-  endpoint_credentials_in_url: 'L’URL contient un identifiant ou un mot de passe. Retirez-le : la clé passe par le coffre, jamais par l’URL.',
+  endpoint_http_outside_loopback:
+    'Le http simple n’est accepté que pour localhost, 127.0.0.1 et ::1. Utilisez https.',
+  endpoint_credentials_in_url:
+    'L’URL contient un identifiant ou un mot de passe. Retirez-le : la clé passe par le coffre, jamais par l’URL.',
   endpoint_host_missing: 'L’URL de base n’a pas d’hôte.',
-  endpoint_private_address: 'L’hôte pointe vers une adresse privée ou interne, que le serveur refuse d’appeler.',
+  endpoint_private_address:
+    'L’hôte pointe vers une adresse privée ou interne, que le serveur refuse d’appeler.',
   endpoint_unresolvable: 'Le serveur ne trouve pas ce nom d’hôte. Vérifiez l’orthographe de l’URL.',
-  endpoint_redirects_not_allowed: 'Le point d’accès répond par une redirection, que le serveur ne suit pas. Utilisez l’URL finale.',
+  endpoint_redirects_not_allowed:
+    'Le point d’accès répond par une redirection, que le serveur ne suit pas. Utilisez l’URL finale.',
   credential_test_requires_saved_instance:
     'Un test avec une clé n’est fait que sur une instance déjà enregistrée, avec la même URL et la même référence de clé. Enregistrez, puis testez.',
   tool_not_in_profile: 'Cette session n’a pas le droit d’appeler cet outil.',
 }
 
-export const FORBIDDEN_FR = 'Seule une personne connectée peut faire ce changement (un agent ne le peut pas).'
+export const FORBIDDEN_FR =
+  'Seule une personne connectée peut faire ce changement (un agent ne le peut pas).'
 
 /** French sentence for a typed provider error. */
 export function providerErrorFr(error: ProviderErrorInfo): string {
@@ -192,7 +212,8 @@ export function wizardErrorMessage(err: unknown): string {
       ? 'Le coffre demande la phrase secrète : déverrouillez-le depuis cet onglet.'
       : FORBIDDEN_FR
   }
-  if (err instanceof ApiError && err.status === 409 && /locked/i.test(err.message)) return 'Le coffre est verrouillé.'
+  if (err instanceof ApiError && err.status === 409 && /locked/i.test(err.message))
+    return 'Le coffre est verrouillé.'
   return apiErrorMessage(err, 'La requête a échoué')
 }
 
@@ -200,7 +221,13 @@ export function wizardErrorMessage(err: unknown): string {
 // Card status: one glance
 // ---------------------------------------------------------------------------
 
-export type InstanceStatusKey = 'connected' | 'key_missing' | 'not_allowed' | 'unreachable' | 'degraded' | 'unchecked'
+export type InstanceStatusKey =
+  | 'connected'
+  | 'key_missing'
+  | 'not_allowed'
+  | 'unreachable'
+  | 'degraded'
+  | 'unchecked'
 
 export interface InstanceStatus {
   key: InstanceStatusKey
@@ -215,9 +242,12 @@ export function instanceStatus(instance: ProviderInstance, health: ProviderHealt
   if (health.status === 'auth_required' || (code && KEY_CODES.has(code))) {
     return { key: 'key_missing', label: 'Clé manquante', variant: 'warning' }
   }
-  if (health.status === 'unhealthy') return { key: 'unreachable', label: 'Injoignable', variant: 'error' }
-  if (instance.allowed_for_project === false) return { key: 'not_allowed', label: 'Projet non autorisé', variant: 'warning' }
-  if (health.status === 'healthy') return { key: 'connected', label: 'Connecté', variant: 'success' }
+  if (health.status === 'unhealthy')
+    return { key: 'unreachable', label: 'Injoignable', variant: 'error' }
+  if (instance.allowed_for_project === false)
+    return { key: 'not_allowed', label: 'Projet non autorisé', variant: 'warning' }
+  if (health.status === 'healthy')
+    return { key: 'connected', label: 'Connecté', variant: 'success' }
   if (health.status === 'degraded') return { key: 'degraded', label: 'Dégradé', variant: 'warning' }
   return { key: 'unchecked', label: 'Non vérifié', variant: 'default' }
 }
@@ -227,5 +257,72 @@ export function formatWhenFr(iso: string | null | undefined): string {
   const d = new Date(iso)
   return Number.isNaN(d.getTime())
     ? iso
-    : d.toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleString('fr-FR', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+}
+
+// ---------------------------------------------------------------------------
+// Consent, roles, aliases and policy (the sections under the cards)
+// ---------------------------------------------------------------------------
+
+export const CONSENT_STATE_FR = {
+  allowed: 'Autorisé',
+  denied: 'Non autorisé',
+  invalidated: 'Autorisation périmée',
+} as const
+
+export const ROLE_LABELS_FR = { pilot: 'Pilote', executor: 'Exécutant' } as const
+export const ROLE_HELP_FR = {
+  pilot: 'Le modèle des conversations ouvertes par une personne : il décide et planifie.',
+  executor: 'Le modèle qui exécute les tâches : runner, délégations, protocoles, appels ponctuels.',
+} as const
+
+const ROUTED_BY_FR: Readonly<Record<string, string>> = {
+  session: 'la session',
+  request: 'la demande',
+  task: 'la tâche',
+  persona: 'le persona',
+  run: 'l’exécution',
+  project_rule: 'le rôle du projet',
+  global_rule: 'le rôle global',
+  default: 'le provider par défaut du serveur',
+  claude_code: 'le repli sur Claude Code',
+  fallback: 'la chaîne de repli',
+}
+
+/** Which rule chose the effective default, in plain French (`routed_by`). */
+export function routedByFr(routedBy: string | null | undefined): string {
+  return (routedBy && ROUTED_BY_FR[routedBy]) || 'le provider par défaut du serveur'
+}
+
+export const POLICY_MODES_FR = [
+  {
+    value: 'off',
+    label: 'Désactivée',
+    help: 'Aucune règle : chaque rôle utilise son modèle habituel.',
+  },
+  {
+    value: 'shadow',
+    label: 'Observer seulement',
+    help: 'N’applique rien, enregistre ce qu’elle aurait choisi.',
+  },
+  {
+    value: 'enforce',
+    label: 'Appliquer',
+    help: 'Les règles ci-dessous choisissent le modèle de chaque usage.',
+  },
+] as const
+
+export const POLICY_ROLE_LABELS_FR: Readonly<Record<string, string>> = {
+  chat: 'Conversation',
+  'runner.simple': 'Runner, tâche simple',
+  'runner.complex': 'Runner, tâche complexe',
+  'runner.creative': 'Runner, tâche créative',
+  'runner.retry': 'Runner, nouvel essai',
+  'utility.feature_graph': 'Graphe de fonctionnalités',
+  'utility.compaction': 'Compaction du contexte',
 }

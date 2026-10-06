@@ -89,11 +89,23 @@ interface Created {
 /** A refusal of the wizard itself (not a server answer): its message is already French. */
 class WizardStop extends Error {}
 
-const NO_TASKS: Record<TaskKey, TaskState> = { secret: 'todo', instance: 'todo', grant: 'todo', test: 'todo' }
+const NO_TASKS: Record<TaskKey, TaskState> = {
+  secret: 'todo',
+  instance: 'todo',
+  grant: 'todo',
+  test: 'todo',
+}
 
 function initialIdentity(key: string): IdentityState {
   const p = presetByKey(key)
-  return { presetKey: p.key, id: p.id, label: p.label, baseUrl: p.base_url, model: p.default_model, cost: p.cost_source }
+  return {
+    presetKey: p.key,
+    id: p.id,
+    label: p.label,
+    baseUrl: p.base_url,
+    model: p.default_model,
+    cost: p.cost_source,
+  }
 }
 
 function initialKey(key: string): KeyState {
@@ -121,8 +133,13 @@ function toVerdict(result: ProviderTestResult, id: string): VerdictView {
           : models.length > 0
             ? 'Oui'
             : 'Inconnu'
-  const shown = models.slice(0, 6).map((m) => m.id).join(', ')
-  const problem = health.error ? (verdictCodeFr(health.error.code) ?? providerErrorFr(health.error)) : null
+  const shown = models
+    .slice(0, 6)
+    .map((m) => m.id)
+    .join(', ')
+  const problem = health.error
+    ? (verdictCodeFr(health.error.code) ?? providerErrorFr(health.error))
+    : null
   return {
     ok: result.ok === true,
     reachable,
@@ -131,9 +148,14 @@ function toVerdict(result: ProviderTestResult, id: string): VerdictView {
         ? 'Aucun listé'
         : `${models.length} trouvé${models.length > 1 ? 's' : ''} : ${shown}${models.length > 6 ? '…' : ''}`,
     tools: result.probe ? (result.probe.tools ? 'Oui' : 'Non') : 'Non testé',
-    context: result.probe?.context_window != null ? `${result.probe.context_window.toLocaleString('fr-FR')} tokens` : 'Inconnue',
+    context:
+      result.probe?.context_window != null
+        ? `${result.probe.context_window.toLocaleString('fr-FR')} tokens`
+        : 'Inconnue',
     problem:
-      result.probe && !result.probe.tools && (!health.error || health.error.code === 'model_no_tools')
+      result.probe &&
+      !result.probe.tools &&
+      (!health.error || health.error.code === 'model_no_tools')
         ? TOOLS_NOT_CALLED_FR
         : (problem ?? (result.ok ? null : 'Le provider n’a pas passé le test.')),
     loginHint: health.login_hint ?? null,
@@ -204,7 +226,11 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
   const secretName = keyState.secretName.trim()
   const vaultName = keyState.mode === 'new' ? secretName : keyState.existingName
   const credentialRef: CredentialRef =
-    keyState.mode === 'none' ? 'none' : keyState.mode === 'env' ? `env:${keyState.envName.trim()}` : `vault:${vaultName}`
+    keyState.mode === 'none'
+      ? 'none'
+      : keyState.mode === 'env'
+        ? `env:${keyState.envName.trim()}`
+        : `vault:${vaultName}`
 
   const identityErrors = useMemo(() => {
     const e: Partial<Record<IdentityField, string>> = {}
@@ -224,16 +250,19 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
       const name = validateSecretName(keyState.secretName)
       if (name) e.secretName = name
       else if (vault?.secrets.some((s) => s.name === secretName)) {
-        e.secretName = 'Une clé porte déjà ce nom dans le coffre : choisissez « Clé déjà dans le coffre » ou un autre nom.'
+        e.secretName =
+          'Une clé porte déjà ce nom dans le coffre : choisissez « Clé déjà dans le coffre » ou un autre nom.'
       }
     }
-    if (keyState.mode === 'existing' && !keyState.existingName) e.existingName = 'Choisissez une clé du coffre.'
+    if (keyState.mode === 'existing' && !keyState.existingName)
+      e.existingName = 'Choisissez une clé du coffre.'
     if (keyState.mode === 'env') {
       const env = validateEnvName(keyState.envName)
       if (env) e.envName = env
     }
     if (usesVault) {
-      if (!vault) e.vault = vaultError ? 'Le coffre est inaccessible.' : 'Lecture du coffre en cours.'
+      if (!vault)
+        e.vault = vaultError ? 'Le coffre est inaccessible.' : 'Lecture du coffre en cours.'
       else if (!vault.initialized) e.vault = 'Créez d’abord le coffre.'
       else if (!canWriteVault) e.vault = 'Déverrouillez le coffre depuis cet onglet.'
     }
@@ -248,10 +277,11 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
       ...(usesVault ? (['grant'] as const) : []),
       'test',
     ],
-    [keyState.mode, usesVault],
+    [keyState.mode, usesVault]
   )
   const somethingCreated = !!(created.secret || created.instance || created.grantId)
-  const chainReady = tasks.instance === 'done' && (!usesVault || tasks.grant === 'done') && tasks.test === 'done'
+  const chainReady =
+    tasks.instance === 'done' && (!usesVault || tasks.grant === 'done') && tasks.test === 'done'
 
   const draft = (): ProviderDraft => ({
     id: identity.id.trim(),
@@ -305,7 +335,7 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
     from: Record<TaskKey, TaskState>,
     already: Created,
     /** Model to probe instead of the draft's default (only the test uses it). */
-    testModel?: string,
+    testModel?: string
   ) => {
     setRunning(true)
     setFailure(null)
@@ -320,7 +350,8 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
       try {
         if (t === 'secret') {
           if (!value) throw new WizardStop('La clé n’a pas été saisie : revenez à l’étape « Clé ».')
-          if (!hasUnlockProof()) throw new WizardStop('Le coffre est verrouillé : déverrouillez-le à l’étape « Clé ».')
+          if (!hasUnlockProof())
+            throw new WizardStop('Le coffre est verrouillé : déverrouillez-le à l’étape « Clé ».')
           await vaultApi.putSecret(secretName, value, `Clé d’API du provider ${d.id}`)
           value = null
           done.secret = secretName
@@ -352,7 +383,10 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
         state[t] = 'error'
         setTasks({ ...state })
         setCreated({ ...done })
-        setFailure({ task: t, message: err instanceof WizardStop ? err.message : wizardErrorMessage(err) })
+        setFailure({
+          task: t,
+          message: err instanceof WizardStop ? err.message : wizardErrorMessage(err),
+        })
         setRunning(false)
         if (done.instance) void refresh()
         return
@@ -427,7 +461,9 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
     }
     void refresh()
     if (left.length > 0) {
-      setRollbackError(`Impossible de supprimer : ${left.join(', ')}. Supprimez-les à la main (liste des providers, coffre).`)
+      setRollbackError(
+        `Impossible de supprimer : ${left.join(', ')}. Supprimez-les à la main (liste des providers, coffre).`
+      )
       setConfirmCancel(false)
       return
     }
@@ -453,7 +489,14 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
   const blocker: string | null = (() => {
     if (step === 0) return identityErrors.id ?? identityErrors.url ?? null
     if (step === 1) {
-      return keyErrors.secret ?? keyErrors.secretName ?? keyErrors.existingName ?? keyErrors.envName ?? keyErrors.vault ?? null
+      return (
+        keyErrors.secret ??
+        keyErrors.secretName ??
+        keyErrors.existingName ??
+        keyErrors.envName ??
+        keyErrors.vault ??
+        null
+      )
     }
     if (step === 2) {
       if (running) return 'L’assistant travaille…'
@@ -479,7 +522,15 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
   const canGoBack = step > 0 && !running && !(step === 2 && somethingCreated)
 
   const nextLabel =
-    step === 1 ? 'Enregistrer et tester' : step === 3 ? (consented ? 'Suivant' : 'Passer cette étape') : step === 4 ? 'Terminer' : 'Suivant'
+    step === 1
+      ? 'Enregistrer et tester'
+      : step === 3
+        ? consented
+          ? 'Suivant'
+          : 'Passer cette étape'
+        : step === 4
+          ? 'Terminer'
+          : 'Suivant'
 
   const cancel = () => {
     if (somethingCreated) setConfirmCancel(true)
@@ -489,10 +540,12 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
   const verdict = test ? toVerdict(test, identity.id.trim()) : null
   const catalogue = (test?.models ?? []).map((m) => m.id)
   const proposed = identity.model.trim()
-  const proposedMissing = !!test && catalogue.length > 0 && !!proposed && !catalogue.includes(proposed)
+  const proposedMissing =
+    !!test && catalogue.length > 0 && !!proposed && !catalogue.includes(proposed)
   /** Pre-selection: the model just tested when listed, else the first model listed. */
   const selectedModel =
-    pickedModel ?? (testedModel && catalogue.includes(testedModel) ? testedModel : (catalogue[0] ?? ''))
+    pickedModel ??
+    (testedModel && catalogue.includes(testedModel) ? testedModel : (catalogue[0] ?? ''))
   const createdList = [
     created.secret && `la clé « ${created.secret} » est enregistrée dans le coffre`,
     created.instance && `l’instance « ${created.instance} » est créée`,
@@ -500,7 +553,11 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
   ].filter(Boolean) as string[]
 
   return (
-    <section aria-label="Ajouter un provider" data-testid="provider-wizard" className={`${surface} space-y-6 p-4 md:p-6`}>
+    <section
+      aria-label="Ajouter un provider"
+      data-testid="provider-wizard"
+      className={`${surface} space-y-6 p-4 md:p-6`}
+    >
       <header className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h3 className="text-sm font-semibold text-gray-100">Ajouter un provider</h3>
@@ -518,7 +575,10 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
                 aria-current={state === 'current' ? 'step' : undefined}
                 className="flex min-w-0 flex-col gap-1.5"
               >
-                <span className={`h-1 rounded-full ${state === 'todo' ? 'bg-white/[0.08]' : 'bg-indigo-500'}`} aria-hidden="true" />
+                <span
+                  className={`h-1 rounded-full ${state === 'todo' ? 'bg-white/[0.08]' : 'bg-indigo-500'}`}
+                  aria-hidden="true"
+                />
                 <span className="flex min-w-0 items-center gap-1.5">
                   <span
                     className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
@@ -584,7 +644,11 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
           />
           <TaskList tasks={tasks} plan={plan} />
           {failure && (
-            <div role="alert" data-testid="wizard-failure" className="space-y-3 rounded-lg border border-red-500/30 bg-red-500/[0.06] p-3">
+            <div
+              role="alert"
+              data-testid="wizard-failure"
+              className="space-y-3 rounded-lg border border-red-500/30 bg-red-500/[0.06] p-3"
+            >
               <p className="text-sm font-medium text-red-200">
                 Échec : {TASK_LABELS[failure.task]}. {failure.message}
               </p>
@@ -604,7 +668,11 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
                     Revenir à l’étape Clé
                   </Button>
                 ) : (
-                  <Button size="sm" variant="secondary" onClick={() => void run(null, tasks, created)}>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => void run(null, tasks, created)}
+                  >
                     Reprendre
                   </Button>
                 )}
@@ -638,7 +706,8 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
           )}
           {verdict && !verdict.ok && (
             <p className="text-xs text-gray-400">
-              Vous pouvez continuer : l’instance existe. Les conversations sur ce provider échoueront tant que le problème n’est pas réglé.
+              Vous pouvez continuer : l’instance existe. Les conversations sur ce provider
+              échoueront tant que le problème n’est pas réglé.
             </p>
           )}
         </div>
@@ -656,7 +725,12 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
             setConsentError(null)
           }}
           allowButton={
-            <Button size="sm" variant="secondary" onClick={() => void allow()} loading={consentBusy}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => void allow()}
+              loading={consentBusy}
+            >
               Autoriser {origin}
             </Button>
           }
@@ -677,7 +751,10 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
                 { label: 'Provider', value: `${draft().label} (${identity.id.trim()})` },
                 { label: 'Type', value: kindLabelFr(preset.kind) },
                 { label: 'Origine', value: origin ?? 'inconnue' },
-                { label: 'Modèle', value: (savedDefault ?? identity.model.trim()) || 'aucun par défaut' },
+                {
+                  label: 'Modèle',
+                  value: (savedDefault ?? identity.model.trim()) || 'aucun par défaut',
+                },
                 { label: 'Coût', value: COST_LABELS_FR[identity.cost] },
                 { label: 'Clé', value: <code className="font-mono">{credentialRef}</code> },
                 {
@@ -688,9 +765,14 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
                 },
                 {
                   label: 'Test',
-                  value: verdict ? `${verdict.ok ? 'réussi' : 'en échec'}${testedModel ? ` avec ${testedModel}` : ''}` : 'non fait',
+                  value: verdict
+                    ? `${verdict.ok ? 'réussi' : 'en échec'}${testedModel ? ` avec ${testedModel}` : ''}`
+                    : 'non fait',
                 },
-                { label: 'Projet', value: consented ? `${consented.slug} autorisé` : 'aucun autorisé pour l’instant' },
+                {
+                  label: 'Projet',
+                  value: consented ? `${consented.slug} autorisé` : 'aucun autorisé pour l’instant',
+                },
               ]}
             />
           </div>
@@ -717,30 +799,32 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
 
       <footer className="flex flex-col gap-3 border-t border-white/[0.06] pt-4">
         {blocker && (
-          <p id={`${uid}-blocker`} data-testid="wizard-blocker" className="text-xs text-amber-300 sm:text-right">
+          <p
+            id={`${uid}-blocker`}
+            data-testid="wizard-blocker"
+            className="text-xs text-amber-300 sm:text-right"
+          >
             Pour continuer : {blocker}
           </p>
         )}
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Button size="sm" variant="ghost" onClick={cancel} disabled={running}>
             Annuler
           </Button>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {step > 0 && (
-              <Button size="sm" variant="secondary" onClick={back} disabled={!canGoBack}>
-                Précédent
-              </Button>
-            )}
-            <Button
-              size="sm"
-              variant="primary"
-              onClick={next}
-              disabled={!!blocker}
-              aria-describedby={blocker ? `${uid}-blocker` : undefined}
-            >
-              {nextLabel}
+          {step > 0 && (
+            <Button size="sm" variant="secondary" onClick={back} disabled={!canGoBack}>
+              Précédent
             </Button>
-          </div>
+          )}
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={next}
+            disabled={!!blocker}
+            aria-describedby={blocker ? `${uid}-blocker` : undefined}
+          >
+            {nextLabel}
+          </Button>
         </div>
       </footer>
     </section>

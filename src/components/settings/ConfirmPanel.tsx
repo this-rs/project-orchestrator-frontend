@@ -17,7 +17,15 @@ interface ConfirmPanelProps {
  * NAME things in it (an origin, a list of changed models), which the generic
  * `ConfirmDialog` — a single description string — cannot hold.
  */
-export function ConfirmPanel({ title, children, confirmLabel, cancelLabel = 'Cancel', tone = 'info', onConfirm, onCancel }: ConfirmPanelProps) {
+export function ConfirmPanel({
+  title,
+  children,
+  confirmLabel,
+  cancelLabel = 'Annuler',
+  tone = 'info',
+  onConfirm,
+  onCancel,
+}: ConfirmPanelProps) {
   const titleId = useId()
   const [busy, setBusy] = useState(false)
   const run = async () => {
@@ -32,17 +40,26 @@ export function ConfirmPanel({ title, children, confirmLabel, cancelLabel = 'Can
     <div
       role="alertdialog"
       aria-labelledby={titleId}
-      className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100"
+      className={`mt-3 space-y-3 rounded-lg border p-3 text-sm ${
+        tone === 'danger'
+          ? 'border-red-500/30 bg-red-500/[0.06] text-red-100'
+          : 'border-amber-500/30 bg-amber-500/[0.06] text-amber-100'
+      }`}
     >
       <p id={titleId} className="font-medium">
         {title}
       </p>
-      {children && <div className="mt-1 text-xs text-amber-100/90">{children}</div>}
-      <div className="mt-2 flex flex-wrap justify-end gap-2">
-        <Button size="sm" variant="secondary" onClick={onCancel} disabled={busy}>
+      {children && <div className="text-xs leading-5 opacity-90">{children}</div>}
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button size="sm" variant="ghost" onClick={onCancel} disabled={busy}>
           {cancelLabel}
         </Button>
-        <Button size="sm" variant={tone === 'danger' ? 'danger' : 'primary'} onClick={run} loading={busy}>
+        <Button
+          size="sm"
+          variant={tone === 'danger' ? 'danger' : 'primary'}
+          onClick={run}
+          loading={busy}
+        >
           {confirmLabel}
         </Button>
       </div>

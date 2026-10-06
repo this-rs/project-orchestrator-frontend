@@ -12,11 +12,19 @@ import { Check, CircleDashed, Loader2, Lock, LockOpen, X } from 'lucide-react'
 import { Badge, Button, Facts, Input, Select, surface } from '@/components/ui'
 import { CreateVault, LockPanel } from '@/pages/VaultPage'
 import { PROVIDER_PRESETS, type ProviderPresetInfo } from '@/constants/providerPresets'
-import { COST_LABELS_FR, GRANT_CHOICES_FR, TASK_LABELS, isProcessKind, kindLabelFr, type TaskKey, type TaskState } from '@/constants/providerWizard'
+import {
+  COST_LABELS_FR,
+  GRANT_CHOICES_FR,
+  TASK_LABELS,
+  isProcessKind,
+  kindLabelFr,
+  type TaskKey,
+  type TaskState,
+} from '@/constants/providerWizard'
 import { VAULT_PATH } from '@/constants/providerErrors'
 import { COST_BASES, type CostBasis } from '@/types/provider'
 import type { VaultOverview } from '@/services/vault'
-import { FieldNote, FormField } from './FormField'
+import { ChoiceRow, FieldNote, FormField } from './FormField'
 import type { ProjectOption } from './useProjectOptions'
 
 // ---------------------------------------------------------------------------
@@ -24,54 +32,21 @@ import type { ProjectOption } from './useProjectOptions'
 // ---------------------------------------------------------------------------
 
 /** "What / why / what blocks" header of a step. */
-export function StepIntro({ title, what, why }: { title: string; what: ReactNode; why: ReactNode }) {
+export function StepIntro({
+  title,
+  what,
+  why,
+}: {
+  title: string
+  what: ReactNode
+  why: ReactNode
+}) {
   return (
     <div className="space-y-1">
       <h4 className="text-base font-semibold text-gray-100">{title}</h4>
       <p className="text-sm text-gray-300">{what}</p>
       <p className="text-xs text-gray-500">{why}</p>
     </div>
-  )
-}
-
-/** One choice of a radio group, as a row: label + one muted line. */
-function ChoiceRow({
-  name,
-  value,
-  checked,
-  disabled,
-  onChange,
-  title,
-  description,
-}: {
-  name: string
-  value: string
-  checked: boolean
-  disabled?: boolean
-  onChange: (value: string) => void
-  title: ReactNode
-  description: ReactNode
-}) {
-  return (
-    <label
-      className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 ${
-        checked ? 'border-indigo-500/60 bg-indigo-500/[0.06]' : 'border-white/[0.06] bg-white/[0.02]'
-      } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:border-white/[0.12]'}`}
-    >
-      <input
-        type="radio"
-        name={name}
-        value={value}
-        checked={checked}
-        disabled={disabled}
-        onChange={() => onChange(value)}
-        className="mt-1 h-4 w-4 shrink-0 accent-indigo-500"
-      />
-      <span className="min-w-0">
-        <span className="block text-sm font-medium text-gray-100">{title}</span>
-        <span className="mt-0.5 block text-xs text-gray-500">{description}</span>
-      </span>
-    </label>
   )
 }
 
@@ -132,7 +107,8 @@ export function PresetStep({
               onChange={onPreset}
               title={
                 <>
-                  {p.label} <span className="font-normal text-gray-500">· {kindLabelFr(p.kind)}</span>
+                  {p.label}{' '}
+                  <span className="font-normal text-gray-500">· {kindLabelFr(p.kind)}</span>
                 </>
               }
               description={p.description}
@@ -159,7 +135,11 @@ export function PresetStep({
             spellCheck={false}
           />
         </FormField>
-        <FormField id={`${uid}-label`} label="Nom affiché" help="Ce que l’on voit dans le sélecteur de provider.">
+        <FormField
+          id={`${uid}-label`}
+          label="Nom affiché"
+          help="Ce que l’on voit dans le sélecteur de provider."
+        >
           <Input
             id={`${uid}-label`}
             value={identity.label}
@@ -197,7 +177,11 @@ export function PresetStep({
             />
           </FormField>
         )}
-        <FormField id={`${uid}-model`} label="Modèle par défaut" help="Facultatif, valeur proposée : le modèle utilisé quand rien d’autre n’est choisi. Le test vous montrera les modèles que le serveur propose vraiment.">
+        <FormField
+          id={`${uid}-model`}
+          label="Modèle par défaut"
+          help="Facultatif, valeur proposée : le modèle utilisé quand rien d’autre n’est choisi. Le test vous montrera les modèles que le serveur propose vraiment."
+        >
           <Input
             id={`${uid}-model`}
             value={identity.model}
@@ -241,11 +225,21 @@ export interface KeyState {
 export type KeyField = 'secret' | 'secretName' | 'existingName' | 'envName'
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleString('fr-FR', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 /** State of the vault, and the in-place create / unlock flow of the vault page. */
-function VaultState({ vault, vaultError, canWrite, onChange }: {
+function VaultState({
+  vault,
+  vaultError,
+  canWrite,
+  onChange,
+}: {
   vault: VaultOverview | null
   vaultError: string | null
   canWrite: boolean
@@ -269,7 +263,9 @@ function VaultState({ vault, vaultError, canWrite, onChange }: {
   if (!vault.initialized) {
     return (
       <div className="space-y-2" data-testid="wizard-vault-create">
-        <p className="text-xs text-amber-300">Le coffre n’existe pas encore : créez-le ici, puis revenez à la clé.</p>
+        <p className="text-xs text-amber-300">
+          Le coffre n’existe pas encore : créez-le ici, puis revenez à la clé.
+        </p>
         <CreateVault onDone={onChange} />
       </div>
     )
@@ -279,8 +275,8 @@ function VaultState({ vault, vaultError, canWrite, onChange }: {
       <div className="space-y-2" data-testid="wizard-vault-locked">
         <p className="flex items-center gap-2 text-xs text-amber-300">
           <Lock className="h-3.5 w-3.5" aria-hidden="true" />
-          Le coffre est verrouillé (ou ouvert sans preuve depuis cet onglet). Déverrouillez-le pour continuer : rien n’est
-          enregistré sans la phrase secrète.
+          Le coffre est verrouillé (ou ouvert sans preuve depuis cet onglet). Déverrouillez-le pour
+          continuer : rien n’est enregistré sans la phrase secrète.
         </p>
         <LockPanel overview={vault} onChange={onChange} />
       </div>
@@ -289,7 +285,8 @@ function VaultState({ vault, vaultError, canWrite, onChange }: {
   return (
     <p className="flex items-center gap-2 text-xs text-emerald-400" data-testid="wizard-vault-open">
       <LockOpen className="h-3.5 w-3.5" aria-hidden="true" />
-      Coffre déverrouillé{vault.unlocked_until ? ` jusqu’à ${formatTime(vault.unlocked_until)}` : ''}.
+      Coffre déverrouillé
+      {vault.unlocked_until ? ` jusqu’à ${formatTime(vault.unlocked_until)}` : ''}.
     </p>
   )
 }
@@ -336,10 +333,11 @@ export function KeyStep({
         title="2. La clé"
         what={
           <>
-            Dites où se trouve la clé d’API. L’instance n’enregistre qu’une <strong>référence</strong> :{' '}
+            Dites où se trouve la clé d’API. L’instance n’enregistre qu’une{' '}
+            <strong>référence</strong> :{' '}
             <code className="font-mono text-gray-200">vault:&lt;nom&gt;</code> (une clé du coffre),{' '}
-            <code className="font-mono text-gray-200">env:&lt;VAR&gt;</code> (une variable du serveur) ou{' '}
-            <code className="font-mono text-gray-200">none</code>.
+            <code className="font-mono text-gray-200">env:&lt;VAR&gt;</code> (une variable du
+            serveur) ou <code className="font-mono text-gray-200">none</code>.
           </>
         }
         why="La clé reste chiffrée dans le coffre : la configuration du provider ne la reçoit jamais, et le serveur ne la lit que pour ce provider, grâce à un accord limité dans le temps."
@@ -364,7 +362,11 @@ export function KeyStep({
             disabled={acp || (vault !== null && names.length === 0)}
             onChange={(v) => onChange({ mode: v as KeyMode })}
             title="Clé déjà dans le coffre"
-            description={vault !== null && names.length === 0 ? 'Le coffre ne contient encore aucune clé.' : 'Choisissez-la par son nom.'}
+            description={
+              vault !== null && names.length === 0
+                ? 'Le coffre ne contient encore aucune clé.'
+                : 'Choisissez-la par son nom.'
+            }
           />
           <ChoiceRow
             name={`${uid}-keymode`}
@@ -381,7 +383,11 @@ export function KeyStep({
             checked={keyState.mode === 'none'}
             onChange={(v) => onChange({ mode: v as KeyMode })}
             title="Aucune clé"
-            description={acp ? 'Un agent ACP gère sa propre connexion.' : 'Modèle local (Ollama…) ou programme qui gère sa connexion.'}
+            description={
+              acp
+                ? 'Un agent ACP gère sa propre connexion.'
+                : 'Modèle local (Ollama…) ou programme qui gère sa connexion.'
+            }
           />
         </div>
       </fieldset>
@@ -418,7 +424,9 @@ export function KeyStep({
               onChange={(e) => onChange({ secretName: e.target.value, secretNameEdited: true })}
               onBlur={() => onTouch('secretName')}
               aria-invalid={!!shown('secretName')}
-              aria-describedby={shown('secretName') ? `${uid}-secret-name-error` : `${uid}-secret-name-help`}
+              aria-describedby={
+                shown('secretName') ? `${uid}-secret-name-error` : `${uid}-secret-name-help`
+              }
               autoComplete="off"
               spellCheck={false}
             />
@@ -440,7 +448,10 @@ export function KeyStep({
               }}
               error={shown('existingName') ?? undefined}
             />
-            <FieldNote id={`${uid}-existing`} help="Seuls les noms sont affichés, jamais les valeurs." />
+            <FieldNote
+              id={`${uid}-existing`}
+              help="Seuls les noms sont affichés, jamais les valeurs."
+            />
           </div>
         </div>
       )}
@@ -484,7 +495,14 @@ export function KeyStep({
         </div>
       )}
 
-      {usesVault && <VaultState vault={vault} vaultError={vaultError} canWrite={canWriteVault} onChange={onVaultChange} />}
+      {usesVault && (
+        <VaultState
+          vault={vault}
+          vaultError={vaultError}
+          canWrite={canWriteVault}
+          onChange={onVaultChange}
+        />
+      )}
 
       <p className="text-xs text-gray-400">
         Référence enregistrée dans l’instance :{' '}
@@ -517,19 +535,33 @@ const TASK_STATE_LABELS: Readonly<Record<TaskState, string>> = {
 
 function TaskIcon({ state }: { state: TaskState }) {
   if (state === 'done') return <Check className="h-4 w-4 text-emerald-400" aria-hidden="true" />
-  if (state === 'running') return <Loader2 className="h-4 w-4 animate-spin text-indigo-300" aria-hidden="true" />
+  if (state === 'running')
+    return <Loader2 className="h-4 w-4 animate-spin text-indigo-300" aria-hidden="true" />
   if (state === 'error') return <X className="h-4 w-4 text-red-400" aria-hidden="true" />
   return <CircleDashed className="h-4 w-4 text-gray-600" aria-hidden="true" />
 }
 
-export function TaskList({ tasks, plan }: { tasks: Record<TaskKey, TaskState>; plan: readonly TaskKey[] }) {
+export function TaskList({
+  tasks,
+  plan,
+}: {
+  tasks: Record<TaskKey, TaskState>
+  plan: readonly TaskKey[]
+}) {
   return (
     <ol className={`${surface} divide-y divide-white/[0.05]`} aria-label="Ce que fait l’assistant">
       {plan.map((t) => (
-        <li key={t} data-testid={`wizard-task-${t}`} data-state={tasks[t]} className="flex items-center gap-3 px-3 py-2.5">
+        <li
+          key={t}
+          data-testid={`wizard-task-${t}`}
+          data-state={tasks[t]}
+          className="flex items-center gap-3 px-3 py-2.5"
+        >
           <TaskIcon state={tasks[t]} />
           <span className="min-w-0 flex-1 text-sm text-gray-200">{TASK_LABELS[t]}</span>
-          <span className={`text-xs ${tasks[t] === 'error' ? 'text-red-400' : tasks[t] === 'done' ? 'text-emerald-400' : 'text-gray-500'}`}>
+          <span
+            className={`text-xs ${tasks[t] === 'error' ? 'text-red-400' : tasks[t] === 'done' ? 'text-emerald-400' : 'text-gray-500'}`}
+          >
             {TASK_STATE_LABELS[tasks[t]]}
           </span>
         </li>
@@ -552,15 +584,23 @@ export function Verdict({ verdict, testedModel }: { verdict: VerdictView; tested
   return (
     <div role="status" data-testid="wizard-test-result" className={`${surface} space-y-3 p-3`}>
       <div className="flex items-center gap-2">
-        <Badge variant={verdict.ok ? 'success' : 'error'}>{verdict.ok ? 'Connexion OK' : 'Échec du test'}</Badge>
-        <span className="text-sm text-gray-200">{verdict.ok ? 'La connexion fonctionne.' : 'La connexion ne fonctionne pas encore.'}</span>
+        <Badge variant={verdict.ok ? 'success' : 'error'}>
+          {verdict.ok ? 'Connexion OK' : 'Échec du test'}
+        </Badge>
+        <span className="text-sm text-gray-200">
+          {verdict.ok ? 'La connexion fonctionne.' : 'La connexion ne fonctionne pas encore.'}
+        </span>
       </div>
       <Facts
         columns={2}
         items={[
           {
             label: 'Modèle testé',
-            value: testedModel ? <span className="font-mono">{testedModel}</span> : 'aucun indiqué (le serveur sonde le premier de sa liste)',
+            value: testedModel ? (
+              <span className="font-mono">{testedModel}</span>
+            ) : (
+              'aucun indiqué (le serveur sonde le premier de sa liste)'
+            ),
           },
           { label: 'Joignable', value: verdict.reachable },
           { label: 'Modèles', value: verdict.models },
@@ -575,7 +615,8 @@ export function Verdict({ verdict, testedModel }: { verdict: VerdictView; tested
       )}
       {verdict.loginHint && (
         <p className="text-xs text-gray-400">
-          Commande à lancer sur le serveur : <code className="font-mono text-gray-200">{verdict.loginHint}</code>
+          Commande à lancer sur le serveur :{' '}
+          <code className="font-mono text-gray-200">{verdict.loginHint}</code>
         </p>
       )}
     </div>
@@ -618,13 +659,14 @@ export function ModelPicker({
   onUseAsDefault: () => void
 }) {
   // Offered for the model that just PASSED, when the saved default is another one.
-  const offerDefault = lastOk && !!testedModel && savedDefault !== null && savedDefault !== testedModel
+  const offerDefault =
+    lastOk && !!testedModel && savedDefault !== null && savedDefault !== testedModel
   return (
     <div data-testid="wizard-model-picker" className={`${surface} space-y-3 p-3`}>
       {proposedMissing && (
         <p data-testid="wizard-model-missing" className="text-sm text-amber-200">
-          Le modèle proposé par défaut ({proposedMissing}) n’est pas proposé par ce serveur. Le premier modèle listé est
-          présélectionné ci-dessous.
+          Le modèle proposé par défaut ({proposedMissing}) n’est pas proposé par ce serveur. Le
+          premier modèle listé est présélectionné ci-dessous.
         </p>
       )}
       <fieldset>
@@ -639,21 +681,34 @@ export function ModelPicker({
               disabled={running}
               onChange={onSelect}
               title={<span className="font-mono">{m}</span>}
-              description={m === testedModel ? (lastOk ? 'Testé : réussi' : 'Testé : échec') : 'Pas encore testé'}
+              description={
+                m === testedModel
+                  ? lastOk
+                    ? 'Testé : réussi'
+                    : 'Testé : échec'
+                  : 'Pas encore testé'
+              }
             />
           ))}
         </div>
         <p className="mt-1 text-xs text-gray-500">
-          L’appel d’outil dépend du modèle : un modèle qui échoue n’empêche pas un autre du même serveur de réussir.
+          L’appel d’outil dépend du modèle : un modèle qui échoue n’empêche pas un autre du même
+          serveur de réussir.
         </p>
       </fieldset>
       <p data-testid="wizard-saved-default" className="text-xs text-gray-400">
         Modèle enregistré par défaut pour cette instance :{' '}
-        {savedDefault ? <code className="font-mono text-gray-200">{savedDefault}</code> : 'aucun (le serveur choisit le premier de sa liste)'}.
+        {savedDefault ? (
+          <code className="font-mono text-gray-200">{savedDefault}</code>
+        ) : (
+          'aucun (le serveur choisit le premier de sa liste)'
+        )}
+        .
       </p>
       {offerDefault && (
         <p data-testid="wizard-default-offer" className="text-sm text-emerald-300">
-          {testedModel} a réussi le test, mais l’instance enregistre {savedDefault ? savedDefault : 'aucun modèle'} par défaut.
+          {testedModel} a réussi le test, mais l’instance enregistre{' '}
+          {savedDefault ? savedDefault : 'aucun modèle'} par défaut.
         </p>
       )}
       {defaultError && (
@@ -663,11 +718,23 @@ export function ModelPicker({
       )}
       <div className="flex flex-wrap items-center justify-end gap-2">
         {offerDefault && (
-          <Button size="sm" variant="secondary" onClick={onUseAsDefault} loading={defaultBusy} disabled={running}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={onUseAsDefault}
+            loading={defaultBusy}
+            disabled={running}
+          >
             Utiliser ce modèle par défaut
           </Button>
         )}
-        <Button size="sm" variant="secondary" onClick={onTest} loading={running} disabled={!selected}>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={onTest}
+          loading={running}
+          disabled={!selected}
+        >
           Tester ce modèle
         </Button>
       </div>
@@ -708,17 +775,29 @@ export function ProjectStep({
         <div className="min-w-0">
           <Select
             label="Projet"
-            placeholder={projects === null ? 'Chargement…' : projects.length === 0 ? 'Aucun projet' : 'Choisir un projet…'}
+            placeholder={
+              projects === null
+                ? 'Chargement…'
+                : projects.length === 0
+                  ? 'Aucun projet'
+                  : 'Choisir un projet…'
+            }
             options={(projects ?? []).map((p) => ({ value: p.slug, label: p.name }))}
             value={projectSlug}
             onChange={onProject}
             disabled={!projects || projects.length === 0}
           />
-          <FieldNote id="wizard-project" help="Une conversation sans projet ne peut utiliser que Claude Code." />
+          <FieldNote
+            id="wizard-project"
+            help="Une conversation sans projet ne peut utiliser que Claude Code."
+          />
         </div>
         <div className="min-w-0">
           <span className="mb-1 block text-sm font-medium text-gray-300">Origine</span>
-          <p data-testid="wizard-origin" className={`${surface} break-all px-3 py-2 font-mono text-sm text-gray-200`}>
+          <p
+            data-testid="wizard-origin"
+            className={`${surface} break-all px-3 py-2 font-mono text-sm text-gray-200`}
+          >
             {origin ?? 'inconnue'}
           </p>
           <FieldNote id="wizard-origin-note" help="L’endroit exact où le contenu partira." />
@@ -735,7 +814,8 @@ export function ProjectStep({
       )}
       {consented && (
         <p role="status" data-testid="wizard-consented" className="text-sm text-emerald-400">
-          Projet {projects?.find((p) => p.slug === consented.slug)?.name ?? consented.slug} autorisé pour {consented.origin}.
+          Projet {projects?.find((p) => p.slug === consented.slug)?.name ?? consented.slug} autorisé
+          pour {consented.origin}.
         </p>
       )}
       {consentError && (

@@ -5,7 +5,7 @@
  * Run with: npx vitest run src/components/settings/ProviderSettings.test.tsx
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 
 vi.mock('@/services/providers', async (orig) => ({
   ...(await orig<typeof import('@/services/providers')>()),
@@ -47,18 +47,19 @@ describe('ProviderSettings', () => {
     vi.mocked(providersApi.list).mockResolvedValue(response([CLAUDE]))
     const { container } = mountSettings(<ProviderSettings />)
     for (const id of ['instances', 'consent', 'advanced']) expect(container.querySelector(`section#${id}`)).not.toBeNull()
-    expect(container.querySelector('section#roles')).toBeNull()
-    expect(container.querySelector('section#models')).toBeNull()
+    expect(container.querySelector('#roles')).toBeNull()
+    expect(container.querySelector('#models')).toBeNull()
     expect(screen.getByRole('link', { name: 'Avancé' }).getAttribute('href')).toBe('#advanced')
     fireEvent.click(screen.getByRole('button', { name: 'Avancé' }))
-    expect(container.querySelector('section#roles')).not.toBeNull()
-    expect(container.querySelector('section#models')).not.toBeNull()
+    expect(container.querySelector('#roles')).not.toBeNull()
+    expect(container.querySelector('#models')).not.toBeNull()
+    expect(screen.getByRole('region', { name: 'Rôles' })).toBeTruthy()
   })
 
   it('a link to #roles or #models opens the fold', () => {
     vi.mocked(providersApi.list).mockResolvedValue(response([CLAUDE]))
     const { container } = mountSettings(<ProviderSettings />, { url: '/providers#roles' })
-    expect(container.querySelector('section#roles')).not.toBeNull()
+    expect(container.querySelector('#roles')).not.toBeNull()
   })
 
   it('"Ajouter un provider" opens the wizard in place of the button', () => {
@@ -69,5 +70,24 @@ describe('ProviderSettings', () => {
     expect(screen.queryByRole('button', { name: /Ajouter un provider/ })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Annuler' }))
     expect(screen.queryByRole('region', { name: 'Ajouter un provider' })).toBeNull()
+  })
+
+  it('every button of the page is a kit Button, and the sections have one right-aligned footer each', async () => {
+    vi.mocked(providersApi.list).mockResolvedValue(response([CLAUDE]))
+    const { container } = mountSettings(<ProviderSettings />, { url: '/providers#advanced' })
+    await screen.findByRole('radio', { name: /Désactivée/ })
+    for (const b of container.querySelectorAll('button')) {
+      if (b.getAttribute('role') === 'combobox' || b.getAttribute('role') === 'option') continue
+      if (b.getAttribute('aria-expanded') !== null) continue // the "Avancé" toggle of the kit Section
+      expect(b.className).toMatch(/inline-flex items-center justify-center font-medium rounded-lg/)
+    }
+    for (const id of ['roles-global', 'aliases-panel', 'policy-panel']) {
+      const footers = screen.getByTestId(id).querySelectorAll(':scope > footer')
+      expect(footers).toHaveLength(1)
+      expect(footers[0].className).toContain('justify-end')
+      const save = within(footers[0] as HTMLElement).getByRole('button', { name: 'Enregistrer' })
+      expect(save.className).toContain('bg-indigo-600')
+      expect(within(footers[0] as HTMLElement).getByRole('button', { name: 'Annuler' }).className).toContain('hover:bg-white/[0.06] text-gray-300')
+    }
   })
 })

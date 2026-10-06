@@ -4,9 +4,20 @@ import { Badge, Button, Facts, surface } from '@/components/ui'
 import { ProviderStateCard } from '@/components/chat/ProviderStateCard'
 import { useProviders, useRefreshProviders } from '@/hooks/useProviders'
 import { providersApi } from '@/services/providers'
-import { COST_LABELS_FR, formatWhenFr, instanceStatus, kindLabelFr, wizardErrorMessage } from '@/constants/providerWizard'
+import {
+  COST_LABELS_FR,
+  formatWhenFr,
+  instanceStatus,
+  kindLabelFr,
+  wizardErrorMessage,
+} from '@/constants/providerWizard'
 import { credentialLabel } from '@/constants/providerSettings'
-import { isClaudeCodeProvider, type ProviderErrorInfo, type ProviderHealth, type ProviderInstance } from '@/types/provider'
+import {
+  isClaudeCodeProvider,
+  type ProviderErrorInfo,
+  type ProviderHealth,
+  type ProviderInstance,
+} from '@/types/provider'
 import { ConfirmPanel } from './ConfirmPanel'
 import { ProviderInstanceForm } from './ProviderInstanceForm'
 
@@ -14,7 +25,12 @@ import { ProviderInstanceForm } from './ProviderInstanceForm'
 function healthError(instance: ProviderInstance, health: ProviderHealth): ProviderErrorInfo | null {
   if (health.error) return { ...health.error, provider_id: health.error.provider_id ?? instance.id }
   if (health.status === 'auth_required') {
-    return { code: 'auth_required', message: '', provider_id: instance.id, login_hint: health.login_hint ?? undefined }
+    return {
+      code: 'auth_required',
+      message: '',
+      provider_id: instance.id,
+      login_hint: health.login_hint ?? undefined,
+    }
   }
   return null
 }
@@ -84,16 +100,36 @@ function InstanceCard({
         className="mt-3"
         columns={2}
         items={[
-          { label: 'Point d’accès', value: <span className="break-all">{instance.origin ?? (builtin ? 'programme local' : 'inconnu')}</span> },
+          {
+            label: 'Point d’accès',
+            value: (
+              <span className="break-all">
+                {instance.origin ?? (builtin ? 'programme local' : 'inconnu')}
+              </span>
+            ),
+          },
           { label: 'Modèle', value: instance.default_model ?? 'aucun par défaut' },
           { label: 'Coût', value: COST_LABELS_FR[instance.cost_source ?? 'unknown'] },
-          { label: 'Clé', value: <span className="font-mono">{builtin ? 'gérée par le programme' : credentialLabel(instance.credential_ref)}</span> },
+          {
+            label: 'Clé',
+            value: (
+              <span className="font-mono">
+                {builtin ? 'gérée par le programme' : credentialLabel(instance.credential_ref)}
+              </span>
+            ),
+          },
           { label: 'Version', value: health.version ?? 'inconnue' },
           { label: 'Vérifié', value: formatWhenFr(health.checked_at) },
         ]}
       />
 
-      {error && <ProviderStateCard error={error} className="mt-3" testId={`instance-error-${instance.id}`} />}
+      {error && (
+        <ProviderStateCard
+          error={error}
+          className="mt-3"
+          testId={`instance-error-${instance.id}`}
+        />
+      )}
       {checkError && (
         <p role="alert" className="mt-2 text-xs text-red-400">
           {checkError}
@@ -112,7 +148,8 @@ function InstanceCard({
           }}
           onCancel={() => setConfirmDelete(false)}
         >
-          Les conversations existantes sur {instance.label} ne pourront plus être reprises. La clé reste dans le coffre.
+          Les conversations existantes sur {instance.label} ne pourront plus être reprises. La clé
+          reste dans le coffre.
         </ConfirmPanel>
       )}
 
@@ -129,15 +166,31 @@ function InstanceCard({
         </div>
       ) : (
         <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-white/[0.06] pt-3">
-          <Button size="sm" variant="secondary" onClick={recheck} loading={checking} aria-label={`Tester ${instance.label}`}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={recheck}
+            loading={checking}
+            aria-label={`Tester ${instance.label}`}
+          >
             Tester
           </Button>
           {!builtin && (
             <>
-              <Button size="sm" variant="secondary" onClick={onEdit} aria-label={`Modifier ${instance.label}`}>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={onEdit}
+                aria-label={`Modifier ${instance.label}`}
+              >
                 Modifier
               </Button>
-              <Button size="sm" variant="secondary" onClick={() => setConfirmDelete(true)} aria-label={`Supprimer ${instance.label}`}>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setConfirmDelete(true)}
+                aria-label={`Supprimer ${instance.label}`}
+              >
                 Supprimer
               </Button>
             </>
@@ -170,7 +223,7 @@ export function ProviderInstances() {
         setError(wizardErrorMessage(err))
       }
     },
-    [refresh],
+    [refresh]
   )
 
   const thirdParty = providers.filter((p) => !(p.builtin || isClaudeCodeProvider(p.id, p.kind)))
@@ -178,7 +231,10 @@ export function ProviderInstances() {
   return (
     <div className="space-y-3">
       {thirdParty.length === 0 && (
-        <p className="text-sm text-gray-500">Aucun provider tiers pour l’instant : seul Claude Code est disponible. « Ajouter un provider » vous guide.</p>
+        <p className="text-sm text-gray-500">
+          Aucun provider tiers pour l’instant : seul Claude Code est disponible. « Ajouter un
+          provider » vous guide.
+        </p>
       )}
       <ul className="grid gap-3" aria-label="Providers">
         {providers.map((p) => (
