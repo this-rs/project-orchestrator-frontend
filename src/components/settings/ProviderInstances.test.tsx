@@ -29,7 +29,8 @@ vi.mock('@/services/vault', async (orig) => ({
 }))
 
 import { ProviderInstances } from './ProviderInstances'
-import { CLAUDE, DEEPSEEK, LOCAL, mountSettings, response } from './settingsTestKit'
+import { normalizeProvidersResponse } from '@/services/providers'
+import { CLAUDE, DEEPSEEK, LOCAL, REMOTE, mountSettings, response } from './settingsTestKit'
 
 beforeEach(() => {
   status.mockReset().mockResolvedValue({ status: 'healthy' })
@@ -230,5 +231,63 @@ describe('ProviderInstances — French card content', () => {
     expect(card.textContent).not.toContain('aucun par défaut')
     expect(screen.getByTestId('instance-claude-code').textContent).toContain('2.1.0')
     expect(screen.getByTestId('instance-deepseek').textContent).toContain('vérifié')
+  })
+})
+
+describe('ProviderInstances — Claude Code distant (SSH)', () => {
+  it('names the machine by its id (never just "Claude Code"), with its ssh origin, fingerprint and Rock’n roll state', () => {
+    mountSettings(<ProviderInstances />, { list, providers: [CLAUDE, REMOTE] })
+    const row = card('claude-code@lab')
+    expect(within(row).getByRole('heading').textContent).toBe('claude-code@lab')
+    expect(row.textContent).toContain('Claude Code distant (SSH)')
+    expect(row.textContent).toContain('ssh:me@lab.example.com:2222')
+    expect(row.textContent).toContain('SHA256:abc123fingerprintOfTheMachine')
+    expect(row.textContent).toContain('Coffre : lab-ssh-key')
+    expect(row.textContent).toContain('non autorisé')
+    expect(row.getAttribute('data-status')).toBe('connected')
+    // It can be edited and deleted, unlike the built-in local instance.
+    expect(within(row).getByRole('button', { name: /Modifier/ })).toBeTruthy()
+  })
+
+  it.each([
+    'lab: the machine cannot be reached',
+    'lab: the host key does not match the pinned key',
+    'lab: the machine refused the key',
+  ])('unreachable: shows "Injoignable" with the reason "%s" and never suggests the local Claude Code', (reason) => {
+    // The wire shape: state "unavailable" with a readable reason.
+    const wire = normalizeProvidersResponse({
+      providers: [
+        { id: 'claude-code@lab', kind: 'claude_code_remote', label: 'Claude Code', health: { state: 'unavailable', message: reason } },
+      ],
+    })
+    mountSettings(<ProviderInstances />, { list, providers: wire.providers })
+    const row = card('claude-code@lab')
+    expect(row.getAttribute('data-status')).toBe('unreachable')
+    expect(row.textContent).toContain('Injoignable')
+    expect(screen.getByTestId('instance-reason-claude-code@lab').textContent).toContain(reason)
+    expect(row.textContent).not.toMatch(/repli|bascul|fallback|Claude Code local|localement/i)
+  })
+})
+
+describe('normalizeProvidersResponse — remote instance', () => {
+  it('reads the machine fields, and maps the health state "unavailable" to unhealthy with its reason', () => {
+    const { providers } = normalizeProvidersResponse({
+      providers: [
+        {
+          id: 'claude-code@lab',
+          kind: 'claude_code_remote',
+          host: 'lab.example.com',
+          ssh_user: 'me',
+          ssh_port: 2222,
+          allow_trust: true,
+          host_key_fingerprint: 'SHA256:xyz',
+          origin: 'ssh:me@lab.example.com:2222',
+          health: { state: 'unavailable', reason: 'lab: Claude Code CLI is missing' },
+        },
+      ],
+    })
+    expect(providers[0]).toMatchObject({ host: 'lab.example.com', ssh_user: 'me', ssh_port: 2222, allow_trust: true, host_key_fingerprint: 'SHA256:xyz', origin: 'ssh:me@lab.example.com:2222' })
+    expect(providers[0].health.status).toBe('unhealthy')
+    expect(providers[0].health.error?.message).toBe('lab: Claude Code CLI is missing')
   })
 })

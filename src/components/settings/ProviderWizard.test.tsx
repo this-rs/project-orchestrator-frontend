@@ -13,6 +13,7 @@ const create = vi.fn()
 const remove = vi.fn()
 const allow = vi.fn()
 const list = vi.fn()
+const sshHostKey = vi.fn()
 vi.mock('@/services/providers', async (orig) => ({
   ...(await orig<typeof import('@/services/providers')>()),
   providersApi: {
@@ -22,6 +23,7 @@ vi.mock('@/services/providers', async (orig) => ({
     allow: (...a: unknown[]) => allow(...a),
     update: (...a: unknown[]) => update(...a),
     list: (...a: unknown[]) => list(...a),
+    sshHostKey: (...a: unknown[]) => sshHostKey(...a),
     status: vi.fn(),
   },
 }))
@@ -108,6 +110,7 @@ beforeEach(() => {
     revokeGrant,
     onClose,
     onFinished,
+    sshHostKey,
   ])
     m.mockReset()
   proof = true
@@ -742,5 +745,179 @@ describe('ProviderWizard — test button robustness', () => {
     expect(within(picker).queryByRole('option', { name: 'model-3' })).toBeNull()
     expect(within(picker).getByRole('option', { name: 'model-11' })).toBeTruthy()
     expect(within(picker).getByText('1 sur 12')).toBeTruthy()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Claude Code distant (SSH)
+// ---------------------------------------------------------------------------
+
+const FINGERPRINT = 'SHA256:abc123fingerprintOfTheMachine'
+const HOST_KEY = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPinnedPublicKeyOfTheMachine'
+
+function pickRemote() {
+  mount()
+  fireEvent.click(screen.getByRole('radio', { name: /Claude Code distant \(SSH\)/ }))
+}
+
+async function fillRemote({ confirm = true }: { confirm?: boolean } = {}) {
+  sshHostKey.mockResolvedValue({ host_key: HOST_KEY, host_key_fingerprint: FINGERPRINT })
+  fireEvent.change(field('Nom de la machine'), { target: { value: 'lab' } })
+  fireEvent.change(field('Machine (nom ou adresse)'), { target: { value: 'lab.example.com' } })
+  fireEvent.change(field('Utilisateur'), { target: { value: 'me' } })
+  fireEvent.change(field('Port SSH'), { target: { value: '2222' } })
+  fireEvent.change(field('Dossier de travail sur la machine'), { target: { value: '/srv/work' } })
+  fireEvent.click(button('Récupérer la clé de la machine'))
+  await screen.findByTestId('remote-fingerprint')
+  if (confirm) fireEvent.click(screen.getByRole('checkbox', { name: /Je confirme que cette empreinte est bien celle de la machine/ }))
+}
+
+describe('ProviderWizard — Claude Code distant (SSH)', () => {
+  it('offers the kind, with machine fields and no URL', () => {
+    pickRemote()
+    expect(screen.getByText('Claude Code distant (SSH)', { selector: 'span, div, strong' })).toBeTruthy()
+    expect(screen.queryByLabelText('URL de base')).toBeNull()
+    expect(screen.getByTestId('remote-fields')).toBeTruthy()
+  })
+
+  it('refuses an invalid host (leading dash, forbidden characters) and says so', () => {
+    pickRemote()
+    fireEvent.change(field('Nom de la machine'), { target: { value: 'lab' } })
+    const host = field('Machine (nom ou adresse)')
+    fireEvent.change(host, { target: { value: '-oProxyCommand=evil' } })
+    fireEvent.blur(host)
+    expect(screen.getAllByText(/ne peut pas commencer par « - »/).length).toBeGreaterThan(0)
+    fireEvent.change(host, { target: { value: 'lab; rm -rf /' } })
+    expect(screen.getAllByText(/lettres, chiffres et/i).length).toBeGreaterThan(0)
+    expect(button('Suivant').hasAttribute('disabled')).toBe(true)
+    fireEvent.change(field('Port SSH'), { target: { value: '70000' } })
+    fireEvent.blur(field('Port SSH'))
+    expect(screen.getByText('Un port entre 1 et 65535.')).toBeTruthy()
+  })
+
+  it('shows the fetched fingerprint and blocks "Suivant" until the human confirms it', async () => {
+    pickRemote()
+    await fillRemote({ confirm: false })
+    expect(sshHostKey).toHaveBeenCalledWith({ host: 'lab.example.com', ssh_port: 2222 })
+    expect(screen.getByTestId('remote-fingerprint').textContent).toContain(FINGERPRINT)
+    expect(button('Suivant').hasAttribute('disabled')).toBe(true)
+    expect(screen.getByTestId('wizard-blocker').textContent).toContain('Confirmez que l’empreinte')
+    fireEvent.click(screen.getByRole('checkbox', { name: /Je confirme que cette empreinte est bien celle de la machine/ }))
+    expect(button('Suivant').hasAttribute('disabled')).toBe(false)
+  })
+
+  it('changing the host after the confirmation drops the pinned key and the confirmation', async () => {
+    pickRemote()
+    await fillRemote()
+    fireEvent.change(field('Machine (nom ou adresse)'), { target: { value: 'other.example.com' } })
+    expect(screen.queryByTestId('remote-fingerprint')).toBeNull()
+    expect(button('Suivant').hasAttribute('disabled')).toBe(true)
+  })
+
+  it('refuses a pasted private key as the host key, and never offers to confirm it', () => {
+    pickRemote()
+    const box = field('Clé publique de la machine')
+    fireEvent.change(box, { target: { value: '-----BEGIN OPENSSH PRIVATE KEY-----' } })
+    fireEvent.blur(box)
+    expect(screen.getByText(/ressemble à une clé privée/)).toBeTruthy()
+    expect(screen.queryByTestId('remote-fingerprint')).toBeNull()
+    expect(button('Suivant').hasAttribute('disabled')).toBe(true)
+  })
+
+  it('accepts a pasted public key, but still requires the confirmation', () => {
+    pickRemote()
+    fireEvent.change(field('Clé publique de la machine'), { target: { value: HOST_KEY } })
+    expect(screen.getByTestId('remote-fingerprint').textContent).toContain('calculée par le serveur')
+    expect(screen.getByRole('checkbox', { name: /Je confirme/ })).toBeTruthy()
+  })
+
+  it('"Rock’n roll" is off by default and warned', () => {
+    pickRemote()
+    const box = screen.getByRole('checkbox', { name: /Autoriser le mode « Rock’n roll » sur cette machine/ }) as HTMLInputElement
+    expect(box.checked).toBe(false)
+    expect(screen.getByRole('note').textContent).toContain('sans demander de confirmation')
+  })
+
+  it('the key step only offers a vault key: no field to type a private key', async () => {
+    pickRemote()
+    await fillRemote()
+    fireEvent.click(button('Suivant'))
+    expect(screen.queryByLabelText('Clé d’API')).toBeNull()
+    expect(document.querySelector('input[type="password"]')).toBeNull()
+    expect((screen.getByRole('radio', { name: /Saisir une nouvelle clé/ }) as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByRole('radio', { name: /Aucune clé/ }) as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByRole('radio', { name: /Clé déjà dans le coffre/ }) as HTMLInputElement).checked).toBe(true)
+    expect(screen.getByTestId('wizard-remote-key-note')).toBeTruthy()
+    expect(button('Enregistrer et tester').hasAttribute('disabled')).toBe(true)
+  })
+
+  it('tells the key must be dedicated and without passphrase', async () => {
+    pickRemote()
+    await fillRemote()
+    fireEvent.click(button('Suivant'))
+    expect(screen.getByTestId('remote-key-hint').textContent).toBe(
+      'Utilisez une clé dédiée, sans phrase secrète : la connexion est non interactive et n’utilise pas d’agent SSH.'
+    )
+  })
+
+  it('runs the chain with the pinned key and a vault reference, shows the ssh origin, and sends allow_trust=false', async () => {
+    pickRemote()
+    await fillRemote()
+    fireEvent.click(button('Suivant'))
+    pick('Clé du coffre', 'old-key')
+    expect(screen.getByTestId('wizard-credential-ref').textContent).toBe('vault:old-key')
+    fireEvent.click(button('Enregistrer et tester'))
+    await screen.findByTestId('wizard-test-result')
+    expect(putSecret).not.toHaveBeenCalled()
+    expect(create).toHaveBeenCalledTimes(1)
+    const body = create.mock.calls[0][0] as Record<string, unknown>
+    expect(body).toMatchObject({
+      id: 'claude-code@lab',
+      kind: 'claude_code_remote',
+      base_url: '',
+      credential_ref: 'vault:old-key',
+      host: 'lab.example.com',
+      ssh_user: 'me',
+      ssh_port: 2222,
+      host_key: HOST_KEY,
+      remote_cwd: '/srv/work',
+      allow_trust: false,
+    })
+    expect(JSON.stringify(body)).not.toContain('BEGIN')
+    expect(createGrant).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: { kind: 'provider', value: 'claude-code@lab' } })
+    )
+    expect(test).toHaveBeenCalled()
+    fireEvent.click(button('Suivant'))
+    expect(screen.getByTestId('wizard-origin').textContent).toBe('ssh:me@lab.example.com:2222')
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: 'Projet' }).hasAttribute('disabled')).toBe(false)
+    )
+    pick('Projet', 'Acme')
+    fireEvent.click(button('Autoriser ssh:me@lab.example.com:2222'))
+    await screen.findByTestId('wizard-consented')
+    expect(allow).toHaveBeenCalledWith('acme', 'claude-code@lab', 'ssh:me@lab.example.com:2222')
+  })
+
+  it('sends allow_trust=true only when the human ticked it', async () => {
+    pickRemote()
+    await fillRemote()
+    fireEvent.click(screen.getByRole('checkbox', { name: /Autoriser le mode « Rock’n roll »/ }))
+    fireEvent.click(button('Suivant'))
+    pick('Clé du coffre', 'old-key')
+    fireEvent.click(button('Enregistrer et tester'))
+    await screen.findByTestId('wizard-test-result')
+    expect((create.mock.calls[0][0] as Record<string, unknown>).allow_trust).toBe(true)
+  })
+
+  it('a failed host-key scan is said, and nothing is pinned', async () => {
+    pickRemote()
+    sshHostKey.mockRejectedValue(new ApiError(502, 'ssh-keyscan failed'))
+    fireEvent.change(field('Nom de la machine'), { target: { value: 'lab' } })
+    fireEvent.change(field('Machine (nom ou adresse)'), { target: { value: 'lab.example.com' } })
+    fireEvent.click(button('Récupérer la clé de la machine'))
+    await waitFor(() => expect(screen.getAllByRole('alert').length).toBeGreaterThan(0))
+    expect(screen.queryByTestId('remote-fingerprint')).toBeNull()
+    expect(button('Suivant').hasAttribute('disabled')).toBe(true)
   })
 })

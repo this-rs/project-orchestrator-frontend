@@ -50,9 +50,9 @@ function route(method: string, path: string): Response {
     return json(200, {
       initialized: true,
       unlocked_until: vaultOpen ? '2999-01-01T00:00:00Z' : null,
-      secret_count: 0,
+      secret_count: 1,
       unavailable: null,
-      secrets: [],
+      secrets: [{ name: 'lab-ssh-key', created_at: '', updated_at: '' }],
       grants: [],
       requests: [],
     })
@@ -60,6 +60,9 @@ function route(method: string, path: string): Response {
   if (method === 'POST' && path === '/api/vault/unlock') return json(200, { unlocked_until: '2999-01-01T00:00:00Z', unlock_proof: 'proof-of-this-tab' })
   if (path.startsWith('/api/vault/secrets/')) return new Response(null, { status: 204 })
   if (method === 'POST' && path === '/api/vault/grants') return json(201, { id: 'grant-1', secrets: {}, scope: {}, created_at: '', expires_at: '' })
+  if (method === 'POST' && path === '/api/chat/providers/ssh-host-key') {
+    return json(200, { host_key: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPinnedPublicKey', host_key_fingerprint: 'SHA256:pinnedFingerprint' })
+  }
   if (method === 'POST' && path === '/api/chat/providers') {
     return createStatus === 201 ? json(201, { id: 'ds' }) : json(createStatus, { error: 'security_gate_closed: authentication is off' })
   }
@@ -214,5 +217,49 @@ describe('the API key of the wizard', () => {
     expect(dump(localStorage)).not.toContain(SECRET)
     expect(dump(sessionStorage)).not.toContain(SECRET)
     expect(window.location.href).not.toContain(SECRET)
+  })
+})
+
+describe('the SSH key of a remote Claude Code', () => {
+  const PRIVATE = '-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA'
+
+  it('is only a vault reference on the wire; the host key is public; nothing private is ever sent or written to the vault', async () => {
+    await vaultApi.unlock('the passphrase', 60)
+    mountSettings(<ProviderWizard existingIds={['claude-code']} onClose={vi.fn()} onFinished={vi.fn()} />, { providers: [CLAUDE] })
+    fireEvent.click(screen.getByRole('radio', { name: /Claude Code distant \(SSH\)/ }))
+    fireEvent.change(screen.getByLabelText('Nom de la machine'), { target: { value: 'lab' } })
+    fireEvent.change(screen.getByLabelText('Machine (nom ou adresse)'), { target: { value: 'lab.example.com' } })
+    fireEvent.change(screen.getByLabelText('Port SSH'), { target: { value: '2222' } })
+    // A private key pasted where the public host key goes: refused, never confirmable.
+    fireEvent.change(screen.getByLabelText('Clé publique de la machine'), { target: { value: PRIVATE } })
+    expect(screen.queryByTestId('remote-fingerprint')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Récupérer la clé de la machine' }))
+    await screen.findByTestId('remote-fingerprint')
+    fireEvent.click(screen.getByRole('checkbox', { name: /Je confirme que cette empreinte/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Suivant' }))
+    await screen.findByTestId('wizard-vault-open')
+    expect(screen.queryByLabelText('Clé d’API')).toBeNull()
+    // Choose the key among the vault's names.
+    const trigger = screen.getByRole('combobox', { name: 'Clé du coffre' })
+    fireEvent.click(trigger)
+    fireEvent.click(await screen.findByRole('option', { name: 'lab-ssh-key', hidden: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer et tester' }))
+    await screen.findByTestId('wizard-test-result')
+
+    const scan = calls.find((c) => c.path === '/api/chat/providers/ssh-host-key')!
+    expect(JSON.parse(scan.body)).toEqual({ host: 'lab.example.com', ssh_port: 2222 })
+    expect(calls.some((c) => c.method === 'PUT' && c.path.startsWith('/api/vault/secrets'))).toBe(false)
+    const create = JSON.parse(calls.find((c) => c.method === 'POST' && c.path === '/api/chat/providers')!.body)
+    expect(create).toMatchObject({
+      id: 'claude-code@lab',
+      kind: 'claude_code_remote',
+      credential_ref: 'vault:lab-ssh-key',
+      host: 'lab.example.com',
+      ssh_port: 2222,
+      host_key: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPinnedPublicKey',
+      allow_trust: false,
+    })
+    for (const c of calls) expect(c.body).not.toContain('BEGIN')
+    expect(document.body.innerHTML).not.toContain('b3BlbnNzaC1rZXktdjEAAAAA')
   })
 })

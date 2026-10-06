@@ -344,6 +344,40 @@ describe('the instance of the conversation was deleted', () => {
   })
 })
 
+describe('remote Claude Code conversation', () => {
+  const onRemote = (store: Store) => {
+    chatStub.sessionId = 's1'
+    store.set(chatSessionIdAtom, 's1')
+    store.set(chatSessionProviderAtom, { id: 'claude-code@lab', kind: 'claude_code_remote', label: 'Claude Code' })
+    store.set(chatSessionModelAtom, 'claude-sonnet-5')
+    store.set(chatSessionCapabilitiesSnapshotAtom, { ...FULL, per_session_mcp: false, tool_cancel: false })
+  }
+
+  it('says it has no PO tools (MCP) in this version, and the badge shows claude-code@lab', async () => {
+    listProviders.mockResolvedValue(
+      listOf(instance('claude-code'), instance('claude-code@lab', { kind: 'claude_code_remote', label: 'Claude Code' })),
+    )
+    const store = renderPanel({ prepare: onRemote })
+    await ready(store)
+    const banner = screen.getByTestId('remote-no-tools-banner')
+    expect(banner.textContent).toContain('claude-code@lab')
+    expect(banner.textContent).toContain('outils PO (MCP)')
+    expect(screen.getByTestId('dock').contains(banner)).toBe(true)
+    expect((await screen.findByTestId('provider-badge')).textContent).toContain('claude-code@lab')
+  })
+
+  it('the local Claude Code gets no such banner', async () => {
+    const store = renderPanel({
+      prepare: (s) => {
+        chatStub.sessionId = 's1'
+        s.set(chatSessionIdAtom, 's1')
+      },
+    })
+    await ready(store)
+    expect(screen.queryByTestId('remote-no-tools-banner')).toBeNull()
+  })
+})
+
 describe('capability guards of the panel', () => {
   it('interactive_permissions: false — the "Policy only" banner is shown above the composer', async () => {
     const store = renderPanel({ prepare: onLlama({ ...FULL, interactive_permissions: false }) })

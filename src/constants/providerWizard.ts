@@ -37,15 +37,16 @@ export const KIND_LABELS_FR: Readonly<Record<string, string>> = {
   openai_compatible: 'OpenAI-compatible',
   codex: 'Codex',
   acp: 'Agent ACP',
+  claude_code_remote: 'Claude Code distant (SSH)',
 }
 
 export function kindLabelFr(kind: string | null | undefined): string {
   return (kind && KIND_LABELS_FR[kind]) || kind || 'Inconnu'
 }
 
-/** `codex` and `acp` instances are a program on the server: no URL. */
+/** `codex`, `acp` and `claude_code_remote` instances are a program (local or over SSH): no URL, no URL guard. */
 export function isProcessKind(kind: string | null | undefined): boolean {
-  return kind === 'codex' || kind === 'acp'
+  return kind === 'codex' || kind === 'acp' || kind === 'claude_code_remote'
 }
 
 export const WIZARD_STEPS = [

@@ -6,6 +6,8 @@ import type {
   ProviderPatch,
   ProviderTestResult,
   RoleAssignments,
+  SshHostKeyRequest,
+  SshHostKeyResult,
 } from '@/types/providerSettings'
 import {
   CLAUDE_CODE_PROVIDER_ID,
@@ -63,6 +65,8 @@ export const providersApi = {
   /** Try a draft instance BEFORE saving it. */
   test: (draft: ProviderDraft | (ProviderPatch & { id?: ProviderId })) =>
     api.post<ProviderTestResult>('/chat/providers/test', draft),
+  /** Asks the server to scan the host key of a machine. The human must confirm the fingerprint before it is pinned. */
+  sshHostKey: (req: SshHostKeyRequest) => api.post<SshHostKeyResult>('/chat/providers/ssh-host-key', req),
   create: (draft: ProviderDraft) => api.post<unknown>('/chat/providers', draft),
   update: (id: ProviderId, patch: ProviderPatch) =>
     api.put<unknown>(`/chat/providers/${encodeURIComponent(id)}`, patch),
@@ -136,6 +140,7 @@ const HEALTH_STATE: Readonly<Record<string, ProviderHealthStatus>> = {
   auth_required: 'auth_required',
   unreachable: 'unhealthy',
   unhealthy: 'unhealthy',
+  unavailable: 'unhealthy',
   cli_not_found: 'unhealthy',
   unknown: 'unknown',
 }
@@ -151,11 +156,17 @@ export function normalizeProviderHealth(raw: unknown, providerId?: ProviderId): 
   const state = str(h.state) ?? str(h.status) ?? 'unknown'
   const status = HEALTH_STATE[state] ?? 'unknown'
   const action = str(h.action) ?? str(h.login_hint)
-  const code = str(h.code) ?? (state === 'cli_not_found' || state === 'auth_required' ? state : undefined)
+  const code =
+    str(h.code) ??
+    (state === 'cli_not_found' || state === 'auth_required'
+      ? state
+      : state === 'unavailable'
+        ? 'provider_unavailable'
+        : undefined)
   const error =
     readProviderError(h.error) ??
     (code && status !== 'healthy'
-      ? readProviderError({ code, error: str(h.message) ?? str(h.error) ?? '', provider_id: providerId, action })
+      ? readProviderError({ code, error: str(h.message) ?? str(h.reason) ?? str(h.error) ?? '', provider_id: providerId, action })
       : null)
   return {
     status,
@@ -204,6 +215,12 @@ function normalizeInstance(raw: unknown): ProviderInstance | null {
   const cost = toCostBasis(p.cost_source)
   if (cost) instance.cost_source = cost
   if (str(p.default_model)) instance.default_model = str(p.default_model)
+  if (str(p.host)) instance.host = str(p.host)
+  if (str(p.ssh_user)) instance.ssh_user = str(p.ssh_user)
+  if (typeof p.ssh_port === 'number') instance.ssh_port = p.ssh_port
+  if (str(p.remote_cwd)) instance.remote_cwd = str(p.remote_cwd)
+  if (bool(p.allow_trust) !== undefined) instance.allow_trust = bool(p.allow_trust)
+  if (str(p.host_key_fingerprint)) instance.host_key_fingerprint = str(p.host_key_fingerprint)
   if (obj(p.capabilities)) instance.capabilities = p.capabilities as ProviderInstance['capabilities']
   if (bool(p.is_default) !== undefined) instance.is_default = bool(p.is_default)
   if (p.allowed_for_project === null || bool(p.allowed_for_project) !== undefined) {
@@ -223,6 +240,12 @@ export interface StoredInstance {
   default_model: string | null
   cost_source: ReturnType<typeof toCostBasis>
   credential_ref: string | null
+  host: string | null
+  ssh_user: string | null
+  ssh_port: number | null
+  remote_cwd: string | null
+  allow_trust: boolean
+  host_key_fingerprint: string | null
 }
 
 export function normalizeStoredInstance(raw: unknown, id: ProviderId): StoredInstance {
@@ -238,6 +261,12 @@ export function normalizeStoredInstance(raw: unknown, id: ProviderId): StoredIns
     default_model: str(r.default_model) ?? null,
     cost_source: toCostBasis(r.cost_source),
     credential_ref: str(r.credential_ref) ?? str(r.credential) ?? null,
+    host: str(r.host) ?? null,
+    ssh_user: str(r.ssh_user) ?? null,
+    ssh_port: typeof r.ssh_port === 'number' ? r.ssh_port : null,
+    remote_cwd: str(r.remote_cwd) ?? null,
+    allow_trust: r.allow_trust === true,
+    host_key_fingerprint: str(r.host_key_fingerprint) ?? null,
   }
 }
 

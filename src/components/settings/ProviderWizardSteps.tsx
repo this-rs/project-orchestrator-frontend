@@ -22,6 +22,7 @@ import {
   type TaskState,
 } from '@/constants/providerWizard'
 import { VAULT_PATH } from '@/constants/providerErrors'
+import { REMOTE_ID_PREFIX, REMOTE_KEY_HINT_FR, REMOTE_KIND } from '@/constants/remoteClaudeCode'
 import { COST_BASES, type CostBasis } from '@/types/provider'
 import type { VaultOverview } from '@/services/vault'
 import { ChoiceRow, FieldNote, FormField } from './FormField'
@@ -77,6 +78,7 @@ export function PresetStep({
   onPreset,
   onChange,
   onTouch,
+  remoteSlot,
 }: {
   uid: string
   preset: ProviderPresetInfo
@@ -86,8 +88,11 @@ export function PresetStep({
   onPreset: (key: string) => void
   onChange: (patch: Partial<IdentityState>) => void
   onTouch: (field: IdentityField) => void
+  /** The machine fields of a `claude_code_remote` preset. */
+  remoteSlot?: ReactNode
 }) {
   const process = isProcessKind(preset.kind)
+  const remote = preset.kind === REMOTE_KIND
   const shown = (f: IdentityField) => (touched[f] ? errors[f] : undefined)
   return (
     <div className="space-y-6">
@@ -121,8 +126,12 @@ export function PresetStep({
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField
           id={`${uid}-id`}
-          label="Identifiant"
-          help="Lettres minuscules, chiffres et « - ». Ne pourra plus changer."
+          label={remote ? 'Nom de la machine' : 'Identifiant'}
+          help={
+            remote
+              ? `Lettres minuscules, chiffres et « - ». L’instance s’appellera « ${REMOTE_ID_PREFIX}${identity.id.trim() || '<nom>'} » : ce nom la distingue partout du Claude Code local. Ne pourra plus changer.`
+              : 'Lettres minuscules, chiffres et « - ». Ne pourra plus changer.'
+          }
           error={shown('id')}
         >
           <Input
@@ -149,7 +158,9 @@ export function PresetStep({
             placeholder={preset.label}
           />
         </FormField>
-        {process ? (
+        {remote ? (
+          remoteSlot
+        ) : process ? (
           <div className="sm:col-span-2">
             <p className={`${surface} px-3 py-2 text-xs text-gray-400`}>
               {preset.kind === 'codex'
@@ -324,6 +335,8 @@ export function KeyStep({
   onVaultChange: () => void
 }) {
   const acp = preset.kind === 'acp'
+  // A remote Claude Code: only a vault reference to the SSH key; no key is ever typed here.
+  const remote = preset.kind === REMOTE_KIND
   const names = vault?.secrets.map((s) => s.name) ?? []
   const shown = (f: KeyField) => (touched[f] ? errors[f] : undefined)
   const usesVault = keyState.mode === 'new' || keyState.mode === 'existing'
@@ -351,7 +364,7 @@ export function KeyStep({
             name={`${uid}-keymode`}
             value="new"
             checked={keyState.mode === 'new'}
-            disabled={acp}
+            disabled={acp || remote}
             onChange={(v) => onChange({ mode: v as KeyMode })}
             title="Saisir une nouvelle clé"
             description="Tapée ici, elle part directement dans le coffre, chiffrée."
@@ -373,7 +386,7 @@ export function KeyStep({
             name={`${uid}-keymode`}
             value="env"
             checked={keyState.mode === 'env'}
-            disabled={acp}
+            disabled={acp || remote}
             onChange={(v) => onChange({ mode: v as KeyMode })}
             title="Variable d’environnement du serveur"
             description="Refusée si la variable n’est pas déclarée dans CHAT_PROVIDER_ENV_CREDENTIALS."
@@ -382,16 +395,35 @@ export function KeyStep({
             name={`${uid}-keymode`}
             value="none"
             checked={keyState.mode === 'none'}
+            disabled={remote}
             onChange={(v) => onChange({ mode: v as KeyMode })}
             title="Aucune clé"
             description={
-              acp
+              remote
+                ? 'Une connexion SSH exige une clé.'
+                : acp
                 ? 'Un agent ACP gère sa propre connexion.'
                 : 'Modèle local (Ollama…) ou programme qui gère sa connexion.'
             }
           />
         </div>
       </fieldset>
+
+      {remote && (
+        <p data-testid="wizard-remote-key-note" className="text-xs text-gray-400">
+          Ici, on ne choisit que le <strong>nom</strong> de la clé privée SSH déjà enregistrée dans le
+          coffre : elle n’est jamais saisie ni collée dans cet assistant.{' '}
+          {vault !== null && names.length === 0 && (
+            <>Le coffre ne contient encore aucune clé : enregistrez-y d’abord la clé SSH. </>
+          )}
+          <Link to={VAULT_PATH} className="text-indigo-400 underline hover:text-indigo-300">
+            Ouvrir le coffre
+          </Link>
+          <span data-testid="remote-key-hint" className="mt-1 block text-amber-300">
+            {REMOTE_KEY_HINT_FR}
+          </span>
+        </p>
+      )}
 
       {keyState.mode === 'new' && (
         <div className="grid gap-4 sm:grid-cols-2">

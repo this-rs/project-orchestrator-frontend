@@ -48,12 +48,26 @@ import {
   wizardErrorMessage,
 } from '@/constants/providerWizard'
 import { originOf } from '@/constants/providerSettings'
+import {
+  REMOTE_KIND,
+  remoteInstanceId,
+  remoteOrigin,
+  validateMachineName,
+  validateVaultKeyName,
+} from '@/constants/remoteClaudeCode'
 import { useProviders } from '@/hooks/useProviders'
 import { normalizeProviderHealth, providersApi } from '@/services/providers'
 import { hasUnlockProof, vaultApi, type VaultOverview } from '@/services/vault'
 import type { CredentialRef, ProviderPreset } from '@/types/provider'
 import type { ProviderDraft, ProviderTestResult } from '@/types/providerSettings'
 import { ConfirmPanel } from './ConfirmPanel'
+import {
+  EMPTY_REMOTE,
+  RemoteHostFields,
+  remoteErrors,
+  type RemoteField,
+  type RemoteState,
+} from './RemoteHostFields'
 import { useProjectOptions } from './useProjectOptions'
 import {
   KeyStep,
@@ -111,7 +125,8 @@ function initialIdentity(key: string): IdentityState {
 function initialKey(key: string): KeyState {
   const p = presetByKey(key)
   return {
-    mode: p.credential_kind === 'vault' ? 'new' : p.credential_kind,
+    // A remote machine's SSH key is never typed: it is chosen among the vault's.
+    mode: p.kind === REMOTE_KIND ? 'existing' : p.credential_kind === 'vault' ? 'new' : p.credential_kind,
     secretName: suggestedSecretName(p.id),
     secretNameEdited: false,
     existingName: '',
@@ -174,6 +189,8 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
   const [keyTouched, setKeyTouched] = useState<Partial<Record<KeyField, boolean>>>({})
   /** Whether the password input holds something — never the value itself. */
   const [keyTyped, setKeyTyped] = useState(false)
+  const [remote, setRemote] = useState<RemoteState>(EMPTY_REMOTE)
+  const [remoteTouched, setRemoteTouched] = useState<Partial<Record<RemoteField, boolean>>>({})
   const keyInputRef = useRef<HTMLInputElement | null>(null)
 
   const [vault, setVault] = useState<VaultOverview | null>(null)
@@ -205,6 +222,9 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
 
   const preset = presetByKey(identity.presetKey)
   const process = isProcessKind(preset.kind)
+  const isRemote = preset.kind === REMOTE_KIND
+  /** `claude-code@<name>` for a remote machine: the name typed is only its suffix. */
+  const instanceId = isRemote ? remoteInstanceId(identity.id) : identity.id.trim()
 
   const refreshVault = useCallback(async () => {
     try {
@@ -236,14 +256,18 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
 
   const identityErrors = useMemo(() => {
     const e: Partial<Record<IdentityField, string>> = {}
-    const id = validateInstanceId(identity.id, existingIds)
+    const id = isRemote
+      ? validateMachineName(identity.id, existingIds)
+      : validateInstanceId(identity.id, existingIds)
     if (id) e.id = id
     if (!process) {
       const url = validateBaseUrlFr(identity.baseUrl)
       if (url) e.url = url
     }
     return e
-  }, [identity.id, identity.baseUrl, existingIds, process])
+  }, [identity.id, identity.baseUrl, existingIds, process, isRemote])
+
+  const remoteErrs = useMemo(() => (isRemote ? remoteErrors(remote) : {}), [isRemote, remote])
 
   const keyErrors = useMemo(() => {
     const e: Partial<Record<KeyField | 'vault', string>> = {}
@@ -257,7 +281,11 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
       }
     }
     if (keyState.mode === 'existing' && !keyState.existingName)
-      e.existingName = 'Choisissez une clé du coffre.'
+      e.existingName = isRemote ? 'Choisissez la clé SSH du coffre.' : 'Choisissez une clé du coffre.'
+    else if (isRemote) {
+      const bad = validateVaultKeyName(keyState.existingName)
+      if (bad) e.existingName = bad
+    }
     if (keyState.mode === 'env') {
       const env = validateEnvName(keyState.envName)
       if (env) e.envName = env
@@ -269,7 +297,7 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
       else if (!canWriteVault) e.vault = 'Déverrouillez le coffre depuis cet onglet.'
     }
     return e
-  }, [keyState, keyTyped, vault, vaultError, secretName, usesVault, canWriteVault])
+  }, [keyState, keyTyped, vault, vaultError, secretName, usesVault, canWriteVault, isRemote])
 
   /** Sub-steps of the chain, for the key mode chosen. */
   const plan: TaskKey[] = useMemo(
@@ -286,14 +314,24 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
     tasks.instance === 'done' && (!usesVault || tasks.grant === 'done') && tasks.test === 'done'
 
   const draft = (): ProviderDraft => ({
-    id: identity.id.trim(),
+    id: instanceId,
     kind: preset.kind,
     preset: preset.preset as ProviderPreset | 'opencode' | null,
-    label: identity.label.trim() || preset.label || identity.id.trim(),
+    label: identity.label.trim() || preset.label || instanceId,
     base_url: process ? '' : identity.baseUrl.trim(),
     default_model: identity.model.trim() || null,
     cost_source: identity.cost,
     credential_ref: credentialRef,
+    ...(isRemote
+      ? {
+          host: remote.host.trim(),
+          ...(remote.sshUser.trim() ? { ssh_user: remote.sshUser.trim() } : {}),
+          ...(remote.sshPort.trim() ? { ssh_port: Number(remote.sshPort) } : {}),
+          host_key: remote.hostKey.trim(),
+          ...(remote.remoteCwd.trim() ? { remote_cwd: remote.remoteCwd.trim() } : {}),
+          allow_trust: remote.allowTrust,
+        }
+      : {}),
   })
 
   const savedInstance = providers.find((p) => p.id === created.instance)
@@ -303,7 +341,9 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
       ? 'process:codex'
       : preset.kind === 'acp'
         ? `process:acp:${preset.preset ?? ''}`
-        : originOf(identity.baseUrl.trim()))
+        : isRemote
+          ? remoteOrigin(remote.host, remote.sshUser, remote.sshPort)
+          : originOf(identity.baseUrl.trim()))
 
   // ---- Edits ---------------------------------------------------------------
 
@@ -493,7 +533,18 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
   // ---- What blocks the next step ---------------------------------------------
 
   const blocker: string | null = (() => {
-    if (step === 0) return identityErrors.id ?? identityErrors.url ?? null
+    if (step === 0) {
+      return (
+        identityErrors.id ??
+        identityErrors.url ??
+        remoteErrs.host ??
+        remoteErrs.sshUser ??
+        remoteErrs.sshPort ??
+        remoteErrs.remoteCwd ??
+        remoteErrs.hostKey ??
+        null
+      )
+    }
     if (step === 1) {
       return (
         keyErrors.secret ??
@@ -516,7 +567,7 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
   const next = () => {
     if (blocker) return
     if (step === 1) return startChain()
-    if (step === 4) return onFinished(created.instance ?? identity.id.trim())
+    if (step === 4) return onFinished(created.instance ?? instanceId)
     setStep((s) => s + 1)
   }
 
@@ -543,7 +594,7 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
     else onClose()
   }
 
-  const verdict = test ? toVerdict(test, identity.id.trim()) : null
+  const verdict = test ? toVerdict(test, instanceId) : null
   const catalogue = (test?.models ?? []).map((m) => m.id)
   const proposed = identity.model.trim()
   const proposedMissing =
@@ -619,6 +670,18 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
           onPreset={choosePreset}
           onChange={editIdentity}
           onTouch={(f) => setIdTouched((t) => ({ ...t, [f]: true }))}
+          remoteSlot={
+            isRemote ? (
+              <RemoteHostFields
+                uid={uid}
+                value={remote}
+                errors={remoteErrs}
+                touched={remoteTouched}
+                onChange={(patch) => setRemote((r) => ({ ...r, ...patch }))}
+                onTouch={(f) => setRemoteTouched((t) => ({ ...t, [f]: true }))}
+              />
+            ) : undefined
+          }
         />
       )}
 
@@ -754,9 +817,19 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
             <Facts
               columns={1}
               items={[
-                { label: 'Provider', value: `${draft().label} (${identity.id.trim()})` },
+                { label: 'Provider', value: `${draft().label} (${instanceId})` },
                 { label: 'Type', value: kindLabelFr(preset.kind) },
                 { label: 'Origine', value: origin ?? 'inconnue' },
+                {
+                  label: 'Empreinte épinglée',
+                  value: <code className="break-all font-mono">{remote.hostKeyFingerprint || 'calculée par le serveur'}</code>,
+                  hidden: !isRemote,
+                },
+                {
+                  label: 'Rock’n roll',
+                  value: remote.allowTrust ? 'autorisé sur cette machine' : 'non autorisé',
+                  hidden: !isRemote,
+                },
                 {
                   label: 'Modèle',
                   value: (savedDefault ?? identity.model.trim()) || 'aucun par défaut',
@@ -792,7 +865,7 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
       )}
       {confirmCancel && (
         <ConfirmPanel
-          title={`Annuler l’ajout de ${identity.id.trim() || 'ce provider'} ?`}
+          title={`Annuler l’ajout de ${(isRemote ? instanceId : identity.id.trim()) || 'ce provider'} ?`}
           confirmLabel="Supprimer ce qui a été créé"
           cancelLabel="Continuer l’assistant"
           tone="danger"

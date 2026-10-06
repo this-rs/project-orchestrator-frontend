@@ -18,13 +18,34 @@ import type { CostBasis, CredentialRef, ProviderHealth, ProviderId, ProviderPres
  */
 export interface ProviderDraft {
   id: ProviderId
-  kind: 'openai_compatible' | 'codex' | 'acp'
+  kind: 'openai_compatible' | 'codex' | 'acp' | 'claude_code_remote'
   preset?: ProviderPreset | 'opencode' | null
   label: string
   base_url: string
   default_model?: string | null
   cost_source: CostBasis
   credential_ref: CredentialRef
+  /** `claude_code_remote` only. `credential_ref` is then `vault:<name of the SSH private key>`. */
+  host?: string
+  ssh_user?: string
+  ssh_port?: number
+  /** The PINNED public key line "<type> <base64>": never learned automatically. */
+  host_key?: string
+  remote_cwd?: string
+  /** Allows the "Rock'n roll" mode on this machine. Default false. */
+  allow_trust?: boolean
+}
+
+/** Body of `POST /chat/providers/ssh-host-key`. */
+export interface SshHostKeyRequest {
+  host: string
+  ssh_port?: number
+}
+
+/** Answer of `POST /chat/providers/ssh-host-key` (the fingerprint is computed by the backend). */
+export interface SshHostKeyResult {
+  host_key: string
+  host_key_fingerprint: string
 }
 
 /** Body of `PUT /chat/providers/{id}`: the id never changes. */

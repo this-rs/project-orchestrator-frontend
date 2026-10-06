@@ -30,7 +30,7 @@ import {
   providerUnavailableReason,
   routedByLabel,
 } from '@/constants/providers'
-import { providerKindLabel, type ProviderInstance } from '@/types/provider'
+import { providerDisplayName, providerKindLabel, type ProviderInstance } from '@/types/provider'
 import { ModelFamilyPicker, type ModelSelectOptions } from './ModelFamilyPicker'
 
 /** Which of the two menus is open. Owned by the composer, which also has a mode menu to close. */
@@ -119,7 +119,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
   }
 
   // ── Provider ───────────────────────────────────────────────────────
-  const providerLabel = sessionProvider?.label ?? instance?.label ?? effectiveId
+  const providerLabel = sessionProvider?.label ?? (instance ? providerDisplayName(instance) : effectiveId)
   const providerKind = providerKindLabel(sessionProvider?.kind ?? instance?.kind)
   const isDefaultProvider = !hasSession && resolvedDefault?.provider === effectiveId
 
@@ -221,7 +221,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
                             aria-hidden="true"
                           />
                           <span className="sr-only">{healthLabel(p.health?.status)}:</span>
-                          <span className="truncate">{p.label || p.id}</span>
+                          <span className="truncate">{providerDisplayName(p)}</span>
                           <span className="text-[10px] text-gray-500 shrink-0">{providerKindLabel(p.kind)}</span>
                           {p.id === resolvedDefault?.provider && (
                             <span className="text-[9px] text-gray-500 ml-auto shrink-0">
