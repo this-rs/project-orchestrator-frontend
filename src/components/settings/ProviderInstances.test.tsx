@@ -1,5 +1,6 @@
 /**
- * Instance list: what each row shows, re-check, delete confirmation.
+ * Provider cards: state at a glance, what each card shows, Tester, Modifier,
+ * Supprimer with a confirmation.
  *
  * Run with: npx vitest run src/components/settings/ProviderInstances.test.tsx
  */
@@ -34,23 +35,37 @@ beforeEach(() => {
   list.mockReset().mockResolvedValue(response([CLAUDE, DEEPSEEK, LOCAL]))
 })
 
-describe('ProviderInstances', () => {
-  it('shows endpoint, default model, cost basis and the credential REFERENCE', () => {
+const card = (id: string) => screen.getByTestId(`instance-${id}`)
+
+describe('ProviderInstances (cards)', () => {
+  it('shows endpoint, default model, cost and the credential REFERENCE, with a state badge', () => {
     mountSettings(<ProviderInstances />)
-    const row = screen.getByTestId('instance-deepseek')
+    const row = card('deepseek')
     expect(row.textContent).toContain('https://api.deepseek.com')
     expect(row.textContent).toContain('deepseek-chat')
-    expect(row.textContent).toContain('Priced (estimate)')
+    expect(row.textContent).toContain('Tarifé (estimation)')
     expect(row.textContent).toContain('vault:deepseek-key')
-    expect(row.textContent).toContain('Healthy')
+    expect(row.textContent).toContain('Connecté')
+    expect(row.getAttribute('data-status')).toBe('connected')
   })
 
-  it('the built-in instance can be neither edited nor deleted', () => {
+  it.each([
+    [{ status: 'auth_required' as const }, {}, 'key_missing', 'Clé manquante'],
+    [{ status: 'unhealthy' as const, error: { code: 'endpoint_unreachable' as const, message: '' } }, {}, 'unreachable', 'Injoignable'],
+    [{ status: 'unhealthy' as const, error: { code: 'credentials_locked' as const, message: '' } }, {}, 'key_missing', 'Clé manquante'],
+    [{ status: 'healthy' as const }, { allowed_for_project: false }, 'not_allowed', 'Projet non autorisé'],
+  ])('state %#: %s', (health, extra, key, label) => {
+    mountSettings(<ProviderInstances />, { list, providers: [CLAUDE, { ...DEEPSEEK, ...extra, health }] })
+    expect(card('deepseek').getAttribute('data-status')).toBe(key)
+    expect(card('deepseek').textContent).toContain(label)
+  })
+
+  it('the built-in instance can be tested, but neither edited nor deleted', () => {
     mountSettings(<ProviderInstances />)
-    const row = within(screen.getByTestId('instance-claude-code'))
-    expect(row.queryByRole('button', { name: /Delete/ })).toBeNull()
-    expect(row.queryByRole('button', { name: /Edit/ })).toBeNull()
-    expect(row.getByRole('button', { name: 'Re-check' })).toBeTruthy()
+    const row = within(card('claude-code'))
+    expect(row.queryByRole('button', { name: /Supprimer/ })).toBeNull()
+    expect(row.queryByRole('button', { name: /Modifier/ })).toBeNull()
+    expect(row.getByRole('button', { name: 'Tester Claude Code' })).toBeTruthy()
   })
 
   it('an unhealthy instance shows its last error in the state card', () => {
@@ -61,40 +76,54 @@ describe('ProviderInstances', () => {
     expect(screen.getByTestId('instance-error-deepseek').getAttribute('data-error-code')).toBe('endpoint_unreachable')
   })
 
-  it('auth_required shows the login command and a Re-check', () => {
+  it('auth_required shows the login command', () => {
     mountSettings(<ProviderInstances />, {
       list,
       providers: [{ ...CLAUDE, health: { status: 'auth_required', login_hint: 'claude login' } }],
     })
-    const card = screen.getByTestId('instance-error-claude-code')
-    expect(card.textContent).toContain('claude login')
-    expect(within(card).getByRole('button', { name: 'Re-check' })).toBeTruthy()
+    expect(screen.getByTestId('instance-error-claude-code').textContent).toContain('claude login')
   })
 
-  it('Re-check calls GET status of that instance and shows the fresh health', async () => {
+  it('Tester calls GET status of that instance and shows the fresh health', async () => {
     status.mockResolvedValue({ status: 'degraded', version: '1.2.3', checked_at: '2026-10-02T08:00:00Z' })
     mountSettings(<ProviderInstances />)
-    fireEvent.click(within(screen.getByTestId('instance-local-llama')).getByRole('button', { name: 'Re-check' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Tester Local llama' }))
     await waitFor(() => expect(status).toHaveBeenCalledWith('local-llama'))
-    await waitFor(() => expect(screen.getByTestId('instance-local-llama').textContent).toContain('Degraded'))
-    expect(screen.getByTestId('instance-local-llama').textContent).toContain('1.2.3')
+    await waitFor(() => expect(card('local-llama').textContent).toContain('Dégradé'))
+    expect(card('local-llama').textContent).toContain('1.2.3')
   })
 
-  it('deleting names the instance, warns about conversations, then DELETEs and re-fetches', async () => {
+  it('Supprimer names the instance, warns about conversations, then DELETEs and re-fetches', async () => {
     mountSettings(<ProviderInstances />)
-    fireEvent.click(screen.getByRole('button', { name: 'Delete DeepSeek' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Supprimer DeepSeek' }))
     const dialog = screen.getByRole('alertdialog')
-    expect(dialog.textContent).toContain('Delete DeepSeek?')
-    expect(dialog.textContent).toContain('no longer be resumable')
+    expect(dialog.textContent).toContain('Supprimer DeepSeek ?')
+    expect(dialog.textContent).toContain('ne pourront plus être reprises')
     expect(remove).not.toHaveBeenCalled()
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete DeepSeek' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Supprimer DeepSeek' }))
     await waitFor(() => expect(remove).toHaveBeenCalledWith('deepseek'))
     await waitFor(() => expect(list).toHaveBeenCalled())
   })
 
-  it('opens the add form', () => {
+  it('Supprimer can be cancelled', () => {
     mountSettings(<ProviderInstances />)
-    fireEvent.click(screen.getByRole('button', { name: /Add an instance/ }))
-    expect(screen.getByRole('form', { name: 'Add a provider instance' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Supprimer DeepSeek' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Garder' }))
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(remove).not.toHaveBeenCalled()
+  })
+
+  it('Modifier opens the edit form inside the card', () => {
+    mountSettings(<ProviderInstances />)
+    fireEvent.click(screen.getByRole('button', { name: 'Modifier DeepSeek' }))
+    expect(within(card('deepseek')).getByRole('form', { name: 'Modifier DeepSeek' })).toBeTruthy()
+  })
+
+  it('card actions: same kit size, right-aligned in one footer', () => {
+    mountSettings(<ProviderInstances />)
+    const buttons = within(card('deepseek')).getAllByRole('button')
+    expect(buttons.map((b) => b.textContent)).toEqual(['Tester', 'Modifier', 'Supprimer'])
+    for (const b of buttons) expect(b.className).toMatch(/min-h-9 px-3 py-2 text-sm/)
+    expect(buttons[0].parentElement!.className).toContain('justify-end')
   })
 })

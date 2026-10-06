@@ -9,11 +9,17 @@
 
 import type { CostBasis, CredentialRef, ProviderHealth, ProviderId, ProviderPreset } from './provider'
 
-/** Body of `POST /chat/providers/test` and `POST /chat/providers`. References only. */
+/**
+ * Body of `POST /chat/providers/test` and `POST /chat/providers`. References only.
+ *
+ * `kind` is the set the backend accepts (`record_from_draft`): a `codex` or
+ * `acp` instance has no `base_url` (empty), and an `acp` one names, with
+ * `preset`, an agent declared on the server (`CHAT_PROVIDER_ACP_COMMANDS`).
+ */
 export interface ProviderDraft {
   id: ProviderId
-  kind: 'openai_compatible'
-  preset?: ProviderPreset | null
+  kind: 'openai_compatible' | 'codex' | 'acp'
+  preset?: ProviderPreset | 'opencode' | null
   label: string
   base_url: string
   default_model?: string | null

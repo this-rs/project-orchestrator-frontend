@@ -1,10 +1,11 @@
 /**
- * The assembled settings: sections with anchors, and the single-provider empty state.
+ * The assembled settings: anchored sections, the "Avancé" fold, the wizard
+ * entry point, and the single-provider empty state.
  *
  * Run with: npx vitest run src/components/settings/ProviderSettings.test.tsx
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 
 vi.mock('@/services/providers', async (orig) => ({
   ...(await orig<typeof import('@/services/providers')>()),
@@ -21,13 +22,13 @@ vi.mock('@/services/providers', async (orig) => ({
 vi.mock('@/services/projects', () => ({ projectsApi: { list: vi.fn().mockResolvedValue({ items: [] }) } }))
 vi.mock('@/services/vault', async (orig) => ({
   ...(await orig<typeof import('@/services/vault')>()),
-  vaultApi: { overview: vi.fn().mockResolvedValue({ secrets: [] }) },
+  vaultApi: { overview: vi.fn().mockResolvedValue({ initialized: false, unlocked_until: null, secrets: [], grants: [], requests: [] }) },
 }))
 
 import { providersApi } from '@/services/providers'
 import { ApiError } from '@/services/api'
 import { ProviderSettings } from './ProviderSettings'
-import { mountSettings } from './settingsTestKit'
+import { mountSettings, response, CLAUDE } from './settingsTestKit'
 
 beforeEach(() => {
   vi.mocked(providersApi.list).mockReset()
@@ -42,12 +43,31 @@ describe('ProviderSettings', () => {
     expect(container.querySelector('form, button, select, input')).toBeNull()
   })
 
-  it('renders the four anchored sections', async () => {
-    vi.mocked(providersApi.list).mockResolvedValue({ providers: [] })
+  it('renders the anchored sections; roles and policy are folded under "Avancé"', () => {
+    vi.mocked(providersApi.list).mockResolvedValue(response([CLAUDE]))
     const { container } = mountSettings(<ProviderSettings />)
-    for (const id of ['instances', 'consent', 'roles', 'models']) {
-      expect(container.querySelector(`section#${id}`)).not.toBeNull()
-    }
-    expect(screen.getByRole('link', { name: 'Roles' }).getAttribute('href')).toBe('#roles')
+    for (const id of ['instances', 'consent', 'advanced']) expect(container.querySelector(`section#${id}`)).not.toBeNull()
+    expect(container.querySelector('section#roles')).toBeNull()
+    expect(container.querySelector('section#models')).toBeNull()
+    expect(screen.getByRole('link', { name: 'Avancé' }).getAttribute('href')).toBe('#advanced')
+    fireEvent.click(screen.getByRole('button', { name: 'Avancé' }))
+    expect(container.querySelector('section#roles')).not.toBeNull()
+    expect(container.querySelector('section#models')).not.toBeNull()
+  })
+
+  it('a link to #roles or #models opens the fold', () => {
+    vi.mocked(providersApi.list).mockResolvedValue(response([CLAUDE]))
+    const { container } = mountSettings(<ProviderSettings />, { url: '/providers#roles' })
+    expect(container.querySelector('section#roles')).not.toBeNull()
+  })
+
+  it('"Ajouter un provider" opens the wizard in place of the button', () => {
+    vi.mocked(providersApi.list).mockResolvedValue(response([CLAUDE]))
+    mountSettings(<ProviderSettings />)
+    fireEvent.click(screen.getByRole('button', { name: /Ajouter un provider/ }))
+    expect(screen.getByRole('region', { name: 'Ajouter un provider' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Ajouter un provider/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Annuler' }))
+    expect(screen.queryByRole('region', { name: 'Ajouter un provider' })).toBeNull()
   })
 })
