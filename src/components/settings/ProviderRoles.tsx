@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Button } from '@/components/ui'
+import { Button, SearchableSelect, type SearchableOption } from '@/components/ui'
 import { useRefreshProviders } from '@/hooks/useProviders'
 import { providersApi } from '@/services/providers'
 import { ROLE_LABELS_FR, routedByFr, wizardErrorMessage } from '@/constants/providerWizard'
@@ -12,7 +12,7 @@ import {
   type RoleAssignments,
   type RoleTarget,
 } from '@/types/providerSettings'
-import { FieldNote, FIELD_LABEL, NativeSelect } from './FormField'
+import { FieldNote, FIELD_LABEL } from './FormField'
 import { ErrorLine, Loading, Panel, ProjectPicker, SaveStatus } from './SettingsPanel'
 import { useProjectOptions } from './useProjectOptions'
 
@@ -41,6 +41,14 @@ function describeTarget(
 ): string {
   const label = instances.find((p) => p.id === t.provider)?.label ?? t.provider
   return `${label} · ${t.alias ? `alias ${t.alias}` : (t.model ?? 'modèle par défaut')}`
+}
+
+/** The current target stays visible when the catalog no longer lists it. */
+const withCurrent = (options: SearchableOption[], current: RoleTarget | undefined, instances: readonly ProviderInstance[]) => {
+  const value = encode(current)
+  return !current || options.some((o) => o.value === value)
+    ? options
+    : [{ value, label: describeTarget(current, instances) }, ...options]
 }
 
 const same = (a: RoleAssignments | null, b: RoleAssignments) =>
@@ -99,6 +107,29 @@ export function ProviderRoles({
     !!slug && instances.find((p) => p.id === providerId)?.allowed_for_project === false
   const anyDisallowed = !!slug && instances.some((p) => p.allowed_for_project === false)
   const dirty = saved !== null && !same(saved, draft)
+
+  /** Every instance, its default model, its models and its aliases, searchable by instance name too. */
+  const targetOptions: SearchableOption[] = instances.flatMap((p) => {
+    const blocked = disallowed(p.id)
+    const note = blocked ? 'non autorisé pour ce projet' : undefined
+    const own = aliases.filter((a) => a.provider === p.id)
+    return [
+      { value: `d|${p.id}|`, label: `${p.label} · modèle par défaut`, description: note, disabled: blocked },
+      ...p.models.map((m) => ({
+        value: `m|${p.id}|${m.id}`,
+        label: `${p.label} · ${m.label ?? m.id}`,
+        description: note,
+        keywords: [m.id],
+        disabled: blocked,
+      })),
+      ...own.map((a) => ({
+        value: `a|${p.id}|${a.alias}`,
+        label: `${p.label} · alias ${a.alias}`,
+        description: note,
+        disabled: blocked,
+      })),
+    ]
+  })
 
   const save = async () => {
     setError(null)
@@ -196,12 +227,17 @@ export function ProviderRoles({
                   <label htmlFor={id} className={FIELD_LABEL}>
                     {ROLE_LABELS_FR[role]}
                   </label>
-                  <NativeSelect
+                  <SearchableSelect
                     id={id}
                     value={encode(current)}
+                    options={withCurrent(targetOptions, current, instances)}
+                    noneLabel={
+                      slug ? 'Hériter du rôle global' : 'Non réglé : provider par défaut du serveur'
+                    }
+                    noun={{ one: 'modèle', other: 'modèles' }}
                     aria-describedby={`${id}-help`}
-                    onChange={(e) => {
-                      const target = decode(e.target.value)
+                    onChange={(v) => {
+                      const target = decode(v)
                       setDraft((d) => {
                         const next = { ...d }
                         if (target) next[role] = target
@@ -210,37 +246,7 @@ export function ProviderRoles({
                       })
                       setDone(false)
                     }}
-                  >
-                    <option value="">
-                      {slug
-                        ? 'Hériter du rôle global'
-                        : 'Non réglé : provider par défaut du serveur'}
-                    </option>
-                    {instances.map((p) => {
-                      const blocked = disallowed(p.id)
-                      const own = aliases.filter((a) => a.provider === p.id)
-                      return (
-                        <optgroup
-                          key={p.id}
-                          label={blocked ? `${p.label} (non autorisé pour ce projet)` : p.label}
-                        >
-                          <option value={`d|${p.id}|`} disabled={blocked}>
-                            {p.label} · modèle par défaut
-                          </option>
-                          {p.models.map((m) => (
-                            <option key={m.id} value={`m|${p.id}|${m.id}`} disabled={blocked}>
-                              {p.label} · {m.label ?? m.id}
-                            </option>
-                          ))}
-                          {own.map((a) => (
-                            <option key={a.alias} value={`a|${p.id}|${a.alias}`} disabled={blocked}>
-                              {p.label} · alias {a.alias}
-                            </option>
-                          ))}
-                        </optgroup>
-                      )
-                    })}
-                  </NativeSelect>
+                  />
                   <FieldNote
                     id={id}
                     help={
