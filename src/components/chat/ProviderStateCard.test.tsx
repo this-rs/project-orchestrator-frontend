@@ -15,8 +15,8 @@ vi.mock('@/services/providers', () => ({
   providersApi: { status: (...a: unknown[]) => status(...a), list: (...a: unknown[]) => list(...a) },
 }))
 
-import { providersAtom, providersLoadStateAtom } from '@/atoms'
-import { NO_PROVIDER_ERROR, RETRY_BY_SENDING_TEXT } from '@/constants/providerErrors'
+import { chatSessionPermissionOverrideAtom, providersAtom, providersLoadStateAtom } from '@/atoms'
+import { NO_PROVIDER_ERROR, RETRY_BY_SENDING_TEXT, SANDBOX_TRUST_REFUSED_TEXT } from '@/constants/providerErrors'
 import { ProviderStateCard } from './ProviderStateCard'
 
 function mount(error: ProviderErrorInfo, props: Partial<Parameters<typeof ProviderStateCard>[0]> = {}) {
@@ -272,5 +272,26 @@ describe('ProviderStateCard — every code the backend can send', () => {
   it.each(['endpoint_invalid_url', 'endpoint_private_address', 'endpoint_http_outside_loopback', 'endpoint_unresolvable', 'endpoint_redirects_not_allowed', 'credential_test_requires_saved_instance'] as const)('%s — links to the instance settings', (code) => {
     const { link } = mount(err(code, { provider_id: 'deepseek' }))
     expect(link(/instance settings/i).getAttribute('href')).toBe('/providers?instance=deepseek')
+  })
+})
+
+describe('ProviderStateCard — trust refused for lack of a sandbox', () => {
+  it('says it in French and offers to switch to « Demander », which sets the mode of the next opening', () => {
+    const onRetry = vi.fn()
+    const { store, card } = mount(
+      err('unsupported', { capability: 'sandbox', message: 'The provider does not support this capability: sandbox.' }),
+      { onRetry },
+    )
+    expect(card.textContent).toContain('Mode « Tout autoriser » refusé')
+    expect(card.textContent).toContain(SANDBOX_TRUST_REFUSED_TEXT)
+    fireEvent.click(within(card).getByRole('button', { name: 'Passer en mode « Demander »' }))
+    expect(store.get(chatSessionPermissionOverrideAtom)).toBe('ask')
+    expect(onRetry).toHaveBeenCalled()
+  })
+
+  it('also recognises the refusal from the server sentence alone', () => {
+    const { card } = mount(err('unsupported', { message: 'The provider does not support this capability: sandbox.' }))
+    expect(card.textContent).toContain(SANDBOX_TRUST_REFUSED_TEXT)
+    expect(card.textContent).not.toContain('does not support this capability')
   })
 })
