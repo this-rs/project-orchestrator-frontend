@@ -30,7 +30,13 @@ import { chatEffectiveProviderIdAtom, providersAtom } from '@/atoms'
 import { ProviderRoles } from './ProviderRoles'
 import { CLAUDE, DEEPSEEK, LOCAL, mountSettings, response } from './settingsTestKit'
 
-const select = (name: RegExp | string) => screen.getByLabelText(name) as HTMLSelectElement
+const box = (name: RegExp | string, root: HTMLElement = document.body) =>
+  within(root).getByRole('combobox', { name }) as HTMLInputElement
+/** Open a role's combobox and click the option with that name (what a person does). */
+const pick = (field: RegExp | string, option: string | RegExp, root: HTMLElement = document.body) => {
+  fireEvent.click(box(field, root))
+  fireEvent.click(within(root).getByRole('option', { name: option }))
+}
 
 beforeEach(() => {
   roles.mockReset().mockResolvedValue({})
@@ -75,7 +81,7 @@ describe('ProviderRoles', () => {
     expect(store.get(chatEffectiveProviderIdAtom)).toBe('claude-code')
     const panel = await screen.findByTestId('roles-global')
     await within(panel).findByLabelText('Pilote')
-    fireEvent.change(select('Pilote'), { target: { value: 'm|deepseek|deepseek-chat' } })
+    pick('Pilote', 'DeepSeek · deepseek-chat')
     fireEvent.click(within(panel).getByRole('button', { name: 'Enregistrer' }))
     await waitFor(() => expect(setRoles).toHaveBeenCalledWith({ pilot: { provider: 'deepseek', model: 'deepseek-chat' } }))
     await waitFor(() => expect(store.get(providersAtom)?.default?.provider).toBe('deepseek'))
@@ -83,12 +89,23 @@ describe('ProviderRoles', () => {
     expect(await within(panel).findByText('Rôles enregistrés.')).toBeTruthy()
   })
 
+  it('a role target is searched by instance name or model id', async () => {
+    mountSettings(<ProviderRoles />)
+    await screen.findByRole('combobox', { name: 'Pilote' })
+    fireEvent.click(box('Pilote'))
+    fireEvent.change(box('Pilote'), { target: { value: 'QWEN' } })
+    const list = () => within(screen.getByRole('listbox')).getAllByRole('option')
+    expect(list().map((o) => o.textContent)).toEqual(['Local llama · qwen3'])
+    fireEvent.change(box('Pilote'), { target: { value: 'deepseek' } })
+    expect(list().length).toBe(3)
+  })
+
   it('an alias target is sent as { provider, alias }', async () => {
     list.mockResolvedValue(response([CLAUDE, DEEPSEEK], { aliases: [{ alias: 'deep', provider: 'deepseek', model: 'deepseek-reasoner' }] }))
     mountSettings(<ProviderRoles />, { providers: [CLAUDE, DEEPSEEK] })
     const panel = await screen.findByTestId('roles-global')
-    await screen.findAllByRole('option', { name: 'DeepSeek · alias deep' })
-    fireEvent.change(select('Exécutant'), { target: { value: 'a|deepseek|deep' } })
+    await screen.findByRole('combobox', { name: 'Exécutant' })
+    pick('Exécutant', 'DeepSeek · alias deep')
     fireEvent.click(within(panel).getByRole('button', { name: 'Enregistrer' }))
     await waitFor(() => expect(setRoles).toHaveBeenCalledWith({ executor: { provider: 'deepseek', alias: 'deep' } }))
   })
@@ -100,10 +117,12 @@ describe('ProviderRoles', () => {
     await within(panel).findByLabelText('Pilote')
     const cancel = within(panel).getByRole('button', { name: 'Annuler' }) as HTMLButtonElement
     expect(cancel.disabled).toBe(true)
-    fireEvent.change(select('Pilote'), { target: { value: '' } })
+    expect(box('Pilote').value).toBe('DeepSeek · modèle par défaut')
+    pick('Pilote', 'Non réglé : provider par défaut du serveur')
     expect(cancel.disabled).toBe(false)
+    expect(box('Pilote').value).toBe('Non réglé : provider par défaut du serveur')
     fireEvent.click(cancel)
-    expect(select('Pilote').value).toBe('d|deepseek|')
+    expect(box('Pilote').value).toBe('DeepSeek · modèle par défaut')
   })
 
   it('a project override that points at a not-allowed instance is refused locally, with a link to the consent', async () => {
@@ -115,9 +134,14 @@ describe('ProviderRoles', () => {
     const scope = await screen.findByTestId('roles-acme')
     const link = await within(scope).findByRole('link', { name: 'Voir les autorisations du projet' })
     expect(link.getAttribute('href')).toBe('/providers?project=acme#consent')
-    const blocked = within(scope).getAllByRole('option', { name: 'DeepSeek · modèle par défaut' })
-    expect(blocked.length).toBe(2)
-    expect(blocked.every((o) => o.hasAttribute('disabled'))).toBe(true)
+    fireEvent.click(box('Pilote', scope))
+    const blocked = within(scope).getByRole('option', { name: /DeepSeek · modèle par défaut/ })
+    expect(blocked.getAttribute('aria-disabled')).toBe('true')
+    expect(blocked.textContent).toContain('non autorisé pour ce projet')
+    // A blocked target cannot be chosen, with the mouse or the keyboard.
+    fireEvent.click(blocked)
+    expect(box('Pilote', scope).getAttribute('aria-expanded')).toBe('true')
+    fireEvent.keyDown(box('Pilote', scope), { key: 'Escape' })
     fireEvent.click(within(scope).getByRole('button', { name: 'Enregistrer' }))
     expect((await within(scope).findByRole('alert')).textContent).toContain('n’a pas autorisé')
     expect(setProjectRoles).not.toHaveBeenCalled()
@@ -127,14 +151,16 @@ describe('ProviderRoles', () => {
     mountSettings(<ProviderRoles />)
     await screen.findByTestId('roles-global')
     const picker = screen.getByLabelText('Pour') as HTMLSelectElement
+    // The scope picker stays a native select.
     await within(picker).findByRole('option', { name: 'Acme' })
     expect(within(picker).getByRole('option', { name: 'Tous les projets (rôles globaux)' })).toBeTruthy()
     fireEvent.change(picker, { target: { value: 'acme' } })
     const scope = await screen.findByTestId('roles-acme')
     await within(scope).findByLabelText('Exécutant')
-    expect(within(scope).getAllByRole('option', { name: 'Hériter du rôle global' }).length).toBe(2)
+    expect(box('Exécutant', scope).value).toBe('Hériter du rôle global')
+    expect(box('Pilote', scope).value).toBe('Hériter du rôle global')
     expect(within(scope).getAllByText('Hérite du rôle global.').length).toBe(2)
-    fireEvent.change(within(scope).getByLabelText('Exécutant'), { target: { value: 'd|local-llama|' } })
+    pick('Exécutant', 'Local llama · modèle par défaut', scope)
     fireEvent.click(within(scope).getByRole('button', { name: 'Enregistrer' }))
     await waitFor(() => expect(setProjectRoles).toHaveBeenCalledWith('acme', { executor: { provider: 'local-llama' } }))
   })
