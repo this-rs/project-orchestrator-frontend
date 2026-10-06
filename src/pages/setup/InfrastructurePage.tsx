@@ -4,7 +4,7 @@ import { Package, Link as LinkIcon, Info, Globe, Loader2, Wifi, Check, X, AlertT
 import { setupConfigAtom, infraValidAtom, trayNavigationAtom } from '@/atoms/setup'
 import { isTauri } from '@/services/env'
 
-type DockerStatus = 'unknown' | 'not_installed' | 'installed' | 'running' | 'check_failed'
+type DockerStatus = 'unknown' | 'not_installed' | 'installed' | 'unresponsive' | 'running' | 'check_failed'
 
 /** Connection test result: null = not tested, true = success, false = failure */
 type ConnectionTestMap = {
@@ -49,6 +49,10 @@ export function InfrastructurePage() {
       setDockerError(null)
       if (result.status === 'running') {
         setDockerStatus('running')
+      } else if (result.status === 'unresponsive') {
+        // A runtime holds the socket and takes connections but never answers (Docker Desktop
+        // frozen, or still booting): "open it" would change nothing.
+        setDockerStatus('unresponsive')
       } else if (result.available || result.status === 'installed') {
         setDockerStatus('installed')
       } else {
@@ -531,6 +535,31 @@ function DockerBanner({
             >
               <Download className="h-4 w-4" />
               Install Docker Desktop
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (status === 'unresponsive') {
+    return (
+      <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.08] p-4">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-400">Docker Desktop is not responding</p>
+            <p className="mt-1 text-xs text-gray-400">
+              Docker Desktop is open and holds its socket, but does not answer. If it has just
+              started, wait a moment. Otherwise quit it (Cmd+Q, or Force Quit) and open it again —
+              it will be detected automatically.
+            </p>
+            <button
+              onClick={onOpen}
+              className="mt-3 flex items-center gap-2 rounded-lg bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-300 transition hover:bg-amber-500/30"
+            >
+              <Play className="h-4 w-4" />
+              Open Docker Desktop
             </button>
           </div>
         </div>
