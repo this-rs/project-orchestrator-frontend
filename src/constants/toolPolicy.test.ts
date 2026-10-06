@@ -22,7 +22,7 @@ import { permissionModeMeta } from '@/components/chat/sessionListUtils'
 describe('Claude Code labels — word for word what each screen showed before providers', () => {
   it('composer', () => {
     expect(COMPOSER_MODE_ORDER.map((m) => COMPOSER_MODE_LABELS.claude[m])).toEqual([
-      'Bypass',
+      "Rock'n roll",
       'Accept Edits',
       'Default',
       'Plan Only',
@@ -31,7 +31,7 @@ describe('Claude Code labels — word for word what each screen showed before pr
 
   it('session list', () => {
     expect(SESSION_LIST_MODE_LABELS.claude).toEqual({
-      trust: 'Bypass permissions',
+      trust: "Rock'n roll",
       auto_edits: 'Accept edits',
       ask: 'Ask permissions',
       plan_only: 'Plan mode',
@@ -42,7 +42,7 @@ describe('Claude Code labels — word for word what each screen showed before pr
 
   it('permission settings panel', () => {
     expect(settingsModeOptions('claude').map(({ label, description }) => [label, description])).toEqual([
-      ['Bypass', 'Auto-approve all tools. No prompts.'],
+      ["Rock'n roll", 'Auto-approve all tools. No prompts.'],
       ['Accept Edits', 'Auto-approve file edits, prompt for commands.'],
       ['Default', 'Prompt for all tool usage.'],
       ['Plan Only', 'Read-only mode. No writes or commands.'],
@@ -50,8 +50,8 @@ describe('Claude Code labels — word for word what each screen showed before pr
   })
 
   it('setup wizard', () => {
-    expect(SETUP_MODE_OPTIONS.map((o) => o.label)).toEqual(['Bypass', 'Default', 'Accept Edits', 'Plan Only'])
-    expect(SETUP_MODE_SUMMARIES.trust).toBe('Bypass (all auto-approved)')
+    expect(SETUP_MODE_OPTIONS.map((o) => o.label)).toEqual(["Rock'n roll", 'Default', 'Accept Edits', 'Plan Only'])
+    expect(SETUP_MODE_SUMMARIES.trust).toBe("Rock'n roll (all auto-approved)")
     expect(SETUP_MODE_SUMMARIES.plan_only).toBe('Plan Only (read-only)')
   })
 })
@@ -59,14 +59,14 @@ describe('Claude Code labels — word for word what each screen showed before pr
 describe('neutral labels — for every other provider', () => {
   it('names the four modes without Claude vocabulary', () => {
     expect(COMPOSER_MODE_LABELS.neutral).toEqual({
-      trust: 'Trust',
+      trust: "Rock'n roll",
       auto_edits: 'Auto-approve edits',
       ask: 'Ask',
       plan_only: 'Plan only',
     })
-    expect(permissionModeMeta('trust', { isClaudeCode: false })?.label).toBe('Trust')
-    expect(permissionModeMeta('bypassPermissions', { isClaudeCode: false })?.label).toBe('Trust')
-    expect(settingsModeOptions('neutral').map((o) => o.label)).toEqual(['Trust', 'Auto-approve edits', 'Ask', 'Plan only'])
+    expect(permissionModeMeta('trust', { isClaudeCode: false })?.label).toBe("Rock'n roll")
+    expect(permissionModeMeta('bypassPermissions', { isClaudeCode: false })?.label).toBe("Rock'n roll")
+    expect(settingsModeOptions('neutral').map((o) => o.label)).toEqual(["Rock'n roll", 'Auto-approve edits', 'Ask', 'Plan only'])
   })
 })
 

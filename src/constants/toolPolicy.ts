@@ -73,7 +73,7 @@ export const MODE_DOT_COLORS: PerMode<string> = {
 export const UNKNOWN_MODE_DOT_COLOR = 'bg-gray-400'
 
 const NEUTRAL_LABELS: PerMode<string> = {
-  trust: 'Trust',
+  trust: "Rock'n roll",
   auto_edits: 'Auto-approve edits',
   ask: 'Ask',
   plan_only: 'Plan only',
@@ -84,7 +84,7 @@ export const COMPOSER_MODE_ORDER: readonly ToolPolicyMode[] = ['trust', 'auto_ed
 
 export const COMPOSER_MODE_LABELS: PerSet<string> = {
   claude: {
-    trust: 'Bypass',
+    trust: "Rock'n roll",
     auto_edits: 'Accept Edits',
     ask: 'Default',
     plan_only: 'Plan Only',
@@ -95,7 +95,7 @@ export const COMPOSER_MODE_LABELS: PerSet<string> = {
 /** Session list metadata line (`sessionListUtils`). */
 export const SESSION_LIST_MODE_LABELS: PerSet<string> = {
   claude: {
-    trust: 'Bypass permissions',
+    trust: "Rock'n roll",
     auto_edits: 'Accept edits',
     ask: 'Ask permissions',
     plan_only: 'Plan mode',
@@ -142,7 +142,7 @@ const SETTINGS_ACTIVE_BG: PerMode<string> = {
 
 const SETTINGS_TEXT: PerSet<{ label: string; description: string }> = {
   claude: {
-    trust: { label: 'Bypass', description: 'Auto-approve all tools. No prompts.' },
+    trust: { label: "Rock'n roll", description: 'Auto-approve all tools. No prompts.' },
     auto_edits: { label: 'Accept Edits', description: 'Auto-approve file edits, prompt for commands.' },
     ask: { label: 'Default', description: 'Prompt for all tool usage.' },
     plan_only: { label: 'Plan Only', description: 'Read-only mode. No writes or commands.' },
@@ -165,14 +165,14 @@ export function settingsModeOptions(set: ModeLabelSet): SettingsModeOption[] {
  * no neutral set): the choices, then the one-line summary of the launch page.
  */
 export const SETUP_MODE_OPTIONS: ReadonlyArray<{ mode: ToolPolicyMode; label: string; description: string }> = [
-  { mode: 'trust', label: 'Bypass', description: 'All tools auto-approved — no permission prompts' },
+  { mode: 'trust', label: "Rock'n roll", description: 'All tools auto-approved — no permission prompts' },
   { mode: 'ask', label: 'Default', description: 'Asks approval for file edits and shell commands' },
   { mode: 'auto_edits', label: 'Accept Edits', description: 'File edits auto-approved, shell commands need approval' },
   { mode: 'plan_only', label: 'Plan Only', description: 'Read-only mode — Claude can read but not modify files' },
 ]
 
 export const SETUP_MODE_SUMMARIES: PerMode<string> = {
-  trust: 'Bypass (all auto-approved)',
+  trust: "Rock'n roll (all auto-approved)",
   ask: 'Default (ask for edits & shell)',
   auto_edits: 'Accept Edits (ask for shell only)',
   plan_only: 'Plan Only (read-only)',
@@ -203,7 +203,7 @@ export const TRUST_FALLBACK_MODE: ToolPolicyMode = 'ask'
 
 /** Shown when `trust` was replaced because the target provider has no sandbox. */
 export const TRUST_DOWNGRADED_TEXT =
-  'Le mode « Tout autoriser » a été remplacé par « Demander » : ce provider n’a pas de bac à sable.'
+  'Le mode « Rock’n roll » a été remplacé par « Demander » : ce provider n’a pas de bac à sable.'
 
 /**
  * The mode actually usable on `target`: `trust` on a provider that refuses it

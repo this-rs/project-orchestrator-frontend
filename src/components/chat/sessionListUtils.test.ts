@@ -136,7 +136,7 @@ describe('metadata formatting', () => {
 
   it('permissionModeMeta exposes a readable label', () => {
     expect(permissionModeMeta(undefined)).toBeNull()
-    expect(permissionModeMeta('bypassPermissions')?.label).toBe('Bypass permissions')
+    expect(permissionModeMeta('bypassPermissions')?.label).toBe("Rock'n roll")
     expect(permissionModeMeta('plan')?.dot).toBe('bg-gray-400')
   })
 
