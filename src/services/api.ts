@@ -13,6 +13,43 @@ export class ApiError extends Error {
 }
 
 /**
+ * The server answered something that is not the JSON the client expects
+ * (typically an HTML page: a proxy error, a static-file fallback, a login
+ * portal). Carries a readable sentence that NAMES the request, instead of the
+ * raw parser error (`JSON Parse error: Unrecognized token '<'`) or a page of HTML.
+ */
+export class NonJsonResponseError extends ApiError {
+  constructor(
+    status: number,
+    public method: string,
+    public path: string,
+    public contentType: string | null,
+  ) {
+    super(status, nonJsonMessage(method, path, status, contentType))
+    this.name = 'NonJsonResponseError'
+  }
+}
+
+function nonJsonMessage(method: string, path: string, status: number, contentType: string | null): string {
+  return `Le serveur a répondu autre chose que du JSON : ${method} ${path} → ${status}${contentType ? ` (${contentType.split(';')[0].trim()})` : ''}`
+}
+
+/** Path of the request, without origin or query (a query may carry identifiers). */
+function requestPath(url: string): string {
+  try {
+    return new URL(url, 'http://localhost').pathname
+  } catch {
+    return url.split('?')[0]
+  }
+}
+
+/** An HTML page (or anything that is clearly not JSON nor a short sentence). */
+function looksLikeHtml(text: string, contentType: string | null): boolean {
+  if (contentType && /text\/html/i.test(contentType)) return true
+  return /^\s*<(?:!doctype|html|head|body|\?xml)/i.test(text)
+}
+
+/**
  * Startup retry configuration.
  *
  * In Tauri desktop mode the backend server starts in parallel with the frontend.
@@ -117,6 +154,11 @@ async function request<T>(
     }
 
     const message = await response.text()
+    const contentType = response.headers?.get?.('content-type') ?? null
+    if (message && looksLikeHtml(message, contentType)) {
+      // An HTML error page says nothing a person can act on: name the request instead.
+      throw new NonJsonResponseError(response.status, (options.method ?? 'GET').toUpperCase(), requestPath(url), contentType)
+    }
     throw new ApiError(response.status, message || `HTTP ${response.status}`)
   }
 
@@ -130,7 +172,16 @@ async function request<T>(
     return {} as T
   }
 
-  return JSON.parse(text) as T
+  try {
+    return JSON.parse(text) as T
+  } catch {
+    throw new NonJsonResponseError(
+      response.status,
+      (options.method ?? 'GET').toUpperCase(),
+      requestPath(url),
+      response.headers?.get?.('content-type') ?? null,
+    )
+  }
 }
 
 export const api = {
