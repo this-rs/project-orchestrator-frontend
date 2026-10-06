@@ -107,5 +107,8 @@ export const REMOTE_NO_TOOLS_FR =
 export const REMOTE_TRUST_WARNING_FR =
   'Le mode « Rock’n roll » exécute les actions sans demander de confirmation, sur cette machine, avec ses droits. N’activez ceci que pour une machine jetable ou de confiance.'
 
+export const REMOTE_KEY_HINT_FR =
+  'Utilisez une clé dédiée, sans phrase secrète : la connexion est non interactive et n’utilise pas d’agent SSH.'
+
 export const REMOTE_CONFIRM_FINGERPRINT_FR =
   'Je confirme que cette empreinte est bien celle de la machine'

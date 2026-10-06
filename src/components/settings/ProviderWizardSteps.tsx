@@ -22,7 +22,7 @@ import {
   type TaskState,
 } from '@/constants/providerWizard'
 import { VAULT_PATH } from '@/constants/providerErrors'
-import { REMOTE_ID_PREFIX, REMOTE_KIND } from '@/constants/remoteClaudeCode'
+import { REMOTE_ID_PREFIX, REMOTE_KEY_HINT_FR, REMOTE_KIND } from '@/constants/remoteClaudeCode'
 import { COST_BASES, type CostBasis } from '@/types/provider'
 import type { VaultOverview } from '@/services/vault'
 import { ChoiceRow, FieldNote, FormField } from './FormField'
@@ -419,6 +419,9 @@ export function KeyStep({
           <Link to={VAULT_PATH} className="text-indigo-400 underline hover:text-indigo-300">
             Ouvrir le coffre
           </Link>
+          <span data-testid="remote-key-hint" className="mt-1 block text-amber-300">
+            {REMOTE_KEY_HINT_FR}
+          </span>
         </p>
       )}
 

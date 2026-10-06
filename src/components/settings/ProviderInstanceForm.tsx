@@ -26,7 +26,7 @@ import {
   type ProviderInstance,
 } from '@/types/provider'
 import type { ProviderPatch, ProviderTestResult } from '@/types/providerSettings'
-import { REMOTE_KIND, validateVaultKeyName } from '@/constants/remoteClaudeCode'
+import { REMOTE_KEY_HINT_FR, REMOTE_KIND, validateVaultKeyName } from '@/constants/remoteClaudeCode'
 import { ConfirmPanel } from './ConfirmPanel'
 import { RemoteHostFields, remoteErrors, type RemoteField, type RemoteState } from './RemoteHostFields'
 import { FieldNote, FormField } from './FormField'
@@ -520,6 +520,11 @@ function EditForm({
         )}
       </div>
 
+      {isRemote && (
+        <p data-testid="remote-key-hint" className="text-xs text-amber-300">
+          {REMOTE_KEY_HINT_FR}
+        </p>
+      )}
       <p className="text-xs text-gray-500">
         La clé elle-même ne se saisit pas ici : seule sa référence est enregistrée.{' '}
         <Link to={VAULT_PATH} className="text-indigo-400 underline hover:text-indigo-300">

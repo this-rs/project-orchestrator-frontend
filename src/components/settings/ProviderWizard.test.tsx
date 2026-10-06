@@ -851,6 +851,15 @@ describe('ProviderWizard — Claude Code distant (SSH)', () => {
     expect(button('Enregistrer et tester').hasAttribute('disabled')).toBe(true)
   })
 
+  it('tells the key must be dedicated and without passphrase', async () => {
+    pickRemote()
+    await fillRemote()
+    fireEvent.click(button('Suivant'))
+    expect(screen.getByTestId('remote-key-hint').textContent).toBe(
+      'Utilisez une clé dédiée, sans phrase secrète : la connexion est non interactive et n’utilise pas d’agent SSH.'
+    )
+  })
+
   it('runs the chain with the pinned key and a vault reference, shows the ssh origin, and sends allow_trust=false', async () => {
     pickRemote()
     await fillRemote()

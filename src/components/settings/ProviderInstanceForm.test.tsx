@@ -355,6 +355,12 @@ describe('ProviderInstanceForm — Claude Code distant (SSH)', () => {
     expect((screen.getByRole('checkbox', { name: /Rock’n roll/ }) as HTMLInputElement).checked).toBe(false)
   })
 
+  it('shows the dedicated-key-without-passphrase hint', async () => {
+    await mount(REMOTE)
+    expect(screen.getByTestId('remote-key-hint').textContent).toContain('clé dédiée, sans phrase secrète')
+    expect(screen.getByTestId('remote-key-hint').textContent).toContain('n’utilise pas d’agent SSH')
+  })
+
   it('a plain edit keeps the pinned key: the PATCH carries no host_key, and no private key anywhere', async () => {
     await mount(REMOTE)
     fireEvent.change(field('Dossier de travail sur la machine'), { target: { value: '/srv/other' } })
