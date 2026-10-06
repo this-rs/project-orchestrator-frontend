@@ -721,7 +721,7 @@ describe('ProviderWizard — test button robustness', () => {
     await waitFor(() => expect(test).toHaveBeenCalledTimes(2))
   })
 
-  it('more than 8 models: a filterable select instead of radios, the first listed pre-selected', async () => {
+  it('more than 8 models: a searchable combobox instead of radios, the first listed pre-selected', async () => {
     const many = Array.from({ length: 12 }, (_, i) => ({ id: `model-${i}` }))
     test.mockResolvedValue({
       ok: false,
@@ -734,13 +734,13 @@ describe('ProviderWizard — test button robustness', () => {
     fireEvent.click(button('Suivant'))
     fireEvent.click(button('Enregistrer et tester'))
     const picker = await screen.findByTestId('wizard-model-picker')
-    const select = within(picker).getByLabelText('Modèle à tester') as HTMLSelectElement
-    expect(select.tagName).toBe('SELECT')
-    expect(select.value).toBe('model-0')
-    fireEvent.change(within(picker).getByLabelText('Filtrer les modèles de Modèle à tester'), {
-      target: { value: 'model-11' },
-    })
-    expect(within(select).queryByRole('option', { name: 'model-3' })).toBeNull()
-    expect(within(select).getByRole('option', { name: 'model-11' })).toBeTruthy()
+    const box = within(picker).getByRole('combobox', { name: 'Modèle à tester' }) as HTMLInputElement
+    expect(box.value).toBe('model-0')
+    fireEvent.click(box)
+    expect(within(picker).getByText('12 modèles')).toBeTruthy()
+    fireEvent.change(box, { target: { value: 'model-11' } })
+    expect(within(picker).queryByRole('option', { name: 'model-3' })).toBeNull()
+    expect(within(picker).getByRole('option', { name: 'model-11' })).toBeTruthy()
+    expect(within(picker).getByText('1 sur 12')).toBeTruthy()
   })
 })
