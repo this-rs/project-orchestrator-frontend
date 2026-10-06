@@ -14,6 +14,7 @@ import { Plus, X, Menu, Settings, Minimize2, Maximize2, Loader2, FolderPlus, Tre
 import { ChatMessages } from './ChatMessages'
 import { ChatCapabilitiesProvider, ChatSessionProvider } from './ChatSessionContext'
 import { ProviderStateCard } from './ProviderStateCard'
+import { ChatHeaderTitle } from './ChatHeaderTitle'
 import { ProviderBadge } from './ProviderBadge'
 import { PolicyOnlyBanner } from './PolicyOnlyBanner'
 import { RemoteNoToolsBanner } from './RemoteNoToolsBanner'
@@ -408,7 +409,7 @@ export function ChatPanel() {
     </>
   )
   const headerProviderBadge = showProviderBadge ? (
-    <ProviderBadge description={sessionProviderInfo} model={sessionModel} className="mt-0.5" />
+    <ProviderBadge description={sessionProviderInfo} model={sessionModel} />
   ) : null
 
   // --- FULLSCREEN LAYOUT: sidebar + conversation side by side ---
@@ -498,30 +499,23 @@ export function ChatPanel() {
                 <Menu className="w-4 h-4" />
               </button>
               {!isNewConversation && <WsStatusDot status={chat.wsStatus} />}
-              <div className="min-w-0">
-                <span className="text-sm font-medium text-gray-300 truncate block">
-                  {headerTitle}
-                </span>
-                {!isNewConversation && chat.sessionMeta?.workspaceSlug && (
-                  <Link
-                    to={`/workspace/${chat.sessionMeta.workspaceSlug}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-[10px] text-purple-400 hover:text-purple-300 truncate block transition-colors"
-                  >
-                    ⬡ {chat.sessionMeta.workspaceSlug}
-                  </Link>
-                )}
-                {!isNewConversation && !chat.sessionMeta?.workspaceSlug && chat.sessionMeta?.projectSlug && (
-                  <Link
-                    to={activeWsSlug ? `/workspace/${activeWsSlug}/projects/${chat.sessionMeta.projectSlug}` : `/projects/${chat.sessionMeta.projectSlug}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-[10px] text-indigo-400 hover:text-indigo-300 truncate block transition-colors"
-                  >
-                    {chat.sessionMeta.projectSlug}
-                  </Link>
-                )}
-                {headerProviderBadge}
-              </div>
+              <ChatHeaderTitle
+                title={headerTitle}
+                scope={
+                  isNewConversation
+                    ? null
+                    : chat.sessionMeta?.workspaceSlug
+                      ? { kind: 'workspace', label: chat.sessionMeta.workspaceSlug, to: `/workspace/${chat.sessionMeta.workspaceSlug}` }
+                      : chat.sessionMeta?.projectSlug
+                        ? {
+                            kind: 'project',
+                            label: chat.sessionMeta.projectSlug,
+                            to: activeWsSlug ? `/workspace/${activeWsSlug}/projects/${chat.sessionMeta.projectSlug}` : `/projects/${chat.sessionMeta.projectSlug}`,
+                          }
+                        : null
+                }
+                badge={headerProviderBadge}
+              />
             </div>
             <div className="flex items-center gap-1">
               <button
@@ -729,30 +723,19 @@ export function ChatPanel() {
           <div className="min-w-0 flex items-center gap-1.5">
             {/* WS status dot — only show when connected to a session */}
             {!isNewConversation && <WsStatusDot status={chat.wsStatus} />}
-            <div className="min-w-0">
-              <span className="text-sm font-medium text-gray-300 truncate block">
-                {headerTitle}
-              </span>
-              {!isNewConversation && chat.sessionMeta?.workspaceSlug && (
-                <Link
-                  to={workspacePath(chat.sessionMeta.workspaceSlug, '/overview')}
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-[10px] text-purple-400 hover:text-purple-300 truncate block transition-colors"
-                >
-                  ⬡ {chat.sessionMeta.workspaceSlug}
-                </Link>
-              )}
-              {!isNewConversation && !chat.sessionMeta?.workspaceSlug && chat.sessionMeta?.projectSlug && activeWsSlug && (
-                <Link
-                  to={workspacePath(activeWsSlug, `/projects/${chat.sessionMeta.projectSlug}`)}
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-[10px] text-indigo-400 hover:text-indigo-300 truncate block transition-colors"
-                >
-                  {chat.sessionMeta.projectSlug}
-                </Link>
-              )}
-              {headerProviderBadge}
-            </div>
+            <ChatHeaderTitle
+              title={headerTitle}
+              scope={
+                isNewConversation
+                  ? null
+                  : chat.sessionMeta?.workspaceSlug
+                    ? { kind: 'workspace', label: chat.sessionMeta.workspaceSlug, to: workspacePath(chat.sessionMeta.workspaceSlug, '/overview') }
+                    : chat.sessionMeta?.projectSlug && activeWsSlug
+                      ? { kind: 'project', label: chat.sessionMeta.projectSlug, to: workspacePath(activeWsSlug, `/projects/${chat.sessionMeta.projectSlug}`) }
+                      : null
+              }
+              badge={headerProviderBadge}
+            />
           </div>
         </div>
         <div className="flex items-center gap-1">

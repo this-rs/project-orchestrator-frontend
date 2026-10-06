@@ -178,11 +178,13 @@ describe('ChatInput — trust downgraded when a provider without a sandbox is ta
 })
 
 describe('ChatInput — controls row never overflows', () => {
-  it('the chips share one wrapping, shrinkable group; attach and send stay outside it', () => {
+  it('the chips share ONE line that shrinks instead of wrapping; attach and send stay outside it', () => {
     mount({ sessionId: null })
     const row = screen.getByTestId('composer-controls')
     const chips = screen.getByTestId('composer-chips')
-    expect(chips.className).toMatch(/\bflex-wrap\b/)
+    // One line: a second line doubled the height of the composer for the same information.
+    expect(chips.className).toMatch(/\bflex-nowrap\b/)
+    expect(chips.className).not.toMatch(/\bflex-wrap\b/)
     expect(chips.className).toMatch(/\bmin-w-0\b/)
     expect(chips.className).toMatch(/\bflex-1\b/)
     expect(chips.parentElement).toBe(row)

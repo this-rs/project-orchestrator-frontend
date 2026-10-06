@@ -234,6 +234,9 @@ export const ActivityBar = memo(function ActivityBar({ items, runActions }: { it
         className="flex w-full items-center gap-2.5 px-2.5 py-1 text-[11px] text-gray-400 hover:bg-white/[0.03] transition-colors"
       >
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" aria-hidden />
+        {/* One line whatever the number of kinds: what does not fit is cut, the
+            duration and the chevron on the right stay. */}
+        <span className="flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden whitespace-nowrap">
         {counts.map(({ kind, count }) => {
           const { icon: Icon, one, many } = KIND_META[kind]
           return (
@@ -251,6 +254,7 @@ export const ActivityBar = memo(function ActivityBar({ items, runActions }: { it
             </span>
           )
         })}
+        </span>
         <span className="ml-auto flex items-center gap-1.5 shrink-0 text-[10px] text-gray-600">
           {elapsedMs != null && <span className="tabular-nums">{formatDurationShort(elapsedMs)}</span>}
           <ChevronDown className={`w-3 h-3 transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden />
