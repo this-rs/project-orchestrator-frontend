@@ -35,7 +35,9 @@ export default {
     remote: 'بعيد، غير مسموح هنا',
   },
   badge: { poChooses: 'PO يختار', why: 'لماذا؟' },
-  advanced: { force: 'فرض مزوّد' },
+  advanced: { force: 'متقدم: فرض مزوّد/نموذج لهذه المحادثة' },
+  picker: { primary: 'الأساسي: {target} · PO يوجّه المنفّذين', forced: 'مفروض: {target}', willChoose: 'سيختار PO عند أول رسالة', routedBy: 'تم التوجيه بواسطة: {by}', aria: 'التوجيه: {mode}' },
+  reason: 'السبب: {reason}',
   settings: { title: 'التوجيه', confirmAuto: 'سيطبّق PO اختياراته بنفسه الآن دون سؤال. هل تتابع؟' },
   report: { agreement: 'التوافق مع الاختيار الفعلي', costDelta: 'فرق التكلفة التقديري', unknown: 'غير معروف' },
 } satisfies Translation<'routing'>

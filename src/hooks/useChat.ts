@@ -1,13 +1,14 @@
 import { splitAttachments } from '@/utils/messageAttachments'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useSetAtom, useStore } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatSessionRoutingAtom, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { applyResultCost } from '@/utils/cost'
 import { chatApi, ChatWebSocket } from '@/services'
 import { applyQueueOp, enqueue, mergeServerQueue, type QueueOp, type QueuedMessage } from '@/components/chat/messageQueue'
-import type { ChatMessage, ChatStreamEvent, ContentBlock, PermissionMode } from '@/types'
+import type { ChatMessage, ChatSession, ChatStreamEvent, ContentBlock, PermissionMode } from '@/types'
+import type { ChatSessionRouting } from '@/atoms'
 import { isTrustAllowed, readToolPolicyMode, toWireMode, TRUST_FALLBACK_MODE, usableMode } from '@/constants/toolPolicy'
 import {
   historyEventsToMessages,
@@ -215,6 +216,12 @@ export interface SessionMeta {
   workspaceSlug?: string
   /** Origin of this session if spawned (null = normal conversation) */
   spawnedBy?: import('@/types').SpawnedBy | null
+}
+
+/** `routed_by` / `route_reason` of a session record, `null` when it says nothing about routing. */
+function routingOf(session: { routed_by?: ChatSession['routed_by']; route_reason?: string | null; routing_mode?: ChatSession['routing_mode'] }): ChatSessionRouting | null {
+  const { routed_by = null, route_reason = null, routing_mode = null } = session
+  return routed_by || route_reason || routing_mode ? { routed_by, route_reason, routing_mode } : null
 }
 
 export function useChat() {
@@ -1142,13 +1149,16 @@ export function useChat() {
             ? (event as { data?: Record<string, unknown> }).data ?? event
             : event
           const newModel = (mcData as { model?: string }).model ?? 'unknown'
+          // Additive: set when PO changed the model on its own. Tolerate absence.
+          const rawReason = (mcData as { reason?: unknown }).reason
+          const newReason = typeof rawReason === 'string' && rawReason ? rawReason : undefined
           // Update the session model atom (server confirmed the change)
           setSessionModel(newModel)
           lastMsg.blocks.push({
             id: nextBlockId(),
             type: 'model_changed',
             content: `Model changed to ${newModel}`,
-            metadata: { model: newModel },
+            metadata: newReason ? { model: newModel, reason: newReason } : { model: newModel },
           })
           break
         }
@@ -1879,12 +1889,23 @@ export function useChat() {
       setIsSending(true)
       setIsStreaming(true)
       try {
+        // Which routing mode governs this conversation. Read from the settings
+        // of its project (loaded here when nobody did yet); anything unknown
+        // — no routing routes, a failed read — is `primary`, today's behaviour.
+        const slug = options?.projectSlug ?? store.get(chatRoutingSlugAtom)
+        await store.set(loadRoutingSettingsAtom, { slug })
+        const mode = store.get(routingSettingsAtom(slug)).settings?.mode ?? 'primary'
+        // In `mixed` (the pilot) and `full`, PO / the server resolves provider
+        // AND model: nothing is sent unless the user forced a target through
+        // the "Advanced" path.
+        const explicit = mode === 'primary' || store.get(chatForcedTargetAtom)
         // The provider is named ONLY when the user picked an instance this
         // server lists. Otherwise the field is left out and the server
         // resolves its default (project rule, global rule…) — sending the
         // id the interface merely DISPLAYS would freeze that routing.
         const picked = store.get(chatSelectedProviderAtom)
         const provider =
+          explicit &&
           picked &&
           store.get(providersLoadStateAtom) !== 'unsupported' &&
           store.get(providersAtom)?.providers.some((p) => p.id === picked)
@@ -1897,7 +1918,7 @@ export function useChat() {
           workspace_slug: options?.workspaceSlug,
           permission_mode: wirePermissionMode(openingPermissionMode(options?.permissionMode)),
           // A model id, or the NAME of an alias (`fast`, `deep`…) of the instance.
-          model: options?.model ?? store.get(chatSessionModelAtom) ?? undefined,
+          model: options?.model ?? (explicit ? store.get(chatSessionModelAtom) : null) ?? undefined,
           ...(provider ? { provider } : {}),
           attachments: attachments && attachments.length > 0 ? attachments : undefined,
         })
@@ -1909,6 +1930,18 @@ export function useChat() {
         // So does what was queued behind this first message.
         moveQueue({ from: NEW_CONVERSATION_DRAFT_KEY, to: response.session_id })
         setSessionId(response.session_id)
+        // The forced target belonged to the conversation just opened.
+        store.set(chatForcedTargetAtom, false)
+        if (mode !== 'primary') {
+          // How PO routed it (`routed_by`, `route_reason`): read from the record, best effort.
+          void Promise.resolve()
+            .then(() => chatApi.getSession(response.session_id))
+            .then((session) => {
+              if (store.get(chatSessionIdAtom) !== response.session_id) return
+              store.set(chatSessionRoutingAtom, routingOf(session))
+            })
+            .catch(() => {})
+        }
         // Populate session metadata from the options used to create the session
         if (options) {
           setSessionMeta({ cwd: options.cwd, projectSlug: options.projectSlug, workspaceSlug: options.workspaceSlug })
@@ -2202,6 +2235,8 @@ export function useChat() {
     setSessionModel(null)
     setAutoContinue(false)
     applySessionRuntime(null)
+    store.set(chatSessionRoutingAtom, null)
+    store.set(chatForcedTargetAtom, false)
     store.set(chatSessionOpenErrorAtom, null)
   }, [store, getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride, setSessionModel, setAutoContinue, sessionId, applySessionRuntime])
 
@@ -2241,6 +2276,7 @@ export function useChat() {
     paginationRef.current = { offset: 0, tailOffset: 0, totalCount: 0 }
     // The previous conversation's provider must not leak into this one.
     applySessionRuntime(null)
+    store.set(chatSessionRoutingAtom, null)
     // Neither must the failure of a conversation that never opened.
     store.set(chatSessionOpenErrorAtom, null)
 
@@ -2254,6 +2290,7 @@ export function useChat() {
       if (provider || session.capabilities || session.engine) {
         applySessionRuntime({ provider, capabilities: session.capabilities ?? null, toolPolicy: null, engine: session.engine ?? null, degradedFeatures: session.degraded_features ?? [] })
       }
+      store.set(chatSessionRoutingAtom, routingOf(session))
       setSessionMeta({ cwd: session.cwd, projectSlug: session.project_slug, workspaceSlug: session.workspace_slug, spawnedBy: session.spawned_by ?? null })
       // Restore the session's permission mode override
       setPermissionOverride(session.permission_mode ? readToolPolicyMode(session.permission_mode) : null)

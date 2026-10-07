@@ -35,7 +35,9 @@ export default {
     remote: '원격, 여기서는 허용되지 않음',
   },
   badge: { poChooses: 'PO가 선택', why: '이유' },
-  advanced: { force: '프로바이더 강제 지정' },
+  advanced: { force: '고급: 이 대화에 프로바이더/모델 강제 지정' },
+  picker: { primary: '기본: {target} · PO가 실행자를 라우팅', forced: '강제됨: {target}', willChoose: '첫 메시지에서 PO가 선택합니다', routedBy: '라우팅 주체: {by}', aria: '라우팅: {mode}' },
+  reason: '이유: {reason}',
   settings: { title: '라우팅', confirmAuto: '앞으로 PO가 묻지 않고 자신의 선택을 적용합니다. 계속할까요?' },
   report: { agreement: '실제 선택과의 일치율', costDelta: '예상 비용 차이', unknown: '알 수 없음' },
 } satisfies Translation<'routing'>

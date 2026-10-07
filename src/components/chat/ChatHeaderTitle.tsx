@@ -1,4 +1,7 @@
 import { Link } from 'react-router-dom'
+import { useAtomValue } from 'jotai'
+import { chatSessionRoutingAtom } from '@/atoms'
+import { RoutedByBadge, shouldShowRoutedBy } from './ProviderBadge'
 
 export interface ChatHeaderScope {
   /** `workspace` is the violet one, `project` the indigo one. */
@@ -25,18 +28,24 @@ interface ChatHeaderTitleProps {
  * The title comes FIRST and takes whatever width the header leaves: it truncates, with its full
  * text as a tooltip. The workspace or project is a second, 10 px line in the same bar (the bar keeps
  * its height) that truncates on its own. Provider and model are not shown here: the composer says
- * them, right where the conversation is written.
+ * them, right where the conversation is written. The one exception is a small "routed by" badge, only when PO chose
+ * (or left a reason): the default path stays quiet.
  *
  * Nothing here depends on the width of the WINDOW (`sm:`, `md:`). The panel can be docked narrow on
  * a wide screen, and a chip shown "because the window is wide" used to take the whole bar and push
  * the title under the buttons.
  */
 export function ChatHeaderTitle({ title, scope }: ChatHeaderTitleProps) {
+  const routing = useAtomValue(chatSessionRoutingAtom)
+  const showRouting = !!routing && shouldShowRoutedBy(routing.routed_by, routing.route_reason)
   return (
     <div className="flex min-w-0 flex-1 flex-col justify-center" data-testid="chat-header-title">
       <span className="truncate text-sm font-medium leading-5 text-gray-300" title={title}>
         {title}
       </span>
+      {showRouting && (
+        <RoutedByBadge routedBy={routing.routed_by} reason={routing.route_reason} className="mt-0.5 self-start" />
+      )}
       {scope && (
         <Link
           to={scope.to}

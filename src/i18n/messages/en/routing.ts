@@ -33,7 +33,9 @@ export default {
     remote: 'Remote, not allowed here',
   },
   badge: { poChooses: 'PO chooses', why: 'Why?' },
-  advanced: { force: 'Force a provider' },
+  advanced: { force: 'Advanced: force a provider/model for this conversation' },
+  picker: { primary: 'Primary: {target} · PO routes executors', forced: 'Forced: {target}', willChoose: 'PO will choose at the first message', routedBy: 'Routed by: {by}', aria: 'Routing: {mode}' },
+  reason: 'Reason: {reason}',
   settings: { title: 'Routing', confirmAuto: 'PO will now apply its own choices without asking. Continue?' },
   report: { agreement: 'Agreement with the real choice', costDelta: 'Estimated cost difference', unknown: 'Unknown' },
 } as const

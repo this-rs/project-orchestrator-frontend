@@ -35,7 +35,9 @@ export default {
     remote: 'Віддалений, тут не дозволений',
   },
   badge: { poChooses: 'PO обирає', why: 'Чому?' },
-  advanced: { force: 'Примусово обрати провайдера' },
+  advanced: { force: 'Додатково: примусово обрати провайдера/модель для цієї розмови' },
+  picker: { primary: 'Основний: {target} · PO маршрутизує виконавців', forced: 'Примусово: {target}', willChoose: 'PO обере при першому повідомленні', routedBy: 'Маршрутизація: {by}', aria: 'Маршрутизація: {mode}' },
+  reason: 'Причина: {reason}',
   settings: { title: 'Маршрутизація', confirmAuto: 'Відтепер PO застосовуватиме власний вибір без запитань. Продовжити?' },
   report: { agreement: 'Збіг із реальним вибором', costDelta: 'Оцінка різниці у вартості', unknown: 'Невідомо' },
 } satisfies Translation<'routing'>

@@ -35,7 +35,9 @@ export default {
     remote: 'リモートはここでは許可されていません',
   },
   badge: { poChooses: 'PO が選択', why: '理由' },
-  advanced: { force: 'プロバイダーを強制' },
+  advanced: { force: '詳細設定: この会話にプロバイダー/モデルを強制' },
+  picker: { primary: 'プライマリ: {target} · PO が実行役をルーティング', forced: '強制: {target}', willChoose: '最初のメッセージで PO が選択します', routedBy: 'ルーティング元: {by}', aria: 'ルーティング: {mode}' },
+  reason: '理由: {reason}',
   settings: { title: 'ルーティング', confirmAuto: '今後 PO は確認なしで自分の選択を適用します。続行しますか？' },
   report: { agreement: '実際の選択との一致率', costDelta: '推定コスト差', unknown: '不明' },
 } satisfies Translation<'routing'>

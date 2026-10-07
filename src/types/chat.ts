@@ -429,7 +429,7 @@ export type ChatEvent =
   | ({ type: 'error'; message: string } & Nested)
   | { type: 'streaming_status'; is_streaming: boolean }
   | { type: 'permission_mode_changed'; mode: string; tool_policy?: ToolPolicy | ToolPolicyMode; policy_mode?: ToolPolicyMode }
-  | { type: 'model_changed'; model: string }
+  | { type: 'model_changed'; model: string; reason?: string | null }
   | { type: 'compaction_started'; trigger: string }
   /** Emitted by `close_session`: the session is gone, do not reconnect. */
   | { type: 'session_closed'; session_id: string; reason?: string }
@@ -501,7 +501,7 @@ export const CHAT_EVENT_FIELDS = {
   error: { message: 'required', parent_tool_use_id: 'optional' },
   streaming_status: { is_streaming: 'required' },
   permission_mode_changed: { mode: 'required', tool_policy: 'optional', policy_mode: 'optional' },
-  model_changed: { model: 'required' },
+  model_changed: { model: 'required', reason: 'optional' },
   compaction_started: { trigger: 'required' },
   session_closed: { session_id: 'required', reason: 'optional' },
   compaction_recovery: { hint_tokens: 'required', build_latency_ms: 'required', recovery_success: 'required' },

@@ -35,7 +35,9 @@ export default {
     remote: 'Remoto, no permitido aquí',
   },
   badge: { poChooses: 'PO elige', why: '¿Por qué?' },
-  advanced: { force: 'Forzar un proveedor' },
+  advanced: { force: 'Avanzado: forzar un proveedor/modelo para esta conversación' },
+  picker: { primary: 'Principal: {target} · PO enruta a los ejecutores', forced: 'Forzado: {target}', willChoose: 'PO elegirá en el primer mensaje', routedBy: 'Enrutado por: {by}', aria: 'Enrutamiento: {mode}' },
+  reason: 'Motivo: {reason}',
   settings: { title: 'Enrutamiento', confirmAuto: 'PO aplicará ahora sus propias decisiones sin preguntar. ¿Continuar?' },
   report: { agreement: 'Coincidencia con la elección real', costDelta: 'Diferencia de coste estimada', unknown: 'Desconocido' },
 } satisfies Translation<'routing'>

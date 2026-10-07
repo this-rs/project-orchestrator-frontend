@@ -35,7 +35,9 @@ export default {
     remote: 'रिमोट, यहाँ अनुमत नहीं',
   },
   badge: { poChooses: 'PO चुनता है', why: 'क्यों?' },
-  advanced: { force: 'प्रदाता थोपें' },
+  advanced: { force: 'उन्नत: इस बातचीत के लिए प्रदाता/मॉडल थोपें' },
+  picker: { primary: 'प्राथमिक: {target} · PO निष्पादकों को रूट करता है', forced: 'थोपा गया: {target}', willChoose: 'PO पहले संदेश पर चुनेगा', routedBy: 'रूट करने वाला: {by}', aria: 'रूटिंग: {mode}' },
+  reason: 'कारण: {reason}',
   settings: { title: 'रूटिंग', confirmAuto: 'अब PO बिना पूछे अपने चुनाव लागू करेगा। जारी रखें?' },
   report: { agreement: 'वास्तविक चुनाव से मेल', costDelta: 'अनुमानित लागत अंतर', unknown: 'अज्ञात' },
 } satisfies Translation<'routing'>

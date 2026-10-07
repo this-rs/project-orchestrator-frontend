@@ -35,7 +35,9 @@ export default {
     remote: '远程，此处不允许',
   },
   badge: { poChooses: '由 PO 选择', why: '为什么？' },
-  advanced: { force: '强制指定提供方' },
+  advanced: { force: '高级：为此对话强制指定提供方/模型' },
+  picker: { primary: '主要：{target} · PO 路由执行者', forced: '已强制：{target}', willChoose: 'PO 将在第一条消息时选择', routedBy: '路由方：{by}', aria: '路由：{mode}' },
+  reason: '原因：{reason}',
   settings: { title: '路由', confirmAuto: 'PO 之后将不经询问直接应用自己的选择。继续吗？' },
   report: { agreement: '与实际选择的一致率', costDelta: '预估成本差额', unknown: '未知' },
 } satisfies Translation<'routing'>

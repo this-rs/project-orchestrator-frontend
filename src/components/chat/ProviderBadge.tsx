@@ -1,7 +1,10 @@
 import { useId } from 'react'
+import { useT } from '@/i18n'
+import type { RoutedBy } from '@/types/provider'
 import {
   PROVIDER_BADGE_UNAVAILABLE_HELP,
   PROVIDER_BADGE_UNAVAILABLE_TEXT,
+  routedByKey,
   type SessionProviderDescription,
 } from '@/constants/providers'
 import { shortModelName } from './sessionListUtils'
@@ -46,6 +49,38 @@ export function ProviderBadge({ description, model, className = '' }: ProviderBa
         </>
       )}
       {short && !description.unavailable && <span className="truncate max-w-[9rem] opacity-80">· {short}</span>}
+    </span>
+  )
+}
+
+/**
+ * Whether a session's routing is worth a badge: only when PO decided
+ * (`auto`, `fallback`) or left a reason. A session on the default path shows nothing.
+ */
+export function shouldShowRoutedBy(routedBy: RoutedBy | null | undefined, reason: string | null | undefined): boolean {
+  return routedBy === 'auto' || routedBy === 'fallback' || !!reason
+}
+
+interface RoutedByBadgeProps {
+  routedBy?: RoutedBy | null
+  reason?: string | null
+  className?: string
+}
+
+/** "PO chose" / "Fallback chain" / …, with the reason as tooltip. Renders nothing on the default path. */
+export function RoutedByBadge({ routedBy, reason, className = '' }: RoutedByBadgeProps) {
+  const { t } = useT()
+  if (!shouldShowRoutedBy(routedBy, reason)) return null
+  const label = t(routedByKey(routedBy))
+  const title = reason ? `${label}\n${t('routing.reason', { reason })}` : label
+  return (
+    <span
+      data-testid="routed-by-badge"
+      data-routed-by={routedBy ?? undefined}
+      title={title}
+      className={`inline-flex min-w-0 items-center gap-1 rounded border border-violet-400/25 bg-violet-500/10 px-1 py-px text-[10px] leading-4 text-violet-300 ${className}`}
+    >
+      <span className="truncate max-w-[9rem]">{label}</span>
     </span>
   )
 }

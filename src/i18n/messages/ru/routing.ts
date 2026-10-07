@@ -35,7 +35,9 @@ export default {
     remote: 'Удалённый, здесь не разрешён',
   },
   badge: { poChooses: 'PO выбирает', why: 'Почему?' },
-  advanced: { force: 'Принудительно выбрать провайдера' },
+  advanced: { force: 'Расширенно: принудительно выбрать провайдера/модель для этого разговора' },
+  picker: { primary: 'Основной: {target} · PO маршрутизирует исполнителей', forced: 'Принудительно: {target}', willChoose: 'PO выберет при первом сообщении', routedBy: 'Маршрутизация: {by}', aria: 'Маршрутизация: {mode}' },
+  reason: 'Причина: {reason}',
   settings: { title: 'Маршрутизация', confirmAuto: 'Теперь PO будет применять собственный выбор без вопросов. Продолжить?' },
   report: { agreement: 'Совпадение с реальным выбором', costDelta: 'Оценка разницы в стоимости', unknown: 'Неизвестно' },
 } satisfies Translation<'routing'>

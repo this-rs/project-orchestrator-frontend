@@ -546,11 +546,13 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
       case 'model_changed': {
         const msg = lastAssistant(createdAt)
         const changedModel = (evt.model as string) ?? 'unknown'
+        // Additive: the reason PO gives when it changed the model itself.
+        const changedReason = typeof evt.reason === 'string' && evt.reason ? evt.reason : undefined
         msg.blocks.push({
           id: nextBlockId(),
           type: 'model_changed',
           content: `Model changed to ${changedModel}`,
-          metadata: { model: changedModel },
+          metadata: changedReason ? { model: changedModel, reason: changedReason } : { model: changedModel },
         })
         break
       }

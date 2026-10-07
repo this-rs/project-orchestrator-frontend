@@ -35,7 +35,9 @@ export default {
     remote: 'Từ xa, không được phép ở đây',
   },
   badge: { poChooses: 'PO chọn', why: 'Vì sao?' },
-  advanced: { force: 'Buộc dùng một nhà cung cấp' },
+  advanced: { force: 'Nâng cao: buộc dùng một nhà cung cấp/mô hình cho cuộc trò chuyện này' },
+  picker: { primary: 'Chính: {target} · PO định tuyến các bên thực thi', forced: 'Đã buộc: {target}', willChoose: 'PO sẽ chọn ở tin nhắn đầu tiên', routedBy: 'Định tuyến bởi: {by}', aria: 'Định tuyến: {mode}' },
+  reason: 'Lý do: {reason}',
   settings: { title: 'Định tuyến', confirmAuto: 'Từ giờ PO sẽ áp dụng lựa chọn của mình mà không hỏi. Tiếp tục?' },
   report: { agreement: 'Mức trùng khớp với lựa chọn thực tế', costDelta: 'Chênh lệch chi phí ước tính', unknown: 'Không rõ' },
 } satisfies Translation<'routing'>

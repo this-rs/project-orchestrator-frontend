@@ -18,6 +18,7 @@ import {
   type ProviderKind,
   type RoutedBy,
 } from '@/types/provider'
+import type { MessageKey } from '@/i18n'
 
 /** Shown where a model would be named and the server named none. Never an invented id. */
 export const DEFAULT_MODEL_LABEL = 'Default model'
@@ -43,6 +44,11 @@ const ROUTED_BY_LABELS: Readonly<Record<string, string>> = {
   claude_code: 'Claude Code fallback',
   fallback: 'fallback',
   auto: 'PO chooses',
+}
+
+/** i18n key of a `routed_by` value (`routing.routedBy.*`); an unknown rule reads as the server default. */
+export function routedByKey(routedBy: RoutedBy | null | undefined): MessageKey {
+  return (routedBy && routedBy in ROUTED_BY_LABELS ? `routing.routedBy.${routedBy}` : 'routing.routedBy.default') as MessageKey
 }
 
 /** Which rule made an instance the default, in words. An unknown rule is still "default". */

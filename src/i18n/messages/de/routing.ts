@@ -35,7 +35,9 @@ export default {
     remote: 'Remote, hier nicht erlaubt',
   },
   badge: { poChooses: 'PO wählt', why: 'Warum?' },
-  advanced: { force: 'Provider erzwingen' },
+  advanced: { force: 'Erweitert: Provider/Modell für dieses Gespräch erzwingen' },
+  picker: { primary: 'Primär: {target} · PO routet die Ausführenden', forced: 'Erzwungen: {target}', willChoose: 'PO wählt bei der ersten Nachricht', routedBy: 'Geroutet durch: {by}', aria: 'Routing-Modus: {mode}' },
+  reason: 'Grund: {reason}',
   settings: { title: 'Routing', confirmAuto: 'PO wendet seine eigenen Entscheidungen künftig ohne Rückfrage an. Fortfahren?' },
   report: { agreement: 'Übereinstimmung mit der tatsächlichen Wahl', costDelta: 'Geschätzte Kostendifferenz', unknown: 'Unbekannt' },
 } satisfies Translation<'routing'>
