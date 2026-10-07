@@ -196,3 +196,7 @@ export function shouldShowProviderBadge(
 ): boolean {
   return (instances?.length ?? 0) > 1 || !description.isClaudeCode
 }
+
+/** The "no explicit choice" target of a new conversation: the server resolves provider and model. */
+export const AUTO_TARGET_LABEL = 'Auto'
+export const AUTO_TARGET_HELP = 'The server picks the provider and the model for this project.'
