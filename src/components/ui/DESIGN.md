@@ -228,6 +228,7 @@ Anatomy: **PageHeader → key facts line → sections**.
 - **Primary** (create, run): one `<Button size="sm">` in `PageShell.actions` / `PageHeader.actions`. At most one primary + one secondary visible.
 - **Row action**: a row shows at most ONE button, in `EntityRow.primaryAction` (`<Button size="sm">`, one short word: "Start", "Add", "Resume"). It is `variant="secondary"` unless it is THE next thing to do in its list; a list never stacks the same filled button on every row. Everything else the row can do goes in its `actions` menu.
 - **No local button classes.** A button is `<Button>`; a page never defines its own `btn…` class strings (heights, radii and greys drift apart within a week).
+- **`flat`** (`<Button flat>` → `.btn-flat`) removes the backdrop blur of the glass recipe (`styles/buttons.css`): use it in dense rows and lists (`EntityRow.primaryAction`, a button repeated on every item) — never more than about ten blurred buttons on screen.
 - **Secondary** (edit, duplicate, export, delete): the `⋯` `OverflowMenu` (row `actions` array or `PageHeader.overflowActions`). Always visible, never hover-revealed.
 - **Destructive**: `variant: 'danger'` + `confirm: { title, description }` — the menu shows the ConfirmDialog. Bulk deletes use `useConfirmDialog` + `BulkActionBar` as today.
 - After a mutation: optimistic local update + `toast.success` / `toast.error`.

@@ -297,7 +297,7 @@ describe('WorkDashboard', () => {
         seen.push(row.textContent ?? '')
       }
       for (const b of dash.querySelectorAll('button')) {
-        if (b.className.includes('bg-indigo-600')) filled.push({ tab: label, label: b.textContent ?? '', row: b.closest('li')?.textContent ?? '' })
+        if (b.className.includes('btn-primary')) filled.push({ tab: label, label: b.textContent ?? '', row: b.closest('li')?.textContent ?? '' })
       }
     }
     expect(seen.some((t) => t.includes('Tâche run'))).toBe(true)
@@ -401,7 +401,7 @@ describe('WorkDashboard', () => {
     const more = screen.getByRole('button', { name: WORK_TEXT.showAll(n) })
     expect(more.getAttribute('aria-expanded')).toBe('false')
     // A ghost button: the dashboard keeps its single filled one.
-    expect(more.className).not.toContain('bg-indigo-600')
+    expect(more.className).not.toContain('btn-primary')
     fireEvent.click(more)
     expect(rows()).toEqual(all)
     expect(screen.queryByRole('button', { name: WORK_TEXT.showAll(n) })).toBeNull()

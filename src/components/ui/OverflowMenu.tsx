@@ -3,6 +3,7 @@ import { MoreHorizontal, MoreVertical, type LucideIcon } from 'lucide-react'
 import { ConfirmDialog } from './ConfirmDialog'
 import { FloatingMenu } from './FloatingMenu'
 import { menuItemClass } from './menuPosition'
+import { iconButton } from './classes'
 
 export interface OverflowMenuAction {
   label: string
@@ -71,7 +72,7 @@ export function OverflowMenu({
   }
 
   const Icon = icon === 'vertical' ? MoreVertical : MoreHorizontal
-  const sizeClass = size === 'sm' ? 'w-9 h-9 md:w-8 md:h-8' : 'w-10 h-10 md:w-8 md:h-8'
+  const sizeClass = size === 'sm' ? 'size-9 md:size-8' : 'size-10 md:size-8'
 
   return (
     // Wrapper swallows React events (they bubble through portals) so a parent
@@ -91,9 +92,8 @@ export function OverflowMenu({
             setIsOpen(true)
           }
         }}
-        className={`${sizeClass} inline-flex items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60 ${
-          isOpen ? 'text-gray-200 bg-white/[0.06]' : 'text-gray-500 hover:text-gray-200 hover:bg-white/[0.05]'
-        }`}
+        // Ghost glass icon button; `aria-expanded` is what keeps its glass visible while the menu is open.
+        className={`${iconButton('ghost', sizeClass)} ${isOpen ? '' : 'text-gray-500'}`}
         aria-label={label}
         aria-expanded={isOpen}
         aria-haspopup="menu"

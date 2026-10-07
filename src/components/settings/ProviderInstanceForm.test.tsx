@@ -223,9 +223,9 @@ describe('ProviderInstanceForm (edit)', () => {
     const save = screen.getByRole('button', { name: 'Enregistrer' })
     expect(save.parentElement!.className).toContain('justify-end')
     for (const name of ['Annuler', 'Tester', 'Enregistrer']) {
-      expect(screen.getByRole('button', { name }).className).toMatch(
-        /inline-flex items-center justify-center font-medium rounded-lg[\s\S]*min-h-9 px-3 py-2 text-sm/
-      )
+      const b = screen.getByRole('button', { name })
+      expect(b.classList.contains('btn')).toBe(true) // the glass recipe of <Button>
+      expect(b.className).toContain('min-h-9 px-3 py-2 text-sm')
     }
   })
 

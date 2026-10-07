@@ -1,7 +1,7 @@
 import { useId, useRef, useState, type ReactNode } from 'react'
 import { Search, SlidersHorizontal, X } from 'lucide-react'
 import { Sep } from './MetaLine'
-import { focusRing, textLink } from './classes'
+import { focusRing, iconButton, textLink } from './classes'
 
 interface FilterBarProps {
   /** Controlled search text. Omit `onSearchChange` to hide the search field. */
@@ -88,25 +88,27 @@ export function FilterBar({
         )}
         {!hasSearch && <div className="flex-1" />}
         {filters && (
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-            aria-controls={panelId}
-            aria-label={activeCount > 0 ? `Filters (${activeCount} active)` : 'Filters'}
-            className={`relative shrink-0 w-9 h-9 inline-flex items-center justify-center rounded-lg border transition-colors ${focusRing} ${
-              open || activeCount > 0
-                ? 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300'
-                : 'border-white/[0.06] bg-white/[0.03] text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            <SlidersHorizontal className="w-4 h-4" aria-hidden="true" />
+          // The badge sits outside the button: `.btn` clips its overflow (the glass edge).
+          <span className="relative shrink-0 inline-flex">
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+              aria-controls={panelId}
+              aria-label={activeCount > 0 ? `Filters (${activeCount} active)` : 'Filters'}
+              className={`${iconButton('ghost', 'size-9 md:size-8')} ${activeCount > 0 ? 'text-indigo-300' : 'text-gray-400'}`}
+            >
+              <SlidersHorizontal className="w-4 h-4" aria-hidden="true" />
+            </button>
             {activeCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-indigo-500 text-[10px] leading-4 font-semibold text-white tabular-nums">
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-indigo-500 text-[10px] leading-4 font-semibold text-white tabular-nums text-center"
+              >
                 {activeCount}
               </span>
             )}
-          </button>
+          </span>
         )}
         {trailing && <div className="shrink-0 flex items-center gap-1.5">{trailing}</div>}
       </div>

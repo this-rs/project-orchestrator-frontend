@@ -98,17 +98,15 @@ describe('ProviderSettings', () => {
     for (const b of container.querySelectorAll('button')) {
       if (b.getAttribute('role') === 'combobox' || b.getAttribute('role') === 'option') continue
       if (b.getAttribute('aria-expanded') !== null) continue // the toggles of the folded panels
-      expect(b.className).toMatch(/inline-flex items-center justify-center font-medium rounded-lg/)
+      expect(b.classList.contains('btn')).toBe(true) // the glass recipe of <Button> (styles/buttons.css)
     }
     for (const id of ['roles-global', 'aliases-panel', 'policy-panel']) {
       const footers = screen.getByTestId(id).querySelectorAll(':scope > footer')
       expect(footers).toHaveLength(1)
       expect(footers[0].className).toContain('justify-end')
       const save = within(footers[0] as HTMLElement).getByRole('button', { name: 'Enregistrer' })
-      expect(save.className).toContain('bg-indigo-600')
-      expect(
-        within(footers[0] as HTMLElement).getByRole('button', { name: 'Annuler' }).className
-      ).toContain('hover:bg-white/[0.06] text-gray-300')
+      expect(save.className).toContain('btn-primary')
+      expect(within(footers[0] as HTMLElement).getByRole('button', { name: 'Annuler' }).className).toContain('btn-ghost')
     }
   })
 })

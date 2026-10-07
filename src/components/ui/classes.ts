@@ -53,11 +53,31 @@ export const glass = 'ui-glass'
 export const popIn = 'ui-pop-in'
 
 /**
- * Press feedback for tappable controls: an immediate, tiny scale-down that
- * confirms the tap landed. Feedback motion — never longer than ~120ms.
- * Tailwind v4 `scale-*` writes the `scale` property (not `transform`), so
- * `scale` is what must be transitioned.
+ * Press feedback for tappable controls: an immediate, tiny scale-down (120 ms)
+ * that confirms the tap landed; hover colour changes take 200 ms on the single
+ * curve. Tailwind v4 `scale-*` writes the `scale` property (not `transform`),
+ * so `scale` is what must be transitioned.
  */
 export const pressFeedback =
-  'transition-[scale,background-color,color] duration-[120ms] ease-out active:scale-[0.97] motion-reduce:active:scale-100'
+  'transition-[scale,background-color,color] duration-(--duration-fast) ease-(--ease-standard) active:duration-(--duration-instant) active:scale-[0.98] motion-reduce:active:scale-100'
 
+/**
+ * Glass buttons (CSS recipe: styles/buttons.css). The single source for `Button`
+ * and every button-looking element. `variant` danger / primary / secondary / ghost;
+ * `iconButton` makes them square; `glassFlat` removes the blur (dense rows: never
+ * more than about ten blurred buttons on screen).
+ */
+const btnBase = 'btn font-semibold tracking-[-0.005em]'
+export const glassButton = {
+  primary: `${btnBase} btn-primary`,
+  secondary: `${btnBase} btn-secondary`,
+  danger: `${btnBase} btn-danger`,
+  ghost: `${btnBase} btn-ghost`,
+} as const
+/** Square glass icon button (give it a size: `size-9 md:size-8`, `size-10`). */
+export const iconButton = (variant: keyof typeof glassButton = 'ghost', size = 'size-10'): string => `${glassButton[variant]} btn-icon ${size}`
+/** No backdrop blur: the translucent fill is enough (dense rows, lists). */
+export const glassFlat = 'btn-flat'
+/** Segmented control (view tabs, filters) and its items. */
+export const segmented = 'seg'
+export const segmentItem = 'seg-item'

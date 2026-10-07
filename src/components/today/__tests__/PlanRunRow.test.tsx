@@ -170,6 +170,6 @@ describe('PlanRunRow', () => {
     expect(btn.className).toContain('min-h-9')
     expect(DISCUSSIONS_TEXT).toEqual({ show: 'Conversations', hide: 'Masquer les conversations' })
     // a quiet (ghost) button: never a filled primary
-    expect(btn.className).not.toContain('bg-indigo-600')
+    expect(btn.className).not.toContain('btn-primary')
   })
 })

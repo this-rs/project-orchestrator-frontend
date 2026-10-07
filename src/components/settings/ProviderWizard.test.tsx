@@ -500,9 +500,7 @@ describe('ProviderWizard — buttons', () => {
       for (const b of wizard.querySelectorAll('button')) {
         const role = b.getAttribute('role')
         if (role === 'combobox' || role === 'option') continue
-        expect(b.className).toMatch(
-          /inline-flex items-center justify-center font-medium rounded-lg/
-        )
+        expect(b.classList.contains('btn')).toBe(true) // the glass recipe of <Button>
       }
       const footer = wizard.querySelector('footer')!
       const sizes = new Set(

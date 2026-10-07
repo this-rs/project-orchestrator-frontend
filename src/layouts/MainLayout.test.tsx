@@ -7,7 +7,7 @@ vi.mock('@/components/auth/UserMenu', () => ({ UserMenu: () => null }))
 vi.mock('@/components/WorkspaceSwitcher', () => ({
   WorkspaceSwitcher: () => <div data-testid="sidebar-marker">sidebar</div>,
 }))
-vi.mock('@/components/ui', () => ({ ToastContainer: () => null, Branding: () => <div data-testid="branding" /> }))
+vi.mock('@/components/ui', () => ({ ToastContainer: () => null, HaloPointer: () => null, Branding: () => <div data-testid="branding" /> }))
 vi.mock('@/hooks', async () => ({
   ChromeWorkspaceSlugContext: (await import('react')).createContext<string | null>(null),
   useAttentionCountSource: () => {},

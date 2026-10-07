@@ -79,6 +79,7 @@ describe('FilterBar', () => {
     const onClear = vi.fn()
     render(<Harness onClear={onClear} />)
     const btn = screen.getByRole('button', { name: 'Filters (1 active)' })
+    for (const c of ['btn', 'btn-ghost', 'btn-icon', 'size-9', 'md:size-8']) expect(btn.classList.contains(c)).toBe(true)
     // open by default because a filter is active
     expect(btn.getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByText('panel content')).toBeTruthy()

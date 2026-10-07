@@ -5,7 +5,7 @@ import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Menu, ChevronLeft, ChevronRight, MessageCircle, Plus } from 'lucide-react'
 import { NOMENCLATURE, NAV_GROUPS, NAV_TEXT, segmentLabel, entityNoun } from '@/constants/nomenclature'
 import { sidebarCollapsedAtom, breadcrumbTitleAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, workspaceRefreshAtom } from '@/atoms'
-import { ToastContainer, Branding } from '@/components/ui'
+import { ToastContainer, Branding, HaloPointer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
 import { TodayLogoLink } from '@/components/TodayLogoLink'
@@ -433,6 +433,8 @@ export function MainLayout() {
       {/* The chat needs a workspace: with none yet (first launch), there is no chat */}
       {chatSlug && <ChatPanel />}
       <ToastContainer />
+      {/* Mounted once: the glass edge of every `.btn` follows a fine pointer (no-op on touch / reduced motion). */}
+      <HaloPointer />
     </div>
   )
 }
