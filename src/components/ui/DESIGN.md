@@ -36,12 +36,13 @@ by hand in a page: `<PageShell title={NOMENCLATURE.plans.plural}>`.
 - **A concept explains itself in three sentences** *(from the site —
   `website/DESIGN.md` §6 « Expliquer une interface », `AUDIENCE.md` §9 « Les quatre
   lignes de l'Explainer »)*: each registry entry carries an `explain` block
-  *(planned)* with `what` (what you are looking at), `why` (what you get from it)
+  (`ConceptExplain`) with `what` (what you are looking at), `why` (what you get from it)
   and `different` (how it differs from what you do today: scattered notes, a chat
   with no memory). One sentence each, the product's words (`Assistant`, never
   `agent`; `Objective`, never `milestone`), no technical term without its
-  definition in the same sentence. It is rendered by `ConceptIntro` *(planned)*
-  — see §5 « Explaining a concept ». A page never types its own intro.
+  definition in the same sentence. It is rendered by `ConceptIntro` — see §5
+  « Explaining a concept » — through `<PageShell intro="plans">`. A page never
+  types its own intro; `nomenclature.test.ts` fails on a missing line or a banned word.
 - **The words of Today are concepts too.** « À traiter / À reprendre / En cours /
   À suivre », « Assistants », the resume labels live in `components/today/bands.ts`
   (`TODAY_TEXT`, `STUCK_LABEL`), `today/live/text.ts`, `today/work/text.ts` — the
@@ -115,8 +116,8 @@ by hand in a page: `<PageShell title={NOMENCLATURE.plans.plural}>`.
 | Body | `text-sm text-gray-300` | descriptions, markdown |
 | Secondary line | `text-xs text-gray-500` | row description / preview |
 | Meta | `text-[11px] leading-4 text-gray-500` (`metaText`, `MetaLine`) | metadata, counts, dates |
-| **Display title** *(from the site)* | `display-2` (`--fluid-5xl`, 40→64px) · `display-3` (`--fluid-4xl`, 32→48px) — weight 600, tight tracking, `text-balance`, `text-gray-50/100` *(planned in `index.css` + `classes.ts`: `pageTitle`, `sectionTitle`)* | the ONE sentence that names a dashboard: Today's `headline`, a page-level `EmptyState` (« No X yet »), the setup wizard steps, the Login title |
-| **Lead text** *(from the site)* | `leadText` = `text-base md:text-lg leading-relaxed text-gray-400 max-w-[var(--measure-md)]` *(planned)* | the one line under a display title (Today's `why`, the empty state's description) |
+| **Display title** *(from the site)* | `pageTitle` = `display-2` (`--fluid-5xl`, 40→64px) · `sectionTitle` = `display-3` (`--fluid-4xl`, 32→48px) — weight 600, tight tracking, `text-wrap: balance`, `text-gray-50/100` (`index.css`, `classes.ts`) | the ONE sentence that names a dashboard: Today's `headline` (`display-2`), `<EmptyState size="page">` (« No X yet », `display-3`), the setup wizard steps and the Login title (`display-3`, migrated in phase 3) |
+| **Lead text** *(from the site)* | `leadText` = `text-base md:text-lg leading-relaxed text-gray-400 max-w-[var(--measure-md)]` (`--measure-sm/md/lg` = 48/65/75ch) | the one line under a display title (Today's `why`, the page-level empty state's description) |
 
 Numbers that change or align (counts, dates, costs) use `tabular-nums`. No
 `uppercase tracking-wider` labels, no `text-lg`+ inside rows, no bold in meta.
@@ -125,13 +126,18 @@ Numbers that change or align (counts, dates, costs) use `tabular-nums`. No
 plus grands, en échelle fluide »)*. The site has three display sizes; the app takes
 two. `display-1` (`--fluid-display`, 44→84px) is a full-screen hero size and stays
 marketing: no screen of the app has a hero, and Today's headline shares its row
-with the counters and the workspace filter. `display-2`/`display-3` replace the
-hand-written `text-2xl … @2xl/today:text-[2rem]` of `TodayView`, the `text-2xl
-font-bold` of `LoginPage` and the `text-xl` of the setup steps. A display title
-appears **once per screen, above the fold, outside any list, row, card or detail
+with the counters and the workspace filter. `display-2` replaced the hand-written
+`text-2xl … @2xl/today:text-[2rem]` of `TodayView` (its `why` is `leadText`);
+`display-3` replaces the `text-2xl font-bold` of `LoginPage` and the `text-xl` of
+the setup steps when those screens migrate (phase 3). A display title appears
+**once per screen, above the fold, outside any list, row, card or detail
 section**: `PageShell`/`PageHeader` titles (`text-xl md:text-2xl`) are unchanged,
 and a display class inside an `EntityRow`, a `Section` or a dialog is a bug. It
-scales with the viewport (`clamp`), never with a container query.
+scales with the viewport (`clamp`), never with a container query — measured on
+Today at 390px: 41px, the longest headline wraps on three lines, nothing overflows
+the `@container/today` column, so no container cap was added. Two display titles
+on one screen is also a bug: Today's own empty state stays `EmptyState` (`md`)
+because the header already carries the `display-2` headline.
 
 ## 3. Colour roles
 
@@ -210,7 +216,7 @@ cue: the status has a tone-shaped glyph (`icon`) and a word, the rail is redunda
 - **Browse-everything lists (code entities, logs)**: when readability, not count, is the problem, never cap — render every row in an internal scroller with `WindowedList` (`items: {key, height, header?}[]`, fixed-height rows, sticky group headers, focusable `role=region`, `resetKey` to go back to top on search / group-by). Only the rows in view are mounted; search still runs on the full array. Make each row *speak*: a humanized title (`humanize`), the exact code name as secondary mono text, one sentence of explanation (`firstSentence(docstring)` or a derived sentence), and a `Gauge` with a word instead of a raw score (`@/utils/featureGraphReadable`).
 - **Explaining a concept**: a closed-by-default `<details>` intro under the header (see `components/featureGraphs/FeatureGraphHelp.tsx`) — plain language, one paragraph per idea, never a wall of text on the page itself. Legends for colours/edge styles sit under the canvas, colour is never the only cue.
   - **The intro has a fixed shape** *(from the site — `website/DESIGN.md` §6 « Expliquer une interface », `src/components/explain/Explainer.tsx`; writing rules `AUDIENCE.md` §9)*: three labelled lines, one sentence each — **What it is** (`what`), **What it is for** (`why`), **How it is different** (`different`, compared with what the person does today, never with a competitor). An optional fourth, **The problem it solves** (`problem`), only when the page does not already say it. Never fewer than three: without `different` the screen reads as any task manager.
-  - The text is **read from the registry** (`NOMENCLATURE[key].explain`, see §0) and rendered by **`ConceptIntro`** *(planned)*: `<ConceptIntro concept="plans" />` under the `PageShell` header, a `<details>` closed by default with a `<summary>` « About {plural} », a `<dl>` of the three lines (`dt` 13px `text-gray-400`, `dd` `text-sm text-gray-200`), no icon, no illustration. `FeatureGraphHelp` is the shape it generalises and migrates to it. Where the site keeps the block **always visible** (its reader is a visitor), the app keeps it **folded** (its reader comes back every day, §5 density): that is the one deliberate difference.
+  - The text is **read from the registry** (`NOMENCLATURE[key].explain`, see §0) and rendered by **`ConceptIntro`** (`@/components/ui`): `<PageShell title={NOMENCLATURE.plans.plural} intro="plans">` (also `PageHeader intro`, optional) renders it under the title — a `<details>` closed by default, a plain-text `<summary>` « What is this? » (no icon, no badge, no illustration), a `<dl>` of the three lines labelled **What it is / What it is for / How it differs** (`dt` 13px `text-gray-400`, `dd` `text-sm text-gray-200`, measure `--measure-md`). `intro` also takes an inline `ConceptExplain` for a screen that is not a concept (then pass `storageKey` to remember it). The open/closed choice is remembered per concept in `localStorage` (`po.intro.<key>`) under try/catch: without storage it still renders and toggles. `FeatureGraphHelp` is the shape it generalises and migrates to it (phase 3). Where the site keeps the block **always visible** (its reader is a visitor), the app keeps it **folded** (its reader comes back every day, §5 density): that is the one deliberate difference.
   - The intro answers "what is this screen"; it never carries a product promise or a roadmap status (the site's `VisionLine` « Notre idée : … » with Disponible / En cours / Prévu stays marketing). In the app a feature that is not there yet is simply absent, or an `EmptyState` says what to do now.
 - **Canvases (React Flow)**: bound the work, not just the DOM. Draw every node, lay them out once per selection in a macrotask behind a skeleton (`layoutSubgraph`: dagre for small graphs, a linear layered layout for big ones), cap only the *edges* and say so, pass `onlyRenderVisibleElements`, draw edge labels only on small graphs, and offer a retry on layout errors.
 - Bulk selection: put a `RowCheckbox` (36px target, keyboard, `label="Select …"`) in `leading` (it sits above the stretched link).
@@ -264,7 +270,7 @@ Anatomy: **PageHeader → key facts line → sections**.
 | State | Page level | Inside a section |
 |---|---|---|
 | Loading | `<EntityListSkeleton rows={6} />` (lists) · `SkeletonCard` (cards) | `<EntityListSkeleton rows={3} />` |
-| Empty | `<EmptyState title description action />` (+ `variant` illustration) | `<EmptyState size="sm" icon title />` |
+| Empty | `<EmptyState title description action />` (+ `variant` illustration) · `<EmptyState size="page" title="No X yet" description action />` when the screen itself is empty (`display-3` + `leadText` + ONE primary action, §2) | `<EmptyState size="sm" icon title />` |
 | Error | `<ErrorState description onRetry />` | same, or a toast for background refreshes |
 
 - Distinguish "nothing yet" (explain how to create + primary action) from "no match" (suggest clearing filters, offer `Clear`).
@@ -311,8 +317,8 @@ Anatomy: **PageHeader → key facts line → sections**.
 - Status: `getStatusMeta`, `getStatusOptions(kind)` (→ Select / StatusMenu options), `getPriorityMeta`, `TONE_CLASSES`, `StatusIcon` / `TONE_ICONS` (one glyph per tone; `icon` prop on `StatusText` / `ToneText` / `StatusMenu`); `ToneText` for values outside the registry (consent, circuit breaker, runner/wave/deployment states).
 - Controls: `TabLayout` (page tabs), `ViewTabs` (segmented views), `ViewToggle` (list/board), `RowCheckbox` (bulk selection), `ProgressLine`, `TaskProgress`, `Meter`, `Gauge`, `StatTiles`.
 - List cards: `EntityRow` (`status`, `tone`, `meta`, `context`), `MetaLine variant="facts"`, `Fact`.
-- Classes: `focusRing`, `focusRingInset`, `hitArea`, `rowInteractive`, `metaText`, `textLink`, `inlineLink`, `surface`.
-- *(planned, from the site)* Glass controls: `glassButton` (`primary | secondary | danger | ghost`), `iconButton(variant, size)`, `glassFlat` (`btn-flat`), `segmented` / `segmentItem` (§Matière). Display scale: `pageTitle` (`display-2`), `sectionTitle` (`display-3`), `leadText` (§2). Explaining: `ConceptIntro` (§5). Motion tokens: `--ease-standard`, `--duration-instant | fast | stage | base | slow` (§Mouvement).
+- Classes: `focusRing`, `focusRingInset`, `hitArea`, `rowInteractive`, `metaText`, `textLink`, `inlineLink`, `surface`, `displayTitle`, `pageTitle`, `sectionTitle`, `leadText`.
+- *(from the site)* Glass controls: `glassButton` (`primary | secondary | danger | ghost`), `iconButton(variant, size)`, `glassFlat` (`btn-flat`), `segmented` / `segmentItem` (§Matière). Display scale: `pageTitle` (`display-2`), `sectionTitle` (`display-3`), `leadText` (§2). Explaining: `ConceptIntro` (§5). Motion tokens: `--ease-standard`, `--duration-instant | fast | stage | base | slow` (§Mouvement).
 - Menus: `OverflowMenu`, `StatusMenu`, `useFloatingFallback`, `positionFloating`.
 
 ## Don'ts

@@ -78,6 +78,17 @@
   --fluid-xl:  clamp(1.15rem,  1.115rem + 0.15vw, 1.25rem);   /* 18.4px → 20px */
   --fluid-2xl: clamp(1.35rem,  1.297rem + 0.23vw, 1.5rem);    /* 21.6px → 24px */
   --fluid-3xl: clamp(1.6rem,   1.503rem + 0.41vw, 1.875rem);  /* 25.6px → 30px */
+  /* Display scale (from the site, website/src/styles/site.css — same values):
+   * the ONE sentence that names a dashboard. See the .display-* classes below
+   * and DESIGN.md § 2 « Display scale — where it stops ». */
+  --fluid-4xl: clamp(2rem,    1.6rem + 1.8vw, 3rem);       /* 32 → 48px  display-3 */
+  --fluid-5xl: clamp(2.5rem,  1.9rem + 2.8vw, 4rem);       /* 40 → 64px  display-2 */
+  --fluid-display: clamp(2.75rem, 1.7rem + 4.4vw, 5.25rem); /* 44 → 84px  display-1 (marketing only) */
+
+  /* Reading measure (from the site, rhythm.css): the width of a lead text. */
+  --measure-sm: 48ch;
+  --measure-md: 65ch;
+  --measure-lg: 75ch;
 
   /* Motion tokens (--ease-standard, --duration-*) live in the « Material & motion »
    * block at the end of this file. There is no second scale. */
@@ -113,6 +124,38 @@ h1, h2, h3 { font-variation-settings: 'wght' 650; }
 /* Text wrapping — progressive enhancement (no-op on unsupported browsers) */
 h1, h2, h3 { text-wrap: balance; }
 p, .description-text { text-wrap: pretty; }
+
+/* ─── Display scale (from the site: website/src/index.css .display-1/2/3) ──
+ * Weight 600, tight tracking, balanced wrapping. Sized by the VIEWPORT (clamp),
+ * never by a container query. Once per screen, above the fold, outside any list,
+ * row, card or detail section (DESIGN.md § 2). `display-1` is a hero size and
+ * stays marketing: no screen of the app uses it.
+ * ───────────────────────────────────────────────────────────────────────── */
+.display-1 {
+  font-size: var(--fluid-display);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  font-weight: 600;
+  font-variation-settings: 'wght' 620;
+  color: var(--color-gray-50);
+  text-wrap: balance;
+}
+.display-2 {
+  font-size: var(--fluid-5xl);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-weight: 600;
+  color: var(--color-gray-50);
+  text-wrap: balance;
+}
+.display-3 {
+  font-size: var(--fluid-4xl);
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  font-weight: 600;
+  color: var(--color-gray-100);
+  text-wrap: balance;
+}
 
 /* ─── Animated Counter (CSS @property) ─────────────────────────────────
  * Uses CSS Houdini @property to animate an <integer> custom property.

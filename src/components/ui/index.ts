@@ -112,7 +112,22 @@ export {
   RECENCY_GROUP_ORDER,
 } from './format'
 export type { RecencyGroup } from './format'
-export { focusRing, focusRingInset, hitArea, rowInteractive, metaText, textLink, inlineLink, surface } from './classes'
+export {
+  focusRing,
+  focusRingInset,
+  hitArea,
+  rowInteractive,
+  metaText,
+  textLink,
+  inlineLink,
+  surface,
+  displayTitle,
+  pageTitle,
+  sectionTitle,
+  leadText,
+} from './classes'
+export { ConceptIntro } from './ConceptIntro'
+export type { ConceptIntroProps } from './ConceptIntro'
 export { computeMenuPosition, positionFloating, supportsAnchorPositioning } from './menuPosition'
 export { useFloatingFallback } from './useFloatingFallback'
 

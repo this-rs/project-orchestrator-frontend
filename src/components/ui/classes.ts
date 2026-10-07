@@ -81,3 +81,18 @@ export const glassFlat = 'btn-flat'
 /** Segmented control (view tabs, filters) and its items. */
 export const segmented = 'seg'
 export const segmentItem = 'seg-item'
+
+/**
+ * Display scale (from the site, `website/src/components/ui/classes.ts`; recipe in
+ * `index.css` `.display-*`). The ONE sentence that names a dashboard — once per
+ * screen, above the fold, never inside a list, row, card, dialog or detail section
+ * (DESIGN.md § 2 « Display scale — where it stops »).
+ */
+/** Hero title (44→84px). Marketing only: no screen of the app has a hero. */
+export const displayTitle = 'display-1'
+/** Page-level display title (40→64px): Today's headline. */
+export const pageTitle = 'display-2'
+/** Section-level display title (32→48px): page-level empty states, the setup wizard, Login. */
+export const sectionTitle = 'display-3'
+/** Lead text under a display title: readable grey, bounded measure. */
+export const leadText = 'text-base md:text-lg leading-relaxed text-gray-400 max-w-[var(--measure-md)]'
