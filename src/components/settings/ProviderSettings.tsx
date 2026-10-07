@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react'
 import { Button, Section, EmptyState } from '@/components/ui'
 import { providersLoadStateAtom } from '@/atoms'
 import { useProviders } from '@/hooks/useProviders'
+import { useT } from '@/i18n'
 import {
   PROVIDER_SECTIONS,
   UNSUPPORTED_TEXT,
@@ -16,6 +17,7 @@ import { ProjectConsent } from './ProjectConsent'
 import { ProviderInstances } from './ProviderInstances'
 import { ProviderRoles } from './ProviderRoles'
 import { ProviderWizard } from './ProviderWizard'
+import { RoutingSettings } from './RoutingSettings'
 
 /**
  * Every provider setting, without page chrome (the `/providers` page renders it):
@@ -23,6 +25,7 @@ import { ProviderWizard } from './ProviderWizard'
  * and — folded under "Avancé" — roles, aliases and model policy.
  */
 export function ProviderSettings() {
+  const { t } = useT()
   const { providers } = useProviders()
   const state = useAtomValue(providersLoadStateAtom)
   const { hash } = useLocation()
@@ -48,7 +51,7 @@ export function ProviderSettings() {
       <nav aria-label="Sections des providers" className="flex flex-wrap gap-4 text-sm">
         {PROVIDER_SECTIONS.map((s) => (
           <a key={s.id} href={`#${s.id}`} className="text-indigo-400 hover:text-indigo-300">
-            {s.title}
+            {s.id === 'routing' ? t('routing.settings.title') : s.title}
           </a>
         ))}
       </nav>
@@ -90,6 +93,9 @@ export function ProviderSettings() {
         description="Le contenu d’un projet (prompts, fichiers, résultats d’outils) ne part que vers les origines qu’il a autorisées ; sans autorisation, il ne part nulle part ailleurs que vers Claude Code."
       >
         <ProjectConsent onAddProvider={() => setAdding(true)} />
+      </Section>
+      <Section id="routing" title={t('routing.settings.title')}>
+        <RoutingSettings />
       </Section>
       <Section
         id="advanced"
