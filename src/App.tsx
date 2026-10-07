@@ -97,6 +97,10 @@ function ModelCatalogLoader() {
   const setLoaded = useSetAtom(modelCatalogLoadedAtom)
   useEffect(() => {
     fetchModelCatalog(setModels, setLoaded)
+    // The first answer may still be the backend's fallback list (its own fetch
+    // from Anthropic runs in the background): read again once it has settled.
+    const later = setTimeout(() => fetchModelCatalog(setModels, setLoaded), 6000)
+    return () => clearTimeout(later)
   }, [setModels, setLoaded])
   return null
 }

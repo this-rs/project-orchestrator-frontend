@@ -56,3 +56,34 @@ export function fetchModelCatalog(
       setLoaded?.(true)
     })
 }
+
+/** True while a user-requested refresh is being waited for (spinner only). */
+export const modelCatalogRefreshingAtom = atom(false)
+
+/** Re-reads after a manual refresh: the backend fetches in the background. */
+const REFRESH_POLL_DELAYS_MS = [1500, 4000, 8000, 15000]
+
+/**
+ * User-requested reload ("Actualiser"). Never blocks and never throws: it asks
+ * the backend to refresh (which answers at once), then re-reads the catalog a
+ * few times while Anthropic is being queried. The current list stays usable
+ * the whole time; a failure just leaves it as it was.
+ */
+export function refreshModelCatalog(
+  set: (models: ModelDefinition[]) => void,
+  setLoaded: (loaded: boolean) => void,
+  setRefreshing: (refreshing: boolean) => void,
+) {
+  setRefreshing(true)
+  chatApi
+    .refreshModelCatalog()
+    .catch(() => {})
+    .finally(() => {
+      REFRESH_POLL_DELAYS_MS.forEach((delay, i) => {
+        setTimeout(() => {
+          fetchModelCatalog(set, setLoaded)
+          if (i === REFRESH_POLL_DELAYS_MS.length - 1) setRefreshing(false)
+        }, delay)
+      })
+    })
+}
