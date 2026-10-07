@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from 'react'
-import { useAtom, useAtomValue } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Check, ChevronDown, Lock, RefreshCw, Search } from 'lucide-react'
 import { Highlight } from '@/components/ui/SearchableSelect'
 import { fold } from '@/components/ui/searchFold'
@@ -14,6 +14,8 @@ import {
   chatSessionProviderAtom,
   modelCatalogAtom,
   modelCatalogLoadedAtom,
+  modelCatalogRefreshingAtom,
+  refreshModelCatalog,
   providersAtom,
   providersLoadStateAtom,
 } from '@/atoms'
@@ -386,11 +388,35 @@ function ModelChoices({ instance, claude, aliases, activeModelId, withDefault, d
         </div>
       )}
       {claude ? (
-        <ModelFamilyPicker groups={groups} activeModelId={activeModelId} loaded={catalogLoaded} onSelect={(id, o) => onSelect(id, o)} />
+        <>
+          <ModelFamilyPicker groups={groups} activeModelId={activeModelId} loaded={catalogLoaded} onSelect={(id, o) => onSelect(id, o)} />
+          <RefreshClaudeModels />
+        </>
       ) : (
         <ProviderModelList instance={instance} activeModelId={activeAlias ? '' : activeModelId} onSelect={(id) => onSelect(id)} />
       )}
     </>
+  )
+}
+
+/** "Actualiser": asks the backend to re-read Anthropic's list. Never blocks the menu. */
+function RefreshClaudeModels() {
+  const setModels = useSetAtom(modelCatalogAtom)
+  const setLoaded = useSetAtom(modelCatalogLoadedAtom)
+  const [refreshing, setRefreshing] = useAtom(modelCatalogRefreshingAtom)
+  return (
+    <div className="border-t border-white/[0.06] px-3 py-1.5">
+      <button
+        type="button"
+        disabled={refreshing}
+        aria-label="Actualiser la liste des modèles"
+        onClick={() => refreshModelCatalog(setModels, setLoaded, setRefreshing)}
+        className="inline-flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-200 disabled:opacity-60"
+      >
+        <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
+        {refreshing ? 'Mise à jour…' : 'Actualiser les modèles'}
+      </button>
+    </div>
   )
 }
 

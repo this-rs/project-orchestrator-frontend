@@ -105,6 +105,14 @@ export const chatApi = {
   getModelCatalog: () =>
     api.get<ModelDefinition[]>('/chat/models'),
 
+  /**
+   * Ask the backend to refresh the Claude catalog now. Answers 202 at once —
+   * the fetch runs server-side in the background; re-read `getModelCatalog`
+   * a few seconds later.
+   */
+  refreshModelCatalog: () =>
+    api.post<{ started: boolean; refreshing: boolean }>('/chat/models/refresh', {}),
+
   /** Get child sessions (detached) of a parent session, with streaming status */
   getSessionChildren: (sessionId: string) =>
     api.get<DetachedSession[]>(`/chat/sessions/${sessionId}/children`),
