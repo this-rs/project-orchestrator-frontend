@@ -115,3 +115,11 @@ export type { RecencyGroup } from './format'
 export { focusRing, focusRingInset, hitArea, rowInteractive, metaText, textLink, inlineLink, surface } from './classes'
 export { computeMenuPosition, positionFloating, supportsAnchorPositioning } from './menuPosition'
 export { useFloatingFallback } from './useFloatingFallback'
+
+// ── Motion kit (DESIGN.md § Mouvement, « Kit ») — read each file's header for where it is allowed ──
+export { Reveal } from './motion/Reveal'
+export type { RevealProps, RevealDirection } from './motion/Reveal'
+export { CountUp } from './motion/CountUp'
+export type { CountUpProps } from './motion/CountUp'
+export { SpotlightCard } from './motion/SpotlightCard'
+export type { SpotlightCardProps } from './motion/SpotlightCard'

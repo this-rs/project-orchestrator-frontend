@@ -394,9 +394,11 @@ content behind it (the class guarantees ≥ 78% opacity and a hairline border);
   material. `.glow-*` stays forbidden in lists (Don'ts). §9 « No local button
   classes » still holds: pages use `<Button>`, never `btn…` strings.
 
-Not brought up from the site (`website/DESIGN.md` §2 « Halo discret », §6):
-`SpotlightCard` (a radial halo that follows the mouse over a card) — in the app
-a card or row never decorates on hover (§10: hover only enhances colour).
+`SpotlightCard` (`website/DESIGN.md` §2 « Halo discret ») is brought up as
+`ui/motion/SpotlightCard`, with a fence: one surface per screen that invites a
+click (a page-level empty state, a step of the setup assistant) — never a row,
+a card in a list or a `StatCard`, where hover only enhances colour (§10). See
+« Kit » under Mouvement.
 
 ### Mouvement — one curve, five durations, three families
 
@@ -404,18 +406,26 @@ a card or row never decorates on hover (§10: hover only enhances colour).
 mais UNE courbe » and §6 « Une seule courbe (EASE) » ; `website/src/styles/rhythm.css`,
 `website/src/motion/tokens.ts`)*: **`--ease-standard: cubic-bezier(0.22, 1, 0.36, 1)`**.
 It is the curve the app already had as `--ease-out-soft` (same values, `index.css`);
-the canonical name is added *(planned)*, `--ease-out-soft` stays as an alias.
-Never write an `ease`, `ease-out` or `cubic-bezier(…)` by hand in a class or a
-style: `ease-(--ease-standard)` in Tailwind, `var(--ease-standard)` in CSS, `EASE`
-in a `motion/react` transition. The legacy `--transition-fast/normal/slow` (`150 /
-200 / 300ms ease`, `index.css`) are **deprecated**: they carry the generic `ease`
-curve and are replaced, usage by usage, by a named duration + `--ease-standard`.
-Springs (`utils/motion.ts`, `stiffness: 500`) are not a second curve the user can
-see at 200 ms: dialog and fade variants move to a tween on `EASE` + a named
-duration; `stripMovement` / `useVariants` (reduced motion) are unchanged.
+`--ease-out-soft` is now an alias (`var(--ease-standard)`). Never write an `ease`,
+`ease-out` or `cubic-bezier(…)` by hand in a class or a style:
+`ease-(--ease-standard)` in Tailwind, `var(--ease-standard)` in CSS, `EASE`
+(`utils/motion.ts`) in a `motion/react` transition. The Tailwind `@theme` sets
+`--default-transition-timing-function: var(--ease-standard)` and
+`--default-transition-duration: var(--duration-fast)`, so a bare
+`transition-colors` already runs on the curve. The former
+`--transition-fast/normal/slow` (`150 / 200 / 300ms ease`) **are gone**: their
+consumers run on `--duration-fast` + `--ease-standard`, and the only
+`cubic-bezier(…)` left in `index.css` are the two token declarations
+(`styles/buttons.css`, a verbatim copy of the site's, keeps its own on the sheen).
+Springs are gone too: `fadeInUp`, `dialogVariants`, `backdropVariants` are tweens
+on `EASE` + `DURATION.transition` in, `DURATION.exit` out; `stripMovement` /
+`useVariants` (reduced motion) keep opacity and never hand a dialog empty variants.
+`transition-all` is **banned** (0 left in `src/`): name what moves —
+`transition-colors`, `transition-[transform,opacity]`, `transition-[width]` for a
+progress fill — and nothing else tweens by accident.
 
 **Five named durations** *(from the site, same sources)* — all `0ms` under
-`prefers-reduced-motion` *(planned in `index.css`)*:
+`prefers-reduced-motion` (`index.css`), in seconds as `DURATION` in `utils/motion.ts`:
 
 | Token | Value | What it is for |
 |---|---|---|
@@ -425,9 +435,11 @@ duration; `stripMovement` / `useVariants` (reduced motion) are unchanged.
 | `--duration-base` | 400 ms | arrival of a whole block the user asked for (a sheet, a route's content) — never a list row |
 | `--duration-slow` | 600 ms | the ceiling of any reveal (a drawn path, a counter) — rare in the app, the site's domain |
 
-The existing aliases **stay** and keep their meaning: `--motion-feedback` (120),
-`--motion-transition` (200), `--motion-exit` (150, see below). New code uses the
-`--duration-*` names; old code is migrated when touched, never in bulk.
+The existing aliases **stay** and keep their meaning: `--motion-feedback` (=
+`--duration-instant`), `--motion-transition` (= `--duration-fast`), `--motion-exit`
+(150, see below). New code uses the `--duration-*` names; old code is migrated
+when touched. In a class, a duration is a token too: `duration-(--duration-stage)`,
+never `duration-300`.
 
 **Exits.** The site has no exit case (nothing closes on a marketing page); the
 app does. An exit is **shorter** than its entrance (`--motion-exit`, 150 ms) and
@@ -464,15 +476,32 @@ Never:
   `--duration-base` (400) is for a block the user *asked to open*, `--duration-slow`
   (600) never for an interaction.
 
-Not brought up from the site (`website/DESIGN.md` §6, « Inventaire des animations
-d'entrée »): `Reveal`, `Stagger`, `SplitText`, `CountUp`, `Marquee`, `DrawPath`,
-`MagneticButton`, `PageHero` with its `art`, `ui-rise-in` / `ui-word-in`. They tell
-a story to a visitor scrolling once; in the app every list reloads and an entrance
-would replay on each refetch (§8), and a loop (`Marquee`) is decoration. The site's
-hard rules that *do* apply here are already above: animate `transform` / `opacity`
-only, one thing moves at a time, nothing is animated twice, data never animates.
+**Kit** — `ui/motion/` (exported from `ui/index.ts`), three pieces copied from
+the site's kit (`website/src/motion/`), each with a fence written in its file
+header. The fence is the rule; the component is only the recipe.
+
+| Piece | What it does | Allowed | Forbidden |
+|---|---|---|---|
+| `Reveal` | fade + rise of 12 px, 400 ms (`--duration-base`), once, when the block enters the viewport (`trigger="view"`, Web Animations) or at mount in pure CSS (`trigger="load"` → `.ui-rise-in`). Nothing moves under reduced motion. | a page-level `EmptyState`, the setup assistant, the headline of Today — a block the user asked to open | list items, rows, cards in a list, anything fed by live data, inside a dialog / menu / toast (they have their own entrance). `Stagger` is not brought over. |
+| `CountUp` | counts to a value in `tabular-nums`, once, ≤ 600 ms (`--duration-slow`, clamped); prop-compatible with `AnimatedCounter` (`value`, `prefix`, `suffix`, `className`, `duration` in ms); final value under reduced motion | a figure of **proof** read once: Today's headline counters, a `StatCard` on a detail page, a finished run's summary | live data — tokens while streaming, cost ticking, a progress percentage, anything re-rendering many times a second; one counter per row |
+| `SpotlightCard` | a `surface` with a 10 % indigo halo following a **mouse** pointer (`pointer-fine:` + `group-hover`), hidden under reduced motion; colour only, the card never moves | one surface per screen that invites a click (empty-state action, a setup step) | lists, `EntityRow`, `StatCard` tiles, glass, nested |
+
+Still not brought up from the site (`website/DESIGN.md` §6, « Inventaire des
+animations d'entrée »): `Stagger`, `SplitText`, `Marquee`, `DrawPath`,
+`MagneticButton`, `PageHero` with its `art`, `ui-word-in`. They tell a story to a
+visitor scrolling once; in the app every list reloads and an entrance would replay
+on each refetch (§8), and a loop (`Marquee`) is decoration. The site's hard rules
+that *do* apply here are already above: animate `transform` / `opacity` only, one
+thing moves at a time, nothing is animated twice, data never animates.
+
+Hovers that **transform** (a lift, a scale) exist only for a fine pointer:
+`@media (hover: hover) and (pointer: fine)` in CSS (`.card-hover`), the
+`pointer-fine:hover:` variant in a class (heatmap cells, graph nodes). A finger
+has no hover: the state would stick after the tap. Colour on hover needs no fence.
 
 Accessibility: under `prefers-reduced-motion`, keep opacity changes (state
-must stay legible) and drop movement/scale — `popIn` and `pressFeedback`
-already do this; the `--duration-*` tokens fall to `0ms`.
+must stay legible) and drop movement/scale — `popIn`, `pressFeedback`, the toast
+entrance (`@starting-style`, interruptible) and `useVariants` do this; the
+`--duration-*` tokens fall to `0ms`, `Reveal` / `CountUp` / `SpotlightCard` do
+nothing.
 

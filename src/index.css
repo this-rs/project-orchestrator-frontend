@@ -913,6 +913,17 @@ html.tauri * {
   --pop-from-y: 4px;
   transform-origin: bottom;
 }
+/* Reveal, trigger="load" (ui/motion/Reveal.tsx) — pure CSS entrance of a block
+   already on screen at mount: fade + rise (12 px at most), --duration-base on
+   the single curve. Reserved to page-level empty states, the setup assistant
+   and Today's headline; never a list row (DESIGN.md § Mouvement, « Kit »). */
+@keyframes ui-rise-in {
+  from { opacity: 0; translate: var(--rise-x, 0px) var(--rise-y, 12px); }
+  to { opacity: 1; translate: 0 0; }
+}
+.ui-rise-in {
+  animation: ui-rise-in var(--rise-duration, 400ms) var(--ease-standard) var(--rise-delay, 0ms) both;
+}
 /* Toast entrance — transition family (slides in from the edge it lives on).
    A transition from @starting-style, not a keyframe: it is interruptible (a
    toast dismissed mid-entrance just transitions out of where it is) and it
@@ -950,6 +961,8 @@ html.tauri * {
   @starting-style {
     .ui-toast-in { transform: none; }
   }
+  /* Its duration is inline (from the prop), so the token at 0ms does not reach it. */
+  .ui-rise-in { animation: none; }
 }
 
 
