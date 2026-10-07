@@ -1,21 +1,23 @@
 import { AttachSessionButton } from '@/components/discussions/AttachSessionButton'
+import { AttachSessionDialog } from '@/components/discussions/AttachSessionDialog'
+import { OverflowMenu } from '@/components/ui/OverflowMenu'
+import { useRequestAttentionRefresh } from '@/hooks/useAttentionCount'
 import { useAtom } from 'jotai'
 import { useChatUrlSync } from '@/hooks/useChatUrlSync'
 import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom } from '@/atoms'
 import { useChat, useDetachedRuns, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { useProviders } from '@/hooks/useProviders'
 import { useSessionLive } from '@/hooks/useSessionLive'
-import { describeSessionProvider, providerUnavailableReason, shouldShowProviderBadge } from '@/constants/providers'
+import { describeSessionProvider, providerUnavailableReason } from '@/constants/providers'
 import { INSTANCE_MISSING_COMPOSER_TEXT, NO_PROVIDER_COMPOSER_TEXT, NO_PROVIDER_ERROR } from '@/constants/providerErrors'
 import { RESUME_UNSUPPORTED_TEXT } from '@/constants/capabilities'
 import type { BackgroundTaskInfo } from '@/types'
 import { chatApi } from '@/services/chat'
-import { Plus, X, Menu, Settings, Minimize2, Maximize2, Loader2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check } from 'lucide-react'
+import { Plus, X, Menu, Settings, Minimize2, Maximize2, Loader2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check, Link2 } from 'lucide-react'
 import { ChatMessages } from './ChatMessages'
 import { ChatCapabilitiesProvider, ChatSessionProvider } from './ChatSessionContext'
 import { ProviderStateCard } from './ProviderStateCard'
 import { ChatHeaderTitle } from './ChatHeaderTitle'
-import { ProviderBadge } from './ProviderBadge'
 import { PolicyOnlyBanner } from './PolicyOnlyBanner'
 import { RemoteNoToolsBanner } from './RemoteNoToolsBanner'
 import { EngineBanner } from './EngineBanner'
@@ -77,6 +79,8 @@ export function ChatPanel() {
   const [isMobile, setIsMobile] = useState(false)
   const [prefill, setPrefill] = useState<PrefillPayload | null>(null)
   const [showAgentTree, setShowAgentTree] = useState(false)
+  const [showAttach, setShowAttach] = useState(false)
+  const requestAttentionRefresh = useRequestAttentionRefresh()
   const [copiedChat, setCopiedChat] = useState(false)
   const chat = useChat()
   // Provider instances of this server, for the project the chat is about. The
@@ -235,7 +239,6 @@ export function ChatPanel() {
     isNewConversation && providerList !== null && !providerList.some((p) => providerUnavailableReason(p) === null)
   // The provider this conversation runs on, as its `system_init` named it.
   const sessionProviderInfo = describeSessionProvider(sessionProvider, providerList)
-  const showProviderBadge = !isNewConversation && shouldShowProviderBadge(sessionProviderInfo, providerList)
   // Its instance was deleted since: the conversation cannot be resumed.
   const instanceMissing = !isNewConversation && sessionProviderInfo.unavailable
   // A provider that cannot resume can only be talked to while its process lives.
@@ -408,9 +411,6 @@ export function ChatPanel() {
       <EngineBanner degraded={engine.degraded} />
     </>
   )
-  const headerProviderBadge = showProviderBadge ? (
-    <ProviderBadge description={sessionProviderInfo} model={sessionModel} />
-  ) : null
 
   // --- FULLSCREEN LAYOUT: sidebar + conversation side by side ---
   // On mobile (<768px): sidebar is a full-screen overlay toggled via hamburger
@@ -489,7 +489,7 @@ export function ChatPanel() {
         <div className="flex-1 flex flex-col min-w-0">
           {/* Conversation header */}
           <div className="h-14 flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0">
-            <div className="min-w-0 flex items-center gap-2">
+            <div className="min-w-0 flex flex-1 items-center gap-2">
               {/* Mobile: hamburger to toggle sidebar */}
               <button
                 onClick={() => { if (isMobile) setShowMobileSidebar(true) }}
@@ -514,10 +514,9 @@ export function ChatPanel() {
                           }
                         : null
                 }
-                badge={headerProviderBadge}
               />
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex shrink-0 items-center gap-1">
               <button
                 onClick={handleNewSession}
                 disabled={isNewConversation}
@@ -712,7 +711,7 @@ export function ChatPanel() {
 
       {/* Header */}
       <div className="h-14 flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex flex-1 items-center gap-2 min-w-0">
           <button
             onClick={() => { setShowSessions(!showSessions); setShowSettings(false) }}
             className={`shrink-0 p-1.5 rounded-md transition-colors ${showSessions ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
@@ -720,7 +719,7 @@ export function ChatPanel() {
           >
             <Menu className="w-4 h-4" />
           </button>
-          <div className="min-w-0 flex items-center gap-1.5">
+          <div className="min-w-0 flex flex-1 items-center gap-1.5">
             {/* WS status dot — only show when connected to a session */}
             {!isNewConversation && <WsStatusDot status={chat.wsStatus} />}
             <ChatHeaderTitle
@@ -734,11 +733,12 @@ export function ChatPanel() {
                       ? { kind: 'project', label: chat.sessionMeta.projectSlug, to: workspacePath(activeWsSlug, `/projects/${chat.sessionMeta.projectSlug}`) }
                       : null
               }
-              badge={headerProviderBadge}
             />
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        {/* Four controls, not seven: a docked panel is narrow (400 px by default) and seven 28 px
+            buttons left the title about 70 px. The less frequent ones live under the ⋯ menu. */}
+        <div className="flex shrink-0 items-center gap-1">
           <button
             onClick={handleNewSession}
             disabled={isNewConversation}
@@ -747,20 +747,6 @@ export function ChatPanel() {
           >
             <Plus className="w-4 h-4" />
           </button>
-          {/* Link this conversation to a plan or a task of its project */}
-          {!isNewConversation && chat.sessionId && (
-            <AttachSessionButton variant="icon" sessionId={chat.sessionId} projectSlug={chat.sessionMeta?.projectSlug} />
-          )}
-          {/* Agent Tree toggle — visible when session has children */}
-          {hasChildren && chat.sessionId && (
-            <button
-              onClick={() => { setShowAgentTree(!showAgentTree); setShowSettings(false); setShowSessions(false) }}
-              className={`p-1.5 rounded-md transition-colors ${showAgentTree ? 'text-emerald-400 bg-emerald-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
-              title="Agent Tree"
-            >
-              <TreePine className="w-4 h-4" />
-            </button>
-          )}
           {/* Permission settings gear icon */}
           <button
             onClick={() => { setShowSettings(!showSettings); setShowSessions(false); setShowAgentTree(false) }}
@@ -772,23 +758,24 @@ export function ChatPanel() {
               <span className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ${modeColor} ring-1 ring-[#1a1d27]`} />
             )}
           </button>
-          {/* Copy chat to clipboard */}
-          {chat.messages.length > 0 && (
-            <button
-              onClick={handleCopyChat}
-              className={`p-1.5 rounded-md transition-colors ${copiedChat ? 'text-emerald-400' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
-              title={copiedChat ? 'Copied!' : 'Copy chat as markdown'}
-            >
-              {copiedChat ? <Check className="w-4 h-4" /> : <ClipboardCopy className="w-4 h-4" />}
-            </button>
-          )}
-          <button
-            onClick={() => setMode('fullscreen')}
-            className="p-1.5 rounded-md transition-colors hidden md:flex text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]"
-            title="Fullscreen"
-          >
-            <Maximize2 className="w-4 h-4" />
-          </button>
+          <OverflowMenu
+            size="sm"
+            label="Conversation actions"
+            actions={[
+              // Link this conversation to a plan or a task of its project
+              { label: 'Attach to a plan or task…', icon: Link2, hidden: isNewConversation || !chat.sessionId, onClick: () => setShowAttach(true) },
+              // Agent Tree toggle — visible when session has children
+              {
+                label: showAgentTree ? 'Hide the agent tree' : 'Show the agent tree',
+                icon: TreePine,
+                hidden: !(hasChildren && chat.sessionId),
+                onClick: () => { setShowAgentTree(!showAgentTree); setShowSettings(false); setShowSessions(false) },
+              },
+              // Copy chat to clipboard
+              { label: copiedChat ? 'Copied!' : 'Copy chat as markdown', icon: copiedChat ? Check : ClipboardCopy, hidden: chat.messages.length === 0, onClick: handleCopyChat },
+              { label: 'Fullscreen', icon: Maximize2, hidden: isMobile, onClick: () => setMode('fullscreen') },
+            ]}
+          />
           <button
             onClick={() => setMode('closed')}
             className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
@@ -798,6 +785,17 @@ export function ChatPanel() {
           </button>
         </div>
       </div>
+
+      {/* The dialog of "Attach to a plan or task…" (the ⋯ menu opens it) */}
+      {chat.sessionId && (
+        <AttachSessionDialog
+          open={showAttach}
+          onClose={() => setShowAttach(false)}
+          sessionId={chat.sessionId}
+          projectSlug={chat.sessionMeta?.projectSlug}
+          onAttached={requestAttentionRefresh}
+        />
+      )}
 
       {/* Back to parent button — shown when session is spawned */}
       {parentSessionId && (
