@@ -30,6 +30,12 @@ import { CreateProjectForm, EditProjectForm } from '@/components/forms'
 import { workspacePath } from '@/utils/paths'
 import type { Project } from '@/types'
 import { NOMENCLATURE } from '@/constants/nomenclature'
+import { PROJECT_PROFILE_TEXT, hasCodebase, profileIcon, profileLabel, profileOf } from '@/constants/projectProfile'
+
+const TEXT = {
+  description: 'Projects with or without code',
+  emptyDescription: 'Create a project: a folder of code to index, or only plans, notes and documents.',
+} as const
 
 function matches(p: Project, q: string) {
   const needle = q.trim().toLowerCase()
@@ -94,11 +100,14 @@ export function ProjectsPage() {
       slug: editingProject?.slug,
       description: editingProject?.description,
       root_path: editingProject?.root_path,
+      profile: editingProject?.profile,
     },
     onSubmit: async (data: EditProjectFormData) => {
       if (!editingProject) return
       await projectsApi.update(editingProject.slug, data)
-      setProjects((prev) => prev.map((p) => (p.id === editingProject.id ? { ...p, ...data } : p)))
+      setProjects((prev) =>
+        prev.map((p) => (p.id === editingProject.id ? { ...p, ...data, root_path: data.root_path || undefined } : p)),
+      )
       toast.success('Project updated')
     },
   })
@@ -148,7 +157,7 @@ export function ProjectsPage() {
   return (
     <PageShell
       title={NOMENCLATURE.projects.plural}
-      description="Track your codebase projects"
+      description={TEXT.description}
       count={loading || error ? undefined : projects.length}
       width="wide"
       actions={
@@ -190,7 +199,7 @@ export function ProjectsPage() {
         <EmptyState
           variant="projects"
           title="No projects yet"
-          description="Create a project to start tracking your codebase."
+          description={TEXT.emptyDescription}
           action={<Button onClick={openCreateDialog}>New project</Button>}
         />
       ) : visible.length === 0 ? (
@@ -252,6 +261,9 @@ function ProjectRow({
   onEdit: () => void
   onDelete: () => Promise<void>
 }) {
+  const profile = profileOf(project)
+  // Only a codebase is synced: a project without code is never "behind".
+  const neverSynced = hasCodebase(project) && !project.last_synced
   return (
     <EntityRow
       title={project.name}
@@ -261,9 +273,12 @@ function ProjectRow({
       description={project.description || undefined}
       context={<TaskProgress counts={counts} />}
       trailing={project.last_synced ? <RelativeTime date={project.last_synced} prefix="synced " /> : undefined}
-      tone={project.last_synced ? undefined : 'warning'}
-      status={project.last_synced ? undefined : [<ToneText key="never" tone="warning" icon label="Never synced" />]}
+      tone={neverSynced ? 'warning' : undefined}
+      status={neverSynced ? [<ToneText key="never" tone="warning" icon label="Never synced" />] : undefined}
       meta={[
+        <Fact key="type" icon={profileIcon(profile)} title={PROJECT_PROFILE_TEXT.type}>
+          {profileLabel(profile)}
+        </Fact>,
         <Fact key="slug" icon={Hash} mono>
           {project.slug}
         </Fact>,

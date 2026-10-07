@@ -74,12 +74,22 @@ export interface Workspace {
   metadata?: Record<string, unknown>
 }
 
+/**
+ * What a project is made of, as the backend stores it (`ProjectProfile`):
+ * `software` is a codebase (a folder that is synced and watched), `work` is
+ * plans, tasks, notes and documents with no source tree. A payload without
+ * the field predates profiles and is `software`.
+ */
+export type ProjectProfile = 'software' | 'work'
+
 export interface Project {
   id: string
   name: string
   slug: string
-  /** Optional: a non-code project (planning, documents) has no folder. */
+  /** Optional: a `work` project (planning, documents) has no folder. */
   root_path?: string
+  /** `software` (default) or `work`. Missing on payloads older than the field. */
+  profile?: ProjectProfile
   description?: string
   created_at: string
   last_synced?: string
@@ -1400,8 +1410,11 @@ export interface CreateWorkspaceRequest {
 export interface CreateProjectRequest {
   name: string
   slug?: string
+  /** Required for a `software` project; omitted for a `work` one. */
   root_path?: string
   description?: string
+  /** `software` (backend default) or `work`. */
+  profile?: ProjectProfile
 }
 
 export interface CreatePlanRequest {

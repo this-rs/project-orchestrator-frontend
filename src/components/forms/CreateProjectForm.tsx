@@ -2,11 +2,16 @@ import { useState } from 'react'
 import { FolderOpen } from 'lucide-react'
 import { Button, Input, Textarea } from '@/components/ui'
 import { isTauri } from '@/services/env'
+import { PROJECT_PROFILE_TEXT } from '@/constants/projectProfile'
+import type { ProjectProfile } from '@/types'
+import { ProjectProfileField } from './ProjectProfileField'
 
 export interface CreateProjectFormData {
   name: string
   slug: string
-  /** Empty for projects that are not code (a budget, a launch, a trip). */
+  /** `software` (a folder to index) or `work` (plans, notes, documents — no folder). */
+  profile: ProjectProfile
+  /** Set for a `software` project, absent for a `work` one. */
   root_path?: string
   description: string
 }
@@ -23,12 +28,15 @@ async function pickDirectory(): Promise<string | null> {
 }
 
 export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
+  const [profile, setProfile] = useState<ProjectProfile>('software')
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
   const [slugTouched, setSlugTouched] = useState(false)
   const [rootPath, setRootPath] = useState('')
   const [description, setDescription] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  const withCode = profile === 'software'
 
   const handleNameChange = (value: string) => {
     setName(value)
@@ -42,16 +50,25 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
     }
   }
 
+  const clearError = (key: string) =>
+    setErrors((prev) => {
+      if (!(key in prev)) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+
+  const handleProfileChange = (next: ProjectProfile) => {
+    setProfile(next)
+    if (next === 'work') clearError('root_path')
+  }
+
   const handleBrowse = async () => {
     try {
       const dir = await pickDirectory()
       if (dir) {
         setRootPath(dir)
-        setErrors((prev) => {
-          const next = { ...prev }
-          delete next.root_path
-          return next
-        })
+        clearError('root_path')
       }
     } catch (e) {
       console.error('Directory picker failed:', e)
@@ -65,6 +82,7 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
   const validate = () => {
     const errs: Record<string, string> = {}
     if (!name.trim()) errs.name = 'Name is required'
+    if (withCode && !rootPath.trim()) errs.root_path = PROJECT_PROFILE_TEXT.folder.required
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -80,6 +98,7 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
             </span>
           </p>
         )}
+        <ProjectProfileField value={profile} onChange={handleProfileChange} />
         <Input
           label="Name"
           placeholder="My Project"
@@ -97,28 +116,33 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
             setSlug(e.target.value)
           }}
         />
-        <div className="flex items-start gap-2">
-          <Input
-            label="Folder (optional)"
-            placeholder="/path/to/project — leave empty if this is not a code project"
-            value={rootPath}
-            onChange={(e) => setRootPath(e.target.value)}
-            error={errors.root_path}
-            className="font-mono"
-          />
-          {isTauri && (
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={handleBrowse}
-              aria-label="Browse for folder"
-              title="Browse for folder"
-              className="shrink-0 mt-6 h-10 w-10 px-0"
-            >
-              <FolderOpen className="w-4 h-4" aria-hidden="true" />
-            </Button>
-          )}
-        </div>
+        {withCode && (
+          <div className="flex items-start gap-2">
+            <Input
+              label={PROJECT_PROFILE_TEXT.folder.label}
+              placeholder={PROJECT_PROFILE_TEXT.folder.placeholder}
+              value={rootPath}
+              onChange={(e) => {
+                setRootPath(e.target.value)
+                clearError('root_path')
+              }}
+              error={errors.root_path}
+              className="font-mono"
+            />
+            {isTauri && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleBrowse}
+                aria-label={PROJECT_PROFILE_TEXT.folder.browse}
+                title={PROJECT_PROFILE_TEXT.folder.browse}
+                className="shrink-0 mt-6 h-10 w-10 px-0"
+              >
+                <FolderOpen className="w-4 h-4" aria-hidden="true" />
+              </Button>
+            )}
+          </div>
+        )}
         <Textarea
           label="Description"
           placeholder="Optional description..."
@@ -133,7 +157,8 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
       await onSubmit({
         name: name.trim(),
         slug: slug.trim() || (undefined as unknown as string),
-        root_path: rootPath.trim() || undefined,
+        profile,
+        root_path: withCode ? rootPath.trim() : undefined,
         description: description.trim(),
       })
     },
