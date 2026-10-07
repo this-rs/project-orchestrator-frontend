@@ -9,6 +9,15 @@ Everything below is importable from `@/components/ui`. Page code must not
 re-implement a primitive that exists here; if something is missing, compose
 existing primitives inside the page's own folder — never copy/paste a variant.
 
+**This file is the source of truth for the product AND for the marketing site**
+(`website/DESIGN.md` §0: "le frontend fait foi"; decision D-DESIGN-1). When the
+site proves a recipe worth keeping, it is brought *up* into this contract and
+into `@/components/ui`, then the site re-syncs (`pnpm check:design`). The rules
+marked *(from the site)* below came that way on 2026-10-07 (audit matrix: MCP note
+"Matrice d'écarts site→app"); each cites the `website/DESIGN.md` section it comes
+from. Primitives named here that do not exist yet in `@/components/ui` are marked
+*(planned)*: the contract leads, the code follows in the next tasks of the plan.
+
 ---
 
 ## 0. Names come from one place
@@ -24,6 +33,28 @@ by hand in a page: `<PageShell title={NOMENCLATURE.plans.plural}>`.
   the breadcrumb shows it in place of the id.
 - New concept or new page = one entry in the registry, then it appears in the
   menu and the breadcrumb. Every route must be reachable from the sidebar.
+- **A concept explains itself in three sentences** *(from the site —
+  `website/DESIGN.md` §6 « Expliquer une interface », `AUDIENCE.md` §9 « Les quatre
+  lignes de l'Explainer »)*: each registry entry carries an `explain` block
+  *(planned)* with `what` (what you are looking at), `why` (what you get from it)
+  and `different` (how it differs from what you do today: scattered notes, a chat
+  with no memory). One sentence each, the product's words (`Assistant`, never
+  `agent`; `Objective`, never `milestone`), no technical term without its
+  definition in the same sentence. It is rendered by `ConceptIntro` *(planned)*
+  — see §5 « Explaining a concept ». A page never types its own intro.
+- **The words of Today are concepts too.** « À traiter / À reprendre / En cours /
+  À suivre », « Assistants », the resume labels live in `components/today/bands.ts`
+  (`TODAY_TEXT`, `STUCK_LABEL`), `today/live/text.ts`, `today/work/text.ts` — the
+  site cannot import them and retypes them (`AUDIENCE.md` §7). They move next to
+  the registry (one importable module), in ONE language per registry: today the
+  registry mixes English concepts with a French `today.description` and `NAV_TEXT`;
+  which language is a product decision (`AUDIENCE.md` §8.1), mixing is not.
+- **`profile` is a filter, not a label.** Every entry declares `profile: 'all' |
+  'software'`; the sidebar (`MainLayout`) shows a `software` concept only when the
+  current project has code, and the project form offers the profile. Today the
+  field is declared and read nowhere (`website` has to state it as a limit,
+  `features.limits` « A project with no code starts from an assistant »): closing
+  that gap is the first promise the app owes the site.
 - **Today is the root of the application, above the workspaces.** It is not in
   `NAV_GROUPS` (the sidebar of ONE workspace) and it is not repeated in any menu:
   its icon sits at the left of the header on every page (one click, `/today`),
@@ -84,15 +115,30 @@ by hand in a page: `<PageShell title={NOMENCLATURE.plans.plural}>`.
 | Body | `text-sm text-gray-300` | descriptions, markdown |
 | Secondary line | `text-xs text-gray-500` | row description / preview |
 | Meta | `text-[11px] leading-4 text-gray-500` (`metaText`, `MetaLine`) | metadata, counts, dates |
+| **Display title** *(from the site)* | `display-2` (`--fluid-5xl`, 40→64px) · `display-3` (`--fluid-4xl`, 32→48px) — weight 600, tight tracking, `text-balance`, `text-gray-50/100` *(planned in `index.css` + `classes.ts`: `pageTitle`, `sectionTitle`)* | the ONE sentence that names a dashboard: Today's `headline`, a page-level `EmptyState` (« No X yet »), the setup wizard steps, the Login title |
+| **Lead text** *(from the site)* | `leadText` = `text-base md:text-lg leading-relaxed text-gray-400 max-w-[var(--measure-md)]` *(planned)* | the one line under a display title (Today's `why`, the empty state's description) |
 
 Numbers that change or align (counts, dates, costs) use `tabular-nums`. No
 `uppercase tracking-wider` labels, no `text-lg`+ inside rows, no bold in meta.
+
+**Display scale — where it stops** *(from the site — `website/DESIGN.md` §2 « Titres
+plus grands, en échelle fluide »)*. The site has three display sizes; the app takes
+two. `display-1` (`--fluid-display`, 44→84px) is a full-screen hero size and stays
+marketing: no screen of the app has a hero, and Today's headline shares its row
+with the counters and the workspace filter. `display-2`/`display-3` replace the
+hand-written `text-2xl … @2xl/today:text-[2rem]` of `TodayView`, the `text-2xl
+font-bold` of `LoginPage` and the `text-xl` of the setup steps. A display title
+appears **once per screen, above the fold, outside any list, row, card or detail
+section**: `PageShell`/`PageHeader` titles (`text-xl md:text-2xl`) are unchanged,
+and a display class inside an `EntityRow`, a `Section` or a dialog is a bug. It
+scales with the viewport (`clamp`), never with a container query.
 
 ## 3. Colour roles
 
 - Surfaces: page `surface-base` (from layout) · list/section container `surface` (`rounded-xl border border-white/[0.06] bg-white/[0.02]`) · menus `bg-surface-popover`. Existing `Card` is fine for rich content blocks.
 - Text: `gray-100` titles · `gray-200` row titles · `gray-300` body · `gray-400` secondary · `gray-500` meta · `gray-600/700` separators & placeholders.
 - **One accent: indigo.** Selection, focus rings, primary buttons, active tab, links-as-actions (`textLink`). Don't introduce other accent colours.
+  - **The single exception** *(from the site — `website/DESIGN.md` §0 « boutons en verre (écart volontaire) », which §3 « Interdits : dégradés violets » otherwise forbids)*: the fill of the **primary glass button** and of the **active item of the segmented control** is the gradient `linear-gradient(135deg, #4f46e5, #7c3aed)` (indigo → violet, recipe `.btn-primary` / `.seg-item[aria-selected]` in `buttons.css`). It is a *material* highlight on the one control that says "this is the action", not a second accent: the violet never appears as text, icon, border, rail, badge or tone, and `special` (violet) stays reserved to statuses (§4). Anything else using `from-violet-*`, `to-cyan-*` or `bg-clip-text` is still a bug. Naming the exception here is what makes the two contracts consistent again.
 - Semantic colours only through status tones (see §4) — never as decoration.
 - Entity-type icons may keep their hue (plan = blue, RFC = purple, task = amber) at icon size only, never as filled backgrounds.
 
@@ -163,6 +209,9 @@ cue: the status has a tone-shaped glyph (`icon`) and a word, the rail is redunda
 - **Huge lists / no server pagination**: never render the whole array. `useIncrementalList(items, pageSize, resetKey)` (`@/hooks`) returns the first page plus `hasMore` / `remaining` / `showMore`; pair it with `LoadMoreSentinel` (`onLoadMore`, `remaining`, a no-op `sentinelRef`) and a muted "Showing N of M" line. Search/sort/filter go on the **full** array before slicing. Applies equally to groups inside a detail page (one hook per `ListGroup`).
 - **Browse-everything lists (code entities, logs)**: when readability, not count, is the problem, never cap — render every row in an internal scroller with `WindowedList` (`items: {key, height, header?}[]`, fixed-height rows, sticky group headers, focusable `role=region`, `resetKey` to go back to top on search / group-by). Only the rows in view are mounted; search still runs on the full array. Make each row *speak*: a humanized title (`humanize`), the exact code name as secondary mono text, one sentence of explanation (`firstSentence(docstring)` or a derived sentence), and a `Gauge` with a word instead of a raw score (`@/utils/featureGraphReadable`).
 - **Explaining a concept**: a closed-by-default `<details>` intro under the header (see `components/featureGraphs/FeatureGraphHelp.tsx`) — plain language, one paragraph per idea, never a wall of text on the page itself. Legends for colours/edge styles sit under the canvas, colour is never the only cue.
+  - **The intro has a fixed shape** *(from the site — `website/DESIGN.md` §6 « Expliquer une interface », `src/components/explain/Explainer.tsx`; writing rules `AUDIENCE.md` §9)*: three labelled lines, one sentence each — **What it is** (`what`), **What it is for** (`why`), **How it is different** (`different`, compared with what the person does today, never with a competitor). An optional fourth, **The problem it solves** (`problem`), only when the page does not already say it. Never fewer than three: without `different` the screen reads as any task manager.
+  - The text is **read from the registry** (`NOMENCLATURE[key].explain`, see §0) and rendered by **`ConceptIntro`** *(planned)*: `<ConceptIntro concept="plans" />` under the `PageShell` header, a `<details>` closed by default with a `<summary>` « About {plural} », a `<dl>` of the three lines (`dt` 13px `text-gray-400`, `dd` `text-sm text-gray-200`), no icon, no illustration. `FeatureGraphHelp` is the shape it generalises and migrates to it. Where the site keeps the block **always visible** (its reader is a visitor), the app keeps it **folded** (its reader comes back every day, §5 density): that is the one deliberate difference.
+  - The intro answers "what is this screen"; it never carries a product promise or a roadmap status (the site's `VisionLine` « Notre idée : … » with Disponible / En cours / Prévu stays marketing). In the app a feature that is not there yet is simply absent, or an `EmptyState` says what to do now.
 - **Canvases (React Flow)**: bound the work, not just the DOM. Draw every node, lay them out once per selection in a macrotask behind a skeleton (`layoutSubgraph`: dagre for small graphs, a linear layered layout for big ones), cap only the *edges* and say so, pass `onlyRenderVisibleElements`, draw edge labels only on small graphs, and offer a retry on layout errors.
 - Bulk selection: put a `RowCheckbox` (36px target, keyboard, `label="Select …"`) in `leading` (it sits above the stretched link).
 - Rows that expand inline content pass `expanded` (→ `aria-expanded` on the title control) and keep `ariaLabel` free of verbs; `menuLabel` names the `⋯` menu when the title is not plain text.
@@ -262,11 +311,16 @@ Anatomy: **PageHeader → key facts line → sections**.
 - Controls: `TabLayout` (page tabs), `ViewTabs` (segmented views), `ViewToggle` (list/board), `RowCheckbox` (bulk selection), `ProgressLine`, `TaskProgress`, `Meter`, `Gauge`, `StatTiles`.
 - List cards: `EntityRow` (`status`, `tone`, `meta`, `context`), `MetaLine variant="facts"`, `Fact`.
 - Classes: `focusRing`, `focusRingInset`, `hitArea`, `rowInteractive`, `metaText`, `textLink`, `inlineLink`, `surface`.
+- *(planned, from the site)* Glass controls: `glassButton` (`primary | secondary | danger | ghost`), `iconButton(variant, size)`, `glassFlat` (`btn-flat`), `segmented` / `segmentItem` (§Matière). Display scale: `pageTitle` (`display-2`), `sectionTitle` (`display-3`), `leadText` (§2). Explaining: `ConceptIntro` (§5). Motion tokens: `--ease-standard`, `--duration-instant | fast | stage | base | slow` (§Mouvement).
 - Menus: `OverflowMenu`, `StatusMenu`, `useFloatingFallback`, `positionFloating`.
 
 ## Don'ts
 
-- Filled status pills (`Badge` with a `variant` for status), `glow-*` effects in lists.
+- Filled status pills (`Badge` with a `variant` for status), `glow-*` effects in lists, `.btn-glow-*` once `Button` is glass (§Matière).
+- Glass (`ui-glass`, `.btn` recipe) on a card, a row, a section or a chat bubble; more than ~10 blurred controls visible at once (use `btn-flat`).
+- A display title (`display-2/3`) inside a list, a row, a card, a dialog or a detail section; `display-1` anywhere in the app.
+- An `ease`, `ease-out` or `cubic-bezier(…)` written by hand; a new use of `--transition-fast/normal/slow` or of `--ease-in-soft`.
+- A page that types its own concept intro, promise or roadmap status instead of `ConceptIntro` reading the registry.
 - `opacity-0 group-hover:opacity-100` actions.
 - Local `relativeTime()` / `timeAgo()` helpers — use `format.ts`.
 - Filters/search in `PageShell.actions`.
@@ -285,19 +339,110 @@ cause-and-effect** readable, never to decorate.
 | Page, sections, rows, cards | **Opaque** surfaces (`surface`, `bg-surface-*`) | Text on blur loses contrast; large blurred areas are expensive to composite on a phone while scrolling. |
 | Floating layers: menus, popovers, dropdowns, sheets, sticky bars, toasts, the chat queue bar | **Glass** (`glass` → `.ui-glass`) | Says "this is above the page, the page is still there" — keeps context visible behind a transient layer. |
 | Modal dialogs | Opaque panel + dimmed (not blurred) backdrop | Focus on one task; blurring the whole viewport costs a full-screen blur for nothing. |
+| **Buttons** (`Button` — primary, secondary, danger, ghost — and icon buttons) and the **segmented control** (`ViewTabs`, `ViewToggle`) *(from the site)* | **Glass**, recipe `buttons.css` (`.btn`, `.btn-primary/-secondary/-danger/-ghost`, `.btn-icon`, `.btn-flat`, `.seg`, `.seg-item`) *(planned in `index.css` + `classes.ts`: `glassButton`, `iconButton`, `glassFlat`, `segmented`, `segmentItem`)* | A control is small and sits *on* the page: tinted translucent fill (blur 12px + saturate), a 1px gradient hairline (`::after`), an inner highlight at the top, a soft sheen that slides on hover/focus (`::before`). It reads as "something you can press", which a flat `bg-indigo-600` never did, and it is the one place where the site and the app visibly differed. |
 
 Rules: one glass layer at a time (never glass on glass); blur radius fixed by
-the token (14px) — don't invent others; glass must stay readable with any
+the token (14px for layers, 12px for controls — the two values in `buttons.css`
+and `.ui-glass`, don't invent others); glass must stay readable with any
 content behind it (the class guarantees ≥ 78% opacity and a hairline border);
 `.ui-glass` falls back to opaque without `backdrop-filter` and under
 `prefers-reduced-transparency`.
 
-### Mouvement — three families, three timings
+**Glass on controls — the rules that come with it** *(from the site —
+`website/DESIGN.md` §0, table row `components/ui/Button.tsx` « boutons en verre
+(écart volontaire) », and the header of `website/src/styles/buttons.css`)*:
+
+- **Still forbidden on content.** Cards, rows, sections, mockups, the chat
+  bubbles, `EntityRow`, `Section`, `Surface`: opaque, as above. The site's §1
+  (« Verre : uniquement sur une couche flottante ») and this table agree; the
+  app's own `Card` / `StatCard` (`glass … card-hover`, `glass … border-t-2`) are
+  the debt, not the rule — they migrate to `surface`.
+- **A budget of blurs: at most ~10 visible at once.** A `backdrop-filter` is
+  composited per element while scrolling. A dense row of controls (every `⋯` of
+  a list, the actions of a toolbar, buttons inside `EntityRow.primaryAction`) is
+  **`btn-flat`**: same fill, hairline and sheen, no blur. Rule of thumb: a button
+  that repeats per row is flat; a button that appears once per screen (primary
+  action, dialog footer, empty-state action) may blur.
+- **Variants, unchanged in meaning.** `primary` = indigo→violet glass (the colour
+  exception of §3), one per zone; `secondary` = neutral glass; `danger` = red
+  glass, only with `confirm`; `ghost` = nothing at rest, the glass appears on
+  hover / focus / `aria-expanded="true"` / `aria-current="page"`. Sizes and the
+  36px tap target of §10 are the app's (`sizeStyles` in `Button.tsx`), not the
+  site's 44px.
+- **Icon buttons** are `.btn-icon` (square, `aspect-ratio: 1`, the size comes
+  from the caller: `w-9 h-9 md:w-8 md:h-8`), `ghost` by default, `btn-flat`
+  inside a row.
+- **Segmented control.** `ViewTabs` and `ViewToggle` share the box `seg`
+  (3px padding, inset hairline, glass) and the item `seg-item`; the selected item
+  (`aria-selected` / `aria-pressed`) is a small tinted glass (the §3 exception),
+  the others are text only. Keyboard, focus ring (`outline 2px` indigo-300,
+  offset) and the horizontal strip of `ViewTabs` are unchanged.
+- **The hover halo follows the pointer** (`--mx` / `--my` on the hovered
+  `.btn` / `.seg-item`), written by ONE passive `pointermove` listener mounted
+  once in `MainLayout` (`HaloPointer` *(planned, adapted from
+  `website/src/components/ux/HaloPointer.tsx)`*: rAF-throttled, CSS variables
+  only, no React state), inactive without a fine pointer and under
+  `prefers-reduced-motion`. No per-button listeners.
+- **Fallbacks are part of the recipe**: opaque fills without `backdrop-filter`
+  or under `prefers-reduced-transparency`; `forced-colors` gives a system
+  border and no decoration; contrast on `#0a0a0f`: white on primary ≥ 7:1,
+  `gray-100` on secondary ≥ 12:1, `red-50` on danger ≥ 7:1 (measured on the site,
+  to re-measure on `surface-base` here).
+- **`.btn-glow-primary` / `.btn-glow-danger` are retired** once `Button` carries
+  the glass recipe: a glow that appears on hover is an effect, the glass is a
+  material. `.glow-*` stays forbidden in lists (Don'ts). §9 « No local button
+  classes » still holds: pages use `<Button>`, never `btn…` strings.
+
+Not brought up from the site (`website/DESIGN.md` §2 « Halo discret », §6):
+`SpotlightCard` (a radial halo that follows the mouse over a card) — in the app
+a card or row never decorates on hover (§10: hover only enhances colour).
+
+### Mouvement — one curve, five durations, three families
+
+**One easing curve** *(from the site — `website/DESIGN.md` §2 « Motion plus riche,
+mais UNE courbe » and §6 « Une seule courbe (EASE) » ; `website/src/styles/rhythm.css`,
+`website/src/motion/tokens.ts`)*: **`--ease-standard: cubic-bezier(0.22, 1, 0.36, 1)`**.
+It is the curve the app already had as `--ease-out-soft` (same values, `index.css`);
+the canonical name is added *(planned)*, `--ease-out-soft` stays as an alias.
+Never write an `ease`, `ease-out` or `cubic-bezier(…)` by hand in a class or a
+style: `ease-(--ease-standard)` in Tailwind, `var(--ease-standard)` in CSS, `EASE`
+in a `motion/react` transition. The legacy `--transition-fast/normal/slow` (`150 /
+200 / 300ms ease`, `index.css`) are **deprecated**: they carry the generic `ease`
+curve and are replaced, usage by usage, by a named duration + `--ease-standard`.
+Springs (`utils/motion.ts`, `stiffness: 500`) are not a second curve the user can
+see at 200 ms: dialog and fade variants move to a tween on `EASE` + a named
+duration; `stripMovement` / `useVariants` (reduced motion) are unchanged.
+
+**Five named durations** *(from the site, same sources)* — all `0ms` under
+`prefers-reduced-motion` *(planned in `index.css`)*:
+
+| Token | Value | What it is for |
+|---|---|---|
+| `--duration-instant` | 120 ms | feedback: press, toggle, checkbox (= `--motion-feedback`) |
+| `--duration-fast` | 200 ms | hover, menu / popover open, colour change (= `--motion-transition`) |
+| `--duration-stage` | 300 ms | one *state* of a view giving way to another: a panel's content swap, a segmented control's selection, an expand/collapse; the ceiling for anything the user triggered |
+| `--duration-base` | 400 ms | arrival of a whole block the user asked for (a sheet, a route's content) — never a list row |
+| `--duration-slow` | 600 ms | the ceiling of any reveal (a drawn path, a counter) — rare in the app, the site's domain |
+
+The existing aliases **stay** and keep their meaning: `--motion-feedback` (120),
+`--motion-transition` (200), `--motion-exit` (150, see below). New code uses the
+`--duration-*` names; old code is migrated when touched, never in bulk.
+
+**Exits.** The site has no exit case (nothing closes on a marketing page); the
+app does. An exit is **shorter** than its entrance (`--motion-exit`, 150 ms) and
+that is what says "it is gone" — it does *not* need a second curve.
+`--ease-in-soft` (`cubic-bezier(0.4, 0, 1, 1)`) is kept as a tolerated alias on
+the exits that already use it (`ChatMessages`, `popIn` out) until they migrate to
+`--ease-standard`; no new use. This keeps the rule « exits faster than entrances »
+below without contradicting « one curve ».
+
+The three families below are unchanged (they say *why* something moves; the
+curve and durations above say *how*):
 
 | Family | Purpose | Timing | Examples | Tokens |
 |---|---|---|---|---|
-| **Feedback** (action) | Confirms the user's action landed | 100–160 ms, `ease-out`, starts instantly | press scale, toggle knob, checkbox, colour change on select | `pressFeedback`, `--motion-feedback` |
-| **Transition** (spatial) | Shows where something came from / went | 180–240 ms in (`--ease-out-soft`), ~150 ms out (`--ease-in-soft`) — exits faster than entrances | menu/popover open (`popIn`), sheet slide, expand/collapse, route change | `popIn`, `--motion-transition`, `--motion-exit` |
+| **Feedback** (action) | Confirms the user's action landed | 100–160 ms (`--duration-instant`), `--ease-standard`, starts instantly | press scale, toggle knob, checkbox, colour change on select | `pressFeedback`, `--motion-feedback` |
+| **Transition** (spatial) | Shows where something came from / went | 180–240 ms in (`--duration-fast`), up to 300 ms for a state swap (`--duration-stage`), ~150 ms out (`--motion-exit`) — exits faster than entrances | menu/popover open (`popIn`), sheet slide, expand/collapse, route change | `popIn`, `--motion-transition`, `--motion-exit` |
 | **Temporal** (time passing) | Represents a duration the user is waiting on | slow (≥ 1 s cycle), low amplitude | running status pulse, indeterminate progress, streaming caret | `StatusDot pulse` |
 
 Decision rule — before adding any animation ask: *what does it tell the
@@ -314,9 +459,19 @@ Never:
   thing it represents stops (idle = still);
 - animating layout properties (`width`, `height`, `top`) — animate
   `transform` and `opacity`;
-- durations above 300 ms for anything the user triggered.
+- durations above 300 ms (`--duration-stage`) for anything the user triggered;
+  `--duration-base` (400) is for a block the user *asked to open*, `--duration-slow`
+  (600) never for an interaction.
+
+Not brought up from the site (`website/DESIGN.md` §6, « Inventaire des animations
+d'entrée »): `Reveal`, `Stagger`, `SplitText`, `CountUp`, `Marquee`, `DrawPath`,
+`MagneticButton`, `PageHero` with its `art`, `ui-rise-in` / `ui-word-in`. They tell
+a story to a visitor scrolling once; in the app every list reloads and an entrance
+would replay on each refetch (§8), and a loop (`Marquee`) is decoration. The site's
+hard rules that *do* apply here are already above: animate `transform` / `opacity`
+only, one thing moves at a time, nothing is animated twice, data never animates.
 
 Accessibility: under `prefers-reduced-motion`, keep opacity changes (state
 must stay legible) and drop movement/scale — `popIn` and `pressFeedback`
-already do this.
+already do this; the `--duration-*` tokens fall to `0ms`.
 
