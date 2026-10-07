@@ -280,15 +280,17 @@ describe('a conversation that could not be opened — typed card', () => {
   })
 })
 
-describe('provider badge in the header', () => {
-  it.each(['open', 'fullscreen'] as const)('%s: names the instance and the short model of the conversation', async (mode) => {
+describe('the header does not show the provider or the model', () => {
+  // The composer says them, right where the conversation is written; the header keeps its room for
+  // the title (a badge there took the whole bar of a narrow docked panel).
+  it.each(['open', 'fullscreen'] as const)('%s: a third-party conversation has no provider badge in its header', async (mode) => {
     const store = renderPanel({ mode, prepare: onLlama(FULL) })
     await ready(store)
-    const badge = await screen.findByTestId('provider-badge')
-    expect(badge.textContent).toBe('Local llama-server· qwen2.5-coder-32b')
+    expect(screen.queryByTestId('provider-badge')).toBeNull()
+    expect(screen.queryByText(/qwen2\.5-coder-32b/)).toBeNull()
   })
 
-  it('a session without provider on a multi-instance server is badged Claude Code', async () => {
+  it('a session without provider on a multi-instance server has none either', async () => {
     const store = renderPanel({
       prepare: (s) => {
         chatStub.sessionId = 's1'
@@ -297,22 +299,10 @@ describe('provider badge in the header', () => {
       },
     })
     await ready(store)
-    expect((await screen.findByTestId('provider-badge')).textContent).toBe('Claude Code· opus-4-5')
-  })
-
-  it('a session without provider on a single-instance server gets no badge', async () => {
-    listProviders.mockResolvedValue(listOf(instance('claude-code')))
-    const store = renderPanel({
-      prepare: (s) => {
-        chatStub.sessionId = 's1'
-        s.set(chatSessionIdAtom, 's1')
-      },
-    })
-    await ready(store)
     expect(screen.queryByTestId('provider-badge')).toBeNull()
   })
 
-  it('a new conversation has no badge (the picker already says it)', async () => {
+  it('a new conversation has none (the picker says it)', async () => {
     const store = renderPanel()
     await ready(store)
     expect(screen.queryByTestId('provider-badge')).toBeNull()
@@ -320,13 +310,11 @@ describe('provider badge in the header', () => {
 })
 
 describe('the instance of the conversation was deleted', () => {
-  it('badge "unavailable", instance_not_found card, composer disabled with the reason', async () => {
+  it('instance_not_found card, composer disabled with the reason', async () => {
     listProviders.mockResolvedValue(listOf(instance('claude-code')))
     const store = renderPanel({ prepare: onLlama(FULL) })
     await ready(store)
-    const badge = await screen.findByTestId('provider-badge')
-    expect(badge.getAttribute('data-unavailable')).toBe('true')
-    const card = screen.getByRole('alert')
+    const card = await screen.findByRole('alert')
     expect(card.getAttribute('data-error-code')).toBe('instance_not_found')
     expect(input().getAttribute('data-disabled')).toBe('true')
     expect(input().getAttribute('data-reason')).toBe(INSTANCE_MISSING_COMPOSER_TEXT)
@@ -353,7 +341,7 @@ describe('remote Claude Code conversation', () => {
     store.set(chatSessionCapabilitiesSnapshotAtom, { ...FULL, per_session_mcp: false, tool_cancel: false })
   }
 
-  it('says it has no PO tools (MCP) in this version, and the badge shows claude-code@lab', async () => {
+  it('says it has no PO tools (MCP) in this version, and names the machine', async () => {
     listProviders.mockResolvedValue(
       listOf(instance('claude-code'), instance('claude-code@lab', { kind: 'claude_code_remote', label: 'Claude Code' })),
     )
@@ -363,7 +351,6 @@ describe('remote Claude Code conversation', () => {
     expect(banner.textContent).toContain('claude-code@lab')
     expect(banner.textContent).toContain('outils PO (MCP)')
     expect(screen.getByTestId('dock').contains(banner)).toBe(true)
-    expect((await screen.findByTestId('provider-badge')).textContent).toContain('claude-code@lab')
   })
 
   it('the local Claude Code gets no such banner', async () => {
@@ -469,5 +456,38 @@ describe('capability guards of the panel', () => {
     await ready(store)
     expect(getLiveActivity).not.toHaveBeenCalled()
     expect(input().getAttribute('data-disabled')).toBe('false')
+  })
+})
+
+describe('the docked header keeps its room for the title', () => {
+  // Seven 28 px buttons left the title about 70 px in a 400 px panel. Four controls stay; the less
+  // frequent ones (attach, agent tree, copy, fullscreen) live under the ⋯ menu.
+  it('shows four controls and folds the others under the ⋯ menu', async () => {
+    const store = renderPanel({ prepare: onLlama(FULL) })
+    await ready(store)
+    for (const name of ['New chat', 'Permission settings', 'Conversation actions', 'Close']) {
+      expect(screen.getByRole('button', { name }), name).toBeTruthy()
+    }
+    for (const title of ['Fullscreen', 'Copy chat as markdown', 'Agent Tree']) {
+      expect(screen.queryByTitle(title), title).toBeNull()
+    }
+    expect(screen.queryByRole('button', { name: /attach/i })).toBeNull()
+  })
+
+  it('the menu offers attach and fullscreen, and fullscreen really switches the panel', async () => {
+    const store = renderPanel({ prepare: onLlama(FULL) })
+    await ready(store)
+    fireEvent.click(screen.getByRole('button', { name: 'Conversation actions' }))
+    expect(screen.getByRole('menuitem', { name: /Attach to a plan or task/ })).toBeTruthy()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Fullscreen' }))
+    expect(store.get(chatPanelModeAtom)).toBe('fullscreen')
+  })
+
+  it('a new conversation has nothing to attach: the entry is not offered', async () => {
+    const store = renderPanel()
+    await ready(store)
+    fireEvent.click(screen.getByRole('button', { name: 'Conversation actions' }))
+    expect(screen.queryByRole('menuitem', { name: /Attach to a plan or task/ })).toBeNull()
+    expect(screen.getByRole('menuitem', { name: 'Fullscreen' })).toBeTruthy()
   })
 })

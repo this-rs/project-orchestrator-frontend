@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
 export interface ChatHeaderScope {
@@ -8,34 +7,34 @@ export interface ChatHeaderScope {
   to: string
 }
 
+/** Quiet colour, no box: the scope is a note under the title, not a second title. */
 const SCOPE_TONE: Record<ChatHeaderScope['kind'], string> = {
-  workspace: 'border-purple-400/25 bg-purple-500/10 text-purple-300 hover:text-purple-200',
-  project: 'border-indigo-400/25 bg-indigo-500/10 text-indigo-300 hover:text-indigo-200',
+  workspace: 'text-purple-400/80 hover:text-purple-300',
+  project: 'text-indigo-400/80 hover:text-indigo-300',
 }
 
 interface ChatHeaderTitleProps {
   title: string
   /** The workspace, else the project, the conversation belongs to. */
   scope?: ChatHeaderScope | null
-  /** Provider and model of the conversation (a `ProviderBadge`). */
-  badge?: ReactNode
 }
 
 /**
- * The conversation's title and what it belongs to, on ONE line.
+ * The conversation's title, with what it belongs to in small type under it.
  *
- * It used to be three stacked lines (title, project or workspace, provider and
- * model) in a header 56 px high: the text overflowed the bar and the
- * conversation lost its vertical room. Now the title is what gives way — it
- * truncates, with its full text as a tooltip — and the two chips keep their
- * size. Narrow widths drop the chips one after the other (the badge first, then
- * the scope): the composer's own control already says provider and model, and
- * the title says what the conversation is about.
+ * The title comes FIRST and takes whatever width the header leaves: it truncates, with its full
+ * text as a tooltip. The workspace or project is a second, 10 px line in the same bar (the bar keeps
+ * its height) that truncates on its own. Provider and model are not shown here: the composer says
+ * them, right where the conversation is written.
+ *
+ * Nothing here depends on the width of the WINDOW (`sm:`, `md:`). The panel can be docked narrow on
+ * a wide screen, and a chip shown "because the window is wide" used to take the whole bar and push
+ * the title under the buttons.
  */
-export function ChatHeaderTitle({ title, scope, badge }: ChatHeaderTitleProps) {
+export function ChatHeaderTitle({ title, scope }: ChatHeaderTitleProps) {
   return (
-    <div className="flex min-w-0 items-center gap-2" data-testid="chat-header-title">
-      <span className="min-w-0 truncate text-sm font-medium text-gray-300" title={title}>
+    <div className="flex min-w-0 flex-1 flex-col justify-center" data-testid="chat-header-title">
+      <span className="truncate text-sm font-medium leading-5 text-gray-300" title={title}>
         {title}
       </span>
       {scope && (
@@ -45,15 +44,12 @@ export function ChatHeaderTitle({ title, scope, badge }: ChatHeaderTitleProps) {
           data-testid="chat-header-scope"
           data-scope={scope.kind}
           title={scope.label}
-          className={`hidden sm:inline-flex min-w-0 max-w-[10rem] shrink-0 items-center truncate rounded border px-1.5 py-px text-[10px] leading-4 transition-colors ${SCOPE_TONE[scope.kind]}`}
+          className={`truncate text-[10px] leading-3 transition-colors ${SCOPE_TONE[scope.kind]}`}
         >
-          <span className="truncate">
-            {scope.kind === 'workspace' ? '⬡ ' : ''}
-            {scope.label}
-          </span>
+          {scope.kind === 'workspace' ? '⬡ ' : ''}
+          {scope.label}
         </Link>
       )}
-      {badge && <span className="hidden min-w-0 shrink-0 md:inline-flex">{badge}</span>}
     </div>
   )
 }
