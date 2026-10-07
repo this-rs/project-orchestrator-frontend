@@ -112,5 +112,6 @@ export function validateBaseUrl(raw: string): string | null {
 export const PROVIDER_SECTIONS = [
   { id: 'instances', title: 'Providers' },
   { id: 'consent', title: 'Autorisations des projets' },
+  { id: 'routing', title: 'Routing' },
   { id: 'advanced', title: 'Avancé' },
 ] as const

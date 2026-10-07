@@ -57,7 +57,7 @@ describe('ProviderSettings', () => {
     vi.mocked(providersApi.list).mockResolvedValue(response([CLAUDE]))
     mountSettings(<ProviderSettings />)
     const { container } = { container: document.body }
-    for (const id of ['instances', 'consent', 'advanced'])
+    for (const id of ['instances', 'consent', 'routing', 'advanced'])
       expect(container.querySelector(`section#${id}`)).not.toBeNull()
     expect(screen.getByRole('link', { name: 'Avancé' }).getAttribute('href')).toBe('#advanced')
     for (const id of ['roles-global', 'aliases-panel', 'policy-panel'])
