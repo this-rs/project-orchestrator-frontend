@@ -13,7 +13,7 @@ function TraitNodeComponent({ data, selected }: NodeProps<Node<IntelligenceNodeD
   return (
     <div
       ref={animRef}
-      className="relative flex items-center justify-center transition-all duration-150"
+      className="relative flex items-center justify-center transition-[background-color,border-color,box-shadow,transform,opacity] duration-(--duration-instant)"
       style={{
         width: size.width,
         height: size.height,

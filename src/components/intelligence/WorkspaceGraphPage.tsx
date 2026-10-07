@@ -202,7 +202,7 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
       {selectedNodeId && (
         <button
           onClick={() => setInspectorCollapsed((v) => !v)}
-          className={`absolute top-[4.5rem] z-40 flex items-center gap-1 py-2 rounded-l-md text-[10px] font-medium bg-slate-800/90 backdrop-blur-sm border border-r-0 border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-700/80 transition-all duration-200 ${
+          className={`absolute top-[4.5rem] z-40 flex items-center gap-1 py-2 rounded-l-md text-[10px] font-medium bg-slate-800/90 backdrop-blur-sm border border-r-0 border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-700/80 transition-colors ${
             inspectorCollapsed
               ? 'right-0 px-2 rounded-r-md border-r border-slate-700'
               : isFullscreen
@@ -286,7 +286,7 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
       {!searchOpen && (
         <button
           onClick={() => setSearchOpen(true)}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 px-4 py-2 rounded-full bg-slate-800/90 backdrop-blur-sm border border-slate-600/80 text-slate-300 hover:text-cyan-300 hover:border-cyan-500/50 hover:bg-slate-800 hover:shadow-lg hover:shadow-cyan-500/10 transition-all duration-200 group cursor-pointer"
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 px-4 py-2 rounded-full bg-slate-800/90 backdrop-blur-sm border border-slate-600/80 text-slate-300 hover:text-cyan-300 hover:border-cyan-500/50 hover:bg-slate-800 hover:shadow-lg hover:shadow-cyan-500/10 transition-[color,background-color,border-color,box-shadow] group cursor-pointer"
         >
           <Search size={14} className="text-slate-400 group-hover:text-cyan-400 transition-colors" />
           <span className="text-xs font-medium">Spreading Activation</span>

@@ -14,7 +14,7 @@ function StructNodeComponent({ data, selected }: NodeProps<Node<StructNodeData>>
   return (
     <div
       ref={animRef}
-      className="flex items-center justify-center transition-all duration-150"
+      className="flex items-center justify-center transition-[background-color,border-color,box-shadow,transform,opacity] duration-(--duration-instant)"
       style={{
         width: size.width,
         height: size.height,

@@ -42,7 +42,7 @@ function ScoreBar({ score, color, className }: { score: number; color: string; c
   return (
     <div className={`h-1.5 rounded-full bg-slate-800 overflow-hidden ${className ?? ''}`}>
       <div
-        className="h-full rounded-full transition-all duration-300"
+        className="h-full rounded-full transition-[width] duration-(--duration-stage) ease-(--ease-standard)"
         style={{ width: `${Math.round(score * 100)}%`, backgroundColor: color }}
       />
     </div>

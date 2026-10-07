@@ -284,7 +284,7 @@ function WorkspaceActivityHeatmap({
               return (
                 <div
                   key={hour}
-                  className="flex-1 aspect-square rounded-[2px] min-w-[6px] cursor-pointer hover:ring-1 hover:ring-cyan-400/40 hover:scale-125 hover:z-10 transition-all duration-100"
+                  className="flex-1 aspect-square rounded-[2px] min-w-[6px] cursor-pointer hover:ring-1 hover:ring-cyan-400/40 pointer-fine:hover:scale-125 hover:z-10 transition-[transform,box-shadow] duration-(--duration-instant)"
                   style={{
                     backgroundColor: `${color}${Math.round(alpha * 255).toString(16).padStart(2, '0')}`,
                   }}
@@ -308,7 +308,7 @@ function WorkspaceActivityHeatmap({
             return (
               <div
                 key={hour}
-                className="flex-1 aspect-square rounded-[2px] min-w-[6px] cursor-pointer hover:ring-1 hover:ring-cyan-400/40 hover:scale-125 hover:z-10 transition-all duration-100"
+                className="flex-1 aspect-square rounded-[2px] min-w-[6px] cursor-pointer hover:ring-1 hover:ring-cyan-400/40 pointer-fine:hover:scale-125 hover:z-10 transition-[transform,box-shadow] duration-(--duration-instant)"
                 style={{
                   background: `linear-gradient(to right, ${stops.join(', ')})`,
                 }}
@@ -482,7 +482,7 @@ function TimelineTrack({
         return (
           <div
             key={ev.id}
-            className={`absolute top-1/2 -translate-y-1/2 rounded-full transition-all duration-150 ${
+            className={`absolute top-1/2 -translate-y-1/2 rounded-full transition-[width,height,box-shadow] duration-(--duration-instant) ${
               isSelected
                 ? 'w-3 h-3 ring-2 ring-cyan-400/60 z-20'
                 : isHovered
@@ -1082,7 +1082,7 @@ export default function WorkspaceLearningTimeline({ embedded, workspaceSlug }: W
               <button
                 key={p.slug}
                 onClick={() => setActiveProjectFilter(isActive ? null : p.slug)}
-                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] transition-all border ${
+                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] transition-colors border ${
                   isActive
                     ? 'bg-slate-700/60 text-white border-slate-600'
                     : isFiltered

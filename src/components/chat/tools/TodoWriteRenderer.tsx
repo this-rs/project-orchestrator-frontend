@@ -57,7 +57,7 @@ export function TodoWriteRenderer({ toolInput }: ToolRendererProps) {
       <div className="flex items-center gap-2">
         <div className="flex-1 h-1 rounded-full bg-white/[0.06] overflow-hidden">
           <div
-            className="h-full rounded-full bg-emerald-400/80 transition-all duration-500"
+            className="h-full rounded-full bg-emerald-400/80 transition-[width] duration-(--duration-stage) ease-(--ease-standard)"
             style={{ width: `${progressPct}%` }}
           />
         </div>

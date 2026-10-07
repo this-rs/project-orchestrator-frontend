@@ -803,7 +803,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
             <div className="relative">
               <button
                 onClick={() => { setShowModeDropdown(!showModeDropdown); setPickerMenu(null) }}
-                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border text-gray-300 hover:bg-white/[0.06] transition-all duration-300 ${
+                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border text-gray-300 hover:bg-white/[0.06] transition-colors ${
                   modeJustChanged
                     ? 'border-indigo-400/50 ring-1 ring-indigo-400/30'
                     : 'border-white/[0.08]'

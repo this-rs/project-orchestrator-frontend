@@ -42,7 +42,7 @@ function ProtocolNodeComponent({ data, selected }: NodeProps<Node<ProtocolNodeDa
   return (
     <div
       ref={animRef}
-      className="flex flex-col items-center justify-center gap-0.5 transition-all duration-150"
+      className="flex flex-col items-center justify-center gap-0.5 transition-[background-color,border-color,box-shadow,transform,opacity] duration-(--duration-instant)"
       style={{
         width: size.width,
         height: size.height,

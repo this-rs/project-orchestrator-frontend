@@ -167,7 +167,7 @@ export function ProgressBar({ completed, total }: { completed: number; total: nu
     <div className="flex items-center gap-2">
       <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all ${
+          className={`h-full rounded-full transition-[width,background-color] duration-(--duration-stage) ease-(--ease-standard) ${
             pct === 100 ? 'bg-green-500' : pct > 0 ? 'bg-indigo-500' : 'bg-gray-700'
           }`}
           style={{ width: `${pct}%` }}

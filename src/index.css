@@ -9,6 +9,12 @@
  * Colors support opacity modifiers: bg-surface-raised/50 via color-mix().
  * ─────────────────────────────────────────────────────────────────── */
 @theme {
+  /* Transition utilities (transition-colors, transition-[…]) default to the
+   * single curve and the "fast" duration — see the motion tokens at the end
+   * of this file. A class never writes ease-out / duration-150 by hand. */
+  --default-transition-timing-function: var(--ease-standard);
+  --default-transition-duration: var(--duration-fast);
+
   /* Surface system — 5 layers of depth */
   --color-surface-base: #0f1117;
   --color-surface-raised: #1a1d27;

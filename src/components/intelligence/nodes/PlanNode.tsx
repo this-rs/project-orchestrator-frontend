@@ -23,7 +23,7 @@ function PlanNodeComponent({ data, selected }: NodeProps<Node<PlanNodeData>>) {
   return (
     <div
       ref={animRef}
-      className="flex items-center gap-2 transition-all duration-150"
+      className="flex items-center gap-2 transition-[background-color,border-color,box-shadow,transform,opacity] duration-(--duration-instant)"
       style={{
         width: size.width,
         height: size.height,

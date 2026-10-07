@@ -82,7 +82,7 @@ export function StatusSelect<T extends string>({
         aria-expanded={isOpen}
         aria-haspopup="listbox"
         aria-controls={menuId}
-        className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${colors.bg} ${colors.text} hover:opacity-90`}
+        className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold transition-[color,background-color,opacity] ${colors.bg} ${colors.text} hover:opacity-90`}
         style={{ anchorName } as CSSProperties}
       >
         {loading ? (

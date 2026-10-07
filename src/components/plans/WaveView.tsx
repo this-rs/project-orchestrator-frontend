@@ -238,7 +238,7 @@ function WaveTaskCard({
   return (
     <div
       className={`
-        rounded-lg border transition-all duration-150
+        rounded-lg border transition-[color,background-color,border-color,box-shadow] duration-(--duration-instant)
         ${colors.bg} ${colors.border}
         ${hasConflicts ? 'ring-1 ring-orange-500/40' : ''}
         ${isCompleteFlash ? 'wave-task-complete-flash' : ''}
@@ -291,7 +291,7 @@ function WaveTaskCard({
           <div className="mt-2 flex items-center gap-2">
             <div className="flex-1 h-1 rounded-full bg-white/[0.06] overflow-hidden">
               <div
-                className="h-full rounded-full bg-green-500/70 transition-all duration-300"
+                className="h-full rounded-full bg-green-500/70 transition-[width] duration-(--duration-stage) ease-(--ease-standard)"
                 style={{ width: `${(completedSteps / totalSteps) * 100}%` }}
               />
             </div>
@@ -407,7 +407,7 @@ function WaveColumn({
   return (
     <div className="flex-shrink-0 w-64 space-y-2">
       {/* Wave header */}
-      <div className={`flex items-center justify-between px-2 py-1.5 rounded-md transition-all ${
+      <div className={`flex items-center justify-between px-2 py-1.5 rounded-md transition-shadow ${
         isActiveWave ? 'wave-active-glow' : ''
       }`}>
         <div className="flex items-center gap-2">
@@ -429,7 +429,7 @@ function WaveColumn({
       {/* Progress bar */}
       <div className="h-1 mx-2 rounded-full bg-white/[0.06] overflow-hidden">
         <div
-          className="h-full rounded-full bg-green-500/70 transition-all duration-300"
+          className="h-full rounded-full bg-green-500/70 transition-[width] duration-(--duration-stage) ease-(--ease-standard)"
           style={{ width: taskCount > 0 ? `${(completedCount / taskCount) * 100}%` : '0%' }}
         />
       </div>

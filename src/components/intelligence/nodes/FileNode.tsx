@@ -69,7 +69,7 @@ function FileNodeComponent({ data, selected }: NodeProps<Node<FileNodeData>>) {
   return (
     <div
       ref={animRef}
-      className="relative flex flex-col items-center justify-center transition-all duration-200"
+      className="relative flex flex-col items-center justify-center transition-[background-color,border-color,box-shadow,transform,opacity] duration-(--duration-fast)"
       style={{
         width: size.width,
         height: size.height,

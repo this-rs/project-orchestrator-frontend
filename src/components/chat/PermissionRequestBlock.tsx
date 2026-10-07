@@ -240,7 +240,7 @@ export function PermissionRequestBlock({
     return (
       <div
         ref={containerRef}
-        className={`my-1 flex items-center gap-2 rounded border-l-2 ${styles.border} ${styles.bg} border-white/[0.04] px-2.5 py-1.5 transition-all duration-200 ${
+        className={`my-1 flex items-center gap-2 rounded border-l-2 ${styles.border} ${styles.bg} border-white/[0.04] px-2.5 py-1.5 transition-opacity duration-(--duration-fast) ${
           mounted ? 'opacity-100' : 'opacity-0'
         }`}
       >
@@ -290,7 +290,7 @@ export function PermissionRequestBlock({
   return (
     <div
       ref={containerRef}
-      className={`my-1.5 rounded-lg border-l-2 border ${styles.border} ${styles.bg} border-white/[0.06] overflow-hidden transition-all duration-200 ease-out ${
+      className={`my-1.5 rounded-lg border-l-2 border ${styles.border} ${styles.bg} border-white/[0.06] overflow-hidden transition-[transform,opacity] duration-(--duration-fast) ${
         mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'
       }`}
       style={{

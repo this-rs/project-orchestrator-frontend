@@ -168,7 +168,7 @@ export function InlineConversation({
   const badgeLabel = agentStatus ? agentStatusConfig[agentStatus as keyof typeof agentStatusConfig]?.label : null
 
   return (
-    <div className="border border-indigo-500/20 rounded-lg bg-[#0d0d1a] overflow-hidden transition-all duration-200">
+    <div className="border border-indigo-500/20 rounded-lg bg-[#0d0d1a] overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-indigo-500/10 bg-indigo-500/[0.03]">
         <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -234,7 +234,7 @@ export function InlineConversation({
 
       {/* Collapsible content with animated height */}
       <div
-        className="transition-all duration-200 overflow-hidden relative"
+        className="transition-[max-height,opacity] duration-(--duration-fast) overflow-hidden relative"
         style={{
           maxHeight: collapsed ? 0 : height,
           opacity: collapsed ? 0 : 1,
@@ -271,7 +271,7 @@ export function InlineConversation({
             onClick={scrollToBottom}
             className="absolute bottom-3 right-4 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full
               bg-indigo-600/90 hover:bg-indigo-500 text-white text-xs font-medium
-              shadow-lg shadow-indigo-500/20 backdrop-blur-sm transition-all duration-200 cursor-pointer"
+              shadow-lg shadow-indigo-500/20 backdrop-blur-sm transition-colors cursor-pointer"
             title="Scroll to bottom"
           >
             <ArrowDown className="w-3.5 h-3.5" />

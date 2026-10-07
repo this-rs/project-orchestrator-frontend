@@ -82,7 +82,7 @@ export function ProtocolRunViz({ data }: VizBlockProps) {
         </div>
         <div className="w-full h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all duration-700 ${
+            className={`h-full rounded-full transition-[width] duration-(--duration-stage) ease-(--ease-standard) ${
               status === 'running' ? 'bg-cyan-500' :
               status === 'completed' ? 'bg-emerald-500' :
               status === 'failed' ? 'bg-red-500' :

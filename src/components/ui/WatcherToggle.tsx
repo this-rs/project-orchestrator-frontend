@@ -86,7 +86,7 @@ export function WatcherToggle({
       <button
         onClick={handleToggle}
         disabled={isDisabled}
-        className={`p-1.5 rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+        className={`p-1.5 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
           watching
             ? 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10'
             : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.08]'
@@ -108,7 +108,7 @@ export function WatcherToggle({
     <button
       onClick={handleToggle}
       disabled={isDisabled}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ring-1 ring-inset transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ring-1 ring-inset transition-[color,background-color,box-shadow] disabled:opacity-50 disabled:cursor-not-allowed ${
         watching
           ? 'bg-emerald-900/40 text-emerald-400 ring-emerald-500/20 hover:bg-emerald-900/60'
           : 'bg-white/[0.04] text-gray-400 ring-white/[0.08] hover:bg-white/[0.08] hover:text-gray-200'
