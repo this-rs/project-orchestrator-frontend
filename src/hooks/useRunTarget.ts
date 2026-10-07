@@ -4,6 +4,8 @@ import { providersAtom, providersLoadStateAtom } from '@/atoms'
 import { providersApi } from '@/services/providers'
 import type { StartRunOptions } from '@/services/runner'
 import type { ModelAlias, ProviderInstance, ProvidersResponse, ResolvedDefault } from '@/types/provider'
+import type { ProviderRoutingMode } from '@/types/routing'
+import { useEffectiveRoutingMode } from './useRoutingSettings'
 import { useProviders } from './useProviders'
 
 export interface RunTargetChoice {
@@ -26,6 +28,10 @@ export interface RunTarget {
   /** Server default for THIS run's project. */
   resolved: ResolvedDefault | null
   aliases: readonly ModelAlias[] | undefined
+  /** Routing mode in force for the project: `full` hides the picker, `mixed` makes "PO routes" the default row. */
+  routingMode: ProviderRoutingMode
+  /** Full routing on a multi-provider backend: no picker, a line says PO will choose. */
+  poChooses: boolean
   /** Fields for `runnerApi.startRun`: only what was chosen. */
   options: StartRunOptions
 }
@@ -36,7 +42,9 @@ export interface RunTarget {
  *
  * `projectSlug` is the project of the PLAN being launched: `allowed_for_project`
  * is an answer about one project, and the chat's selected project is another
- * one. Without it the list is the chat's, as before. While the project's own
+ * one. Without it the list is the chat's, as before. The routing mode is read
+ * for the same project; an explicit choice is always sent as chosen (explicit
+ * levels are never overridden). While the project's own
  * answer loads, no consent is claimed either way (the server still refuses).
  */
 export function useRunTarget(projectSlug?: string | null): RunTarget {
@@ -71,7 +79,11 @@ export function useRunTarget(projectSlug?: string | null): RunTarget {
   const table = own ?? chatTable
   const resolved = table?.default ?? null
 
-  const visible = (state === 'ready' || loadState === 'ready') && providers.length > 1
+  const routingMode = useEffectiveRoutingMode(projectSlug)
+  // In `full`, PO chooses everything: there is nothing left to pick.
+  const several = (state === 'ready' || loadState === 'ready') && providers.length > 1
+  const visible = several && routingMode !== 'full'
+  const poChooses = several && routingMode === 'full'
   const instance = useMemo(() => {
     const id = choice.provider ?? resolved?.provider ?? null
     return providers.find((p) => p.id === id) ?? null
@@ -86,5 +98,5 @@ export function useRunTarget(projectSlug?: string | null): RunTarget {
     return o
   }, [visible, choice])
 
-  return { visible, choice, setChoice, instance, providers, resolved, aliases: table?.aliases, options }
+  return { visible, choice, setChoice, instance, providers, resolved, aliases: table?.aliases, routingMode, poChooses, options }
 }

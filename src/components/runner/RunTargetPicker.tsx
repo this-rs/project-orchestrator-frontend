@@ -12,6 +12,7 @@ import {
   serverDefaultLabel,
 } from '@/constants/runProviders'
 import type { RunTarget } from '@/hooks/useRunTarget'
+import { useT } from '@/i18n'
 import { providerKindLabel } from '@/types/provider'
 
 interface RunTargetPickerProps {
@@ -30,7 +31,15 @@ const SELECT =
  */
 export function RunTargetPicker({ target }: RunTargetPickerProps) {
   const base = useId()
+  const { t } = useT()
   const { visible, choice, setChoice, instance, providers, resolved, aliases: aliasTable } = target
+  if (target.poChooses) {
+    return (
+      <p data-testid="run-target-po-chooses" className="p-3 bg-white/[0.04] rounded-lg text-sm text-gray-300">
+        {t('routing.runTarget.poChooses')}
+      </p>
+    )
+  }
   if (!visible) return null
 
   const aliases = aliasesForInstance(instance, aliasTable)
@@ -51,7 +60,7 @@ export function RunTargetPicker({ target }: RunTargetPickerProps) {
           id={`${base}-default`}
           checked={choice.provider === null}
           onSelect={() => setChoice({ provider: null, model: null })}
-          label={serverDefaultLabel(providers, resolved)}
+          label={target.routingMode === 'mixed' ? t('routing.runTarget.poRoutes') : serverDefaultLabel(providers, resolved)}
         />
         {providers.map((p) => {
           const reason = providerUnavailableReason(p)
