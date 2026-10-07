@@ -16,6 +16,8 @@ import { resolve } from 'node:path'
 import {
   checkBackendFields,
   checkContract,
+  checkProviderAdditions,
+  type ProviderAdditionsFile,
   checkEventFrame,
   fromBackendContract,
   type BackendContractFiles,
@@ -220,5 +222,19 @@ describe('backend-generated layout', () => {
   it('reports a field the frontend requires and the backend may omit', () => {
     const events = { tool_use: { fields: { id: { required: true }, tool: { required: false }, input: { required: true } } } }
     expect(checkBackendFields(events)).toEqual(['`tool_use.tool` may be absent on the wire but the frontend types it as required'])
+  })
+})
+
+describe('provider-additions routing enums', () => {
+  const additions = readJson<ProviderAdditionsFile>('provider-additions.json')
+
+  it('accepts routed_by "auto" and every other value of the fixture', () => {
+    expect(checkProviderAdditions(additions)).toEqual([])
+    expect(additions.rest?.ChatSession?.routed_by).toMatchObject({ enum: expect.arrayContaining(['auto']) })
+  })
+
+  it('flags a routed_by value the frontend does not know', () => {
+    const bad = { rest: { ChatSession: { routed_by: { enum: ['auto', 'telepathy'] } } } } as ProviderAdditionsFile
+    expect(checkProviderAdditions(bad)).toHaveLength(1)
   })
 })
