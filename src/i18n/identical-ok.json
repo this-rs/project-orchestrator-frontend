@@ -2,6 +2,7 @@
   "comment": "Keys whose text is legitimately the same as English: `ns.key` for every language (proper nouns, code), `lang:ns.key` for a cognate in one language.",
   "keys": [
     "nav.concepts.code",
+    "fr:routing.settings.modeLegend","fr:routing.settings.scope.global","es:routing.settings.scope.global","pt:routing.settings.scope.global","de:routing.settings.scope.global","fr:routing.decisions.page","de:routing.report.arm",
     "fr:nav.groups.focus",
     "fr:nav.concepts.plans",
     "fr:nav.concepts.architecture",
