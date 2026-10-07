@@ -72,6 +72,9 @@ export const PROVIDER_ERROR_TITLES: Readonly<Record<ProviderErrorCode, string>> 
   endpoint_redirects_not_allowed: 'Redirects are not followed',
   credential_test_requires_saved_instance: 'Save the instance to test its key',
   engine_unavailable: 'The engine of this conversation is switched off',
+  invalid_routing_mode: 'Unknown routing mode',
+  invalid_learning_stage: 'Unknown learning stage',
+  invalid_routing_weight: 'Routing weight out of range',
 }
 
 /**
@@ -254,6 +257,12 @@ export function providerErrorExplanation(
       return 'A test that uses a key is only run on an instance that is already saved, with the same endpoint and key reference. Save the instance first, then test it again.'
     case 'engine_unavailable':
       return 'This conversation was opened on the agent engine, and the server no longer runs it, so it cannot be resumed. Start a new conversation, or ask whoever runs the server to switch the agent engine back on (CHAT_PROVIDER_PATH).'
+    case 'invalid_routing_mode':
+      return 'The routing mode must be primary, mixed or full.'
+    case 'invalid_learning_stage':
+      return 'The learning stage must be shadow, advisory or auto.'
+    case 'invalid_routing_weight':
+      return 'A routing weight or the exploration rate is out of its allowed range. Exploration must be between 0 and 1; weights cannot be negative.'
   }
 }
 

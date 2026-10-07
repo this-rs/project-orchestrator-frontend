@@ -1,5 +1,6 @@
 import type { MessageAttachment } from '@/utils/messageAttachments'
 import type { CostBasis, LegacyPermissionMode, ProviderCapabilities, ProviderId, ProviderKind, RoutedBy, ToolCategory, ToolPolicy, ToolPolicyMode } from './provider'
+import type { ProviderRoutingMode } from './routing'
 // ============================================================================
 // PERMISSION CONFIG
 // ============================================================================
@@ -271,8 +272,12 @@ export interface ChatSession {
   engine?: string | null
   /** Features the engine cannot provide (same name as on `system_init`; NOT yet in the contract's ChatSession DTO). */
   degraded_features?: string[] | null
-  /** Which rule picked the provider/model (`request`, `project_rule`, …). */
-  routed_by?: string | null
+  /** Which rule picked the provider/model (`request`, `project_rule`, `auto`, …). */
+  routed_by?: RoutedBy | null
+  /** Routing mode in force when the session opened (`primary` when absent). */
+  routing_mode?: ProviderRoutingMode | null
+  /** Readable reason of an automatic choice (`routed_by: 'auto'`); `null` otherwise. */
+  route_reason?: string | null
   /** Where the session's cost figure comes from. Absent = `reported` (Claude Code). */
   cost_basis?: CostBasis | null
   /** Additional directories exposed to Claude CLI (--add-dir) */

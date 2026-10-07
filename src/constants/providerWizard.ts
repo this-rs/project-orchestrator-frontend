@@ -302,6 +302,7 @@ const ROUTED_BY_FR: Readonly<Record<string, string>> = {
   default: 'le provider par défaut du serveur',
   claude_code: 'le repli sur Claude Code',
   fallback: 'la chaîne de repli',
+  auto: 'le routage automatique de PO',
 }
 
 /** Which rule chose the effective default, in plain French (`routed_by`). */

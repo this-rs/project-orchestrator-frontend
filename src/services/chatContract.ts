@@ -15,7 +15,8 @@ import {
   WS_CLIENT_MESSAGE_TYPES,
   type ChatEventType,
 } from '@/types/chat'
-import { CAPABILITY_KEYS } from '@/types/provider'
+import { CAPABILITY_KEYS, ROUTED_BY_VALUES } from '@/types/provider'
+import { LEARNING_STAGES, ROUTING_MODES } from '@/types/routing'
 
 /** Fields the transport adds around an event; they are not part of the variant. */
 export const ENVELOPE_FIELDS: readonly string[] = ['type', 'seq', 'replaying', 'created_at', 'id_seq']
@@ -149,5 +150,57 @@ export function checkBackendFields(events: Record<string, BackendContractEntry>)
       }
     }
   }
+  return problems
+}
+
+// ---------------------------------------------------------------------------
+// Hand-written REST additions (backend `provider-additions.json`)
+// ---------------------------------------------------------------------------
+
+/** One field description of `provider-additions.json` (`rest.<DTO>.<field>`). */
+export interface AdditionsField {
+  type?: string
+  required?: boolean
+  nullable?: boolean
+  enum?: string[]
+  doc?: string
+}
+
+/** The parts of `provider-additions.json` the frontend reads enums from. */
+export interface ProviderAdditionsFile {
+  rest?: {
+    ChatSession?: Record<string, AdditionsField | unknown>
+  }
+  rest_routing?: {
+    RoutingSettings?: Record<string, AdditionsField | unknown>
+  }
+}
+
+const enumOf = (dto: Record<string, unknown> | undefined, field: string): string[] | null => {
+  const f = dto?.[field]
+  if (typeof f !== 'object' || f === null) return null
+  const values = (f as AdditionsField).enum
+  return Array.isArray(values) ? values.filter((v): v is string => typeof v === 'string') : null
+}
+
+/**
+ * Every enum value the backend may put in `ChatSession.routed_by`,
+ * `ChatSession.routing_mode` and the routing settings must be a value the
+ * frontend knows — otherwise a session routed by a rule the interface never
+ * heard of would render as "default" and lie about who chose.
+ */
+export function checkProviderAdditions(file: ProviderAdditionsFile): string[] {
+  const problems: string[] = []
+  const check = (where: string, values: string[] | null, known: readonly string[]) => {
+    for (const value of values ?? []) {
+      if (!known.includes(value)) problems.push(`\`${where}\` may be \`${value}\` on the wire but the frontend does not know that value`)
+    }
+  }
+  const session = file.rest?.ChatSession as Record<string, unknown> | undefined
+  const settings = file.rest_routing?.RoutingSettings as Record<string, unknown> | undefined
+  check('ChatSession.routed_by', enumOf(session, 'routed_by'), ROUTED_BY_VALUES)
+  check('ChatSession.routing_mode', enumOf(session, 'routing_mode'), ROUTING_MODES)
+  check('RoutingSettings.mode', enumOf(settings, 'mode'), ROUTING_MODES)
+  check('RoutingSettings.stage', enumOf(settings, 'stage'), LEARNING_STAGES)
   return problems
 }

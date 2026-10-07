@@ -42,6 +42,7 @@ const ROUTED_BY_LABELS: Readonly<Record<string, string>> = {
   default: 'server default',
   claude_code: 'Claude Code fallback',
   fallback: 'fallback',
+  auto: 'PO chooses',
 }
 
 /** Which rule made an instance the default, in words. An unknown rule is still "default". */

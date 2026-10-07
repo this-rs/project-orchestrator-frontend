@@ -17,6 +17,7 @@
     "de:nav.groups.system",
     "de:nav.concepts.deployments",
     "de:nav.concepts.personas",
-    "de:nav.concepts.admin"
+    "de:nav.concepts.admin",
+    "de:routing.settings.title"
   ]
 }

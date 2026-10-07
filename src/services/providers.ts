@@ -23,6 +23,7 @@ import {
   type ProvidersResponse,
   type ResolvedDefault,
 } from '@/types/provider'
+import { toLearningStage, toProviderRoutingMode, toRoutingScope, type RoutingSummary } from '@/types/routing'
 
 /**
  * Provider instances — which agent harnesses this server can open a session on.
@@ -308,5 +309,21 @@ export function normalizeProvidersResponse(raw: unknown): ProvidersResponse {
   const out: ProvidersResponse = { providers }
   if (resolved !== undefined) out.default = resolved
   if (aliases.length > 0) out.aliases = aliases
+  const routing = normalizeRoutingSummary(r.routing)
+  if (routing) out.routing = routing
   return out
+}
+
+/**
+ * `routing` of `GET /api/chat/providers`: the mode and stage in force. `null`
+ * when absent or when a value is not one the interface knows — the mode is
+ * then read as `primary`, never guessed from a partial object.
+ */
+export function normalizeRoutingSummary(raw: unknown): RoutingSummary | null {
+  const r = obj(raw)
+  if (!r) return null
+  const mode = toProviderRoutingMode(r.mode)
+  const stage = toLearningStage(r.stage)
+  if (!mode || !stage) return null
+  return { mode, stage, scope: toRoutingScope(r.scope) ?? 'default' }
 }

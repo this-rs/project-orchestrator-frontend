@@ -10,6 +10,8 @@
 // existed carries no `provider` at all, and must behave exactly like a
 // `claude-code` session with every capability on.
 
+import { ROUTING_ERROR_CODES, type RoutingErrorCode, type RoutingSummary } from './routing'
+
 /** Id of a provider INSTANCE (not of a kind): `claude-code`, `local-llama`, … */
 export type ProviderId = string
 
@@ -478,6 +480,8 @@ export type ProviderErrorCode =
   | 'credential_test_requires_saved_instance'
   /** 409 on resuming a session opened on the agent engine once it is switched off. */
   | 'engine_unavailable'
+  /** 400 of the routing settings routes (`routing_handlers.rs`, see `types/routing.ts`). */
+  | RoutingErrorCode
 
 export const PROVIDER_ERROR_CODES: readonly ProviderErrorCode[] = [
   'no_provider',
@@ -525,6 +529,7 @@ export const PROVIDER_ERROR_CODES: readonly ProviderErrorCode[] = [
   'endpoint_redirects_not_allowed',
   'credential_test_requires_saved_instance',
   'engine_unavailable',
+  ...ROUTING_ERROR_CODES,
 ]
 
 /** A provider error as the interface handles it. Never carries a credential. */
@@ -658,19 +663,30 @@ export interface ProviderInstance {
   host_key_fingerprint?: string | null
 }
 
-/** Which rule picked the default (persisted server-side as `routed_by`). */
-export type RoutedBy =
-  | 'session'
-  | 'request'
-  | 'task'
-  | 'persona'
-  | 'run'
-  | 'project_rule'
-  | 'global_rule'
-  | 'default'
-  | 'claude_code'
-  | 'fallback'
-  | (string & {})
+/**
+ * Which rule picked the default (persisted server-side as `routed_by`).
+ * `auto` = the cognitive router chose (see `types/routing.ts`); the decision
+ * carries a readable reason. Open-ended: an unknown rule still renders as "default".
+ */
+export const ROUTED_BY_VALUES = [
+  'session',
+  'request',
+  'task',
+  'persona',
+  'run',
+  'project_rule',
+  'global_rule',
+  'default',
+  'claude_code',
+  'fallback',
+  'auto',
+] as const
+export type KnownRoutedBy = (typeof ROUTED_BY_VALUES)[number]
+export type RoutedBy = KnownRoutedBy | (string & {})
+
+export function isKnownRoutedBy(value: unknown): value is KnownRoutedBy {
+  return typeof value === 'string' && (ROUTED_BY_VALUES as readonly string[]).includes(value)
+}
 
 export interface ResolvedDefault {
   provider: ProviderId
@@ -691,6 +707,8 @@ export interface ProvidersResponse {
   /** What a new session gets when nothing is chosen. `null` = no usable provider. */
   default?: ResolvedDefault | null
   aliases?: ModelAlias[]
+  /** Routing mode and learning stage in force (absent on a backend without the cognitive router). */
+  routing?: RoutingSummary | null
 }
 
 /** Human label of a kind — one module for every provider-facing string. */
