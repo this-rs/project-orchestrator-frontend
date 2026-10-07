@@ -1,0 +1,10 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  language: {
+    label: "भाषा",
+    choose: "भाषा चुनें",
+    current: "भाषा: {name}",
+    description: "इंटरफ़ेस की भाषा। आपका चुनाव इस डिवाइस पर सहेजा जाता है।",
+  },
+} satisfies Translation<'common'>

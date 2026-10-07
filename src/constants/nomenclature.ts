@@ -299,18 +299,20 @@ export const NAV_TEXT = {
 
 /** Sidebar structure of ONE workspace. A group reads as a stage of the work, not as a data type. */
 export interface NavGroup {
+  /** Key of the translated label (`nav.groups.<id>`); `label` stays the English source. */
+  id: 'focus' | 'plan' | 'design' | 'build' | 'ship' | 'knowledge' | 'system'
   label: string
   items: ConceptKey[]
 }
 
 export const NAV_GROUPS: NavGroup[] = [
-  { label: 'Focus', items: ['overview', 'trajectory'] },
-  { label: 'Plan', items: ['projects', 'objectives', 'plans', 'tasks'] },
-  { label: 'Design', items: ['architecture', 'decisions', 'proposals', 'documents'] },
-  { label: 'Build', items: ['code', 'featureGraphs'] },
-  { label: 'Ship', items: ['deployments', 'automation', 'triggers'] },
-  { label: 'Knowledge', items: ['notes', 'skills', 'personas', 'protocols', 'neuralRouting'] },
-  { label: 'System', items: ['sharing', 'mcpFederation', 'admin'] },
+  { id: 'focus', label: 'Focus', items: ['overview', 'trajectory'] },
+  { id: 'plan', label: 'Plan', items: ['projects', 'objectives', 'plans', 'tasks'] },
+  { id: 'design', label: 'Design', items: ['architecture', 'decisions', 'proposals', 'documents'] },
+  { id: 'build', label: 'Build', items: ['code', 'featureGraphs'] },
+  { id: 'ship', label: 'Ship', items: ['deployments', 'automation', 'triggers'] },
+  { id: 'knowledge', label: 'Knowledge', items: ['notes', 'skills', 'personas', 'protocols', 'neuralRouting'] },
+  { id: 'system', label: 'System', items: ['sharing', 'mcpFederation', 'admin'] },
 ]
 
 /** Workspace-relative segment → concept, for the breadcrumb. */
