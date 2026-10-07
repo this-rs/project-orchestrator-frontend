@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:i18n": "node scripts/check-i18n.mjs"
   },
   "dependencies": {
     "@cloudworxx/tauri-plugin-mac-rounded-corners": "^1.1.1",

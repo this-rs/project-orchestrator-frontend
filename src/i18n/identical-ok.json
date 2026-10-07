@@ -1,0 +1,22 @@
+{
+  "comment": "Keys whose text is legitimately the same as English: `ns.key` for every language (proper nouns, code), `lang:ns.key` for a cognate in one language.",
+  "keys": [
+    "nav.concepts.code",
+    "fr:nav.groups.focus",
+    "fr:nav.concepts.plans",
+    "fr:nav.concepts.architecture",
+    "fr:nav.concepts.documents",
+    "fr:nav.concepts.notes",
+    "fr:nav.concepts.personas",
+    "fr:nav.concepts.admin",
+    "fr:nav.aria.application","fr:nav.aria.menu",
+    "es:nav.concepts.personas",
+    "pt:nav.concepts.personas",
+    "pt:nav.aria.menu",
+    "vi:nav.aria.menu",
+    "de:nav.groups.system",
+    "de:nav.concepts.deployments",
+    "de:nav.concepts.personas",
+    "de:nav.concepts.admin"
+  ]
+}

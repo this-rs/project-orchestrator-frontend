@@ -3,11 +3,13 @@ import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
 import { ownsContentArea } from './contentArea'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Menu, ChevronLeft, ChevronRight, MessageCircle, Plus } from 'lucide-react'
-import { NOMENCLATURE, NAV_GROUPS, NAV_TEXT, segmentLabel, entityNoun } from '@/constants/nomenclature'
+import { NOMENCLATURE, NAV_GROUPS, segmentLabel, entityNoun } from '@/constants/nomenclature'
+import { useT, type MessageKey } from '@/i18n'
 import { sidebarCollapsedAtom, breadcrumbTitleAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, workspaceRefreshAtom } from '@/atoms'
 import { ToastContainer, Branding } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
+import { LanguageSelect } from '@/components/LanguageSelect'
 import { TodayLogoLink } from '@/components/TodayLogoLink'
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher'
 import { useMediaQuery, useCrudEventRefresh, useModelCatalogEvents, useDragRegion, useWindowFullscreen, useViewTransition, useAttentionCountSource, ChromeWorkspaceSlugContext } from '@/hooks'
@@ -35,6 +37,7 @@ const navItemClass = (active: boolean) =>
  */
 function GlobalSidebarContent({ collapsed, trafficLightPad }: { collapsed: boolean; trafficLightPad?: boolean }) {
   const workspaces = useAtomValue(workspacesAtom)
+  const { t } = useT()
   return (
     <>
       <div className={`px-2 ${trafficLightPad ? 'pt-7' : ''}`}>
@@ -43,13 +46,13 @@ function GlobalSidebarContent({ collapsed, trafficLightPad }: { collapsed: boole
           {!collapsed && <span className="min-w-0 truncate text-sm font-semibold text-gray-100">{PRODUCT_NAME}</span>}
         </div>
       </div>
-      <nav aria-label="Application" className="flex-1 py-4 overflow-y-auto">
+      <nav aria-label={t('nav.aria.application')} className="flex-1 py-4 overflow-y-auto">
         <div className="space-y-5 px-2">
           <div>
             {collapsed ? (
               <div className="h-px bg-white/[0.06] mx-2 mb-2" />
             ) : (
-              <div className="text-[10px] uppercase tracking-widest text-gray-500 px-3 mb-1.5">{NAV_TEXT.workspaces}</div>
+              <div className="text-[10px] uppercase tracking-widest text-gray-500 px-3 mb-1.5">{t('nav.workspaces')}</div>
             )}
             <ul className="space-y-0.5">
               {workspaces.map((ws) => (
@@ -70,12 +73,12 @@ function GlobalSidebarContent({ collapsed, trafficLightPad }: { collapsed: boole
               <li>
                 <NavLink
                   to="/workspace-selector"
-                  aria-label={collapsed ? NAV_TEXT.newWorkspace : undefined}
-                  title={collapsed ? NAV_TEXT.newWorkspace : undefined}
+                  aria-label={collapsed ? t('nav.newWorkspace') : undefined}
+                  title={collapsed ? t('nav.newWorkspace') : undefined}
                   className={() => navItemClass(false)}
                 >
                   <Plus className="w-5 h-5 shrink-0" />
-                  {!collapsed && <span>{workspaces.length === 0 ? NAV_TEXT.newWorkspace : NAV_TEXT.allWorkspaces}</span>}
+                  {!collapsed && <span>{workspaces.length === 0 ? t('nav.newWorkspace') : t('nav.allWorkspaces')}</span>}
                 </NavLink>
               </li>
             </ul>
@@ -88,6 +91,7 @@ function GlobalSidebarContent({ collapsed, trafficLightPad }: { collapsed: boole
 
 function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { collapsed: boolean; trafficLightPad?: boolean; wsSlug: string; onNavClick?: (href: string, direction: NavDirection) => void }) {
   const location = useLocation()
+  const { t } = useT()
   const [projects, setProjects] = useState<Project[]>([])
 
   // Load projects for the workspace (for sidebar sub-items)
@@ -107,18 +111,19 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
   const navGroups = useMemo(
     () =>
       NAV_GROUPS.map((group) => ({
-        label: group.label,
+        id: group.id,
+        label: t(`nav.groups.${group.id}`),
         items: group.items.map((key) => {
           const concept = NOMENCLATURE[key]
           return {
             key,
-            name: concept.plural,
+            name: t(`nav.concepts.${key}` as MessageKey),
             href: workspacePath(wsSlug, `/${concept.segment}`),
             icon: concept.icon,
           }
         }),
       })),
-    [wsSlug],
+    [wsSlug, t],
   )
 
   // Flat list of all nav hrefs for direction detection
@@ -155,10 +160,10 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
       <WorkspaceSwitcher collapsed={collapsed} />
 
       {/* Navigation */}
-      <nav aria-label="Workspace" className="flex-1 py-4 overflow-y-auto">
+      <nav aria-label={t('nav.aria.workspace')} className="flex-1 py-4 overflow-y-auto">
         <div className="space-y-5 px-2">
           {navGroups.map((group) => (
-            <div key={group.label}>
+            <div key={group.id}>
               {collapsed ? (
                 <div className="h-px bg-white/[0.06] mx-2 mb-2" />
               ) : (
@@ -220,6 +225,7 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
 }
 
 export function MainLayout() {
+  const { t } = useT()
   const { slug: urlSlug } = useParams<{ slug: string }>()
   // Application-level pages (/today) have no :slug: the chrome is the global one
   // (Today as root, workspaces below). Only the chat panel borrows a workspace
@@ -302,7 +308,7 @@ export function MainLayout() {
       <aside
         className={`${
           collapsed ? 'w-16' : 'w-64'
-        } hidden md:flex flex-col bg-surface-raised border-r border-border-subtle transition-all duration-200`}
+        } hidden md:flex flex-col bg-surface-raised border-e border-border-subtle transition-all duration-200`}
         style={{ viewTransitionName: 'sidebar' }}
       >
         {isGlobal ? (
@@ -314,6 +320,7 @@ export function MainLayout() {
         {/* User menu + Collapse button */}
         <div className={`border-t border-white/[0.06] p-2 ${collapsed ? 'flex flex-col items-center gap-1' : 'flex items-center gap-1'}`}>
           <UserMenu dropUp showName={!collapsed} />
+          <LanguageSelect />
           {!collapsed && <div className="flex-1" />}
           <button
             onClick={() => setCollapsed(!collapsed)}
@@ -355,11 +362,12 @@ export function MainLayout() {
           {/* User menu + Close button */}
           <div className="border-t border-white/[0.06] p-2 flex items-center gap-1">
             <UserMenu dropUp showName />
+            <LanguageSelect />
             <div className="flex-1" />
             <button
               onClick={() => setMobileMenuOpen(false)}
               className="flex h-10 w-10 items-center justify-center text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors"
-              aria-label="Fermer le menu"
+              aria-label={t('nav.aria.closeMenu')}
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
@@ -378,7 +386,7 @@ export function MainLayout() {
           <button
             className="relative mr-3 flex h-10 w-10 items-center justify-center text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] rounded-lg transition-colors md:hidden"
             onClick={() => setMobileMenuOpen(true)}
-            aria-label="Menu"
+            aria-label={t('nav.aria.menu')}
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -402,7 +410,7 @@ export function MainLayout() {
             {chatSlug && <button
               onClick={() => setChatMode(chatMode === 'closed' ? 'open' : 'closed')}
               className={`p-2 rounded-lg transition-colors ${chatMode !== 'closed' ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.06]'}`}
-              title="Toggle chat"
+              title={t('nav.aria.toggleChat')}
             >
               <MessageCircle className="w-5 h-5" />
             </button>}
