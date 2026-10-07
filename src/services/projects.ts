@@ -8,6 +8,7 @@ import type {
   ProjectMilestoneDetail,
   PaginatedResponse,
   CreateProjectRequest,
+  ProjectProfile,
   CreateMilestoneRequest,
   CreateReleaseRequest,
   MilestoneProgress,
@@ -31,7 +32,11 @@ export const projectsApi = {
   create: (data: CreateProjectRequest) =>
     api.post<Project>('/projects', data),
 
-  update: (slug: string, data: { name?: string; description?: string | null; root_path?: string }) =>
+  /** `root_path: ''` clears the folder (a project turned into `work`). */
+  update: (
+    slug: string,
+    data: { name?: string; description?: string | null; root_path?: string; profile?: ProjectProfile },
+  ) =>
     api.patch<void>(`/projects/${slug}`, data),
 
   delete: (slug: string) => api.delete(`/projects/${slug}`),

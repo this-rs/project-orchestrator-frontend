@@ -108,10 +108,22 @@ describe('ProjectDetailPage', () => {
     intel.summary = null
   })
 
+  it('a project without code shows its kind and offers no sync', async () => {
+    get.mockResolvedValue({ id: 'p9', name: 'Q3 Marketing', slug: 'q3-marketing', profile: 'work', created_at: '2026-01-01T00:00:00Z' })
+    getRoadmap.mockResolvedValue({ ...roadmap, milestones: [], releases: [] })
+    renderPage()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Q3 Marketing' })).toBeTruthy()
+    expect(screen.getAllByText('Without code').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Sync codebase' })).toBeNull()
+    expect(screen.queryByText('Never synced')).toBeNull()
+    expect(screen.queryByText('Last synced')).toBeNull()
+  })
+
   it('renders header facts, one progress line and every section in hub order', async () => {
     renderPage()
     expect(await screen.findByRole('heading', { level: 1, name: 'Backend' })).toBeTruthy()
     expect(screen.getByText('backend')).toBeTruthy()
+    expect(screen.getAllByText('With code').length).toBeGreaterThan(0)
     expect(screen.getByText('synced 1h')).toBeTruthy()
     expect(await screen.findByText('1 milestone')).toBeTruthy()
     expect(screen.getByText('1 release')).toBeTruthy()

@@ -8,6 +8,7 @@ import {
   EntityList,
   EntityRow,
   ErrorState,
+  Fact,
   Facts,
   FormDialog,
   LoadingPage,
@@ -45,6 +46,7 @@ import {
 } from '@/atoms'
 import { CreateMilestoneForm, CreateReleaseForm, EditProjectForm } from '@/components/forms'
 import type { Project, ProjectRoadmap } from '@/types'
+import { PROJECT_PROFILE_TEXT, hasCodebase, profileIcon, profileLabel, profileOf } from '@/constants/projectProfile'
 
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
@@ -161,11 +163,12 @@ export function ProjectDetailPage() {
       slug: project?.slug,
       description: project?.description,
       root_path: project?.root_path,
+      profile: project?.profile,
     },
     onSubmit: async (data) => {
       if (!project) return
       await projectsApi.update(project.slug, data)
-      setProject({ ...project, ...data })
+      setProject({ ...project, ...data, root_path: data.root_path || undefined })
       toast.success('Project updated')
     },
   })
@@ -177,6 +180,9 @@ export function ProjectDetailPage() {
   const releases = roadmap?.releases ?? []
   const progress = roadmap?.progress
   const intelReady = !intelligence.loading && !intelligence.error && !!intelligence.summary
+  const profile = profileOf(project)
+  // Only a codebase is synced or watched; a project without code has nothing to index.
+  const codebase = hasCodebase(project)
 
   const exploreLinks = [
     {
@@ -196,10 +202,13 @@ export function ProjectDetailPage() {
         title={project.name}
         description={project.description}
         meta={[
+          <Fact key="type" icon={profileIcon(profile)} title={PROJECT_PROFILE_TEXT.type}>
+            {profileLabel(profile)}
+          </Fact>,
           <span key="slug" className="font-mono">
             {project.slug}
           </span>,
-          project.last_synced ? (
+          !codebase ? null : project.last_synced ? (
             <RelativeTime key="sync" date={project.last_synced} prefix="synced " />
           ) : (
             <span key="sync" className="text-amber-400/80">
@@ -211,11 +220,13 @@ export function ProjectDetailPage() {
         ]}
         actions={
           <>
-            <Button size="sm" variant="secondary" onClick={handleSync} loading={syncing} aria-label="Sync codebase">
-              {!syncing && <RefreshCw className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />}
-              {syncing ? 'Syncing…' : 'Sync'}
-            </Button>
-            {project.root_path && <WatcherToggle projectId={project.id} rootPath={project.root_path} className="min-h-9" />}
+            {codebase && (
+              <Button size="sm" variant="secondary" onClick={handleSync} loading={syncing} aria-label="Sync codebase">
+                {!syncing && <RefreshCw className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />}
+                {syncing ? 'Syncing…' : 'Sync'}
+              </Button>
+            )}
+            {codebase && project.root_path && <WatcherToggle projectId={project.id} rootPath={project.root_path} className="min-h-9" />}
           </>
         }
         overflowActions={[
@@ -345,6 +356,7 @@ export function ProjectDetailPage() {
       <Section title="Details">
         <Facts
           items={[
+            { label: PROJECT_PROFILE_TEXT.type, value: profileLabel(profile) },
             {
               label: 'Root path',
               value: project.root_path ? (
@@ -361,7 +373,11 @@ export function ProjectDetailPage() {
               ) : null,
             },
             { label: 'Created', value: project.created_at ? formatAbsolute(project.created_at) : null },
-            { label: 'Last synced', value: project.last_synced ? formatAbsolute(project.last_synced) : 'Never' },
+            {
+              label: 'Last synced',
+              hidden: !codebase,
+              value: project.last_synced ? formatAbsolute(project.last_synced) : 'Never',
+            },
           ]}
         />
       </Section>

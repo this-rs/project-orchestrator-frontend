@@ -1,4 +1,4 @@
-import { InputHTMLAttributes, forwardRef } from 'react'
+import { InputHTMLAttributes, forwardRef, useId } from 'react'
 import { Search } from 'lucide-react'
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -7,14 +7,20 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, className = '', ...props }, ref) => {
+  ({ label, error, id, className = '', ...props }, ref) => {
+    // A label names its control: screen readers read it, a click on it focuses the field.
+    const generatedId = useId()
+    const controlId = id ?? generatedId
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-sm font-medium text-gray-300 mb-1">{label}</label>
+          <label htmlFor={controlId} className="block text-sm font-medium text-gray-300 mb-1">
+            {label}
+          </label>
         )}
         <input
           ref={ref}
+          id={controlId}
           className={`
             w-full px-3 py-2 bg-surface-base border border-border-default rounded-lg
             text-base md:text-sm text-gray-100 placeholder-gray-500 input-focus-glow
