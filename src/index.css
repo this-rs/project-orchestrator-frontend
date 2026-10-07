@@ -73,10 +73,8 @@
   --fluid-2xl: clamp(1.35rem,  1.297rem + 0.23vw, 1.5rem);    /* 21.6px → 24px */
   --fluid-3xl: clamp(1.6rem,   1.503rem + 0.41vw, 1.875rem);  /* 25.6px → 30px */
 
-  /* Transitions */
-  --transition-fast: 150ms ease;
-  --transition-normal: 200ms ease;
-  --transition-slow: 300ms ease;
+  /* Motion tokens (--ease-standard, --duration-*) live in the « Material & motion »
+   * block at the end of this file. There is no second scale. */
 }
 
 /* OKLCH progressive enhancement — perceptually uniform colors */
@@ -123,7 +121,7 @@ p, .description-text { text-wrap: pretty; }
 
 .animated-counter {
   counter-reset: ac var(--counter-value);
-  transition: --counter-value 800ms ease-out;
+  transition: --counter-value 800ms var(--ease-standard);
 }
 
 .animated-counter::after {
@@ -153,7 +151,7 @@ p, .description-text { text-wrap: pretty; }
     rgba(255, 255, 255, 0.15) 50%,
     transparent 100%
   );
-  animation: progress-shimmer-slide 1.5s ease-in-out infinite;
+  animation: progress-shimmer-slide 1.5s var(--ease-standard) infinite;
 }
 @keyframes progress-shimmer-slide {
   0%   { transform: translateX(-100%); }
@@ -162,7 +160,7 @@ p, .description-text { text-wrap: pretty; }
 
 /* ─── Pulse indicator ─────────────────────────────────────────────── */
 .pulse-ring {
-  animation: pulse-expand 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  animation: pulse-expand 2s var(--ease-standard) infinite;
 }
 @keyframes pulse-expand {
   0%   { transform: scale(1);   opacity: 0.75; }
@@ -175,7 +173,7 @@ p, .description-text { text-wrap: pretty; }
 
 /* ─── Task drawer slide-in ────────────────────────────────────────── */
 .animate-slide-in-right {
-  animation: slide-in-right 200ms ease-out both;
+  animation: slide-in-right var(--duration-fast) var(--ease-standard) both;
 }
 @keyframes slide-in-right {
   from { transform: translateX(100%); }
@@ -187,7 +185,7 @@ p, .description-text { text-wrap: pretty; }
 
 /* ─── Dependency graph node pulse for in_progress ─────────────────── */
 .dep-node-pulse {
-  animation: dep-node-glow 2s ease-in-out infinite;
+  animation: dep-node-glow 2s var(--ease-standard) infinite;
 }
 @keyframes dep-node-glow {
   0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
@@ -199,7 +197,7 @@ p, .description-text { text-wrap: pretty; }
 
 /* ─── Empty state entrance ────────────────────────────────────────── */
 .empty-state {
-  animation: empty-state-in 400ms ease-out both;
+  animation: empty-state-in var(--duration-base) var(--ease-standard) both;
 }
 @keyframes empty-state-in {
   from { opacity: 0; transform: translateY(10px); }
@@ -283,7 +281,7 @@ html.tauri * {
   /* @starting-style entry animation (progressive enhancement) */
   opacity: 1;
   transform: scale(1) translateY(0);
-  transition: opacity 150ms ease, transform 150ms ease;
+  transition: opacity var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
 }
 
 /* CSS-only entry animation for dropdowns — no JS needed */
@@ -328,10 +326,10 @@ html.tauri * {
   opacity: 1;
   transform: translateY(0) scale(1);
   transition:
-    opacity 150ms ease-out,
-    transform 150ms ease-out,
-    display 150ms allow-discrete,
-    overlay 150ms allow-discrete;
+    opacity var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard),
+    display var(--duration-fast) allow-discrete,
+    overlay var(--duration-fast) allow-discrete;
 }
 
 /* Exit state */
@@ -437,10 +435,10 @@ html.tauri * {
   opacity: 1;
   transform: translateY(0);
   transition:
-    opacity 120ms ease-out,
-    transform 120ms ease-out,
-    display 120ms allow-discrete,
-    overlay 120ms allow-discrete;
+    opacity var(--duration-instant) var(--ease-standard),
+    transform var(--duration-instant) var(--ease-standard),
+    display var(--duration-instant) allow-discrete,
+    overlay var(--duration-instant) allow-discrete;
 }
 
 /* Exit state */
@@ -482,7 +480,7 @@ html.tauri * {
 
 /* Input focus glow — replaces harsh ring with soft glow */
 .input-focus-glow {
-  transition: box-shadow var(--transition-normal), border-color var(--transition-normal);
+  transition: box-shadow var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
 }
 .input-focus-glow:focus {
   outline: none;
@@ -493,7 +491,7 @@ html.tauri * {
 /* Card hover — lift + border glow + shimmer + smooth transition */
 .card-hover {
   position: relative;
-  transition: transform var(--transition-normal), box-shadow var(--transition-normal), border-color var(--transition-normal);
+  transition: transform var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
 }
 .card-hover::after {
   content: '';
@@ -503,7 +501,7 @@ html.tauri * {
   background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.03) 45%, rgba(255, 255, 255, 0.05) 50%, rgba(255, 255, 255, 0.03) 55%, transparent 60%);
   opacity: 0;
   transform: translateX(-100%);
-  transition: opacity var(--transition-normal);
+  transition: opacity var(--duration-fast) var(--ease-standard);
   pointer-events: none;
 }
 .card-hover:hover {
@@ -513,7 +511,7 @@ html.tauri * {
 }
 .card-hover:hover::after {
   opacity: 1;
-  animation: card-shimmer 1.5s ease-out forwards;
+  animation: card-shimmer 1.5s var(--ease-standard) forwards;
 }
 
 @keyframes card-shimmer {
@@ -522,7 +520,7 @@ html.tauri * {
 
 /* Kanban card hover — no translateY (conflicts with @dnd-kit drag) */
 .card-interactive {
-  transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+  transition: box-shadow var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
 }
 .card-interactive:hover {
   border-color: rgba(var(--glow-primary), 0.2);
@@ -638,7 +636,7 @@ html.tauri * {
   background: transparent !important;
   border-bottom: 1px solid var(--color-border-subtle) !important;
   color: var(--text-secondary) !important;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition: background var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
 }
 .dep-graph-controls button:hover {
   background: var(--color-surface-highlight) !important;
@@ -687,7 +685,7 @@ html.tauri * {
   top: -15%;
   left: -10%;
   background: radial-gradient(circle, var(--ambient-spot-1) 0%, transparent 70%);
-  animation: ambient-drift-1 80s ease-in-out infinite alternate;
+  animation: ambient-drift-1 80s var(--ease-standard) infinite alternate;
 }
 
 /* Orb 2 — violet, bottom-right quadrant */
@@ -697,7 +695,7 @@ html.tauri * {
   bottom: -20%;
   right: -10%;
   background: radial-gradient(circle, var(--ambient-spot-2) 0%, transparent 70%);
-  animation: ambient-drift-2 90s ease-in-out infinite alternate;
+  animation: ambient-drift-2 90s var(--ease-standard) infinite alternate;
 }
 
 /* Orb 3 — cyan, center-right area */
@@ -707,7 +705,7 @@ html.tauri * {
   top: 10%;
   right: 5%;
   background: radial-gradient(circle, var(--ambient-spot-3) 0%, transparent 70%);
-  animation: ambient-drift-3 100s ease-in-out infinite alternate;
+  animation: ambient-drift-3 100s var(--ease-standard) infinite alternate;
 }
 
 @keyframes ambient-drift-1 {
@@ -741,14 +739,14 @@ html.tauri * {
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation-duration: 220ms;
-  animation-timing-function: ease-in-out;
+  animation-timing-function: var(--ease-standard);
 }
 
 /* Content area — named separately so sidebar/header stay stable */
 ::view-transition-old(content),
 ::view-transition-new(content) {
   animation-duration: 220ms;
-  animation-timing-function: ease-in-out;
+  animation-timing-function: var(--ease-standard);
 }
 
 /* Sidebar and header remain stable — no animation, no snapshot flicker */
@@ -769,17 +767,17 @@ html.tauri * {
  * view-transition-name. We customize the group animation for a smoother feel. */
 ::view-transition-group(*) {
   animation-duration: 250ms;
-  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  animation-timing-function: var(--ease-standard);
 }
 
 /* Sidebar navigation — directional vertical slide.
  * data-transition-type="sidebar-nav" + data-nav-direction="up|down" on <html>.
  * Old content slides out, new content slides in from the matching direction. */
 [data-transition-type="sidebar-nav"] ::view-transition-old(content) {
-  animation: vt-slide-out-up 220ms ease-in both;
+  animation: vt-slide-out-up 220ms var(--ease-in-soft) both;
 }
 [data-transition-type="sidebar-nav"] ::view-transition-new(content) {
-  animation: vt-slide-in-up 220ms ease-out both;
+  animation: vt-slide-in-up 220ms var(--ease-standard) both;
 }
 [data-transition-type="sidebar-nav"][data-nav-direction="up"] ::view-transition-old(content) {
   animation-name: vt-slide-out-down;
@@ -849,24 +847,43 @@ html.tauri * {
   }
 }
 
-/* Motion tokens. Three families, each with its own timing:
- *   feedback  — confirms a user action (press, toggle): immediate, 100–160ms
+/* Motion tokens — ONE curve, five named durations (DESIGN.md § Mouvement; same
+ * names and values as the site's rhythm.css / motion/tokens.ts). Three families
+ * say WHY something moves, the tokens say HOW:
+ *   feedback  — confirms a user action (press, toggle): --duration-instant
  *   transition — moves or reveals something in space (menu, sheet, expand):
- *                180–240ms, ease-out in, ease-in out
+ *                --duration-fast in, up to --duration-stage for a state swap,
+ *                --motion-exit out (an exit is shorter, not on another curve)
  *   temporal  — represents time passing the user waits on (progress, live,
  *                streaming): slow, low amplitude, and it STOPS when idle
+ * Nothing in src/ writes `ease`, `ease-out` or `cubic-bezier(…)` by hand: the
+ * only curves declared are the two below.
  */
 :root {
-  --motion-feedback: 120ms;
-  --motion-transition: 200ms;
-  --motion-exit: 150ms;
-  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-in-soft: cubic-bezier(0.4, 0, 1, 1);
-  /* Names shared with the site (styles/buttons.css, pressFeedback): same values as the
-     tokens above — the single curve and the two short durations. */
   --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
-  --duration-instant: 120ms;
-  --duration-fast: 200ms;
+  --duration-instant: 120ms; /* feedback: press, toggle, checkbox */
+  --duration-fast: 200ms;    /* hover, menu / popover open, colour change */
+  --duration-stage: 300ms;   /* one state of a view giving way to another; ceiling for anything the user triggered */
+  --duration-base: 400ms;    /* arrival of a whole block the user asked for — never a list row */
+  --duration-slow: 600ms;    /* ceiling of any reveal (a drawn path, a counter) */
+
+  /* Aliases — same values, kept so existing code keeps its meaning. */
+  --motion-feedback: var(--duration-instant);
+  --motion-transition: var(--duration-fast);
+  --motion-exit: 150ms;
+  --ease-out-soft: var(--ease-standard);
+  /* The only other curve: tolerated on the exits that already use it, no new use. */
+  --ease-in-soft: cubic-bezier(0.4, 0, 1, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-instant: 0ms;
+    --duration-fast: 0ms;
+    --duration-stage: 0ms;
+    --duration-base: 0ms;
+    --duration-slow: 0ms;
+    --motion-exit: 0ms;
+  }
 }
 @keyframes ui-pop-in {
   from { opacity: 0; transform: translateY(var(--pop-from-y, -4px)) scale(0.98); }
@@ -877,7 +894,7 @@ html.tauri * {
    menu scales from its bottom edge and rises instead of dropping. */
 .ui-pop-in {
   --pop-from-y: -4px;
-  animation: ui-pop-in var(--motion-transition) var(--ease-out-soft) both;
+  animation: ui-pop-in var(--duration-fast) var(--ease-standard) both;
   transform-origin: top;
 }
 .ui-pop-in[data-placement="top"] {
@@ -892,7 +909,7 @@ html.tauri * {
   to { opacity: 1; transform: none; }
 }
 .ui-toast-in {
-  animation: ui-toast-in var(--motion-transition) var(--ease-out-soft) both;
+  animation: ui-toast-in var(--duration-fast) var(--ease-standard) both;
 }
 /* Toast countdown — temporal family: represents the 4s before auto-dismiss and
    stops with it. transform (compositor only), never width (layout + paint on

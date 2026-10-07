@@ -71,7 +71,7 @@ export function Sparkline({
     // Force reflow then animate
     // eslint-disable-next-line @typescript-eslint/no-unused-expressions
     el.getBoundingClientRect()
-    el.style.transition = `stroke-dashoffset ${animationDuration}ms ease-out`
+    el.style.transition = `stroke-dashoffset ${animationDuration}ms var(--ease-standard)`
     el.style.strokeDashoffset = '0'
 
     const timer = setTimeout(() => setDrawn(true), animationDuration)
@@ -97,7 +97,7 @@ export function Sparkline({
           opacity={drawn || reducedMotion ? fillOpacity : 0}
           style={
             !reducedMotion && animationDuration > 0
-              ? { transition: `opacity ${animationDuration * 0.5}ms ease-out ${animationDuration * 0.3}ms` }
+              ? { transition: `opacity ${animationDuration * 0.5}ms var(--ease-standard) ${animationDuration * 0.3}ms` }
               : undefined
           }
         />

@@ -64,7 +64,7 @@ function OpenRunTargetDialog({ pending, onCancel }: { pending: PendingRun; onCan
           <Button variant="ghost" size="sm" onClick={onCancel} disabled={busy}>
             Cancel
           </Button>
-          <Button variant="primary" size="sm" onClick={confirm} loading={busy} className="bg-indigo-600 hover:bg-indigo-500">
+          <Button variant="primary" size="sm" onClick={confirm} loading={busy}>
             <Rocket className="w-4 h-4 mr-1.5" />
             Launch
           </Button>
