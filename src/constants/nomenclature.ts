@@ -556,6 +556,7 @@ const EXTRA_SEGMENTS: Record<string, string> = {
   graph: 'Dependencies',
   'vector-space': 'Vector space',
   chat: 'Chat',
+  timeline: 'Timeline',
 }
 
 /** Display name for a URL segment, or null when it is an identifier. */
