@@ -7,7 +7,8 @@ import { getApiBase } from '@/services/env'
 import { toEntityRef, type ChatReference, type EntityRef } from '@/refs/types'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftRoutingModeAtom, chatSessionRoutingAtom, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom } from '@/atoms'
+import { aliasesForInstance } from '@/constants/providers'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { applyResultCost } from '@/utils/cost'
@@ -2001,7 +2002,20 @@ export function useChat() {
         // In `mixed` (the pilot) and `full`, PO / the server resolves provider
         // AND model: nothing is sent unless the user forced a target through
         // the "Advanced" path.
-        const explicit = mode === 'primary' || store.get(chatForcedTargetAtom)
+        // A draft that picked models names them (strict: one, mixed: the pilot and the pool).
+        // With the router, an untouched draft names nothing (the menu shows none either);
+        // without it the picker is the only way, as before.
+        const routerPresent = !!store.get(routingSettingsAtom(slug)).settings
+        const explicit = chosenMode ? chosenMode !== 'full' : routerPresent ? store.get(chatForcedTargetAtom) : mode === 'primary'
+        // Mixed: PO routes among the picked models. An alias is sent as the model it stands for.
+        const pool =
+          chosenMode === 'mixed'
+            ? store.get(chatDraftSelectionAtom).map((pick) => {
+                const instance = store.get(providersAtom)?.providers.find((x) => x.id === pick.provider)
+                const alias = aliasesForInstance(instance, store.get(providersAtom)?.aliases).find((a) => a.alias === pick.model)
+                return { provider: pick.provider, model: alias?.model ?? pick.model }
+              })
+            : null
         // The provider is named ONLY when the user picked an instance this
         // server lists. Otherwise the field is left out and the server
         // resolves its default (project rule, global rule…) — sending the
@@ -2024,6 +2038,7 @@ export function useChat() {
           model: options?.model ?? (explicit ? store.get(chatSessionModelAtom) : null) ?? undefined,
           ...(provider ? { provider } : {}),
           ...(chosenMode ? { routing_mode: chosenMode } : {}),
+          ...(pool && pool.length > 1 ? { routing_pool: pool } : {}),
           attachments: attachments && attachments.length > 0 ? attachments : undefined,
           ...(sentRefs ? { refs: sentRefs } : {}),
         })
@@ -2038,7 +2053,8 @@ export function useChat() {
         // The forced target belonged to the conversation just opened.
         store.set(chatForcedTargetAtom, false)
         // So did its mode: the next conversation starts from the settings again.
-        store.set(chatDraftRoutingModeAtom, null)
+        store.set(chatDraftAutoAtom, null)
+        store.set(chatDraftSelectionAtom, [])
         // The conversation keeps the mode it was opened with, before its record says so.
         if (chosenMode) store.set(chatSessionRoutingAtom, { routed_by: null, route_reason: null, routing_mode: chosenMode })
         if (mode !== 'primary') {

@@ -20,6 +20,7 @@ import {
 } from '@/types/provider'
 import { routingApi } from '@/services/routing'
 import type { ProviderRoutingMode, RoutingSettingsResponse } from '@/types/routing'
+import { modeOf, type RoutingPick } from '@/utils/routingSelection'
 import { chatPermissionConfigAtom, chatSelectedProjectAtom, chatSessionIdAtom, chatSessionModelAtom } from './chat'
 
 /**
@@ -239,11 +240,16 @@ export const chatRoutingSlugAtom = atom<string>((get) => get(chatSelectedProject
 export const chatRoutingSettingsAtom = atom<RoutingSettingsResponse | null>((get) => get(routingSettingsAtom(get(chatRoutingSlugAtom))).settings)
 
 /**
- * The mode the NEXT conversation was given in the menu, `null` = it follows the
- * settings. It belongs to the draft only: it goes out with the first message
- * (`routing_mode`) and is reset, so one chat never changes another.
+ * What the NEXT conversation was given in the menu: the Auto switch (`null` = not
+ * touched, the settings decide) and the (provider, model) picks. They belong to
+ * the draft only: they go out with the first message and are reset, so one chat
+ * never changes another.
  */
-export const chatDraftRoutingModeAtom = atom<ProviderRoutingMode | null>(null)
+export const chatDraftAutoAtom = atom<boolean | null>(null)
+export const chatDraftSelectionAtom = atom<RoutingPick[]>([])
+
+/** The routing mode the draft stands for - read from the two above, never stored. `null` = the settings decide. */
+export const chatDraftRoutingModeAtom = atom<ProviderRoutingMode | null>((get) => modeOf(get(chatDraftAutoAtom), get(chatDraftSelectionAtom)))
 
 /**
  * Mode of THIS conversation, anything not known being `primary` (today's

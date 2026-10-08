@@ -134,7 +134,7 @@ export default {
     poChooses: 'سيختار PO بنفسه (التوجيه: كامل)',
     poRoutes: 'PO يوجّه (موصى به)',
   },
-  menu: { modeLegend: 'وضع التوجيه' },
+  menu: { aria: 'نماذج هذه المحادثة', chipDefault: 'الإعداد الافتراضي للخادم', chipMixed: 'مختلط · {count} نماذج', summaryNone: 'لا شيء محدد: يُطبَّق الإعداد الافتراضي للخادم.', summaryMixed: 'يوجّه PO بين النماذج المحددة ({count}).', selectAll: 'تحديد الكل', clearAll: 'إلغاء تحديد الكل', noProvider: 'لا يوجد مزوّد مهيّأ', providerToggle: 'كل نماذج {provider}', countOf: '{selected} من {total}', noModels: 'لا توجد نماذج مدرجة لهذا المزوّد', loading: 'جارٍ تحميل النماذج…', search: 'ابحث عن نماذج…' },
   picker: { primary: 'الأساسي: {target} · PO يوجّه المنفّذين', forced: 'مفروض: {target}', willChoose: 'سيختار PO عند أول رسالة', routedBy: 'تم التوجيه بواسطة: {by}', aria: 'التوجيه: {mode}' },
   reason: 'السبب: {reason}',
 } satisfies Translation<'routing'>

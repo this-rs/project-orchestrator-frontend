@@ -134,7 +134,7 @@ export default {
     poChooses: 'PO चुनेगा (रूटिंग: पूर्ण)',
     poRoutes: 'PO रूट करता है (अनुशंसित)',
   },
-  menu: { modeLegend: 'रूटिंग मोड' },
+  menu: { aria: 'इस बातचीत के मॉडल', chipDefault: 'सर्वर डिफ़ॉल्ट', chipMixed: 'मिश्रित · {count} मॉडल', summaryNone: 'कुछ चुना नहीं गया: सर्वर डिफ़ॉल्ट लागू होगा।', summaryMixed: 'PO चुने गए {count} मॉडलों के बीच रूट करता है।', selectAll: 'सभी चुनें', clearAll: 'सभी हटाएँ', noProvider: 'कोई प्रदाता कॉन्फ़िगर नहीं है', providerToggle: '{provider} के सभी मॉडल', countOf: '{total} में से {selected}', noModels: 'इस प्रदाता के लिए कोई मॉडल सूचीबद्ध नहीं', loading: 'मॉडल लोड हो रहे हैं…', search: 'मॉडल खोजें…' },
   picker: { primary: 'प्राथमिक: {target} · PO निष्पादकों को रूट करता है', forced: 'थोपा गया: {target}', willChoose: 'PO पहले संदेश पर चुनेगा', routedBy: 'रूट करने वाला: {by}', aria: 'रूटिंग: {mode}' },
   reason: 'कारण: {reason}',
 } satisfies Translation<'routing'>

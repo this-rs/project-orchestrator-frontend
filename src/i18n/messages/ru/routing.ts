@@ -134,7 +134,7 @@ export default {
     poChooses: 'PO выберет сам (маршрутизация: полная)',
     poRoutes: 'PO маршрутизирует (рекомендуется)',
   },
-  menu: { modeLegend: 'Режим маршрутизации' },
+  menu: { aria: 'Модели этого разговора', chipDefault: 'Значение сервера по умолчанию', chipMixed: 'Смешанный · моделей: {count}', summaryNone: 'Ничего не выбрано: действует значение сервера по умолчанию.', summaryMixed: 'PO маршрутизирует между выбранными моделями ({count}).', selectAll: 'Выбрать все', clearAll: 'Снять все', noProvider: 'Провайдеры не настроены', providerToggle: 'Все модели {provider}', countOf: '{selected} из {total}', noModels: 'Для этого провайдера нет моделей', loading: 'Загрузка моделей…', search: 'Поиск моделей…' },
   picker: { primary: 'Основной: {target} · PO маршрутизирует исполнителей', forced: 'Принудительно: {target}', willChoose: 'PO выберет при первом сообщении', routedBy: 'Маршрутизация: {by}', aria: 'Маршрутизация: {mode}' },
   reason: 'Причина: {reason}',
 } satisfies Translation<'routing'>

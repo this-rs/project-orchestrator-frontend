@@ -25,7 +25,6 @@ import { getModelDotColor, getModelShortLabel, groupModelsByFamily } from '@/con
 import {
   AUTO_TARGET_HELP,
   AUTO_TARGET_LABEL,
-  DEFAULT_TARGET_LABEL,
   DEFAULT_MODEL_LABEL,
   NEW_CONVERSATION_OTHER_PROVIDER_LABEL,
   PROVIDER_LOCKED_TEXT,
@@ -62,8 +61,6 @@ interface ProviderModelPickerProps {
    * `RoutingModePicker` uses it to know the target was forced from the Advanced path.
    */
   onForce?: (forced: boolean) => void
-  /** Text put before the chip ("Forced: "), so an explicit choice reads as such. */
-  chipPrefix?: string
   /** Mode tabs (Auto / Mixed / Strict), shown at the top of the menu. */
   header?: ReactNode
   /**
@@ -97,7 +94,7 @@ const rowTone = (active: boolean) =>
  * - Backend without provider routes: no provider at all, and the Claude model
  *   picker exactly as it was.
  */
-export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeModel, onNewConversation, onForce, chipPrefix = '', header, autoPanel }: ProviderModelPickerProps) {
+export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeModel, onNewConversation, onForce, header, autoPanel }: ProviderModelPickerProps) {
   const list = useAtomValue(providersAtom)
   const loadState = useAtomValue(providersLoadStateAtom)
   const [pickedProvider, setPickedProvider] = useAtom(chatSelectedProviderAtom)
@@ -208,17 +205,14 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
   // A chat the user gave its own model is no longer PO's to decide: its chip names that model.
   const ownChoice = hasSession && sessionRouting?.routed_by === 'request'
   const poChooses = !!autoPanel
-  const tabbed = !!header
   const chipText = poChooses && !ownChoice
     ? AUTO_TARGET_LABEL
     : !showProviders
-    ? modelLabel
-    : autoActive && !tabbed
-      ? AUTO_TARGET_LABEL
-      : autoActive && resolvedText
-        ? resolvedText
+      ? modelLabel
+      : autoActive
+        ? AUTO_TARGET_LABEL
         : `${providerLabel} › ${modelLabel}`
-  const chipTitle = `${chipPrefix}${autoActive && !tabbed && resolvedText ? `${AUTO_TARGET_LABEL}: ${resolvedText}` : chipText}`
+  const chipTitle = autoActive && resolvedText ? `${AUTO_TARGET_LABEL}: ${resolvedText}` : chipText
 
   const choices = (p: ProviderInstance | null, active: string, withDefault: boolean, defaultActive = false) => (
     <ModelChoices
@@ -264,7 +258,6 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
           ))}
         {modelDot && <span className={`w-1.5 h-1.5 rounded-full ${modelDot}`} />}
         <span className="min-w-0 max-w-[14rem] truncate" title={chipTitle}>
-          {chipPrefix}
           {chipText}
         </span>
         {autoActive && resolvedText && (
@@ -313,7 +306,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
                 className={`${ROW} border-b border-white/[0.06] ${rowTone(autoActive)}`}
               >
                 <span className="flex items-center gap-1.5">
-                  <span>{tabbed ? DEFAULT_TARGET_LABEL : AUTO_TARGET_LABEL}</span>
+                  <span>{AUTO_TARGET_LABEL}</span>
                   {autoActive && <Check className="w-3 h-3 text-indigo-300" aria-hidden="true" />}
                 </span>
                 <span className="mt-0.5 block text-[10px] leading-snug text-gray-500">
