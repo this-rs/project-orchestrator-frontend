@@ -41,8 +41,8 @@ const POPOVER =
  *
  * In `mixed` and `full` an "Advanced" link opens the provider/model picker to
  * FORCE a target for this conversation (request level, explicit); the chip then
- * reads "Forced: …". The chip is never called "Auto": that word is the
- * auto-continue toggle's.
+ * reads "Forced: …". In `full`, the chip reads "Auto" (PO decides), and it
+ * switches to the chat's own model as soon as the user picks one in that chat.
  */
 export function RoutingModePicker({ sessionId, open, onOpenChange, onChangeModel, onNewConversation }: RoutingModePickerProps) {
   const { t } = useT()
@@ -79,6 +79,8 @@ export function RoutingModePicker({ sessionId, open, onOpenChange, onChangeModel
   if (mode === 'primary') return picker()
 
   const hasSession = !!sessionId
+  /** This chat got the user's own choice (recorded by the picker, `routed_by: request`). */
+  const ownChoice = hasSession && sessionRouting?.routed_by === 'request'
   // "Forced: " in the language of the user; the target itself follows in the chip.
   const forcedPrefix = t('routing.picker.forced', { target: '' }).trimEnd() + ' '
   if ((advanced || forced) && !hasSession) {
@@ -94,7 +96,9 @@ export function RoutingModePicker({ sessionId, open, onOpenChange, onChangeModel
       />
     )
   }
-  if (advanced && hasSession) return picker()
+  // A chat the user gave its own model shows that model, whatever the menu's
+  // state: closing the menu after choosing must not bring "Auto" back.
+  if ((advanced || ownChoice) && hasSession) return picker()
 
   // The primary of mixed mode: the setting, else what the server defaults to.
   const primary = settings?.primary ?? (list?.default ? { provider: list.default.provider, model: list.default.model ?? list.default.alias ?? null, alias: null } : null)

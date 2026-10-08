@@ -34,7 +34,7 @@ export default {
     trust_without_sandbox: 'وضع الثقة دون صندوق رمل',
     remote: 'بعيد، غير مسموح هنا',
   },
-  badge: { poChooses: 'PO يختار', why: 'لماذا؟' },
+  badge: { poChooses: 'Auto', why: 'لماذا؟' },
   advanced: { force: 'فرض مزوّد' },
   settings: {
     title: 'التوجيه',

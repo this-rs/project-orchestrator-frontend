@@ -7,11 +7,13 @@ import { useModelCatalog } from '@/components/settings/useModelCatalog'
 import {
   chatDefaultModelAtom,
   chatEffectiveProviderAtom,
+  chatRoutingModeAtom,
   chatTargetProviderIdAtom,
   chatSelectedProviderAtom,
   chatSessionCapabilitiesAtom,
   chatSessionModelAtom,
   chatSessionProviderAtom,
+  chatSessionRoutingAtom,
   modelCatalogAtom,
   modelCatalogLoadedAtom,
   modelCatalogRefreshingAtom,
@@ -95,6 +97,8 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
   const instance = useAtomValue(chatEffectiveProviderAtom)
   const sessionProvider = useAtomValue(chatSessionProviderAtom)
   const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
+  const setSessionRouting = useSetAtom(chatSessionRoutingAtom)
+  const routingMode = useAtomValue(chatRoutingModeAtom)
   const defaultModel = useAtomValue(chatDefaultModelAtom)
   const capabilities = useAtomValue(chatSessionCapabilitiesAtom)
   const catalog = useAtomValue(modelCatalogAtom)
@@ -166,6 +170,9 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
       // Active session — mid-session model change over the socket.
       if (onChangeModel) onChangeModel(modelId)
       else setSessionModel(modelId)
+      // This chat now carries the user's own choice: its chip must show it
+      // instead of PO's. Local to this session (the record is reloaded per chat).
+      setSessionRouting({ routed_by: 'request', route_reason: null, routing_mode: routingMode })
     } else if (target) {
       if (providerUnavailableReason(target)) return
       // Picking the server default's own instance is not a choice to remember:

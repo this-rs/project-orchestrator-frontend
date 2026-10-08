@@ -34,7 +34,7 @@ export default {
     trust_without_sandbox: '샌드박스 없는 신뢰 모드',
     remote: '원격, 여기서는 허용되지 않음',
   },
-  badge: { poChooses: 'PO가 선택', why: '이유' },
+  badge: { poChooses: 'Auto', why: '이유' },
   advanced: { force: '프로바이더 강제 지정' },
   settings: {
     title: '라우팅',

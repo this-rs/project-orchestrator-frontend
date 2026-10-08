@@ -34,7 +34,7 @@ export default {
     trust_without_sandbox: 'サンドボックスなしの信頼モード',
     remote: 'リモートはここでは許可されていません',
   },
-  badge: { poChooses: 'PO が選択', why: '理由' },
+  badge: { poChooses: 'Auto', why: '理由' },
   advanced: { force: 'プロバイダーを強制' },
   settings: {
     title: 'ルーティング',
