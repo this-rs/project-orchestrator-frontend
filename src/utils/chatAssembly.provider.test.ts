@@ -6,7 +6,7 @@
  * Run with: npx vitest run src/utils/chatAssembly.provider.test.ts
  */
 import { describe, it, expect } from 'vitest'
-import { historyEventsToMessages, lastSystemInitRuntime, readSystemInitRuntime } from './chatAssembly'
+import { historyEventsToMessages, lastSystemInitRuntime, readSystemInitRuntime, systemInitToolMetadata } from './chatAssembly'
 import { LEGACY_SYSTEM_INIT, NATIVE_SYSTEM_INIT } from './__fixtures__/systemInitFrames'
 import { CLAUDE_CODE_CAPABILITIES, capabilitiesFallback, normalizeCapabilities } from '@/types/provider'
 
@@ -33,6 +33,7 @@ describe('system_init without a provider (session created before providers)', ()
       tools_count: 3,
       mcp_servers_count: 1,
       permission_mode: 'default',
+      tools: ['Bash', 'Read', 'Edit'],
     })
   })
 })
@@ -89,5 +90,23 @@ describe('readSystemInitRuntime — engine', () => {
     const rt = readSystemInitRuntime(LEGACY_SYSTEM_INIT)
     expect(rt.engine).toBeNull()
     expect(rt.degradedFeatures).toEqual([])
+  })
+})
+
+describe('system_init: tools really offered and allow patterns on the block', () => {
+  it('keeps the offered tools and the allow patterns of the policy', () => {
+    const evt = {
+      type: 'system_init',
+      tools: ['mcp__project-orchestrator__note', 7],
+      tool_policy: { mode: 'ask', allow: ['mcp__project-orchestrator__*', 'Read'], deny: [] },
+    }
+    expect(systemInitToolMetadata(evt)).toEqual({
+      tools: ['mcp__project-orchestrator__note'],
+      tool_allow: ['mcp__project-orchestrator__*', 'Read'],
+    })
+  })
+
+  it('says nothing when the event says nothing', () => {
+    expect(systemInitToolMetadata({ type: 'system_init' })).toEqual({})
   })
 })
