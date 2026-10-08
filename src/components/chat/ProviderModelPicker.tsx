@@ -105,7 +105,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
   const instance = useAtomValue(chatEffectiveProviderAtom)
   const sessionProvider = useAtomValue(chatSessionProviderAtom)
   const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
-  const setSessionRouting = useSetAtom(chatSessionRoutingAtom)
+  const [sessionRouting, setSessionRouting] = useAtom(chatSessionRoutingAtom)
   const routingMode = useAtomValue(chatRoutingModeAtom)
   const defaultModel = useAtomValue(chatDefaultModelAtom)
   const capabilities = useAtomValue(chatSessionCapabilitiesAtom)
@@ -205,9 +205,11 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
   }
 
   // ── Chip ───────────────────────────────────────────────────────────
+  // A chat the user gave its own model is no longer PO's to decide: its chip names that model.
+  const ownChoice = hasSession && sessionRouting?.routed_by === 'request'
   const poChooses = !!autoPanel
   const tabbed = !!header
-  const chipText = poChooses
+  const chipText = poChooses && !ownChoice
     ? AUTO_TARGET_LABEL
     : !showProviders
     ? modelLabel
@@ -252,7 +254,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
         className={`${CHIP} ${modelJustChanged ? 'border-violet-400/50 ring-1 ring-violet-400/30' : 'border-white/[0.08]'}`}
       >
         {showProviders &&
-          (hasSession && !poChooses ? (
+          (hasSession && (!poChooses || ownChoice) ? (
             <Lock className="w-2.5 h-2.5 text-gray-500" aria-hidden="true" />
           ) : (
             <span

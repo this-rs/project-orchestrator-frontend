@@ -134,7 +134,7 @@ export default {
     poChooses: 'O PO escolherá (roteamento: completo)',
     poRoutes: 'O PO roteia (recomendado)',
   },
-  menu: { modeLegend: 'Modo de roteamento', saveFailed: 'Não foi possível salvar o modo.' },
+  menu: { modeLegend: 'Modo de roteamento' },
   picker: { primary: 'Principal: {target} · O PO roteia os executores', forced: 'Forçado: {target}', willChoose: 'O PO escolherá na primeira mensagem', routedBy: 'Roteado por: {by}', aria: 'Roteamento: {mode}' },
   reason: 'Motivo: {reason}',
 } satisfies Translation<'routing'>

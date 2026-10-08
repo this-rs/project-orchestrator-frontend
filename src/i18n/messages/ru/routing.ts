@@ -134,7 +134,7 @@ export default {
     poChooses: 'PO выберет сам (маршрутизация: полная)',
     poRoutes: 'PO маршрутизирует (рекомендуется)',
   },
-  menu: { modeLegend: 'Режим маршрутизации', saveFailed: 'Не удалось сохранить режим.' },
+  menu: { modeLegend: 'Режим маршрутизации' },
   picker: { primary: 'Основной: {target} · PO маршрутизирует исполнителей', forced: 'Принудительно: {target}', willChoose: 'PO выберет при первом сообщении', routedBy: 'Маршрутизация: {by}', aria: 'Маршрутизация: {mode}' },
   reason: 'Причина: {reason}',
 } satisfies Translation<'routing'>

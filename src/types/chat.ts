@@ -312,6 +312,11 @@ export interface CreateSessionRequest {
    */
   provider?: ProviderId
   /**
+   * Routing mode of THIS conversation (`primary` / `mixed` / `full`), replacing the
+   * settings' one for it alone. Omitted = the settings decide.
+   */
+  routing_mode?: ProviderRoutingMode
+  /**
    * Permission mode override for this session (default: from server config).
    * Legacy string, or a neutral `ToolPolicyMode` once the backend accepts both.
    */

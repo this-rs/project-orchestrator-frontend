@@ -134,7 +134,7 @@ export default {
     poChooses: 'PO choisira (routage : complet)',
     poRoutes: 'PO route (recommandé)',
   },
-  menu: { modeLegend: 'Mode de routage', saveFailed: 'Le mode n\'a pas pu être enregistré.' },
+  menu: { modeLegend: 'Mode de routage' },
   picker: { primary: 'Principal : {target} · PO route les exécutants', forced: 'Forcé : {target}', willChoose: 'PO choisira au premier message', routedBy: 'Routé par : {by}', aria: 'Routage : {mode}' },
   reason: 'Raison : {reason}',
 } satisfies Translation<'routing'>

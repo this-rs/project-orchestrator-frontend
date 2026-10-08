@@ -134,7 +134,7 @@ export default {
     poChooses: 'PO 将自行选择（路由：完全）',
     poRoutes: 'PO 路由（推荐）',
   },
-  menu: { modeLegend: '路由模式', saveFailed: '无法保存该模式。' },
+  menu: { modeLegend: '路由模式' },
   picker: { primary: '主要：{target} · PO 路由执行者', forced: '已强制：{target}', willChoose: 'PO 将在第一条消息时选择', routedBy: '路由方：{by}', aria: '路由：{mode}' },
   reason: '原因：{reason}',
 } satisfies Translation<'routing'>
