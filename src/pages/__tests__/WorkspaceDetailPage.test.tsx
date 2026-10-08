@@ -116,6 +116,15 @@ describe('WorkspaceDetailPage', () => {
     renderPage()
     expect(await screen.findByRole('heading', { level: 1, name: 'Main WS' })).toBeTruthy()
     expect(screen.getByText('1 project')).toBeTruthy()
+    // the product's word: an Objective (a milestone on the wire), in the facts and as the section title
+    expect(screen.getByText('1 objective')).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: /^Objectives/ })).toBeTruthy()
+    expect(document.body.textContent).not.toMatch(/\bmilestones?\b/i)
+    // the screen explains itself through the registry intro, folded (DESIGN.md § 5)
+    const intro = document.querySelector('details[data-concept-intro="overview"]') as HTMLDetailsElement
+    expect(intro).toBeTruthy()
+    expect(intro.open).toBe(false)
+    expect(document.querySelector('[class*="glow"]')).toBeNull()
     expect(screen.getByText(/3 \/ 8 tasks completed/)).toBeTruthy()
     // intel not ready → fallback rendered in the Health section
     expect(screen.getByTestId('intel-empty')).toBeTruthy()

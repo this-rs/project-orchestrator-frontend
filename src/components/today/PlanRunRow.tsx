@@ -11,25 +11,25 @@ import type { AttentionThread, WaveSummaryDto } from '@/types/attention'
 import { workspacePath } from '@/utils/paths'
 import { PlanStateBar, countPlanStates, stateSegments } from './PlanStateBar'
 import { Ring } from './charts'
+import { TEXT } from './text'
+
+const P = TEXT.plan
 
 /**
- * One row of "En cours": ONE PLAN. Rows, not cards (a `ThreadRowList` draws the
+ * One row of "In progress": ONE PLAN. Rows, not cards (a `ThreadRowList` draws the
  * dividers): no surface, border or shadow.
  *
  * - title (opens the plan graph), the workspace as a plain label;
- * - a progress bar "faites / total" taken from the thread's wave summary
+ * - a progress bar "done / total" taken from the thread's wave summary
  *   (`waves[].points[].status`) — counted, never estimated;
- * - what advances NOW: an active agent, or "toi" when a task waits on the user;
+ * - what advances NOW: an active assistant, or "you" when a task waits on the user;
  * - duration and cost, updated IN PLACE (plain text nodes, no tween);
  * - the plan's MiniThreadGraph;
- * - a "Discussions" button that exists only when the parent provides
+ * - a "Conversations" button that exists only when the parent provides
  *   `renderDiscussions` (the discussion tree is assembled later, it is not built here).
  */
 
-export const DISCUSSIONS_TEXT = {
-  show: 'Conversations',
-  hide: 'Masquer les conversations',
-} as const
+export const DISCUSSIONS_TEXT = P.discussions
 
 export interface PlanProgress {
   done: number
@@ -54,26 +54,20 @@ export interface NowWorking {
   text: string
 }
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
-
 /**
  * Who moves the plan forward right now, from what the thread says:
- * a task waiting on the user => "toi"; else live sessions or running tasks => an
- * active agent; else nobody (the run is stopped).
+ * a task waiting on the user => "you"; else live sessions or running tasks => an
+ * active assistant; else nobody (the run is stopped).
  */
 export function nowWorking(thread: AttentionThread): NowWorking {
   const points = thread.waves.flatMap((w) => w.points)
   const waiting = points.filter((p) => p.status === 'waiting').length
-  if (waiting > 0) {
-    return { who: 'you', text: `${plural(waiting, 'tâche attend', 'tâches attendent')} ta réponse` }
-  }
+  if (waiting > 0) return { who: 'you', text: P.waitingTasks(waiting) }
   const live = thread.sessions.filter((s) => s.state === 'live').length
   const running = points.filter((p) => p.status === 'running').length
-  if (live > 0) return { who: 'agent', text: `${plural(live, 'assistant y travaille', 'assistants y travaillent')}` }
-  if (running > 0 || thread.run?.status === 'running') {
-    return { who: 'agent', text: `${plural(running, 'tâche en cours', 'tâches en cours')}` }
-  }
-  return { who: 'nobody', text: 'Personne pour le moment' }
+  if (live > 0) return { who: 'agent', text: P.workers(live) }
+  if (running > 0 || thread.run?.status === 'running') return { who: 'agent', text: P.tasksRunning(running) }
+  return { who: 'nobody', text: P.nobody }
 }
 
 export interface PlanRunRowProps {
@@ -82,7 +76,7 @@ export interface PlanRunRowProps {
   others?: AttentionThread[]
   /** Display name of the workspace; falls back to its slug. */
   laneName?: string
-  /** Slot for the thread's discussions; the "Discussions" button exists only when provided AND the thread has a plan. */
+  /** Slot for the thread's discussions; the "Conversations" button exists only when provided AND the thread has a plan. */
   renderDiscussions?: (thread: AttentionThread) => ReactNode
   className?: string
 }
@@ -100,7 +94,7 @@ export function PlanRunRow({ thread, others = [], laneName, renderDiscussions, c
     <li data-variant="running" data-thread={thread.id} className={`flex min-w-0 flex-col py-3 ${className}`}>
       <div className="flex min-w-0 items-start gap-2.5">
         <Ring size={40} stroke={4} total={states.total || 1} segments={stateSegments(states)} className="mt-0.5">
-          <StatusDot tone="progress" pulse={running} size="md" label={running ? 'En cours' : 'Arrêté'} />
+          <StatusDot tone="progress" pulse={running} size="md" label={running ? P.running : P.stopped} />
         </Ring>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start gap-3">
@@ -156,6 +150,7 @@ function DiscussionsToggle({
       <Button
         variant="ghost"
         size="sm"
+        flat
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((o) => !o)}
@@ -171,7 +166,7 @@ function DiscussionsToggle({
   )
 }
 
-/** "+ N autres fils du même plan", clickable: unfolds those threads with their state and discussions. */
+/** "+ N other executions of this plan", clickable: unfolds those threads with their state and discussions. */
 function OtherThreads({
   threads,
   renderDiscussions,
@@ -192,15 +187,15 @@ function OtherThreads({
         className={`inline-flex min-h-9 items-center gap-1 rounded ${metaText} hover:text-gray-100 ${focusRing}`}
       >
         <ChevronRight className={`h-3.5 w-3.5 shrink-0 ${open ? 'rotate-90' : ''}`} aria-hidden="true" />
-        {n === 1 ? '+ 1 autre exécution de ce plan' : `+ ${n} autres exécutions de ce plan`}
+        {P.otherThreads(n)}
       </button>
-      <ul id={listId} hidden={!open} aria-label="Autres exécutions de ce plan" className="m-0 min-w-0 list-none space-y-2 p-0">
+      <ul id={listId} hidden={!open} aria-label={P.otherThreadsLabel} className="m-0 min-w-0 list-none space-y-2 p-0">
         {open &&
           threads.map((t) => (
             <li key={t.id} data-testid="other-thread" data-thread={t.id} className="min-w-0 border-l border-white/[0.08] pl-3">
               <p className="min-w-0 break-words text-sm text-gray-200">{t.title}</p>
               <p className={metaText}>
-                {t.run?.status === 'running' ? 'En cours' : 'Arrêté'} · {nowWorking(t).text}
+                {t.run?.status === 'running' ? P.running : P.stopped} · {nowWorking(t).text}
               </p>
               {renderDiscussions && t.plan && <DiscussionsToggle thread={t} renderDiscussions={renderDiscussions} />}
             </li>

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Skeleton, SkeletonLine, EntityListSkeleton, EmptyState, Button, focusRing, focusRingInset, surface, pageTitle, leadText } from '@/components/ui'
-import { pressFeedback } from '@/components/ui/classes'
+import { Skeleton, SkeletonLine, EntityListSkeleton, EmptyState, Button, surface, pageTitle, leadText } from '@/components/ui'
+import { glassButton } from '@/components/ui/classes'
 import type {
   AttentionResponse,
   AttentionThread,
@@ -10,12 +10,13 @@ import type {
 } from '@/types/attention'
 import { workspacePath } from '@/utils/paths'
 import { AttentionCard, type AnswerResult } from './AttentionCard'
+import { BandFrame, ErrorLine, PANEL } from './BandFrame'
 import { PlanRunRow } from './PlanRunRow'
 import { ThinkingList, useThinkingCollapsed } from './ThinkingList'
 import { ThreadRow, ThreadRowList } from './ThreadRow'
+import { TodaySummary, goToSection } from './TodaySummary'
 import {
   BAND_TEXT,
-  SECTION_ORDER,
   TODAY_TEXT,
   buildBands,
   linkNames,
@@ -29,28 +30,30 @@ import { countPlanStates, type StateCounts } from './PlanStateBar'
 import { TONE_CLASSES } from '@/components/ui/statusMeta'
 import { THINKING_KINDS } from '@/types/attention'
 
+export { PANEL } from './BandFrame'
+
 /**
  * The day's view, assembled. Presentation only: data and actions come from a
  * `TodaySource` (the live `useAttention`).
  *
  * Structure:
  * - a HEADER that says the day in one sentence, in large type (`headline`, from the same rule
- *   that used to feed "Commence par ça"), with the workspace filter and four counters that are
- *   also the anchors of the sections;
- * - "what depends on you" on the left: À traiter (request cards), À reprendre (rows), then the
+ *   that used to feed "Start here"), with the workspace filter and four counters that are
+ *   also the anchors of the sections (`TodaySummary`);
+ * - "what depends on you" on the left: Waiting for you (request cards), To resume (rows), then the
  *   user's own tasks (`daySlot`);
  * - "what advances without you" on the right: the plans that run, the assistants (`liveSlot`),
- *   and À lire (folded). From a wide container the right column stays in view while the left scrolls.
+ *   and To read (folded). From a wide container the right column stays in view while the left scrolls.
  *
  * Rules kept here (DESIGN.md §8):
- * - fixed section order: DOM order = tab order = phone order (À traiter, À reprendre, the day,
- *   En cours, the assistants, À lire);
+ * - fixed section order: DOM order = tab order = phone order (Waiting for you, To resume, the day,
+ *   In progress, the assistants, To read);
  * - the two columns follow the width of the CONTAINER, not of the window: the chat panel, once
  *   open, takes its width from the content;
- * - an empty section shrinks to ONE soft line, it is never hidden;
+ * - an empty section shrinks to ONE soft line, it is never hidden (`BandFrame`);
  * - first load: skeletons with the final shape of each section, no centred spinner;
  * - a failed source degrades ITS section only; the others stay usable;
- * - no entrance animation on sections or rows.
+ * - no entrance animation on sections or rows, no tween on the counters (live data).
  */
 
 export interface TodaySource {
@@ -72,74 +75,12 @@ export interface TodaySource {
 }
 
 // ---------------------------------------------------------------------------
-// Section frame
-// ---------------------------------------------------------------------------
-
-/** A panel of the dashboard: one surface per section, never nested. */
-export const PANEL = 'rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3.5'
-
-function ErrorLine({ children, onRetry }: { children: ReactNode; onRetry: () => void }) {
-  return (
-    <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm text-red-300">
-      <span className="min-w-0 break-words">{children}</span>
-      <Button variant="secondary" size="sm" onClick={onRetry}>
-        {TODAY_TEXT.retry}
-      </Button>
-    </div>
-  )
-}
-
-interface BandFrameProps {
-  band: Band
-  count: number | null
-  /** Whole-section load state. */
-  state: 'loading' | 'error' | 'ready'
-  errorText?: string
-  /** A partial failure: the content below is real but incomplete. */
-  degraded?: string | null
-  onRetry: () => void
-  skeleton: ReactNode
-  empty: boolean
-  /** Draw the section as a panel of the dashboard (a surface with its own padding). */
-  panel?: boolean
-  className?: string
-  children: ReactNode
-}
-
-function BandFrame({ band, count, state, errorText, degraded, onRetry, skeleton, empty, panel, className = '', children }: BandFrameProps) {
-  const { title, empty: emptyText } = BAND_TEXT[band]
-  const showEmptyLine = state === 'ready' && empty && !degraded
-  return (
-    <section aria-label={title} id={`today-${band}`} data-band={band} data-state={state} className={`min-w-0 scroll-mt-4 ${panel ? PANEL : ''} ${className}`}>
-      {/* An empty section is ONE line: its title, its count and "nothing" side by side. */}
-      <div className={`flex flex-wrap items-baseline gap-x-3 ${showEmptyLine ? '' : 'mb-2'}`}>
-        <h2 className="flex items-baseline gap-2 text-base font-semibold tracking-tight text-gray-100">
-          <span>{title}</span>
-          {count !== null && count > 0 && <span className="text-sm font-normal tabular-nums text-gray-400">{count}</span>}
-        </h2>
-        {showEmptyLine && <p className="text-sm text-gray-400">{emptyText}</p>}
-      </div>
-      {state === 'loading' ? (
-        skeleton
-      ) : state === 'error' ? (
-        <ErrorLine onRetry={onRetry}>{errorText ?? TODAY_TEXT.bandError}</ErrorLine>
-      ) : (
-        <>
-          {degraded && <ErrorLine onRetry={onRetry}>{degraded}</ErrorLine>}
-          {empty ? (degraded ? <p className="py-1 text-sm text-gray-400">{emptyText}</p> : null) : children}
-        </>
-      )}
-    </section>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // Skeletons: final shapes
 // ---------------------------------------------------------------------------
 
 function CardSkeleton() {
   return (
-    <div role="status" aria-label="Chargement" className={`${surface} space-y-3 p-4`}>
+    <div role="status" aria-label={TODAY_TEXT.loading} className={`${surface} space-y-3 p-4`}>
       <SkeletonLine width="35%" className="h-3" />
       <SkeletonLine width="90%" className="h-4" />
       <SkeletonLine width="60%" className="h-4" />
@@ -153,7 +94,7 @@ function CardSkeleton() {
 
 function ThreadRowsSkeleton({ rows = 2 }: { rows?: number }) {
   return (
-    <div role="status" aria-label="Chargement" className="divide-y divide-white/[0.06]">
+    <div role="status" aria-label={TODAY_TEXT.loading} className="divide-y divide-white/[0.06]">
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="flex flex-col gap-2 py-3" aria-hidden="true">
           <div className="flex items-start gap-2">
@@ -174,84 +115,23 @@ function ThreadRowsSkeleton({ rows = 2 }: { rows?: number }) {
 // Header: the one-line summary
 // ---------------------------------------------------------------------------
 
-/** Scrolls to a section without animation (the page has none), moving focus to it for keyboard users. */
-function goToSection(band: Band) {
-  const el = document.getElementById(`today-${band}`)
-  if (!el) return
-  el.scrollIntoView?.({ block: 'start' })
-}
-
 /** Ring segments of a set of tasks, in reading order: finished, moving, waiting on the user, stopped. */
 function ringSegments(c: StateCounts) {
   return (['done', 'running', 'waiting', 'blocked', 'failed'] as const).map((st) => ({ value: c[st], className: TONE_CLASSES[STATE_META[st].tone].text }))
 }
-/** States named next to the header's ring ("faites" is its headline number). */
+/** States named next to the header's ring ("done" is its headline number). */
 const OVERVIEW_ORDER = ['running', 'waiting', 'blocked', 'failed', 'pending'] as const
-/** One tone per kind of thing to read (RFC, decision, note, alert), same order as `THINKING_KINDS`. */
+/** One tone per kind of thing to read (proposal, decision, note, alert), same order as `THINKING_KINDS`. */
 const KIND_TONES = ['text-violet-400', 'text-sky-400', 'text-gray-400', 'text-amber-400']
 
-/** What each counter says when it is not zero: the colour of its number. Zero is always quiet. */
-const COUNT_TONE: Record<Band, string> = {
-  waiting: 'text-sky-300',
-  stuck: 'text-amber-300',
-  running: 'text-indigo-300',
-  thinking: 'text-gray-100',
-}
-
-/**
- * The four counters of the day, as the bottom edge of the header: a number in large type, what
- * it counts, and one line of what that means. Each is a button that brings its section into view
- * (and opens "À lire", folded by default).
- */
-export function TodaySummary({
-  counts,
-  onGo = goToSection,
-  visuals,
-}: {
-  counts: Record<Band, number> | null
-  onGo?: (band: Band) => void
-  /** A small chart per counter (decorative: the number and the words say the same). */
-  visuals?: Partial<Record<Band, ReactNode>>
-}) {
-  return (
-    <ul aria-label={TODAY_TEXT.summaryLabel} className="grid grid-cols-2 @2xl/today:grid-cols-4">
-      {SECTION_ORDER.map((b) => {
-        const n = counts ? counts[b] : null
-        return (
-          <li key={b} data-counter={b} className="min-w-0 border-white/[0.07] odd:border-r @2xl/today:border-r @2xl/today:last:border-r-0 [&:nth-child(-n+2)]:border-b @2xl/today:[&:nth-child(-n+2)]:border-b-0">
-            <button
-              type="button"
-              onClick={() => onGo(b)}
-              className={`flex h-full w-full min-w-0 items-center justify-between gap-3 px-4 py-3 text-left hover:bg-white/[0.04] ${pressFeedback} ${focusRingInset}`}
-            >
-              <span className="flex min-w-0 flex-col items-start gap-0.5">
-              <span className="flex items-baseline gap-2">
-                {n !== null ? (
-                  <span className={`text-3xl font-semibold leading-8 tabular-nums tracking-tight ${n > 0 ? COUNT_TONE[b] : 'text-gray-500'}`}>{n}</span>
-                ) : (
-                  <Skeleton className="h-7 w-6" />
-                )}{' '}
-                <span className="text-sm font-medium text-gray-200">{BAND_TEXT[b].summary}</span>
-              </span>
-              <span className="hidden text-xs leading-4 text-gray-400 @md/today:block">{BAND_TEXT[b].hint}</span>
-              </span>
-              {n !== null && n > 0 && visuals?.[b] && <span className={`shrink-0 ${COUNT_TONE[b]}`}>{visuals[b]}</span>}
-            </button>
-          </li>
-        )
-      })}
-    </ul>
-  )
+/** Today's date in words: "Sunday, October 4". */
+function todayLabel(now = new Date()): string {
+  return new Intl.DateTimeFormat('en', { weekday: 'long', day: 'numeric', month: 'long' }).format(now)
 }
 
 // ---------------------------------------------------------------------------
 // The view
 // ---------------------------------------------------------------------------
-
-/** Today's date in words: "dimanche 4 octobre". */
-function todayLabel(now = new Date()): string {
-  return new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).format(now)
-}
 
 export interface TodayViewProps {
   source: TodaySource
@@ -265,13 +145,13 @@ export interface TodayViewProps {
   /** Note under the headline when a workspace is selected. */
   laneNote?: string | null
   /**
-   * Slot for the discussions of a plan's thread ("En cours"). The "Discussions" button of a
+   * Slot for the discussions of a plan's thread ("In progress"). The "Conversations" button of a
    * row exists only when this is provided.
    */
   renderDiscussions?: (thread: AttentionThread) => ReactNode
   /**
-   * Slot of "Rattacher à…" for a session WITHOUT a thread ("sans fil") in À traiter and À reprendre
-   * (and the loose live sessions of En cours). No slot, no button.
+   * Slot of "Attach to…" for a session WITHOUT a thread in Waiting for you and To resume
+   * (and the loose live sessions of In progress). No slot, no button.
    */
   renderAttach?: (target: { sessionId: string; workspace: string }) => ReactNode
   /**
@@ -366,7 +246,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
               </p>
             </>
           ) : state === 'loading' ? (
-            <div role="status" aria-label="Chargement" className="space-y-2">
+            <div role="status" aria-label={TODAY_TEXT.loading} className="space-y-2">
               <SkeletonLine width="60%" className="h-10 md:h-14" />
               <SkeletonLine width="40%" className="h-5" />
             </div>
@@ -385,7 +265,8 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
         </div>
 
         {all && all.total > 0 && (
-          <div data-testid="today-overview" className="flex shrink-0 items-center gap-4">
+          <div data-testid="today-overview" className="flex min-w-0 max-w-full items-center gap-4">
+            {/* Live figures (the realtime refetch moves them): plain text, updated in place, no tween. */}
             <Ring size={92} stroke={9} total={all.total} segments={ringSegments(all)}>
               <span className="text-xl font-semibold leading-6 tabular-nums text-gray-50">{pct} %</span>
             </Ring>
@@ -394,12 +275,11 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
                 <span className="tabular-nums">
                   {all.done}/{all.total}
                 </span>{' '}
-                tâches faites
+                {TODAY_TEXT.overview.tasksDone}
               </p>
-              <p className="text-xs text-gray-400">
-                sur {planCount} {planCount === 1 ? 'plan' : 'plans'} suivis ici
-              </p>
-              <ul className="mt-1.5 flex max-w-[16rem] flex-wrap gap-x-3 gap-y-0.5 text-xs leading-4">
+              <p className="text-xs text-gray-400">{TODAY_TEXT.overview.onPlans(planCount)}</p>
+              {/* Wraps inside its column: at 390 px the ring and its words must not push past the header. */}
+              <ul className="mt-1.5 flex max-w-full flex-wrap gap-x-3 gap-y-0.5 text-xs leading-4 @2xl/today:max-w-[16rem]">
                 {OVERVIEW_ORDER.filter((st) => all[st] > 0).map((st) => (
                   <li key={st} className={`inline-flex items-center gap-1.5 ${TONE_CLASSES[STATE_META[st].tone].text}`}>
                     <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${TONE_CLASSES[STATE_META[st].tone].dot}`} />
@@ -418,6 +298,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
   )
 
   // Truly nothing anywhere (and no source failed): one composed empty state.
+  // It stays `md`: the header above already carries the display-2 headline (DESIGN.md § 2, two display titles is a bug).
   if (state === 'ready' && bands?.empty && errors.length === 0) {
     return (
       <div className="@container/today space-y-5">
@@ -438,9 +319,10 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
             description={TODAY_TEXT.emptyAllHint}
             action={
               // No workspace to open plans in (first launch): the way to create one.
+              // A link that looks like a button: the glass recipe of `Button`, `sm` size (no local button class).
               <Link
                 to={plansSlug ? workspacePath(plansSlug, '/plans') : '/workspace-selector'}
-                className={`inline-flex min-h-9 items-center rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 text-sm text-gray-200 hover:bg-white/[0.08] ${focusRing}`}
+                className={`${glassButton.secondary} min-h-9 px-3 py-2 text-sm`}
               >
                 {plansSlug ? TODAY_TEXT.plans : TODAY_TEXT.createWorkspace}
               </Link>
@@ -487,7 +369,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
           runner={data.runner}
           laneName={laneName(e.thread.workspace)}
           onResume={async (t) => {
-            if (!(await source.resumeRun(t))) throw new Error('Reprise impossible')
+            if (!(await source.resumeRun(t))) throw new Error(TODAY_TEXT.resumeFailed)
           }}
         />
       )
@@ -536,7 +418,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
               }
               empty={!bands || bands.waiting.length === 0}
             >
-              <ul aria-label="Demandes à traiter" className="space-y-3">
+              <ul aria-label={TODAY_TEXT.waitingList} className="space-y-3">
                 {bands?.waiting.map((entry) => (
                   <li key={entry.request.request_id}>{renderWaiting(entry)}</li>
                 ))}
@@ -550,7 +432,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
               skeleton={<ThreadRowsSkeleton />}
               empty={!bands || bands.stuck.length === 0}
             >
-              {bands && <ThreadRowList label="Travaux à reprendre">{bands.stuck.map(renderStuck)}</ThreadRowList>}
+              {bands && <ThreadRowList label={TODAY_TEXT.stuckList}>{bands.stuck.map(renderStuck)}</ThreadRowList>}
             </BandFrame>
 
             {daySlot}
@@ -565,7 +447,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
               empty={!bands || bands.running.length === 0}
             >
               {bands && (
-                <ThreadRowList label="Plans en cours">
+                <ThreadRowList label={TODAY_TEXT.runningList}>
                   {bands.running.map((e) =>
                     e.kind === 'plan' ? (
                       <PlanRunRow

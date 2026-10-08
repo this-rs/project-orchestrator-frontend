@@ -9,6 +9,7 @@ import { focusRing, metaTextReadable as metaText, pressFeedback } from '@/compon
 import { costReport, costToText, formatCostSum, formatUsd2, sumCosts } from '@/utils/cost'
 import { useLiveAgents } from '@/hooks/useLiveAgents'
 import { StackedBar } from '../charts'
+import { PANEL } from '../BandFrame'
 import type { LiveAgent } from '@/types/liveAgents'
 import { LIVE_TEXT, STATE_LABEL, agentTitle, formatSecs, originLabel, summaryLine } from './text'
 
@@ -19,7 +20,7 @@ function StateDot({ state }: { state: LiveAgent['state'] }) {
 }
 
 /**
- * One agent = ONE line, and the line is the button: dot, title, what started it, its state in a
+ * One assistant = ONE line, and the line is the button: dot, title, what started it, its state in a
  * word, since when. Model, message count and cost are in the conversation it opens; here they made
  * every row three lines tall.
  */
@@ -64,7 +65,7 @@ export function LiveAgentRow({ agent, onOpen, scale }: { agent: LiveAgent; onOpe
   )
 }
 
-/** Today's "Agents en cours": every agent whose CLI runs now, whatever started it. */
+/** Today's "Assistants": every assistant whose conversation is alive now, whatever started it. */
 export function LiveAgents() {
   const { status, data, stale, refresh } = useLiveAgents()
   const setSession = useSetAtom(chatSessionIdAtom)
@@ -86,7 +87,7 @@ export function LiveAgents() {
   const cost = costSum.usd > 0 ? formatCostSum(costSum) : null
 
   return (
-    <section aria-label={LIVE_TEXT.region} className="@container/live min-w-0 space-y-2 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3.5">
+    <section aria-label={LIVE_TEXT.region} className={`@container/live min-w-0 space-y-2 ${PANEL}`}>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="text-base font-semibold tracking-tight text-gray-100">{LIVE_TEXT.title}</h2>
         {data && (

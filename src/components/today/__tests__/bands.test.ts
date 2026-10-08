@@ -171,9 +171,9 @@ describe('buildBands: "À reprendre" is one list, oldest first, tie by id', () =
 
 describe('section texts and order', () => {
   it('uses plain words, none of the former band names', () => {
-    expect(Object.values(BAND_TEXT).map((t) => t.title)).toEqual(['À traiter', 'En cours', 'À reprendre', 'À lire'])
+    expect(Object.values(BAND_TEXT).map((t) => t.title)).toEqual(['Waiting for you', 'In progress', 'To resume', 'To read'])
     const all = JSON.stringify(BAND_TEXT)
-    // "T'attend" (the former band name) is matched as a capitalised name: "n’attend ta réponse" is plain French.
+    // "T'attend" (the former band name) is matched as a capitalised name.
     expect(all).not.toMatch(/T.attend|Tourne\b|Coincé|Pensée/)
     expect(all).not.toMatch(/cockpit|runner|\bCLI\b|sans fil|À suivre/i)
   })
@@ -182,19 +182,21 @@ describe('section texts and order', () => {
       const t = BAND_TEXT[band]
       for (const key of ['title', 'empty', 'summary', 'hint'] as const) expect(t[key].trim().length).toBeGreaterThan(0)
     }
-    expect(BAND_TEXT.waiting.empty).toBe('Personne n’attend ta réponse')
-    expect(BAND_TEXT.running.empty).toBe('Aucun plan ne tourne')
-    expect(BAND_TEXT.stuck.empty).toBe('Rien à reprendre')
-    expect(BAND_TEXT.thinking).toMatchObject({ empty: 'Rien à lire', summary: 'à lire' })
+    expect(BAND_TEXT.waiting.empty).toBe('Nobody is waiting for your answer')
+    expect(BAND_TEXT.running.empty).toBe('No plan is in progress')
+    expect(BAND_TEXT.stuck.empty).toBe('Nothing to resume')
+    expect(BAND_TEXT.thinking).toMatchObject({ empty: 'Nothing to read', summary: 'to read' })
   })
-  it('the page and the stuck causes speak without jargon: "espace", no runner / CLI / run / session', () => {
-    // the values only: the keys are code, not wording
-    const page = Object.values({ ...TODAY_TEXT, laneNote: TODAY_TEXT.laneNote('X') }).join(' | ')
-    expect(page).not.toMatch(/workspace|runner|\bCLI\b|sans fil/i)
-    expect(page).toContain('espace')
+  it('the page and the stuck causes speak without jargon: "workspace" (the product word), no agent / runner / CLI / run / session', () => {
+    // the values only: the keys are code, not wording (functions are called with a sample)
+    const page = Object.values({ ...TODAY_TEXT, laneNote: TODAY_TEXT.laneNote('X'), overview: TODAY_TEXT.overview.onPlans(2) })
+      .filter((v): v is string => typeof v === 'string')
+      .join(' | ')
+    expect(page).not.toMatch(/\bagent\b|runner|\bCLI\b|\brun\b|\bthread\b/i)
+    expect(page).toMatch(/workspace/)
     expect(Object.values(STUCK_LABEL).join(' | ')).not.toMatch(/\brun\b|runner|\bCLI\b|session/i)
-    expect(STUCK_LABEL.failed).toBe('Arrêté sur une erreur')
-    expect(STUCK_LABEL.session_error).toBe('Erreur de conversation')
+    expect(STUCK_LABEL.failed).toBe('Stopped on an error')
+    expect(STUCK_LABEL.session_error).toBe('Conversation error')
   })
   it('the summary keeps the band order, the page puts what asks for the user first', () => {
     expect(BAND_ORDER).toEqual(['waiting', 'running', 'stuck', 'thinking'])

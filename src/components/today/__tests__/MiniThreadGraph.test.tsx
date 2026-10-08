@@ -60,7 +60,7 @@ describe('MiniThreadGraph', () => {
   it('writes the full text label', () => {
     const waves = [wave(1, ['done', 'done']), wave(2, ['done', 'running', 'pending', 'pending', 'blocked']), wave(3, [])]
     expect(miniThreadGraphLabel(waves)).toBe(
-      'Graphe du plan, 3 vagues : vague 1 sur 3 : 2 faites ; vague 2 sur 3 : 1 faite, 1 en cours, 2 à venir, 1 bloquée ; vague 3 sur 3 : vide',
+      'Plan graph, 3 waves: wave 1 of 3: 2 done; wave 2 of 3: 1 done, 1 in progress, 2 to come, 1 blocked; wave 3 of 3: empty',
     )
     renderIn(<MiniThreadGraph waves={waves} />)
     expect(screen.getByRole('img', { name: miniThreadGraphLabel(waves) })).toBeTruthy()
@@ -85,11 +85,11 @@ describe('MiniThreadGraph', () => {
     expect(screen.getAllByTestId('pulse')).toHaveLength(1)
   })
 
-  it('a legend names every mark with the glyph itself, in French', () => {
+  it('a legend names every mark with the glyph itself, in plain words', () => {
     const { container } = renderIn(<MiniGraphLegend />)
     for (const st of WAVE_POINT_STATUSES) expect(container.querySelector(`[data-state="${st}"]`)).toBeTruthy()
-    expect(screen.getByText('attend ta réponse')).toBeTruthy()
-    expect(screen.getByText(/Chaque groupe de points est une vague/)).toBeTruthy()
+    expect(screen.getByText('is waiting for your answer')).toBeTruthy()
+    expect(screen.getByText(/Each group of dots is a wave/)).toBeTruthy()
   })
 
   it('the pulse class is the one disabled under prefers-reduced-motion', () => {
@@ -141,13 +141,13 @@ describe('MiniThreadGraph', () => {
 
   it('has an empty state without waves', () => {
     renderIn(<MiniThreadGraph waves={[]} planId="p" workspace="ws" />)
-    expect(screen.getByText('Pas de graphe de plan')).toBeTruthy()
+    expect(screen.getByText('No plan graph')).toBeTruthy()
     expect(screen.queryByRole('link')).toBeNull()
   })
 
   it('links to the existing plan graph; Enter / tap follow it', () => {
     renderIn(<MiniThreadGraph waves={[wave(1, ['done'])]} planId="p1" workspace="ws" />)
-    const link = screen.getByRole('link', { name: /Graphe du plan, 1 vague/ })
+    const link = screen.getByRole('link', { name: /Plan graph, 1 wave/ })
     expect(link.getAttribute('href')).toBe('/workspace/ws/plans/p1#graph')
     fireEvent.click(link)
     expect(screen.getByTestId('where').textContent).toBe('/workspace/ws/plans/p1#graph')

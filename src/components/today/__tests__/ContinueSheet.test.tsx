@@ -67,12 +67,12 @@ describe('ContinueSheet', () => {
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('Continue.')
   })
 
-  it('closes on Escape, on the backdrop and on Annuler', () => {
+  it('closes on Escape, on the backdrop and on Cancel', () => {
     const onClose = vi.fn()
     render(<ContinueSheet open onClose={onClose} onSend={async () => {}} {...base} />)
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' })
     fireEvent.click(screen.getByTestId('sheet-backdrop'))
-    fireEvent.click(screen.getByRole('button', { name: 'Annuler' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onClose).toHaveBeenCalledTimes(3)
   })
 

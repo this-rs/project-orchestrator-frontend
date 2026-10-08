@@ -7,6 +7,7 @@ import { progressApi, type TaskCounts } from '@/services/progress'
 import { runnerApi, type PlanRun } from '@/services/runner'
 import type { Plan, Task, TaskWithPlan } from '@/types'
 import { buildDashboard, type DashboardInput, type WorkDashboard, type WorkTask } from './model'
+import { WORK_TEXT } from './text'
 
 const POLL_MS = 30_000
 
@@ -107,7 +108,7 @@ export function useWorkDashboard(workspaces: string[], dayIds: string[]): WorkDa
       setStale(false)
     } catch (e) {
       if (mine !== seq.current) return
-      const message = e instanceof Error && e.message ? e.message : 'Chargement impossible'
+      const message = e instanceof Error && e.message ? e.message : WORK_TEXT.loadFailed
       // Keep what we have: only the first load is an error state.
       setRaw((cur) => {
         if (cur) setStale(true)

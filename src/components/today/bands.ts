@@ -10,6 +10,7 @@ import type {
   WaitingRequest,
 } from '@/types/attention'
 import type { LinkNames } from './AttentionCard'
+import { TEXT } from './text'
 
 /**
  * Pure cut of one `/api/attention` payload into what the four bands display.
@@ -24,18 +25,12 @@ export const BAND_ORDER: readonly Band[] = ['waiting', 'running', 'stuck', 'thin
  * Order of the sections in the page (DOM order = tab order = phone order): what asks
  * for the user first, then what to take back up, then what advances alone, then what
  * to follow. From 1024 px the first two (and the user's own day under them) stack on the
- * left, "En cours" and "À suivre" on the right.
+ * left, "In progress" and "To read" on the right.
  */
 export const SECTION_ORDER: readonly Band[] = ['waiting', 'stuck', 'running', 'thinking']
 
-/** What a stuck thread says about itself, in plain words. */
-export const STUCK_LABEL: Record<StuckReason, string> = {
-  failed: 'Arrêté sur une erreur',
-  budget_exceeded: 'Budget dépassé',
-  task_blocked: 'Tâche bloquée',
-  session_error: 'Erreur de conversation',
-  orphan_request: 'Demande restée sans réponse',
-}
+/** What a stuck thread says about itself, in plain words (one registry: `./text`). */
+export const STUCK_LABEL: Record<StuckReason, string> = TEXT.stuckLabel
 
 /** A live agent stopped on the user: a request of a thread, or of a session with no thread. */
 export interface WaitingEntry {
@@ -45,14 +40,14 @@ export interface WaitingEntry {
   unattached: UnattachedSession | null
 }
 
-/** Band 3 items ("À reprendre"). */
+/** Band 3 items ("To resume"). */
 export type StuckEntry =
   | { kind: 'stuck'; thread: AttentionThread }
   | { kind: 'orphan'; thread: AttentionThread; orphan: OrphanRequest }
   | { kind: 'unattached'; session: UnattachedSession }
 
 /**
- * "En cours" is grouped BY PLAN: one row per plan. `thread` is the thread the row
+ * "In progress" is grouped BY PLAN: one row per plan. `thread` is the thread the row
  * speaks for (the one whose run is running, else the first); `others` are further
  * threads of the same plan, which the row only mentions.
  */
@@ -77,7 +72,7 @@ export function compareWaiting(a: WaitingEntry, b: WaitingEntry): number {
   return b.request.age_secs - a.request.age_secs || a.request.request_id.localeCompare(b.request.request_id)
 }
 
-/** Age (seconds) and identity of a stuck entry: what orders band "À reprendre". */
+/** Age (seconds) and identity of a stuck entry: what orders band "To resume". */
 export function stuckAge(e: StuckEntry): number {
   return e.kind === 'stuck' ? e.thread.age_secs : e.kind === 'orphan' ? e.orphan.age_secs : e.session.age_secs
 }
@@ -106,13 +101,13 @@ export function buildBands(data: AttentionResponse): Bands {
   const threadById = new Map(data.threads.map((t) => [t.id, t]))
 
   // ---- liveness: a dead session never waits on the user, its request goes to band 3 ----
-  // Rule "morte -> bande 3" + one request shown ONCE (dedup by request_id across
+  // Rule "dead -> band 3" + one request shown ONCE (dedup by request_id across
   // waiting[], orphans[] and unattached[].pending).
   const sessionState = new Map<string, SessionState>()
   for (const t of data.threads) for (const s of t.sessions) sessionState.set(s.id, s.state)
   for (const u of data.unattached) sessionState.set(u.id, u.state)
   // Only a session KNOWN to be live can be answered: an unknown state is treated like a dead
-  // one (resume it), never "Autoriser" on a session whose state we do not know.
+  // one (resume it), never "Allow" on a session whose state we do not know.
   const isLive = (sessionId: string) => sessionState.get(sessionId) === 'live'
   const isDead = (sessionId: string) => !isLive(sessionId)
 
@@ -252,30 +247,9 @@ export function linkNames(data: AttentionResponse): LinkNames {
 }
 
 // ---------------------------------------------------------------------------
-// Texts (plain French: no jargon, no internal band names)
+// Texts: slices of the one registry (`./text`), kept under their historical names
 // ---------------------------------------------------------------------------
 
-export const BAND_TEXT: Record<Band, { title: string; empty: string; summary: string; hint: string }> = {
-  waiting: { title: 'À traiter', empty: 'Personne n’attend ta réponse', summary: 'à traiter', hint: 'un assistant attend ta réponse' },
-  running: { title: 'En cours', empty: 'Aucun plan ne tourne', summary: 'en cours', hint: 'plans qui avancent seuls' },
-  stuck: { title: 'À reprendre', empty: 'Rien à reprendre', summary: 'à reprendre', hint: 'travaux arrêtés' },
-  thinking: { title: 'À lire', empty: 'Rien à lire', summary: 'à lire', hint: 'propositions, décisions, notes' },
-}
+export const BAND_TEXT: Record<Band, { title: string; empty: string; summary: string; hint: string }> = TEXT.bands
 
-export const TODAY_TEXT = {
-  title: "Aujourd'hui",
-  summaryLabel: 'Résumé du jour',
-  laneFilterLabel: 'Filtrer par espace',
-  allLanes: 'Tous',
-  laneNote: (name: string) => `Filtré sur ${name}. La pastille de la barre compte tous les espaces.`,
-  bandError: 'Cette section n’a pas pu être chargée.',
-  retry: 'Réessayer',
-  staleRefresh: 'Actualisation impossible : les données affichées peuvent être périmées.',
-  emptyAll: 'Rien ne t’attend',
-  emptyAllHint: 'Aucun assistant ne demande ta réponse, aucun plan n’est en cours ni à reprendre.',
-  plans: 'Voir les plans',
-  createWorkspace: 'Choisir ou créer un espace',
-  noMatch: 'Rien dans cet espace',
-  noMatchHint: 'Cet espace n’a rien à traiter, rien en cours, rien à reprendre.',
-  clearFilter: 'Effacer le filtre',
-} as const
+export const TODAY_TEXT = TEXT.today

@@ -14,9 +14,12 @@ import {
   StatusDot,
   StatusText,
   ViewTabs,
+  surface,
   type OverflowMenuAction,
   type ViewTab,
 } from '@/components/ui'
+import { glassFlat, iconButton } from '@/components/ui/classes'
+import { PANEL } from '../BandFrame'
 import { useToast } from '@/hooks/useToast'
 import { planRunTarget } from '@/services/runner'
 import { tasksApi } from '@/services/tasks'
@@ -34,7 +37,7 @@ const taskHref = (t: WorkTask) => (t.workspace ? workspacePath(t.workspace, `/ta
 
 type WorkTab = 'day' | 'inProgress' | 'next' | 'blocked' | 'chains'
 
-/** Rows shown before "Afficher tout": a list never pushes the rest of the page out of sight. */
+/** Rows shown before "Show all": a list never pushes the rest of the page out of sight. */
 export const ROWS_SHOWN = 6
 
 function Count({ children }: { children: ReactNode }) {
@@ -46,7 +49,7 @@ export interface WorkDashboardProps {
   lane: string | null
   /**
    * Plans the page already shows elsewhere (running, waiting on the user, or to resume):
-   * they are left out of "Plans à lancer", so a plan appears once on the page.
+   * they are left out of "Plans to launch", so a plan appears once on the page.
    */
   shownPlanIds?: ReadonlySet<string>
 }
@@ -55,12 +58,13 @@ export interface WorkDashboardProps {
  * The user's own work, as ONE card with tabs (it sits under the request queue of the page):
  * the day plan, what is in progress, what to take next, what is blocked and the active plans
  * that are not running yet. One list is on screen at a time, each tab carries its count, and a
- * list longer than `ROWS_SHOWN` is cut with "Afficher tout": five stacked lists made the page
+ * list longer than `ROWS_SHOWN` is cut with "Show all": five stacked lists made the page
  * five screens tall.
  *
  * Row grammar (DESIGN.md §5, §9): one LINE per task (title, its plan at the right), at most ONE
  * visible action (`primaryAction`), everything else in the `⋯` menu. Only one button of the
- * whole dashboard is filled: "Démarrer" on the next task of the day.
+ * whole dashboard is filled: "Start" on the next task of the day. Every button inside a row is
+ * glass without blur (`flat`, `btn-flat`): the blur budget is about ten on screen, a list has more rows.
  */
 export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardProps) {
   const toast = useToast()
@@ -190,21 +194,21 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
       muted: done,
       state: true,
       leading: (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="-my-2 h-9 w-9 px-0! py-0!"
+        // The check of the day: a square ghost icon button, flat (one per row).
+        <button
+          type="button"
+          className={`${iconButton('ghost', 'size-9')} ${glassFlat} -my-2`}
           aria-label={WORK_TEXT.completeAria(taskTitle(item))}
           aria-pressed={done}
           disabled={done || busy.has(item.task.id)}
           onClick={() => void setTaskStatus(item, 'completed')}
         >
           {done ? <Check className="h-4 w-4 text-emerald-400" aria-hidden="true" /> : <Circle className="h-4 w-4" aria-hidden="true" />}
-        </Button>
+        </button>
       ),
       primary:
         item.task.id === nextOfDay ? (
-          <Button size="sm" data-next-of-day disabled={busy.has(item.task.id)} onClick={() => start(item)}>
+          <Button size="sm" flat data-next-of-day disabled={busy.has(item.task.id)} onClick={() => start(item)}>
             <Play className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
             {WORK_TEXT.start}
           </Button>
@@ -220,7 +224,7 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
 
   const inProgressRows = inProgress.map((t) =>
     taskRow(t, {
-      leading: <StatusDot kind="task" status="in_progress" label="En cours" />,
+      leading: <StatusDot kind="task" status="in_progress" label={WORK_TEXT.taskStatus.in_progress} />,
       menu: [
         { label: WORK_TEXT.complete, icon: Check, disabled: busy.has(t.task.id), onClick: () => void setTaskStatus(t, 'completed') },
         addToDayAction(t),
@@ -231,7 +235,7 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
   const nextRows = next.map((t) =>
     taskRow(t, {
       primary: (
-        <Button variant="secondary" size="sm" aria-label={`${WORK_TEXT.addToDay} : ${taskTitle(t)}`} onClick={() => edit((p) => addToDay(p, t.task.id))}>
+        <Button variant="secondary" size="sm" flat aria-label={`${WORK_TEXT.addToDay}: ${taskTitle(t)}`} onClick={() => edit((p) => addToDay(p, t.task.id))}>
           <CalendarPlus className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
           {WORK_TEXT.add}
         </Button>
@@ -278,11 +282,11 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
   const hidden = panel.rows.length - shown.length
 
   return (
-    <div className="@container/tasks min-w-0 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3.5" data-testid="work-dashboard">
+    <div className={`@container/tasks min-w-0 ${PANEL}`} data-testid="work-dashboard">
       <RunTargetDialog pending={gate.pending} onCancel={gate.cancel} />
       <div aria-live="polite">
         {stale && <p className="mb-2 text-xs text-amber-300">{WORK_TEXT.stale}</p>}
-        {refreshing && !stale && <span className="sr-only">Actualisation…</span>}
+        {refreshing && !stale && <span className="sr-only">{WORK_TEXT.refreshing}</span>}
       </div>
 
       <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -366,22 +370,22 @@ function ChainRow({
       ]}
       meta={[
         project ? (
-          <Fact key="pr" icon={FolderGit2} title="Projet" truncateAt="max-w-[12rem]">
+          <Fact key="pr" icon={FolderGit2} title={WORK_TEXT.project} truncateAt="max-w-[12rem]">
             {project.name}
           </Fact>
         ) : null,
         counts ? (
-          <Fact key="c" title="Tâches terminées">
+          <Fact key="c" title={WORK_TEXT.tasksDone}>
             <Count>
               {counts.completed}/{counts.total}
             </Count>
           </Fact>
         ) : null,
       ]}
-      context={counts ? <ProgressLine value={counts.percentage} segments={segments} label={`Avancement de ${plan.title}`} /> : undefined}
+      context={counts ? <ProgressLine value={counts.percentage} segments={segments} label={WORK_TEXT.progressOf(plan.title)} /> : undefined}
       primaryAction={
         running ? undefined : (
-          <Button variant="secondary" size="sm" disabled={pending} onClick={() => void onLaunch(chain)}>
+          <Button variant="secondary" size="sm" flat disabled={pending} onClick={() => void onLaunch(chain)}>
             {failedLike ? <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> : <Play className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />}
             {pending ? WORK_TEXT.launching : failedLike ? WORK_TEXT.relaunch : WORK_TEXT.launch}
           </Button>
@@ -393,9 +397,9 @@ function ChainRow({
 
 function DashboardSkeleton() {
   return (
-    <div className="space-y-4" aria-busy="true" aria-label="Chargement du tableau de bord">
+    <div className="space-y-4" aria-busy="true" aria-label={WORK_TEXT.loading}>
       {[0, 1].map((b) => (
-        <div key={b} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+        <div key={b} className={`${surface} p-4 space-y-3`}>
           <Skeleton className="h-3 w-24" />
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />

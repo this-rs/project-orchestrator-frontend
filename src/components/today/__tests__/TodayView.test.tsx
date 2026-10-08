@@ -46,7 +46,7 @@ beforeEach(() => {
   }
 })
 
-describe('TodayView: the discussions slot of "En cours"', () => {
+describe('TodayView: the discussions slot of "In progress"', () => {
   const data = fixture('four_bands')
 
   it('shows no "Discussions" button when the slot is not provided', () => {
@@ -57,7 +57,7 @@ describe('TodayView: the discussions slot of "En cours"', () => {
   it('shows one per plan row when the slot is provided, and passes the row\'s thread', () => {
     const render_ = vi.fn(() => <p>arbre</p>)
     view(data, { renderDiscussions: render_ })
-    const running = screen.getByRole('region', { name: 'En cours' })
+    const running = screen.getByRole('region', { name: BAND_TEXT.running.title })
     const rows = running.querySelectorAll('li[data-variant="running"]')
     expect(rows.length).toBeGreaterThan(0)
     expect(within(running).getAllByRole('button', { name: DISCUSSIONS_TEXT.show })).toHaveLength(rows.length)
@@ -67,8 +67,8 @@ describe('TodayView: the discussions slot of "En cours"', () => {
 
   it('the other sections never get one', () => {
     view(data, { renderDiscussions: () => <p>arbre</p> })
-    expect(within(screen.getByRole('region', { name: 'À reprendre' })).queryByRole('button', { name: DISCUSSIONS_TEXT.show })).toBeNull()
-    expect(within(screen.getByRole('region', { name: 'À traiter' })).queryByRole('button', { name: DISCUSSIONS_TEXT.show })).toBeNull()
+    expect(within(screen.getByRole('region', { name: BAND_TEXT.stuck.title })).queryByRole('button', { name: DISCUSSIONS_TEXT.show })).toBeNull()
+    expect(within(screen.getByRole('region', { name: BAND_TEXT.waiting.title })).queryByRole('button', { name: DISCUSSIONS_TEXT.show })).toBeNull()
   })
 })
 
@@ -100,15 +100,15 @@ describe('TodayView: the live agents slot', () => {
   const data = fixture('four_bands')
 
   it('sits in the right column, under the plans that run, and never above the queue', () => {
-    view(data, { liveSlot: <section aria-label="Assistants en cours" data-testid="live" /> })
+    view(data, { liveSlot: <section aria-label="Assistants" data-testid="live" /> })
     const side = screen.getByTestId('sections-side')
     const live = screen.getByTestId('live')
     expect(side.contains(live)).toBe(true)
-    // after the queue in DOM order (= phone order): "À traiter" comes first
-    const queue = screen.getByRole('region', { name: 'À traiter' })
+    // after the queue in DOM order (= phone order): "Waiting for you" comes first
+    const queue = screen.getByRole('region', { name: BAND_TEXT.waiting.title })
     expect(queue.compareDocumentPosition(live) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     // the plans that run (what advances) come first in the column, then who works on them
-    const running = screen.getByRole('region', { name: 'En cours' })
+    const running = screen.getByRole('region', { name: BAND_TEXT.running.title })
     expect(side.firstElementChild).toBe(running)
     expect(running.compareDocumentPosition(live) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })

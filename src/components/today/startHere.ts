@@ -7,28 +7,29 @@ import {
   type StuckEntry,
   type WaitingEntry,
 } from './bands'
+import { TEXT } from './text'
 
 /**
  * The day in ONE sentence (the page's headline) — computed by a pure, deterministic rule.
  * No score, no invented priority: the only criterion is how long something has waited.
  *
  *   (a) the OLDEST request of a LIVE agent that waits on the user
- *       (a dead session never counts here: its request is in "À reprendre");
- *   (b) else the OLDEST stuck or resumable item ("À reprendre": a stopped thread,
+ *       (a dead session never counts here: its request is in "To resume");
+ *   (b) else the OLDEST stuck or resumable item ("To resume": a stopped thread,
  *       a request left without answer, a stopped session without thread);
- *   (c) else, if some threads advance on their own: "Rien ne te bloque : N fils avancent seuls";
+ *   (c) else, if some threads advance on their own: "Nothing is blocking you: N plans are moving on their own";
  *   (d) else the empty state.
  *
  * Ties on age are broken by id (request id, thread id or session id, ascending
  * string order), so the answer never depends on the order of the payload.
  * "Oldest" is the backend's `age_secs`, taken as is.
  *
- * Only POSSIBLE actions are recommended: a stopped thread whose "Reprendre" is disabled
+ * Only POSSIBLE actions are recommended: a stopped thread whose "Resume" is disabled
  * (the runner is busy with another plan, or the thread has no plan to run) is skipped for
  * the next one; when none can be resumed, the result is `blocked` and says so.
  *
- * Honesty: when a source of the payload failed for "À traiter", "À reprendre" or "En cours",
- * (c) and (d) would claim something unknown ("rien ne te bloque", "rien n'est en cours"):
+ * Honesty: when a source of the payload failed for "Waiting for you", "To resume" or "In progress",
+ * (c) and (d) would claim something unknown ("nothing is blocking you", "nothing is in progress"):
  * the result is then `incomplete`, which says so instead.
  */
 
@@ -41,25 +42,27 @@ export type StartHere =
   | { kind: 'blocked'; title: string; why: string }
   | { kind: 'empty'; title: string; why: string }
 
-/** Age in words: "moins d'une minute", "12 min", "7 h", "3 j". */
+/** Age in words: "under a minute", "12 min", "7 h", "3 d". */
 export function ageText(secs: number): string {
   const s = Math.max(0, secs)
-  if (s < 60) return "moins d'une minute"
-  if (s < 3600) return `${Math.floor(s / 60)} min`
-  if (s < 86400) return `${Math.floor(s / 3600)} h`
-  return `${Math.floor(s / 86400)} j`
+  if (s < 60) return TEXT.age.lessThanMinute
+  if (s < 3600) return TEXT.age.minutes(Math.floor(s / 60))
+  if (s < 86400) return TEXT.age.hours(Math.floor(s / 3600))
+  return TEXT.age.days(Math.floor(s / 86400))
 }
+
+const H = TEXT.headline
 
 function stuckWhy(e: StuckEntry): string {
   switch (e.kind) {
     case 'stuck': {
-      const cause = e.thread.stuck_reason ? `${STUCK_LABEL[e.thread.stuck_reason].toLowerCase()}` : 'à reprendre'
-      return `ce plan est à l'arrêt depuis ${ageText(e.thread.age_secs)} : ${cause}`
+      const cause = e.thread.stuck_reason ? STUCK_LABEL[e.thread.stuck_reason].toLowerCase() : H.stuckDefaultCause
+      return H.stuckPlanReason(ageText(e.thread.age_secs), cause)
     }
     case 'orphan':
-      return `une demande est restée sans réponse depuis ${ageText(e.orphan.age_secs)} : la conversation s'est arrêtée`
+      return H.stuckOrphanReason(ageText(e.orphan.age_secs))
     case 'unattached':
-      return `une conversation est arrêtée depuis ${ageText(e.session.age_secs)}`
+      return H.stuckSessionReason(ageText(e.session.age_secs))
   }
 }
 
@@ -76,12 +79,10 @@ export function recommendStart(
 ): StartHere {
   if (bands.waiting.length > 0) {
     const entry = [...bands.waiting].sort(compareWaiting)[0]
-    const n = bands.waiting.length
-    const extra = n > 1 ? ` (la plus ancienne de ${n} demandes)` : ''
     return {
       kind: 'waiting',
       entry,
-      why: `un assistant attend ta réponse depuis ${ageText(entry.request.age_secs)}${extra}`,
+      why: H.waitingReason(bands.waiting.length, ageText(entry.request.age_secs)),
     }
   }
   if (bands.stuck.length > 0) {
@@ -89,35 +90,16 @@ export function recommendStart(
     if (entry) return { kind: 'stuck', entry, why: stuckWhy(entry) }
     const n = bands.stuck.length
     const holder = runner?.status === 'busy' ? runner.busy_with?.plan_title : null
-    return {
-      kind: 'blocked',
-      title: 'Rien que tu puisses reprendre maintenant',
-      why: `${n === 1 ? 'un travail est à reprendre' : `${n} travaux sont à reprendre`}, mais ${
-        holder ? `un autre plan tourne déjà : « ${holder} »` : 'aucune reprise n\'est possible pour le moment'
-      }`,
-    }
+    return { kind: 'blocked', title: H.blockedTitle, why: H.blockedWhy(n, holder) }
   }
   if (incomplete.includes('waiting') || incomplete.includes('stuck') || incomplete.includes('running')) {
-    return {
-      kind: 'incomplete',
-      title: 'Je ne peux pas dire par quoi commencer',
-      why: "une source n'a pas répondu : ce qui demande ta réponse, s'est arrêté ou est en cours n'est peut-être pas affiché",
-    }
+    return { kind: 'incomplete', title: H.incompleteTitle, why: H.incompleteWhy }
   }
   const n = bands.counts.running
   if (n > 0) {
-    return {
-      kind: 'calm',
-      running: n,
-      title: `Rien ne te bloque : ${n} ${n === 1 ? 'plan avance seul' : 'plans avancent seuls'}`,
-      why: "aucun assistant n'attend ta réponse et rien n'est à reprendre",
-    }
+    return { kind: 'calm', running: n, title: H.calmTitle(n), why: H.calmWhy }
   }
-  return {
-    kind: 'empty',
-    title: 'Rien à faire pour le moment',
-    why: "aucun assistant n'attend ta réponse, rien n'est à reprendre, rien n'est en cours",
-  }
+  return { kind: 'empty', title: H.emptyTitle, why: H.emptyWhy }
 }
 
 /** The page's headline: the state of the day in a few words, and the reason under it. */
@@ -134,19 +116,11 @@ export function headline(start: StartHere, bands: Bands): Headline {
   switch (start.kind) {
     case 'waiting': {
       const n = bands.waiting.length
-      return {
-        title: n === 1 ? 'Un assistant attend ta réponse' : `${n} assistants attendent ta réponse`,
-        why: `${n === 1 ? 'Il attend' : 'Le plus ancien attend'} depuis ${ageText(start.entry.request.age_secs)}.`,
-        band: 'waiting',
-      }
+      return { title: H.waitingTitle(n), why: H.waitingWhy(n, ageText(start.entry.request.age_secs)), band: 'waiting' }
     }
     case 'stuck': {
       const n = bands.stuck.length
-      return {
-        title: n === 1 ? 'Un travail est à reprendre' : `${n} travaux sont à reprendre`,
-        why: `${cap(start.why)}.`,
-        band: 'stuck',
-      }
+      return { title: H.stuckTitle(n), why: `${cap(start.why)}.`, band: 'stuck' }
     }
     default:
       return { title: start.title, why: `${cap(start.why)}.`, band: start.kind === 'calm' ? 'running' : null }

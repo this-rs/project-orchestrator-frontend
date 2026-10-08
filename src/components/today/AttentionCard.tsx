@@ -1,7 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError } from '@/services/api'
-import { ORPHAN_NOTICE } from '@/hooks/useAttention'
 import { Button } from '@/components/ui/Button'
 import { RelativeTime } from '@/components/ui/MetaLine'
 import { StatusDot } from '@/components/ui/Status'
@@ -9,9 +8,12 @@ import { focusRing, inlineLink, provenanceText } from '@/components/ui/classes'
 import type { SessionLink, SessionState, WaitingRequest } from '@/types/attention'
 import { workspacePath } from '@/utils/paths'
 import { ReplyAction } from './ThreadRow'
+import { TEXT } from './text'
+
+const C = TEXT.card
 
 /**
- * Section "À traiter": a LIVE agent is stopped on the user.
+ * Section "Waiting for you": a LIVE assistant is stopped on the user.
  *
  * The one card of the page that is deliberately NOT a graph: to decide, the user
  * must READ what is asked.
@@ -19,15 +21,16 @@ import { ReplyAction } from './ThreadRow'
  * - The exact text is shown whole (monospace, wrapping) — never truncated, never
  *   clamped, never scrolled: the command on screen IS the confirmation, so there is
  *   NO confirmation dialog.
- * - One primary + one secondary at most (`Autoriser` / `Refuser`), plus a link.
+ * - One primary + one secondary at most (`Allow` / `Deny`), plus a link.
  *   A question: one button per option, and a free answer.
  * - Every button is visible (nothing on hover), >= 36 px, with a visible focus ring.
  * - Double tap is impossible: the controls lock while a call is in flight and after
  *   it succeeded. A 409 means "already decided elsewhere": the card says so and stays
  *   locked, it is never an error. A 410 means the CLI died: the request becomes an
- *   orphan (never "Autoriser" again), with an explicit notice.
+ *   orphan (never "Allow" again), with an explicit notice.
  * - Opaque surface, no card inside the card, no entrance/exit animation: the parent
- *   removes the item (optimistic) and a toast confirms.
+ *   removes the item (optimistic) and a toast confirms. Its buttons are glass without blur
+ *   (`flat`): a card repeats per request, and the page may hold a dozen of them.
  * - The provenance of the session's attachment is displayed as the backend gave it
  *   (`links`); the frontend never computes membership.
  *
@@ -64,7 +67,7 @@ export interface AttentionCardProps {
   /** Free answer draft, kept by the parent so a refetch cannot lose it. Falls back to local state. */
   draft?: string
   onDraftChange?: (text: string) => void
-  /** "Rattacher à…" for a session with no link (shown only then). */
+  /** "Attach to…" for a session with no link (shown only then). */
   attachSlot?: ReactNode
 }
 
@@ -77,26 +80,26 @@ export function linkLabel(link: SessionLink, names: LinkNames = {}): string {
   const plan = link.plan_id ? (names.plans?.[link.plan_id] ?? shortId(link.plan_id)) : null
   switch (link.via) {
     case 'runner_run':
-      return run ? `rattaché à l’exécution ${run}` : 'rattaché à une exécution'
+      return C.attachedToExecution(run)
     case 'spawned_by_json':
-      if (run) return `lancé par l’exécution ${run}`
-      return plan ? `lancé par le plan ${plan}` : 'lancé par un plan'
+      if (run) return C.startedByExecution(run)
+      return C.startedByPlan(plan)
     case 'task_association':
-      return task ? `rattaché à la tâche ${task}` : 'rattaché à une tâche'
+      return C.attachedToTask(task)
     case 'plan_association':
-      return plan ? `rattaché au plan ${plan}` : 'rattaché à un plan'
+      return C.attachedToPlan(plan)
   }
 }
 
-/** All links, one sentence each; none = "sans fil". */
+/** All links, one sentence each; none = a free conversation. */
 export function provenanceLabels(links: SessionLink[] | null | undefined, names?: LinkNames): string[] {
-  return links && links.length > 0 ? links.map((l) => linkLabel(l, names)) : ['Conversation libre : rattachée à aucun plan']
+  return links && links.length > 0 ? links.map((l) => linkLabel(l, names)) : [C.provenanceFree]
 }
 
 type Phase = 'idle' | 'sending' | 'sent' | 'decided' | 'orphaned'
 
-const DECIDED_NOTICE = 'Déjà tranché : la demande a été traitée ailleurs.'
-const ERROR_NOTICE = 'Réponse non envoyée. Tu peux réessayer.'
+const DECIDED_NOTICE = C.decided
+const ERROR_NOTICE = C.notSent
 
 export function AttentionCard({
   request,
@@ -122,9 +125,7 @@ export function AttentionCard({
 
   const isPermission = request.kind === 'permission'
   const sessionName = session?.title?.trim() || shortId(request.session_id)
-  const regionLabel = isPermission
-    ? `Autorisation demandée par ${sessionName}`
-    : `Question posée par ${sessionName}`
+  const regionLabel = isPermission ? C.permissionBy(sessionName) : C.questionBy(sessionName)
 
   // A dead session can never be authorized, and neither can one whose state we do not know
   // (session === null): same as an orphan (resume the session instead).
@@ -197,19 +198,19 @@ export function AttentionCard({
     >
       {/* Who asks: the plan (or conversation) first, then where and since when. One wrapping line, no "·" separators. */}
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
-        <span className="shrink-0 text-xs font-semibold text-sky-300">{isPermission ? 'Autorisation' : 'Question'}</span>
-        <span className="min-w-0 max-w-full truncate text-sm font-medium text-gray-100">{threadTitle ?? session?.title?.trim() ?? 'Conversation libre'}</span>
+        <span className="shrink-0 text-xs font-semibold text-sky-300">{isPermission ? C.permission : C.question}</span>
+        <span className="min-w-0 max-w-full truncate text-sm font-medium text-gray-100">{threadTitle ?? session?.title?.trim() ?? C.freeConversation}</span>
         <span className="flex flex-wrap items-baseline gap-x-3 text-xs leading-4 text-gray-400">
           <span>{lane}</span>
-          <RelativeTime date={request.requested_at} prefix="depuis " />
+          <RelativeTime date={request.requested_at} prefix={C.since} />
           {!live && (
             <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
               <StatusDot tone="muted" />
-              {session ? 'arrêté' : 'état inconnu'}
+              {session ? C.stopped : C.stateUnknown}
             </span>
           )}
         </span>
-        {live && <span className="sr-only">vivant</span>}
+        {live && <span className="sr-only">{C.live}</span>}
       </div>
 
       {/* What: the EXACT text, whole */}
@@ -218,10 +219,10 @@ export function AttentionCard({
           <p className="text-xs leading-4 text-gray-400">
             {request.tool_name ? (
               <>
-                L’assistant veut lancer <span className="font-mono text-gray-300">{request.tool_name}</span> :
+                {C.wantsToLaunch} <span className="font-mono text-gray-300">{request.tool_name}</span>:
               </>
             ) : (
-              'Commande demandée :'
+              C.commandAsked
             )}
           </p>
           <pre
@@ -246,7 +247,7 @@ export function AttentionCard({
       {/* Status messages */}
       {orphaned && (
         <p role="status" className="text-sm text-amber-300 break-words">
-          {notice ?? ORPHAN_NOTICE}
+          {notice ?? C.orphanNotice}
         </p>
       )}
       {phase === 'decided' && (
@@ -256,7 +257,7 @@ export function AttentionCard({
       )}
       {phase === 'sent' && (
         <p role="status" className="text-sm text-gray-400">
-          Réponse envoyée.
+          {C.sent}
         </p>
       )}
       {error && (
@@ -271,11 +272,11 @@ export function AttentionCard({
           {orphaned && resumeAction}
           {!orphaned && (
             <>
-              <Button size="sm" className={btn} disabled={locked} loading={sending} onClick={() => allow(true)}>
-                Autoriser
+              <Button size="sm" flat className={btn} disabled={locked} loading={sending} onClick={() => allow(true)}>
+                {C.allow}
               </Button>
-              <Button size="sm" variant="secondary" className={btn} disabled={locked} onClick={() => allow(false)}>
-                Refuser
+              <Button size="sm" variant="secondary" flat className={btn} disabled={locked} onClick={() => allow(false)}>
+                {C.deny}
               </Button>
             </>
           )}
@@ -284,12 +285,13 @@ export function AttentionCard({
       ) : (
         <div className="space-y-2">
           {hasOptions && !orphaned && (
-            <ul className="m-0 grid list-none gap-2 p-0 @lg/card:grid-cols-2" aria-label="Réponses proposées">
+            <ul className="m-0 grid list-none gap-2 p-0 @lg/card:grid-cols-2" aria-label={C.proposedAnswers}>
               {request.options.map((o) => (
                 <li key={o.label} className="min-w-0">
                   <Button
                     size="sm"
                     variant="secondary"
+                    flat
                     className={`${btn} h-full w-full !justify-start text-left whitespace-normal break-words`}
                     disabled={locked}
                     onClick={() => reply(o.label)}
@@ -305,20 +307,20 @@ export function AttentionCard({
           )}
           {!orphaned && (hasOptions && !freeOpen && text.trim() === '' ? (
             <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" variant="ghost" className={btn} disabled={locked} onClick={() => setFreeOpen(true)}>
-                Autre réponse…
+              <Button size="sm" variant="ghost" flat className={btn} disabled={locked} onClick={() => setFreeOpen(true)}>
+                {C.otherAnswer}
               </Button>
               <OpenSession request={request} />
             </div>
           ) : (
             <div className="space-y-2">
               <textarea
-                aria-label="Autre réponse"
+                aria-label={C.otherAnswerLabel}
                 rows={2}
                 value={text}
                 disabled={locked}
                 autoFocus={freeOpen}
-                placeholder={hasOptions ? 'Autre réponse…' : 'Ta réponse…'}
+                placeholder={hasOptions ? C.otherAnswer : C.yourAnswer}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) reply(text)
@@ -329,12 +331,13 @@ export function AttentionCard({
                 <Button
                   size="sm"
                   variant={hasOptions ? 'secondary' : 'primary'}
+                  flat
                   className={btn}
                   disabled={locked || text.trim() === ''}
                   loading={sending}
                   onClick={() => reply(text)}
                 >
-                  Envoyer
+                  {C.send}
                 </Button>
                 <OpenSession request={request} />
               </div>
@@ -358,7 +361,7 @@ function OpenSession({ request }: { request: WaitingRequest }) {
       to={workspacePath(request.workspace, `/chat/${request.session_id}`)}
       className={`${inlineLink} inline-flex min-h-9 items-center px-2 text-sm ${focusRing}`}
     >
-      Ouvrir la conversation
+      {C.openConversation}
     </Link>
   )
 }

@@ -147,7 +147,7 @@ describe('WorkDashboard', () => {
     // Priorities are no longer written on the rows.
     expect(screen.queryByText(/^P\d+$/)).toBeNull()
     expect(screen.getByText('1/4')).toBeTruthy()
-    expect(screen.getByRole('progressbar', { name: 'Avancement de Plan a' }).getAttribute('aria-valuenow')).toBe('25')
+    expect(screen.getByRole('progressbar', { name: 'Progress of Plan a' }).getAttribute('aria-valuenow')).toBe('25')
     // No summary line of its own: the page has ONE, above the queue.
     expect(screen.queryByTestId('work-summary')).toBeNull()
   })
@@ -215,7 +215,7 @@ describe('WorkDashboard', () => {
     seed({ plans: [plan('a', 1)], next: { a: task('nxt', 'pending') }, pending: [listed(task('nxt', 'pending'), 'a')] })
     const first = renderDash()
     await screen.findByText('Tâche nxt')
-    fireEvent.click(screen.getByRole('button', { name: `${WORK_TEXT.addToDay} : Tâche nxt` }))
+    fireEvent.click(screen.getByRole('button', { name: `${WORK_TEXT.addToDay}: Tâche nxt` }))
     await waitFor(() => expect(JSON.parse(localStorage.getItem(DAY_PLAN_KEY) ?? '{}').ids).toEqual(['nxt']))
     // It now lives under "Ma journée" only (the day has a task: it is the list on screen)…
     expect(panel().getAttribute('data-tab')).toBe('day')
@@ -259,7 +259,7 @@ describe('WorkDashboard', () => {
     await screen.findByText('Tâche run')
     // A task to take next offers "Ajouter"; starting it right away is in its menu.
     openTab(WORK_TEXT.next)
-    expect(screen.getByRole('button', { name: `${WORK_TEXT.addToDay} : Tâche nxt` })).toBeTruthy()
+    expect(screen.getByRole('button', { name: `${WORK_TEXT.addToDay}: Tâche nxt` })).toBeTruthy()
     menu('Tâche nxt', WORK_TEXT.start)
     await waitFor(() => expect(tasksUpdate).toHaveBeenCalledWith('nxt', { status: 'in_progress' }))
     expect(toast.success).toHaveBeenCalledWith(WORK_TEXT.started)
@@ -513,7 +513,7 @@ describe('WorkDashboard — the provider choice of a launch', () => {
     fireEvent.click(screen.getByRole('button', { name: new RegExp(WORK_TEXT.launch) }))
     expect(startRun).not.toHaveBeenCalled()
     fireEvent.click(await screen.findByRole('radio', { name: /DeepSeek/ }))
-    fireEvent.click(screen.getByRole('button', { name: /^Launch$/ }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^Launch$/ }))
     await waitFor(() => expect(startRun).toHaveBeenCalledWith('a', '/work/backend', 'backend', undefined, { provider: 'deepseek' }))
   })
 
