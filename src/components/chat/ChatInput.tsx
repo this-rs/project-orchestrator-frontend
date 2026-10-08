@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useCallback, useEffect, useId } from 'react'
 import { useAtom, useAtomValue, useStore } from 'jotai'
-import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoContinueAtom, chatMessageQueuesAtom, draftKeyFor, chatProviderTargetAtom, chatSessionToolPolicyAtom, chatSessionCapabilitiesAtom } from '@/atoms'
+import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoContinueAtom, chatMessageQueuesAtom, draftKeyFor, chatProviderTargetAtom, chatSessionToolPolicyAtom, chatSessionCapabilitiesAtom, refsEnabledAtom, chatRefLabelsAtom } from '@/atoms'
 import { chatApi } from '@/services/chat'
 import { documentsApi } from '@/services/documents'
 import { ApiError } from '@/services/api'
@@ -27,6 +27,14 @@ import { deriveInputAction, describeAction } from './inputAction'
 import { MessageQueueBar } from './MessageQueueBar'
 import { shouldEnqueue, type QueueOp, type QueuedMessage } from './messageQueue'
 import { Attachments } from './Attachments'
+import { ReferenceChip } from './ReferenceChip'
+import { RefPicker, refOptionId } from './RefPicker'
+import { detectTrigger } from '@/refs/trigger'
+import { useRefSearch } from '@/refs/useRefSearch'
+import { reconcileRefs, refKey, removeRefFromText } from '@/refs/refState'
+import { MAX_REFS_PER_MESSAGE, type ChatReference } from '@/refs/types'
+import type { RefSearchItem } from '@/refs/refsApi'
+import { findRefTokens, refToken } from '@/utils/messageRefs'
 import { imagesRefusedText } from '@/constants/capabilities'
 import { panelGlass } from '@/components/ui/panelGlass'
 import {
@@ -69,13 +77,13 @@ interface ChatInputProps {
    * `attachmentIds` are document ids the server has already issued — never an
    * id for an upload still in flight. `attachmentState.ts` is what guarantees it.
    */
-  onSend: (text: string, attachmentIds?: string[]) => void
+  onSend: (text: string, attachmentIds?: string[], refs?: ChatReference[]) => void
   /**
    * Queue a message behind the running response instead of sending it now.
    * The session holds it and delivers it when the turn ends — the server does,
    * not this component (`useChat.queueMessage`).
    */
-  onQueue: (text: string, attachmentIds?: string[]) => void
+  onQueue: (text: string, attachmentIds?: string[], refs?: ChatReference[]) => void
   /** Edit, drop, move to the front or send now one queued message (`useChat.queueOp`). */
   onQueueOp: (action: QueueOp) => void
   onInterrupt: () => void
@@ -123,6 +131,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   const providerTarget = useAtomValue(chatProviderTargetAtom)
   const sessionPolicy = useAtomValue(chatSessionToolPolicyAtom)
   const trustHelpId = useId()
+  const refListId = useId()
   const disabledHelpId = useId()
   // Whether the model in front of the composer takes images. Read at add time
   // through the store too (see `addFiles`), this value drives nothing else.
@@ -150,6 +159,23 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
 
   // --- Attachments ---
   const store = useStore()
+
+  // --- References (#) --- off unless the server announced refs_v1: the composer is then exactly what it was.
+  const refsEnabled = useAtomValue(refsEnabledAtom)
+  const [refLabels, setRefLabels] = useAtom(chatRefLabelsAtom)
+  const [caret, setCaret] = useState(0)
+  // Between compositionstart and compositionend (IME) the text is provisional: no trigger, no key handling.
+  const [composing, setComposing] = useState(false)
+  // Escape closes the picker for THIS trigger; a new `#` opens it again.
+  const [dismissedAt, setDismissedAt] = useState<number | null>(null)
+  const [refActive, setRefActive] = useState(0)
+  const trigger = refsEnabled && !composing && !disabled ? detectTrigger(value, caret) : null
+  const pickerOpen = trigger !== null && trigger.start !== dismissedAt
+  const refSearch = useRefSearch({ query: trigger?.query ?? '', kinds: trigger?.kinds, enabled: pickerOpen })
+  const activeRef = Math.min(refActive, refSearch.items.length - 1)
+  // The chips are the tokens of the text, dressed with what the search taught us.
+  const draftRefs = refsEnabled ? reconcileRefs(value, Object.values(refLabels)) : []
+  const refsFull = draftRefs.length >= MAX_REFS_PER_MESSAGE
   const attachments = useAtomValue(chatAttachmentsAtom)
   const deferredSend = useAtomValue(chatAttachmentDeferredSendAtom)
   const selectedProject = useAtomValue(chatSelectedProjectAtom)
@@ -322,16 +348,26 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
     [store],
   )
 
+  /** The references a text sends: its tokens, with the labels the composer learned. None unless refs_v1. */
+  const refsOf = useCallback(
+    (text: string): ChatReference[] =>
+      store.get(refsEnabledAtom) ? reconcileRefs(text, Object.values(store.get(chatRefLabelsAtom))) : [],
+    [store],
+  )
+
   /** Dispatch for real. Only ever called with a list where nothing is in flight. */
   const dispatchSend = useCallback(
     (text: string, list: Attachment[]) => {
-      onSend(text, readyDocumentIds(list))
+      const refs = refsOf(text)
+      if (refs.length > 0) onSend(text, readyDocumentIds(list), refs)
+      else onSend(text, readyDocumentIds(list))
       setValue('')
+      setRefLabels({})
       store.set(chatAttachmentsAtom, [])
       store.set(chatAttachmentDeferredSendAtom, false)
       uploadsRef.current.clear()
     },
-    [onSend, setValue, store],
+    [onSend, setValue, setRefLabels, refsOf, store],
   )
 
   /**
@@ -351,7 +387,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
         dispatchSend(text, list)
         return
       }
-      onQueue(text, readyDocumentIds(list))
+      const refs = refsOf(text)
+      if (refs.length > 0) onQueue(text, readyDocumentIds(list), refs)
+      else onQueue(text, readyDocumentIds(list))
+      setRefLabels({})
       // The queued message took the composer's contents with it — text,
       // attachments and any held send: it starts clean for the next one.
       setValue('')
@@ -359,7 +398,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
       store.set(chatAttachmentDeferredSendAtom, false)
       uploadsRef.current.clear()
     },
-    [isStreaming, dispatchSend, onQueue, setValue, store],
+    [isStreaming, dispatchSend, onQueue, setValue, setRefLabels, refsOf, store],
   )
 
   /**
@@ -605,7 +644,82 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
     deferredSend,
   })
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  /** Put the caret back in the textarea (the focus never left it, except after a chip's remove button). */
+  const restoreCaret = (pos: number) => {
+    setCaret(pos)
+    requestAnimationFrame(() => {
+      const el = textareaRef.current
+      if (!el) return
+      el.focus({ preventScroll: true })
+      el.setSelectionRange(pos, pos)
+    })
+  }
+
+  /** A result was chosen: its token replaces what was typed after the `#`, and the caret goes after it. */
+  const pickRef = (item: RefSearchItem) => {
+    if (!trigger) return
+    const ref: ChatReference = { kind: item.kind, id: item.id, label: item.label, subtitle: item.subtitle, entity_status: item.entity_status }
+    const already = draftRefs.some((r) => refKey(r) === refKey(ref))
+    // At the cap nothing is added (the picker says so); a reference already in the draft is not added twice.
+    if (refsFull && !already) return
+    const before = value.slice(0, trigger.start)
+    const after = value.slice(trigger.end)
+    const token = already ? '' : refToken(ref)
+    const gap = token && !after.startsWith(' ') ? ' ' : ''
+    setRefLabels((l) => ({ ...l, [refKey(ref)]: ref }))
+    setValue(before + token + gap + after)
+    setRefActive(0)
+    restoreCaret(before.length + token.length + gap.length + (token && after.startsWith(' ') ? 1 : 0))
+  }
+
+  const handleRefKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): boolean => {
+    // IME: the keys belong to the composition (Enter confirms a candidate, it does not pick or send).
+    if (composing || e.nativeEvent.isComposing || e.keyCode === 229) return true
+    if (pickerOpen) {
+      const count = refSearch.items.length
+      switch (e.key) {
+        case 'ArrowDown':
+        case 'ArrowUp':
+          e.preventDefault()
+          if (count > 0) setRefActive((activeRef + (e.key === 'ArrowDown' ? 1 : -1) + count) % count)
+          return true
+        case 'Enter':
+        case 'Tab':
+          if (activeRef >= 0 && refSearch.items[activeRef]) {
+            e.preventDefault()
+            pickRef(refSearch.items[activeRef])
+            return true
+          }
+          // Nothing to pick yet. Enter must not send a message that ends on a half-typed `#…`:
+          // Escape closes the picker, then Enter sends. Tab keeps its meaning.
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            return true
+          }
+          return false
+        case 'Escape':
+          e.preventDefault()
+          e.stopPropagation()
+          setDismissedAt(trigger.start)
+          return true
+      }
+    }
+    // A token goes as one piece: Backspace right after it removes all of it.
+    const el = e.currentTarget
+    if (e.key === 'Backspace' && el.selectionStart === el.selectionEnd) {
+      const token = findRefTokens(value).find((t) => t.end === el.selectionStart)
+      if (token) {
+        e.preventDefault()
+        setValue(value.slice(0, token.start) + value.slice(token.end))
+        restoreCaret(token.start)
+        return true
+      }
+    }
+    return false
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (refsEnabled && handleRefKeyDown(e)) return
     // On mobile, the on-screen keyboard's return key must insert a real newline —
     // sending is done via the dedicated send button. Let the keypress fall through
     // to the textarea's default behavior (newline) instead of submitting.
@@ -745,8 +859,37 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
         // legible but soft. (It used to be a flat bg-white/[0.04] on top of a strip.)
         className={`flex flex-col rounded-xl bg-surface-base/55 backdrop-blur-md backdrop-saturate-150 border border-white/[0.1] shadow-lg shadow-black/20 p-1 transition-colors focus-within:border-indigo-500/40 ${
           disabled ? 'opacity-50' : ''
-        }`}
+        }${refsEnabled ? ' relative' : ''}`}
       >
+        {pickerOpen && (
+          <RefPicker
+            listId={refListId}
+            search={refSearch}
+            activeIndex={activeRef}
+            kindFilter={trigger?.kinds?.[0]}
+            full={refsFull}
+            onPick={pickRef}
+            onHover={setRefActive}
+          />
+        )}
+        {draftRefs.length > 0 && (
+          <ul aria-label="References" className="m-0 flex list-none flex-wrap gap-1 px-1.5 pt-1">
+            {draftRefs.map((r) => (
+              <li key={refKey(r)}>
+                <ReferenceChip
+                  draft
+                  reference={r}
+                  onRemove={(ref) => {
+                    const next = removeRefFromText(value, ref)
+                    setValue(next)
+                    // The remove button is about to vanish: the focus goes back to the text, at the end of it.
+                    restoreCaret(next.length)
+                  }}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
         <input
           ref={fileInputRef}
           type="file"
@@ -760,8 +903,34 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
         <textarea
           ref={textareaRef}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            setValue(e.target.value)
+            if (refsEnabled) {
+              setCaret(e.target.selectionStart)
+              setRefActive(0)
+              // A new `#` (or none left) re-arms the picker that Escape closed.
+              if (detectTrigger(e.target.value, e.target.selectionStart)?.start !== dismissedAt) setDismissedAt(null)
+            }
+          }}
           onKeyDown={handleKeyDown}
+          {...(refsEnabled
+            ? {
+                // ARIA combobox: the focus stays here, the active option is named by aria-activedescendant.
+                role: 'combobox' as const,
+                'aria-haspopup': 'listbox' as const,
+                'aria-autocomplete': 'list' as const,
+                'aria-expanded': pickerOpen,
+                'aria-controls': pickerOpen ? refListId : undefined,
+                'aria-activedescendant': pickerOpen && activeRef >= 0 ? refOptionId(refListId, activeRef) : undefined,
+                onSelect: (e: React.SyntheticEvent<HTMLTextAreaElement>) => setCaret(e.currentTarget.selectionStart),
+                onCompositionStart: () => setComposing(true),
+                onCompositionEnd: (e: React.CompositionEvent<HTMLTextAreaElement>) => {
+                  setComposing(false)
+                  setCaret(e.currentTarget.selectionStart)
+                },
+                onBlur: () => trigger && setDismissedAt(trigger.start),
+              }
+            : {})}
           onPaste={handlePaste}
           disabled={disabled}
           aria-describedby={disabled && disabledReason ? disabledHelpId : undefined}

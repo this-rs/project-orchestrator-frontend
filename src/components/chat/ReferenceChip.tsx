@@ -26,15 +26,17 @@ interface ReferenceChipProps {
   reference: ChatReference
   /** Composer only: draws a remove button. The bubble's chips are read-only. */
   onRemove?: (reference: ChatReference) => void
+  /** A draft in the composer: nobody resolved it yet, and saying "resolving" would be false. */
+  draft?: boolean
 }
 
 /**
  * A reference as a chip: kind icon, name, and — when the server could not
  * read it in full — the state in words with its own icon.
  */
-export function ReferenceChip({ reference, onRemove }: ReferenceChipProps) {
+export function ReferenceChip({ reference, onRemove, draft }: ReferenceChipProps) {
   const def = refKindDef(reference.kind)
-  const state = displayState(reference)
+  const state = draft ? 'ok' : displayState(reference)
   const name = refName(reference)
   const stateText = STATE_TEXT[state]
   const Icon = state === 'unavailable' ? AlertTriangle : state === 'truncated' ? Scissors : def.Icon
