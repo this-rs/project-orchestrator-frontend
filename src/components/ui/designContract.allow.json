@@ -91,6 +91,13 @@
     "date": "2026-10-08"
   },
   {
+    "path": "src/components/chat/viz/VizExpandDialog.tsx",
+    "rule": "glass-on-content",
+    "count": 1,
+    "reason": "Legitimate: the panel of a modal dialog is a floating layer (Dialog, ConfirmDialog and FormDialog use the same recipe). Stays.",
+    "date": "2026-10-08"
+  },
+  {
     "path": "src/components/composer/FSMCanvas.tsx",
     "rule": "uppercase-tracking-wider",
     "count": 1,
@@ -284,6 +291,13 @@
     "rule": "uppercase-tracking-wider",
     "count": 3,
     "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: Assistants pass.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/WorkspaceSwitcher.tsx",
+    "rule": "glass-on-content",
+    "count": 1,
+    "reason": "Legitimate: the workspace menu is a floating layer (portal, fixed, z-50), same recipe as Select and Dropdown. Stays.",
     "date": "2026-10-08"
   },
   {
