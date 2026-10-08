@@ -58,6 +58,8 @@ const COMMON = [
   ['GET', /^\/api\/workspaces$/, page(workspaces)],
   ['GET', /^\/api\/workspaces\/([^/]+)$/, (m) => workspaces.find((w) => w.slug === m[1]) ?? workspaces[0]],
   ['GET', /^\/api\/workspaces\/[^/]+\/projects$/, projects],
+  ['GET', /^\/api\/workspaces\/([^/]+)\/overview$/, (m) => ({ workspace: workspaces.find((w) => w.slug === m[1]) ?? workspaces[0], projects, milestones: [], resources: [], components: [] })],
+  ['GET', /^\/api\/projects\/[^/]+\/embeddings\/projection$/, { points: [], synapses: [], skills: [], dimensions: 0, projection_dimensions: 2, method: 'umap' }],
   ['GET', /^\/api\/workspaces\/[^/]+\/milestones$/, page([])],
   ['GET', /^\/api\/projects$/, page(projects)],
   ['GET', /^\/api\/projects\/[^/]+\/milestones$/, page([])],
