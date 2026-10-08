@@ -17,6 +17,12 @@ interface SelectProps {
   className?: string
   placeholder?: string
   icon?: ReactNode
+  /**
+   * Accessible name when there is no visible `label` (filter comboboxes in a
+   * `FilterBar`): read by screen readers, invisible on screen. Ignored when
+   * `label` is given (the label names the control).
+   */
+  'aria-label'?: string
 }
 
 /*
@@ -34,6 +40,7 @@ export function Select({
   className = '',
   placeholder,
   icon,
+  'aria-label': ariaLabel,
 }: SelectProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
@@ -183,6 +190,7 @@ export function Select({
         aria-controls={menuId}
         aria-activedescendant={isOpen ? activeOptionId : undefined}
         aria-labelledby={label ? `sel-${uid}-label` : undefined}
+        aria-label={label ? undefined : ariaLabel}
         onClick={handleTriggerClick}
         onKeyDown={handleKeyDown}
         disabled={disabled}
@@ -212,6 +220,7 @@ export function Select({
         popover="auto"
         role="listbox"
         aria-labelledby={label ? `sel-${uid}-label` : undefined}
+        aria-label={label ? undefined : ariaLabel}
         className="popover-dropdown glass-heavy rounded-lg shadow-md py-1 max-h-60 overflow-y-auto"
         style={menuStyle}
       >

@@ -36,3 +36,6 @@ dist-ssr
 
 # Coverage output
 coverage/
+
+# Visual QA bench output (npm run qa:shots)
+qa-out/

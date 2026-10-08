@@ -15,8 +15,9 @@ site proves a recipe worth keeping, it is brought *up* into this contract and
 into `@/components/ui`, then the site re-syncs (`pnpm check:design`). The rules
 marked *(from the site)* below came that way on 2026-10-07 (audit matrix: MCP note
 "Matrice d'écarts site→app"); each cites the `website/DESIGN.md` section it comes
-from. Primitives named here that do not exist yet in `@/components/ui` are marked
-*(planned)*: the contract leads, the code follows in the next tasks of the plan.
+from. Every primitive named here exists in `@/components/ui`; the gates that keep it
+true are `ui/designContract.test.ts` (banned patterns outside `ui/`, dated allow-list
+`designContract.allow.json`) and `npm run qa:shots` (`docs/DESIGN_QA.md`).
 
 ---
 
@@ -134,7 +135,7 @@ by hand in a page: `<PageShell title={NOMENCLATURE.plans.plural}>`.
 | Body | `text-sm text-gray-300` | descriptions, markdown |
 | Secondary line | `text-xs text-gray-500` | row description / preview |
 | Meta | `text-[11px] leading-4 text-gray-500` (`metaText`, `MetaLine`) | metadata, counts, dates |
-| **Display title** *(from the site)* | `pageTitle` = `display-2` (`--fluid-5xl`, 40→64px) · `sectionTitle` = `display-3` (`--fluid-4xl`, 32→48px) — weight 600, tight tracking, `text-wrap: balance`, `text-gray-50/100` (`index.css`, `classes.ts`) | the ONE sentence that names a dashboard: Today's `headline` (`display-2`), `<EmptyState size="page">` (« No X yet », `display-3`), the setup wizard steps and the Login title (`display-3`, migrated in phase 3) |
+| **Display title** *(from the site)* | `pageTitle` = `display-2` (`--fluid-5xl`, 40→64px) · `sectionTitle` = `display-3` (`--fluid-4xl`, 32→48px) — weight 600, tight tracking, `text-wrap: balance`, `text-gray-50/100` (`index.css`, `classes.ts`) | the ONE sentence that names a **full-frame screen** (`display-2`): Today's `headline`, each step of the setup assistant, the Login / callback title, the workspace selector — screens with no sidebar, where the title is the screen. The ONE sentence that names a **section or a state** (`display-3`): `<EmptyState size="page">` (« No X yet »), a section title inside a standalone screen |
 | **Lead text** *(from the site)* | `leadText` = `text-base md:text-lg leading-relaxed text-gray-400 max-w-[var(--measure-md)]` (`--measure-sm/md/lg` = 48/65/75ch) | the one line under a display title (Today's `why`, the page-level empty state's description) |
 
 Numbers that change or align (counts, dates, costs) use `tabular-nums`. No
@@ -145,9 +146,14 @@ plus grands, en échelle fluide »)*. The site has three display sizes; the app 
 two. `display-1` (`--fluid-display`, 44→84px) is a full-screen hero size and stays
 marketing: no screen of the app has a hero, and Today's headline shares its row
 with the counters and the workspace filter. `display-2` replaced the hand-written
-`text-2xl … @2xl/today:text-[2rem]` of `TodayView` (its `why` is `leadText`);
-`display-3` replaces the `text-2xl font-bold` of `LoginPage` and the `text-xl` of
-the setup steps when those screens migrate (phase 3). A display title appears
+`text-2xl … @2xl/today:text-[2rem]` of `TodayView` (its `why` is `leadText`) and
+is the screen title of every **standalone screen** — the setup assistant's steps
+(`SetupLayout`), `LoginPage`, the auth callback, the workspace selector: like Today,
+they fill the frame, no sidebar competes, so they take the page size (measured
+at 390px: 41px, no overflow). `display-3` is the size of a *section or state*:
+a page-level `EmptyState`, a sub-heading inside one of those screens. The rule
+of thumb: a screen that is the whole window = `display-2`; a block inside a
+screen = `display-3`. A display title appears
 **once per screen, above the fold, outside any list, row, card or detail
 section**: `PageShell`/`PageHeader` titles (`text-xl md:text-2xl`) are unchanged,
 and a display class inside an `EntityRow`, a `Section` or a dialog is a bug. It
@@ -311,7 +317,7 @@ Anatomy: **PageHeader → key facts line → sections**.
 ## 10. Mobile rules (non-negotiable)
 
 - **No hover-only UI.** Anything revealed by `group-hover`/`opacity-0` must be reachable otherwise (⋯ menu). Hover may only *enhance* (colour).
-- **Tap targets ≥ 36px.** Buttons `size="sm"` are fine; icon buttons `w-9 h-9 md:w-8 md:h-8`; small inline text controls use `hitArea` (enlarged invisible target, no layout change).
+- **Tap targets ≥ 36px.** Buttons `size="sm"` are fine; icon buttons are `<Button icon size="sm" aria-label="…">` (36px on a phone, 32px from `md:`); small inline text controls use `hitArea` (enlarged invisible target, no layout change).
 - **Nothing overflows horizontally**: `min-w-0` on flex children containing text, `break-words` on titles, `flex-wrap` on control rows.
 - **Wrap, don't truncate essential info.** Titles clamp at 2 lines; meta lines wrap. Only truncate secondary values (paths, long names) and keep the full value in `title`.
 - Inputs are `text-base md:text-sm` (16px on phones, otherwise iOS zooms).
@@ -336,7 +342,7 @@ Anatomy: **PageHeader → key facts line → sections**.
 - Controls: `TabLayout` (page tabs), `ViewTabs` (segmented views), `ViewToggle` (list/board), `RowCheckbox` (bulk selection), `ProgressLine`, `TaskProgress`, `Meter`, `Gauge`, `StatTiles`.
 - List cards: `EntityRow` (`status`, `tone`, `meta`, `context`), `MetaLine variant="facts"`, `Fact`.
 - Classes: `focusRing`, `focusRingInset`, `hitArea`, `rowInteractive`, `metaText`, `textLink`, `inlineLink`, `surface`, `displayTitle`, `pageTitle`, `sectionTitle`, `leadText`.
-- *(from the site)* Glass controls: `glassButton` (`primary | secondary | danger | ghost`), `iconButton(variant, size)`, `glassFlat` (`btn-flat`), `segmented` / `segmentItem` (§Matière). Display scale: `pageTitle` (`display-2`), `sectionTitle` (`display-3`), `leadText` (§2). Explaining: `ConceptIntro` (§5). Motion tokens: `--ease-standard`, `--duration-instant | fast | stage | base | slow` (§Mouvement).
+- *(from the site)* Glass controls: `<Button icon flat>`, `glassButton` (`primary | secondary | danger | ghost`), `iconButton(variant, size)`, `glassFlat` (`btn-flat`), `segmented` / `segmentItem` (§Matière). `Select aria-label` names a filter combobox that has no visible label (§11). Display scale: `pageTitle` (`display-2`), `sectionTitle` (`display-3`), `leadText` (§2). Explaining: `ConceptIntro` (§5). Motion tokens: `--ease-standard`, `--duration-instant | fast | stage | base | slow` (§Mouvement).
 - Menus: `OverflowMenu`, `StatusMenu`, `useFloatingFallback`, `positionFloating`.
 
 ## Don'ts
@@ -364,7 +370,7 @@ cause-and-effect** readable, never to decorate.
 | Page, sections, rows, cards | **Opaque** surfaces (`surface`, `bg-surface-*`) | Text on blur loses contrast; large blurred areas are expensive to composite on a phone while scrolling. |
 | Floating layers: menus, popovers, dropdowns, sheets, sticky bars, toasts, the chat queue bar | **Glass** (`glass` → `.ui-glass`) | Says "this is above the page, the page is still there" — keeps context visible behind a transient layer. |
 | Modal dialogs | Opaque panel + dimmed (not blurred) backdrop | Focus on one task; blurring the whole viewport costs a full-screen blur for nothing. |
-| **Buttons** (`Button` — primary, secondary, danger, ghost — and icon buttons) and the **segmented control** (`ViewTabs`, `ViewToggle`) *(from the site)* | **Glass**, recipe `buttons.css` (`.btn`, `.btn-primary/-secondary/-danger/-ghost`, `.btn-icon`, `.btn-flat`, `.seg`, `.seg-item`) *(planned in `index.css` + `classes.ts`: `glassButton`, `iconButton`, `glassFlat`, `segmented`, `segmentItem`)* | A control is small and sits *on* the page: tinted translucent fill (blur 12px + saturate), a 1px gradient hairline (`::after`), an inner highlight at the top, a soft sheen that slides on hover/focus (`::before`). It reads as "something you can press", which a flat `bg-indigo-600` never did, and it is the one place where the site and the app visibly differed. |
+| **Buttons** (`Button` — primary, secondary, danger, ghost — and icon buttons) and the **segmented control** (`ViewTabs`, `ViewToggle`) *(from the site)* | **Glass**, recipe `buttons.css` (`.btn`, `.btn-primary/-secondary/-danger/-ghost`, `.btn-icon`, `.btn-flat`, `.seg`, `.seg-item`) (`styles/buttons.css`; class strings `glassButton`, `iconButton`, `glassFlat`, `segmented`, `segmentItem` in `classes.ts`, all exported from `@/components/ui`) | A control is small and sits *on* the page: tinted translucent fill (blur 12px + saturate), a 1px gradient hairline (`::after`), an inner highlight at the top, a soft sheen that slides on hover/focus (`::before`). It reads as "something you can press", which a flat `bg-indigo-600` never did, and it is the one place where the site and the app visibly differed. |
 
 Rules: one glass layer at a time (never glass on glass); blur radius fixed by
 the token (14px for layers, 12px for controls — the two values in `buttons.css`
@@ -394,20 +400,25 @@ content behind it (the class guarantees ≥ 78% opacity and a hairline border);
   hover / focus / `aria-expanded="true"` / `aria-current="page"`. Sizes and the
   36px tap target of §10 are the app's (`sizeStyles` in `Button.tsx`), not the
   site's 44px.
-- **Icon buttons** are `.btn-icon` (square, `aspect-ratio: 1`, the size comes
-  from the caller: `w-9 h-9 md:w-8 md:h-8`), `ghost` by default, `btn-flat`
-  inside a row.
+- **Icon buttons** are `<Button icon>` (`.btn-icon`: square, `aspect-ratio: 1`,
+  no padding; `size="sm"` = 36px on a phone / 32px from `md:`, `md` = 40px,
+  `lg` = 44px), `ghost` by default, `flat` inside a row, always with an
+  `aria-label`. `iconButton(variant, size)` gives the same classes to an element
+  that cannot be a `<Button>` (a `<Link>`, a `<summary>`).
 - **Segmented control.** `ViewTabs` and `ViewToggle` share the box `seg`
   (3px padding, inset hairline, glass) and the item `seg-item`; the selected item
   (`aria-selected` / `aria-pressed`) is a small tinted glass (the §3 exception),
   the others are text only. Keyboard, focus ring (`outline 2px` indigo-300,
   offset) and the horizontal strip of `ViewTabs` are unchanged.
 - **The hover halo follows the pointer** (`--mx` / `--my` on the hovered
-  `.btn` / `.seg-item`), written by ONE passive `pointermove` listener mounted
-  once in `MainLayout` (`HaloPointer` *(planned, adapted from
-  `website/src/components/ux/HaloPointer.tsx)`*: rAF-throttled, CSS variables
+  `.btn` / `.seg-item`), written by ONE passive `pointermove` listener:
+  `HaloPointer` (`@/components/ui`, adapted from
+  `website/src/components/ux/HaloPointer.tsx`: rAF-throttled, CSS variables
   only, no React state), inactive without a fine pointer and under
-  `prefers-reduced-motion`. No per-button listeners.
+  `prefers-reduced-motion`. It is mounted **once per layout root** — `MainLayout`
+  (every workspace page), `SetupLayout` (the assistant), the standalone screens
+  (Login, callback, workspace selector) — and **never twice in the same tree**:
+  a page, a panel or a dialog never mounts it. No per-button listeners.
 - **Fallbacks are part of the recipe**: opaque fills without `backdrop-filter`
   or under `prefers-reduced-transparency`; `forced-colors` gives a system
   border and no decoration; contrast on `#0a0a0f`: white on primary ≥ 7:1,

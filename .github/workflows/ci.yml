@@ -42,3 +42,41 @@ jobs:
           BASE_REF: ${{ github.event.pull_request.base.sha }}
           PATCH_COVERAGE_THRESHOLD: '80'
         run: node scripts/check-patch-coverage.mjs
+
+      # ── Design gates — informative: they report, they never block (docs/DESIGN_QA.md) ──
+      # The design-contract test also runs inside "Test + coverage" above (it is a
+      # vitest file); this step repeats it alone so its verdict is readable at a glance.
+      - name: Design contract (informative)
+        if: always()
+        continue-on-error: true
+        run: npm run check:design-contract
+
+      # The marketing site mirrors files of this repo (website/design-sync.manifest.json).
+      # When the site repo is reachable — a repository variable PO_WEBSITE_REPO
+      # (owner/name) for a checkout, or PO_WEBSITE_DIR pointing at a local copy —
+      # its check:design lists every ported file this PR changes, so the site
+      # knows what to re-port the day it lands. Nothing here fails the job.
+      - name: Checkout the marketing site (optional)
+        id: website
+        if: always() && vars.PO_WEBSITE_REPO != ''
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.PO_WEBSITE_REPO }}
+          path: .po-website
+          fetch-depth: 1
+
+      - name: Site ↔ frontend drift (informative)
+        if: always()
+        continue-on-error: true
+        env:
+          # check-design.mjs resolves PO_FRONTEND_DIR against the SITE root: it must be absolute.
+          PO_FRONTEND_DIR: ${{ github.workspace }}
+          PO_WEBSITE_DIR: ${{ vars.PO_WEBSITE_DIR }}
+        run: |
+          site="${PO_WEBSITE_DIR:-$GITHUB_WORKSPACE/.po-website}"
+          if [ -f "$site/scripts/check-design.mjs" ]; then
+            node "$site/scripts/check-design.mjs" --summary
+          else
+            echo "Site ↔ frontend drift: website repo not available (set the PO_WEBSITE_REPO or PO_WEBSITE_DIR repository variable) — skipped." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi

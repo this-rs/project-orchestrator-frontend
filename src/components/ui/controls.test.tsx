@@ -15,6 +15,7 @@ import { Section } from './Section'
 import { Input } from './Input'
 import { Textarea } from './Textarea'
 import { Button } from './Button'
+import { Select } from './Select'
 import { HaloPointer } from './HaloPointer'
 
 describe('TabLayout', () => {
@@ -60,6 +61,25 @@ describe('Button', () => {
     expect(has('btn', 'btn-ghost')).toBe(true)
   })
 
+  it('`icon` is a square ghost glass button with no padding: the size is the 36px target (32px from md:)', () => {
+    const { rerender } = render(
+      <Button icon size="sm" aria-label="Close">
+        x
+      </Button>,
+    )
+    const btn = screen.getByRole('button', { name: 'Close' })
+    const has = (...cls: string[]) => cls.every((c) => btn.classList.contains(c))
+    expect(has('btn', 'btn-ghost', 'btn-icon', 'size-9', 'md:size-8')).toBe(true)
+    expect(btn.className).not.toMatch(/\bp[xy]?-\d/)
+    rerender(
+      <Button icon variant="secondary" aria-label="Close">
+        x
+      </Button>,
+    )
+    expect(has('btn-secondary', 'btn-icon', 'size-10')).toBe(true)
+    expect(has('btn-ghost')).toBe(false)
+  })
+
   it('`flat` drops the blur for dense rows and `loading` disables the button', () => {
     render(
       <Button size="sm" variant="secondary" flat loading>
@@ -70,6 +90,27 @@ describe('Button', () => {
     expect(btn.className).toContain('btn-flat')
     expect(btn.disabled).toBe(true)
     expect(btn.getAttribute('aria-busy')).toBe('true')
+  })
+})
+
+describe('Select', () => {
+  const options = [
+    { value: 'all', label: 'All' },
+    { value: 'open', label: 'Open' },
+  ]
+
+  it('takes an `aria-label` so a filter combobox without a visible label still has a name', () => {
+    render(<Select aria-label="Status" options={options} value="all" />)
+    const combo = screen.getByRole('combobox', { name: 'Status' })
+    expect(combo.getAttribute('aria-labelledby')).toBeNull()
+    expect(screen.getByRole('listbox', { hidden: true }).getAttribute('aria-label')).toBe('Status')
+  })
+
+  it('lets the visible `label` name the control when both are given', () => {
+    render(<Select label="Status" aria-label="ignored" options={options} value="all" />)
+    const combo = screen.getByRole('combobox', { name: 'Status' })
+    expect(combo.getAttribute('aria-label')).toBeNull()
+    expect(combo.getAttribute('aria-labelledby')).toMatch(/-label$/)
   })
 })
 

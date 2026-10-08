@@ -125,6 +125,11 @@ export {
   pageTitle,
   sectionTitle,
   leadText,
+  glassButton,
+  glassFlat,
+  iconButton,
+  segmented,
+  segmentItem,
 } from './classes'
 export { ConceptIntro } from './ConceptIntro'
 export type { ConceptIntroProps } from './ConceptIntro'
