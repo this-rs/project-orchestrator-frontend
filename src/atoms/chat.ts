@@ -284,3 +284,11 @@ export const refsEnabledAtom = atom((get) => get(chatServerFeaturesAtom)?.includ
  * LIVE event only: a replayed history must not speak.
  */
 export const refsAnnouncementAtom = atom<string>('')
+
+/**
+ * What the composer knows about the references of the draft (label, subtitle
+ * from the search result), keyed by `kind:id`. The DRAFT TEXT is the source of
+ * truth (it persists the `#kind:id` tokens); this only dresses them. Lost on a
+ * reload: the chips then fall back to "Kind shortid" until the server resolves them.
+ */
+export const chatRefLabelsAtom = atom<Record<string, import('@/refs/types').ChatReference>>({})
