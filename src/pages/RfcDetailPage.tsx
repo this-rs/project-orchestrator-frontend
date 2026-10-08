@@ -1,10 +1,10 @@
 /**
- * RfcDetailPage — one RFC with all its information, then its graph
- * neighbourhood (RFCs are notes in the knowledge graph):
+ * RfcDetailPage — one proposal (an `rfc` on the wire) with all its information:
  *
  *   Header     title · lifecycle state · importance · dates · next step (primary)
- *   Lifecycle  where the RFC stands on its path + every available transition
- *   Content    the RFC sections (markdown)
+ *   Lifecycle  where the proposal stands on its path (one bar + words) + every
+ *              available transition
+ *   Content    the proposal's sections (markdown)
  *   Details    importance, dates, author, protocol run, id, tags
  *
  * Reject / supersede end the lifecycle, so they ask for confirmation.
@@ -12,7 +12,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { AlertTriangle, Check, Copy, FileText, Hash } from 'lucide-react'
+import { Copy, Hash } from 'lucide-react'
 import {
   Button,
   CollapsibleMarkdown,
@@ -26,14 +26,15 @@ import {
   Section,
   SectionNav,
   StatusText,
+  ToneText,
   formatAbsolute,
   getStatusMeta,
   inlineLink,
   pluralize,
 } from '@/components/ui'
 import { Explainer } from '@/components/protocols/Explainer'
+import { ProposalLifecycleLine } from '@/components/protocols/ProposalLifecycleLine'
 import {
-  LIFECYCLE_STEPS,
   apiErrorMessage,
   formatTrigger,
   isBackwardTrigger,
@@ -46,49 +47,8 @@ import {
 import { rfcApi } from '@/services/rfcApi'
 import { useConfirmDialog, useSectionObserver, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
-import type { Rfc, RfcAvailableTransition, RfcStatus } from '@/types/protocol'
-
-// ---------------------------------------------------------------------------
-// Lifecycle stepper — scrolls horizontally inside its own strip on phones
-// ---------------------------------------------------------------------------
-
-function LifecycleStepper({ status }: { status: RfcStatus }) {
-  const closed = status === 'rejected' || status === 'superseded'
-  const activeIdx = LIFECYCLE_STEPS.findIndex((s) => s.key === status)
-  return (
-    <div className="overflow-x-auto -mx-1 px-1 pb-1">
-      <ol className="flex items-center min-w-max gap-1" aria-label="RFC lifecycle">
-        {LIFECYCLE_STEPS.map((step, idx) => {
-          const done = !closed && idx < activeIdx
-          const current = !closed && idx === activeIdx
-          return (
-            <li key={step.key} className="flex items-center gap-1" aria-current={current ? 'step' : undefined}>
-              {idx > 0 && <span className={`h-px w-3 ${done || current ? 'bg-emerald-500/40' : 'bg-white/[0.08]'}`} aria-hidden="true" />}
-              <span
-                className={`inline-flex items-center gap-1 whitespace-nowrap px-1 py-0.5 text-[11px] ${
-                  current ? 'font-medium text-indigo-300' : done ? 'text-emerald-400/90' : 'text-gray-600'
-                }`}
-              >
-                {done ? <Check className="w-3 h-3" aria-hidden="true" /> : <span className={`w-1.5 h-1.5 rounded-full ${current ? 'bg-indigo-400' : 'bg-gray-700'}`} aria-hidden="true" />}
-                {step.label}
-                {done && <span className="sr-only"> (done)</span>}
-              </span>
-            </li>
-          )
-        })}
-        {closed && (
-          <li className="flex items-center gap-1" aria-current="step">
-            <span className="h-px w-3 bg-red-500/30" aria-hidden="true" />
-            <span className="inline-flex items-center gap-1 whitespace-nowrap px-1 py-0.5 text-[11px] font-medium text-red-400">
-              <AlertTriangle className="w-3 h-3" aria-hidden="true" />
-              {getStatusMeta('rfc', status).label}
-            </span>
-          </li>
-        )}
-      </ol>
-    </div>
-  )
-}
+import type { Rfc, RfcAvailableTransition } from '@/types/protocol'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 // ---------------------------------------------------------------------------
 // Component
@@ -112,7 +72,7 @@ export function RfcDetailPage() {
     try {
       setRfc(await rfcApi.get(rfcId))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load RFC')
+      setError(err instanceof Error ? err.message : 'Could not load this proposal')
     } finally {
       setLoading(false)
     }
@@ -175,7 +135,7 @@ export function RfcDetailPage() {
       else lines.push(`## ${section.title}`, '', section.content)
       lines.push('')
     }
-    void copy(lines.join('\n'), 'RFC (Markdown)')
+    void copy(lines.join('\n'), 'Proposal (Markdown)')
   }
 
   // Quick-jump nav only for long documents (≥ 4 sections)
@@ -198,7 +158,7 @@ export function RfcDetailPage() {
   if (error || !rfc) {
     return (
       <PageContainer width="wide">
-        <ErrorState title="RFC not found" description={error || 'Could not load this RFC document.'} onRetry={fetchRfc} />
+        <ErrorState title="Could not load the proposal" description={error || 'It may have been deleted, or the link is wrong.'} onRetry={fetchRfc} />
       </PageContainer>
     )
   }
@@ -212,19 +172,19 @@ export function RfcDetailPage() {
   const visibleTags = rfc.tags.filter((t) => !t.startsWith('rfc-'))
   const importanceLabel = `${getStatusMeta('importance', rfc.importance).label} importance`
 
-  const transitionButton = (t: RfcAvailableTransition, variant: 'primary' | 'secondary' | 'ghost') => {
+  // Closing a proposal is the one destructive gesture here: red glass, and it asks first (`request`).
+  const transitionButton = (t: RfcAvailableTransition, variant: 'primary' | 'secondary') => {
     const Icon = triggerIcon(t.trigger)
     const busy = transitioning === t.trigger
-    const destructive = isDestructiveTrigger(t.trigger)
     return (
       <Button
         key={t.trigger}
         size="sm"
-        variant={variant}
+        variant={isDestructiveTrigger(t.trigger) ? 'danger' : variant}
         onClick={() => request(t)}
         loading={busy}
         disabled={!!transitioning && !busy}
-        className={`gap-1.5 ${destructive ? '!text-red-300' : ''}`}
+        className="gap-1.5"
       >
         {!busy && <Icon className="w-3.5 h-3.5" aria-hidden="true" />}
         {formatTrigger(t.trigger)}
@@ -237,7 +197,14 @@ export function RfcDetailPage() {
     <PageContainer width="wide" className="space-y-6">
       <PageHeader
         title={rfc.title}
-        parentLinks={[{ icon: FileText, label: 'RFCs', name: 'RFCs', href: workspacePath(wsSlug, '/rfcs') }]}
+        parentLinks={[
+          {
+            icon: NOMENCLATURE.proposals.icon,
+            label: NOMENCLATURE.proposals.singular,
+            name: NOMENCLATURE.proposals.plural,
+            href: workspacePath(wsSlug, `/${NOMENCLATURE.proposals.segment}`),
+          },
+        ]}
         status={<StatusText kind="rfc" status={state} />}
         meta={[
           <StatusText key="imp" kind="importance" status={rfc.importance} dot={false} label={importanceLabel} />,
@@ -248,28 +215,21 @@ export function RfcDetailPage() {
         actions={primary ? transitionButton(primary, 'primary') : undefined}
         overflowActions={[
           { label: 'Copy as Markdown', icon: Copy, onClick: copyMarkdown },
-          { label: 'Copy ID', icon: Hash, onClick: () => copy(rfc.id, 'RFC ID') },
+          { label: 'Copy ID', icon: Hash, onClick: () => copy(rfc.id, 'Proposal ID') },
         ]}
       />
 
       {/* ── Lifecycle ─────────────────────────────────────────────────── */}
-      <Section title="Lifecycle">
+      <Section title="Lifecycle" description="A proposal puts a change up for review before it is decided.">
         <div className="space-y-3">
-          <LifecycleStepper status={state} />
+          <ProposalLifecycleLine status={state} />
           <Explainer>
-            An RFC moves step by step: proposed, reviewed, accepted, planned, implemented. “Revise” and “Replan” send it
-            back to a previous step; “Reject” and “Supersede” close it for good.
+            “Revise” and “Replan” send it back to a previous step; “Reject” and “Supersede” close it for good.
           </Explainer>
           {transitions.length === 0 ? (
-            <p className="text-sm text-gray-400">
-              {state === 'implemented'
-                ? 'This RFC has been fully implemented — nothing left to do.'
-                : state === 'rejected'
-                  ? 'This RFC has been rejected.'
-                  : state === 'superseded'
-                    ? 'This RFC has been superseded by another proposal.'
-                    : 'No transitions are available from this state.'}
-            </p>
+            state !== 'implemented' && state !== 'rejected' && state !== 'superseded' ? (
+              <p className="text-sm text-gray-400">No step is available from this state.</p>
+            ) : null
           ) : others.length > 0 ? (
             <div className="flex flex-wrap gap-2">{others.map((t) => transitionButton(t, 'secondary'))}</div>
           ) : null}
@@ -311,10 +271,7 @@ export function RfcDetailPage() {
                   {rfc.protocol_run_id.slice(0, 8)} →
                 </Link>
               ) : (
-                <span className="inline-flex items-center gap-1 text-amber-400/80">
-                  <AlertTriangle className="w-3 h-3" aria-hidden="true" />
-                  Not linked
-                </span>
+                <ToneText tone="warning" icon label="Not linked" />
               ),
             },
             { label: 'ID', value: <span className="font-mono text-xs break-all">{rfc.id}</span> },

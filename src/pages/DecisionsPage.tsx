@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { CheckCircle2, Folder, Trash2 } from 'lucide-react'
 import { decisionsApi, workspacesApi } from '@/services'
 import {
@@ -37,6 +38,7 @@ export function DecisionsPage() {
   const [loading, setLoading] = useState(true)
   const toast = useToast()
   const wsSlug = useWorkspaceSlug()
+  const navigate = useNavigate()
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const initialLoadDone = useRef(false)
 
@@ -125,7 +127,7 @@ export function DecisionsPage() {
     try {
       await decisionsApi.update(decision.id, { status: newStatus })
       setDecisions((prev) => prev.map((d) => (d.id === decision.id ? { ...d, status: newStatus } : d)))
-      toast.success(`Status changed to ${newStatus}`)
+      toast.success(`Status changed to ${getStatusMeta('decision', newStatus).label}`)
     } catch {
       toast.error('Failed to update status')
     }
@@ -136,7 +138,8 @@ export function DecisionsPage() {
   return (
     <PageShell
       title={NOMENCLATURE.decisions.plural}
-      description="Track architectural decisions, their rationale, and impact across the codebase"
+      description={NOMENCLATURE.decisions.description}
+      intro="decisions"
       count={loading ? undefined : filtered.length}
       width="wide"
       filters={
@@ -173,21 +176,30 @@ export function DecisionsPage() {
       {loading ? (
         <EntityListSkeleton rows={6} />
       ) : filtered.length === 0 ? (
-        <EmptyState
-          title={isPristine ? 'No decisions yet' : 'No matching decisions'}
-          description={
-            isPristine
-              ? 'Architectural decisions are recorded during task execution. Add decisions from task detail pages.'
-              : 'Try adjusting your search query or filters.'
-          }
-          action={
-            isPristine ? undefined : (
+        isPristine ? (
+          // No "New decision" here: a decision is recorded where the choice is made (a task, an
+          // assistant at work), so the one action this screen can offer is to go there.
+          <EmptyState
+            size="page"
+            title="No decisions yet"
+            description="A decision is a choice that was made, with its reason and the alternatives set aside. Assistants record them while they work; you can also add one from a task's page."
+            action={
+              <Button size="sm" onClick={() => navigate(workspacePath(wsSlug, '/tasks'))}>
+                Open tasks
+              </Button>
+            }
+          />
+        ) : (
+          <EmptyState
+            title="No matching decisions"
+            description="Try adjusting your search query or filters."
+            action={
               <Button size="sm" variant="secondary" onClick={() => { clearFilters(); setSearchQuery('') }}>
                 Clear
               </Button>
-            )
-          }
-        />
+            }
+          />
+        )
       ) : (
         <div>
           {groups.map(({ group, items }) => (

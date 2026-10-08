@@ -36,7 +36,7 @@ describe('InlineConversationPanel header', () => {
 
   it('every control has an accessible name and a 36 px target, and they are not glued together', async () => {
     renderPanel()
-    const stop = await screen.findByRole('button', { name: /Arrêter l'agent de cette session/ })
+    const stop = await screen.findByRole('button', { name: /Arrêter l'assistant de cette session/ })
     const full = screen.getByRole('button', { name: 'Ouvrir la conversation complète' })
     const close = screen.getByRole('button', { name: 'Fermer la conversation' })
     for (const b of [stop, full, close]) expect(b.className).toContain('h-9')
@@ -45,18 +45,18 @@ describe('InlineConversationPanel header', () => {
     expect(stop.parentElement!.className).toContain('gap-3')
   })
 
-  it('Stop asks for confirmation first: one tap never interrupts a live agent', async () => {
+  it('Stop asks for confirmation first: one tap never interrupts a live assistant', async () => {
     chat.interruptSession.mockResolvedValue({ delivered: true })
     renderPanel()
-    fireEvent.click(await screen.findByRole('button', { name: /Arrêter l'agent de cette session/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Arrêter l'assistant de cette session/ }))
     expect(chat.interruptSession).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: "Arrêter l'agent" }))
+    fireEvent.click(screen.getByRole('button', { name: "Arrêter l'assistant" }))
     await waitFor(() => expect(chat.interruptSession).toHaveBeenCalledWith('s1'))
   })
 
   it('cancelling the confirmation sends nothing', async () => {
     renderPanel()
-    fireEvent.click(await screen.findByRole('button', { name: /Arrêter l'agent de cette session/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Arrêter l'assistant de cette session/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Annuler' }))
     expect(chat.interruptSession).not.toHaveBeenCalled()
     expect(screen.queryByRole('alertdialog')).toBeNull()
@@ -65,8 +65,8 @@ describe('InlineConversationPanel header', () => {
   it('a failed Stop is said on screen, not only in the console', async () => {
     chat.interruptSession.mockRejectedValue(new Error('réseau coupé'))
     renderPanel()
-    fireEvent.click(await screen.findByRole('button', { name: /Arrêter l'agent de cette session/ }))
-    fireEvent.click(screen.getByRole('button', { name: "Arrêter l'agent" }))
+    fireEvent.click(await screen.findByRole('button', { name: /Arrêter l'assistant de cette session/ }))
+    fireEvent.click(screen.getByRole('button', { name: "Arrêter l'assistant" }))
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain("L'arrêt a échoué")
     expect(alert.textContent).toContain('réseau coupé')

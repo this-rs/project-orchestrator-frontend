@@ -7,6 +7,7 @@
  */
 
 import { ArrowRight, Rocket, Send, ThumbsDown, ThumbsUp, Undo2, type LucideIcon } from 'lucide-react'
+import { getStatusMeta } from '@/components/ui/statusMeta'
 import type { Rfc, RfcAvailableTransition, RfcStatus } from '@/types/protocol'
 
 // Exact mirror of rfc-lifecycle protocol (549d57c3) transitions
@@ -44,7 +45,7 @@ export const FALLBACK_TRANSITIONS: Record<string, { trigger: string; target_stat
   superseded: [],
 }
 
-/** The "happy path" of an RFC, in order. */
+/** The "happy path" of a proposal (an `rfc` on the wire), in order. */
 export const LIFECYCLE_STEPS: { key: RfcStatus; label: string }[] = [
   { key: 'draft', label: 'Draft' },
   { key: 'proposed', label: 'Proposed' },
@@ -54,6 +55,29 @@ export const LIFECYCLE_STEPS: { key: RfcStatus; label: string }[] = [
   { key: 'in_progress', label: 'In progress' },
   { key: 'implemented', label: 'Implemented' },
 ]
+
+/** The states a proposal cannot leave: its lifecycle is over. */
+export const CLOSED_STATES: readonly RfcStatus[] = ['rejected', 'superseded']
+
+export function isClosedState(status: RfcStatus): boolean {
+  return CLOSED_STATES.includes(status)
+}
+
+/**
+ * Where the proposal stands, in one sentence (« Step 3 of 7 — Under review.
+ * Next: Accepted. »). The words under `ProposalLifecycleLine`'s bar, so the
+ * state never relies on colour alone.
+ */
+export function lifecycleSentence(status: RfcStatus): string {
+  const meta = getStatusMeta('rfc', status)
+  if (status === 'rejected') return 'Closed — rejected. Nothing is left to do.'
+  if (status === 'superseded') return 'Closed — replaced by another proposal. Nothing is left to do.'
+  const idx = LIFECYCLE_STEPS.findIndex((s) => s.key === status)
+  if (idx === -1) return meta.label
+  const n = LIFECYCLE_STEPS.length
+  const next = LIFECYCLE_STEPS[idx + 1]
+  return next ? `Step ${idx + 1} of ${n} — ${meta.label}. Next: ${next.label}.` : `Step ${n} of ${n} — ${meta.label}. Done.`
+}
 
 /** Display order of status groups in lists (active work first, closed last). */
 export const RFC_STATUS_ORDER: RfcStatus[] = [
@@ -116,13 +140,13 @@ export function triggerIcon(trigger: string): LucideIcon {
 export function transitionConfirm(trigger: string, title: string) {
   if (trigger === 'reject') {
     return {
-      title: 'Reject this RFC?',
+      title: 'Reject this proposal?',
       description: `“${title}” will be closed as rejected. This ends its lifecycle.`,
       confirmLabel: 'Reject',
     }
   }
   return {
-    title: 'Mark this RFC as superseded?',
+    title: 'Mark this proposal as superseded?',
     description: `“${title}” will be closed as superseded (replaced by another proposal). This ends its lifecycle.`,
     confirmLabel: 'Supersede',
   }

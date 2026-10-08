@@ -198,14 +198,14 @@ describe('NotesPage', () => {
     await waitFor(() => expect(screen.queryByText('Always use the shared logger')).toBeNull())
   })
 
-  it('opens the knowledge graph as an overlay and closes it with Escape', async () => {
+  it('opens the note graph as an overlay and closes it with Escape', async () => {
     renderPage()
     await screen.findByText('Always use the shared logger')
     fireEvent.click(screen.getByRole('button', { name: 'Graph' }))
-    const dialog = screen.getByRole('dialog', { name: 'Knowledge graph' })
+    const dialog = screen.getByRole('dialog', { name: 'Note graph' })
     expect(within(dialog).getByTestId('neuron-explorer')).toBeTruthy()
     fireEvent.keyDown(document, { key: 'Escape' })
-    expect(screen.queryByRole('dialog', { name: 'Knowledge graph' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Note graph' })).toBeNull()
   })
 
   it('shows the pristine empty state with the create action', async () => {

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link2 } from 'lucide-react'
-import { focusRing, pressFeedback } from '@/components/ui/classes'
+import { Button } from '@/components/ui'
+import { glassFlat, iconButton } from '@/components/ui/classes'
 import { useRequestAttentionRefresh } from '@/hooks/useAttentionCount'
 import { AttachSessionDialog, ATTACH_TEXT } from './AttachSessionDialog'
 
@@ -33,23 +34,37 @@ export function AttachSessionButton({
   const requestAttentionRefresh = useRequestAttentionRefresh()
   return (
     <>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation()
-          setOpen(true)
-        }}
-        title={ATTACH_TEXT.title}
-        aria-label={forTitle ? `${ATTACH_TEXT.title} (${forTitle})` : variant === 'icon' ? ATTACH_TEXT.title : undefined}
-        className={
-          variant === 'icon'
-            ? `inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] ${pressFeedback} ${focusRing}`
-            : `inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-white/[0.12] bg-white/[0.06] px-3 text-xs font-medium text-gray-100 hover:bg-white/[0.1] ${pressFeedback} ${focusRing}`
-        }
-      >
-        <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
-        {variant === 'text' && ATTACH_TEXT.title}
-      </button>
+      {/* Repeated under every node of a tree: flat glass, so the tree never blurs ten times. */}
+      {variant === 'icon' ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            setOpen(true)
+          }}
+          title={ATTACH_TEXT.title}
+          aria-label={forTitle ? `${ATTACH_TEXT.title} (${forTitle})` : ATTACH_TEXT.title}
+          className={`${iconButton('ghost', 'w-9 h-9 md:w-8 md:h-8')} ${glassFlat} shrink-0`}
+        >
+          <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      ) : (
+        <Button
+          size="sm"
+          variant="secondary"
+          flat
+          onClick={(e) => {
+            e.stopPropagation()
+            setOpen(true)
+          }}
+          title={ATTACH_TEXT.title}
+          aria-label={forTitle ? `${ATTACH_TEXT.title} (${forTitle})` : undefined}
+          className="gap-1.5 text-xs"
+        >
+          <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
+          {ATTACH_TEXT.title}
+        </Button>
+      )}
       <AttachSessionDialog
         open={open}
         onClose={() => setOpen(false)}

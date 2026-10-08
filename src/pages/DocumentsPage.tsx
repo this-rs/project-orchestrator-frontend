@@ -5,6 +5,7 @@ import {
   File as FileIcon,
   FileSpreadsheet,
   FileText,
+  Folder,
   Presentation,
   Trash2,
   Upload,
@@ -18,8 +19,11 @@ import {
   EntityRow,
   ErrorState,
   Fact,
+  FilterBar,
   PageShell,
   RelativeTime,
+  Select,
+  ToneText,
 } from '@/components/ui'
 import { fetchAllPages } from '@/services/paginate'
 import { useToast, useWorkspaceSlug } from '@/hooks'
@@ -27,6 +31,7 @@ import { documentsApi } from '@/services/documents'
 import { workspacesApi } from '@/services/workspaces'
 import type { DocumentSummary, Project } from '@/types'
 import { NOMENCLATURE } from '@/constants/nomenclature'
+import { READABLE_FORMATS, uploadFailureText, uploadOutcomeNote } from './documents/uploadOutcome'
 
 type Kind = 'spreadsheet' | 'presentation' | 'text' | 'other'
 
@@ -50,7 +55,7 @@ export function formatBytes(n: number): string {
 
 /**
  * Documents — spreadsheets, decks, PDFs and text attached to the work,
- * filterable by project. Uploading feeds the knowledge graph (extracted, chunked, embedded).
+ * filterable by project. Uploading reads the text so assistants can use it.
  */
 export function DocumentsPage() {
   const wsSlug = useWorkspaceSlug()
@@ -59,9 +64,11 @@ export function DocumentsPage() {
   const [docs, setDocs] = useState<DocumentSummary[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [projectId, setProjectId] = useState('')
+  const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [uploading, setUploading] = useState(false)
+  /** Files sent so far out of the files chosen — `null` when nothing is uploading. */
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -79,7 +86,7 @@ export function DocumentsPage() {
       setDocs(merged)
       setProjects(proj)
     } catch {
-      setError('Failed to load documents')
+      setError('Could not load the documents')
     } finally {
       setLoading(false)
     }
@@ -94,23 +101,28 @@ export function DocumentsPage() {
   // selected project, or the only one there is.
   const uploadProjectId = projectId || (projects.length === 1 ? projects[0].id : '')
   const canUpload = uploadProjectId !== ''
+  const uploading = progress !== null
 
   const projectName = useMemo(() => new Map(projects.map((p) => [p.id, p.name])), [projects])
 
   const onFiles = useCallback(
     async (files: FileList | null) => {
       if (!files || files.length === 0) return
-      setUploading(true)
+      const list = Array.from(files)
+      setProgress({ done: 0, total: list.length })
       let ok = 0
-      for (const file of Array.from(files)) {
+      for (const file of list) {
         try {
-          await documentsApi.upload(file, { projectId: uploadProjectId })
+          const doc = await documentsApi.upload(file, { projectId: uploadProjectId })
           ok++
-        } catch {
-          toast.error(`Could not upload ${file.name}`)
+          const note = uploadOutcomeNote(doc)
+          if (note) toast.warning(note)
+        } catch (err) {
+          toast.error(uploadFailureText(err, file.name))
         }
+        setProgress({ done: ok, total: list.length })
       }
-      setUploading(false)
+      setProgress(null)
       if (inputRef.current) inputRef.current.value = ''
       if (ok > 0) {
         toast.success(ok === 1 ? 'Document added' : `${ok} documents added`)
@@ -127,32 +139,50 @@ export function DocumentsPage() {
         toast.success('Document deleted')
         await load()
       } catch {
-        toast.error('Failed to delete document')
+        toast.error('Could not delete the document')
       }
     },
     [load, toast],
   )
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return q ? docs.filter((d) => d.filename.toLowerCase().includes(q) || documentKind(d.format).label.toLowerCase().includes(q)) : docs
+  }, [docs, search])
+
+  const showProjectFilter = projects.length > 1
+  const activeCount = projectId ? 1 : 0
+  const pristine = docs.length === 0 && !projectId && !search
+  const uploadLabel = progress ? (progress.total > 1 ? `Uploading ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…` : 'Uploading…') : 'Upload'
+  const openPicker = () => inputRef.current?.click()
+
   return (
     <PageShell
       title={NOMENCLATURE.documents.plural}
       description={NOMENCLATURE.documents.description}
+      intro="documents"
       width="wide"
-      count={loading ? undefined : docs.length}
+      count={loading ? undefined : filtered.length}
       filters={
-        <select
-          aria-label="Filter by project"
-          value={projectId}
-          onChange={(e) => setProjectId(e.target.value)}
-          className="h-9 md:h-8 rounded-md border border-gray-700 bg-gray-900 px-2 text-base md:text-sm text-gray-200"
-        >
-          <option value="">All projects</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
+        <FilterBar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search documents…"
+          searchLabel="Search documents"
+          activeCount={activeCount}
+          activeLabels={[projectId ? projectName.get(projectId) ?? '' : '']}
+          onClear={() => setProjectId('')}
+          filters={
+            showProjectFilter ? (
+              <Select
+                options={[{ value: '', label: 'All projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
+                value={projectId}
+                onChange={setProjectId}
+                icon={<Folder className="w-3 h-3" />}
+              />
+            ) : undefined
+          }
+        />
       }
       actions={
         <>
@@ -166,12 +196,13 @@ export function DocumentsPage() {
           />
           <Button
             size="sm"
-            disabled={uploading || !canUpload}
+            loading={uploading}
+            disabled={!canUpload}
             title={canUpload ? undefined : 'Choose a project first — documents are filed under a project'}
-            onClick={() => inputRef.current?.click()}
+            onClick={openPicker}
           >
-            <Upload className="w-4 h-4" aria-hidden="true" />
-            {uploading ? 'Uploading…' : 'Upload'}
+            {!uploading && <Upload className="w-4 h-4 mr-1.5" aria-hidden="true" />}
+            {uploadLabel}
           </Button>
         </>
       }
@@ -180,34 +211,56 @@ export function DocumentsPage() {
         <EntityListSkeleton rows={5} />
       ) : error ? (
         <ErrorState description={error} onRetry={load} />
-      ) : docs.length === 0 ? (
-        <EmptyState
-          title="No documents yet"
-          description={
-            canUpload
-              ? 'Upload a spreadsheet, a deck, a PDF or a note. The agent can read it and use it in your plans.'
-              : 'Choose a project, then upload a spreadsheet, a deck, a PDF or a note. The agent can read it and use it in your plans.'
-          }
-          action={
-            <Button size="sm" variant="secondary" disabled={!canUpload} onClick={() => inputRef.current?.click()}>
-              Upload
-            </Button>
-          }
-        />
+      ) : filtered.length === 0 ? (
+        pristine ? (
+          <EmptyState
+            size="page"
+            title="No documents yet"
+            description={
+              canUpload
+                ? `Upload a spreadsheet, a deck, a PDF or a note: it is filed with the project, assistants read its text, and the original stays with you. This server reads ${READABLE_FORMATS}.`
+                : `Choose a project, then upload a spreadsheet, a deck, a PDF or a note: it is filed with the project, assistants read its text, and the original stays with you.`
+            }
+            action={
+              <Button size="sm" disabled={!canUpload} onClick={openPicker}>
+                Upload
+              </Button>
+            }
+          />
+        ) : (
+          <EmptyState
+            title="No matching documents"
+            description="No document matches the search or the project filter."
+            action={
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setSearch('')
+                  setProjectId('')
+                }}
+              >
+                Clear
+              </Button>
+            }
+          />
+        )
       ) : (
         <EntityList aria-label="Documents">
-          {docs.map((doc) => {
+          {filtered.map((doc) => {
             const k = documentKind(doc.format)
             const Icon = k.icon
             const pages = doc.page_count > 0 ? `${doc.page_count} ${doc.page_count === 1 ? 'page' : 'pages'}` : null
+            const unreadable = doc.extracted === false
             return (
               <EntityRow
                 key={doc.id}
                 title={doc.filename}
                 leading={<Icon className="w-4 h-4 text-indigo-400" aria-hidden="true" />}
                 trailing={doc.created_at ? <RelativeTime date={doc.created_at} /> : undefined}
+                status={unreadable ? [<ToneText key="u" tone="muted" icon label="Stored, not readable" />] : undefined}
                 meta={[
-                  <Fact key="kind" title="Type">
+                  <Fact key="kind" icon={Icon} title="Type">
                     {k.label}
                   </Fact>,
                   pages,

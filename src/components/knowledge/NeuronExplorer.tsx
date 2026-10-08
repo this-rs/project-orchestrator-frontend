@@ -16,15 +16,16 @@ import {
   EmptyState,
   FilterBar,
   MetaLine,
+  Meter,
   OverflowMenu,
   Skeleton,
   StatusText,
   TONE_CLASSES,
-  focusRing,
   inlineLink,
   metaText,
+  ratioTone,
 } from '@/components/ui'
-import { glass } from '@/components/ui/classes'
+import { glass, glassFlat, iconButton } from '@/components/ui/classes'
 import { useConfirmDialog, useToast } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { NoteTypeLabel } from './NoteTypeLabel'
@@ -187,11 +188,12 @@ function NeuronDetail({ neuron, href, selected, onToggleSelect, onClose }: Neuro
             ]}
           />
         </div>
+        {/* Inside a glass sheet: flat, so the sheet stays the only blur. */}
         <button
           type="button"
           onClick={onClose}
           aria-label="Close neuron detail"
-          className={`w-9 h-9 md:w-8 md:h-8 -mr-1.5 -mt-1 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-100 hover:bg-white/[0.06] shrink-0 ${focusRing}`}
+          className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} -mr-1.5 -mt-1 shrink-0`}
         >
           <X className="w-4 h-4" aria-hidden="true" />
         </button>
@@ -204,14 +206,10 @@ function NeuronDetail({ neuron, href, selected, onToggleSelect, onClose }: Neuro
           </div>
           <div className="flex items-baseline justify-between gap-2">
             <dt className="text-gray-500">Energy</dt>
-            <dd className="tabular-nums" style={{ color: energyColor(neuron.energy) }}>
-              {(neuron.energy * 100).toFixed(0)}%
-            </dd>
+            <dd className="text-gray-200 tabular-nums">{(neuron.energy * 100).toFixed(0)}%</dd>
           </div>
         </dl>
-        <span className="block h-1 rounded-full bg-white/[0.06] overflow-hidden" aria-hidden="true">
-          <span className="block h-full rounded-full" style={{ width: `${neuron.energy * 100}%`, background: energyColor(neuron.energy) }} />
-        </span>
+        <Meter size="bar" value={neuron.energy} tone={ratioTone(neuron.energy)} label="Energy" />
         <CollapsibleMarkdown content={neuron.content} maxHeight={120} />
         {neuron.tags.length > 0 && <p className={`${metaText} break-words`}>{neuron.tags.map((t) => `#${t}`).join(' ')}</p>}
       </div>
@@ -339,7 +337,7 @@ export function NeuronExplorer({ workspaceSlug, projectSlug }: NeuronExplorerPro
   const handleDecay = () => {
     confirmDialog.open({
       title: 'Decay synapses?',
-      description: 'Every synapse is weakened a little and very weak ones are pruned. This applies to the whole knowledge graph.',
+      description: 'Every link between notes is weakened a little and the weakest are removed. This applies to every note of the workspace.',
       confirmLabel: 'Decay',
       variant: 'warning',
       onConfirm: async () => {
@@ -372,7 +370,7 @@ export function NeuronExplorer({ workspaceSlug, projectSlug }: NeuronExplorerPro
       <EmptyState
         variant="search"
         title="No neurons activated"
-        description="Try another wording — neurons light up through spreading activation in the knowledge graph."
+        description="Try another wording — a note lights up when it matches, and the notes used with it light up next."
       />
     )
   } else if (results.length > 0) {

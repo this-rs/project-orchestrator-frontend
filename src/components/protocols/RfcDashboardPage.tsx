@@ -1,5 +1,6 @@
 /**
- * RfcDashboardPage — RFC documents of the workspace (or one project).
+ * RfcDashboardPage — the proposals (`rfc` on the wire) of the workspace, or of
+ * one project.
  *
  * Search (title / preview) + filters (project, lifecycle state), grouped by
  * lifecycle state. Each row exposes the lifecycle transitions available from
@@ -11,6 +12,7 @@ import { Folder, RefreshCw } from 'lucide-react'
 import { rfcApi } from '@/services/rfcApi'
 import { workspacesApi } from '@/services'
 import {
+  Button,
   EmptyState,
   EntityListSkeleton,
   EntityRow,
@@ -21,16 +23,15 @@ import {
   RelativeTime,
   Select,
   StatusText,
-  focusRing,
   getStatusMeta,
   getStatusOptions,
   groupBy,
   pluralize,
   type OverflowMenuAction,
 } from '@/components/ui'
+import { iconButton } from '@/components/ui/classes'
 import { useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
-import { Explainer } from './Explainer'
 import {
   RFC_STATUS_ORDER,
   apiErrorMessage,
@@ -86,7 +87,7 @@ export function RfcDashboardPage({ onRfcClick, className = '' }: RfcDashboardPag
       const response = await fetchAllPages((page) => rfcApi.list({ ...page, project_id: activeProjectId }))
       setRfcs(response.items)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load RFCs')
+      setError(err instanceof Error ? err.message : 'Could not load the proposals')
     } finally {
       setLoading(false)
     }
@@ -137,7 +138,7 @@ export function RfcDashboardPage({ onRfcClick, className = '' }: RfcDashboardPag
         setRfcs((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))
         toast.success(`${formatTrigger(trigger)}: ${getStatusMeta('rfc', rfcState(updated)).label}`)
       } catch (err) {
-        toast.error(apiErrorMessage(err, `Failed to ${formatTrigger(trigger).toLowerCase()} the RFC`))
+        toast.error(apiErrorMessage(err, `Could not ${formatTrigger(trigger).toLowerCase()} the proposal`))
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable (Jotai setter)
@@ -155,33 +156,38 @@ export function RfcDashboardPage({ onRfcClick, className = '' }: RfcDashboardPag
     setProjectFilter('all')
     setStatusFilter('all')
   }
-  const pristine = rfcs.length === 0
+  const pristine = rfcs.length === 0 && !search && activeCount === 0
+  const clearAll = () => {
+    clearFilters()
+    setSearch('')
+  }
 
   return (
     <div className={className}>
       <PageShell
         title={NOMENCLATURE.proposals.plural}
-        description="Requests for comments — proposals and their lifecycle"
+        description={NOMENCLATURE.proposals.description}
+        intro="proposals"
         count={loading ? undefined : filtered.length}
         width="wide"
         filters={
-          <div className="space-y-3">
-            <FilterBar
-              search={search}
-              onSearchChange={setSearch}
-              searchPlaceholder="Search RFCs…"
-              activeCount={activeCount}
-              activeLabels={activeLabels}
-              onClear={clearFilters}
-              filters={
-                <>
-                  {showProjectFilter && (
-                    <Select
-                      options={[{ value: 'all', label: 'All projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
-                      value={projectFilter}
-                      onChange={setProjectFilter}
-                      icon={<Folder className="w-3 h-3" />}
-                    />
+        <FilterBar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search proposals…"
+          searchLabel="Search proposals"
+          activeCount={activeCount}
+          activeLabels={activeLabels}
+          onClear={clearFilters}
+          filters={
+            <>
+              {showProjectFilter && (
+                <Select
+                  options={[{ value: 'all', label: 'All projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
+                  value={projectFilter}
+                  onChange={setProjectFilter}
+                  icon={<Folder className="w-3 h-3" />}
+                />
                   )}
                   <Select
                     options={statusOptions}
@@ -196,33 +202,38 @@ export function RfcDashboardPage({ onRfcClick, className = '' }: RfcDashboardPag
                   onClick={fetchRfcs}
                   disabled={loading}
                   aria-label="Refresh"
-                  className={`inline-flex items-center justify-center w-9 h-9 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] disabled:opacity-50 ${focusRing}`}
+                  className={`${iconButton('ghost', 'size-9 md:size-8')} shrink-0`}
                 >
-                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin motion-reduce:animate-none' : ''}`} aria-hidden="true" />
                 </button>
               }
             />
-            <Explainer>
-              An RFC is a change proposal open for discussion. It follows a lifecycle: draft → proposed → under review →
-              accepted → planning → in progress → implemented (or rejected / superseded). The next possible steps are in
-              each RFC's ⋯ menu.
-            </Explainer>
-          </div>
         }
       >
         {loading && rfcs.length === 0 ? (
           <EntityListSkeleton rows={6} />
         ) : error ? (
-          <ErrorState title="Failed to load RFCs" description={error} onRetry={fetchRfcs} />
+          <ErrorState title="Could not load the proposals" description={error} onRetry={fetchRfcs} />
         ) : filtered.length === 0 ? (
-          <EmptyState
-            title={pristine ? 'No RFCs yet' : 'No matching RFCs'}
-            description={
-              pristine
-                ? 'RFCs are written by agents (or through the MCP note tools) to propose significant changes.'
-                : 'Try another search or clear the filters.'
-            }
-          />
+          pristine ? (
+            // No "New proposal" here: proposals are written by assistants while they work; the
+            // app has no form for one yet, so the screen says what will fill it instead.
+            <EmptyState
+              size="page"
+              title="No proposals yet"
+              description="A proposal is a change put up for review before it is decided. Assistants write them while they work; each one then waits here for your answer, and the answer stays."
+            />
+          ) : (
+            <EmptyState
+              title="No matching proposals"
+              description="Try another search or clear the filters."
+              action={
+                <Button size="sm" variant="secondary" onClick={clearAll}>
+                  Clear
+                </Button>
+              }
+            />
+          )
         ) : (
           <div>
             {groups.map(({ key, items }) => (
