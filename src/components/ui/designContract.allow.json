@@ -1,0 +1,310 @@
+[
+  {
+    "path": "src/components/AttentionBadge.tsx",
+    "rule": "filled-pill",
+    "count": 1,
+    "reason": "Legitimate: the count badge of the Today entry (DESIGN.md §0 « Attention badge ») is a number, not a status; the heuristic cannot tell a counter from a status pill. Stays.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/auth/UserMenu.tsx",
+    "rule": "filled-pill",
+    "count": 1,
+    "reason": "Legitimate: initials avatar disc, not a status. Stays unless an Avatar primitive appears.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/chat/AgentGroup.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 1,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (chat body: a later wave).",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/chat/ChatMessages.tsx",
+    "rule": "ease-in-out",
+    "count": 3,
+    "reason": "Typing indicator `animate-[bounce_1s_ease-in-out_…]`: a temporal animation (allowed) on the wrong curve; move the keyframes to index.css on `var(--ease-standard)`.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/chat/ChatPanel.tsx",
+    "rule": "ease-in-out",
+    "count": 2,
+    "reason": "Panel slide `transition-transform duration-300 ease-in-out`: use `duration-(--duration-stage) ease-(--ease-standard)`. Owner: Assistants pass.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/chat/ChatWelcome.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 5,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (chat body: a later wave).",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/chat/PermissionRequestBlock.tsx",
+    "rule": "ease-in-out",
+    "count": 1,
+    "reason": "Pulse keyframes on a native `ease-in-out` (temporal animation, allowed; the curve is not): `var(--ease-standard)`. Owner: no pass yet (chat body: a later wave).",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/chat/PermissionSettingsPanel.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 2,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: Assistants pass.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/chat/ProjectSelect.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 1,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (chat body: a later wave).",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/chat/SessionList.tsx",
+    "rule": "filled-pill",
+    "count": 2,
+    "reason": "One unread-count badge (legitimate, a number) and one hand-rolled toggle (`h-5 w-9 rounded-full`) that should become the ui `Switch`. Owner: Assistants pass.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/chat/SessionList.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 1,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: Assistants pass.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/chat/tools/DefaultToolRenderer.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 2,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (chat body: a later wave).",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/chat/tools/mcp/utils.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 1,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (chat body: a later wave).",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/composer/FSMCanvas.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 1,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: Assistants pass.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/composer/NotePool.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 2,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: Assistants pass.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/composer/PatternComposer.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 1,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: Assistants pass.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/composer/TriggerBuilder.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 1,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: Assistants pass.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/discussions/SubtreeBreakdown.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 1,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: Memory pass.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/forms/AutoBuildFeatureGraphForm.tsx",
+    "rule": "filled-pill",
+    "count": 1,
+    "reason": "Hand-rolled toggle track (`w-8 h-5 rounded-full peer-checked:bg-indigo-500/60`): replace with the ui `Switch`.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/graph/entity/EntityGraphCanvas.tsx",
+    "rule": "cubic-bezier",
+    "count": 1,
+    "reason": "Inline stylesheet of the entity graph (`transition: transform 220ms cubic-bezier(.2,0,0,1)`): use `var(--ease-standard)` and `var(--duration-fast)`.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/intelligence/cards/FileContextCard.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 3,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (Build group: a later wave).",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/intelligence/cards/NoteContextCard.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 3,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (Build group: a later wave).",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/intelligence/cards/ProtocolContextCard.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 2,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (Build group: a later wave).",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/intelligence/cards/SkillContextCard.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 4,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (Build group: a later wave).",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/intelligence/LayerControls.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 1,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (Build group: a later wave).",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/intelligence/LearningTimeline.tsx",
+    "rule": "filled-pill",
+    "count": 1,
+    "reason": "Empty-state illustration disc (`w-16 h-16 bg-cyan-500/5`): replace with `EmptyState` (variant illustration).",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/intelligence/LearningTimeline.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 4,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (Build group: a later wave).",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/intelligence/NodeInspector.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 6,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (Build group: a later wave).",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/intelligence/nodes/ProtocolNode.tsx",
+    "rule": "ease-in-out",
+    "count": 2,
+    "reason": "Pulse keyframes on a native `ease-in-out` (temporal animation, allowed; the curve is not): `var(--ease-standard)`. Owner: no pass yet (Build group: a later wave).",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/intelligence/ProtocolRanking.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 1,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (Build group: a later wave).",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/intelligence/ProtocolRunViewer.tsx",
+    "rule": "ease-in-out",
+    "count": 2,
+    "reason": "Pulse keyframes on a native `ease-in-out` (temporal animation, allowed; the curve is not): `var(--ease-standard)`. Owner: no pass yet (Build group: a later wave).",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/intelligence/ProtocolRunViewer.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 1,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (Build group: a later wave).",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/intelligence/VectorSpaceExplorer.tsx",
+    "rule": "filled-pill",
+    "count": 1,
+    "reason": "Empty-state illustration disc (`w-16 h-16 bg-violet-500/5`): replace with `EmptyState`.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/intelligence/VectorSpaceExplorer.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 4,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (Build group: a later wave).",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/intelligence/WorkspaceLearningTimeline.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 2,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (Build group: a later wave).",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/pipeline/ImplementDialog.tsx",
+    "rule": "button-colour-override",
+    "count": 1,
+    "reason": "A recoloured <Button>: the variant is the colour. Owner: Assistants pass.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/pipeline/PipelineTreeView.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 1,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: Assistants pass.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/plans/WaveView.tsx",
+    "rule": "ease-in-out",
+    "count": 1,
+    "reason": "Pulse keyframes on a native `ease-in-out` (temporal animation, allowed; the curve is not): `var(--ease-standard)`. Owner: Plan pass.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/plans/WaveView.tsx",
+    "rule": "filled-pill",
+    "count": 1,
+    "reason": "Step status pills (`bg-green-500/20 text-green-400` …): replace with `StatusText kind=\"step\" icon`. Owner: Plan pass.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/protocols/GanttTimeline.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 1,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: Assistants pass.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/components/runner/AgentExecutionDetail.tsx",
+    "rule": "uppercase-tracking-wider",
+    "count": 3,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: Assistants pass.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/pages/AuthCallbackPage.tsx",
+    "rule": "filled-pill",
+    "count": 1,
+    "reason": "Error icon on a `bg-red-900/50` disc: replace with `ErrorState` / `ToneText tone=\"danger\" icon`. Owner: Setup pass.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/pages/setup/LaunchPage.tsx",
+    "rule": "filled-pill",
+    "count": 2,
+    "reason": "Result icons sit on tinted discs (`bg-emerald-500/20`, `bg-red-500/20`): the contract wants `ToneText icon` (glyph + word, no disc). Owner: Setup pass.",
+    "date": "2026-10-08"
+  },
+  {
+    "path": "src/pages/setup/SetupLayout.tsx",
+    "rule": "filled-pill",
+    "count": 1,
+    "reason": "Stepper: the active step is a filled indigo disc with its number. A step indicator, not a status; could become `aria-current` text + `seg-item`. Owner: Setup pass.",
+    "date": "2026-10-08"
+  }
+]
