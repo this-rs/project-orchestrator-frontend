@@ -1,10 +1,13 @@
 import { splitAttachments } from '@/utils/messageAttachments'
 import { splitRefs } from '@/utils/messageRefs'
-import { applyResolved, parseResolvedRefs, refsFromBlock, resolutionAnnouncement } from '@/refs/refState'
+import { applyResolved, bindResolvedRefs, parseResolvedRefs, refsFromBlock, resolutionAnnouncement } from '@/refs/refState'
+import { cachedRefsCapability, ensureRefsCapability, refsCapabilityScope } from '@/refs/refsCapability'
+import { clearRefSearchCache } from '@/refs/useRefSearch'
+import { getApiBase } from '@/services/env'
 import { toEntityRef, type ChatReference, type EntityRef } from '@/refs/types'
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { useAtom, useSetAtom, useStore } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatSessionRoutingAtom, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom } from '@/atoms'
+import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatSessionRoutingAtom, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { applyResultCost } from '@/utils/cost'
@@ -15,6 +18,7 @@ import type { ChatSessionRouting } from '@/atoms'
 import { isTrustAllowed, readToolPolicyMode, toWireMode, TRUST_FALLBACK_MODE, usableMode } from '@/constants/toolPolicy'
 import {
   historyEventsToMessages,
+  decodeStoredRefs,
   nextBlockId,
   nextMessageId,
   getParentToolUseId,
@@ -68,10 +72,10 @@ function hasConversation(messages: ReadonlyArray<ChatMessage>): boolean {
 }
 
 /** Fetch one window of raw events and assemble it. */
-async function fetchWindow(sid: string, offset: number, limit: number): Promise<LoadedWindow> {
+async function fetchWindow(sid: string, offset: number, limit: number, refsEnabled: boolean): Promise<LoadedWindow> {
   const data = await chatApi.getMessages(sid, { limit, offset })
   return {
-    messages: historyEventsToMessages(data.messages),
+    messages: historyEventsToMessages(data.messages, { refsEnabled }),
     rawCount: data.messages.length,
     offset,
     totalCount: data.total_count,
@@ -105,12 +109,12 @@ async function fetchWindow(sid: string, offset: number, limit: number): Promise<
  * the caller still holds a true tail window (`isAtTail`, no "newer" page) and
  * live events keep appending normally.
  */
-async function fetchRenderableTail(sid: string, total: number): Promise<LoadedWindow> {
+async function fetchRenderableTail(sid: string, total: number, refsEnabled: boolean): Promise<LoadedWindow> {
   let limit = PAGE_SIZE
-  let win = await fetchWindow(sid, Math.max(0, total - limit), limit)
+  let win = await fetchWindow(sid, Math.max(0, total - limit), limit, refsEnabled)
   while (!hasConversation(win.messages) && win.offset > 0 && limit < MAX_RENDERABLE_TAIL) {
     limit = Math.min(limit * 4, MAX_RENDERABLE_TAIL)
-    win = await fetchWindow(sid, Math.max(0, total - limit), limit)
+    win = await fetchWindow(sid, Math.max(0, total - limit), limit, refsEnabled)
   }
   return win
 }
@@ -558,22 +562,16 @@ export function useChat() {
     }
 
     // The server says how it read the references of the user message above
-    // (contract C5): it carries no id, so it binds to the LAST user message.
+    // (contract C5): it carries no id, so it is bound by its references to the
+    // oldest user message still waiting for them (`bindResolvedRefs`) - never to
+    // "the last user message", which may be a later one. No match: dropped.
     if (event.type === 'refs_resolved') {
       const raw = event.replaying
         ? ((event as { data?: { refs?: unknown } }).data?.refs ?? (event as { refs?: unknown }).refs)
         : (event as { refs?: unknown }).refs
       const resolved = parseResolvedRefs(raw)
       if (resolved.length === 0) return
-      setMessages((current) => {
-        for (let i = current.length - 1; i >= 0; i--) {
-          if (current[i].role !== 'user') continue
-          const next = [...current]
-          next[i] = { ...current[i], refs: applyResolved(current[i].refs, resolved) }
-          return next
-        }
-        return current
-      })
+      setMessages((current) => bindResolvedRefs(current, resolved).messages as ChatMessage[])
       // Speak only for a turn happening now, never for a replayed history.
       if (!event.replaying) store.set(refsAnnouncementAtom, resolutionAnnouncement(applyResolved(undefined, resolved)) ?? '')
       return
@@ -591,7 +589,7 @@ export function useChat() {
       // text alone and the chips from the references.
       const { text: withoutAttachments, attachments: sentAttachments } = splitAttachments(rawContent)
       // Refs sit before the attachments block: peel the outer layer first.
-      const { text: content, refs: sentRefs } = splitRefs(withoutAttachments)
+      const { text: content, refs: sentRefs } = splitRefs(withoutAttachments, store.get(refsEnabledAtom))
 
       setMessages((current) => {
         // The answer to a synthetic question IS this user turn (history does
@@ -1418,7 +1416,7 @@ export function useChat() {
         const win: LoadedWindow =
           total === 0
             ? { messages: [], rawCount: 0, offset: 0, totalCount: 0, runtime: null }
-            : await fetchRenderableTail(sid, total)
+            : await fetchRenderableTail(sid, total, store.get(refsEnabledAtom))
         if (gen !== resyncGenRef.current) return
         if (win.runtime) applySessionRuntime(win.runtime)
 
@@ -1461,6 +1459,8 @@ export function useChat() {
       onEvent: handleEvent,
       onStatusChange: (status) => {
         setWsStatus(status)
+        // The socket's announcement dies with it: back to what the REST probe knows (or unknown).
+        if (status === 'disconnected') store.set(chatServerFeaturesAtom, cachedRefsCapability(refsScopeRef.current))
         // When the server disconnects mid-stream, isStreaming stays true with
         // no Result event to clear it. Reset on reconnecting — the server will
         // send a fresh streaming_status via the Phase 1.5b snapshot if a stream
@@ -1502,6 +1502,46 @@ export function useChat() {
       },
     })
   }, [getWs, handleEvent, resyncFromRest, setWsStatus, setIsReplaying, setIsStreaming, setIsCompacting, store])
+
+  // ========================================================================
+  // References capability before the first socket (see refs/refsCapability.ts)
+  // ========================================================================
+  // A new conversation has no socket until its first message: the REST probe
+  // tells whether `#` may be offered. The socket's own `auth_ok` stays the
+  // authority and overwrites it. Reset to unknown on a change of account or server.
+  const currentUserId = useAtomValue(currentUserAtom)?.id
+  const authenticated = useAtomValue(isAuthenticatedAtom)
+  const refsScope = refsCapabilityScope(getApiBase(), currentUserId)
+  const refsScopeRef = useRef(refsScope)
+  useEffect(() => {
+    if (refsScopeRef.current !== refsScope) {
+      refsScopeRef.current = refsScope
+      // Another account or server: nothing learned about the previous one applies.
+      store.set(chatServerFeaturesAtom, null)
+      clearRefSearchCache()
+    }
+    if (!authenticated) return
+    let current = true
+    void ensureRefsCapability(refsScope).then((answer) => {
+      // Never over the socket's announcement, never for a scope we left.
+      if (current && answer && store.get(chatServerFeaturesAtom) === null) store.set(chatServerFeaturesAtom, answer)
+    })
+    return () => {
+      current = false
+    }
+  }, [refsScope, authenticated, store])
+
+  // The flag may arrive after the history: decode the stored blocks then.
+  const refsOn = useAtomValue(refsEnabledAtom)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the flag is external state that arrives late
+    if (refsOn) setMessages((prev) => decodeStoredRefs(prev))
+  }, [refsOn])
+
+  // A sentence about the previous conversation must not be spoken in the next one.
+  useEffect(() => {
+    store.set(refsAnnouncementAtom, '')
+  }, [sessionId, store])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -1672,8 +1712,8 @@ export function useChat() {
             // A centered window (jumped to a search hit) must stay where it is;
             // only a tail window may widen to find something renderable.
             const win = isCentered
-              ? await fetchWindow(sessionId, loadOffset, PAGE_SIZE)
-              : await fetchRenderableTail(sessionId, total)
+              ? await fetchWindow(sessionId, loadOffset, PAGE_SIZE, store.get(refsEnabledAtom))
+              : await fetchRenderableTail(sessionId, total, store.get(refsEnabledAtom))
             if (cancelled) return
             // A `system_init` in the loaded window is more precise than the
             // session record (it carries the frozen capabilities).
@@ -1749,7 +1789,7 @@ export function useChat() {
       })
 
       if (data.messages.length > 0) {
-        const olderMessages = historyEventsToMessages(data.messages)
+        const olderMessages = historyEventsToMessages(data.messages, { refsEnabled: store.get(refsEnabledAtom) })
 
         // Prepend older messages to the beginning
         setMessages((prev) => [...olderMessages, ...prev])
@@ -1795,7 +1835,7 @@ export function useChat() {
       })
 
       if (data.messages.length > 0) {
-        const newerMessages = historyEventsToMessages(data.messages)
+        const newerMessages = historyEventsToMessages(data.messages, { refsEnabled: store.get(refsEnabledAtom) })
 
         // Append newer messages to the end
         setMessages((prev) => [...prev, ...newerMessages])
@@ -1840,7 +1880,7 @@ export function useChat() {
     if (!sessionId) return
     try {
       const meta = await chatApi.getMessages(sessionId, { limit: 1, offset: 0 })
-      const win = await fetchRenderableTail(sessionId, meta.total_count)
+      const win = await fetchRenderableTail(sessionId, meta.total_count, store.get(refsEnabledAtom))
 
       setMessages(win.messages)
 
@@ -2258,12 +2298,12 @@ export function useChat() {
       // Not on the server yet: there is no running send to interrupt for it,
       // so "send now" can only put it first.
       const local: QueueOp = action.op === 'send_now' ? { op: 'prioritize', id: action.id } : action
-      const next = applyQueueOp(current, local).map((m) => (m.id === action.id ? { ...m, local: true } : m))
+      const next = applyQueueOp(current, local, store.get(refsEnabledAtom)).map((m) => (m.id === action.id ? { ...m, local: true } : m))
       store.set(chatMessageQueuesAtom, withQueue(all, key, next))
       return
     }
     if (!getWs().sendQueueOp(action)) return
-    store.set(chatMessageQueuesAtom, withQueue(all, key, applyQueueOp(current, action)))
+    store.set(chatMessageQueuesAtom, withQueue(all, key, applyQueueOp(current, action, store.get(refsEnabledAtom))))
   }, [getWs, store])
 
   const newSession = useCallback(() => {
