@@ -183,11 +183,13 @@ describe('B4 - the capability is known before the first socket', () => {
     await setup({ sessionId: null })
     expect(apiGet).not.toHaveBeenCalled()
   })
-  it('the socket stays the authority: its announcement is not overwritten by the probe', async () => {
-    apiGet.mockResolvedValue({ items: [] })
+  it('the socket stays the authority: a probe answering after auth_ok does not overwrite it', async () => {
+    let answer!: (v: unknown) => void
+    apiGet.mockReturnValue(new Promise((resolve) => { answer = resolve }))
     const { store, ws } = await setup({ authed: true })
-    act(() => ws.callbacks.onFeatures(['other']))
     await waitFor(() => expect(apiGet).toHaveBeenCalled())
+    act(() => ws.callbacks.onFeatures(['other']))
+    await act(async () => { answer({ items: [] }) })
     expect(store.get(chatServerFeaturesAtom)).toEqual(['other'])
   })
   it('a change of account puts the flag back to unknown, then asks again for the new account', async () => {
