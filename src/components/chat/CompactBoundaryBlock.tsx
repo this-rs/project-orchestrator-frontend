@@ -1,5 +1,4 @@
 import type { ContentBlock } from '@/types'
-import { Scissors } from 'lucide-react'
 
 interface CompactBoundaryBlockProps {
   block: ContentBlock
@@ -16,8 +15,11 @@ export function CompactBoundaryBlock({ block }: CompactBoundaryBlockProps) {
 
       {/* Center content */}
       <div className="flex items-center gap-2 text-gray-500">
-        {/* Scissors icon */}
-        <Scissors className="w-3.5 h-3.5 text-gray-500" />
+        {/* The settled core of the compaction: the dense point the particles converged on */}
+        <span aria-hidden="true" className="relative flex h-2 w-2">
+          <span className="absolute inset-0 rounded-full bg-indigo-400/40 blur-[3px]" />
+          <span className="relative h-2 w-2 rounded-full bg-indigo-400" />
+        </span>
 
         <span className="text-xs whitespace-nowrap">Context compacted</span>
 
