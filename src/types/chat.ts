@@ -317,6 +317,11 @@ export interface CreateSessionRequest {
    */
   routing_mode?: ProviderRoutingMode
   /**
+   * `mixed` only: the (provider, model) pairs PO may route this conversation among.
+   * Omitted = no restriction beyond the mode.
+   */
+  routing_pool?: { provider: ProviderId; model: string }[]
+  /**
    * Permission mode override for this session (default: from server config).
    * Legacy string, or a neutral `ToolPolicyMode` once the backend accepts both.
    */

@@ -134,7 +134,7 @@ export default {
     poChooses: 'PO elegirá (enrutamiento: completo)',
     poRoutes: 'PO enruta (recomendado)',
   },
-  menu: { modeLegend: 'Modo de enrutamiento' },
+  menu: { aria: 'Modelos de esta conversación', chipDefault: 'Predeterminado del servidor', chipMixed: 'Mixto · {count} modelos', summaryNone: 'Nada marcado: se aplica el predeterminado del servidor.', summaryMixed: 'PO enruta entre los {count} modelos marcados.', selectAll: 'Seleccionar todo', clearAll: 'Deseleccionar todo', noProvider: 'Ningún proveedor configurado', providerToggle: 'Todos los modelos de {provider}', countOf: '{selected} de {total}', noModels: 'Ningún modelo listado para este proveedor', loading: 'Cargando modelos…', search: 'Buscar modelos…' },
   picker: { primary: 'Principal: {target} · PO enruta a los ejecutores', forced: 'Forzado: {target}', willChoose: 'PO elegirá en el primer mensaje', routedBy: 'Enrutado por: {by}', aria: 'Enrutamiento: {mode}' },
   modelTargets: {
     loading: 'Leyendo el catálogo de modelos…',

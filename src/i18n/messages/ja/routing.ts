@@ -134,7 +134,7 @@ export default {
     poChooses: 'PO が選びます（ルーティング: フル）',
     poRoutes: 'PO がルーティング（推奨）',
   },
-  menu: { modeLegend: 'ルーティングモード' },
+  menu: { aria: 'この会話のモデル', chipDefault: 'サーバーの既定', chipMixed: '混合 · {count} モデル', summaryNone: '未選択：サーバーの既定が適用されます。', summaryMixed: 'PO は選択した {count} モデルの間で振り分けます。', selectAll: 'すべて選択', clearAll: 'すべて解除', noProvider: 'プロバイダーが未設定です', providerToggle: '{provider} のすべてのモデル', countOf: '{total} 中 {selected}', noModels: 'このプロバイダーのモデルはありません', loading: 'モデルを読み込み中…', search: 'モデルを検索…' },
   picker: { primary: 'プライマリ: {target} · PO が実行役をルーティング', forced: '強制: {target}', willChoose: '最初のメッセージで PO が選択します', routedBy: 'ルーティング元: {by}', aria: 'ルーティング: {mode}' },
   modelTargets: {
     loading: 'モデルカタログを読み込み中…',

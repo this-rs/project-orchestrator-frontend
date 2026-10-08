@@ -134,7 +134,7 @@ export default {
     poChooses: 'O PO escolherá (roteamento: completo)',
     poRoutes: 'O PO roteia (recomendado)',
   },
-  menu: { modeLegend: 'Modo de roteamento' },
+  menu: { aria: 'Modelos desta conversa', chipDefault: 'Padrão do servidor', chipMixed: 'Misto · {count} modelos', summaryNone: 'Nada marcado: vale o padrão do servidor.', summaryMixed: 'O PO roteia entre os {count} modelos marcados.', selectAll: 'Selecionar tudo', clearAll: 'Desmarcar tudo', noProvider: 'Nenhum provedor configurado', providerToggle: 'Todos os modelos de {provider}', countOf: '{selected} de {total}', noModels: 'Nenhum modelo listado para este provedor', loading: 'Carregando modelos…', search: 'Buscar modelos…' },
   picker: { primary: 'Principal: {target} · O PO roteia os executores', forced: 'Forçado: {target}', willChoose: 'O PO escolherá na primeira mensagem', routedBy: 'Roteado por: {by}', aria: 'Roteamento: {mode}' },
   modelTargets: {
     loading: 'Lendo o catálogo de modelos…',
