@@ -17,6 +17,8 @@ const getMilestoneProgress = vi.fn()
 const removeProject = vi.fn()
 const deleteResource = vi.fn()
 const deleteComponent = vi.fn()
+const addProject = vi.fn()
+const createProject = vi.fn()
 const toast = { success: vi.fn(), error: vi.fn() }
 const intel = {
   summary: null as unknown,
@@ -38,9 +40,10 @@ vi.mock('@/services', () => ({
     removeProject: (...a: unknown[]) => removeProject(...a),
     deleteResource: (...a: unknown[]) => deleteResource(...a),
     deleteComponent: (...a: unknown[]) => deleteComponent(...a),
+    addProject: (...a: unknown[]) => addProject(...a),
     list: vi.fn().mockResolvedValue({ items: [] }),
   },
-  projectsApi: { list: vi.fn().mockResolvedValue({ items: [] }) },
+  projectsApi: { list: vi.fn().mockResolvedValue({ items: [] }), create: (...a: unknown[]) => createProject(...a) },
 }))
 vi.mock('@/services/admin', () => ({
   adminApi: { getWatchStatus: vi.fn().mockResolvedValue({ watched_paths: [] }) },
@@ -185,5 +188,65 @@ describe('WorkspaceDetailPage', () => {
     // maintenance collapsed by default, reachable by tap
     fireEvent.click(screen.getByRole('button', { name: /Maintenance/ }))
     expect(screen.getByRole('button', { name: 'Run: Backfill synapses' })).toBeTruthy()
+  })
+
+  describe('first visit (nothing added yet)', () => {
+    const empty = { ...overview, projects: [], milestones: [], resources: [], components: [], progress: { completed_tasks: 0, total_tasks: 0, percentage: 0 } }
+
+    it('says in three lines what one does here, in the display scale, with one primary action', async () => {
+      getOverview.mockResolvedValue(empty)
+      renderPage()
+      // the header stays (name, folded intro, overflow actions)
+      expect(await screen.findByRole('heading', { level: 1, name: 'Main WS' })).toBeTruthy()
+      expect(document.querySelector('details[data-concept-intro="overview"]')).toBeTruthy()
+      const title = screen.getByRole('heading', { level: 2, name: 'Start with a project' })
+      expect(title.className).toContain('display-3')
+      const welcome = title.closest('section')!
+      const terms = within(welcome).getAllByRole('term').map((t) => t.textContent)
+      expect(terms).toEqual(['Project', 'Plan', 'Assistant'])
+      const definitions = within(welcome).getAllByRole('definition')
+      expect(definitions).toHaveLength(3)
+      // lead text under the display title (DESIGN.md § 2)
+      expect(definitions[0].closest('dl')!.className).toContain('text-base')
+      // one primary button; the existing-project path stays reachable as a quiet secondary
+      const buttons = within(welcome).getAllByRole('button')
+      expect(buttons.filter((b) => b.className.includes('btn-primary')).map((b) => b.textContent)).toEqual(['Create a project'])
+      expect(within(welcome).getByRole('button', { name: 'Add an existing project' }).className).toContain('btn-ghost')
+      // nothing else of the dashboard: no health, no graph, no empty sections, no illustration, nothing animated
+      expect(screen.queryByRole('heading', { name: 'Health' })).toBeNull()
+      expect(screen.queryByText('No projects yet')).toBeNull()
+      expect(screen.queryByText(/No .* yet/)).toBeNull()
+      expect(welcome.querySelector('svg')).toBeNull()
+      expect(welcome.querySelector('[class*="animate"], [class*="rise-in"]')).toBeNull()
+      expect(document.body.textContent).not.toMatch(/\bagent\b|\bmilestone\b/i)
+    })
+
+    it('"Create a project" opens the creation dialog and the new project joins the workspace', async () => {
+      const created = { id: 'p9', name: 'Autumn offsite', slug: 'autumn-offsite', profile: 'work', created_at: '2026-01-01' }
+      // the first read is empty; the refresh after creation sees the new project
+      getOverview.mockResolvedValueOnce(empty).mockResolvedValue({ ...empty, projects: [created] })
+      createProject.mockResolvedValue(created)
+      addProject.mockResolvedValue({})
+      renderPage()
+      fireEvent.click(await screen.findByRole('button', { name: 'Create a project' }))
+      const dialog = screen.getByRole('dialog', { name: 'Create project' })
+      fireEvent.change(within(dialog).getByLabelText(/^Name/), { target: { value: 'Autumn offsite' } })
+      fireEvent.click(within(dialog).getByRole('radio', { name: /Without code/ }))
+      fireEvent.click(within(dialog).getByRole('button', { name: /^Create/ }))
+      await waitFor(() => expect(createProject).toHaveBeenCalledWith(expect.objectContaining({ name: 'Autumn offsite', profile: 'work' })))
+      await waitFor(() => expect(addProject).toHaveBeenCalledWith('ws', 'p9'))
+      // the workspace is no longer empty: the dashboard takes over
+      expect(await screen.findByRole('link', { name: 'Autumn offsite' })).toBeTruthy()
+      expect(screen.queryByRole('heading', { level: 2, name: 'Start with a project' })).toBeNull()
+      expect(toast.success).toHaveBeenCalledWith('Project created')
+    })
+
+    it('a workspace with an objective but no project is not a first visit', async () => {
+      getOverview.mockResolvedValue({ ...empty, milestones: overview.milestones })
+      renderPage()
+      expect(await screen.findByRole('link', { name: 'v1 launch' })).toBeTruthy()
+      expect(screen.queryByRole('heading', { level: 2, name: 'Start with a project' })).toBeNull()
+      expect(screen.getByText('No projects yet')).toBeTruthy()
+    })
   })
 })
