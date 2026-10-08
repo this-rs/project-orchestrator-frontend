@@ -9,6 +9,7 @@
  * Adding a concept = one entry. Renaming a concept = one line.
  */
 import {
+  Layers,
   Home,
   Box,
   Flag,
@@ -37,7 +38,10 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-/** Who a concept is for. `all` is shown everywhere; `software` only on code projects. */
+/**
+ * Who a concept is for. `all` is shown everywhere; `software` only where a workspace has a project with code
+ * (MainLayout filters the menu; the route stays served either way).
+ */
 export type Profile = 'all' | 'software'
 
 export type ConceptKey =
@@ -66,6 +70,7 @@ export type ConceptKey =
   | 'deployments'
   | 'documents'
   | 'architecture'
+  | 'workspaces'
 
 /**
  * How a concept explains itself to someone who discovers its screen (DESIGN.md § 0,
@@ -172,7 +177,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
   automation: {
     singular: 'Automation',
     plural: 'Automation',
-    description: 'Runs of the agent across plans, and what starts them.',
+    description: 'Runs of your assistants across plans, and what starts them.',
     icon: Activity,
     segment: 'pipelines',
     profile: 'all',
@@ -211,7 +216,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
   proposals: {
     singular: 'Proposal',
     plural: 'Proposals',
-    description: 'A change put up for review before it is decided (RFC).',
+    description: 'A change put up for review before it is decided.',
     icon: ScrollText,
     segment: 'rfcs',
     profile: 'all',
@@ -237,7 +242,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
   code: {
     singular: 'Code',
     plural: 'Code',
-    description: 'Files, symbols and how they relate.',
+    description: 'Files, functions and how they call each other.',
     icon: Code,
     segment: 'code',
     profile: 'software',
@@ -263,7 +268,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
   skills: {
     singular: 'Skill',
     plural: 'Skills',
-    description: 'Clusters of knowledge the agent activates on its own.',
+    description: 'Groups of related notes that an assistant switches on by itself.',
     icon: Brain,
     segment: 'skills',
     profile: 'all',
@@ -276,7 +281,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
   personas: {
     singular: 'Persona',
     plural: 'Personas',
-    description: 'An agent specialised on one area of the work.',
+    description: 'An assistant specialised in one area of the work.',
     icon: Users,
     segment: 'personas',
     profile: 'all',
@@ -289,7 +294,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
   protocols: {
     singular: 'Protocol',
     plural: 'Protocols',
-    description: 'A repeatable procedure the agent follows step by step.',
+    description: 'A repeatable procedure an assistant follows step by step.',
     icon: Workflow,
     segment: 'protocols',
     profile: 'all',
@@ -302,7 +307,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
   neuralRouting: {
     singular: 'Neural routing',
     plural: 'Neural routing',
-    description: 'How queries are routed to the knowledge that answers them.',
+    description: 'How a question finds the notes and decisions that answer it.',
     icon: Route,
     segment: 'neural-routing',
     profile: 'all',
@@ -315,7 +320,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
   sharing: {
     singular: 'Sharing',
     plural: 'Sharing & privacy',
-    description: 'What leaves this workspace, under which policy — and the secrets agents may use.',
+    description: 'What may leave this workspace, under which policy, and the secrets assistants may use.',
     icon: Share2,
     segment: 'sharing',
     profile: 'all',
@@ -328,7 +333,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
   mcpFederation: {
     singular: 'MCP server',
     plural: 'MCP federation',
-    description: 'External tool servers the agent can call.',
+    description: 'Outside tools that your assistants can call.',
     icon: Plug,
     segment: 'mcp-federation',
     profile: 'all',
@@ -367,7 +372,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
   today: {
     singular: 'Today',
     plural: 'Today',
-    description: 'Tout ce qui est en cours, et par quoi commencer.',
+    description: 'Everything in progress, and what to start with.',
     icon: Sun,
     segment: 'today',
     profile: 'all',
@@ -429,6 +434,19 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
       different: 'Today your files sit in a folder, apart from the work. Here they are filed with the project, and the original stays with you.',
     },
   },
+  workspaces: {
+    singular: 'Workspace',
+    plural: 'Workspaces',
+    description: 'Several projects that share a context and objectives.',
+    icon: Layers,
+    segment: 'workspaces',
+    profile: 'all',
+    explain: {
+      what: 'A workspace groups several of your projects that share a context and objectives.',
+      why: 'You open one workspace and see its projects, plans, notes and decisions together.',
+      different: 'Today each project is a separate folder. Here the projects of a workspace share what was decided.',
+    },
+  },
 }
 
 /**
@@ -438,29 +456,50 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
 export const NAV_TEXT = {
   /** Section of the global sidebar that lists the workspaces. */
   workspaces: 'Workspaces',
-  allWorkspaces: 'Tous les workspaces',
-  newWorkspace: 'Nouveau workspace',
-  /** Persistent first item of a workspace sidebar. */
-  attentionOne: 'demande en attente',
-  attentionMany: 'demandes en attente',
+  allWorkspaces: 'All workspaces',
+  newWorkspace: 'New workspace',
+  /** Noun after the count of the badge on Today: « 3 requests waiting for you ». */
+  attentionOne: 'request waiting for you',
+  attentionMany: 'requests waiting for you',
 } as const
 
-/** Sidebar structure of ONE workspace. A group reads as a stage of the work, not as a data type. */
+/**
+ * The words of Today that name a concept (the four bands, the assistants), lifted out of
+ * `components/today/*` so the marketing site can import them instead of retyping them
+ * (website/AUDIENCE.md § 7 point 3). English source; translations live under `nav.today.*`
+ * (13 languages). The Today components still carry their own copy: they read these keys at merge
+ * time, see the hand-off list in the PR description.
+ */
+export const TODAY_WORDS = {
+  assistants: 'Assistants',
+  bands: {
+    waiting: { title: 'Waiting for you', summary: 'waiting for you', empty: 'Nobody is waiting for your answer' },
+    running: { title: 'In progress', summary: 'in progress', empty: 'No plan is in progress' },
+    stuck: { title: 'To resume', summary: 'to resume', empty: 'Nothing to resume' },
+    thinking: { title: 'To read', summary: 'to read', empty: 'Nothing to read' },
+  },
+} as const
+
+/**
+ * Sidebar structure of ONE workspace. A group reads as a stage of the person's work (what I do, what
+ * the project remembers, who works for me, the code, the plumbing), not as a data type. Four groups are
+ * visible; `system` is folded. Modelled on the pillars of the site (website/src/i18n/messages/en/features.ts).
+ */
 export interface NavGroup {
   /** Key of the translated label (`nav.groups.<id>`); `label` stays the English source. */
-  id: 'focus' | 'plan' | 'design' | 'build' | 'ship' | 'knowledge' | 'system'
+  id: 'work' | 'memory' | 'assistants' | 'code' | 'system'
   label: string
   items: ConceptKey[]
+  /** Folded until the person opens it (or until the current page lives inside it). */
+  collapsed?: boolean
 }
 
 export const NAV_GROUPS: NavGroup[] = [
-  { id: 'focus', label: 'Focus', items: ['overview', 'trajectory'] },
-  { id: 'plan', label: 'Plan', items: ['projects', 'objectives', 'plans', 'tasks'] },
-  { id: 'design', label: 'Design', items: ['architecture', 'decisions', 'proposals', 'documents'] },
-  { id: 'build', label: 'Build', items: ['code', 'featureGraphs'] },
-  { id: 'ship', label: 'Ship', items: ['deployments', 'automation', 'triggers'] },
-  { id: 'knowledge', label: 'Knowledge', items: ['notes', 'skills', 'personas', 'protocols', 'neuralRouting'] },
-  { id: 'system', label: 'System', items: ['sharing', 'mcpFederation', 'admin'] },
+  { id: 'work', label: 'Work', items: ['overview', 'trajectory', 'projects', 'objectives', 'plans', 'tasks'] },
+  { id: 'memory', label: 'Memory', items: ['notes', 'decisions', 'proposals', 'documents'] },
+  { id: 'assistants', label: 'Assistants', items: ['automation', 'triggers', 'personas', 'skills', 'protocols'] },
+  { id: 'code', label: 'Code', items: ['code', 'featureGraphs', 'architecture', 'deployments'] },
+  { id: 'system', label: 'System', items: ['sharing', 'mcpFederation', 'neuralRouting', 'admin'], collapsed: true },
 ]
 
 /** Workspace-relative segment → concept, for the breadcrumb. */

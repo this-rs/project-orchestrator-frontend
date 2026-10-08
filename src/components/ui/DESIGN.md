@@ -43,19 +43,37 @@ by hand in a page: `<PageShell title={NOMENCLATURE.plans.plural}>`.
   definition in the same sentence. It is rendered by `ConceptIntro` — see §5
   « Explaining a concept » — through `<PageShell intro="plans">`. A page never
   types its own intro; `nomenclature.test.ts` fails on a missing line or a banned word.
-- **The words of Today are concepts too.** « À traiter / À reprendre / En cours /
-  À suivre », « Assistants », the resume labels live in `components/today/bands.ts`
-  (`TODAY_TEXT`, `STUCK_LABEL`), `today/live/text.ts`, `today/work/text.ts` — the
-  site cannot import them and retypes them (`AUDIENCE.md` §7). They move next to
-  the registry (one importable module), in ONE language per registry: today the
-  registry mixes English concepts with a French `today.description` and `NAV_TEXT`;
-  which language is a product decision (`AUDIENCE.md` §8.1), mixing is not.
-- **`profile` is a filter, not a label.** Every entry declares `profile: 'all' |
-  'software'`; the sidebar (`MainLayout`) shows a `software` concept only when the
-  current project has code, and the project form offers the profile. Today the
-  field is declared and read nowhere (`website` has to state it as a limit,
-  `features.limits` « A project with no code starts from an assistant »): closing
-  that gap is the first promise the app owes the site.
+- **Groups are stages of the work, not data types.** `NAV_GROUPS` has four visible groups,
+  modelled on the pillars of the site (`website/src/i18n/messages/en/features.ts`): **Work**
+  (overview, trajectory, projects, objectives, plans, tasks), **Memory** (notes, decisions,
+  proposals, documents), **Assistants** (automation, triggers, personas, skills, protocols) and
+  **Code** (code, feature graphs, architecture, deployments), plus **System** (sharing, MCP
+  federation, neural routing, administration), **folded by default**. A new concept goes into the
+  group whose question it answers (what do I do · what does the project remember · who works for
+  me · what is the code · how is it wired), never into a group named after its data type. Labels
+  are `nav.groups.<id>` (13 languages); `MainLayout` never types one. A folded group
+  (`NavGroup.collapsed`) is a header button (`aria-expanded`, 36 px target) that remembers its
+  state in `localStorage` (`po.nav.<id>.open`, under try/catch) and stays open while the current
+  page lives inside it. Decision: MCP `e9b7deec-6f26-4d64-b689-81da51416a17`.
+- **The profile is a real filter.** Every entry declares `profile: 'all' | 'software'`.
+  `MainLayout` reads the projects of the current workspace (already loaded for the sub-items)
+  and hides the `software` concepts, and with them the whole Code group, when none of those
+  projects has code (`profile ?? 'software'`: a payload older than the field is a codebase; a
+  workspace without projects shows no software concept; while the list loads, or if it cannot be
+  read, the menu shows everything). A mixed workspace shows everything. It filters the **menu
+  only**: every route stays served, so a link, a bookmark or a redirect to a software page in a
+  work-only workspace still opens it. Tested in `MainLayout.test.tsx` (work-only, software,
+  mixed, no project, direct URL).
+- **The words of Today are concepts too.** The four bands and the assistants are lifted into
+  the registry (`TODAY_WORDS`, `NAV_TEXT.attention*`) and into `nav.today.*` / `nav.attention.*`
+  so the site imports them instead of retyping them (`AUDIENCE.md` §7). The Today components
+  (`components/today/*`: `TODAY_TEXT`, `STUCK_LABEL`, `live/text.ts`, `work/text.ts`) still carry
+  their own copy until they read these keys. ONE language per registry: English (the source),
+  translated in `src/i18n`; `nomenclature.test.ts` fails on an accented word in a `description`.
+- **Descriptions use the product's words too.** `description` and `explain` follow
+  `AUDIENCE.md` §2: `Assistant` (never agent), `Objective` (never milestone), `Proposal` (never
+  RFC), no FSM, knowledge graph or neural at the first level. `tech` words stay in the
+  third-level `explain`/docs, never in the one-liner. The test bans them in both.
 - **Today is the root of the application, above the workspaces.** It is not in
   `NAV_GROUPS` (the sidebar of ONE workspace) and it is not repeated in any menu:
   its icon sits at the left of the header on every page (one click, `/today`),

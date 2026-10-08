@@ -2,12 +2,10 @@ import type { Translation } from '../../catalog.ts'
 
 export default {
   groups: {
-    focus: "Foco",
-    plan: "Planejar",
-    design: "Projetar",
-    build: "Construir",
-    ship: "Entregar",
-    knowledge: "Conhecimento",
+    work: "Trabalho",
+    memory: "Memória",
+    assistants: "Assistentes",
+    code: "Código",
     system: "Sistema",
   },
   concepts: {
@@ -38,6 +36,19 @@ export default {
   workspaces: "Espaços de trabalho",
   allWorkspaces: "Todos os espaços de trabalho",
   newWorkspace: "Novo espaço de trabalho",
+  today: {
+    assistants: "Assistentes",
+    bands: {
+      waiting: { title: "Aguardando sua resposta", summary: "aguardando sua resposta", empty: "Ninguém aguarda sua resposta" },
+      running: { title: "Em andamento", summary: "em andamento", empty: "Nenhum plano em andamento" },
+      stuck: { title: "Para retomar", summary: "para retomar", empty: "Nada para retomar" },
+      thinking: { title: "Para ler", summary: "para ler", empty: "Nada para ler" },
+    },
+  },
+  attention: {
+    one: "solicitação pendente",
+    many: "solicitações pendentes",
+  },
   aria: {
     workspace: "Espaço de trabalho",
     application: "Aplicativo",

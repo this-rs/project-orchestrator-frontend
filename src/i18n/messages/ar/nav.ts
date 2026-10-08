@@ -2,12 +2,10 @@ import type { Translation } from '../../catalog.ts'
 
 export default {
   groups: {
-    focus: "التركيز",
-    plan: "التخطيط",
-    design: "التصميم",
-    build: "البناء",
-    ship: "الإصدار",
-    knowledge: "المعرفة",
+    work: "العمل",
+    memory: "الذاكرة",
+    assistants: "المساعدون",
+    code: "الكود",
     system: "النظام",
   },
   concepts: {
@@ -38,6 +36,19 @@ export default {
   workspaces: "مساحات العمل",
   allWorkspaces: "كل مساحات العمل",
   newWorkspace: "مساحة عمل جديدة",
+  today: {
+    assistants: "المساعدون",
+    bands: {
+      waiting: { title: "بانتظار ردّك", summary: "بانتظار ردّك", empty: "لا أحد ينتظر ردّك" },
+      running: { title: "قيد التنفيذ", summary: "قيد التنفيذ", empty: "لا توجد خطة قيد التنفيذ" },
+      stuck: { title: "للاستئناف", summary: "للاستئناف", empty: "لا شيء للاستئناف" },
+      thinking: { title: "للقراءة", summary: "للقراءة", empty: "لا شيء للقراءة" },
+    },
+  },
+  attention: {
+    one: "طلب بانتظار ردّك",
+    many: "طلبات بانتظار ردّك",
+  },
   aria: {
     workspace: "مساحة العمل",
     application: "التطبيق",
