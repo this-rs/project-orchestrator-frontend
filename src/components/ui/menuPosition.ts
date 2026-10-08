@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from 'react'
+
 /**
  * JS positioning for floating menus.
  *
@@ -62,6 +64,17 @@ export function computeMenuPosition(
  */
 export const supportsAnchorPositioning: boolean =
   typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('position-area', 'block-end')
+
+const noopSubscribe = () => () => {}
+
+/**
+ * Same value as `supportsAnchorPositioning`, safe for server rendering and hydration: `false` on the server and for the first client
+ * render (so both produce the same markup), the real value right after. A module-level constant would differ between the prerendered
+ * HTML and the client, and React keeps the server's attributes: the menu would lose its anchor.
+ */
+export function useSupportsAnchorPositioning(): boolean {
+  return useSyncExternalStore(noopSubscribe, () => supportsAnchorPositioning, () => false)
+}
 
 /**
  * Imperatively place `menu` (position: fixed) next to `trigger`. Safe to call

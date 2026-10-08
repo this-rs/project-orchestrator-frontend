@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useId, useCallback, type ReactNode, type CSSProperties } from 'react'
 import { ChevronDown, Check } from 'lucide-react'
-import { positionFloating, supportsAnchorPositioning } from './menuPosition'
+import { positionFloating, useSupportsAnchorPositioning } from './menuPosition'
 
 interface SelectOption {
   value: string
@@ -50,6 +50,7 @@ export function Select({
   const anchorName = `--sel-${uid}`
   const menuRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const anchored = useSupportsAnchorPositioning()
 
   const selectedLabel = options.find((o) => o.value === value)?.label || placeholder || ''
   const hasValue = options.some((o) => o.value === value)
@@ -76,7 +77,7 @@ export function Select({
    * when CSS Anchor Positioning is not supported (Tauri WebKit).
    */
   const applyFallbackPosition = useCallback(() => {
-    if (supportsAnchorPositioning) return
+    if (anchored) return
     const trigger = triggerRef.current
     const menu = menuRef.current
     if (!trigger || !menu) return
@@ -84,7 +85,7 @@ export function Select({
     menu.style.width = 'max-content'
     // Below the trigger, flipped above when needed, clamped to the viewport
     positionFloating(trigger, menu, { align: 'start', matchWidth: true })
-  }, [])
+  }, [anchored])
 
   const openMenu = () => {
     try {
@@ -140,7 +141,8 @@ export function Select({
       case ' ':
         e.preventDefault()
         if (isOpen && activeIndex >= 0 && activeIndex < options.length) {
-          handleSelect(options[activeIndex].value)
+          const active = options[activeIndex]
+          if (active) handleSelect(active.value)
         } else if (!isOpen) {
           openMenu()
         }
@@ -167,10 +169,10 @@ export function Select({
   const activeOptionId = activeIndex >= 0 ? `sel-${uid}-option-${activeIndex}` : undefined
 
   // Only apply CSS anchor styles when supported
-  const triggerStyle: CSSProperties = supportsAnchorPositioning
+  const triggerStyle: CSSProperties = anchored
     ? { anchorName } as CSSProperties
     : {}
-  const menuStyle: CSSProperties = supportsAnchorPositioning
+  const menuStyle: CSSProperties = anchored
     ? { positionAnchor: anchorName } as CSSProperties
     : {}
 
