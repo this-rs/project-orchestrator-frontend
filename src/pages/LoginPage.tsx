@@ -10,9 +10,26 @@ import {
 } from '@/atoms'
 import { authApi, setAuthMode as setAuthModeService } from '@/services'
 import { LogIn } from 'lucide-react'
-import { Spinner, Branding } from '@/components/ui'
+import { Spinner, Branding, Button, textLink } from '@/components/ui'
 import { PasswordLoginForm } from '@/components/auth/PasswordLoginForm'
 import { RegisterForm } from '@/components/auth/RegisterForm'
+import { ProductMark, ScreenHeader, StandaloneScreen, StatusBanner } from '@/pages/setup'
+
+// i18n after #252
+const TEXT = {
+  signIn: 'Sign in',
+  register: 'Create your account',
+  // website: downloads.subhead « There is no Project Orchestrator account to create » — here sign-in WAS turned on by whoever set the server up
+  leadPassword: 'Sign-in is turned on for this server. Use the email and password you were given.',
+  leadOidc: (name: string) => `Sign-in is turned on for this server. Continue with your ${name} account.`,
+  leadBoth: (name: string) => `Sign-in is turned on for this server. Use your email and password, or your ${name} account.`,
+  leadRegister: 'Create the account you will sign in with.',
+  or: 'or',
+  oidc: (name: string) => `Sign in with ${name}`,
+  oidcFailed: 'Sign-in could not start',
+  toSignIn: 'Already have an account? Sign in',
+  toRegister: 'No account yet? Create one',
+} as const
 
 /**
  * Dynamic login page that adapts to the available auth providers.
@@ -22,6 +39,10 @@ import { RegisterForm } from '@/components/auth/RegisterForm'
  * - OIDC provider -> "Sign in with {name}" button
  * - Both -> password form + "or" separator + OIDC button
  * - allow_registration -> toggle to registration form
+ *
+ * The screen continues the setup assistant (same chrome: `display-3` title,
+ * lead, glass buttons). ONE primary: the form's submit when a form is shown,
+ * otherwise the single sign-in provider.
  */
 export function LoginPage() {
   const navigate = useNavigate()
@@ -94,85 +115,74 @@ export function LoginPage() {
   // Still loading providers
   if (!providersLoaded) {
     return (
-      <div className="flex flex-1 items-center justify-center bg-[var(--surface-base)]">
-        <Spinner size="lg" />
-      </div>
+      <StandaloneScreen width="xs" center>
+        <div className="flex justify-center" aria-busy="true" aria-label="Loading sign-in options">
+          <Spinner size="lg" />
+        </div>
+      </StandaloneScreen>
     )
   }
 
+  const showsForm = (hasPassword && !showRegister) || (allowRegistration && showRegister)
+  const lead = showRegister
+    ? TEXT.leadRegister
+    : hasPassword && oidcProvider
+      ? TEXT.leadBoth(oidcProvider.name)
+      : oidcProvider
+        ? TEXT.leadOidc(oidcProvider.name)
+        : TEXT.leadPassword
+
   return (
-    <div className="flex h-dvh flex-col items-center justify-center overflow-clip bg-[var(--surface-base)]">
-      <div className="w-full max-w-sm space-y-6 px-6">
-        {/* Logo & Title */}
-        <div className="text-center">
-          <img src="/logo-192.png" alt="Project Orchestrator" className="mx-auto h-20 w-20 rounded-2xl sm:h-28 sm:w-28 sm:rounded-3xl" />
-          <h1 className="mt-4 text-2xl font-bold text-white">Project Orchestrator</h1>
-          <p className="mt-1.5 text-sm text-gray-400">
-            {showRegister ? 'Create your account' : 'Sign in to continue'}
-          </p>
-        </div>
+    <StandaloneScreen width="xs" center footer={<Branding />}>
+      <ScreenHeader kicker={<ProductMark />} title={showRegister ? TEXT.register : TEXT.signIn} lead={lead} />
 
-        {/* Auth forms */}
-        <div className="space-y-6">
-          {/* Password login or registration form */}
-          {hasPassword && !showRegister && <PasswordLoginForm />}
-          {allowRegistration && showRegister && <RegisterForm />}
+      <div className="mt-8 space-y-6">
+        {/* Password login or registration form */}
+        {hasPassword && !showRegister && <PasswordLoginForm />}
+        {allowRegistration && showRegister && <RegisterForm />}
 
-          {/* Separator when both password/register and OIDC are available */}
-          {(hasPassword || (allowRegistration && showRegister)) && oidcProvider && (
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/[0.1]" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="bg-[var(--surface-base)] px-3 text-gray-500">or</span>
-              </div>
+        {/* Separator when both password/register and OIDC are available */}
+        {showsForm && oidcProvider && (
+          <div className="relative" role="separator" aria-label={TEXT.or}>
+            <div className="absolute inset-0 flex items-center" aria-hidden="true">
+              <div className="w-full border-t border-white/[0.1]" />
             </div>
-          )}
-
-          {/* OIDC SSO button */}
-          {oidcProvider && (
-            <div className="space-y-3">
-              <button
-                onClick={handleOidcLogin}
-                disabled={oidcLoading}
-                className="flex w-full items-center justify-center gap-3 rounded-lg bg-white px-4 py-3 text-sm font-medium text-gray-900 shadow-sm transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-950 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {oidcLoading ? (
-                  <Spinner size="sm" className="text-gray-600" />
-                ) : (
-                  <LogIn className="h-5 w-5 text-gray-500" />
-                )}
-                Sign in with {oidcProvider.name}
-              </button>
-
-              {oidcError && (
-                <div className="rounded-lg bg-red-900/50 px-4 py-3 text-sm text-red-300">
-                  {oidcError}
-                </div>
-              )}
+            <div className="relative flex justify-center text-sm">
+              <span className="bg-surface-base px-3 text-gray-500">{TEXT.or}</span>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* OIDC SSO button: secondary next to a form, the primary when it is the only way in */}
+        {oidcProvider && (
+          <div className="space-y-3">
+            <Button
+              variant={showsForm ? 'secondary' : 'primary'}
+              onClick={handleOidcLogin}
+              loading={oidcLoading}
+              className="w-full"
+            >
+              {!oidcLoading && <LogIn className="h-4 w-4" aria-hidden="true" />}
+              {TEXT.oidc(oidcProvider.name)}
+            </Button>
+
+            {oidcError && (
+              <StatusBanner tone="danger" title={TEXT.oidcFailed} role="alert">
+                <p className="break-words">{oidcError}</p>
+              </StatusBanner>
+            )}
+          </div>
+        )}
 
         {/* Registration toggle */}
         {allowRegistration && (
           <div className="text-center">
-            <button
-              type="button"
-              onClick={() => setShowRegister(!showRegister)}
-              className="text-sm text-indigo-400 transition hover:text-indigo-300"
-            >
-              {showRegister
-                ? 'Already have an account? Sign in'
-                : "Don't have an account? Create one"}
+            <button type="button" onClick={() => setShowRegister(!showRegister)} className={`min-h-9 px-2 text-sm ${textLink}`}>
+              {showRegister ? TEXT.toSignIn : TEXT.toRegister}
             </button>
           </div>
         )}
       </div>
-
-      {/* Branding */}
-      <Branding className="absolute bottom-6" />
-    </div>
+    </StandaloneScreen>
   )
 }

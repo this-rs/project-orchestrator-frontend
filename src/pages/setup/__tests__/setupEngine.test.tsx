@@ -20,6 +20,7 @@ vi.mock('@/hooks', async (importOriginal) => ({
   useDragRegion: () => ({}),
 }))
 
+import { installMatchMedia } from '@/pages/__tests__/testUtils'
 import { ChatPage } from '../ChatPage'
 import { LaunchPage } from '../LaunchPage'
 import { SetupWizard } from '../SetupWizard'
@@ -47,6 +48,8 @@ function cli(installed: boolean) {
 // Waits are on the REAL state (the CLI check answered, the button enabled); this
 // timeout is only a ceiling for a loaded machine, never the thing being measured.
 configure({ asyncUtilTimeout: 30_000 })
+// jsdom has no matchMedia; the setup chrome reads it (Reveal → useReducedMotion, HaloPointer).
+installMatchMedia()
 
 const next = () => screen.getByRole('button', { name: /next/i })
 

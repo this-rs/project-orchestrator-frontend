@@ -14,7 +14,11 @@ vi.mock('@/services/workspaces', () => ({
   workspacesApi: { list: (...a: unknown[]) => list(...a), create: (...a: unknown[]) => create(...a) },
 }))
 
+import { installMatchMedia } from './testUtils'
 import { WorkspaceSelectorPage } from '../WorkspaceSelectorPage'
+
+// jsdom has no matchMedia; the screen's chrome reads it (HaloPointer).
+installMatchMedia()
 
 function Landed() {
   const { slug } = useParams()
@@ -57,6 +61,24 @@ describe('WorkspaceSelectorPage', () => {
     expect(await screen.findByText('overview alpha')).toBeTruthy()
   })
 
+  it('names the screen in the display scale, explains a workspace behind a fold, and keeps one primary', async () => {
+    const { container } = renderAt()
+    await screen.findByRole('button', { name: 'Alpha' })
+    const title = screen.getByRole('heading', { level: 1 })
+    expect(title.textContent).toBe('Select a workspace')
+    expect(title.className).toContain('display-3')
+    expect(container.querySelectorAll('.display-2, .display-3')).toHaveLength(1)
+    expect(screen.getByText(/A workspace groups the projects that share a context and objectives/)).toBeTruthy()
+    // The three lines of the intro, folded by default (DESIGN.md § 5).
+    const intro = screen.getByText('What is this?').closest('details') as HTMLDetailsElement
+    expect(intro.open).toBe(false)
+    expect(intro.textContent).toMatch(/What it is/)
+    expect(intro.textContent).toMatch(/How it differs/)
+    const primaries = container.querySelectorAll('.btn-primary')
+    expect(primaries).toHaveLength(1)
+    expect(primaries[0].textContent).toBe('Create a workspace')
+  })
+
   it('redirects straight to the only workspace', async () => {
     list.mockResolvedValue({ items: [{ id: 's', name: 'Solo', slug: 'solo', created_at: '' }] })
     renderAt()
@@ -66,7 +88,7 @@ describe('WorkspaceSelectorPage', () => {
   it('creates a workspace inline from the list', async () => {
     renderAt()
     await screen.findByRole('button', { name: 'Alpha' })
-    fireEvent.click(screen.getByRole('button', { name: 'Create new workspace' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create a workspace' }))
     const input = screen.getByRole('textbox', { name: 'Workspace name' })
     expect(input.className).toContain('text-base')
     fireEvent.change(input, { target: { value: '  New ' } })

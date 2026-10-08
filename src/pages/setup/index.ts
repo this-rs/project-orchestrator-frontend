@@ -4,3 +4,7 @@ export { InfrastructurePage } from './InfrastructurePage'
 export { AuthPage } from './AuthPage'
 export { ChatPage } from './ChatPage'
 export { LaunchPage } from './LaunchPage'
+// The dark full-height screens before MainLayout (sign-in, callback, workspace selector) share this chrome.
+export { StandaloneScreen, ScreenHeader, ProductMark } from './StandaloneScreen'
+export { StatusBanner } from './StatusBanner'
+export { SETUP_STEPS, SETUP_TEXT } from './text'

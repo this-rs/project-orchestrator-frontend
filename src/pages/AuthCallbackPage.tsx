@@ -1,10 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams, useNavigate, Link } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
 import { authTokenAtom, currentUserAtom } from '@/atoms'
-import { AlertCircle } from 'lucide-react'
 import { authApi, setAuthToken } from '@/services'
-import { Spinner } from '@/components/ui'
+import { Button, Spinner } from '@/components/ui'
+import { ProductMark, ScreenHeader, StandaloneScreen, StatusBanner } from '@/pages/setup'
+
+// i18n after #252
+const TEXT = {
+  signingIn: 'Signing you in...',
+  failedTitle: 'Authentication failed',
+  failedLead: 'The sign-in provider did not complete the sign-in. You can start again from the sign-in page.',
+  reason: 'What the provider said',
+  backToLogin: 'Back to sign in',
+  missingCode: 'Missing authorization code',
+} as const
 
 /**
  * OAuth/OIDC callback page.
@@ -43,7 +53,7 @@ export function AuthCallbackPage() {
     if (err) return desc ? `${err}: ${desc}` : err
     return null
   }, [searchParams])
-  const error = providerError ?? (code ? exchangeError : 'Missing authorization code')
+  const error = providerError ?? (code ? exchangeError : TEXT.missingCode)
 
   useEffect(() => {
     if (!code) return
@@ -87,32 +97,24 @@ export function AuthCallbackPage() {
 
   if (error) {
     return (
-      <div className="flex flex-1 items-center justify-center bg-[var(--surface-base)]">
-        <div className="w-full max-w-sm space-y-6 px-6 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-900/50">
-            <AlertCircle className="h-6 w-6 text-red-400" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-white">Authentication failed</h2>
-            <p className="mt-2 text-sm text-gray-400">{error}</p>
-          </div>
-          <Link
-            to="/login"
-            className="inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500"
-          >
-            Back to login
-          </Link>
+      <StandaloneScreen width="xs" center>
+        <ScreenHeader kicker={<ProductMark />} title={TEXT.failedTitle} lead={TEXT.failedLead} />
+        <div className="mt-8 space-y-6">
+          <StatusBanner tone="danger" title={TEXT.reason} role="alert">
+            <p className="break-words">{error}</p>
+          </StatusBanner>
+          <Button onClick={() => navigate('/login')}>{TEXT.backToLogin}</Button>
         </div>
-      </div>
+      </StandaloneScreen>
     )
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center bg-[var(--surface-base)]">
-      <div className="space-y-4 text-center">
-        <Spinner size="lg" className="mx-auto" />
-        <p className="text-sm text-gray-400">Signing you in...</p>
+    <StandaloneScreen width="xs" center>
+      <div className="flex flex-col items-center gap-4 text-center" role="status">
+        <Spinner size="lg" />
+        <p className="text-sm text-gray-400">{TEXT.signingIn}</p>
       </div>
-    </div>
+    </StandaloneScreen>
   )
 }

@@ -1,14 +1,35 @@
 import { useState } from 'react'
 import { useAtom, useSetAtom } from 'jotai'
-import { Check, X, Loader2, Rocket, RefreshCw, ChevronDown } from 'lucide-react'
+import { Loader2, Rocket, RefreshCw } from 'lucide-react'
 import { setupConfigAtom, configExistsAtom, withSetupModelFallback } from '@/atoms/setup'
 import { toToolPolicyMode } from '@/types/provider'
 import { SETUP_MODE_SUMMARIES } from '@/constants/toolPolicy'
 import { isTauri } from '@/services/env'
 import { Link } from 'react-router-dom'
 import { SETUP_LAUNCH_NO_ENGINE_SUMMARY } from '@/constants/setupProviders'
+import { Button, Switch, focusRing, inlineLink, surface } from '@/components/ui'
+import { StatusBanner } from './StatusBanner'
 
 type LaunchPhase = 'review' | 'generating' | 'generated' | 'restarting' | 'error'
+
+// i18n after #252 — the words of this step. Summary labels the tests read (« Chat provider », « Chat Model »…) stay inline.
+const TEXT = {
+  autoUpdate: 'Check for a new version when the app starts',
+  autoUpdateHint: 'The app asks GitHub for new versions at start-up and shows a banner when one is ready. Nothing else is sent.',
+  summary: 'What will be saved',
+  savedTitle: 'Configuration saved',
+  savedRestart: 'The app restarts to apply it. The first start takes a few minutes: it downloads the services it runs on.',
+  savedNext: 'Next: ',
+  savedNextLink: 'add a chat provider',
+  savedNextTail: ' once the app has restarted.',
+  failedTitle: 'Configuration failed',
+  restarting: 'Restarting the app...',
+  generating: 'Saving the configuration...',
+  generate: 'Generate Config & Save',
+  restart: 'Restart Application',
+  tryAgain: 'Try again',
+  webMode: '(web mode — config.yaml must be created manually on the server)',
+} as const
 
 export function LaunchPage() {
   const [config, setConfig] = useAtom(setupConfigAtom)
@@ -24,7 +45,7 @@ export function LaunchPage() {
     if (!isTauri) {
       // Web mode — can't generate config, show info message
       setPhase('generated')
-      setConfigPath('(web mode — config.yaml must be created manually on the server)')
+      setConfigPath(TEXT.webMode)
       return
     }
 
@@ -54,210 +75,180 @@ export function LaunchPage() {
   }
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-xl font-semibold">Launch</h2>
-        <p className="mt-1 text-sm text-gray-400">
-          Review your configuration and generate the config file.
-        </p>
-      </div>
-
+    <div className="space-y-6">
       {/* Auto-update application toggle */}
       {isTauri && (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
-          <label className="flex items-center gap-3 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={config.chatAutoUpdateApp}
-              onChange={(e) => setConfig((prev) => ({ ...prev, chatAutoUpdateApp: e.target.checked }))}
-              className="rounded border-white/20 bg-white/[0.04] text-indigo-500 focus:ring-indigo-500/30 focus:ring-offset-0"
-            />
-            <div>
-              <span className="text-sm text-gray-300">Auto-update application on startup</span>
-              <p className="text-xs text-gray-500">Check for new versions of Project Orchestrator when the app starts</p>
-            </div>
-          </label>
+        <div className={`${surface} p-4`}>
+          <Switch
+            checked={config.chatAutoUpdateApp}
+            onChange={(checked) => setConfig((prev) => ({ ...prev, chatAutoUpdateApp: checked }))}
+            label={
+              <span className="block min-w-0 text-sm">
+                <span className="block font-medium text-gray-200">{TEXT.autoUpdate}</span>
+                <span className="mt-0.5 block text-xs leading-4 text-gray-500">{TEXT.autoUpdateHint}</span>
+              </span>
+            }
+          />
         </div>
       )}
 
       {/* Configuration summary */}
-      <div className="space-y-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
-        <h3 className="text-sm font-medium text-gray-300">Configuration Summary</h3>
+      <section className={`${surface} p-4 md:p-5`} aria-labelledby="setup-summary-title">
+        <h3 id="setup-summary-title" className="mb-2 text-sm font-semibold text-gray-200">
+          {TEXT.summary}
+        </h3>
+        <dl className="divide-y divide-white/[0.04]">
+          <SummaryGroup>
+            <SummaryRow
+              label="Infrastructure"
+              value={config.infraMode === 'docker' ? 'Docker (automatic)' : 'External servers'}
+            />
+            {config.infraMode === 'external' && (
+              <>
+                <SummaryRow label="Neo4j" value={config.neo4jUri} />
+                <SummaryRow label="MeiliSearch" value={config.meilisearchUrl} />
+              </>
+            )}
+            <SummaryRow
+              label="NATS"
+              value={
+                !config.natsEnabled
+                  ? 'Disabled'
+                  : config.infraMode === 'docker'
+                    ? 'Enabled (Docker)'
+                    : `Enabled (${config.natsUrl || 'nats://localhost:4222'})`
+              }
+            />
+            <SummaryRow label="API Port" value={String(config.serverPort)} />
+            {config.publicUrl.trim() && (
+              <SummaryRow label="Public URL" value={config.publicUrl.trim().replace(/\/+$/, '')} />
+            )}
+          </SummaryGroup>
 
-        <SummaryRow
-          label="Infrastructure"
-          value={config.infraMode === 'docker' ? 'Docker (automatic)' : 'External servers'}
-        />
-        {config.infraMode === 'external' && (
-          <>
-            <SummaryRow label="Neo4j" value={config.neo4jUri} />
-            <SummaryRow label="MeiliSearch" value={config.meilisearchUrl} />
-          </>
-        )}
-        <SummaryRow
-          label="NATS"
-          value={
-            !config.natsEnabled
-              ? 'Disabled'
-              : config.infraMode === 'docker'
-                ? 'Enabled (Docker)'
-                : `Enabled (${config.natsUrl || 'nats://localhost:4222'})`
-          }
-        />
-        <SummaryRow label="API Port" value={String(config.serverPort)} />
-        {config.publicUrl.trim() && (
-          <SummaryRow label="Public URL" value={config.publicUrl.trim().replace(/\/+$/, '')} />
-        )}
+          <SummaryGroup>
+            <SummaryRow
+              label="Authentication"
+              value={
+                config.authMode === 'none'
+                  ? 'Disabled'
+                  : config.authMode === 'password'
+                    ? `Password (${config.rootEmail || 'no email set'})`
+                    : `OIDC (${config.oidcProviderName || 'Custom'})`
+              }
+            />
+            {(config.allowedEmailDomain || config.allowedEmails) && (
+              <SummaryRow
+                label="Access"
+                value={[
+                  config.allowedEmailDomain ? `@${config.allowedEmailDomain}` : '',
+                  config.allowedEmails ? `${config.allowedEmails.split('\n').filter(Boolean).length} email(s)` : '',
+                ].filter(Boolean).join(' + ')}
+              />
+            )}
+            {!(config.allowedEmailDomain || config.allowedEmails) && config.authMode !== 'none' && (
+              <SummaryRow label="Access" value="No restrictions" />
+            )}
+          </SummaryGroup>
 
-        <div className="border-t border-white/[0.04] pt-2" />
+          <SummaryGroup>
+            {config.chatProvider === 'none' ? (
+              <SummaryRow label="Chat provider" value={SETUP_LAUNCH_NO_ENGINE_SUMMARY} />
+            ) : (
+              <>
+                <SummaryRow label="Chat Model" value={config.chatModel || 'Not selected'} />
+                <SummaryRow label="Max Sessions" value={String(config.chatMaxSessions)} />
+                <SummaryRow label="Max Turns" value={String(config.chatMaxTurns)} />
+                <SummaryRow
+                  label="Permissions"
+                  value={SETUP_MODE_SUMMARIES[toToolPolicyMode(config.chatPermissionMode) ?? 'plan_only']}
+                />
+                {config.chatProcessPath && (
+                  <SummaryRow label="Process PATH" value={config.chatProcessPath} truncate />
+                )}
+                {config.chatClaudeCliPath && (
+                  <SummaryRow label="CLI Path" value={config.chatClaudeCliPath} truncate />
+                )}
+                <SummaryRow label="Auto-update CLI" value={config.chatAutoUpdateCli ? 'Enabled' : 'Disabled'} />
+              </>
+            )}
+          </SummaryGroup>
 
-        <SummaryRow
-          label="Authentication"
-          value={
-            config.authMode === 'none'
-              ? 'Disabled'
-              : config.authMode === 'password'
-                ? `Password (${config.rootEmail || 'no email set'})`
-                : `OIDC (${config.oidcProviderName || 'Custom'})`
-          }
-        />
-        {(config.allowedEmailDomain || config.allowedEmails) && (
-          <SummaryRow
-            label="Access"
-            value={[
-              config.allowedEmailDomain ? `@${config.allowedEmailDomain}` : '',
-              config.allowedEmails ? `${config.allowedEmails.split('\n').filter(Boolean).length} email(s)` : '',
-            ].filter(Boolean).join(' + ')}
-          />
-        )}
-        {!(config.allowedEmailDomain || config.allowedEmails) && config.authMode !== 'none' && (
-          <SummaryRow label="Access" value="No restrictions" />
-        )}
-
-        <div className="border-t border-white/[0.04] pt-2" />
-
-        {config.chatProvider === 'none' ? (
-          <SummaryRow label="Chat provider" value={SETUP_LAUNCH_NO_ENGINE_SUMMARY} />
-        ) : (
-          <>
-        <SummaryRow label="Chat Model" value={config.chatModel || 'Not selected'} />
-        <SummaryRow label="Max Sessions" value={String(config.chatMaxSessions)} />
-        <SummaryRow label="Max Turns" value={String(config.chatMaxTurns)} />
-        <SummaryRow
-          label="Permissions"
-          value={SETUP_MODE_SUMMARIES[toToolPolicyMode(config.chatPermissionMode) ?? 'plan_only']}
-        />
-        {config.chatProcessPath && (
-          <SummaryRow label="Process PATH" value={config.chatProcessPath.length > 60 ? config.chatProcessPath.slice(0, 57) + '...' : config.chatProcessPath} />
-        )}
-        {config.chatClaudeCliPath && (
-          <SummaryRow label="CLI Path" value={config.chatClaudeCliPath} />
-        )}
-        <SummaryRow label="Auto-update CLI" value={config.chatAutoUpdateCli ? 'Enabled' : 'Disabled'} />
-          </>
-        )}
-
-        <div className="border-t border-white/[0.04] pt-2" />
-
-        <SummaryRow
-          label="Embeddings"
-          value={
-            config.embeddingProvider === 'local'
-              ? `Local ONNX (${config.embeddingFastembedModel})`
-              : config.embeddingProvider === 'http'
-                ? `HTTP API (${config.embeddingModel || config.embeddingUrl || 'default'})`
-                : 'Disabled'
-          }
-        />
-      </div>
+          <SummaryGroup>
+            <SummaryRow
+              label="Embeddings"
+              value={
+                config.embeddingProvider === 'local'
+                  ? `Local ONNX (${config.embeddingFastembedModel})`
+                  : config.embeddingProvider === 'http'
+                    ? `HTTP API (${config.embeddingModel || config.embeddingUrl || 'default'})`
+                    : 'Disabled'
+              }
+            />
+          </SummaryGroup>
+        </dl>
+      </section>
 
       {/* Success message */}
       {phase === 'generated' && (
-        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] p-6">
-          <div className="flex items-start gap-3">
-            <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
-              <Check className="h-4 w-4" />
-            </span>
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-emerald-300">Configuration saved!</p>
-              {configPath && (
-                <p className="text-xs text-emerald-400/70 break-all font-mono">{configPath}</p>
-              )}
-              <p className="mt-2 text-xs text-gray-400">
-                The application needs to restart to apply the new configuration.
-              </p>
-              {config.chatProvider === 'none' && (
-                <p className="text-xs text-gray-400">
-                  Next: <Link to="/providers" className="text-indigo-300 underline">add a chat provider</Link>{' '}
-                  once the app has restarted.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
+        <StatusBanner tone="success" title={TEXT.savedTitle} role="status">
+          {configPath && <p className="break-all font-mono text-xs leading-4 text-gray-500">{configPath}</p>}
+          <p>{TEXT.savedRestart}</p>
+          {config.chatProvider === 'none' && (
+            <p>
+              {TEXT.savedNext}
+              <Link to="/providers" className={inlineLink}>
+                {TEXT.savedNextLink}
+              </Link>
+              {TEXT.savedNextTail}
+            </p>
+          )}
+        </StatusBanner>
       )}
 
       {/* Error message */}
       {phase === 'error' && (
-        <div className="rounded-xl border border-red-500/20 bg-red-500/[0.06] p-6">
-          <div className="flex items-start gap-3">
-            <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-500/20 text-red-400">
-              <X className="h-4 w-4" />
-            </span>
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-red-300">Configuration failed</p>
-              <p className="text-xs text-red-400/70">{errorMessage}</p>
-            </div>
-          </div>
-        </div>
+        <StatusBanner tone="danger" title={TEXT.failedTitle} role="alert">
+          <p className="break-words">{errorMessage}</p>
+        </StatusBanner>
       )}
 
       {/* Restarting indicator */}
       {phase === 'restarting' && (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
-          <div className="flex items-center justify-center gap-3">
-            <Loader2 className="h-5 w-5 animate-spin text-indigo-400" />
-            <span className="text-sm text-gray-400">Restarting application...</span>
-          </div>
-        </div>
+        <StatusBanner
+          tone="progress"
+          title={TEXT.restarting}
+          role="status"
+          icon={<Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-indigo-300" aria-hidden="true" />}
+        />
       )}
 
-      {/* Action buttons */}
-      <div className="flex justify-center gap-4">
+      {/* Action: the ONE primary of this screen (the step nav is hidden here) */}
+      <div className="flex flex-wrap items-center justify-center gap-3">
         {phase === 'review' && (
-          <button
-            onClick={handleGenerate}
-            className="flex items-center gap-2 rounded-xl bg-indigo-600 px-8 py-3 text-sm font-medium text-white transition hover:bg-indigo-500"
-          >
-            <Rocket className="h-5 w-5" />
-            Generate Config &amp; Save
-          </button>
+          <Button size="lg" onClick={handleGenerate}>
+            <Rocket className="h-5 w-5" aria-hidden="true" />
+            {TEXT.generate}
+          </Button>
         )}
 
         {phase === 'generating' && (
-          <div className="flex items-center gap-2 text-sm text-gray-400">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            Generating configuration...
-          </div>
+          <p className="flex items-center gap-2 text-sm text-gray-400" role="status">
+            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+            {TEXT.generating}
+          </p>
         )}
 
         {phase === 'generated' && isTauri && (
-          <button
-            onClick={handleRestart}
-            className="flex items-center gap-2 rounded-xl bg-emerald-600 px-8 py-3 text-sm font-medium text-white transition hover:bg-emerald-500"
-          >
-            <RefreshCw className="h-5 w-5" />
-            Restart Application
-          </button>
+          <Button size="lg" onClick={handleRestart}>
+            <RefreshCw className="h-5 w-5" aria-hidden="true" />
+            {TEXT.restart}
+          </Button>
         )}
 
         {phase === 'error' && (
-          <button
-            onClick={() => setPhase('review')}
-            className="flex items-center gap-2 rounded-xl bg-gray-700 px-8 py-3 text-sm font-medium text-white transition hover:bg-gray-600"
-          >
-            Try Again
-          </button>
+          <Button variant="secondary" size="lg" onClick={() => setPhase('review')}>
+            {TEXT.tryAgain}
+          </Button>
         )}
       </div>
 
@@ -271,11 +262,21 @@ export function LaunchPage() {
 // Sub-components
 // ============================================================================
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
+function SummaryGroup({ children }: { children: React.ReactNode }) {
+  return <div className="py-2 first:pt-0 last:pb-0">{children}</div>
+}
+
+/** One line of the summary: the label, then the value — it wraps on a phone, a long path is truncated with its full value in `title`. */
+function SummaryRow({ label, value, truncate }: { label: string; value: string; truncate?: boolean }) {
   return (
-    <div className="flex items-center justify-between py-1">
-      <span className="text-xs text-gray-500">{label}</span>
-      <span className="text-xs font-medium text-gray-300">{value}</span>
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 py-1">
+      <dt className="text-xs leading-4 text-gray-500">{label}</dt>
+      <dd
+        className={`min-w-0 text-xs font-medium leading-4 text-gray-300 ${truncate ? 'max-w-full truncate font-mono' : 'break-words text-right'}`}
+        title={truncate ? value : undefined}
+      >
+        {value}
+      </dd>
     </div>
   )
 }
@@ -291,14 +292,12 @@ interface Dependency {
 
 interface DependencyCategory {
   title: string
-  icon: string
   deps: Dependency[]
 }
 
 const CREDITS: DependencyCategory[] = [
   {
     title: 'Backend (Rust)',
-    icon: '\u2699\uFE0F',
     deps: [
       { name: 'tokio', license: 'MIT' },
       { name: 'tokio-stream', license: 'MIT' },
@@ -354,7 +353,6 @@ const CREDITS: DependencyCategory[] = [
   },
   {
     title: 'Frontend (JavaScript)',
-    icon: '\uD83C\uDF10',
     deps: [
       { name: 'react', license: 'MIT' },
       { name: 'react-dom', license: 'MIT' },
@@ -375,7 +373,6 @@ const CREDITS: DependencyCategory[] = [
   },
   {
     title: 'Desktop (Tauri)',
-    icon: '\uD83D\uDDA5\uFE0F',
     deps: [
       { name: 'tauri', license: 'MIT / Apache-2.0' },
       { name: 'tauri-plugin-shell', license: 'MIT / Apache-2.0' },
@@ -391,43 +388,36 @@ const CREDITS: DependencyCategory[] = [
   },
 ]
 
+/** The licences, folded by default: a native `<details>`, no local button class. */
 function CreditsSection() {
-  const [open, setOpen] = useState(false)
-
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02]">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between px-6 py-4 text-left transition hover:bg-white/[0.02]"
+    <details className={`${surface} group/credits`}>
+      <summary
+        className={`flex min-h-9 cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition-colors hover:bg-white/[0.02] [&::-webkit-details-marker]:hidden md:px-5 ${focusRing}`}
       >
-        <div>
-          <h3 className="text-sm font-medium text-gray-300">Credits & Licenses</h3>
-          <p className="mt-0.5 text-xs text-gray-500">
-            MIT AND BUSL-1.1 &mdash; &copy; 2026 FFS SAS
-          </p>
-        </div>
-        <ChevronDown className={`h-4 w-4 shrink-0 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
+        <span className="min-w-0">
+          <span className="block text-sm font-medium text-gray-200">Credits &amp; Licenses</span>
+          <span className="mt-0.5 block text-xs leading-4 text-gray-500">MIT AND BUSL-1.1 &mdash; &copy; 2026 FFS SAS</span>
+        </span>
+        <span className="shrink-0 text-xs text-gray-500 group-open/credits:hidden">Show</span>
+        <span className="hidden shrink-0 text-xs text-gray-500 group-open/credits:inline">Hide</span>
+      </summary>
 
-      {open && (
-        <div className="space-y-4 border-t border-white/[0.04] px-6 pb-6 pt-4">
-          {CREDITS.map((cat) => (
-            <div key={cat.title}>
-              <h4 className="mb-2 text-xs font-medium text-gray-400">
-                {cat.icon} {cat.title}
-              </h4>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-                {cat.deps.map((dep) => (
-                  <div key={dep.name} className="flex items-center justify-between py-0.5">
-                    <span className="truncate text-[11px] text-gray-400">{dep.name}</span>
-                    <span className="ml-2 shrink-0 text-[10px] text-gray-600">{dep.license}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+      <div className="space-y-4 border-t border-white/[0.04] px-4 pb-4 pt-4 md:px-5">
+        {CREDITS.map((cat) => (
+          <div key={cat.title}>
+            <h4 className="mb-2 text-xs font-medium text-gray-400">{cat.title}</h4>
+            <ul className="grid gap-x-4 gap-y-0.5 sm:grid-cols-2">
+              {cat.deps.map((dep) => (
+                <li key={dep.name} className="flex items-center justify-between gap-2 py-0.5">
+                  <span className="truncate text-[11px] leading-4 text-gray-400">{dep.name}</span>
+                  <span className="shrink-0 text-[11px] leading-4 text-gray-500">{dep.license}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </details>
   )
 }

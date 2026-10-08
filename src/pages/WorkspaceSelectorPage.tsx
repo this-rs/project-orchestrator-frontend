@@ -1,20 +1,46 @@
-import { useEffect, useState, useRef, useCallback, type ReactNode } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
-import { AlertTriangle, Hash, Plus } from 'lucide-react'
+import { Hash, Plus } from 'lucide-react'
 import { workspacesAtom } from '@/atoms'
 import { workspacesApi } from '@/services/workspaces'
 import { workspacePath } from '@/utils/paths'
-import { Button, EntityList, EntityListSkeleton, EntityRow, ErrorState, Fact, Input, RelativeTime, focusRing } from '@/components/ui'
+import { Button, ConceptIntro, EntityList, EntityListSkeleton, EntityRow, ErrorState, Fact, Input, RelativeTime, surface } from '@/components/ui'
+import type { ConceptExplain } from '@/constants/nomenclature'
+import { ProductMark, ScreenHeader, StandaloneScreen, StatusBanner } from '@/pages/setup'
 import type { Workspace } from '@/types'
 
-/** Full-screen centred column (this page renders outside MainLayout: it owns its gutters). */
-function Screen({ children, narrow }: { children: ReactNode; narrow?: boolean }) {
-  return (
-    <div className="min-h-dvh flex items-start sm:items-center justify-center bg-surface-base px-4 py-10">
-      <div className={`w-full ${narrow ? 'max-w-sm' : 'max-w-md'} space-y-6`}>{children}</div>
-    </div>
-  )
+// i18n after #252
+const TEXT = {
+  title: 'Select a workspace',
+  // website features.pillars.projects: « Groups several projects in a workspace that shares context and objectives »
+  lead: 'A workspace groups the projects that share a context and objectives. Choose the one to work in.',
+  notFound: (slug: string) => `Workspace "${slug}" was not found`,
+  notFoundBody: 'It may have been deleted or renamed. Choose another one below.',
+  loading: 'Loading workspaces',
+  errorTitle: 'Connection error',
+  errorBody: 'Failed to load workspaces. Is the backend running?',
+  create: 'Create a workspace',
+  createSubmit: 'Create',
+  creating: 'Creating…',
+  cancel: 'Cancel',
+  namePlaceholder: 'Workspace name',
+  nameLabel: 'Workspace name',
+  welcome: 'Welcome to Project Orchestrator',
+  welcomeLead: 'Create your first workspace to get started.',
+  createFirst: 'Create workspace',
+  createFailed: 'Failed to create workspace',
+} as const
+
+/**
+ * The three sentences that introduce a workspace (DESIGN.md § 5). Inline: the
+ * registry has no `workspaces` concept (it lists the entries of ONE workspace's
+ * sidebar), so the key is only used to remember the fold.
+ */
+const WORKSPACE_EXPLAIN: ConceptExplain = {
+  what: 'A workspace groups several of your projects that share a context and objectives.',
+  why: 'You open one workspace and see its projects, plans, notes and decisions together, and Today shows what waits for you across all of them.',
+  different: 'Instead of one folder per project with nothing in between, the projects of a workspace share what was decided, so an Assistant working on one knows what the others settled.',
 }
 
 /**
@@ -39,7 +65,7 @@ export function WorkspaceSelectorPage() {
       const data = await workspacesApi.list({ limit: 100, sort_by: 'name', sort_order: 'asc' })
       setWorkspaces(data.items || [])
     } catch {
-      setError('Failed to load workspaces. Is the backend running?')
+      setError(TEXT.errorBody)
     } finally {
       setLoading(false)
     }
@@ -57,29 +83,28 @@ export function WorkspaceSelectorPage() {
   }, [loading, workspaces, navigate])
 
   const header = (
-    <div className="text-center space-y-2">
-      <img src="/logo-32.png" alt="PO" className="w-10 h-10 mx-auto rounded-xl" />
-      <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-gray-100">Select a workspace</h1>
-      <p className="text-sm text-gray-500">Choose which workspace to work in</p>
-    </div>
+    <>
+      <ScreenHeader kicker={<ProductMark />} title={TEXT.title} lead={TEXT.lead} />
+      <ConceptIntro concept={WORKSPACE_EXPLAIN} storageKey="workspaces" className="mt-3" />
+    </>
   )
 
   if (loading) {
     return (
-      <Screen>
+      <StandaloneScreen width="sm">
         {header}
-        <div aria-busy="true" aria-label="Loading workspaces">
+        <div className="mt-6" aria-busy="true" aria-label={TEXT.loading}>
           <EntityListSkeleton rows={3} />
         </div>
-      </Screen>
+      </StandaloneScreen>
     )
   }
 
   if (error) {
     return (
-      <Screen>
-        <ErrorState title="Connection error" description={error} onRetry={loadWorkspaces} />
-      </Screen>
+      <StandaloneScreen width="sm" center>
+        <ErrorState title={TEXT.errorTitle} description={error} onRetry={loadWorkspaces} />
+      </StandaloneScreen>
     )
   }
 
@@ -88,46 +113,45 @@ export function WorkspaceSelectorPage() {
   }
 
   return (
-    <Screen>
+    <StandaloneScreen width="sm">
       {header}
 
-      {notFoundSlug && (
-        <div role="alert" className="flex items-start gap-2 rounded-xl border border-amber-500/20 px-3 py-2.5 text-sm text-amber-300">
-          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
-          <p className="min-w-0 break-words">
-            Workspace <span className="font-medium">&quot;{notFoundSlug}&quot;</span> was not found. Please select another workspace.
-          </p>
-        </div>
-      )}
+      <div className="mt-6 space-y-4">
+        {notFoundSlug && (
+          <StatusBanner tone="warning" title={TEXT.notFound(notFoundSlug)} role="alert">
+            <p>{TEXT.notFoundBody}</p>
+          </StatusBanner>
+        )}
 
-      <EntityList aria-label="Workspaces">
-        {workspaces.map((ws) => (
-          <EntityRow
-            key={ws.id}
-            title={ws.name}
-            onClick={() => navigate(workspacePath(ws.slug, '/overview'), { replace: true })}
-            leading={
-              <span
-                aria-hidden="true"
-                className="flex w-8 h-8 -my-1.5 items-center justify-center rounded-lg bg-white/[0.06] text-sm font-semibold text-gray-300"
-              >
-                {ws.name.charAt(0).toUpperCase()}
-              </span>
-            }
-            description={ws.description || undefined}
-            trailing={ws.updated_at ? <RelativeTime date={ws.updated_at} prefix="updated " /> : undefined}
-            meta={[
-              <Fact key="slug" icon={Hash} mono>
-                {ws.slug}
-              </Fact>,
-            ]}
-            chevron
-          />
-        ))}
-      </EntityList>
+        <EntityList aria-label="Workspaces">
+          {workspaces.map((ws) => (
+            <EntityRow
+              key={ws.id}
+              title={ws.name}
+              onClick={() => navigate(workspacePath(ws.slug, '/overview'), { replace: true })}
+              leading={
+                <span
+                  aria-hidden="true"
+                  className="flex w-8 h-8 -my-1.5 items-center justify-center rounded-lg bg-white/[0.06] text-sm font-semibold text-gray-300"
+                >
+                  {ws.name.charAt(0).toUpperCase()}
+                </span>
+              }
+              description={ws.description || undefined}
+              trailing={ws.updated_at ? <RelativeTime date={ws.updated_at} prefix="updated " /> : undefined}
+              meta={[
+                <Fact key="slug" icon={Hash} mono>
+                  {ws.slug}
+                </Fact>,
+              ]}
+              chevron
+            />
+          ))}
+        </EntityList>
 
-      <InlineCreateWorkspace navigate={navigate} setWorkspacesAtom={setWorkspacesAtom} />
-    </Screen>
+        <InlineCreateWorkspace navigate={navigate} setWorkspacesAtom={setWorkspacesAtom} />
+      </div>
+    </StandaloneScreen>
   )
 }
 
@@ -153,7 +177,7 @@ function useCreateWorkspace(
       setWorkspacesAtom((prev) => [...prev, ws])
       navigate(workspacePath(ws.slug, '/overview'), { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create workspace')
+      setError(err instanceof Error ? err.message : TEXT.createFailed)
       setCreating(false)
     }
   }
@@ -167,7 +191,8 @@ function useCreateWorkspace(
 }
 
 /**
- * Collapsible inline form to create a new workspace from the selector page.
+ * The one primary action of the selector, « Create a workspace »; it opens the
+ * inline form, whose submit then becomes the primary (the trigger is hidden).
  */
 function InlineCreateWorkspace({
   navigate,
@@ -186,26 +211,24 @@ function InlineCreateWorkspace({
 
   if (!showForm) {
     return (
-      <button
-        type="button"
-        onClick={() => setShowForm(true)}
-        className={`w-full min-h-11 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-white/[0.1] text-sm text-gray-400 transition-colors hover:border-indigo-500/40 hover:text-indigo-300 ${focusRing}`}
-      >
-        <Plus className="w-4 h-4" aria-hidden="true" />
-        Create new workspace
-      </button>
+      <div className="flex justify-center">
+        <Button onClick={() => setShowForm(true)}>
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          {TEXT.create}
+        </Button>
+      </div>
     )
   }
 
   return (
-    <form onSubmit={handleCreate} className="space-y-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+    <form onSubmit={handleCreate} className={`${surface} space-y-3 p-4`}>
       <Input
         ref={inputRef}
         type="text"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder="Workspace name"
-        aria-label="Workspace name"
+        placeholder={TEXT.namePlaceholder}
+        aria-label={TEXT.nameLabel}
         disabled={creating}
         error={error ?? undefined}
       />
@@ -221,10 +244,10 @@ function InlineCreateWorkspace({
           }}
           disabled={creating}
         >
-          Cancel
+          {TEXT.cancel}
         </Button>
         <Button type="submit" size="sm" className="flex-1" disabled={creating || !name.trim()} loading={creating}>
-          {creating ? 'Creating…' : 'Create'}
+          {creating ? TEXT.creating : TEXT.createSubmit}
         </Button>
       </div>
     </form>
@@ -250,28 +273,25 @@ function EmptyWorkspaceOnboarding({
   }, [])
 
   return (
-    <Screen narrow>
-      <div className="text-center space-y-2">
-        <img src="/logo-32.png" alt="PO" className="w-14 h-14 mx-auto rounded-2xl" />
-        <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-gray-100">Welcome to Project Orchestrator</h1>
-        <p className="text-sm text-gray-400">Create your first workspace to get started.</p>
-      </div>
+    <StandaloneScreen width="xs" center>
+      <ScreenHeader kicker={<ProductMark />} title={TEXT.welcome} lead={TEXT.welcomeLead} />
+      <ConceptIntro concept={WORKSPACE_EXPLAIN} storageKey="workspaces" className="mt-3" />
 
-      <form onSubmit={handleCreate} className="space-y-3">
+      <form onSubmit={handleCreate} className="mt-8 space-y-3">
         <Input
           ref={inputRef}
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="My Workspace"
-          aria-label="Workspace name"
+          aria-label={TEXT.nameLabel}
           disabled={creating}
           error={error ?? undefined}
         />
         <Button type="submit" className="w-full" disabled={creating || !name.trim()} loading={creating}>
-          {creating ? 'Creating…' : 'Create workspace'}
+          {creating ? TEXT.creating : TEXT.createFirst}
         </Button>
       </form>
-    </Screen>
+    </StandaloneScreen>
   )
 }

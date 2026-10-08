@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAtom, useSetAtom, useAtomValue } from 'jotai'
-import { Package, Link as LinkIcon, Info, Globe, Loader2, Wifi, Check, X, AlertTriangle, Download, Play } from 'lucide-react'
+import { Package, Link as LinkIcon, Info, Globe, Loader2, Wifi, Check, X, Download, Play } from 'lucide-react'
 import { setupConfigAtom, infraValidAtom, trayNavigationAtom } from '@/atoms/setup'
 import { isTauri } from '@/services/env'
+import { Button, Switch, surface } from '@/components/ui'
+import { Field } from './Field'
+import { StatusBanner } from './StatusBanner'
 
 type DockerStatus = 'unknown' | 'not_installed' | 'installed' | 'unresponsive' | 'running' | 'check_failed'
 
@@ -16,6 +19,29 @@ type ConnectionTestMap = {
 /** Why a test failed, or how far it could check (from the desktop's `test_connection_detailed`). */
 type ConnectionDetail = { hint: string | null; verifiedBy: string | null }
 type ConnectionDetailMap = Partial<Record<keyof ConnectionTestMap, ConnectionDetail | null>>
+
+// i18n after #252 — the words of this step that are not a Docker state (those stay in DockerBanner).
+const TEXT = {
+  modeDocker: 'Docker (recommended)',
+  modeDockerDesc: 'The app starts Neo4j, Meilisearch and NATS in Docker containers for you. It needs Docker Desktop.',
+  modeExternal: 'External servers',
+  modeExternalDesc: 'Connect to Neo4j, Meilisearch and NATS servers you already run elsewhere.',
+  dockerInfoTitle: 'What Docker runs',
+  dockerInfo: 'Neo4j, Meilisearch and NATS start as containers when the app launches, and stop with it. Keep Docker Desktop running.',
+  ports: (api: number) => `Ports: Neo4j 7474 and 7687 · Meilisearch 7700 · NATS 4222 · the app ${api}`,
+  neo4j: 'Neo4j connection',
+  meilisearch: 'Meilisearch connection',
+  nats: 'NATS connection',
+  portLabel: 'App port',
+  portHint: 'The port the app’s own server listens on.',
+  serveFrontend: 'Open the web interface on this port',
+  serveFrontendHint: (port: number) =>
+    `Reach the app from any browser at http://localhost:${port}, including other devices on the same network.`,
+  publicUrl: 'Public URL (optional)',
+  publicUrlHint: 'Behind a reverse proxy (Cloudflare Tunnel, ngrok, ffs.dev…), the address people use. Needed for sign-in callbacks and CORS.',
+  local: 'Local',
+  public: 'Public',
+} as const
 
 export function InfrastructurePage() {
   const [config, setConfig] = useAtom(setupConfigAtom)
@@ -190,42 +216,35 @@ export function InfrastructurePage() {
   }, [config.infraMode, dockerStatus, dockerServicesUp, connectionTested, isTrayNavigation, setInfraValid])
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-xl font-semibold">Infrastructure</h2>
-        <p className="mt-1 text-sm text-gray-400">
-          Choose how to run the required services (Neo4j, MeiliSearch &amp; NATS).
-        </p>
-      </div>
-
+    <div className="space-y-6">
       {/* Mode selection */}
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2" role="group" aria-label="How to run the services">
         <ModeCard
           active={config.infraMode === 'docker'}
           onClick={() => update({ infraMode: 'docker' })}
-          title="Docker (recommended)"
-          description="Automatically start Neo4j, MeiliSearch, and NATS in Docker containers. Requires Docker Desktop."
-          icon={<Package className="h-6 w-6" />}
+          title={TEXT.modeDocker}
+          description={TEXT.modeDockerDesc}
+          icon={<Package className="h-5 w-5" aria-hidden="true" />}
         />
         <ModeCard
           active={config.infraMode === 'external'}
           onClick={() => update({ infraMode: 'external' })}
-          title="External servers"
-          description="Connect to existing Neo4j, MeiliSearch, and NATS instances running elsewhere."
-          icon={<LinkIcon className="h-6 w-6" />}
+          title={TEXT.modeExternal}
+          description={TEXT.modeExternalDesc}
+          icon={<LinkIcon className="h-5 w-5" aria-hidden="true" />}
         />
       </div>
 
       {/* External servers config */}
       {config.infraMode === 'external' && (
-        <div className="space-y-6 rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
-          <div>
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-gray-300">Neo4j Connection</h3>
+        <div className={`${surface} space-y-6 p-4 md:p-5`}>
+          <section>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-gray-200">{TEXT.neo4j}</h3>
               <TestConnectionButton service="neo4j" url={config.neo4jUri} tested={connectionTested.neo4j} onResult={(ok, detail) => handleConnectionTestResult('neo4j', ok, detail)} />
             </div>
             <ConnectionHint tested={connectionTested.neo4j} detail={connectionDetail.neo4j} />
-            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <Field
                 label="URI"
                 value={config.neo4jUri}
@@ -248,15 +267,15 @@ export function InfrastructurePage() {
                 className="sm:col-span-2"
               />
             </div>
-          </div>
+          </section>
 
-          <div className="border-t border-white/[0.06] pt-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-gray-300">MeiliSearch Connection</h3>
+          <section className="border-t border-white/[0.06] pt-6">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-gray-200">{TEXT.meilisearch}</h3>
               <TestConnectionButton service="meilisearch" url={config.meilisearchUrl} tested={connectionTested.meilisearch} onResult={(ok, detail) => handleConnectionTestResult('meilisearch', ok, detail)} />
             </div>
             <ConnectionHint tested={connectionTested.meilisearch} detail={connectionDetail.meilisearch} />
-            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <Field
                 label="URL"
                 value={config.meilisearchUrl}
@@ -264,7 +283,7 @@ export function InfrastructurePage() {
                 placeholder="http://localhost:7700"
               />
               <Field
-                label="API Key"
+                label="API key"
                 type="password"
                 value={config.meilisearchKey}
                 onChange={(v) => update({ meilisearchKey: v })}
@@ -272,14 +291,15 @@ export function InfrastructurePage() {
                 hint={config.hasMeilisearchKey ? 'A key is already configured — leave blank to keep it' : undefined}
               />
             </div>
-          </div>
+          </section>
 
           {/* NATS connection */}
-          <div className="border-t border-white/[0.06] pt-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-gray-300">NATS Connection</h3>
+          <section className="border-t border-white/[0.06] pt-6">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-gray-200">{TEXT.nats}</h3>
               <TestConnectionButton service="nats" url={config.natsUrl || 'nats://localhost:4222'} tested={connectionTested.nats} onResult={(ok, detail) => handleConnectionTestResult('nats', ok, detail)} />
             </div>
+            <ConnectionHint tested={connectionTested.nats} detail={connectionDetail.nats} />
             <div className="mt-3">
               <Field
                 label="URL"
@@ -288,13 +308,13 @@ export function InfrastructurePage() {
                 placeholder="nats://localhost:4222"
               />
             </div>
-          </div>
+          </section>
         </div>
       )}
 
       {/* Docker status banner + info */}
       {config.infraMode === 'docker' && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {/* Docker status banner — only in Tauri */}
           {isTauri && (
             <DockerBanner
@@ -308,90 +328,63 @@ export function InfrastructurePage() {
             />
           )}
 
-          {/* Docker info */}
-          <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-5">
-            <div className="flex gap-3">
-              <Info className="mt-0.5 h-5 w-5 shrink-0 text-indigo-400" />
-              <div className="text-sm text-gray-300">
-                <p className="font-medium text-indigo-400">Docker mode</p>
-                <p className="mt-1">
-                  Neo4j, MeiliSearch, and NATS will be started automatically as Docker containers.
-                  {' '}Make sure Docker Desktop is running on your machine.
-                </p>
-                <p className="mt-2 text-gray-500">
-                  Ports: Neo4j (7474, 7687) &middot; MeiliSearch (7700) &middot; NATS (4222)
-                  {' '}&middot; API ({config.serverPort})
-                </p>
-              </div>
+          {/* What Docker runs */}
+          <div className={`${surface} flex gap-3 p-4`}>
+            <Info className="mt-0.5 h-5 w-5 shrink-0 text-gray-500" aria-hidden="true" />
+            <div className="min-w-0 text-sm text-gray-300">
+              <p className="font-medium text-gray-200">{TEXT.dockerInfoTitle}</p>
+              <p className="mt-1 text-gray-400">{TEXT.dockerInfo}</p>
+              <p className="mt-2 break-words text-xs leading-4 text-gray-500 tabular-nums">{TEXT.ports(config.serverPort)}</p>
             </div>
           </div>
         </div>
       )}
 
       {/* Server port */}
-      <div>
-        <Field
-          label="API Server Port"
-          type="number"
-          value={String(config.serverPort)}
-          onChange={(v) => update({ serverPort: parseInt(v) || 6600 })}
-          placeholder="6600"
-          className="max-w-[200px]"
-        />
-        <p className="mt-1.5 text-xs text-gray-500">
-          Port for the backend API server.
-        </p>
-      </div>
+      <Field
+        label={TEXT.portLabel}
+        type="number"
+        value={String(config.serverPort)}
+        onChange={(v) => update({ serverPort: parseInt(v) || 6600 })}
+        placeholder="6600"
+        hint={TEXT.portHint}
+        className="max-w-xs"
+      />
 
       {/* Serve frontend on API port */}
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
-        <label className="flex cursor-pointer items-start gap-3">
-          <input
-            type="checkbox"
-            checked={config.serveFrontend}
-            onChange={(e) => update({ serveFrontend: e.target.checked })}
-            className="mt-0.5 h-4 w-4 rounded border-white/20 bg-white/[0.04] text-indigo-600 focus:ring-indigo-500/30 focus:ring-offset-0 accent-indigo-600"
-          />
-          <div>
-            <span className="text-sm font-medium text-gray-300">
-              Serve frontend on API port
+      <div className={`${surface} p-4`}>
+        <Switch
+          checked={config.serveFrontend}
+          onChange={(checked) => update({ serveFrontend: checked })}
+          label={
+            <span className="block min-w-0 text-sm">
+              <span className="block font-medium text-gray-200">{TEXT.serveFrontend}</span>
+              <span className="mt-0.5 block break-words text-xs leading-4 text-gray-500">{TEXT.serveFrontendHint(config.serverPort)}</span>
             </span>
-            <p className="mt-1 text-xs text-gray-500">
-              Enable to access the web UI at{' '}
-              <code className="rounded bg-white/[0.06] px-1 py-0.5 text-gray-400">
-                http://localhost:{config.serverPort}
-              </code>{' '}
-              from any browser. Useful for accessing the app from other devices on the same
-              network.
-            </p>
-          </div>
-        </label>
+          }
+        />
       </div>
 
       {/* Public URL (optional) — only when serving frontend */}
       {config.serveFrontend && (
         <div>
           <Field
-            label="Public URL (optional)"
+            label={TEXT.publicUrl}
             value={config.publicUrl}
             onChange={(v) => update({ publicUrl: v })}
             placeholder="https://myapp.example.com"
-            hint="If you use a reverse proxy (e.g. Cloudflare Tunnel, ngrok, ffs.dev), enter the public URL here. Used for OAuth callbacks and CORS."
+            hint={TEXT.publicUrlHint}
           />
           {config.publicUrl.trim() && (
-            <div className="mt-3 flex items-center gap-2 rounded-lg border border-indigo-500/20 bg-indigo-500/[0.06] px-4 py-2.5">
-              <Globe className="h-4 w-4 shrink-0 text-indigo-400" />
-              <span className="text-xs text-indigo-300">
-                Local:{' '}
-                <code className="rounded bg-white/[0.06] px-1 py-0.5 text-gray-400">
-                  http://localhost:{config.serverPort}
-                </code>
-                {' '}&middot; Public:{' '}
-                <code className="rounded bg-white/[0.06] px-1 py-0.5 text-gray-400">
-                  {config.publicUrl.trim().replace(/\/+$/, '')}
-                </code>
+            <p className="mt-3 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-4 text-gray-400">
+              <Globe className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
+              <span>
+                {TEXT.local}: <code className="break-all text-gray-300">http://localhost:{config.serverPort}</code>
               </span>
-            </div>
+              <span>
+                {TEXT.public}: <code className="break-all text-gray-300">{config.publicUrl.trim().replace(/\/+$/, '')}</code>
+              </span>
+            </p>
           )}
         </div>
       )}
@@ -403,6 +396,7 @@ export function InfrastructurePage() {
 // Reusable sub-components
 // ============================================================================
 
+/** One of two exclusive choices: an opaque surface (glass is for buttons, not content), `aria-pressed` says which one is on. */
 function ModeCard({
   active,
   onClick,
@@ -418,59 +412,27 @@ function ModeCard({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`flex flex-col items-start gap-3 rounded-xl border p-5 text-left transition ${
+      aria-pressed={active}
+      className={`flex min-w-0 items-start gap-3 rounded-xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60 ${
         active
           ? 'border-indigo-500/50 bg-indigo-500/10'
           : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]'
       }`}
     >
-      <div
-        className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-          active ? 'bg-indigo-600 text-white' : 'bg-white/[0.06] text-gray-400'
+      <span
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+          active ? 'bg-indigo-500/20 text-indigo-300' : 'bg-white/[0.06] text-gray-400'
         }`}
       >
-        {icon}
-      </div>
-      <div>
-        <div className={`text-sm font-medium ${active ? 'text-white' : 'text-gray-300'}`}>
-          {title}
-        </div>
-        <div className="mt-1 text-xs text-gray-500">{description}</div>
-      </div>
+        {active ? <Check className="h-5 w-5" aria-hidden="true" /> : icon}
+      </span>
+      <span className="min-w-0">
+        <span className={`block text-sm font-medium ${active ? 'text-gray-50' : 'text-gray-200'}`}>{title}</span>
+        <span className="mt-1 block text-xs leading-4 text-gray-500">{description}</span>
+      </span>
     </button>
-  )
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-  type = 'text',
-  className,
-  hint,
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  placeholder?: string
-  type?: string
-  className?: string
-  hint?: string
-}) {
-  return (
-    <div className={className}>
-      <label className="mb-1.5 block text-xs font-medium text-gray-400">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-sm text-white placeholder-gray-600 transition focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
-      />
-      {hint && <p className="mt-1 text-xs text-gray-600">{hint}</p>}
-    </div>
   )
 }
 
@@ -478,6 +440,11 @@ function Field({
 // Docker status banner
 // ============================================================================
 
+/**
+ * What the Docker check found, in words (#246 frozen daemon, #248 API not answering while the
+ * services do, #237 a check that failed, #230 install vs. open). The titles are the contract the
+ * tests read; the bodies say why and what to do next, the way the site does.
+ */
 function DockerBanner({
   status,
   servicesUp,
@@ -498,134 +465,103 @@ function DockerBanner({
 }) {
   if (checking || status === 'unknown') {
     return (
-      <div className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
-        <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
-        <span className="text-sm text-gray-400">Detecting Docker Desktop...</span>
-      </div>
+      <StatusBanner
+        tone="neutral"
+        title="Detecting Docker Desktop..."
+        role="status"
+        icon={<Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-gray-400" aria-hidden="true" />}
+      />
     )
   }
 
   if (status === 'check_failed') {
     return (
-      <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.08] p-4">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-amber-400">Could not check Docker</p>
-            <p className="mt-1 text-xs text-gray-400">
-              Docker may well be installed: the check itself failed, so nothing is known about it.
-              It is retried automatically.
-            </p>
-            {error && <p className="mt-2 break-words font-mono text-xs text-gray-500">{error}</p>}
-            <button
-              onClick={onRetry}
-              className="mt-3 flex items-center gap-2 rounded-lg bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-300 transition hover:bg-amber-500/30"
-            >
-              Check again
-            </button>
-          </div>
-        </div>
-      </div>
+      <StatusBanner
+        tone="warning"
+        title="Could not check Docker"
+        role="alert"
+        action={
+          <Button variant="secondary" size="sm" onClick={onRetry}>
+            Check again
+          </Button>
+        }
+      >
+        <p>Docker may well be installed: the check itself failed, so nothing is known about it. The app retries by itself.</p>
+        {error && <p className="break-words font-mono text-xs leading-4 text-gray-500">{error}</p>}
+      </StatusBanner>
     )
   }
 
   if (status === 'not_installed') {
     return (
-      <div className="rounded-xl border border-red-500/30 bg-red-500/[0.08] p-4">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-400" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-red-400">Docker Desktop is required</p>
-            <p className="mt-1 text-xs text-gray-400">
-              Docker Desktop must be installed to run the required services.
-              Install it, then come back — it will be detected automatically.
-            </p>
-            <button
-              onClick={onInstall}
-              className="mt-3 flex items-center gap-2 rounded-lg bg-red-500/20 px-4 py-2 text-sm font-medium text-red-300 transition hover:bg-red-500/30"
-            >
-              <Download className="h-4 w-4" />
-              Install Docker Desktop
-            </button>
-          </div>
-        </div>
-      </div>
+      <StatusBanner
+        tone="danger"
+        title="Docker Desktop is required"
+        role="alert"
+        action={
+          <Button variant="secondary" size="sm" onClick={onInstall}>
+            <Download className="h-4 w-4" aria-hidden="true" />
+            Install Docker Desktop
+          </Button>
+        }
+      >
+        <p>The database and the search engine run in Docker. Install Docker Desktop, then come back: the app detects it by itself.</p>
+      </StatusBanner>
     )
   }
 
   if (status === 'unresponsive' && servicesUp) {
     return (
-      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.08] p-4">
-        <div className="flex items-start gap-3">
-          <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-emerald-400">Docker Desktop is running your services</p>
-            <p className="mt-1 text-xs text-gray-400">
-              Neo4j, Meilisearch and NATS answer, but Docker Desktop&apos;s control API does not. You
-              can continue. Do not restart Docker Desktop for this: it would stop them.
-            </p>
-          </div>
-        </div>
-      </div>
+      <StatusBanner tone="success" title="Docker Desktop is running your services" role="status">
+        <p>
+          Neo4j, Meilisearch and NATS answer, but Docker Desktop&apos;s control API does not. You can continue. Do not restart
+          Docker Desktop for this: it would stop them.
+        </p>
+      </StatusBanner>
     )
   }
 
   if (status === 'unresponsive') {
     return (
-      <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.08] p-4">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-amber-400">Docker Desktop is not responding</p>
-            <p className="mt-1 text-xs text-gray-400">
-              Docker Desktop is open and holds its socket, but does not answer. If it has just
-              started, wait a moment. Otherwise quit it (Cmd+Q, or Force Quit) and open it again —
-              it will be detected automatically.
-            </p>
-            <button
-              onClick={onOpen}
-              className="mt-3 flex items-center gap-2 rounded-lg bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-300 transition hover:bg-amber-500/30"
-            >
-              <Play className="h-4 w-4" />
-              Open Docker Desktop
-            </button>
-          </div>
-        </div>
-      </div>
+      <StatusBanner
+        tone="warning"
+        title="Docker Desktop is not responding"
+        role="alert"
+        action={
+          <Button variant="secondary" size="sm" onClick={onOpen}>
+            <Play className="h-4 w-4" aria-hidden="true" />
+            Open Docker Desktop
+          </Button>
+        }
+      >
+        <p>
+          Docker Desktop is open and holds its socket, but does not answer. If it has just started, wait a moment. Otherwise quit it
+          (Cmd+Q, or Force Quit) and open it again: the app detects it by itself.
+        </p>
+      </StatusBanner>
     )
   }
 
   if (status === 'installed') {
     return (
-      <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.08] p-4">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-amber-400">Docker Desktop is not running</p>
-            <p className="mt-1 text-xs text-gray-400">
-              Docker Desktop is installed but not started. Start it to continue —
-              it will be detected automatically.
-            </p>
-            <button
-              onClick={onOpen}
-              className="mt-3 flex items-center gap-2 rounded-lg bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-300 transition hover:bg-amber-500/30"
-            >
-              <Play className="h-4 w-4" />
-              Open Docker Desktop
-            </button>
-          </div>
-        </div>
-      </div>
+      <StatusBanner
+        tone="warning"
+        title="Docker Desktop is not running"
+        role="alert"
+        action={
+          <Button variant="secondary" size="sm" onClick={onOpen}>
+            <Play className="h-4 w-4" aria-hidden="true" />
+            Open Docker Desktop
+          </Button>
+        }
+      >
+        <p>Docker Desktop is installed but not started. Start it to continue: the app detects it by itself.</p>
+      </StatusBanner>
     )
   }
 
   // running
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.08] p-4">
-      <Check className="h-5 w-5 text-emerald-400" />
-      <span className="text-sm font-medium text-emerald-400">Docker Desktop is running</span>
-    </div>
-  )
+  return <StatusBanner tone="success" title="Docker Desktop is running" role="status" />
 }
 
 // ============================================================================
@@ -682,39 +618,41 @@ function TestConnectionButton({
 
   return (
     <div className="flex items-center gap-2">
-      {/* Persistent badge */}
+      {/* Persistent badge: a glyph and a word, never the colour alone */}
       {tested === true && (
         <span className="flex items-center gap-1 text-xs font-medium text-emerald-400">
-          <Check className="h-3.5 w-3.5" />
+          <Check className="h-3.5 w-3.5" aria-hidden="true" />
           Connected
         </span>
       )}
       {tested === false && (
         <span className="flex items-center gap-1 text-xs font-medium text-red-400">
-          <X className="h-3.5 w-3.5" />
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
           Failed
         </span>
       )}
-      {/* Test button */}
-      <button
+      {/* Test button: flat — three of them sit in the same card */}
+      <Button
         type="button"
+        variant="secondary"
+        size="sm"
+        flat
         onClick={handleTest}
         disabled={testing}
-        className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition hover:bg-white/[0.06] disabled:opacity-50"
         title={`Test ${service} connection`}
       >
         {testing ? (
           <>
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />
-            <span className="text-gray-400">Testing...</span>
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+            Testing...
           </>
         ) : (
           <>
-            <Wifi className="h-3.5 w-3.5 text-gray-500" />
-            <span className="text-gray-500">{tested !== null ? 'Re-test' : 'Test'}</span>
+            <Wifi className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
+            {tested !== null ? 'Re-test' : 'Test'}
           </>
         )}
-      </button>
+      </Button>
     </div>
   )
 }
@@ -725,7 +663,7 @@ function ConnectionHint({ tested, detail }: { tested: boolean | null; detail?: C
   if (!isTauri || !detail) return null
   if (tested === false && detail.hint) {
     return (
-      <p role="alert" className="mt-2 text-xs leading-relaxed text-red-300">
+      <p role="alert" className="mt-2 break-words text-xs leading-relaxed text-red-300">
         {detail.hint}
       </p>
     )
