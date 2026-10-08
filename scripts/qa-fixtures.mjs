@@ -58,6 +58,8 @@ const COMMON = [
   ['GET', /^\/api\/workspaces$/, page(workspaces)],
   ['GET', /^\/api\/workspaces\/([^/]+)$/, (m) => workspaces.find((w) => w.slug === m[1]) ?? workspaces[0]],
   ['GET', /^\/api\/workspaces\/[^/]+\/projects$/, projects],
+  ['GET', /^\/api\/workspaces\/([^/]+)\/overview$/, (m) => ({ workspace: workspaces.find((w) => w.slug === m[1]) ?? workspaces[0], projects, milestones: [], resources: [], components: [] })],
+  ['GET', /^\/api\/projects\/[^/]+\/embeddings\/projection$/, { points: [], synapses: [], skills: [], dimensions: 0, projection_dimensions: 2, method: 'umap' }],
   ['GET', /^\/api\/workspaces\/[^/]+\/milestones$/, page([])],
   ['GET', /^\/api\/projects$/, page(projects)],
   ['GET', /^\/api\/projects\/[^/]+\/milestones$/, page([])],
@@ -142,7 +144,7 @@ export function respond(scenario, method, rawUrl) {
   return { status: 200, body: method === 'GET' ? page([]) : {}, matched: false }
 }
 
-/** The eight screens of the bench: slug, label, route, fixture scenario. */
+/** The screens of the bench: slug, label, route, fixture scenario. */
 export const SCREENS = [
   { slug: 'today', label: 'Today', route: '/today', scenario: 'app' },
   { slug: 'plans', label: 'Plans', route: `/workspace/${WS}/plans`, scenario: 'app' },
@@ -150,6 +152,8 @@ export const SCREENS = [
   { slug: 'tasks', label: 'Tasks', route: `/workspace/${WS}/tasks`, scenario: 'app' },
   { slug: 'notes', label: 'Notes', route: `/workspace/${WS}/notes`, scenario: 'app' },
   { slug: 'chat-empty', label: 'Chat (empty session)', route: `/workspace/${WS}/chat/${SESSION_ID}`, scenario: 'app' },
+  { slug: 'overview', label: 'Workspace overview (timeline)', route: `/workspace/${WS}/overview`, scenario: 'app' },
+  { slug: 'vector-space', label: 'Vector space', route: `/workspace/${WS}/projects/billing/intelligence/vector-space`, scenario: 'app' },
   { slug: 'setup-1', label: 'Setup — step 1', route: '/setup', scenario: 'setup' },
   { slug: 'login', label: 'Login', route: '/login', scenario: 'login' },
 ]

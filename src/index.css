@@ -537,42 +537,6 @@ html.tauri * {
   box-shadow: 0 0 0 3px rgba(var(--glow-primary), 0.15), 0 0 8px rgba(var(--glow-primary), 0.1);
 }
 
-/* Card hover — lift + border glow + shimmer + smooth transition */
-.card-hover {
-  position: relative;
-  transition: transform var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
-}
-.card-hover::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.03) 45%, rgba(255, 255, 255, 0.05) 50%, rgba(255, 255, 255, 0.03) 55%, transparent 60%);
-  opacity: 0;
-  transform: translateX(-100%);
-  transition: opacity var(--duration-fast) var(--ease-standard);
-  pointer-events: none;
-}
-.card-hover:hover {
-  border-color: rgba(var(--glow-primary), 0.2);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(var(--glow-primary), 0.15);
-}
-/* The lift and the shimmer TRANSFORM: fine pointer only. A finger has no hover —
-   on touch the "hover" state sticks after the tap and the card stays lifted. */
-@media (hover: hover) and (pointer: fine) {
-  .card-hover:hover {
-    transform: translateY(-2px);
-  }
-  .card-hover:hover::after {
-    opacity: 1;
-    animation: card-shimmer 1.5s var(--ease-standard) forwards;
-  }
-}
-
-@keyframes card-shimmer {
-  to { transform: translateX(100%); }
-}
-
 /* Kanban card hover — no translateY (conflicts with @dnd-kit drag) */
 .card-interactive {
   transition: box-shadow var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
@@ -580,28 +544,6 @@ html.tauri * {
 .card-interactive:hover {
   border-color: rgba(var(--glow-primary), 0.2);
   box-shadow: 0 0 0 1px rgba(var(--glow-primary), 0.12), var(--shadow-md);
-}
-
-/* Card focus-visible — same visual as hover for keyboard nav */
-.card-hover:focus-visible {
-  outline: none;
-  transform: translateY(-2px);
-  border-color: rgba(var(--glow-primary), 0.2);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(var(--glow-primary), 0.15);
-}
-
-/* ─── Scroll-driven reveal — progressive enhancement (Chrome 115+) ─── */
-@supports (animation-timeline: view()) {
-  .scroll-reveal {
-    animation: scroll-reveal-in linear both;
-    animation-timeline: view();
-    animation-range: entry 0% cover 15%;
-  }
-}
-
-@keyframes scroll-reveal-in {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 /* ─── Container queries — responsive cards based on container, not viewport ─── */
@@ -619,12 +561,8 @@ html.tauri * {
 
 /* prefers-reduced-motion — disable transforms, shimmer, press, keep color changes */
 @media (prefers-reduced-motion: reduce) {
-  .card-hover:hover,
-  .card-hover:focus-visible { transform: none; }
-  .card-hover:hover::after { animation: none; opacity: 0; }
   button:active { transform: none !important; }
   .input-focus-glow:focus { transition: none; }
-  .scroll-reveal { animation: none !important; }
 }
 
 /* Chat markdown — code blocks */

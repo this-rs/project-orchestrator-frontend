@@ -26,7 +26,7 @@ import {
   Grid2x2,
   X,
 } from 'lucide-react'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
+import { Surface } from '@/components/ui/Surface'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { notesApi } from '@/services/notes'
 import { decisionsApi } from '@/services/decisions'
@@ -1113,25 +1113,25 @@ export default function WorkspaceLearningTimeline({ embedded, workspaceSlug }: W
       {/* ── Sparklines ── */}
       {sparklines && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Card><CardContent className="py-3 px-3">
+          <Surface padding="none" className="overflow-hidden"><div className="p-4 py-3 px-3">
             <Sparkline data={sparklines.notes.data} color="#3B82F6" label="Total Notes" currentValue={sparklines.notes.value} />
-          </CardContent></Card>
-          <Card><CardContent className="py-3 px-3">
+          </div></Surface>
+          <Surface padding="none" className="overflow-hidden"><div className="p-4 py-3 px-3">
             <Sparkline data={sparklines.decisions.data} color="#8B5CF6" label="Decisions" currentValue={sparklines.decisions.value} />
-          </CardContent></Card>
-          <Card><CardContent className="py-3 px-3">
+          </div></Surface>
+          <Surface padding="none" className="overflow-hidden"><div className="p-4 py-3 px-3">
             <Sparkline data={sparklines.skills.data} color="#EC4899" label="Skills" currentValue={sparklines.skills.value} />
-          </CardContent></Card>
-          <Card><CardContent className="py-3 px-3">
+          </div></Surface>
+          <Surface padding="none" className="overflow-hidden"><div className="p-4 py-3 px-3">
             <Sparkline data={sparklines.velocity.data} color="#22d3ee" label="Learning Velocity" currentValue={sparklines.velocity.value} />
-          </CardContent></Card>
+          </div></Surface>
         </div>
       )}
 
       {/* ── Timeline Track ── */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm">
+      <Surface padding="none" className="overflow-hidden">
+        <div className="px-4 py-3 border-b border-border-subtle pb-2">
+          <h3 className="font-semibold text-gray-100 flex items-center gap-2 text-sm" style={{ fontSize: 'var(--fluid-lg)' }}>
             <Activity size={16} className="text-cyan-400" />
             Event Timeline
             <span className="text-[10px] text-slate-600 font-normal ml-auto">
@@ -1139,9 +1139,9 @@ export default function WorkspaceLearningTimeline({ embedded, workspaceSlug }: W
                 ? `${playbackVisibleCount} / ${filteredEvents.length} events`
                 : `${filteredEvents.length} events`}
             </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+          </h3>
+        </div>
+        <div className="p-4">
           {events.length === 0 ? (
             <div className="text-center py-8 text-slate-600 text-sm">
               No events found. Create notes, decisions, or skills in your projects.
@@ -1285,14 +1285,14 @@ export default function WorkspaceLearningTimeline({ embedded, workspaceSlug }: W
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </Surface>
 
       {/* ── Activity Heatmap (multi-project) ── */}
       {filteredEvents.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm">
+        <Surface padding="none" className="overflow-hidden">
+          <div className="px-4 py-3 border-b border-border-subtle pb-2">
+            <h3 className="font-semibold text-gray-100 flex items-center gap-2 text-sm" style={{ fontSize: 'var(--fluid-lg)' }}>
               <TrendingUp size={16} className="text-emerald-400" />
               Activity Heatmap
               <span className="text-[10px] text-slate-600 font-normal ml-1">
@@ -1310,9 +1310,9 @@ export default function WorkspaceLearningTimeline({ embedded, workspaceSlug }: W
                   title="3D Scene"
                 ><Box size={14} /></button>
               </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </h3>
+          </div>
+          <div className="p-4">
             {heatmapMode === '2d' ? (
               <WorkspaceActivityHeatmap
                 events={filteredEvents}
@@ -1328,8 +1328,8 @@ export default function WorkspaceLearningTimeline({ embedded, workspaceSlug }: W
                 <ActivityHeatmap3D events={filteredEvents} projectColorMap={projectColorMap} />
               </Suspense>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </Surface>
       )}
     </div>
   )
