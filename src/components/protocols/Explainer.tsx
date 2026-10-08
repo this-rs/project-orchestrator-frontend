@@ -1,16 +1,21 @@
 import type { ReactNode } from 'react'
-import { Info } from 'lucide-react'
+import { focusRing } from '@/components/ui'
 
 /**
- * One or two muted lines explaining an abstract concept (FSM, run, wave,
- * trigger…) in plain language, right where it is used. Always visible — no
- * tooltip — and deliberately quiet so it never competes with the data.
+ * « Under the hood » — the technical reading of a screen (FSM, waves, triggers,
+ * Louvain…), folded under the plain-language intro (`ConceptIntro`, DESIGN.md § 5).
+ * A `<details>` closed by default: the first level of a page speaks the site's
+ * words, the terms live one click away. No icon, no badge — same voice as the intro.
  */
-export function Explainer({ children, className = '' }: { children: ReactNode; className?: string }) {
+export function Explainer({ children, className = '', summary = 'Under the hood' }: { children: ReactNode; className?: string; summary?: string }) {
   return (
-    <p className={`flex items-start gap-1.5 text-xs leading-5 text-gray-500 ${className}`}>
-      <Info className="w-3.5 h-3.5 mt-[3px] shrink-0 text-gray-600" aria-hidden="true" />
-      <span className="min-w-0">{children}</span>
-    </p>
+    <details className={`group/hood text-sm ${className}`}>
+      <summary
+        className={`inline-flex min-h-9 cursor-pointer list-none items-center rounded text-gray-500 underline-offset-4 hover:text-gray-300 hover:underline group-open/hood:text-gray-300 [&::-webkit-details-marker]:hidden ${focusRing}`}
+      >
+        {summary}
+      </summary>
+      <p className="mt-1 max-w-[var(--measure-md)] text-xs leading-5 text-gray-400">{children}</p>
+    </details>
   )
 }

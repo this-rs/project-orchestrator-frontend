@@ -1,7 +1,7 @@
 export { TrustBadge, TrustScoreBar } from './TrustBadge'
 export { SkillBrowser } from './SkillBrowser'
 export { ImportWizard } from './ImportWizard'
-export { ConceptNote, MetricList, TagChips } from './concepts'
+export { MetricList, TagChips } from './concepts'
 export type { MetricItem } from './concepts'
 export {
   tagSummary,

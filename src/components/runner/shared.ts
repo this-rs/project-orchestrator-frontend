@@ -94,31 +94,6 @@ export function planRunTriggerLabel(triggered_by: PlanRun['triggered_by']): stri
 }
 
 // ---------------------------------------------------------------------------
-// Agent status config (legacy, still used by InlineConversation)
-// ---------------------------------------------------------------------------
-
-type AgentStatus = ActiveAgentSnapshot['status']
-
-export const agentStatusConfig: Record<AgentStatus, { label: string; bg: string; text: string; dot: string }> = {
-  spawning:   { label: 'Spawning',   bg: 'bg-yellow-500/15', text: 'text-yellow-400', dot: 'bg-yellow-400' },
-  running:    { label: 'Running',    bg: 'bg-blue-500/15',   text: 'text-blue-400',   dot: 'bg-blue-400' },
-  verifying:  { label: 'Verifying',  bg: 'bg-purple-500/15', text: 'text-purple-400', dot: 'bg-purple-400' },
-  completed:  { label: 'Completed',  bg: 'bg-green-500/15',  text: 'text-green-400',  dot: 'bg-green-400' },
-  failed:     { label: 'Failed',     bg: 'bg-red-500/15',    text: 'text-red-400',    dot: 'bg-red-400' },
-  interrupted: { label: 'Interrupted', bg: 'bg-orange-500/15', text: 'text-orange-400', dot: 'bg-orange-400' },
-}
-
-/** Maps agent status to Badge variant for the UI Badge component. */
-export const agentStatusBadgeVariant: Record<AgentStatus, 'default' | 'success' | 'warning' | 'error' | 'info' | 'purple'> = {
-  spawning:  'warning',
-  running:   'info',
-  verifying: 'purple',
-  completed: 'success',
-  failed:    'error',
-  interrupted: 'warning',
-}
-
-// ---------------------------------------------------------------------------
 // Wave status
 // ---------------------------------------------------------------------------
 

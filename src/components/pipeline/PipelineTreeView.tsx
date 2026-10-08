@@ -70,7 +70,7 @@ export function PipelineTreeView({
 
       {/* Expand/Collapse toggle */}
       <div className="flex items-center justify-between px-1">
-        <span className="text-xs text-gray-500 uppercase tracking-wider">Execution Tree</span>
+        <span className="text-xs text-gray-500">Execution Tree</span>
         <button
           onClick={toggleAll}
           className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition-colors"

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Badge, Button } from '@/components/ui'
+import { Button, ToneText, type StatusTone } from '@/components/ui'
 import { useProviders } from '@/hooks/useProviders'
 import { providersApi } from '@/services/providers'
 import { originOf } from '@/constants/providerSettings'
@@ -22,9 +22,10 @@ function instanceOrigin(instance: ProviderInstance): string | null {
 
 type ConsentState = keyof typeof CONSENT_STATE_FR
 
-const BADGE: Readonly<Record<ConsentState, 'success' | 'default' | 'warning'>> = {
+/** Consent is a state: dot + word in its tone (DESIGN.md § 4), never a filled pill. */
+const TONE: Readonly<Record<ConsentState, StatusTone>> = {
   allowed: 'success',
-  denied: 'default',
+  denied: 'muted',
   invalidated: 'warning',
 }
 
@@ -142,7 +143,7 @@ export function ProjectConsent({ onAddProvider }: { onAddProvider?: () => void }
                 </div>
                 <div className="flex w-full items-center justify-between gap-3 sm:w-auto">
                   <div className="flex sm:w-40 sm:justify-end">
-                    <Badge variant={BADGE[state]}>{CONSENT_STATE_FR[state]}</Badge>
+                    <ToneText tone={TONE[state]} icon label={CONSENT_STATE_FR[state]} className="text-xs" />
                   </div>
                   <div className="flex justify-end sm:w-44">
                     {state === 'allowed' ? (

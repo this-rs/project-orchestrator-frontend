@@ -281,8 +281,9 @@ export function RunnerDashboard() {
         {activeTab === 'waves' ? (
           <>
             <Explainer>
-              A run executes the plan wave by wave: the tasks of a wave run in parallel, each one by its own agent.
-              Open an agent's conversation to follow it live; retry a failed task from its row.
+              A run executes the plan wave by wave: the tasks of a wave run at the same time, each one by its own
+              assistant, and the next wave starts once the previous one is checked. Open an assistant's conversation to
+              follow it live; retry a failed task from its row.
             </Explainer>
             {wavesLoading && orderedWaves.length === 0 ? (
               <EntityListSkeleton rows={4} />
@@ -305,11 +306,11 @@ export function RunnerDashboard() {
               </div>
             ) : (
               <EmptyState
-                title={effectiveSnapshot.running ? 'Waiting for agents to start…' : 'No agents were spawned'}
+                title={effectiveSnapshot.running ? 'Waiting for the assistants to start…' : 'No assistant ran'}
                 description={
                   effectiveSnapshot.running
-                    ? 'The first wave is being prepared. Agents appear here as soon as they start.'
-                    : 'This run has no agent executions. Retry the run to start it again.'
+                    ? 'The first wave is being prepared. Assistants appear here as soon as they start.'
+                    : 'Nothing was executed in this run. Retry the run to start it again.'
                 }
               />
             )}

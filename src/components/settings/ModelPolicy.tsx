@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, X } from 'lucide-react'
-import { Badge, Button, Input } from '@/components/ui'
+import { Button, Input, ToneText } from '@/components/ui'
 import { useProviders } from '@/hooks/useProviders'
 import { providersApi } from '@/services/providers'
 import { hasUsdPrice } from '@/constants/providerSettings'
@@ -275,7 +275,7 @@ function AliasTable({
                   <div className="flex items-center justify-end gap-2">
                     {unhealthy && (
                       <span data-testid={`alias-unhealthy-${row.alias}`}>
-                        <Badge variant="warning">Injoignable</Badge>
+                        <ToneText tone="warning" icon label="Injoignable" className="text-xs" />
                       </span>
                     )}
                     {!fixed && (

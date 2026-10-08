@@ -89,7 +89,7 @@ export function PipelineNodeRow({ node, depth = 0, defaultExpanded = true }: Pip
         <span className="w-4 h-4 flex-shrink-0">
           {hasChildren ? (
             <ChevronRight
-              className={`w-4 h-4 text-gray-500 transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
+              className={`w-4 h-4 text-gray-500 transition-transform duration-(--duration-fast) ${expanded ? 'rotate-90' : ''}`}
             />
           ) : (
             <span className="w-4" />

@@ -13,11 +13,13 @@ import { INSTANCE_MISSING_COMPOSER_TEXT, NO_PROVIDER_COMPOSER_TEXT, NO_PROVIDER_
 import { RESUME_UNSUPPORTED_TEXT } from '@/constants/capabilities'
 import type { BackgroundTaskInfo } from '@/types'
 import { chatApi } from '@/services/chat'
-import { Plus, X, Menu, Settings, Minimize2, Maximize2, Loader2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check, Link2 } from 'lucide-react'
+import { Plus, X, Menu, Settings, Minimize2, Maximize2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check, Link2 } from 'lucide-react'
 import { ChatMessages } from './ChatMessages'
 import { ChatCapabilitiesProvider, ChatSessionProvider } from './ChatSessionContext'
 import { ProviderStateCard } from './ProviderStateCard'
 import { ChatHeaderTitle } from './ChatHeaderTitle'
+import { Button, StatusDot } from '@/components/ui'
+import { glassButton, glassFlat, iconButton } from '@/components/ui/classes'
 import { PolicyOnlyBanner } from './PolicyOnlyBanner'
 import { RemoteNoToolsBanner } from './RemoteNoToolsBanner'
 import { EngineBanner } from './EngineBanner'
@@ -50,17 +52,17 @@ const NOOP = () => {}
 /** A provider without background tasks tracks none: nothing to list. */
 const NO_BACKGROUND_TASKS: BackgroundTaskInfo[] = []
 
-/** Small dot indicator for WebSocket status */
+/** The live-connection state of the conversation: a `StatusDot` with its label (DESIGN.md § 4). */
 function WsStatusDot({ status }: { status: string }) {
-  if (status === 'connected') {
-    return <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" title="Connected" />
-  }
-  if (status === 'reconnecting' || status === 'connecting') {
-    return <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" title="Reconnecting..." />
-  }
-  // disconnected or unknown — only show when there's a session
-  return <span className="w-1.5 h-1.5 rounded-full bg-gray-500 shrink-0" title="Disconnected" />
+  if (status === 'connected') return <StatusDot tone="success" label="Connected" />
+  if (status === 'reconnecting' || status === 'connecting') return <StatusDot tone="warning" pulse label="Reconnecting…" />
+  // disconnected or unknown — only shown when there is a session
+  return <StatusDot tone="muted" label="Disconnected" />
 }
+
+/** Ghost glass icon button of the chat chrome (36 px on phones, 32 px on desktop), flat: a bar holds several. */
+const chromeIcon = (active = false) => `${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} ${active ? 'text-indigo-300 bg-white/[0.08]' : 'text-gray-400'}`
+const chromeIconDisabled = `${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} text-gray-600`
 
 export function ChatPanel() {
   const [mode, setMode] = useAtom(chatPanelModeAtom)
@@ -420,7 +422,7 @@ export function ChatPanel() {
       <ChatCapabilitiesProvider capabilities={capabilities}>
       <div
         ref={panelRef}
-        className={`fixed inset-0 z-30 bg-surface-raised flex ${isDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        className={`fixed inset-0 z-30 bg-surface-raised flex ${isDragging ? '' : 'transition-transform duration-(--duration-stage) ease-(--ease-standard)'} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
         style={keyboardStyle}
       >
         {/* Left sidebar — hidden on mobile, permanent on desktop */}
@@ -430,12 +432,14 @@ export function ChatPanel() {
           <div className={`flex items-center justify-between px-4 shrink-0 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
             <span className="text-sm font-medium text-gray-300">Conversations</span>
             <button
+              type="button"
               onClick={handleNewSession}
               disabled={isNewConversation}
-              className={`p-1.5 rounded-md transition-colors ${isNewConversation ? 'text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
+              className={isNewConversation ? chromeIconDisabled : chromeIcon()}
               title="New conversation"
+              aria-label="New conversation"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
 
@@ -454,26 +458,24 @@ export function ChatPanel() {
             <div className={`flex items-center justify-between px-4 shrink-0 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
               <span className="text-sm font-medium text-gray-300">Conversations</span>
               <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setShowMobileSidebar(false)}
-                  className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
-                  title="Back to chat"
-                >
-                  <X className="w-4 h-4" />
+                <button type="button" onClick={() => setShowMobileSidebar(false)} className={chromeIcon()} title="Back to chat" aria-label="Back to chat">
+                  <X className="w-4 h-4" aria-hidden="true" />
                 </button>
               </div>
             </div>
 
             {/* New conversation button */}
             <div className="px-3 py-2 border-b border-white/[0.06]">
-              <button
+              <Button
+                size="sm"
+                variant="secondary"
                 onClick={() => { handleNewSession(); setShowMobileSidebar(false) }}
                 disabled={isNewConversation}
-                className={`w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isNewConversation ? 'bg-indigo-500/5 text-indigo-400/40 cursor-not-allowed' : 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400'}`}
+                className="w-full gap-2"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4" aria-hidden="true" />
                 New conversation
-              </button>
+              </Button>
             </div>
 
             <SessionList
@@ -492,11 +494,14 @@ export function ChatPanel() {
             <div className="min-w-0 flex flex-1 items-center gap-2">
               {/* Mobile: hamburger to toggle sidebar */}
               <button
+                type="button"
                 onClick={() => { if (isMobile) setShowMobileSidebar(true) }}
-                className={`shrink-0 p-1.5 rounded-md transition-colors md:hidden ${showMobileSidebar ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
+                className={`shrink-0 md:hidden ${chromeIcon(showMobileSidebar)}`}
                 title="Sessions"
+                aria-label="Sessions"
+                aria-expanded={showMobileSidebar}
               >
-                <Menu className="w-4 h-4" />
+                <Menu className="w-4 h-4" aria-hidden="true" />
               </button>
               {!isNewConversation && <WsStatusDot status={chat.wsStatus} />}
               <ChatHeaderTitle
@@ -518,12 +523,14 @@ export function ChatPanel() {
             </div>
             <div className="flex shrink-0 items-center gap-1">
               <button
+                type="button"
                 onClick={handleNewSession}
                 disabled={isNewConversation}
-                className={`p-1.5 rounded-md transition-colors md:hidden ${isNewConversation ? 'text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
+                className={`md:hidden ${isNewConversation ? chromeIconDisabled : chromeIcon()}`}
                 title="New chat"
+                aria-label="New chat"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4" aria-hidden="true" />
               </button>
               {/* Link this conversation to a plan or a task of its project */}
               {!isNewConversation && chat.sessionId && (
@@ -532,47 +539,47 @@ export function ChatPanel() {
               {/* Agent Tree toggle — visible when session has children */}
               {hasChildren && chat.sessionId && (
                 <button
+                  type="button"
                   onClick={() => { setShowAgentTree(!showAgentTree); setShowSettings(false) }}
-                  className={`p-1.5 rounded-md transition-colors ${showAgentTree ? 'text-emerald-400 bg-emerald-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
-                  title="Agent Tree"
+                  className={chromeIcon(showAgentTree)}
+                  title="Assistant tree"
+                  aria-label="Assistant tree"
+                  aria-pressed={showAgentTree}
                 >
-                  <TreePine className="w-4 h-4" />
+                  <TreePine className="w-4 h-4" aria-hidden="true" />
                 </button>
               )}
               {/* Permission settings gear icon */}
               <button
+                type="button"
                 onClick={() => { setShowSettings(!showSettings); setShowAgentTree(false) }}
-                className={`relative p-1.5 rounded-md transition-colors ${showSettings ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
+                className={`relative ${chromeIcon(showSettings)}`}
                 title="Permission settings"
+                aria-label="Permission settings"
+                aria-pressed={showSettings}
               >
-                <Settings className="w-4 h-4" />
+                <Settings className="w-4 h-4" aria-hidden="true" />
                 {modeColor && (
-                  <span className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ${modeColor} ring-1 ring-[#1a1d27]`} />
+                  <span className={`absolute top-0.5 right-0.5 w-2 h-2 rounded-full ${modeColor} ring-1 ring-[#1a1d27]`} aria-hidden="true" />
                 )}
               </button>
               {/* Copy chat to clipboard */}
               {chat.messages.length > 0 && (
                 <button
+                  type="button"
                   onClick={handleCopyChat}
-                  className={`p-1.5 rounded-md transition-colors ${copiedChat ? 'text-emerald-400' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
+                  className={`${chromeIcon()} ${copiedChat ? 'text-emerald-400' : ''}`}
                   title={copiedChat ? 'Copied!' : 'Copy chat as markdown'}
+                  aria-label={copiedChat ? 'Copied!' : 'Copy chat as markdown'}
                 >
-                  {copiedChat ? <Check className="w-4 h-4" /> : <ClipboardCopy className="w-4 h-4" />}
+                  {copiedChat ? <Check className="w-4 h-4" aria-hidden="true" /> : <ClipboardCopy className="w-4 h-4" aria-hidden="true" />}
                 </button>
               )}
-              <button
-                onClick={() => setMode('open')}
-                className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
-                title="Exit fullscreen"
-              >
-                <Minimize2 className="w-4 h-4" />
+              <button type="button" onClick={() => setMode('open')} className={chromeIcon()} title="Exit fullscreen" aria-label="Exit fullscreen">
+                <Minimize2 className="w-4 h-4" aria-hidden="true" />
               </button>
-              <button
-                onClick={() => setMode('closed')}
-                className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
-                title="Close"
-              >
-                <X className="w-4 h-4" />
+              <button type="button" onClick={() => setMode('closed')} className={chromeIcon()} title="Close" aria-label="Close">
+                <X className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -600,14 +607,15 @@ export function ChatPanel() {
 
           {/* Reconnecting / Disconnected banner */}
           {!isNewConversation && chat.wsStatus === 'reconnecting' && (
-            <div className="px-4 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-amber-400 text-xs flex items-center gap-1.5">
-              <Loader2 className="w-3 h-3 animate-spin shrink-0" />
-              <span>Reconnecting...</span>
+            <div className="px-4 py-1.5 bg-white/[0.02] border-b border-white/[0.06] text-xs flex items-center gap-1.5">
+              <StatusDot tone="warning" pulse />
+              <span className="text-amber-300">Reconnecting…</span>
             </div>
           )}
           {!isNewConversation && chat.wsStatus === 'disconnected' && chat.sessionId && (
-            <div className="px-4 py-1.5 bg-red-500/10 border-b border-red-500/20 text-red-400 text-xs flex items-center gap-1.5">
-              <span>Connection lost</span>
+            <div className="px-4 py-1.5 bg-white/[0.02] border-b border-white/[0.06] text-xs flex items-center gap-1.5">
+              <StatusDot tone="danger" />
+              <span className="text-red-300">Connection lost</span>
             </div>
           )}
 
@@ -700,7 +708,7 @@ export function ChatPanel() {
     <ChatCapabilitiesProvider capabilities={capabilities}>
     <div
       ref={panelRef}
-      className={`fixed z-30 bg-surface-raised border-l border-border-subtle flex flex-col ${isDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isOpen ? 'translate-x-0' : 'translate-x-full'} top-0 right-0 bottom-0 w-full`}
+      className={`fixed z-30 bg-surface-raised border-l border-border-subtle flex flex-col ${isDragging ? '' : 'transition-transform duration-(--duration-stage) ease-(--ease-standard)'} ${isOpen ? 'translate-x-0' : 'translate-x-full'} top-0 right-0 bottom-0 w-full`}
       style={{ maxWidth: isMobile ? undefined : panelWidth, ...keyboardStyle }}
     >
       {/* Resize handle — hidden on mobile (panel takes full width) */}
@@ -713,11 +721,14 @@ export function ChatPanel() {
       <div className="h-14 flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0">
         <div className="flex flex-1 items-center gap-2 min-w-0">
           <button
+            type="button"
             onClick={() => { setShowSessions(!showSessions); setShowSettings(false) }}
-            className={`shrink-0 p-1.5 rounded-md transition-colors ${showSessions ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
+            className={`shrink-0 ${chromeIcon(showSessions)}`}
             title="Sessions"
+            aria-label="Sessions"
+            aria-pressed={showSessions}
           >
-            <Menu className="w-4 h-4" />
+            <Menu className="w-4 h-4" aria-hidden="true" />
           </button>
           <div className="min-w-0 flex flex-1 items-center gap-1.5">
             {/* WS status dot — only show when connected to a session */}
@@ -740,22 +751,27 @@ export function ChatPanel() {
             buttons left the title about 70 px. The less frequent ones live under the ⋯ menu. */}
         <div className="flex shrink-0 items-center gap-1">
           <button
+            type="button"
             onClick={handleNewSession}
             disabled={isNewConversation}
-            className={`p-1.5 rounded-md transition-colors ${isNewConversation ? 'text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
+            className={isNewConversation ? chromeIconDisabled : chromeIcon()}
             title="New chat"
+            aria-label="New chat"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4" aria-hidden="true" />
           </button>
           {/* Permission settings gear icon */}
           <button
+            type="button"
             onClick={() => { setShowSettings(!showSettings); setShowSessions(false); setShowAgentTree(false) }}
-            className={`relative p-1.5 rounded-md transition-colors ${showSettings ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'}`}
+            className={`relative ${chromeIcon(showSettings)}`}
             title="Permission settings"
+            aria-label="Permission settings"
+            aria-pressed={showSettings}
           >
-            <Settings className="w-4 h-4" />
+            <Settings className="w-4 h-4" aria-hidden="true" />
             {modeColor && (
-              <span className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ${modeColor} ring-1 ring-[#1a1d27]`} />
+              <span className={`absolute top-0.5 right-0.5 w-2 h-2 rounded-full ${modeColor} ring-1 ring-[#1a1d27]`} aria-hidden="true" />
             )}
           </button>
           <OverflowMenu
@@ -766,7 +782,7 @@ export function ChatPanel() {
               { label: 'Attach to a plan or task…', icon: Link2, hidden: isNewConversation || !chat.sessionId, onClick: () => setShowAttach(true) },
               // Agent Tree toggle — visible when session has children
               {
-                label: showAgentTree ? 'Hide the agent tree' : 'Show the agent tree',
+                label: showAgentTree ? 'Hide the assistant tree' : 'Show the assistant tree',
                 icon: TreePine,
                 hidden: !(hasChildren && chat.sessionId),
                 onClick: () => { setShowAgentTree(!showAgentTree); setShowSettings(false); setShowSessions(false) },
@@ -776,12 +792,8 @@ export function ChatPanel() {
               { label: 'Fullscreen', icon: Maximize2, hidden: isMobile, onClick: () => setMode('fullscreen') },
             ]}
           />
-          <button
-            onClick={() => setMode('closed')}
-            className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
-            title="Close"
-          >
-            <X className="w-4 h-4" />
+          <button type="button" onClick={() => setMode('closed')} className={chromeIcon()} title="Close" aria-label="Close">
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -820,14 +832,15 @@ export function ChatPanel() {
 
       {/* Reconnecting / Disconnected banner */}
       {!isNewConversation && chat.wsStatus === 'reconnecting' && (
-        <div className="px-4 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-amber-400 text-xs flex items-center gap-1.5">
-          <Loader2 className="w-3 h-3 animate-spin shrink-0" />
-          <span>Reconnecting...</span>
+        <div className="px-4 py-1.5 bg-white/[0.02] border-b border-white/[0.06] text-xs flex items-center gap-1.5">
+          <StatusDot tone="warning" pulse />
+          <span className="text-amber-300">Reconnecting…</span>
         </div>
       )}
       {!isNewConversation && chat.wsStatus === 'disconnected' && chat.sessionId && (
-        <div className="px-4 py-1.5 bg-red-500/10 border-b border-red-500/20 text-red-400 text-xs flex items-center gap-1.5">
-          <span>Connection lost</span>
+        <div className="px-4 py-1.5 bg-white/[0.02] border-b border-white/[0.06] text-xs flex items-center gap-1.5">
+          <StatusDot tone="danger" />
+          <span className="text-red-300">Connection lost</span>
         </div>
       )}
 
@@ -936,9 +949,9 @@ function NoProjectsPlaceholder({ wsSlug }: { wsSlug: string | null }) {
       {wsSlug && (
         <Link
           to={workspacePath(wsSlug, '/projects')}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors"
+          className={`${glassButton.primary} min-h-9 gap-2 px-4 py-2 text-sm`}
         >
-          <FolderPlus className="w-4 h-4" />
+          <FolderPlus className="w-4 h-4" aria-hidden="true" />
           Add a project
         </Link>
       )}

@@ -9,7 +9,7 @@
 import type { ReactNode, RefObject } from 'react'
 import { Link } from 'react-router-dom'
 import { Check, CircleDashed, Loader2, Lock, LockOpen, X } from 'lucide-react'
-import { Badge, Button, Facts, Input, Select, surface } from '@/components/ui'
+import { Button, Facts, Input, Select, ToneText, surface } from '@/components/ui'
 import { CreateVault, LockPanel } from '@/pages/VaultPage'
 import { PROVIDER_PRESETS, type ProviderPresetInfo } from '@/constants/providerPresets'
 import {
@@ -617,9 +617,7 @@ export function Verdict({ verdict, testedModel }: { verdict: VerdictView; tested
   return (
     <div role="status" data-testid="wizard-test-result" className={`${surface} space-y-3 p-3`}>
       <div className="flex items-center gap-2">
-        <Badge variant={verdict.ok ? 'success' : 'error'}>
-          {verdict.ok ? 'Connexion OK' : 'Échec du test'}
-        </Badge>
+        <ToneText tone={verdict.ok ? 'success' : 'danger'} icon label={verdict.ok ? 'Connexion OK' : 'Échec du test'} className="text-xs" />
         <span className="text-sm text-gray-200">
           {verdict.ok ? 'La connexion fonctionne.' : 'La connexion ne fonctionne pas encore.'}
         </span>

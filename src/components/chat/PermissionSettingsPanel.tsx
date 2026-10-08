@@ -16,6 +16,8 @@ import {
   toWireMode,
 } from '@/constants/toolPolicy'
 import { X, Settings, Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui'
+import { glassFlat, iconButton } from '@/components/ui/classes'
 
 // ---------------------------------------------------------------------------
 // Tool pattern presets — Claude Code's rule syntax (`Tool(pattern)`). Shown
@@ -174,15 +176,11 @@ function PatternListEditor({
             }
           }}
           placeholder="e.g. Bash(git *)"
-          className="flex-1 bg-white/[0.04] border border-white/[0.06] rounded px-2 py-1 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/40 font-mono"
+className="flex-1 min-w-0 bg-white/[0.04] border border-white/[0.06] rounded px-2 py-1 text-base md:text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/40 font-mono"
         />
-        <button
-          onClick={() => addPattern(input)}
-          disabled={!input.trim()}
-          className="px-2 py-1 rounded text-xs bg-white/[0.06] text-gray-400 hover:text-gray-200 hover:bg-white/[0.08] transition-colors disabled:opacity-30"
-        >
+        <Button size="sm" variant="secondary" flat onClick={() => addPattern(input)} disabled={!input.trim()} className="text-xs">
           Add
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -347,12 +345,8 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
             <Settings className="w-4 h-4 text-gray-400" />
             <span className="text-sm font-medium text-gray-300">Permission Settings</span>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-md text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
-            title="Close settings"
-          >
-            <X className="w-4 h-4" />
+          <button type="button" onClick={onClose} className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} text-gray-400`} title="Close settings" aria-label="Close settings">
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
       )}
@@ -375,7 +369,7 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
           <>
             {/* --- Permission mode selector --- */}
             <section>
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Permission Mode</h3>
+              <h3 className="text-xs font-semibold text-gray-400 mb-2">Permission Mode</h3>
               <div className="grid grid-cols-2 gap-2">
                 {modeOptions.map((m) => {
                   const isActive = localMode === m.mode
@@ -448,7 +442,7 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
               // provider does not read: offering them would be a control that
               // silently does nothing.
               <section>
-                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Tool rules</h3>
+                <h3 className="text-xs font-semibold text-gray-400 mb-2">Tool rules</h3>
                 <p className="text-xs text-gray-500 leading-snug">{RULES_UNSUPPORTED_TEXT}</p>
               </section>
             )}
@@ -476,20 +470,13 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
       {!loading && !error && (
         <div className="px-4 py-3 border-t border-white/[0.06] flex items-center justify-end gap-2 shrink-0">
           {hasChanges && (
-            <button
-              onClick={handleCancel}
-              className="px-3 py-1.5 rounded-md text-xs text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
-            >
+            <Button size="sm" variant="ghost" onClick={handleCancel} className="text-xs">
               Cancel
-            </button>
+            </Button>
           )}
-          <button
-            onClick={handleSave}
-            disabled={!hasChanges || saving}
-            className="px-3 py-1.5 rounded-md text-xs font-medium bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 transition-colors disabled:opacity-30"
-          >
-            {saving ? 'Saving...' : 'Save'}
-          </button>
+          <Button size="sm" onClick={handleSave} disabled={!hasChanges} loading={saving} className="text-xs">
+            {saving ? 'Saving…' : 'Save'}
+          </Button>
         </div>
       )}
     </div>

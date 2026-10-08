@@ -61,6 +61,7 @@ import { useEventBus, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import type { CrudEvent } from '@/types/events'
 import type { Protocol, ProtocolRun, ProtocolState, StateType } from '@/types/protocol'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -253,7 +254,7 @@ export function ProtocolDetailPage() {
     <PageContainer width="wide" className="space-y-6">
       <PageHeader
         title={protocol.name}
-        parentLinks={[{ icon: Workflow, label: 'Protocols', name: 'Protocols', href: workspacePath(wsSlug, '/protocols') }]}
+        parentLinks={[{ icon: Workflow, label: NOMENCLATURE.protocols.plural, name: NOMENCLATURE.protocols.plural, href: workspacePath(wsSlug, `/${NOMENCLATURE.protocols.segment}`) }]}
         status={<StatusText kind="protocol" status={status} />}
         meta={[
           protocol.protocol_category ? <span key="cat">{humanizeStatus(protocol.protocol_category)}</span> : null,

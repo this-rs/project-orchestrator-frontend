@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { StopCircle, Loader2, Ban } from 'lucide-react'
+import { StopCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { ToneText } from '@/components/ui/Status'
 import { useConfirmDialog } from '@/hooks/useConfirmDialog'
 import { runnerApi } from '@/services/runner'
 
@@ -21,13 +22,11 @@ export function CancelButton({ planId, isRunning }: CancelButtonProps) {
   const effectiveState: CancelState =
     cancelState === 'cancelled' && isRunning ? 'idle' : cancelState
 
-  const disabled = !isRunning || effectiveState !== 'idle'
-
   const handleClick = () => {
     confirm.open({
       title: 'Cancel run?',
       description:
-        'Are you sure? This will stop all running agents. Agents that have already completed will keep their results.',
+        'This stops every running assistant. The ones that already finished keep their results.',
       confirmLabel: 'Cancel run',
       variant: 'danger',
       onConfirm: async () => {
@@ -49,39 +48,20 @@ export function CancelButton({ planId, isRunning }: CancelButtonProps) {
     })
   }
 
-  // Visual config per state
-  const config = {
-    idle: {
-      icon: <StopCircle className="w-4 h-4" />,
-      label: 'Cancel run',
-      className: '',
-    },
-    cancelling: {
-      icon: <Loader2 className="w-4 h-4 animate-spin" />,
-      label: 'Cancelling...',
-      className: '!bg-orange-500/15 !text-orange-400 !border-orange-500/30',
-    },
-    cancelled: {
-      icon: <Ban className="w-4 h-4" />,
-      label: 'Cancelled',
-      className: '!bg-gray-500/15 !text-gray-400 !border-gray-500/30',
-    },
-  } as const
-
-  const current = config[effectiveState]
-
+  // Once asked, the cancellation is a state of the run, not a button any more:
+  // dot + word (DESIGN.md § 4), pulsing while the agents are being stopped.
   return (
     <>
-      <Button
-        variant="danger"
-        size="sm"
-        onClick={handleClick}
-        disabled={disabled}
-        className={current.className}
-      >
-        {current.icon}
-        {current.label}
-      </Button>
+      {effectiveState === 'idle' ? (
+        <Button variant="danger" size="sm" onClick={handleClick} disabled={!isRunning} className="gap-1.5">
+          <StopCircle className="w-4 h-4" aria-hidden="true" />
+          Cancel run
+        </Button>
+      ) : effectiveState === 'cancelling' ? (
+        <ToneText tone="warning" pulse label="Cancelling…" className="text-sm" />
+      ) : (
+        <ToneText tone="muted" label="Cancelled" className="text-sm" />
+      )}
       <ConfirmDialog {...confirm.dialogProps} />
     </>
   )

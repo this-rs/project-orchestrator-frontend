@@ -20,12 +20,13 @@ import {
   RelativeTime,
   Section,
   SectionNav,
+  Meter,
   SkeletonLine,
-  StatusDot,
   StatusMenu,
   StatusText,
   TONE_CLASSES,
   Textarea,
+  ToneText,
   formatAbsolute,
   getStatusMeta,
   pluralize,
@@ -33,7 +34,6 @@ import {
 } from '@/components/ui'
 import type { ParentLink } from '@/components/ui'
 import {
-  ConceptNote,
   MetricList,
   TagChips,
   SKILL_HINTS,
@@ -47,6 +47,7 @@ import {
 import { useSectionObserver, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { decisionTitle } from '@/components/knowledge/noteMeta'
+import { Explainer } from '@/components/protocols/Explainer'
 import type {
   Skill,
   SkillStatus,
@@ -310,15 +311,12 @@ export function SkillDetailPage() {
         <TagChips tags={skill.tags} />
       </PageHeader>
 
-      <ConceptNote summary="This skill groups notes and decisions about one topic. When an agent's request matches one of its triggers, its knowledge (and the context template below) is injected into the agent's context.">
-        <p>
-          “Test activation” simulates a request: you see which notes would be injected, with which score and which
-          confidence level.
-        </p>
-        <p>
-          Notes can be activated directly (skill members) or by propagation through the graph (neighbouring notes).
-        </p>
-      </ConceptNote>
+      <Explainer>
+        When an assistant's request matches one of this skill's triggers, its notes and decisions (and the context
+        template below) are added to what the assistant knows for that request. “Test activation” simulates a request:
+        you see which notes would be used, with which score and which confidence. Notes are activated directly (members)
+        or by propagation through the graph (neighbouring notes).
+      </Explainer>
 
       <SectionNav
         activeSection={activeSection}
@@ -366,10 +364,7 @@ export function SkillDetailPage() {
             <MetaLine
               size="sm"
               items={[
-                <span key="rec" className={`inline-flex items-center gap-1.5 ${TONE_CLASSES[rec.tone].text}`}>
-                  <StatusDot tone={rec.tone} />
-                  {rec.label}
-                </span>,
+                <ToneText key="rec" tone={rec.tone} label={rec.label} />,
                 health.is_validated ? 'Validated' : 'Not validated',
                 health.days_since_import != null ? `imported ${pluralize(health.days_since_import, 'day')} ago` : null,
               ]}
@@ -438,7 +433,7 @@ export function SkillDetailPage() {
         id="skill-triggers"
         title="Triggers"
         count={skill.trigger_patterns.length}
-        description="When this skill activates: each pattern is compared with what the agent is doing. The threshold is the minimum confidence to fire; quality (F1) measures its past reliability."
+        description="When this skill activates: each pattern is compared with what the assistant is doing. The threshold is the minimum confidence to fire; quality (F1) measures its past reliability."
       >
         {skill.trigger_patterns.length === 0 ? (
           <EmptyState size="sm" title="No triggers" description="Without triggers the skill can only be activated manually." />
@@ -455,7 +450,7 @@ export function SkillDetailPage() {
       <Section
         id="skill-template"
         title="Context template"
-        description="Markdown text added to the agent's context when the skill activates."
+        description="Markdown text added to what the assistant knows when the skill activates."
         action={
           !editingTemplate ? (
             <Button
@@ -532,7 +527,7 @@ export function SkillDetailPage() {
       <Dialog open={activationOpen} onClose={() => setActivationOpen(false)} title="Test activation" size="lg">
         <div className="space-y-4">
           <p className="text-xs text-gray-500">
-            Type a request the way an agent would: the skill returns the notes it would inject and its confidence.
+            Type a request the way an assistant would: the skill returns the notes it would use and its confidence.
           </p>
           <form
             className="space-y-2"
@@ -658,12 +653,7 @@ function ActivationResultView({ result }: { result: SkillActivationResult }) {
           <span className="text-gray-400">Confidence</span>
           <span className={`tabular-nums ${TONE_CLASSES[confidence.tone].text}`}>{pct(result.confidence)}</span>
         </div>
-        <div className="h-1 bg-white/[0.06] rounded-full overflow-hidden" aria-hidden="true">
-          <div
-            className={`h-full rounded-full ${TONE_CLASSES[confidence.tone].dot}`}
-            style={{ width: `${Math.max(result.confidence * 100, 1)}%` }}
-          />
-        </div>
+        <Meter size="bar" value={result.confidence} tone={confidence.tone} />
       </div>
       <MetaLine
         size="sm"

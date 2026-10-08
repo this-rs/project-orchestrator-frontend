@@ -26,7 +26,6 @@ import {
 } from '@/components/ui'
 import type { ParentLink } from '@/components/ui'
 import {
-  ConceptNote,
   MetricList,
   PERSONA_HINTS,
   cohesionLevel,
@@ -35,6 +34,7 @@ import {
   ratioLevel,
 } from '@/components/registry'
 import { EditPersonaForm, type EditPersonaFormData } from '@/components/forms'
+import { Explainer } from '@/components/protocols/Explainer'
 import { useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import type { Persona, PersonaOrigin, PersonaStatus, PersonaSubgraph, PersonaSubgraphRelation } from '@/types'
@@ -327,13 +327,12 @@ export function PersonaDetailPage() {
         ]}
       />
 
-      <ConceptNote summary="This persona is an expert profile: an agent that takes it on receives the knowledge listed under “What it knows” first and runs with the settings below.">
-        <p>“Activate” loads it manually (counts as an activation and revives its energy).</p>
-        <p>
-          The <span className="text-gray-300">weight</span> of a link (0–100%) says how much that knowledge matters to
-          it; it evolves with use. Removing a link does not delete the element itself.
-        </p>
-      </ConceptNote>
+      <Explainer>
+        An assistant that takes this persona on receives the knowledge listed under “What it knows” first and runs with
+        the settings below. “Activate” loads it by hand (it counts as an activation and revives its energy). The weight of
+        a link (0–100%) says how much that knowledge matters to it and evolves with use; unlinking never deletes the
+        element itself.
+      </Explainer>
 
       {/* ── Vital signs ─────────────────────────────────────────── */}
       <Section title="Vital signs" description="What the indicators of this persona measure.">
@@ -389,7 +388,7 @@ export function PersonaDetailPage() {
       {/* ── Execution settings ──────────────────────────────────── */}
       <Section
         title="Execution settings"
-        description="Settings applied when an agent runs a task with this persona (empty = runner default)."
+        description="Settings applied when an assistant runs a task with this persona (empty = the default of Automation)."
         action={
           <Button variant="ghost" size="sm" onClick={() => setEditOpen(true)}>
             <Pencil className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
@@ -427,7 +426,7 @@ export function PersonaDetailPage() {
           <EmptyState
             size="sm"
             title="Nothing linked yet"
-            description="Link files, notes or skills to this persona (MCP tools or auto-build) to give it knowledge."
+            description="Ask an assistant to link files, notes or skills to it, or build it again from the code."
           />
         ) : (
           <div>

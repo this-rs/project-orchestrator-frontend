@@ -87,7 +87,7 @@ function StateNodeComponent({ data, selected }: NodeProps<Node<StateNodeData>>) 
 
         {/* Type cycle button */}
         <button
-          className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-500 hover:text-slate-300"
+          className="text-slate-500 hover:text-slate-300"
           onClick={(e) => {
             e.stopPropagation()
             const types: StateType[] = ['start', 'intermediate', 'terminal']
@@ -101,7 +101,7 @@ function StateNodeComponent({ data, selected }: NodeProps<Node<StateNodeData>>) 
 
         {/* Delete button */}
         <button
-          className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-500 hover:text-red-400"
+          className="text-slate-500 hover:text-red-400"
           onClick={(e) => {
             e.stopPropagation()
             data.onDelete(data.label)
@@ -138,7 +138,7 @@ function StateNodeComponent({ data, selected }: NodeProps<Node<StateNodeData>>) 
 
       {/* State type label */}
       <div className="px-2 pb-1.5">
-        <span className="text-[8px] uppercase tracking-wider" style={{ color: cfg.color }}>
+        <span className="text-[8px]" style={{ color: cfg.color }}>
           {data.stateType}
         </span>
       </div>

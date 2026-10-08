@@ -8,6 +8,7 @@
 import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, Check, ClipboardCopy } from 'lucide-react'
+import { Button } from '@/components/ui'
 import {
   PROVIDER_ERROR_TITLES,
   PROVIDER_ERROR_TITLES_SETTINGS_FR,
@@ -42,19 +43,14 @@ function Command({ command }: { command: string }) {
       <code className="min-w-0 flex-1 select-all break-all rounded bg-black/40 px-2 py-1 font-mono text-xs text-gray-100">
         {command}
       </code>
-      <button
-        type="button"
-        onClick={copy}
-        aria-label="Copier la commande"
-        className="inline-flex shrink-0 items-center gap-1 rounded px-2 py-1 text-xs text-gray-300 hover:bg-white/[0.06] focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60"
-      >
+      <Button size="sm" variant="ghost" flat onClick={copy} aria-label="Copier la commande" className="shrink-0 gap-1 px-2 text-xs text-gray-300">
         {copied ? (
           <Check className="h-3.5 w-3.5" aria-hidden="true" />
         ) : (
           <ClipboardCopy className="h-3.5 w-3.5" aria-hidden="true" />
         )}
         {copied ? 'Copiée' : 'Copier'}
-      </button>
+      </Button>
     </div>
   )
 }

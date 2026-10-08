@@ -78,14 +78,14 @@ describe('AgentExecutionDetail status', () => {
 
   it('does not pulse for an interrupted execution', () => {
     const { container } = render(<AgentExecutionDetail execution={execution({ status: 'interrupted', completed_at: END })} />)
-    expect(container.querySelector('.pulse-ring')).toBeNull()
+    expect(container.querySelector('[class*="animate-ping"]')).toBeNull()
   })
 
   it('shows an unknown status as it is, neutral, with no pulse and no ticking counter', () => {
     const { container } = render(<AgentExecutionDetail execution={execution({ status: 'quantum_superposition' })} />)
     expect(screen.getByText('quantum_superposition')).toBeTruthy()
     expect(screen.queryByText('Running')).toBeNull()
-    expect(container.querySelector('.pulse-ring')).toBeNull()
+    expect(container.querySelector('[class*="animate-ping"]')).toBeNull()
     const before = container.textContent
     act(() => {
       vi.advanceTimersByTime(5000)
@@ -97,7 +97,7 @@ describe('AgentExecutionDetail status', () => {
     const startedNow = new Date(Date.now() - 5000).toISOString()
     const { container } = render(<AgentExecutionDetail execution={execution({ status: 'running', started_at: startedNow })} />)
     expect(screen.getByText('Running')).toBeTruthy()
-    expect(container.querySelector('.pulse-ring')).not.toBeNull()
+    expect(container.querySelector('[class*="animate-ping"]')).not.toBeNull()
     expect(screen.getByText('5s')).toBeTruthy()
     act(() => {
       vi.advanceTimersByTime(3000)

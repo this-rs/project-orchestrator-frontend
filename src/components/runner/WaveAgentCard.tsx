@@ -1,5 +1,5 @@
 /**
- * WaveAgentCard — one agent (= one task) inside a wave, as an EntityRow.
+ * WaveAgentCard — one assistant (= one task) inside a wave, as an EntityRow.
  *
  *   ● Task title ·························· 02:14  [⋯]
  *     Running · $0.12 · 3 files · 1 commit
@@ -15,7 +15,7 @@
 import { useState, useMemo } from 'react'
 import { Eye, EyeOff, FileCode2, GitCommitHorizontal, List, RotateCcw, SquareArrowOutUpRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { Button, EntityRow, StatusDot, TONE_CLASSES, pluralize } from '@/components/ui'
+import { Button, EntityRow, StatusDot, ToneText, pluralize } from '@/components/ui'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import type { ActiveAgentSnapshot } from '@/services/runner'
@@ -36,7 +36,8 @@ export interface WaveAgentCardProps {
   retrying?: boolean
 }
 
-const compactButton = 'min-w-0 max-w-full gap-1.5 !py-1.5 text-xs'
+// Buttons repeated on every row are flat (no blur) — DESIGN.md § 9 « flat ».
+const compactButton = 'min-w-0 max-w-full gap-1.5 text-xs'
 
 export function WaveAgentCard({ agent, execution, isSelected, onToggleConversation, onRetryTask, retrying }: WaveAgentCardProps) {
   const wsSlug = useWorkspaceSlug()
@@ -67,7 +68,7 @@ export function WaveAgentCard({ agent, execution, isSelected, onToggleConversati
       leading={<StatusDot tone={meta.tone} pulse={meta.live} label={meta.label} />}
       trailing={<span className="font-mono">{formatElapsed(agent.elapsed_secs)}</span>}
       meta={[
-        <span key="s" className={TONE_CLASSES[meta.tone].text}>{meta.label}</span>,
+        <ToneText key="s" tone={meta.tone} dot={false} label={meta.label} />,
         // A task no agent ran has no cost to show — never `$0.00`.
         hasCost(cost, { format: formatUsd2 }) ? (
           <CostDisplay key="c" cost={cost} format={formatUsd2} className="font-mono tabular-nums" />
@@ -93,6 +94,7 @@ export function WaveAgentCard({ agent, execution, isSelected, onToggleConversati
               onClick={() => onToggleConversation(agent.session_id!, agent.task_title)}
               aria-pressed={isSelected}
               aria-label={isSelected ? `Hide conversation for ${agent.task_title}` : `View conversation for ${agent.task_title}`}
+              flat
               className={compactButton}
             >
               {isSelected ? <EyeOff className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> : <Eye className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
@@ -105,7 +107,8 @@ export function WaveAgentCard({ agent, execution, isSelected, onToggleConversati
               variant="ghost"
               onClick={() => onRetryTask!(agent.task_id, agent.task_title)}
               loading={retrying}
-              className={`${compactButton} !text-red-300`}
+              flat
+              className={compactButton}
             >
               {!retrying && <RotateCcw className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
               <span className="truncate">Retry task</span>
@@ -117,6 +120,7 @@ export function WaveAgentCard({ agent, execution, isSelected, onToggleConversati
               variant="ghost"
               onClick={() => setDetailOpen((v) => !v)}
               aria-expanded={detailOpen}
+              flat
               className={`${compactButton} text-gray-400`}
             >
               <List className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />

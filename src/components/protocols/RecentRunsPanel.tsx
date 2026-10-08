@@ -8,7 +8,6 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { AlertTriangle } from 'lucide-react'
 import { protocolApi } from '@/services/protocolApi'
 import {
   EmptyState,
@@ -19,6 +18,7 @@ import {
   RelativeTime,
   StatusDot,
   StatusText,
+  ToneText,
   getStatusMeta,
   pluralize,
 } from '@/components/ui'
@@ -104,18 +104,8 @@ export function RecentRunsPanel({ protocols, maxRuns = 25, runHref, onRunClick, 
       <MetaLine
         className="px-1"
         items={[
-          runningCount > 0 ? (
-            <span key="running" className="inline-flex items-center gap-1.5 text-indigo-300">
-              <StatusDot kind="run" status="running" pulse />
-              {runningCount} running
-            </span>
-          ) : null,
-          failedCount > 0 ? (
-            <span key="failed" className="inline-flex items-center gap-1 text-red-400">
-              <AlertTriangle className="w-3 h-3" aria-hidden="true" />
-              {failedCount} failed
-            </span>
-          ) : null,
+          runningCount > 0 ? <ToneText key="running" tone="progress" pulse label={`${runningCount} running`} /> : null,
+          failedCount > 0 ? <ToneText key="failed" tone="danger" icon label={`${failedCount} failed`} /> : null,
           <span key="total" className="tabular-nums">{pluralize(runs.length, 'recent run')}</span>,
         ]}
       />

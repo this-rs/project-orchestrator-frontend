@@ -144,7 +144,8 @@ export function NeuralRoutingPage() {
   const header = (
     <PageHeader
       title={NOMENCLATURE.neuralRouting.plural}
-      description="For each agent request, neural routing picks the most likely path from similar past trajectories. Enable it here, follow how well it performs and tune its parameters."
+      description="For each request an assistant makes, routing reuses the path that worked for similar requests before. Turn it on here, follow how well it does and tune it."
+      intro="neuralRouting"
       status={
         status ? (
           <StatusText
@@ -243,7 +244,7 @@ export function NeuralRoutingPage() {
           />
           <SettingRow
             label="Trajectory collection"
-            description="Record agent trajectories to improve routing over time."
+            description="Record the paths assistants take, to improve routing over time."
             meta={
               config
                 ? [
@@ -313,7 +314,7 @@ export function NeuralRoutingPage() {
           <EmptyState
             size="sm"
             title="No queries recorded"
-            description="Enable neural routing, then use the agents to see metrics here."
+            description="Turn routing on, then work with your assistants: the figures appear here."
           />
         )}
       </Section>
