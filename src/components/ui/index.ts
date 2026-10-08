@@ -21,7 +21,6 @@ export {
   DecisionStatusBadge,
   InteractiveDecisionStatusBadge,
 } from './Badge'
-export { Card, CardHeader, CardTitle, CardContent, CardFooter } from './Card'
 export { Input, SearchInput } from './Input'
 export { Textarea } from './Textarea'
 export { Select } from './Select'
@@ -62,7 +61,6 @@ export { Skeleton, SkeletonLine, SkeletonBadge, SkeletonCard, EntityRowSkeleton,
 export { ErrorState } from './ErrorState'
 export { Tooltip } from './Tooltip'
 export { AnimatedCounter } from './AnimatedCounter'
-export { StatCard } from './StatCard'
 export { Sparkline } from './Sparkline'
 export { PulseIndicator } from './PulseIndicator'
 export { RadarChart } from './RadarChart'
@@ -73,11 +71,16 @@ export type { CollapsibleSectionProps } from './CollapsibleSection'
 export { MetricTooltip } from './MetricTooltip'
 export { TabLayout } from './TabLayout'
 export type { TabItem } from './TabLayout'
-export { CompactStatCard } from './CompactStatCard'
 export { WatcherToggle } from './WatcherToggle'
 
 // ── Design-system foundation (see DESIGN.md) ─────────────────────────────
 export { EntityRow, EntityList, ListGroup } from './EntityRow'
+export { EntityCard } from './EntityCard'
+export type { EntityCardProps } from './EntityCard'
+export { EntityGrid } from './EntityGrid'
+export type { EntityGridProps } from './EntityGrid'
+export { Surface } from './Surface'
+export type { SurfaceProps } from './Surface'
 export { WindowedList, type WindowedItem } from './WindowedList'
 export type { EntityRowProps } from './EntityRow'
 export { MetaLine, Fact, Sep, RelativeTime } from './MetaLine'

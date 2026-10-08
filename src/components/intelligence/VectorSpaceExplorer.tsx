@@ -44,7 +44,7 @@ import {
   Grid3x3,
   Box,
 } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/Card'
+import { Surface } from '@/components/ui/Surface'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { useWindowFullscreen } from '@/hooks/useWindowFullscreen'
 import { isTauri } from '@/services/env'
@@ -1485,8 +1485,8 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
             </button>
           </div>
         )}
-        <Card>
-          <CardContent className="py-12">
+        <Surface padding="none" className="overflow-hidden">
+          <div className="p-4 py-12">
             <div className="flex flex-col items-center gap-4 text-slate-500">
               <div className="w-16 h-16 rounded-full bg-violet-500/5 flex items-center justify-center">
                 <Brain size={32} className="text-slate-600" />
@@ -1512,8 +1512,8 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </Surface>
       </div>
     )
   }

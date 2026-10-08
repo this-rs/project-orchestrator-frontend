@@ -24,17 +24,17 @@ export function SkeletonBadge({ className = '' }: { className?: string }) {
   return <Skeleton className={`h-5 w-16 rounded-full ${className}`} />
 }
 
-/** A full card placeholder mimicking a Card component */
+/** A card placeholder: same box and opaque surface as an `EntityCard` (icon tile, title, lines, badges). */
 export function SkeletonCard({ className = '', lines = 3 }: { className?: string; lines?: number }) {
   return (
-    <div className={`bg-surface-raised rounded-xl border border-border-subtle shadow-sm p-4 space-y-3 ${className}`}>
-      {/* Header line */}
-      <SkeletonLine width="60%" className="h-5" />
-      {/* Body lines */}
+    <div aria-hidden="true" className={`rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3 ${className}`}>
+      <div className="flex items-center gap-3">
+        <Skeleton className="size-9 shrink-0 rounded-lg" />
+        <SkeletonLine width="60%" className="h-5" />
+      </div>
       {Array.from({ length: lines }).map((_, i) => (
         <SkeletonLine key={i} width={i === lines - 1 ? '40%' : '90%'} />
       ))}
-      {/* Bottom badges */}
       <div className="flex gap-2 pt-1">
         <SkeletonBadge />
         <SkeletonBadge />

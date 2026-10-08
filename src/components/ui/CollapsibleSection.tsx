@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ChevronRight } from 'lucide-react'
-import { Card, CardContent } from './Card'
+import { Surface } from './Surface'
 
 export interface CollapsibleSectionProps {
   title: string
@@ -22,7 +22,7 @@ export function CollapsibleSection({
   const [open, setOpen] = useState(defaultOpen)
 
   return (
-    <Card>
+    <Surface padding="none" className="overflow-hidden">
       <div
         role="button"
         tabIndex={0}
@@ -57,10 +57,10 @@ export function CollapsibleSection({
         )}
       </div>
       {open && (
-        <CardContent className="pt-4 pb-5 px-5 border-t border-white/[0.06]">
+        <div className="p-4 pt-4 pb-5 px-5 border-t border-white/[0.06]">
           {children}
-        </CardContent>
+        </div>
       )}
-    </Card>
+    </Surface>
   )
 }
