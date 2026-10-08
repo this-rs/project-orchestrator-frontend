@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from 'react'
+import { useId, useMemo, useState, type ReactNode } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Check, ChevronDown, Lock, RefreshCw, Search } from 'lucide-react'
 import { Highlight } from '@/components/ui/SearchableSelect'
@@ -25,6 +25,7 @@ import { getModelDotColor, getModelShortLabel, groupModelsByFamily } from '@/con
 import {
   AUTO_TARGET_HELP,
   AUTO_TARGET_LABEL,
+  DEFAULT_TARGET_LABEL,
   DEFAULT_MODEL_LABEL,
   NEW_CONVERSATION_OTHER_PROVIDER_LABEL,
   PROVIDER_LOCKED_TEXT,
@@ -63,6 +64,13 @@ interface ProviderModelPickerProps {
   onForce?: (forced: boolean) => void
   /** Text put before the chip ("Forced: "), so an explicit choice reads as such. */
   chipPrefix?: string
+  /** Mode tabs (Auto / Mixed / Strict), shown at the top of the menu of a NEW conversation. */
+  header?: ReactNode
+  /**
+   * Auto mode: PO chooses, so there is nothing to pick. The chip reads "Auto" and
+   * the menu is the header plus this panel instead of the provider list.
+   */
+  autoPanel?: ReactNode
 }
 
 const CHIP =
@@ -89,7 +97,7 @@ const rowTone = (active: boolean) =>
  * - Backend without provider routes: no provider at all, and the Claude model
  *   picker exactly as it was.
  */
-export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeModel, onNewConversation, onForce, chipPrefix = '' }: ProviderModelPickerProps) {
+export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeModel, onNewConversation, onForce, chipPrefix = '', header, autoPanel }: ProviderModelPickerProps) {
   const list = useAtomValue(providersAtom)
   const loadState = useAtomValue(providersLoadStateAtom)
   const [pickedProvider, setPickedProvider] = useAtom(chatSelectedProviderAtom)
@@ -197,12 +205,18 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
   }
 
   // ── Chip ───────────────────────────────────────────────────────────
-  const chipText = !showProviders
+  const poChooses = !!autoPanel && !hasSession
+  const tabbed = !!header && !hasSession
+  const chipText = poChooses
+    ? AUTO_TARGET_LABEL
+    : !showProviders
     ? modelLabel
-    : autoActive
+    : autoActive && !tabbed
       ? AUTO_TARGET_LABEL
-      : `${providerLabel} › ${modelLabel}`
-  const chipTitle = `${chipPrefix}${autoActive && resolvedText ? `${AUTO_TARGET_LABEL}: ${resolvedText}` : chipText}`
+      : autoActive && resolvedText
+        ? resolvedText
+        : `${providerLabel} › ${modelLabel}`
+  const chipTitle = `${chipPrefix}${autoActive && !tabbed && resolvedText ? `${AUTO_TARGET_LABEL}: ${resolvedText}` : chipText}`
 
   const choices = (p: ProviderInstance | null, active: string, withDefault: boolean, defaultActive = false) => (
     <ModelChoices
@@ -261,6 +275,8 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
 
       {open === 'target' && (
         <div data-testid="target-picker-popover" className={POPOVER}>
+          {tabbed && header}
+          {poChooses && autoPanel}
           {showProviders && hasSession && (
             <div className="px-3 py-2 space-y-1.5 border-b border-white/[0.06]">
               <div className="flex items-baseline gap-1.5 text-xs">
@@ -285,7 +301,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
             </div>
           )}
 
-          {showProviders && !hasSession ? (
+          {poChooses ? null : showProviders && !hasSession ? (
             <>
               <button
                 type="button"
@@ -295,7 +311,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
                 className={`${ROW} border-b border-white/[0.06] ${rowTone(autoActive)}`}
               >
                 <span className="flex items-center gap-1.5">
-                  <span>{AUTO_TARGET_LABEL}</span>
+                  <span>{tabbed ? DEFAULT_TARGET_LABEL : AUTO_TARGET_LABEL}</span>
                   {autoActive && <Check className="w-3 h-3 text-indigo-300" aria-hidden="true" />}
                 </span>
                 <span className="mt-0.5 block text-[10px] leading-snug text-gray-500">

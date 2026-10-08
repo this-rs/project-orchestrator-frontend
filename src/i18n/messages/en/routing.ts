@@ -1,8 +1,8 @@
 export default {
   modes: {
-    primary: { label: 'Primary only', description: 'One exclusive primary provider, as today. PO only records what it would have chosen.' },
-    mixed: { label: 'Mixed', description: 'The primary pilots the conversation; PO routes the executors.' },
-    full: { label: 'Full', description: 'PO chooses everything and explains why.' },
+    primary: { label: 'Strict', description: 'One model for the whole chain: the one you choose.' },
+    mixed: { label: 'Mixed', description: 'You choose the pilot; PO routes each executor, possibly across several providers.' },
+    full: { label: 'Auto', description: 'PO picks the provider and the model for the whole chain, and says why.' },
   },
   stages: {
     shadow: { label: 'Shadow', description: 'Nothing is applied; every decision is recorded.' },
@@ -132,6 +132,7 @@ export default {
     poChooses: 'PO will choose (routing: full)',
     poRoutes: 'PO routes (recommended)',
   },
+  menu: { modeLegend: 'Routing mode', saveFailed: 'The mode could not be saved.' },
   picker: { primary: 'Primary: {target} · PO routes executors', forced: 'Forced: {target}', willChoose: 'PO will choose at the first message', routedBy: 'Routed by: {by}', aria: 'Routing: {mode}' },
   reason: 'Reason: {reason}',
 } as const

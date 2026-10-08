@@ -2,9 +2,9 @@ import type { Translation } from '../../catalog.ts'
 
 export default {
   modes: {
-    primary: { label: 'केवल प्राथमिक', description: 'केवल एक विशिष्ट प्राथमिक प्रदाता, जैसा आज है। PO केवल दर्ज करता है कि वह क्या चुनता।' },
-    mixed: { label: 'मिश्रित', description: 'प्राथमिक प्रदाता बातचीत चलाता है; PO निष्पादकों को रूट करता है।' },
-    full: { label: 'पूर्ण', description: 'PO सब कुछ चुनता है और कारण बताता है।' },
+    primary: { label: 'सख़्त', description: 'पूरी श्रृंखला के लिए एक ही मॉडल: जो आप चुनें।' },
+    mixed: { label: 'मिश्रित', description: 'पायलट आप चुनते हैं; हर निष्पादक को PO रूट करता है, संभवतः कई प्रदाताओं में।' },
+    full: { label: 'ऑटो', description: 'PO पूरी श्रृंखला के लिए प्रदाता और मॉडल चुनता है और कारण बताता है।' },
   },
   stages: {
     shadow: { label: 'शैडो', description: 'कुछ लागू नहीं होता; हर निर्णय दर्ज होता है।' },
@@ -134,6 +134,7 @@ export default {
     poChooses: 'PO चुनेगा (रूटिंग: पूर्ण)',
     poRoutes: 'PO रूट करता है (अनुशंसित)',
   },
+  menu: { modeLegend: 'रूटिंग मोड', saveFailed: 'मोड सहेजा नहीं जा सका।' },
   picker: { primary: 'प्राथमिक: {target} · PO निष्पादकों को रूट करता है', forced: 'थोपा गया: {target}', willChoose: 'PO पहले संदेश पर चुनेगा', routedBy: 'रूट करने वाला: {by}', aria: 'रूटिंग: {mode}' },
   reason: 'कारण: {reason}',
 } satisfies Translation<'routing'>

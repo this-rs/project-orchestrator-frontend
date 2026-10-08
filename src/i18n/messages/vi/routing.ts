@@ -2,9 +2,9 @@ import type { Translation } from '../../catalog.ts'
 
 export default {
   modes: {
-    primary: { label: 'Chỉ chính', description: 'Chỉ một nhà cung cấp chính độc quyền, như hiện nay. PO chỉ ghi lại điều nó sẽ chọn.' },
-    mixed: { label: 'Hỗn hợp', description: 'Nhà cung cấp chính dẫn dắt cuộc trò chuyện; PO điều phối các bên thực thi.' },
-    full: { label: 'Toàn phần', description: 'PO chọn mọi thứ và giải thích lý do.' },
+    primary: { label: 'Nghiêm ngặt', description: 'Một mô hình cho toàn bộ chuỗi: mô hình bạn chọn.' },
+    mixed: { label: 'Hỗn hợp', description: 'Bạn chọn người dẫn đầu; PO định tuyến từng bên thực thi, có thể qua nhiều nhà cung cấp.' },
+    full: { label: 'Tự động', description: 'PO chọn nhà cung cấp và mô hình cho toàn bộ chuỗi và giải thích lý do.' },
   },
   stages: {
     shadow: { label: 'Ghi nhận', description: 'Không áp dụng gì cả; mọi quyết định đều được ghi lại.' },
@@ -134,6 +134,7 @@ export default {
     poChooses: 'PO sẽ chọn (định tuyến: đầy đủ)',
     poRoutes: 'PO định tuyến (khuyến nghị)',
   },
+  menu: { modeLegend: 'Chế độ định tuyến', saveFailed: 'Không thể lưu chế độ.' },
   picker: { primary: 'Chính: {target} · PO định tuyến các bên thực thi', forced: 'Đã buộc: {target}', willChoose: 'PO sẽ chọn ở tin nhắn đầu tiên', routedBy: 'Định tuyến bởi: {by}', aria: 'Định tuyến: {mode}' },
   reason: 'Lý do: {reason}',
 } satisfies Translation<'routing'>

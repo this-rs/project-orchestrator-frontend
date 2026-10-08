@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { ChevronDown, Sparkles } from 'lucide-react'
 import {
@@ -8,11 +8,15 @@ import {
   chatRoutingSlugAtom,
   chatSessionRoutingAtom,
   loadRoutingSettingsAtom,
+  chatSelectedProviderAtom,
+  chatSessionModelAtom,
   providersAtom,
+  setRoutingModeAtom,
 } from '@/atoms'
 import { routedByKey } from '@/constants/providers'
 import { useT } from '@/i18n'
 import { providerDisplayName } from '@/types/provider'
+import { ROUTING_MODES, type ProviderRoutingMode } from '@/types/routing'
 import { ProviderModelPicker, type ProviderModelMenu } from './ProviderModelPicker'
 
 interface RoutingModePickerProps {
@@ -65,6 +69,23 @@ export function RoutingModePicker({ sessionId, open, onOpenChange, onChangeModel
     if (open === null && !forced) setAdvanced(false)
   }, [open, forced])
 
+  const setMode = useSetAtom(setRoutingModeAtom)
+  const setPickedProvider = useSetAtom(chatSelectedProviderAtom)
+  const setSessionModel = useSetAtom(chatSessionModelAtom)
+  const [modeError, setModeError] = useState<string | null>(null)
+
+  /** Switch the mode in place. Auto hands the choice back to PO: any earlier pick of this draft is dropped. */
+  const changeMode = async (next: ProviderRoutingMode) => {
+    setModeError(null)
+    if (next === 'full') {
+      setPickedProvider(null)
+      setSessionModel(null)
+      setForced(false)
+    }
+    const failure = await setMode({ slug, mode: next })
+    if (failure) setModeError(failure === 'forbidden' ? t('routing.settings.errors.forbidden') : t('routing.menu.saveFailed'))
+  }
+
   const picker = (props: { chipPrefix?: string } = {}) => (
     <ProviderModelPicker
       sessionId={sessionId}
@@ -76,9 +97,29 @@ export function RoutingModePicker({ sessionId, open, onOpenChange, onChangeModel
     />
   )
 
+  const hasSession = !!sessionId
+
+  // A conversation not created yet, on a server that has the router: ONE menu,
+  // the three modes at the top and, under them, what that mode lets you choose.
+  if (!hasSession && settings) {
+    const header = <RoutingModeTabs mode={mode} onChange={(m) => void changeMode(m)} error={modeError} />
+    return (
+      <ProviderModelPicker
+        sessionId={sessionId}
+        open={open}
+        onOpenChange={onOpenChange}
+        onChangeModel={onChangeModel}
+        onNewConversation={onNewConversation}
+        onForce={setForced}
+        header={header}
+        autoPanel={mode === 'full' ? <AutoPanel /> : undefined}
+        chipPrefix={mode === 'mixed' ? `${t('routing.modes.mixed.label')} · ` : ''}
+      />
+    )
+  }
+
   if (mode === 'primary') return picker()
 
-  const hasSession = !!sessionId
   /** This chat got the user's own choice (recorded by the picker, `routed_by: request`). */
   const ownChoice = hasSession && sessionRouting?.routed_by === 'request'
   // "Forced: " in the language of the user; the target itself follows in the chip.
@@ -159,5 +200,58 @@ export function RoutingModePicker({ sessionId, open, onOpenChange, onChangeModel
         </div>
       )}
     </div>
+  )
+}
+
+/** The three modes as one radio group: the same words everywhere (`routing.modes.*`). */
+function RoutingModeTabs({ mode, onChange, error }: { mode: ProviderRoutingMode; onChange: (mode: ProviderRoutingMode) => void; error: string | null }) {
+  const { t } = useT()
+  const id = useId()
+  // Reading order: from the widest decision (Auto) to the narrowest (Strict).
+  const order: ProviderRoutingMode[] = ['full', 'mixed', 'primary']
+  return (
+    <div className="px-2 pt-2 pb-1.5 border-b border-white/[0.06]" data-testid="routing-tabs">
+      <div role="radiogroup" aria-label={t('routing.menu.modeLegend')} className="grid grid-cols-3 gap-0.5 rounded-md bg-white/[0.04] p-0.5">
+        {order
+          .filter((m) => (ROUTING_MODES as readonly string[]).includes(m))
+          .map((m) => {
+            const active = m === mode
+            return (
+              <button
+                key={m}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                aria-describedby={`${id}-hint`}
+                data-testid={`routing-mode-${m}`}
+                onClick={() => onChange(m)}
+                className={`rounded px-1.5 py-1 text-[11px] transition-colors ${
+                  active ? 'bg-white/[0.10] text-gray-100' : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                {t(`routing.modes.${m}.label`)}
+              </button>
+            )
+          })}
+      </div>
+      <p id={`${id}-hint`} className="mt-1.5 px-1 text-[10px] leading-snug text-gray-500">
+        {t(`routing.modes.${mode}.description`)}
+      </p>
+      {error && (
+        <p role="alert" className="mt-1 px-1 text-[10px] leading-snug text-amber-300">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** Auto: nothing to pick. Says so, and where the reasons will show once the conversation exists. */
+function AutoPanel() {
+  const { t } = useT()
+  return (
+    <p data-testid="routing-auto-panel" className="px-3 py-2.5 text-[11px] leading-snug text-gray-400">
+      {t('routing.picker.willChoose')}
+    </p>
   )
 }

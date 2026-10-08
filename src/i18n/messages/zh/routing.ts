@@ -2,9 +2,9 @@ import type { Translation } from '../../catalog.ts'
 
 export default {
   modes: {
-    primary: { label: '仅主提供方', description: '只有一个独占的主提供方，与现在相同。PO 只记录它本会做出的选择。' },
-    mixed: { label: '混合', description: '主提供方主导对话；PO 负责分派执行者。' },
-    full: { label: '完全', description: 'PO 决定一切并说明原因。' },
+    primary: { label: '严格', description: '整条链路只用一个模型：你选定的那个。' },
+    mixed: { label: '混合', description: '由你选择主导者；PO 为每个执行者路由，可跨多个提供商。' },
+    full: { label: '自动', description: 'PO 为整条链路选择提供商和模型，并说明原因。' },
   },
   stages: {
     shadow: { label: '影子', description: '不应用任何决定；每个决定都会被记录。' },
@@ -134,6 +134,7 @@ export default {
     poChooses: 'PO 将自行选择（路由：完全）',
     poRoutes: 'PO 路由（推荐）',
   },
+  menu: { modeLegend: '路由模式', saveFailed: '无法保存该模式。' },
   picker: { primary: '主要：{target} · PO 路由执行者', forced: '已强制：{target}', willChoose: 'PO 将在第一条消息时选择', routedBy: '路由方：{by}', aria: '路由：{mode}' },
   reason: '原因：{reason}',
 } satisfies Translation<'routing'>

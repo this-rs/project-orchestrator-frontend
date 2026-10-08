@@ -3,6 +3,8 @@
   "keys": [
     "nav.concepts.code",
     "routing.badge.poChooses",
+    "routing.modes.full.label",
+    "fr:routing.modes.primary.label",
     "fr:routing.settings.modeLegend","fr:routing.settings.scope.global","es:routing.settings.scope.global","pt:routing.settings.scope.global","de:routing.settings.scope.global","fr:routing.decisions.page","de:routing.report.arm",
     "fr:nav.concepts.plans",
     "fr:nav.concepts.architecture",

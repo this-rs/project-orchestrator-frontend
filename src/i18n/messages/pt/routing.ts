@@ -2,9 +2,9 @@ import type { Translation } from '../../catalog.ts'
 
 export default {
   modes: {
-    primary: { label: 'Só principal', description: 'Um único provedor principal exclusivo, como hoje. O PO apenas registra o que teria escolhido.' },
-    mixed: { label: 'Misto', description: 'O principal conduz a conversa; o PO roteia os executores.' },
-    full: { label: 'Completo', description: 'O PO escolhe tudo e explica por quê.' },
+    primary: { label: 'Estrito', description: 'Um único modelo em toda a cadeia: o que você escolher.' },
+    mixed: { label: 'Misto', description: 'Você escolhe o piloto; o PO roteia cada executor, possivelmente entre vários provedores.' },
+    full: { label: 'Auto', description: 'O PO escolhe o provedor e o modelo de toda a cadeia e explica o porquê.' },
   },
   stages: {
     shadow: { label: 'Sombra', description: 'Nada é aplicado; cada decisão é registrada.' },
@@ -134,6 +134,7 @@ export default {
     poChooses: 'O PO escolherá (roteamento: completo)',
     poRoutes: 'O PO roteia (recomendado)',
   },
+  menu: { modeLegend: 'Modo de roteamento', saveFailed: 'Não foi possível salvar o modo.' },
   picker: { primary: 'Principal: {target} · O PO roteia os executores', forced: 'Forçado: {target}', willChoose: 'O PO escolherá na primeira mensagem', routedBy: 'Roteado por: {by}', aria: 'Roteamento: {mode}' },
   reason: 'Motivo: {reason}',
 } satisfies Translation<'routing'>

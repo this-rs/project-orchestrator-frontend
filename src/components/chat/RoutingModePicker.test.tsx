@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { Provider, createStore } from 'jotai'
+import { routingApi } from '@/services/routing'
 import {
   chatEffectiveProviderIdAtom,
   chatForcedTargetAtom,
@@ -36,7 +37,9 @@ vi.mock('@/services/providers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/services/providers')>()),
   providersApi: { models: vi.fn().mockResolvedValue({ models: [] }), list: vi.fn() },
 }))
-vi.mock('@/services/routing', () => ({ routingApi: { get: vi.fn(() => new Promise(() => {})), getProject: vi.fn(() => new Promise(() => {})) } }))
+vi.mock('@/services/routing', () => ({
+  routingApi: { get: vi.fn(() => new Promise(() => {})), getProject: vi.fn(() => new Promise(() => {})), put: vi.fn(), putProject: vi.fn() },
+}))
 vi.mock('@/services/documents', () => ({ documentsApi: { upload: vi.fn() } }))
 
 type Store = ReturnType<typeof createStore>
@@ -72,7 +75,11 @@ function mount(mode: ProviderRoutingMode, { sessionId = null as string | null, p
 }
 
 describe('RoutingModePicker', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // The picked target is persisted: one test's pick must not reach the next.
+    localStorage.clear()
+  })
 
   it('primary: is exactly the provider/model picker', () => {
     mount('primary')
@@ -80,27 +87,80 @@ describe('RoutingModePicker', () => {
     expect(screen.queryByTestId('routing-chip')).toBeNull()
   })
 
-  it('mixed: a chip names the primary and says PO routes the executors', () => {
-    mount('mixed', { primary: { provider: 'local-llama', model: 'qwen' } })
-    const chip = screen.getByTestId('routing-chip')
-    expect(chip.textContent).toContain('Primary: Local llama · qwen · PO routes executors')
-    expect(screen.queryByTestId('target-chip')).toBeNull()
-    expect(chip.textContent).not.toMatch(/^Auto/)
-  })
-
-  it('mixed without a configured primary: the server default is the primary', () => {
+  it('a new conversation: one menu, the three modes at the top, the current one checked', () => {
     mount('mixed')
-    expect(screen.getByTestId('routing-chip').textContent).toContain('Claude Code · claude-sonnet-5')
+    fireEvent.click(screen.getByTestId('target-chip'))
+    const tabs = screen.getByTestId('routing-tabs')
+    expect(within(tabs).getAllByRole('radio').map((r) => r.textContent)).toEqual(['Auto', 'Mixed', 'Strict'])
+    expect(within(tabs).getByTestId('routing-mode-mixed').getAttribute('aria-checked')).toBe('true')
+    expect(screen.queryByTestId('routing-chip')).toBeNull()
   })
 
-  it('full: no model selector, a "PO chooses" chip that says PO will choose at the first message', () => {
+  it('mixed: the chip says Mixed and names the pilot you can pick below', () => {
+    mount('mixed')
+    expect(screen.getByTestId('target-chip').textContent).toContain('Mixed · ')
+    fireEvent.click(screen.getByTestId('target-chip'))
+    expect(screen.getByTestId('target-provider-local-llama')).toBeTruthy()
+  })
+
+  it('full: nothing to pick - the chip reads Auto and the menu only explains it', () => {
     mount('full')
-    const chip = screen.getByTestId('routing-chip')
+    const chip = screen.getByTestId('target-chip')
     expect(chip.textContent).toContain('Auto')
-    expect(chip.textContent).not.toContain('PO chooses')
-    expect(chip.getAttribute('title')).toBe('PO will choose at the first message')
-    expect(screen.queryByTestId('target-chip')).toBeNull()
-    // The badge must not claim a provider yet.
+    fireEvent.click(chip)
+    expect(screen.getByTestId('routing-auto-panel').textContent).toBe('PO will choose at the first message')
+    expect(screen.queryByTestId('target-provider-local-llama')).toBeNull()
+  })
+
+  it('switching mode saves it in place, from the menu', async () => {
+    vi.mocked(routingApi.put).mockResolvedValue(settings('primary'))
+    const store = mount('mixed')
+    fireEvent.click(screen.getByTestId('target-chip'))
+    fireEvent.click(screen.getByTestId('routing-mode-primary'))
+    expect(routingApi.put).toHaveBeenCalledWith(expect.objectContaining({ mode: 'primary', stage: 'auto' }))
+    expect(routingApi.put).toHaveBeenCalledWith(expect.not.objectContaining({ scope: expect.anything() }))
+    await vi.waitFor(() => expect(store.get(routingSettingsAtom('')).settings?.mode).toBe('primary'))
+    expect(screen.getByTestId('routing-mode-primary').getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('switching to Auto drops the target picked for this draft', () => {
+    vi.mocked(routingApi.put).mockResolvedValue(settings('full'))
+    const store = mount('primary', {
+      prepare: (s) => {
+        s.set(chatSelectedProviderAtom, 'local-llama')
+        s.set(chatSessionModelAtom, 'qwen')
+        s.set(chatForcedTargetAtom, true)
+      },
+    })
+    fireEvent.click(screen.getByTestId('target-chip'))
+    fireEvent.click(screen.getByTestId('routing-mode-full'))
+    expect(store.get(chatSelectedProviderAtom)).toBeNull()
+    expect(store.get(chatSessionModelAtom)).toBeNull()
+    expect(store.get(chatForcedTargetAtom)).toBe(false)
+  })
+
+  it('a refused switch rolls back and says why', async () => {
+    vi.mocked(routingApi.put).mockRejectedValue(new Error('boom'))
+    const store = mount('mixed')
+    fireEvent.click(screen.getByTestId('target-chip'))
+    fireEvent.click(screen.getByTestId('routing-mode-full'))
+    expect((await screen.findByRole('alert')).textContent).toBe('The mode could not be saved.')
+    expect(store.get(routingSettingsAtom('')).settings?.mode).toBe('mixed')
+  })
+
+  it('strict: picking a model forces the target', () => {
+    const store = mount('primary')
+    fireEvent.click(screen.getByTestId('target-chip'))
+    fireEvent.click(within(screen.getByTestId('target-provider-local-llama')).getAllByRole('button')[0])
+    fireEvent.click(within(screen.getByTestId('target-provider-local-llama')).getByRole('button', { name: 'qwen' }))
+    expect(store.get(chatForcedTargetAtom)).toBe(true)
+    expect(store.get(chatSelectedProviderAtom)).toBe('local-llama')
+  })
+
+  it('a backend without the router: the plain picker, no tabs', () => {
+    mount('primary', { prepare: (s) => s.set(routingSettingsAtom(''), { state: 'unsupported', settings: null }) })
+    fireEvent.click(screen.getByTestId('target-chip'))
+    expect(screen.queryByTestId('routing-tabs')).toBeNull()
   })
 
   it('full: with a session, the tooltip carries the last decision reason and routed_by', () => {
@@ -150,25 +210,15 @@ describe('RoutingModePicker', () => {
     expect(store.get(chatEffectiveProviderIdAtom)).toBe('claude-code')
   })
 
-  it('advanced: opens the provider/model picker; choosing forces the target and the chip reads "Forced: …"', () => {
-    const store = mount('full')
+  it('advanced (on a chat PO routed): opens the provider/model picker, then closing goes back to the mode chip', () => {
+    mount('full', {
+      sessionId: 's1',
+      prepare: (s) => s.set(chatSessionRoutingAtom, { routed_by: 'auto', route_reason: 'cheapest capable model', routing_mode: 'full' }),
+    })
     fireEvent.click(screen.getByTestId('routing-chip'))
     fireEvent.click(within(screen.getByTestId('routing-popover')).getByTestId('routing-advanced'))
     expect(screen.getByTestId('target-picker-popover')).toBeTruthy()
-    // Open the local instance and pick its model.
-    fireEvent.click(within(screen.getByTestId('target-provider-local-llama')).getAllByRole('button')[0])
-    fireEvent.click(within(screen.getByTestId('target-provider-local-llama')).getByRole('button', { name: 'qwen' }))
-    expect(store.get(chatForcedTargetAtom)).toBe(true)
-    expect(store.get(chatSelectedProviderAtom)).toBe('local-llama')
-    expect(screen.getByTestId('target-chip').textContent).toMatch(/^Forced: /)
-  })
-
-  it('advanced: closing the picker without choosing goes back to the mode chip', () => {
-    const store = mount('mixed')
-    fireEvent.click(screen.getByTestId('routing-chip'))
-    fireEvent.click(screen.getByTestId('routing-advanced'))
     fireEvent.click(screen.getByTestId('target-chip'))
-    expect(store.get(chatForcedTargetAtom)).toBe(false)
     expect(screen.getByTestId('routing-chip')).toBeTruthy()
   })
 })
