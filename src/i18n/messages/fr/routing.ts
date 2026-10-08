@@ -34,7 +34,7 @@ export default {
     trust_without_sandbox: 'Mode confiance sans bac à sable',
     remote: 'Distant, non autorisé ici',
   },
-  badge: { poChooses: 'PO choisit', why: 'Pourquoi ?' },
+  badge: { poChooses: 'Auto', why: 'Pourquoi ?' },
   advanced: { force: 'Forcer un provider' },
   settings: {
     title: 'Routage',

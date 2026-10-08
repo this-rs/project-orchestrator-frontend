@@ -34,7 +34,7 @@ export default {
     trust_without_sandbox: 'बिना सैंडबॉक्स का विश्वास मोड',
     remote: 'रिमोट, यहाँ अनुमत नहीं',
   },
-  badge: { poChooses: 'PO चुनता है', why: 'क्यों?' },
+  badge: { poChooses: 'Auto', why: 'क्यों?' },
   advanced: { force: 'प्रदाता थोपें' },
   settings: {
     title: 'रूटिंग',

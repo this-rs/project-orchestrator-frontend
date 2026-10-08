@@ -13,6 +13,7 @@ import {
   chatForcedTargetAtom,
   chatPermissionConfigAtom,
   chatSelectedProviderAtom,
+  chatSessionModelAtom,
   chatSessionIdAtom,
   chatSessionProviderAtom,
   chatSessionRoutingAtom,
@@ -95,7 +96,8 @@ describe('RoutingModePicker', () => {
   it('full: no model selector, a "PO chooses" chip that says PO will choose at the first message', () => {
     mount('full')
     const chip = screen.getByTestId('routing-chip')
-    expect(chip.textContent).toContain('PO chooses')
+    expect(chip.textContent).toContain('Auto')
+    expect(chip.textContent).not.toContain('PO chooses')
     expect(chip.getAttribute('title')).toBe('PO will choose at the first message')
     expect(screen.queryByTestId('target-chip')).toBeNull()
     // The badge must not claim a provider yet.
@@ -109,6 +111,30 @@ describe('RoutingModePicker', () => {
     const title = screen.getByTestId('routing-chip').getAttribute('title')!
     expect(title).toContain('Reason: cheapest capable model')
     expect(title).toContain('Routed by: PO chose')
+  })
+
+  it('full: a chat given its own model shows that model, not Auto', () => {
+    mount('full', {
+      sessionId: 's1',
+      prepare: (s) => {
+        s.set(chatSessionModelAtom, 'qwen')
+        s.set(chatSessionRoutingAtom, { routed_by: 'request', route_reason: null, routing_mode: 'full' })
+      },
+    })
+    expect(screen.queryByTestId('routing-chip')).toBeNull()
+    expect(screen.getByTestId('target-chip').textContent).toMatch(/qwen/i)
+    expect(screen.getByTestId('target-chip').textContent).not.toContain('Auto')
+  })
+
+  it('full: another chat without its own choice still reads Auto', () => {
+    mount('full', {
+      sessionId: 's2',
+      prepare: (s) => {
+        s.set(chatSessionModelAtom, 'qwen')
+        s.set(chatSessionRoutingAtom, { routed_by: 'auto', route_reason: 'cheapest capable model', routing_mode: 'full' })
+      },
+    })
+    expect(screen.getByTestId('routing-chip').textContent).toContain('Auto')
   })
 
   it('full: the effective provider id is null before a session, and the session provider after', () => {

@@ -34,7 +34,7 @@ export default {
     trust_without_sandbox: '无沙箱的信任模式',
     remote: '远程，此处不允许',
   },
-  badge: { poChooses: '由 PO 选择', why: '为什么？' },
+  badge: { poChooses: 'Auto', why: '为什么？' },
   advanced: { force: '强制指定提供方' },
   settings: {
     title: '路由',

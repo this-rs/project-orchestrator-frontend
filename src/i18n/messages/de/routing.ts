@@ -34,7 +34,7 @@ export default {
     trust_without_sandbox: 'Vertrauensmodus ohne Sandbox',
     remote: 'Remote, hier nicht erlaubt',
   },
-  badge: { poChooses: 'PO wählt', why: 'Warum?' },
+  badge: { poChooses: 'Auto', why: 'Warum?' },
   advanced: { force: 'Provider erzwingen' },
   settings: {
     title: 'Routing',

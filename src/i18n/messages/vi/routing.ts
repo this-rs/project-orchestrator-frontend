@@ -34,7 +34,7 @@ export default {
     trust_without_sandbox: 'Chế độ tin cậy không có sandbox',
     remote: 'Từ xa, không được phép ở đây',
   },
-  badge: { poChooses: 'PO chọn', why: 'Vì sao?' },
+  badge: { poChooses: 'Auto', why: 'Vì sao?' },
   advanced: { force: 'Buộc dùng một nhà cung cấp' },
   settings: {
     title: 'Định tuyến',

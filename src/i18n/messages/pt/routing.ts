@@ -34,7 +34,7 @@ export default {
     trust_without_sandbox: 'Modo de confiança sem sandbox',
     remote: 'Remoto, não permitido aqui',
   },
-  badge: { poChooses: 'O PO escolhe', why: 'Por quê?' },
+  badge: { poChooses: 'Auto', why: 'Por quê?' },
   advanced: { force: 'Forçar um provedor' },
   settings: {
     title: 'Roteamento',

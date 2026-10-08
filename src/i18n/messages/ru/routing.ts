@@ -34,7 +34,7 @@ export default {
     trust_without_sandbox: 'Режим доверия без песочницы',
     remote: 'Удалённый, здесь не разрешён',
   },
-  badge: { poChooses: 'PO выбирает', why: 'Почему?' },
+  badge: { poChooses: 'Auto', why: 'Почему?' },
   advanced: { force: 'Принудительно выбрать провайдера' },
   settings: {
     title: 'Маршрутизация',
