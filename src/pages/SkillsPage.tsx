@@ -2,12 +2,12 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { Brain, Trash2, Upload, Sparkles, FileText, Globe, Folder, FolderKanban, Network, Plus, Tag, Zap } from 'lucide-react'
+import { Explainer } from '@/components/protocols/Explainer'
 import { skillRefreshAtom } from '@/atoms/events'
 import { skillsApi, adminApi, notesApi, workspacesApi } from '@/services'
 import {
   SkillBrowser,
   ImportWizard,
-  ConceptNote,
   energyLevel,
   cohesionLevel,
   tagSummary,
@@ -25,18 +25,20 @@ import {
   Gauge,
   ListGroup,
   LoadMoreSentinel,
+  Meter,
   PageShell,
   RelativeTime,
   Select,
   StatusMenu,
   TONE_CLASSES,
-  TabLayout,
+  ToneText,
+  ViewTabs,
   getStatusMeta,
   getStatusOptions,
   groupBy,
   pluralize,
 } from '@/components/ui'
-import type { TabItem } from '@/components/ui'
+import type { ViewTab } from '@/components/ui'
 import { useFormDialog, useToast, useInfiniteList, useWorkspaceSlug } from '@/hooks'
 import { CreateSkillForm, ImportSkillForm } from '@/components/forms'
 import type { Skill, SkillStatus, PaginatedResponse, PublishedSkillSummary } from '@/types'
@@ -242,9 +244,9 @@ export function SkillsPage() {
     setStatusFilter('all')
   }
 
-  const tabItems: TabItem[] = [
-    { id: 'skills', label: 'My skills', icon: <Brain className="w-4 h-4" aria-hidden="true" /> },
-    { id: 'registry', label: 'Shared catalog', icon: <Globe className="w-4 h-4" aria-hidden="true" /> },
+  const tabItems: ViewTab[] = [
+    { id: 'skills', label: 'My skills', icon: <Brain aria-hidden="true" /> },
+    { id: 'registry', label: 'Shared catalog', icon: <Globe aria-hidden="true" /> },
   ]
 
   const isPristine = total === 0 && statusFilter === 'all' && !q
@@ -252,7 +254,8 @@ export function SkillsPage() {
   return (
     <PageShell
       title={NOMENCLATURE.skills.plural}
-      description="Emergent knowledge clusters, detected from your notes and decisions."
+      description="Knowledge that wakes up by itself when the topic comes up."
+      intro="skills"
       count={activeTab === 'skills' && !loading && !noProjects ? visible.length : undefined}
       width="wide"
       actions={
@@ -271,29 +274,19 @@ export function SkillsPage() {
       }
     >
       <div className="space-y-3">
-        <ConceptNote summary="A skill is a domain of expertise: a group of notes and decisions about the same topic. When an agent works on that topic, the skill injects that knowledge automatically.">
-          <p>
-            <span className="text-gray-300">Detection.</span> The system spots groups of notes strongly linked to each
-            other (at least {MIN_NOTES_FOR_DETECTION} notes in the project). You can also create one by hand, import an
-            exported file, or pick one up from the shared catalog.
-          </p>
-          <p>
-            <span className="text-gray-300">Triggers.</span> Each skill carries patterns (regex, files, meaning, MCP
-            tool): when an agent's request matches one, the skill activates.
-          </p>
-          <p>
-            <span className="text-gray-300">Lifecycle.</span> <Lifecycle status="emerging" /> just appeared ·{' '}
-            <Lifecycle status="active" /> in use · <Lifecycle status="imported" /> came from another project, on
-            probation · <Lifecycle status="dormant" /> not called on for a long time · <Lifecycle status="archived" />{' '}
-            retired.
-          </p>
-          <p>
-            <span className="text-gray-300">Energy</span> = recent activity, <span className="text-gray-300">cohesion</span>{' '}
-            = how tightly its notes are linked to each other.
-          </p>
-        </ConceptNote>
+        <Explainer>
+          Detection: skills are found as groups of notes strongly linked to each other (Louvain community detection, at
+          least {MIN_NOTES_FOR_DETECTION} notes in the project); one can also be created by hand, imported from an
+          exported file or picked up from the shared catalog. Triggers: each skill carries patterns (regex, files,
+          meaning, tool) and activates when an assistant's request matches one. Lifecycle:{' '}
+          <Lifecycle status="emerging" /> just appeared · <Lifecycle status="active" /> in use ·{' '}
+          <Lifecycle status="imported" /> came from another project, on probation · <Lifecycle status="dormant" /> not
+          called on for a long time · <Lifecycle status="archived" /> retired. Energy is recent activity, cohesion how
+          tightly its notes are linked to each other.
+        </Explainer>
 
-        <TabLayout tabs={tabItems} activeTab={activeTab} onTabChange={setActiveTab} className="pt-3 space-y-3">
+        <ViewTabs label="Skill views" tabs={tabItems} value={activeTab} onChange={setActiveTab} />
+        <div className="space-y-3">
           {activeTab === 'registry' ? (
             <SkillBrowser onImport={setImportTarget} />
           ) : noProjects ? (
@@ -378,7 +371,7 @@ export function SkillsPage() {
               )}
             </>
           )}
-        </TabLayout>
+        </div>
       </div>
 
       <FormDialog {...formDialog.dialogProps} onSubmit={skillForm.submit}>
@@ -424,10 +417,10 @@ function SkillsEmptyState({ noteCount, detecting, onDetect, onCreate }: SkillsEm
   return (
     <div className="flex flex-col items-center py-10 px-4 text-center border border-dashed border-white/[0.08] rounded-xl">
       <Brain className="w-8 h-8 mb-3 text-gray-600" aria-hidden="true" />
-      <h3 className="text-sm font-medium text-gray-200">No skills detected yet</h3>
+      <h3 className="text-sm font-medium text-gray-200">No skills yet</h3>
       <p className="mt-1 text-xs text-gray-500 max-w-sm">
-        Skills appear when the project has enough linked notes. Add notes (gotchas, patterns, guidelines) so the system
-        can identify expertise domains — or create one by hand.
+        Skills appear when the project has enough linked notes. Add notes (gotchas, patterns, guidelines) so the related
+        ones can be found together — or create one by hand.
       </p>
 
       {noteCount !== null && (
@@ -438,24 +431,12 @@ function SkillsEmptyState({ noteCount, detecting, onDetect, onCreate }: SkillsEm
               {noteCount} / {MIN_NOTES_FOR_DETECTION} notes
             </span>
             {ready ? (
-              <span className="text-emerald-400">Ready for detection</span>
+              <ToneText tone="success" label="Ready for detection" />
             ) : (
               <span className="text-gray-500">{MIN_NOTES_FOR_DETECTION - noteCount} more needed</span>
             )}
           </div>
-          <div
-            className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden"
-            role="progressbar"
-            aria-label="Notes available for detection"
-            aria-valuemin={0}
-            aria-valuemax={MIN_NOTES_FOR_DETECTION}
-            aria-valuenow={noteCount}
-          >
-            <div
-              className={`h-full rounded-full ${ready ? 'bg-emerald-500' : 'bg-indigo-500/70'}`}
-              style={{ width: `${Math.max(progress * 100, 2)}%` }}
-            />
-          </div>
+          <Meter size="bar" value={progress} tone={ready ? 'success' : 'progress'} />
           {!ready && (
             <p className="mt-2 text-[11px] leading-4 text-gray-500">
               At least {MIN_NOTES_FOR_DETECTION} notes are needed to find coherent clusters.

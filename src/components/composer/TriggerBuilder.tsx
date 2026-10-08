@@ -166,7 +166,7 @@ function TriggerBuilderComponent({ vector, onChange }: TriggerBuilderProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+        <h4 className="text-[10px] font-semibold text-slate-400">
           Relevance Vector
         </h4>
         <button

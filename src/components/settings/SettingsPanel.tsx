@@ -16,7 +16,7 @@
 import { useId, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRight, Loader2 } from 'lucide-react'
-import { focusRing, surface } from '@/components/ui'
+import { ToneText, focusRing, surface } from '@/components/ui'
 import { FIELD_LABEL, NativeSelect } from './FormField'
 import type { ProjectOption } from './useProjectOptions'
 
@@ -140,8 +140,8 @@ export function SaveStatus({
   if (error) return <ErrorLine>{error}</ErrorLine>
   if (done)
     return (
-      <span role="status" className="text-emerald-300">
-        {doneText}
+      <span role="status">
+        <ToneText tone="success" label={doneText} />
       </span>
     )
   return null

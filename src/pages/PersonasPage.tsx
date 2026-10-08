@@ -21,8 +21,9 @@ import {
   groupBy,
   pluralize,
 } from '@/components/ui'
-import { ConceptNote, cohesionLevel, energyLevel, fetchAllPages, dedupeById } from '@/components/registry'
+import { cohesionLevel, energyLevel, fetchAllPages, dedupeById } from '@/components/registry'
 import { PersonaBuilder } from '@/components/personas'
+import { Explainer } from '@/components/protocols/Explainer'
 import { useToast, useInfiniteList, useWorkspaceSlug } from '@/hooks'
 import type { Persona, PersonaStatus, PersonaSubgraph, PaginatedResponse } from '@/types'
 import { workspacePath } from '@/utils/paths'
@@ -186,7 +187,8 @@ export function PersonasPage() {
   return (
     <PageShell
       title={NOMENCLATURE.personas.plural}
-      description="Expertise profiles assigned to agents, built from your code and knowledge."
+      description="Specialist assistants, each focused on one area of your work."
+      intro="personas"
       count={loading || noProjects ? undefined : visible.length}
       width="wide"
       actions={
@@ -228,21 +230,13 @@ export function PersonasPage() {
       }
     >
       <div className="space-y-3">
-        <ConceptNote summary="A persona is an expert profile handed to an agent: it defines the files, notes, decisions and skills the agent knows, plus its execution settings (model, budget, timeout).">
-          <p>
-            When a task touches files a persona knows, the agent running it receives that knowledge first.
-          </p>
-          <p>
-            Each link has a <span className="text-gray-300">weight</span> that strengthens when the persona succeeds and
-            weakens otherwise. <span className="text-gray-300">Energy</span> = recent vitality,{' '}
-            <span className="text-gray-300">success rate</span> = share of tasks that succeeded with it.
-          </p>
-          <p>
-            A persona can be created by hand, built automatically from the code (entry point, file pattern) or emerge
-            on its own; it can also inherit from another one (EXTENDS). Without a project it is{' '}
-            <span className="text-gray-300">global</span> and serves the whole workspace.
-          </p>
-        </ConceptNote>
+        <Explainer>
+          A persona is a profile handed to an assistant: the files, notes, decisions and skills it knows first, plus its
+          settings (model, budget, time limit). Each link carries a weight that grows when the persona succeeds and shrinks
+          otherwise; energy is its recent vitality, success rate the share of tasks that went well with it. A persona is
+          created by hand, built from the code (entry point, file pattern, code community) or emerges on its own; it can
+          inherit from another one (EXTENDS). Without a project it is global and serves the whole workspace.
+        </Explainer>
 
         {noProjects ? (
           <EmptyState
@@ -256,7 +250,7 @@ export function PersonasPage() {
           isPristine ? (
             <EmptyState
               title="No personas yet"
-              description="Create a persona to specialise an agent on a part of your codebase."
+              description="Create a persona to give an assistant one area of your work to specialise in."
               action={
                 <Button size="sm" onClick={() => setCreateOpen(true)}>
                   <Plus className="w-4 h-4 mr-1.5" aria-hidden="true" />

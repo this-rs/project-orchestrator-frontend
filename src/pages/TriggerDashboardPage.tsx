@@ -31,7 +31,6 @@ import {
   RelativeTime,
   Select,
   ToneText,
-  focusRing,
   groupBy,
   inlineLink,
   pluralize,
@@ -39,6 +38,7 @@ import {
   Button,
 } from '@/components/ui'
 import { Explainer } from '@/components/protocols/Explainer'
+import { iconButton } from '@/components/ui/classes'
 import { useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { NOMENCLATURE } from '@/constants/nomenclature'
@@ -209,7 +209,8 @@ export function TriggerDashboardPage() {
   return (
     <PageShell
       title={NOMENCLATURE.triggers.plural}
-      description="Persistent event → protocol rules — automatic FSM activation"
+      description={NOMENCLATURE.triggers.description}
+      intro="triggers"
       count={loading ? undefined : visible.length}
       width="wide"
       filters={
@@ -233,15 +234,16 @@ export function TriggerDashboardPage() {
                 onClick={fetchData}
                 disabled={loading}
                 aria-label="Refresh"
-                className={`inline-flex items-center justify-center w-9 h-9 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] disabled:opacity-50 ${focusRing}`}
+                className={`${iconButton('ghost', 'size-9 md:size-8')} text-gray-400`}
               >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin motion-reduce:animate-none' : ''}`} aria-hidden="true" />
               </button>
             }
           />
           <Explainer>
-            A trigger listens to an event of the knowledge graph (an entity type and an action) and starts a protocol run
-            when it happens. Enable or disable a trigger from its ⋯ menu.
+            A trigger is a persistent rule: an event of the project (an entity type and an action, with optional
+            conditions on the payload and a cooldown) starts a run of the protocol it names, a procedure the assistant
+            follows step by step. Enable or disable a trigger from its ⋯ menu.
           </Explainer>
         </div>
       }
@@ -255,7 +257,7 @@ export function TriggerDashboardPage() {
           title={pristine ? 'No triggers yet' : 'No matching triggers'}
           description={
             pristine
-              ? 'Triggers are created through the MCP tools or the backend API. They will show up here.'
+              ? 'Ask an assistant to create one, from a protocol: it appears here as soon as it is saved.'
               : 'Try another search or clear the filters.'
           }
           action={
@@ -272,8 +274,8 @@ export function TriggerDashboardPage() {
             <MetaLine
               className="px-1"
               items={[
-                <span key="on" className="text-emerald-400">{stats.enabled} enabled</span>,
-                <span key="off">{stats.disabled} disabled</span>,
+                <ToneText key="on" tone="success" label={`${stats.enabled} enabled`} />,
+                <ToneText key="off" tone="muted" label={`${stats.disabled} disabled`} />,
                 stats.by_entity_type.length > 0 ? pluralize(stats.by_entity_type.length, 'entity type') : null,
               ]}
             />

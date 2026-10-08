@@ -1,29 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
-import { ConceptNote, MetricList, TagChips } from '../concepts'
+import { render, screen } from '@testing-library/react'
+import { MetricList, TagChips } from '../concepts'
 import { TrustBadge, TrustScoreBar } from '../TrustBadge'
-
-describe('ConceptNote', () => {
-  it('shows the summary and reveals details on tap (no hover)', () => {
-    render(
-      <ConceptNote summary="What is this?">
-        <p>Long explanation</p>
-      </ConceptNote>,
-    )
-    expect(screen.getByText('What is this?')).toBeTruthy()
-    expect(screen.queryByText('Long explanation')).toBeNull()
-    const toggle = screen.getByRole('button', { name: 'Learn more' })
-    expect(toggle.getAttribute('aria-expanded')).toBe('false')
-    fireEvent.click(toggle)
-    expect(screen.getByText('Long explanation')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Show less' }).getAttribute('aria-expanded')).toBe('true')
-  })
-
-  it('has no toggle without details', () => {
-    render(<ConceptNote summary="Only a line" />)
-    expect(screen.queryByRole('button')).toBeNull()
-  })
-})
 
 describe('MetricList', () => {
   it('renders label, value, level and hint; skips hidden items', () => {

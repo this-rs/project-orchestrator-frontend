@@ -26,7 +26,8 @@ import {
   applyWindow,
   describeActivity,
 } from './sessionActivity'
-import { Select, PulseIndicator } from '@/components/ui'
+import { Button, Select, PulseIndicator, StatusDot, Switch } from '@/components/ui'
+import { glassFlat, iconButton } from '@/components/ui/classes'
 import { workspacePath } from '@/utils/paths'
 import {
   Box,
@@ -272,11 +273,7 @@ function ChildrenIndicator({ sessionId, onSelect }: { sessionId: string; onSelec
                 onKeyDown={(e) => e.stopPropagation()}
                 className="w-full text-left flex items-center gap-1.5 py-1 px-1 rounded hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60"
               >
-                {run.isStreaming ? (
-                  <PulseIndicator variant="active" size={6} />
-                ) : (
-                  <span className="w-1.5 h-1.5 rounded-full bg-gray-600 shrink-0" aria-hidden="true" />
-                )}
+                {run.isStreaming ? <PulseIndicator variant="active" size={6} /> : <StatusDot tone="muted" />}
                 <span className="text-gray-400 truncate flex-1">{run.title}</span>
                 <span className="text-gray-600 tabular-nums shrink-0">{formatDuration(run.startedAt)}</span>
               </button>
@@ -554,47 +551,30 @@ export const SessionRow = memo(function SessionRow({
           {/* Inline actions — revealed by the ⋯ button, touch friendly */}
           {isMenuOpen && (
             <div
-              className="mt-2 flex items-center gap-1.5"
+              className="mt-2 flex flex-wrap items-center gap-1.5"
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Escape') onCloseMenu() }}
             >
               {isConfirmingDelete ? (
                 <>
                   <span className="text-xs text-gray-400 mr-auto">Delete this conversation?</span>
-                  <button
-                    type="button"
-                    onClick={onCloseMenu}
-                    className="px-2.5 py-1.5 rounded-md text-xs text-gray-300 bg-white/[0.05] hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60"
-                  >
+                  <Button size="sm" variant="ghost" flat onClick={onCloseMenu} className="text-xs">
                     Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onDelete(session.id)}
-                    className="px-2.5 py-1.5 rounded-md text-xs font-medium text-red-300 bg-red-500/15 hover:bg-red-500/25 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/60"
-                    autoFocus
-                  >
+                  </Button>
+                  <Button size="sm" variant="danger" flat onClick={() => onDelete(session.id)} autoFocus className="text-xs">
                     Delete
-                  </button>
+                  </Button>
                 </>
               ) : (
                 <>
-                  <button
-                    type="button"
-                    onClick={() => onStartRename(session.id)}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-gray-300 bg-white/[0.05] hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60"
-                  >
+                  <Button size="sm" variant="secondary" flat onClick={() => onStartRename(session.id)} className="gap-1.5 text-xs">
                     <Pencil className="w-3 h-3" aria-hidden="true" />
                     Rename
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onRequestDelete(session.id)}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-red-400 bg-white/[0.05] hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/60"
-                  >
+                  </Button>
+                  <Button size="sm" variant="ghost" flat onClick={() => onRequestDelete(session.id)} className="gap-1.5 text-xs text-red-300">
                     <Trash2 className="w-3 h-3" aria-hidden="true" />
                     Delete
-                  </button>
+                  </Button>
                 </>
               )}
             </div>
@@ -612,9 +592,7 @@ export const SessionRow = memo(function SessionRow({
           onKeyDown={stopKeys}
           aria-label={`Actions for ${title}`}
           aria-expanded={isMenuOpen}
-          className={`shrink-0 -my-1.5 w-8 h-8 inline-flex items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60 ${
-            isMenuOpen ? 'text-gray-200 bg-white/[0.06]' : 'text-gray-600 hover:text-gray-300 hover:bg-white/[0.05]'
-          }`}
+          className={`shrink-0 -my-1.5 ${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} ${isMenuOpen ? '' : 'text-gray-600'}`}
         >
           <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
         </button>
@@ -1040,15 +1018,12 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
       {/* Header — hidden when embedded (parent provides it) */}
       {!embedded && (
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
-          <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+          <span className="text-xs font-medium text-gray-400">
             Sessions
           </span>
-          <button
-            onClick={onClose}
-            className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
-          >
+          <Button size="sm" variant="ghost" flat onClick={onClose} className="-mr-2 text-xs text-gray-400">
             Back
-          </button>
+          </Button>
         </div>
       )}
 
@@ -1082,15 +1057,14 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
             onClick={() => setFiltersOpen((v) => !v)}
             aria-expanded={filtersOpen}
             aria-label={activeFilterCount > 0 ? `Filters (${activeFilterCount} active)` : 'Filters'}
-            className={`relative shrink-0 w-9 h-9 inline-flex items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60 ${
-              filtersOpen || activeFilterCount > 0
-                ? 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300'
-                : 'border-white/[0.06] bg-white/[0.03] text-gray-400 hover:text-gray-200'
-            }`}
+            className={`relative shrink-0 ${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} ${activeFilterCount > 0 ? 'text-indigo-300' : 'text-gray-400'}`}
           >
             <SlidersHorizontal className="w-4 h-4" aria-hidden="true" />
             {activeFilterCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-indigo-500 text-[10px] leading-4 font-semibold text-white tabular-nums">
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-indigo-500 text-[10px] leading-4 font-semibold text-white tabular-nums text-center"
+              >
                 {activeFilterCount}
               </span>
             )}
@@ -1133,22 +1107,7 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
                 <GitBranch className="w-3 h-3" aria-hidden="true" />
                 Show spawned sessions
               </span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={showSpawned}
-                aria-labelledby="session-list-show-spawned"
-                onClick={() => setShowSpawned(!showSpawned)}
-                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60 ${
-                  showSpawned ? 'bg-indigo-500/60' : 'bg-white/[0.08]'
-                }`}
-              >
-                <span
-                  className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
-                    showSpawned ? 'translate-x-[18px]' : 'translate-x-0.5'
-                  }`}
-                />
-              </button>
+              <Switch checked={showSpawned} onChange={setShowSpawned} ariaLabel="Show spawned sessions" />
             </div>
           </div>
         )}

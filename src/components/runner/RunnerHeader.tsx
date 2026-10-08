@@ -1,7 +1,7 @@
 /**
  * RunnerHeader — PageHeader of the runner dashboard.
  *
- *   Pipelines
+ *   Automation
  *   <Plan title>                                  [Cancel run | Retry run] [⋯]
  *   ● Running · 3/8 tasks · 1 failed · 04:12 · wave 2/3 · run 1a2b3c4d
  *
@@ -16,6 +16,7 @@ import { useToast } from '@/hooks'
 import { CancelButton } from './CancelButton'
 import { formatElapsed, runStateMeta } from './shared'
 import type { RunSnapshot } from '@/services/runner'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 export interface RunnerHeaderProps {
   planId: string
@@ -55,13 +56,14 @@ export function RunnerHeader({
   return (
     <PageHeader
       title={planTitle}
-      parentLinks={[{ icon: Rocket, label: 'Pipelines', name: 'Pipelines', href: wpFn(wsSlug, '/pipelines') }]}
+      parentLinks={[{ icon: Rocket, label: NOMENCLATURE.automation.plural, name: NOMENCLATURE.automation.plural, href: wpFn(wsSlug, `/${NOMENCLATURE.automation.segment}`) }]}
       status={<ToneText tone={meta.tone} label={meta.label} pulse={meta.live && isRunning} />}
+      intro="automation"
       meta={[
         <span key="t" className="tabular-nums">
           {snap.tasks_completed ?? 0}/{snap.tasks_total ?? 0} tasks
         </span>,
-        failedCount > 0 ? <span key="f" className="text-red-400">{failedCount} failed</span> : null,
+        failedCount > 0 ? <ToneText key="f" tone="danger" dot={false} label={`${failedCount} failed`} /> : null,
         <span key="e" className="font-mono tabular-nums">{formatElapsed(snap.elapsed_secs)}</span>,
         wave != null ? <span key="w" className="tabular-nums">wave {wave}{wavesTotal ? `/${wavesTotal}` : ''}</span> : null,
         snap.run_id ? <span key="id" className="font-mono text-gray-600">run {snap.run_id.slice(0, 8)}</span> : null,

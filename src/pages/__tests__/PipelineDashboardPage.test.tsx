@@ -142,6 +142,6 @@ describe('PipelineDashboardPage', () => {
         <PipelineDashboardPage />
       </MemoryRouter>,
     )
-    await waitFor(() => expect(screen.getByText('No pipeline runs yet')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('No runs yet')).toBeTruthy())
   })
 })

@@ -39,11 +39,16 @@ const initialState: WizardState = {
 
 // ── Modes ────────────────────────────────────────────────────────────────
 
+/**
+ * The manual mode comes first: it is the only one that needs no code, so it is
+ * the one every project can use (a project with no code has neither an entry
+ * point nor a code community). The code-based modes follow.
+ */
 const modes: { key: BuildMode; label: string; description: string; icon: React.ElementType }[] = [
-  { key: 'entry_point', label: 'From an entry point', description: 'Start from a function and follow its call graph.', icon: Wand2 },
+  { key: 'manual', label: 'Manual', description: 'Name it and describe its area; link files, notes and skills later. Works for any project.', icon: Hand },
+  { key: 'entry_point', label: 'From an entry point', description: 'Start from a function of the code and follow what it calls.', icon: Wand2 },
   { key: 'file_pattern', label: 'From a file pattern', description: 'Match files with a glob (e.g. src/api/**/*.rs).', icon: FileCode },
-  { key: 'community', label: 'From a code community', description: 'Use a cluster detected by code analysis.', icon: Network },
-  { key: 'manual', label: 'Manual', description: 'Start empty and link files, notes and skills later.', icon: Hand },
+  { key: 'community', label: 'From a code community', description: 'Use a group of files that the code analysis found together.', icon: Network },
 ]
 
 const STEPS = ['Mode', 'Configure', 'Preview', 'Create']
@@ -203,7 +208,7 @@ export function PersonaBuilder({ projectId: defaultProjectId, projects = [], onC
           )}
 
           {state.mode === 'manual' && (
-            <p className="text-sm text-gray-400">A manual persona starts empty. Link files, notes and skills after creation.</p>
+            <p className="text-sm text-gray-400">A manual persona starts with a name and a description. Link files, notes and skills after creation, or let an assistant do it.</p>
           )}
 
           <div className="flex flex-wrap justify-between gap-2 pt-1">

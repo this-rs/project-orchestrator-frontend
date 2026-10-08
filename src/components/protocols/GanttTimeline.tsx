@@ -118,7 +118,7 @@ function GanttTooltip({ data }: { data: TooltipData }) {
       {/* State history */}
       {run.state_history && run.state_history.length > 0 && (
         <div className="space-y-1 border-t border-white/[0.06] pt-2">
-          <div className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">
+          <div className="text-[10px] font-medium text-gray-500">
             State History
           </div>
           <div className="space-y-0.5 max-h-[120px] overflow-y-auto scrollbar-thin">

@@ -5,7 +5,7 @@
  * - Collapse/expand toggle with animated chevron + height transition
  * - Vertical resize via drag handle (min 200px, max 80vh)
  * - "Scroll to bottom" button when user scrolls up (auto-scroll detection)
- * - Enriched header: agent name, Badge status, elapsed duration, close button
+ * - Enriched header: task title, status (dot + word), elapsed duration, close button
  */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
@@ -20,14 +20,15 @@ import {
   ArrowDown,
   Clock,
 } from 'lucide-react'
-import { Badge } from '@/components/ui'
+import { Button, ToneText } from '@/components/ui'
+import { iconButton, glassFlat } from '@/components/ui/classes'
 import { chatApi } from '@/services/chat'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { useConversationWs } from '@/hooks/runner'
 import { ChatMessageBubble } from '@/components/chat/ChatMessageBubble'
 import { WsStatusIndicator } from './WsStatusIndicator'
-import { formatElapsed, agentStatusConfig, agentStatusBadgeVariant } from './shared'
+import { formatElapsed, agentStateMeta } from './shared'
 
 // ---------------------------------------------------------------------------
 // Props
@@ -163,9 +164,8 @@ export function InlineConversation({
   const handleRespondPermission = useCallback(() => {}, [])
   const handleRespondInput = useCallback(() => {}, [])
 
-  // --- Badge config (use shared maps) ---
-  const badgeVariant = agentStatus ? agentStatusBadgeVariant[agentStatus as keyof typeof agentStatusBadgeVariant] : null
-  const badgeLabel = agentStatus ? agentStatusConfig[agentStatus as keyof typeof agentStatusConfig]?.label : null
+  const stateMeta = agentStatus ? agentStateMeta(agentStatus) : null
+  const headerIcon = `${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} text-gray-500`
 
   return (
     <div className="border border-indigo-500/20 rounded-lg bg-[#0d0d1a] overflow-hidden">
@@ -174,24 +174,22 @@ export function InlineConversation({
         <div className="flex items-center gap-3 min-w-0 flex-1">
           {/* Collapse/expand chevron */}
           <button
+            type="button"
             onClick={() => setCollapsed(c => !c)}
-            className="p-0.5 rounded text-gray-500 hover:text-gray-300 transition-transform duration-200 cursor-pointer"
-            title={collapsed ? 'Expand conversation' : 'Collapse conversation'}
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? 'Expand conversation' : 'Collapse conversation'}
+            className={headerIcon}
           >
             <ChevronDown
-              className={`w-4 h-4 transition-transform duration-200 ${collapsed ? '-rotate-90' : ''}`}
+              className={`w-4 h-4 transition-transform duration-(--duration-fast) ${collapsed ? '-rotate-90' : ''}`}
+              aria-hidden="true"
             />
           </button>
 
-          <Eye className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+          <Eye className="w-4 h-4 text-indigo-400 flex-shrink-0" aria-hidden="true" />
           <h4 className="text-sm font-medium text-gray-200 truncate">{taskTitle}</h4>
 
-          {/* Agent status badge */}
-          {badgeVariant && badgeLabel && (
-            <Badge variant={badgeVariant} className="text-[10px]">
-              {badgeLabel}
-            </Badge>
-          )}
+          {stateMeta && <ToneText tone={stateMeta.tone} label={stateMeta.label} pulse={stateMeta.live} className="text-[11px]" />}
 
           <WsStatusIndicator status={status} />
 
@@ -207,27 +205,26 @@ export function InlineConversation({
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {status === 'connected' && (
             <button
+              type="button"
               onClick={handleStop}
               disabled={stopping}
-              className="p-1.5 rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/[0.1] transition-colors cursor-pointer disabled:opacity-50"
+              aria-label="Stop session"
               title="Stop session"
+              className={`${iconButton('danger', 'size-9 md:size-8')} ${glassFlat}`}
             >
-              {stopping ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Square className="w-3.5 h-3.5" />}
+              {stopping ? <Loader2 className="w-3.5 h-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Square className="w-3.5 h-3.5" aria-hidden="true" />}
             </button>
           )}
           <Link
             to={workspacePath(wsSlug, `/chat/${sessionId}`)}
-            className="p-1.5 rounded-md text-gray-500 hover:text-gray-300 hover:bg-white/[0.06] transition-colors"
-            title="View full conversation"
+            className={headerIcon}
+            aria-label="Open the full conversation"
+            title="Open the full conversation"
           >
-            <ExternalLink className="w-3.5 h-3.5" />
+            <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
           </Link>
-          <button
-            onClick={onClose}
-            aria-label="Close conversation"
-            className="p-1.5 rounded-md text-gray-500 hover:text-gray-300 hover:bg-white/[0.06] transition-colors cursor-pointer"
-          >
-            <X className="w-3.5 h-3.5" />
+          <button type="button" onClick={onClose} aria-label="Close conversation" title="Close conversation" className={headerIcon}>
+            <X className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -250,7 +247,7 @@ export function InlineConversation({
           {messages.length === 0 ? (
             <div className="flex items-center justify-center py-8">
               <p className="text-sm text-gray-500">
-                {status === 'connected' ? 'Waiting for messages...' : status === 'connecting' ? 'Connecting to agent...' : 'No messages yet'}
+                {status === 'connected' ? 'Waiting for messages…' : status === 'connecting' ? 'Connecting to the assistant…' : 'No messages yet'}
               </p>
             </div>
           ) : (
@@ -267,16 +264,10 @@ export function InlineConversation({
 
         {/* Scroll-to-bottom FAB */}
         {showScrollBtn && (
-          <button
-            onClick={scrollToBottom}
-            className="absolute bottom-3 right-4 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full
-              bg-indigo-600/90 hover:bg-indigo-500 text-white text-xs font-medium
-              shadow-lg shadow-indigo-500/20 backdrop-blur-sm transition-colors cursor-pointer"
-            title="Scroll to bottom"
-          >
-            <ArrowDown className="w-3.5 h-3.5" />
+          <Button size="sm" variant="secondary" onClick={scrollToBottom} className="absolute bottom-3 right-4 z-10 gap-1.5 text-xs" title="Scroll to bottom">
+            <ArrowDown className="w-3.5 h-3.5" aria-hidden="true" />
             New messages
-          </button>
+          </Button>
         )}
       </div>
 
@@ -289,7 +280,7 @@ export function InlineConversation({
             hover:bg-indigo-500/[0.06] transition-colors group"
           title="Drag to resize"
         >
-          <div className="w-8 h-0.5 rounded-full bg-gray-600 group-hover:bg-indigo-400 transition-colors" />
+          <div className="w-8 h-0.5 rounded-full bg-gray-600 group-hover:bg-gray-400 transition-colors" />
         </div>
       )}
     </div>

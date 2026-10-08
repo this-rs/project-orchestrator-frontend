@@ -31,7 +31,6 @@ export {
   formatCost,
   planRunElapsedSecs,
   planRunTriggerLabel,
-  agentStatusConfig,
   getWaveStatus,
   runStateMeta,
   agentStateMeta,

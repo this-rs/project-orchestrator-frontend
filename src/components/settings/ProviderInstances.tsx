@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
-import { Badge, Button, Facts, surface } from '@/components/ui'
+import { Button, Facts, ToneText, surface, type StatusTone } from '@/components/ui'
 import { useProviders, useRefreshProviders } from '@/hooks/useProviders'
 import { providersApi } from '@/services/providers'
 import {
@@ -106,7 +106,7 @@ function InstanceCard({
             )}
           </p>
         </div>
-        <Badge variant={status.variant}>{status.label}</Badge>
+        <ToneText tone={STATUS_TONE[status.variant]} icon label={status.label} className="text-xs" />
       </div>
 
       {!editing && (
@@ -263,6 +263,14 @@ function AddProviderCard({ onAdd }: { onAdd: () => void }) {
       </Button>
     </li>
   )
+}
+
+/** The health of an instance is a state: dot + word (DESIGN.md § 4). */
+const STATUS_TONE: Readonly<Record<'success' | 'warning' | 'error' | 'default', StatusTone>> = {
+  success: 'success',
+  warning: 'warning',
+  error: 'danger',
+  default: 'neutral',
 }
 
 export function ProviderInstances({ onAdd }: { onAdd?: () => void } = {}) {

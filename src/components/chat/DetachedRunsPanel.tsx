@@ -5,8 +5,9 @@ import { describeSessionProvider, shouldShowProviderBadge } from '@/constants/pr
 import { CostDisplay } from '@/components/ui/CostDisplay'
 import { ProviderBadge } from './ProviderBadge'
 import { costReport, formatUsd2, hasCost } from '@/utils/cost'
-import { PulseIndicator } from '@/components/ui'
-import { ChevronDown, ChevronUp, Eye, Square, Clock, DollarSign } from 'lucide-react'
+import { PulseIndicator, StatusDot, ToneText } from '@/components/ui'
+import { glassFlat, iconButton } from '@/components/ui/classes'
+import { ChevronDown, ChevronUp, Eye, Square, Clock, DollarSign, Loader2 } from 'lucide-react'
 import { AgentExecutionDetail } from '@/components/runner/AgentExecutionDetail'
 import { chatApi } from '@/services/chat'
 import type { AgentExecution } from '@/types'
@@ -98,11 +99,7 @@ function RunRow({
         className={`flex items-center gap-2 px-2 py-1.5 rounded-md bg-white/[0.02] hover:bg-white/[0.04] transition-colors group ${run.runId ? 'cursor-pointer' : ''}`}
       >
         {/* Status indicator */}
-        {run.isStreaming ? (
-          <PulseIndicator variant="active" size={6} />
-        ) : (
-          <span className="w-1.5 h-1.5 rounded-full bg-gray-500 shrink-0" />
-        )}
+        {run.isStreaming ? <PulseIndicator variant="active" size={6} /> : <StatusDot tone="muted" label="Finished" />}
 
         {/* Run info */}
         <div className="flex-1 min-w-0">
@@ -137,22 +134,26 @@ function RunRow({
             : <ChevronDown className="w-3 h-3 text-gray-500 shrink-0" />
         )}
 
-        {/* Actions */}
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Actions — always visible (touch, DESIGN.md § 10), flat glass icon buttons */}
+        <div className="flex items-center gap-0.5">
           <button
+            type="button"
             onClick={(e) => { e.stopPropagation(); onViewRun(run.sessionId) }}
-            className="p-1 rounded text-gray-500 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
+            className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} text-gray-500`}
             title="View run"
+            aria-label="View run"
           >
-            <Eye className="w-3.5 h-3.5" />
+            <Eye className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
           {run.isStreaming && (
             <button
+              type="button"
               onClick={(e) => { e.stopPropagation(); onStopRun(run.sessionId) }}
-              className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+              className={`${iconButton('danger', 'size-9 md:size-8')} ${glassFlat}`}
               title="Stop run"
+              aria-label="Stop run"
             >
-              <Square className="w-3 h-3" />
+              <Square className="w-3 h-3" aria-hidden="true" />
             </button>
           )}
         </div>
@@ -163,8 +164,8 @@ function RunRow({
         <div className="pl-5 pr-1 pt-1 pb-2 space-y-2">
           {loading && (
             <div className="flex items-center gap-2 py-2">
-              <div className="w-3 h-3 rounded-full border-2 border-gray-600 border-t-gray-400 animate-spin" />
-              <span className="text-[10px] text-gray-500">Loading executions...</span>
+              <Loader2 className="w-3 h-3 animate-spin motion-reduce:animate-none text-gray-500" aria-hidden="true" />
+              <span className="text-[10px] text-gray-500">Loading executions…</span>
             </div>
           )}
           {!loading && executions.length === 0 && (
@@ -198,18 +199,24 @@ export const DetachedRunsPanel = memo(function DetachedRunsPanel({
   const completedCount = runs.length - activeCount
 
   return (
-    <div className="border-b border-white/[0.06] bg-amber-500/[0.03]">
+    <div className="border-b border-white/[0.06] bg-white/[0.02]">
       {/* Compact header — always visible */}
       <button
+        type="button"
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-amber-500/[0.04] transition-colors"
+        aria-expanded={expanded}
+        className="w-full min-h-9 flex items-center gap-2 px-4 py-2 text-left hover:bg-white/[0.03] transition-colors"
       >
-        {hasActiveRuns && <PulseIndicator variant="pending" size={6} />}
-        <span className="text-xs text-amber-400 font-medium">
-          {activeCount > 0
-            ? `${activeCount} run${activeCount > 1 ? 's' : ''} in progress`
-            : `${completedCount} run${completedCount > 1 ? 's' : ''} completed`}
-        </span>
+        <ToneText
+          tone={activeCount > 0 ? 'progress' : 'muted'}
+          pulse={hasActiveRuns}
+          className="text-xs font-medium"
+          label={
+            activeCount > 0
+              ? `${activeCount} run${activeCount > 1 ? 's' : ''} in progress`
+              : `${completedCount} run${completedCount > 1 ? 's' : ''} completed`
+          }
+        />
         {completedCount > 0 && activeCount > 0 && (
           <span className="text-[10px] text-gray-500">
             · {completedCount} done

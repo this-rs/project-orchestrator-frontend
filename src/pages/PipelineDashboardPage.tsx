@@ -31,9 +31,8 @@ import {
   RelativeTime,
   Section,
   Select,
-  StatusDot,
   StatusText,
-  focusRing,
+  ToneText,
   getStatusMeta,
   groupByRecency,
   pluralize,
@@ -41,6 +40,7 @@ import {
 } from '@/components/ui'
 import { PlanRunRow } from '@/components/runner/PlanRunRow'
 import { Explainer } from '@/components/protocols/Explainer'
+import { iconButton } from '@/components/ui/classes'
 import { runCost } from '@/components/runner/shared'
 import { COST_SUM_PARTIAL_HELP, formatCostSum, sumCosts } from '@/utils/cost'
 import { useWorkspaceSlug } from '@/hooks'
@@ -204,7 +204,8 @@ export function PipelineDashboardPage() {
   return (
     <PageShell
       title={NOMENCLATURE.automation.plural}
-      description="Run history across all plans — status, cost and progress"
+      description={NOMENCLATURE.automation.description}
+      intro="automation"
       count={loading ? undefined : visible.length}
       width="wide"
       filters={
@@ -223,15 +224,16 @@ export function PipelineDashboardPage() {
                 onClick={() => fetchInitial()}
                 disabled={loading}
                 aria-label="Refresh"
-                className={`inline-flex items-center justify-center w-9 h-9 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] disabled:opacity-50 ${focusRing}`}
+                className={`${iconButton('ghost', 'size-9 md:size-8')} text-gray-400`}
               >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin motion-reduce:animate-none' : ''}`} aria-hidden="true" />
               </button>
             }
           />
           <Explainer>
-            A pipeline run executes a plan: its tasks are grouped into waves and each task is handled by an agent. Tap a
-            run to open its live dashboard.
+            A run is the execution of a plan: the tasks that do not depend on each other form a wave and run at the same
+            time, each one by its own assistant; the next wave starts once the previous one is checked. Open a run to
+            follow it live.
           </Explainer>
         </div>
       }
@@ -244,7 +246,7 @@ export function PipelineDashboardPage() {
             <EntityListSkeleton rows={6} />
           ) : visible.length === 0 ? (
             <EmptyState
-              title={pristine ? 'No pipeline runs yet' : 'No matching runs'}
+              title={pristine ? 'No runs yet' : 'No matching runs'}
               description={
                 pristine
                   ? 'Run a plan to see its execution history here.'
@@ -264,14 +266,9 @@ export function PipelineDashboardPage() {
                 className="px-1 mb-2"
                 items={[
                   <span key="n" className="tabular-nums">{pluralize(runs.length, 'run')} loaded</span>,
-                  stats.running > 0 ? (
-                    <span key="r" className="inline-flex items-center gap-1.5 text-indigo-300">
-                      <StatusDot tone="progress" pulse />
-                      {stats.running} running
-                    </span>
-                  ) : null,
-                  stats.completed > 0 ? <span key="c" className="text-emerald-400">{stats.completed} completed</span> : null,
-                  stats.failed > 0 ? <span key="f" className="text-red-400">{stats.failed} failed</span> : null,
+                  stats.running > 0 ? <ToneText key="r" tone="progress" pulse label={`${stats.running} running`} /> : null,
+                  stats.completed > 0 ? <ToneText key="c" tone="success" label={`${stats.completed} completed`} /> : null,
+                  stats.failed > 0 ? <ToneText key="f" tone="danger" label={`${stats.failed} failed`} /> : null,
                   formatCostSum(stats.cost) ? (
                     <span key="$" className="font-mono tabular-nums" title={stats.cost.unknown > 0 ? COST_SUM_PARTIAL_HELP : undefined}>
                       {formatCostSum(stats.cost)} total

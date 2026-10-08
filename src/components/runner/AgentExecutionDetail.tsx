@@ -7,9 +7,10 @@
  */
 
 import { FileCode2, Clock, DollarSign, GitCommitHorizontal, Wrench, Eye, X } from 'lucide-react'
-import { PulseIndicator } from '@/components/ui'
+import { Button, ToneText } from '@/components/ui'
+import { iconButton, glassFlat } from '@/components/ui/classes'
 import { useElapsedTime } from '@/hooks/useElapsedTime'
-import { finalDurationSecs, runCost, statusStyle } from './shared'
+import { agentStateMeta, finalDurationSecs, runCost } from './shared'
 import { CostDisplay } from '@/components/ui/CostDisplay'
 import { ExecutionModel } from './ExecutionModel'
 import { formatUsd2, hasCost } from '@/utils/cost'
@@ -54,36 +55,24 @@ export function AgentExecutionDetail({
   onViewConversation,
 }: AgentExecutionDetailProps) {
   const isRunning = execution.status === 'running'
-  const cfg = statusStyle(execution.status)
+  const meta = agentStateMeta(execution.status)
   const elapsed = useElapsedTime(execution.started_at, isRunning, finalDurationSecs(execution))
   const tools = parseToolsUsed(execution.tools_used)
   const cost = runCost(execution)
 
   return (
     <div className="rounded-lg border border-border-subtle bg-white/[0.03] p-4 space-y-4">
-      {/* Header: status badge + close button */}
+      {/* Header: status (dot + word) + close button */}
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span
-            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium ${cfg.bg} ${cfg.text}`}
-          >
-            {cfg.pulse ? (
-              <PulseIndicator variant="active" size={6} className="[&_.pulse-ring]:!bg-blue-400 [&>span:last-child]:!bg-blue-400" />
-            ) : (
-              <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-            )}
-            {cfg.label}
-          </span>
+        <div className="flex items-center gap-2 min-w-0">
+          <ToneText tone={meta.tone} label={meta.label} pulse={meta.live && isRunning} className="text-xs" />
           <span className="text-xs text-gray-500 truncate max-w-[180px]">
             Task {shortTaskId(execution.task_id)}
           </span>
         </div>
         {onClose && (
-          <button
-            onClick={onClose}
-            className="p-1 rounded text-gray-500 hover:text-gray-300 hover:bg-white/[0.06] transition-colors"
-          >
-            <X className="w-3.5 h-3.5" />
+          <button type="button" onClick={onClose} aria-label="Close" className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} text-gray-500`}>
+            <X className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
         )}
       </div>
@@ -110,9 +99,7 @@ export function AgentExecutionDetail({
       {/* Files modified */}
       {execution.files_modified.length > 0 && (
         <div className="space-y-1.5">
-          <h4 className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">
-            Files modified
-          </h4>
+          <h4 className="text-[11px] font-medium text-gray-500">Files modified</h4>
           <ul className="space-y-0.5">
             {execution.files_modified.map((file) => (
               <li key={file} className="flex items-center gap-1.5 text-xs text-gray-400">
@@ -127,9 +114,7 @@ export function AgentExecutionDetail({
       {/* Commits */}
       {execution.commits.length > 0 && (
         <div className="space-y-1.5">
-          <h4 className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">
-            Commits
-          </h4>
+          <h4 className="text-[11px] font-medium text-gray-500">Commits</h4>
           <ul className="space-y-0.5">
             {execution.commits.map((sha) => (
               <li key={sha} className="flex items-center gap-1.5 text-xs text-gray-400">
@@ -144,8 +129,8 @@ export function AgentExecutionDetail({
       {/* Tools used */}
       {tools.length > 0 && (
         <div className="space-y-1.5">
-          <h4 className="text-[10px] font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
-            <Wrench className="w-3 h-3" />
+          <h4 className="text-[11px] font-medium text-gray-500 flex items-center gap-1">
+            <Wrench className="w-3 h-3" aria-hidden="true" />
             Tools used
           </h4>
           <div className="flex flex-wrap gap-1">
@@ -170,13 +155,10 @@ export function AgentExecutionDetail({
 
       {/* View Conversation button */}
       {execution.session_id && onViewConversation && (
-        <button
-          onClick={() => onViewConversation(execution.session_id!)}
-          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-indigo-500/15 text-indigo-400 hover:bg-indigo-500/25 transition-colors cursor-pointer"
-        >
-          <Eye className="w-3.5 h-3.5" />
-          View Conversation
-        </button>
+        <Button size="sm" variant="secondary" flat onClick={() => onViewConversation(execution.session_id!)} className="w-full gap-1.5 text-xs">
+          <Eye className="w-3.5 h-3.5" aria-hidden="true" />
+          View conversation
+        </Button>
       )}
     </div>
   )

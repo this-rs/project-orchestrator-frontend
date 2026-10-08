@@ -26,13 +26,13 @@ import {
   RelativeTime,
   Select,
   StatusText,
-  focusRing,
   getStatusMeta,
   getStatusOptions,
   groupBy,
   pluralize,
   Button,
 } from '@/components/ui'
+import { iconButton } from '@/components/ui/classes'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import type { Protocol, ProtocolStatus } from '@/types/protocol'
@@ -50,10 +50,10 @@ const statusOptions = [{ value: 'all', label: 'All statuses' }, ...getStatusOpti
 
 const EXPLAIN: Record<View, string> = {
   protocols:
-    'A protocol is a state machine (FSM): states connected by transitions, taken when an event occurs. Each execution of a protocol is a run.',
+    'A protocol is a finite state machine (FSM): states connected by transitions, taken when an event fires. Each execution of a protocol is a run; a state can hold a sub-protocol.',
   runs: 'The 3 latest runs of each protocol, newest first. A pulsing dot marks a run in progress; tap a row to open its protocol.',
   scheduled:
-    'Protocols that start on their own (cron schedule, event, webhook…). “Run now” starts a run immediately, without waiting for the trigger.',
+    'Protocols that start on their own (cron schedule, event, webhook…). “Run” starts one immediately, without waiting for the trigger.',
 }
 
 function matches(p: Protocol, q: string): boolean {
@@ -181,7 +181,7 @@ export function ProtocolsPage() {
         title={pristine ? 'No protocols yet' : 'No matching protocols'}
         description={
           pristine
-            ? 'Protocols are created by agents or through the MCP protocol tools. They will show up here.'
+            ? 'Ask an assistant to write one: it appears here as soon as it is saved.'
             : 'Try another search or clear the filters.'
         }
         action={
@@ -216,7 +216,8 @@ export function ProtocolsPage() {
   return (
     <PageShell
       title={NOMENCLATURE.protocols.plural}
-      description="State machines that drive automated workflows"
+      description="Procedures the assistant follows step by step, every time."
+      intro="protocols"
       count={loading || view !== 'protocols' ? undefined : visible.length}
       width="wide"
       filters={
@@ -255,9 +256,9 @@ export function ProtocolsPage() {
                 onClick={handleRefresh}
                 disabled={loading}
                 aria-label="Refresh"
-                className={`inline-flex items-center justify-center w-9 h-9 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] disabled:opacity-50 ${focusRing}`}
+                className={`${iconButton('ghost', 'size-9 md:size-8')} text-gray-400`}
               >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin motion-reduce:animate-none' : ''}`} aria-hidden="true" />
               </button>
             }
           />
