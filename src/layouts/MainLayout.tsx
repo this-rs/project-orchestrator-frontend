@@ -6,7 +6,7 @@ import { Menu, ChevronLeft, ChevronRight, MessageCircle, Plus } from 'lucide-rea
 import { NOMENCLATURE, NAV_GROUPS, segmentLabel, entityNoun } from '@/constants/nomenclature'
 import { useT, type MessageKey } from '@/i18n'
 import { sidebarCollapsedAtom, breadcrumbTitleAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, workspaceRefreshAtom } from '@/atoms'
-import { ToastContainer, Branding } from '@/components/ui'
+import { ToastContainer, Branding, HaloPointer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { UserMenu } from '@/components/auth/UserMenu'
 import { LanguageSelect } from '@/components/LanguageSelect'
@@ -24,7 +24,7 @@ import { RouteErrorBoundary } from './RouteErrorBoundary'
 const PRODUCT_NAME = 'Project Orchestrator'
 
 const navItemClass = (active: boolean) =>
-  `relative flex min-h-9 items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${
+  `relative flex min-h-9 items-center gap-3 px-3 py-2 rounded-lg transition-[color,background-color,box-shadow] ${
     active
       ? 'bg-indigo-500/15 text-indigo-400 font-medium border-l-[3px] border-indigo-500 -ml-[3px] glow-primary'
       : 'text-gray-400 hover:bg-white/[0.06] hover:text-gray-200'
@@ -181,7 +181,7 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
                       aria-label={collapsed ? item.name : undefined}
                       title={collapsed ? item.name : undefined}
                       className={({ isActive }) =>
-                        `flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${
+                        `flex items-center gap-3 px-3 py-2 rounded-lg transition-[color,background-color,box-shadow] ${
                           isActive || (item.key === 'projects' && isProjectsActive)
                             ? 'bg-indigo-500/15 text-indigo-400 font-medium border-l-[3px] border-indigo-500 -ml-[3px] glow-primary'
                             : 'text-gray-400 hover:bg-white/[0.06] hover:text-gray-200'
@@ -308,7 +308,7 @@ export function MainLayout() {
       <aside
         className={`${
           collapsed ? 'w-16' : 'w-64'
-        } hidden md:flex flex-col bg-surface-raised border-e border-border-subtle transition-all duration-200`}
+        } hidden md:flex flex-col bg-surface-raised border-e border-border-subtle transition-[width] duration-(--duration-fast)`}
         style={{ viewTransitionName: 'sidebar' }}
       >
         {isGlobal ? (
@@ -441,6 +441,8 @@ export function MainLayout() {
       {/* The chat needs a workspace: with none yet (first launch), there is no chat */}
       {chatSlug && <ChatPanel />}
       <ToastContainer />
+      {/* Mounted once: the glass edge of every `.btn` follows a fine pointer (no-op on touch / reduced motion). */}
+      <HaloPointer />
     </div>
   )
 }

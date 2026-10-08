@@ -102,7 +102,7 @@ describe('ProjectConsent', () => {
     fireEvent.click(within(await screen.findByTestId('consent-deepseek')).getByRole('button', { name: 'Retirer l’autorisation de DeepSeek' }))
     const dialog = screen.getByRole('alertdialog')
     const confirm = within(dialog).getByRole('button', { name: 'Retirer l’autorisation' })
-    expect(confirm.className).toContain('bg-red-600')
+    expect(confirm.className).toContain('btn-danger')
     expect(revoke).not.toHaveBeenCalled()
     fireEvent.click(confirm)
     await waitFor(() => expect(revoke).toHaveBeenCalledWith('acme', 'deepseek'))

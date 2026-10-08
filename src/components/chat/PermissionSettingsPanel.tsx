@@ -392,7 +392,7 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
                       aria-pressed={isActive}
                       aria-disabled={refused || undefined}
                       aria-describedby={refused ? trustHelpId : undefined}
-                      className={`text-left rounded-lg border p-2.5 transition-all ${
+                      className={`text-left rounded-lg border p-2.5 transition-[color,background-color,border-color,opacity] ${
                         isActive
                           ? m.bgActive
                           : refused

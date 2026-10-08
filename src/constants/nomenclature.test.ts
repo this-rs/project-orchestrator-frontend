@@ -46,6 +46,46 @@ describe('nomenclature', () => {
     expect(NAV_GROUPS.flatMap((g) => g.items)).not.toContain('today')
   })
 
+  describe('explain — the three sentences that introduce a screen (AUDIENCE.md § 9)', () => {
+    /** Words the site bans from any explanation: technical names and the words the product renamed. */
+    const BANNED = /\b(agents?|milestones?|rfcs?|mcp|neo4j|graphs?|fsm|louvain)\b/i
+    const LINES = ['what', 'why', 'different'] as const
+    const entries = Object.entries(NOMENCLATURE) as [string, (typeof NOMENCLATURE)[keyof typeof NOMENCLATURE]][]
+
+    it('gives every concept three non-empty lines', () => {
+      for (const [key, c] of entries) {
+        for (const line of LINES) {
+          expect(c.explain[line].trim().length, `${key}.explain.${line}`).toBeGreaterThan(0)
+        }
+      }
+    })
+
+    it('uses the product\'s words only: never agent, milestone, RFC, MCP, Neo4j, graph, FSM or Louvain', () => {
+      for (const [key, c] of entries) {
+        for (const line of LINES) {
+          const m = c.explain[line].match(BANNED)
+          expect(m, `${key}.explain.${line} contains « ${m?.[0]} »`).toBeNull()
+        }
+      }
+    })
+
+    it('keeps each line short enough for two lines on a phone (~150 characters)', () => {
+      for (const [key, c] of entries) {
+        for (const line of LINES) {
+          expect(c.explain[line].length, `${key}.explain.${line}`).toBeLessThanOrEqual(150)
+        }
+      }
+    })
+
+    it('ends each line with a full stop: one sentence, said once', () => {
+      for (const [key, c] of entries) {
+        for (const line of LINES) {
+          expect(c.explain[line], `${key}.explain.${line}`).toMatch(/\.$/)
+        }
+      }
+    })
+  })
+
   it('names segments and entities from the registry', () => {
     expect(segmentLabel('milestones')).toBe('Objectives')
     expect(segmentLabel('project-milestones')).toBe('Objectives')

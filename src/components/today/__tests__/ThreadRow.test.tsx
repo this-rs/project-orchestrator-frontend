@@ -103,7 +103,7 @@ describe('ThreadRow — stuck (À reprendre)', () => {
 
   it('Reprendre is a secondary button: eight stuck threads must not stack eight primaries', () => {
     renderRow(<ThreadRow variant="stuck" thread={thread} runner={blocked.runner} onResume={noResume} />)
-    expect(screen.getByRole('button', { name: ROW_TEXT.resume }).className).not.toContain('bg-indigo-600')
+    expect(screen.getByRole('button', { name: ROW_TEXT.resume }).className).not.toContain('btn-primary')
   })
 
   it('Reprendre calls onResume once with the thread (the page does POST /run)', async () => {
@@ -366,7 +366,7 @@ describe('ThreadRow — orphan (À reprendre)', () => {
   it('"Reprendre la conversation" of an orphan row is secondary (the page keeps one primary)', () => {
     send()
     expect(ROW_TEXT.resumeSession).toBe('Reprendre la conversation')
-    expect(screen.getByRole('button', { name: ROW_TEXT.resumeSession }).className).not.toContain('bg-indigo-600')
+    expect(screen.getByRole('button', { name: ROW_TEXT.resumeSession }).className).not.toContain('btn-primary')
   })
 
   // Was: "12px in a readable grey, set apart from the request". The provenance is no longer

@@ -385,7 +385,7 @@ function TaskNodeComponent({ data }: NodeProps<Node<TaskNodeData>>) {
       <div
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
-        className={`cursor-pointer transition-all duration-150 hover:scale-[1.02] hover:shadow-lg ${isInProgress ? 'dep-node-pulse' : ''}`}
+        className={`cursor-pointer transition-[transform,box-shadow] duration-(--duration-instant) pointer-fine:hover:scale-[1.02] hover:shadow-lg ${isInProgress ? 'dep-node-pulse' : ''}`}
         style={{
           background: colors.bg,
           border: `1.5px solid ${colors.border}`,

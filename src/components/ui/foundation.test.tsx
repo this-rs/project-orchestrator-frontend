@@ -79,6 +79,7 @@ describe('FilterBar', () => {
     const onClear = vi.fn()
     render(<Harness onClear={onClear} />)
     const btn = screen.getByRole('button', { name: 'Filters (1 active)' })
+    for (const c of ['btn', 'btn-ghost', 'btn-icon', 'size-9', 'md:size-8']) expect(btn.classList.contains(c)).toBe(true)
     // open by default because a filter is active
     expect(btn.getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByText('panel content')).toBeTruthy()
@@ -189,6 +190,23 @@ describe('EmptyState / skeleton', () => {
     rerender(<EmptyState size="sm" title="No tasks" />)
     expect(screen.getByText('No tasks')).toBeTruthy()
     expect(screen.queryByRole('heading')).toBeNull()
+  })
+
+  it('page variant: display-3 title, lead text, one action, no dashed box', () => {
+    const { container } = render(
+      <EmptyState size="page" title="No projects yet" description="Create the first one." action={<button>New project</button>} />,
+    )
+    const h = screen.getByRole('heading', { level: 2, name: 'No projects yet' })
+    expect(h.className).toContain('display-3')
+    expect(screen.getByText('Create the first one.').className).toContain('text-gray-400')
+    expect(screen.getByRole('button', { name: 'New project' })).toBeTruthy()
+    expect(container.querySelector('.border-dashed')).toBeNull()
+  })
+
+  it('md variant keeps its dashed box and base-size title', () => {
+    const { container } = render(<EmptyState title="No decisions" />)
+    expect(container.querySelector('.border-dashed')).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 3 }).className).not.toContain('display-3')
   })
 
   it('EntityListSkeleton exposes a loading status', () => {

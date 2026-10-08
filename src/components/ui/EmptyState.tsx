@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { leadText, sectionTitle } from './classes'
 
 type EmptyStateVariant = 'tasks' | 'plans' | 'notes' | 'milestones' | 'projects' | 'search'
 
@@ -10,10 +11,14 @@ interface EmptyStateProps {
   /** Auto-select a themed illustration (ignored when `size="sm"`) */
   variant?: EmptyStateVariant
   /**
-   * `md` (default): page-level empty list. `sm`: inside a Section / list
-   * group — no border, no illustration, small icon.
+   * `md` (default): an empty list area, inside a page that still has its title.
+   * `sm`: inside a Section / list group — no border, no illustration, small icon.
+   * `page`: the screen itself is empty (« No X yet » is the only thing on it):
+   * the title is set in the display scale (`display-3`, DESIGN.md § 2), the
+   * description is a lead text, and `action` is ONE primary button — the single
+   * thing to do now. Never under a display headline that is already on screen.
    */
-  size?: 'md' | 'sm'
+  size?: 'md' | 'sm' | 'page'
   className?: string
 }
 
@@ -30,6 +35,21 @@ export function EmptyState({ icon, title, description, action, variant, size = '
   }
 
   const illustration = variant ? illustrations[variant] : null
+
+  if (size === 'page') {
+    return (
+      <div className={`empty-state flex flex-col items-center justify-center py-14 md:py-24 px-4 text-center ${className}`}>
+        {illustration ? (
+          <div className="mb-5">{illustration}</div>
+        ) : icon ? (
+          <div className="w-12 h-12 rounded-full bg-white/[0.03] flex items-center justify-center text-gray-500 mb-4">{icon}</div>
+        ) : null}
+        <h2 className={sectionTitle}>{title}</h2>
+        {description && <p className={`mt-3 mx-auto ${leadText}`}>{description}</p>}
+        {action && <div className="mt-6">{action}</div>}
+      </div>
+    )
+  }
 
   return (
     <div

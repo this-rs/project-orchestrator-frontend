@@ -94,7 +94,7 @@ function NoteNodeComponent({ data, selected, id }: NodeProps<Node<NoteNodeData>>
   return (
     <div
       ref={animRef}
-      className={`flex items-center justify-center transition-all ${isActivated ? 'duration-500' : 'duration-300'}`}
+      className={`flex items-center justify-center transition-[background-color,border-color,box-shadow,transform,opacity] ${isActivated ? 'duration-(--duration-slow)' : 'duration-(--duration-stage)'}`}
       style={{
         width: size.width,
         height: size.height,

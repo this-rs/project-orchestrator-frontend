@@ -225,11 +225,11 @@ export function UpdateBanner() {
             </div>
             <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-blue-200 dark:bg-blue-800">
               <div
-                className="h-full rounded-full bg-blue-600 transition-all duration-300 ease-out dark:bg-blue-400"
+                className="h-full rounded-full bg-blue-600 transition-[width] duration-(--duration-stage) ease-(--ease-standard) dark:bg-blue-400"
                 style={{
                   width: state.percent != null ? `${state.percent}%` : '30%',
                   ...(state.percent == null && {
-                    animation: 'pulse 1.5s ease-in-out infinite',
+                    animation: 'pulse 1.5s var(--ease-standard) infinite',
                   }),
                 }}
               />

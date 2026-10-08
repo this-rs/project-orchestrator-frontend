@@ -56,7 +56,7 @@ function MiniGauge({
       <span className="text-[10px] text-slate-500 min-w-[72px] shrink-0">{label}</span>
       <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden relative">
         <div
-          className="h-full rounded-full transition-all duration-500"
+          className="h-full rounded-full transition-[width] duration-(--duration-stage) ease-(--ease-standard)"
           style={{ width: `${pct}%`, backgroundColor: color }}
         />
         {/* Percentile markers */}

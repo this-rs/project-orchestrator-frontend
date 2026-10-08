@@ -61,7 +61,7 @@ function DraggableNoteItem({ note }: DraggableNoteProps) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`group flex items-start gap-2 px-2 py-1.5 rounded-md border transition-all duration-150 cursor-grab active:cursor-grabbing ${
+      className={`group flex items-start gap-2 px-2 py-1.5 rounded-md border transition-[color,background-color,border-color,opacity] duration-(--duration-instant) cursor-grab active:cursor-grabbing ${
         isDragging
           ? 'opacity-50 border-indigo-500 bg-indigo-950/30'
           : 'border-slate-700/50 bg-slate-800/50 hover:border-slate-600 hover:bg-slate-800'

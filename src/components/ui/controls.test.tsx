@@ -14,6 +14,8 @@ import { EntityRow, ListGroup } from './EntityRow'
 import { Section } from './Section'
 import { Input } from './Input'
 import { Textarea } from './Textarea'
+import { Button } from './Button'
+import { HaloPointer } from './HaloPointer'
 
 describe('TabLayout', () => {
   it('scrolls its strip, labels the panel by the active tab and switches tabs', () => {
@@ -42,6 +44,94 @@ describe('TabLayout', () => {
   })
 })
 
+describe('Button', () => {
+  it('is the glass recipe: `btn btn-<variant>`, a 36px target in size sm', () => {
+    const { rerender } = render(<Button size="sm">Save</Button>)
+    const btn = screen.getByRole('button', { name: 'Save' })
+    const has = (...cls: string[]) => cls.every((c) => btn.classList.contains(c))
+    expect(has('btn', 'btn-primary', 'min-h-9')).toBe(true)
+    expect(has('btn-flat')).toBe(false)
+    expect(btn.className).not.toContain('btn-glow')
+    rerender(<Button variant="secondary">Save</Button>)
+    expect(has('btn', 'btn-secondary')).toBe(true)
+    rerender(<Button variant="danger">Save</Button>)
+    expect(has('btn', 'btn-danger')).toBe(true)
+    rerender(<Button variant="ghost">Save</Button>)
+    expect(has('btn', 'btn-ghost')).toBe(true)
+  })
+
+  it('`flat` drops the blur for dense rows and `loading` disables the button', () => {
+    render(
+      <Button size="sm" variant="secondary" flat loading>
+        Start
+      </Button>,
+    )
+    const btn = screen.getByRole('button', { name: 'Start' }) as HTMLButtonElement
+    expect(btn.className).toContain('btn-flat')
+    expect(btn.disabled).toBe(true)
+    expect(btn.getAttribute('aria-busy')).toBe('true')
+  })
+})
+
+describe('HaloPointer', () => {
+  it('installs nothing without a fine pointer', () => {
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia
+    const add = vi.spyOn(document, 'addEventListener')
+    try {
+      const { unmount } = render(<HaloPointer />)
+      expect(add).not.toHaveBeenCalledWith('pointermove', expect.anything(), expect.anything())
+      unmount()
+    } finally {
+      add.mockRestore()
+      window.matchMedia = original
+    }
+  })
+
+  it('writes --mx / --my on the hovered .btn with a fine pointer', () => {
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({
+      matches: query === '(pointer: fine)',
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0)
+      return 1
+    })
+    try {
+      const { unmount } = render(
+        <>
+          <HaloPointer />
+          <Button>Glass</Button>
+        </>,
+      )
+      const btn = screen.getByRole('button', { name: 'Glass' })
+      fireEvent.pointerMove(btn, { pointerType: 'mouse', clientX: 12, clientY: 7 })
+      expect(btn.style.getPropertyValue('--mx')).toBe('12px')
+      expect(btn.style.getPropertyValue('--my')).toBe('7px')
+      unmount()
+    } finally {
+      raf.mockRestore()
+      window.matchMedia = original
+    }
+  })
+})
+
 describe('ViewTabs', () => {
   it('is a labelled segmented tablist', () => {
     const onChange = vi.fn()
@@ -56,8 +146,12 @@ describe('ViewTabs', () => {
         ]}
       />,
     )
-    expect(screen.getByRole('tablist', { name: 'Protocol views' })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'Runs 2' }).getAttribute('aria-selected')).toBe('true')
+    const list = screen.getByRole('tablist', { name: 'Protocol views' })
+    expect(list.className).toContain('seg')
+    const active = screen.getByRole('tab', { name: 'Runs 2' })
+    expect(active.className).toContain('seg-item')
+    expect(active.getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('tab', { name: 'Protocols' }).getAttribute('aria-selected')).toBe('false')
     fireEvent.click(screen.getByRole('tab', { name: 'Protocols' }))
     expect(onChange).toHaveBeenCalledWith('protocols')
   })
@@ -68,7 +162,9 @@ describe('ViewToggle', () => {
     const onChange = vi.fn()
     render(<ViewToggle value="list" onChange={onChange} />)
     expect(screen.getByRole('group', { name: 'View mode' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'List view' }).getAttribute('aria-pressed')).toBe('true')
+    const list = screen.getByRole('button', { name: 'List view' })
+    expect(list.getAttribute('aria-pressed')).toBe('true')
+    for (const c of ['btn', 'btn-ghost', 'btn-icon', 'size-9', 'md:size-8']) expect(list.classList.contains(c)).toBe(true)
     const board = screen.getByRole('button', { name: 'Board view' })
     expect(board.getAttribute('aria-pressed')).toBe('false')
     fireEvent.click(board)

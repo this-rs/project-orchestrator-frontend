@@ -1,5 +1,5 @@
 import { List, Columns3 } from 'lucide-react'
-import { focusRing, pressFeedback } from './classes'
+import { iconButton } from './classes'
 
 export type ViewMode = 'list' | 'kanban'
 
@@ -11,7 +11,10 @@ interface ViewToggleProps {
 
 /**
  * Icon-only list / board switch for the `FilterBar.trailing` slot (fits a
- * 375px phone next to the search). 36px targets, labelled buttons.
+ * 375px phone next to the search). 36px targets, labelled buttons. Each item
+ * is a ghost glass icon button (`iconButton`, styles/buttons.css); the pressed
+ * one is `aria-pressed` and gets the same light fill the recipe gives an open
+ * ghost button.
  */
 export function ViewToggle({ value, onChange, className = '' }: ViewToggleProps) {
   const item = (mode: ViewMode, label: string, Icon: typeof List) => {
@@ -23,9 +26,7 @@ export function ViewToggle({ value, onChange, className = '' }: ViewToggleProps)
         aria-pressed={active}
         aria-label={label}
         title={label}
-        className={`w-9 h-9 md:w-8 md:h-8 inline-flex items-center justify-center rounded-md ${pressFeedback} ${focusRing} ${
-          active ? 'bg-white/[0.08] text-gray-100' : 'text-gray-500 hover:text-gray-200'
-        }`}
+        className={`${iconButton('ghost', 'size-9 md:size-8')} ${active ? 'text-gray-100 bg-white/[0.08]' : 'text-gray-500'}`}
       >
         <Icon className="w-4 h-4" aria-hidden="true" />
       </button>
@@ -35,7 +36,7 @@ export function ViewToggle({ value, onChange, className = '' }: ViewToggleProps)
     <div
       role="group"
       aria-label="View mode"
-      className={`inline-flex items-center rounded-lg border border-white/[0.06] bg-white/[0.03] p-0.5 ${className}`}
+      className={`inline-flex items-center gap-0.5 ${className}`}
     >
       {item('list', 'List view', List)}
       {item('kanban', 'Board view', Columns3)}

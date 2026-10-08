@@ -17,7 +17,7 @@ function FunctionNodeComponent({ data, selected }: NodeProps<Node<FunctionNodeDa
   return (
     <div
       ref={animRef}
-      className="relative flex items-center justify-center rounded-full transition-all duration-150"
+      className="relative flex items-center justify-center rounded-full transition-[background-color,border-color,box-shadow,transform,opacity] duration-(--duration-instant)"
       style={{
         width: size.width,
         height: size.height,

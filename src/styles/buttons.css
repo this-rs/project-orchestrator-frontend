@@ -1,0 +1,176 @@
+/* ─── Boutons en verre — SOURCE : frontend/src/components/ui (Button.tsx + classes.ts). Le site recopie ce fichier
+ * tel quel (website: pnpm sync:design / check:design) : toute évolution se fait ICI, jamais dans la copie. ──────────────
+ * .btn            base : verre teinté translucide, flou 12px + saturation, reflet interne en haut, ombre douce (sans rectangle net).
+ * .btn-primary    verre indigo → violet.   .btn-secondary  verre neutre.   .btn-danger  verre rouge.
+ * .btn-ghost      transparent au repos, le verre apparaît au survol / focus.
+ * .btn-icon       carré (la taille vient de l'appelant).   .btn-flat  sans flou (listes denses : pas plus d'une dizaine de flous visibles).
+ * .seg / .seg-item  contrôle segmenté (onglets, filtres) ; l'item actif est un petit verre teinté.
+ *
+ * ::after = liseré de 1 px en dégradé (mask-composite), plus clair/coloré que le fond ; un radial y suit la souris via --mx / --my
+ * (posés par HaloPointer sur pointeur fin). ::before = brillance qui glisse (background-position) au survol / focus.
+ * Transitions : transform, opacity, background-position, background-color, box-shadow. Aucun filtre animé.
+ * Repli : sans backdrop-filter ou sous prefers-reduced-transparency, fonds opaques cohérents ; forced-colors : bordure système.
+ * Couches : @layer components, pour que les utilitaires Tailwind de l'appelant (rounded-full, size-11…) gagnent.
+ * Contraste (fond #0a0a0f) : texte blanc sur primaire >= 7:1, gray-100 sur secondaire >= 12:1, red-50 sur danger >= 7:1.
+ * ──────────────────────────────────────────────────────────────────────────────────────────────────────────────── */
+@layer components {
+  .btn {
+    --b-rgb: 255 255 255;           /* teinte du verre */
+    --b-bg: rgb(30 30 42);          /* repli opaque */
+    --b-bg-h: rgb(42 42 58);
+    --b-fill: .07;                  /* opacité du fond translucide */
+    --b-fill-h: .12;
+    --b-edge-a: rgb(255 255 255 / .2);    /* bord, haut-début */
+    --b-edge-b: rgb(255 255 255 / .03);   /* bord, bas */
+    --b-edge-hover: rgb(255 255 255 / .42);
+    --b-glow: 99 102 241;
+    --b-text: var(--color-gray-100, #f3f4f6);
+    position: relative; isolation: isolate; overflow: hidden;
+    display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+    border-radius: var(--radius-xl, .75rem);
+    border: 0; color: var(--b-text);
+    font-weight: 600; letter-spacing: -.005em;
+    background-color: var(--b-bg);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / .12),
+      inset 0 -10px 18px -12px rgb(0 0 0 / .28),
+      0 8px 22px -14px rgb(0 0 0 / .45);
+    transition: transform var(--duration-fast, 200ms) var(--ease-standard, ease), background-color var(--duration-fast, 200ms) var(--ease-standard, ease), box-shadow var(--duration-fast, 200ms) var(--ease-standard, ease), opacity var(--duration-fast, 200ms) var(--ease-standard, ease), color var(--duration-fast, 200ms) var(--ease-standard, ease);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:hover { background-color: var(--b-bg-h); }
+
+  /* Reflet de lumière interne : voile clair qui s'efface vers le bas. */
+  /* Brillance qui glisse (survol / focus clavier). */
+  .btn::before {
+    content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit;
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / .09), rgb(255 255 255 / 0) 52%),
+      linear-gradient(105deg, transparent 30%, rgb(255 255 255 / .03) 40%, rgb(255 255 255 / .11) 50%, rgb(255 255 255 / .03) 60%, transparent 70%) no-repeat;
+    background-size: 100% 100%, 300% 100%;
+    background-position: 0 0, 135% 0;
+    transition: background-position 1.15s cubic-bezier(.16, 1, .3, 1), opacity var(--duration-fast, 200ms) var(--ease-standard, ease);
+  }
+  /* Liseré de 1 px en dégradé + radial qui suit la souris. */
+  .btn::after {
+    content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none; border-radius: inherit; padding: 1px;
+    background:
+      radial-gradient(90px circle at var(--mx, 50%) var(--my, 0%), var(--b-edge-hover), transparent 70%),
+      linear-gradient(160deg, var(--b-edge-a), var(--b-edge-b) 55%, var(--b-edge-a));
+    background-size: 100% 100%;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    transition: opacity var(--duration-fast, 200ms) var(--ease-standard, ease);
+  }
+
+  .btn-primary {
+    --b-rgb: 99 102 241;
+    --b-bg: #4f46e5; --b-bg-h: #6157f0;
+    --b-text: #fff;
+    --b-edge-a: rgb(199 210 254 / .5); --b-edge-b: rgb(139 92 246 / .24); --b-edge-hover: rgb(255 255 255 / .6);
+    background-image: linear-gradient(135deg, #4f46e5, #7c3aed);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / .2),
+      inset 0 -12px 20px -12px rgb(30 20 100 / .45),
+      0 10px 26px -14px rgb(79 70 229 / .55);
+  }
+  .btn-primary:hover { background-image: linear-gradient(135deg, #5b52ee, #8b4df0); }
+  .btn-secondary { --b-bg: #1c1c28; --b-bg-h: #272736; }
+  .btn-danger {
+    --b-rgb: 239 68 68; --b-glow: 239 68 68;
+    --b-bg: #7f1d1d; --b-bg-h: #991b1b; --b-text: #fef2f2;
+    --b-edge-a: rgb(252 165 165 / .5); --b-edge-b: rgb(239 68 68 / .2); --b-edge-hover: rgb(254 226 226 / .6);
+    background-image: linear-gradient(135deg, #8f1f26, #6d1a3a);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / .28), inset 0 -12px 20px -12px rgb(60 0 10 / .55), 0 10px 26px -12px rgb(220 38 38 / .65);
+  }
+  .btn-danger:hover { background-image: linear-gradient(135deg, #a3242c, #7e1f45); }
+
+  /* Ghost : rien au repos ; le verre naît au survol, au focus, ou quand le bouton est pressé / ouvert. */
+  .btn-ghost {
+    --b-bg: transparent; --b-bg-h: #1c1c28; --b-text: var(--color-gray-300, #d1d5db);
+    background-color: transparent; box-shadow: none;
+  }
+  .btn-ghost::before, .btn-ghost::after { opacity: 0; }
+  .btn-ghost:hover, .btn-ghost:focus-visible, .btn-ghost[aria-expanded='true'], .btn-ghost[aria-current='page'] { color: #fff; box-shadow: inset 0 1px 0 rgb(255 255 255 / .2), 0 8px 22px -12px rgb(0 0 0 / .55); }
+  .btn-ghost:hover::before, .btn-ghost:hover::after, .btn-ghost:focus-visible::before, .btn-ghost:focus-visible::after,
+  .btn-ghost[aria-expanded='true']::before, .btn-ghost[aria-expanded='true']::after,
+  .btn-ghost[aria-current='page']::before, .btn-ghost[aria-current='page']::after { opacity: 1; }
+  .btn-ghost[aria-expanded='true'], .btn-ghost[aria-current='page'] { background-color: var(--b-bg-h); }
+
+  /* Halo diffus au survol : reste dans la boîte du bouton (overflow hidden) côté fond, et sous lui via l'ombre large. */
+  @media (hover: hover) {
+    .btn:hover:not(:disabled):not([aria-disabled='true']) {
+      transform: translateY(-1px);
+      box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / .22),
+        inset 0 -12px 20px -12px rgb(0 0 0 / .25),
+        0 0 26px -6px rgb(var(--b-glow) / .26),
+        0 14px 30px -14px rgb(var(--b-glow) / .38);
+    }
+    .btn-secondary:hover:not(:disabled), .btn-ghost:hover:not(:disabled) { --b-glow: 165 180 252; }
+    .btn:hover:not(:disabled)::before { background-position: 0 0, -35% 0; }
+  }
+  .btn:focus-visible::before { background-position: 0 0, -30% 0; }
+  .btn:active:not(:disabled) { transform: translateY(0) scale(.98); transition-duration: var(--duration-instant, 100ms); }
+
+  /* Focus : anneau net, hors de la boîte, contraste > 3:1 sur tous les fonds du verre. */
+  .btn:focus-visible { outline: 2px solid var(--color-indigo-300, #a5b4fc); outline-offset: 2px; }
+  .btn:disabled, .btn[aria-disabled='true'] { opacity: .5; cursor: not-allowed; }
+
+  /* Carré : bouton-icône (taille par l'appelant : size-10, size-11…). */
+  .btn-icon { padding: 0; aspect-ratio: 1; flex: none; }
+
+  /* ─── Contrôle segmenté (onglets, filtres) ─── */
+  .seg {
+    position: relative; isolation: isolate; display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--radius-xl, .75rem);
+    background-color: #14141c;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / .1), inset 0 0 0 1px rgb(255 255 255 / .09);
+  }
+  .seg-item {
+    position: relative; isolation: isolate; overflow: hidden; display: inline-flex; align-items: center; justify-content: center;
+    border-radius: calc(var(--radius-xl, .75rem) - 3px); color: var(--color-gray-400, #9ca3af);
+    transition: background-color var(--duration-fast, 200ms) var(--ease-standard, ease), color var(--duration-fast, 200ms) var(--ease-standard, ease), box-shadow var(--duration-fast, 200ms) var(--ease-standard, ease), transform var(--duration-fast, 200ms) var(--ease-standard, ease);
+  }
+  .seg-item:hover:not(:disabled) { color: #fff; background-color: rgb(255 255 255 / .06); }
+  .seg-item:focus-visible { outline: 2px solid var(--color-indigo-300, #a5b4fc); outline-offset: 1px; }
+  .seg-item:active:not(:disabled) { transform: scale(.97); }
+  .seg-item[aria-selected='true'], .seg-item[aria-pressed='true'] {
+    color: #fff; background-color: #3b3a8f; background-image: linear-gradient(135deg, rgb(99 102 241 / .75), rgb(139 92 246 / .6));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / .35), inset 0 0 0 1px rgb(165 180 252 / .45), 0 6px 16px -8px rgb(99 102 241 / .8);
+  }
+
+  /* ─── Verre réel (cadres de petite taille uniquement) ─── */
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    @media (prefers-reduced-transparency: no-preference) {
+      .btn:not(.btn-flat):not(.btn-ghost), .btn-ghost:hover, .btn-ghost:focus-visible, .btn-ghost[aria-expanded='true'] {
+        -webkit-backdrop-filter: blur(12px) saturate(1.3); backdrop-filter: blur(12px) saturate(1.3);
+      }
+      .btn { background-color: rgb(var(--b-rgb) / var(--b-fill)); }
+      .btn:hover { background-color: rgb(var(--b-rgb) / var(--b-fill-h)); }
+      .btn-primary { --b-fill: .5; --b-fill-h: .64; background-image: linear-gradient(135deg, rgb(99 102 241 / .62), rgb(139 92 246 / .46)); }
+      .btn-primary:hover { background-image: linear-gradient(135deg, rgb(110 113 250 / .78), rgb(151 105 250 / .62)); }
+      .btn-danger { --b-fill: .38; --b-fill-h: .52; background-image: linear-gradient(135deg, rgb(239 68 68 / .5), rgb(190 24 93 / .34)); }
+      .btn-danger:hover { background-image: linear-gradient(135deg, rgb(248 82 82 / .65), rgb(205 36 106 / .48)); }
+      .btn-ghost { background-color: transparent; }
+      .btn-ghost:hover, .btn-ghost:focus-visible, .btn-ghost[aria-expanded='true'], .btn-ghost[aria-current='page'] { background-color: rgb(255 255 255 / .09); }
+      .seg { background-color: rgb(255 255 255 / .04); -webkit-backdrop-filter: blur(12px) saturate(1.3); backdrop-filter: blur(12px) saturate(1.3); }
+      .seg-item[aria-selected='true'], .seg-item[aria-pressed='true'] { background-color: transparent; background-image: linear-gradient(135deg, rgb(99 102 241 / .6), rgb(139 92 246 / .45)); }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .btn, .btn::before, .seg-item { transition-property: background-color, color, opacity, box-shadow; }
+    .btn::before { display: none; }
+    .btn:hover:not(:disabled), .btn:active:not(:disabled), .seg-item:active:not(:disabled) { transform: none; }
+  }
+  /* Mode contraste forcé : couleurs système, bordure visible, aucun décor. */
+  @media (forced-colors: active) {
+    .btn, .seg-item[aria-selected='true'], .seg-item[aria-pressed='true'] { border: 1px solid ButtonText; background-image: none; box-shadow: none; forced-color-adjust: auto; }
+    .btn-ghost { border-color: transparent; }
+    .btn-ghost:hover, .btn-ghost:focus-visible { border-color: ButtonText; }
+    .btn::before, .btn::after { display: none; }
+    .btn:focus-visible, .seg-item:focus-visible { outline: 2px solid Highlight; }
+    .seg { border: 1px solid ButtonText; box-shadow: none; }
+    .seg-item[aria-selected='true'], .seg-item[aria-pressed='true'] { background-color: Highlight; color: HighlightText; }
+  }
+}

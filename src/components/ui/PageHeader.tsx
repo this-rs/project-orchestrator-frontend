@@ -3,6 +3,8 @@ import { Link, useInRouterContext, useLocation } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
 import { breadcrumbTitleAtom } from '@/atoms/ui'
 import type { LucideIcon } from 'lucide-react'
+import type { ConceptExplain, ConceptKey } from '@/constants/nomenclature'
+import { ConceptIntro } from './ConceptIntro'
 import type { OverflowMenuAction } from './OverflowMenu'
 import { OverflowMenu } from './OverflowMenu'
 import { CollapsibleMarkdown } from './CollapsibleMarkdown'
@@ -35,6 +37,12 @@ interface PageHeaderProps {
   parentLinks?: ParentLink[]
   /** view-transition-name for shared element morph (title ↔ card title) */
   viewTransitionName?: string
+  /**
+   * The three sentences that introduce this kind of screen (DESIGN.md § 5): a registry key or an
+   * inline `ConceptExplain`, rendered folded under the key-facts line. Optional — most detail pages
+   * inherit the explanation from their list page.
+   */
+  intro?: ConceptKey | ConceptExplain
 }
 
 /**
@@ -59,6 +67,7 @@ function BreadcrumbTitle({ title }: { title: string }) {
  * ⌂ Project name  ›  ▤ Plan name                 (parents, muted links)
  * Title that may wrap on two lines          [Action] [⋯]
  * ● In progress · P8 · Updated 3h · 4 tasks      (key facts, MetaLine)
+ * What is this?                                  (intro, folded — optional)
  * description (collapsible markdown)
  * children (tags…)
  * ```
@@ -77,6 +86,7 @@ export function PageHeader({
   children,
   parentLinks,
   viewTransitionName,
+  intro,
 }: PageHeaderProps) {
   const facts: ReactNode[] = [
     status,
@@ -129,6 +139,8 @@ export function PageHeader({
       </div>
 
       <MetaLine size="sm" items={facts} />
+
+      {intro && <ConceptIntro concept={intro} />}
 
       {description && <CollapsibleMarkdown content={description} maxHeight={120} />}
 

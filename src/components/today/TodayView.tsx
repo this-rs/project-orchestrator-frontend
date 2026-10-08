@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Skeleton, SkeletonLine, EntityListSkeleton, EmptyState, Button, focusRing, focusRingInset, surface } from '@/components/ui'
+import { Skeleton, SkeletonLine, EntityListSkeleton, EmptyState, Button, focusRing, focusRingInset, surface, pageTitle, leadText } from '@/components/ui'
 import { pressFeedback } from '@/components/ui/classes'
 import type {
   AttentionResponse,
@@ -357,20 +357,21 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
         <div className="min-w-0 flex-[1_1_20rem]">
           {head ? (
             <>
-              <p data-testid="start-title" className="text-2xl font-semibold leading-8 tracking-tight text-gray-50 text-balance @2xl/today:text-[2rem] @2xl/today:leading-10">
+              {/* The day in one sentence: the page's display title (display-2, DESIGN.md § 2) and its lead under it. */}
+              <p data-testid="start-title" className={pageTitle}>
                 {head.title}
               </p>
-              <p data-testid="start-why" className="mt-1 text-sm text-gray-300">
+              <p data-testid="start-why" className={`mt-2 ${leadText}`}>
                 {head.why}
               </p>
             </>
           ) : state === 'loading' ? (
             <div role="status" aria-label="Chargement" className="space-y-2">
-              <SkeletonLine width="60%" className="h-8" />
-              <SkeletonLine width="40%" className="h-4" />
+              <SkeletonLine width="60%" className="h-10 md:h-14" />
+              <SkeletonLine width="40%" className="h-5" />
             </div>
           ) : (
-            <p className="text-2xl font-semibold leading-8 tracking-tight text-gray-50">{TODAY_TEXT.title}</p>
+            <p className={pageTitle}>{TODAY_TEXT.title}</p>
           )}
           {laneNote && <p className="mt-2 text-xs text-gray-400">{laneNote}</p>}
           {status === 'ready' && error && (

@@ -242,8 +242,8 @@ function ActivityHeatmap({ events, color }: { events: TimelineEvent[]; color: st
             return (
               <div
                 key={hour}
-                className={`flex-1 aspect-square rounded-[2px] min-w-[6px] transition-all duration-100 ${
-                  count > 0 ? 'cursor-pointer hover:ring-1 hover:ring-cyan-400/40 hover:scale-125 hover:z-10' : ''
+                className={`flex-1 aspect-square rounded-[2px] min-w-[6px] transition-[transform,box-shadow] duration-(--duration-instant) ${
+                  count > 0 ? 'cursor-pointer hover:ring-1 hover:ring-cyan-400/40 pointer-fine:hover:scale-125 hover:z-10' : ''
                 }`}
                 style={{
                   backgroundColor: count === 0
@@ -1426,7 +1426,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                       return (
                         <div
                           key={dec.id}
-                          className={`px-3 py-2 rounded-lg border transition-all duration-300 ${
+                          className={`px-3 py-2 rounded-lg border transition-[color,background-color,border-color,opacity] duration-(--duration-stage) ${
                             isLatest
                               ? 'border-violet-500/40 bg-violet-500/8'
                               : 'border-slate-700/40 bg-slate-800/30 opacity-60'

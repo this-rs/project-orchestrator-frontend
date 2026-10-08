@@ -73,7 +73,7 @@ export function WorkspaceSwitcher({ collapsed, trafficLightPad }: { collapsed: b
   const otherWorkspaces = workspaces.filter((w) => w.slug !== activeWorkspace.slug)
 
   return (
-    <div ref={ref} className={`px-2 transition-all duration-300 ${trafficLightPad ? 'pt-7' : ''}`}>
+    <div ref={ref} className={`px-2 ${trafficLightPad ? 'pt-7' : ''}`}>
       <div
         ref={rowRef}
         className={`flex items-center rounded-lg ${collapsed ? 'flex-col gap-1 px-2 py-3' : 'gap-3 px-3 py-3'}`}

@@ -272,7 +272,7 @@ function NodeInspectorComponent({ isFullscreen }: NodeInspectorProps) {
   const Icon = entityIcons[entityType] ?? Box
 
   return (
-    <div className={`absolute top-14 right-3 z-30 overflow-y-auto rounded-lg bg-slate-900/95 backdrop-blur-sm border border-slate-700 shadow-xl transition-all duration-200 ${
+    <div className={`absolute top-14 right-3 z-30 overflow-y-auto rounded-lg bg-slate-900/95 backdrop-blur-sm border border-slate-700 shadow-xl ${
       isFullscreen ? 'w-96 max-h-[calc(100%-120px)]' : 'w-80 max-h-[calc(100%-124px)]'
     }`}>
       {/* Header */}

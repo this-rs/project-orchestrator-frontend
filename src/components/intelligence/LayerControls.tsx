@@ -143,7 +143,7 @@ function LayerControlsComponent({
           {/* "All" button */}
           <button
             onClick={onClearProjectFilters}
-            className={`flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-all whitespace-nowrap ${
+            className={`flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-[color,background-color,box-shadow] whitespace-nowrap ${
               !hasFilters
                 ? 'bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/40'
                 : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
@@ -162,7 +162,7 @@ function LayerControlsComponent({
                 onClick={() => onToggleProjectFilter(p.slug)}
                 onMouseEnter={() => onHoverProject?.(p.slug)}
                 onMouseLeave={() => onHoverProject?.(null)}
-                className={`flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-all whitespace-nowrap ${
+                className={`flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-[color,background-color,box-shadow] whitespace-nowrap ${
                   isActive
                     ? 'bg-slate-700/70 text-white ring-1 ring-slate-500/50'
                     : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'

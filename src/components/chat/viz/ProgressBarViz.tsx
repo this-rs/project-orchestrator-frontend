@@ -85,7 +85,7 @@ export function ProgressBarViz({ data, expanded = false }: VizBlockProps) {
         {segments.map((seg, i) => (
           <div
             key={i}
-            className={`h-full ${seg.color} first:rounded-l-full last:rounded-r-full transition-all duration-500`}
+            className={`h-full ${seg.color} first:rounded-l-full last:rounded-r-full transition-[width] duration-(--duration-stage) ease-(--ease-standard)`}
             style={{ width: total > 0 ? `${(seg.count / total) * 100}%` : '0%' }}
             title={`${seg.label}: ${seg.count}`}
           />

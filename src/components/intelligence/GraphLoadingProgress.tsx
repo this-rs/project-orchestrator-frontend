@@ -130,7 +130,7 @@ function StageProgressBar({ progress, progressTotal }: { progress: number; progr
   return (
     <div className="w-full h-0.5 bg-slate-800/80 rounded-full overflow-hidden mt-1">
       <div
-        className="h-full bg-blue-500/60 rounded-full transition-all duration-300 ease-out"
+        className="h-full bg-blue-500/60 rounded-full transition-[width] duration-(--duration-stage) ease-(--ease-standard)"
         style={{ width: `${pct}%` }}
       />
     </div>
@@ -157,7 +157,7 @@ function GlobalProgressBar({ stages }: { stages: LoadingStage[] }) {
   return (
     <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
       <div
-        className="h-full rounded-full transition-all duration-300 ease-out"
+        className="h-full rounded-full transition-[width] duration-(--duration-stage) ease-(--ease-standard)"
         style={{
           width: `${pct}%`,
           background: pct >= 100
@@ -179,7 +179,7 @@ function CompactStageRow({ stage }: { stage: LoadingStage }) {
 
   return (
     <div
-      className={`flex items-center gap-1.5 px-2 py-1 rounded transition-all duration-200 ${
+      className={`flex items-center gap-1.5 px-2 py-1 rounded transition-[background-color,opacity] duration-(--duration-fast) ${
         isActive
           ? 'bg-blue-950/40'
           : isDone
@@ -260,7 +260,7 @@ function GraphLoadingProgressComponent() {
 
   return (
     <div
-      className={`w-[280px] rounded-lg bg-slate-900/90 backdrop-blur-sm border border-slate-700/60 shadow-lg shadow-black/30 overflow-hidden transition-all duration-500 ${
+      className={`w-[280px] rounded-lg bg-slate-900/90 backdrop-blur-sm border border-slate-700/60 shadow-lg shadow-black/30 overflow-hidden transition-[transform,opacity] duration-(--duration-stage) ${
         fading ? 'opacity-0 translate-y-2' : 'opacity-100 translate-y-0'
       }`}
     >

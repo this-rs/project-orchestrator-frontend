@@ -23,7 +23,7 @@ function TaskNodeComponent({ data, selected }: NodeProps<Node<TaskNodeData>>) {
   return (
     <div
       ref={animRef}
-      className="flex flex-col items-center justify-center gap-1 transition-all duration-150"
+      className="flex flex-col items-center justify-center gap-1 transition-[background-color,border-color,box-shadow,transform,opacity] duration-(--duration-instant)"
       style={{
         width: size.width,
         height: size.height,

@@ -246,7 +246,7 @@ describe('AttentionCard — permission', () => {
 
   it('inside a band-1 card, "Reprendre la conversation" IS the primary action', () => {
     setup({ session: { title: 'Agent billing', state: 'dead' } })
-    expect(screen.getByRole('button', { name: ROW_TEXT.resumeSession }).className).toContain('bg-indigo-600')
+    expect(screen.getByRole('button', { name: ROW_TEXT.resumeSession }).className).toContain('btn-primary')
   })
 
   it('a DEAD question card pre-fills the chosen option as the answer to the previous question (spike 0.1)', async () => {
@@ -369,14 +369,14 @@ describe('AttentionCard — question', () => {
     expect(screen.queryByRole('button', { name: 'Envoyer' })).toBeNull()
     const more = screen.getByRole('button', { name: 'Autre réponse…' })
     expect(more.className).toMatch(/min-h-9/)
-    expect(more.className).not.toContain('bg-indigo-600') // never competes with the options
+    expect(more.className).not.toContain('btn-primary') // never competes with the options
     expect(screen.getByRole('link', { name: OPEN })).toBeTruthy()
     fireEvent.click(more)
     expect(onReply).not.toHaveBeenCalled() // opening the field sends nothing
     expect(screen.getByRole('textbox', { name: 'Autre réponse' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Autre réponse…' })).toBeNull()
     // With options on the card, Envoyer stays secondary: no primary at all.
-    expect(screen.getByRole('button', { name: 'Envoyer' }).className).not.toContain('bg-indigo-600')
+    expect(screen.getByRole('button', { name: 'Envoyer' }).className).not.toContain('btn-primary')
     expect(screen.getByRole('link', { name: OPEN })).toBeTruthy()
   })
 
@@ -387,7 +387,7 @@ describe('AttentionCard — question', () => {
     expect(box.placeholder).toBe('Ta réponse…')
     const buttons = screen.getAllByRole('button')
     expect(buttons.map((b) => b.textContent)).toEqual(['Envoyer'])
-    expect(buttons[0].className).toContain('bg-indigo-600')
+    expect(buttons[0].className).toContain('btn-primary')
     expect((buttons[0] as HTMLButtonElement).disabled).toBe(true)
     fireEvent.change(box, { target: { value: ' Postgres ' } })
     fireEvent.click(buttons[0])

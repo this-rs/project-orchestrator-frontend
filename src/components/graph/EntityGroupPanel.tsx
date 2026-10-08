@@ -172,8 +172,8 @@ export function EntityGroupPanel({
               disabled={isCore}
               className={`
                 relative flex items-center justify-center w-7 h-7 rounded-md
-                border transition-all duration-150 select-none
-                ${isCore ? 'cursor-default' : 'cursor-pointer hover:scale-110'}
+                border transition-[transform,color,background-color,border-color] duration-(--duration-instant) select-none
+                ${isCore ? 'cursor-default' : 'cursor-pointer pointer-fine:hover:scale-110'}
                 ${accentClasses}
               `}
             >
@@ -223,7 +223,7 @@ export function EntityGroupPanel({
             <button
               onClick={allExpanded ? onResetDefaults : onEnableAll}
               className={`
-                h-6 px-1.5 rounded text-[9px] font-bold tracking-wide uppercase transition-all duration-150
+                h-6 px-1.5 rounded text-[9px] font-bold tracking-wide uppercase transition-colors duration-(--duration-instant)
                 ${allExpanded
                   ? 'text-cyan-400 bg-cyan-500/15 border border-cyan-500/30 hover:bg-cyan-500/25'
                   : 'text-slate-500 bg-slate-800/40 border border-slate-700/40 hover:text-slate-300 hover:bg-slate-700/40'

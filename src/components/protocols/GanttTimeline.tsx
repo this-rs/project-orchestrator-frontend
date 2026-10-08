@@ -246,7 +246,7 @@ export function GanttTimeline({ runs, parentStartTime, onRunClick, className = '
               key={run.id}
               className={`
                 absolute flex items-center px-1.5 rounded border text-[10px] font-medium truncate
-                transition-all duration-150 cursor-pointer
+                transition-[filter,box-shadow] duration-(--duration-instant) cursor-pointer
                 ${statusBarColor[run.status]} ${statusBarBorder[run.status]}
                 ${isHovered ? 'brightness-125 shadow-lg z-10' : 'z-0'}
                 ${run.status === 'running' ? 'animate-pulse' : ''}

@@ -73,7 +73,9 @@ export function ProgressBar({
           className={`h-full rounded-full ${!gradient ? 'bg-indigo-500' : ''} ${shimmer && !reducedMotion && percentage < 100 ? 'progress-shimmer' : ''}`}
           style={{
             width: `${displayWidth}%`,
-            transition: reducedMotion ? 'none' : 'width 800ms ease-out, background-color 400ms ease, box-shadow 400ms ease',
+            transition: reducedMotion
+              ? 'none'
+              : 'width 800ms var(--ease-standard), background-color var(--duration-base) var(--ease-standard), box-shadow var(--duration-base) var(--ease-standard)',
             ...(gradient ? { backgroundColor: color } : {}),
             ...(size !== 'sm' ? { boxShadow: `0 0 ${size === 'lg' ? 8 : 6}px ${glowColor}40` } : {}),
           }}

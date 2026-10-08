@@ -225,7 +225,7 @@ function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardPro
                       </span>
                       <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
                         <div
-                          className="h-full rounded-full transition-all duration-300"
+                          className="h-full rounded-full transition-[width] duration-(--duration-stage) ease-(--ease-standard)"
                           style={{
                             width: `${Math.round(similarity * 100)}%`,
                             backgroundColor: dimensionBarColor(similarity),
