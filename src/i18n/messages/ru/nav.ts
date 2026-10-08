@@ -2,12 +2,10 @@ import type { Translation } from '../../catalog.ts'
 
 export default {
   groups: {
-    focus: "Фокус",
-    plan: "Планирование",
-    design: "Проектирование",
-    build: "Разработка",
-    ship: "Выпуск",
-    knowledge: "Знания",
+    work: "Работа",
+    memory: "Память",
+    assistants: "Ассистенты",
+    code: "Код",
     system: "Система",
   },
   concepts: {
@@ -38,6 +36,19 @@ export default {
   workspaces: "Рабочие пространства",
   allWorkspaces: "Все рабочие пространства",
   newWorkspace: "Новое рабочее пространство",
+  today: {
+    assistants: "Ассистенты",
+    bands: {
+      waiting: { title: "Ждёт вашего ответа", summary: "ждёт вашего ответа", empty: "Никто не ждёт вашего ответа" },
+      running: { title: "В работе", summary: "в работе", empty: "Нет планов в работе" },
+      stuck: { title: "К возобновлению", summary: "к возобновлению", empty: "Нечего возобновлять" },
+      thinking: { title: "К прочтению", summary: "к прочтению", empty: "Нечего читать" },
+    },
+  },
+  attention: {
+    one: "запрос ждёт ответа",
+    many: "запросов ждут ответа",
+  },
   aria: {
     workspace: "Рабочее пространство",
     application: "Приложение",

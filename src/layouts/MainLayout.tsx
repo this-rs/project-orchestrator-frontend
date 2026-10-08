@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo, useCallback, useContext } from 'react'
+import { useState, useEffect, useMemo, useCallback, useContext, useId } from 'react'
 import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
 import { ownsContentArea } from './contentArea'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Menu, ChevronLeft, ChevronRight, MessageCircle, Plus } from 'lucide-react'
+import { Menu, ChevronLeft, ChevronRight, ChevronDown, MessageCircle, Plus } from 'lucide-react'
 import { NOMENCLATURE, NAV_GROUPS, segmentLabel, entityNoun } from '@/constants/nomenclature'
 import { useT, type MessageKey } from '@/i18n'
 import { sidebarCollapsedAtom, breadcrumbTitleAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, workspaceRefreshAtom } from '@/atoms'
@@ -18,6 +18,7 @@ import { isTauri } from '@/services/env'
 import { workspacesApi } from '@/services/workspaces'
 import { workspacePath } from '@/utils/paths'
 import type { Project } from '@/types'
+import { focusRing } from '@/components/ui/classes'
 import { RouteErrorBoundary } from './RouteErrorBoundary'
 
 /** Product name shown next to the logo of the application-level sidebar. */
@@ -89,10 +90,39 @@ function GlobalSidebarContent({ collapsed, trafficLightPad }: { collapsed: boole
   )
 }
 
+/** A folded group (`NavGroup.collapsed`) remembers whether the person opened it: `po.nav.<id>.open` = '1' | '0'. */
+const navOpenKey = (id: string) => `po.nav.${id}.open`
+
+function readNavOpen(id: string): boolean {
+  try {
+    return window.localStorage.getItem(navOpenKey(id)) === '1'
+  } catch {
+    // storage blocked (private mode): folded, like a first visit
+    return false
+  }
+}
+
+function writeNavOpen(id: string, open: boolean): void {
+  try {
+    window.localStorage.setItem(navOpenKey(id), open ? '1' : '0')
+  } catch {
+    // storage blocked: the choice lives for this render only
+  }
+}
+
+/** A project without the field predates profiles: it is a codebase (same rule as the backend). */
+const hasCode = (project: Project) => (project.profile ?? 'software') === 'software'
+
 function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { collapsed: boolean; trafficLightPad?: boolean; wsSlug: string; onNavClick?: (href: string, direction: NavDirection) => void }) {
   const location = useLocation()
   const { t } = useT()
-  const [projects, setProjects] = useState<Project[]>([])
+  const uid = useId()
+  // Projects of THIS workspace; `null` while loading or when the list could not be read (the menu then shows everything).
+  const [loaded, setLoaded] = useState<{ slug: string; projects: Project[] } | null>(null)
+  const projects = loaded && loaded.slug === wsSlug ? loaded.projects : null
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(NAV_GROUPS.filter((g) => g.collapsed).map((g) => [g.id, readNavOpen(g.id)])),
+  )
 
   // Load projects for the workspace (for sidebar sub-items)
   useEffect(() => {
@@ -100,31 +130,46 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
     const controller = new AbortController()
     workspacesApi
       .listProjects(wsSlug, controller.signal)
-      .then((data) => setProjects(data))
+      .then((data) => setLoaded({ slug: wsSlug, projects: data }))
       .catch((err) => {
         if (err?.name === 'AbortError') return
-        setProjects([])
+        setLoaded(null)
       })
     return () => controller.abort()
   }, [wsSlug])
+
+  // `profile: 'software'` concepts leave the menu when the workspace has no project with code. Only the menu:
+  // their routes stay served, so a link, a bookmark or a redirect still lands on the page.
+  const showSoftware = projects === null || projects.some(hasCode)
 
   const navGroups = useMemo(
     () =>
       NAV_GROUPS.map((group) => ({
         id: group.id,
+        folded: group.collapsed === true,
         label: t(`nav.groups.${group.id}`),
-        items: group.items.map((key) => {
-          const concept = NOMENCLATURE[key]
-          return {
-            key,
-            name: t(`nav.concepts.${key}` as MessageKey),
-            href: workspacePath(wsSlug, `/${concept.segment}`),
-            icon: concept.icon,
-          }
-        }),
-      })),
-    [wsSlug, t],
+        items: group.items
+          .filter((key) => showSoftware || NOMENCLATURE[key].profile === 'all')
+          .map((key) => {
+            const concept = NOMENCLATURE[key]
+            return {
+              key,
+              name: t(`nav.concepts.${key}` as MessageKey),
+              href: workspacePath(wsSlug, `/${concept.segment}`),
+              icon: concept.icon,
+            }
+          }),
+      })).filter((group) => group.items.length > 0),
+    [wsSlug, t, showSoftware],
   )
+
+  const toggleGroup = useCallback((id: string) => {
+    setOpenGroups((prev) => {
+      const next = !prev[id]
+      writeNavOpen(id, next)
+      return { ...prev, [id]: next }
+    })
+  }, [])
 
   // Flat list of all nav hrefs for direction detection
   const allHrefs = useMemo(
@@ -162,62 +207,85 @@ function SidebarContent({ collapsed, trafficLightPad, wsSlug, onNavClick }: { co
       {/* Navigation */}
       <nav aria-label={t('nav.aria.workspace')} className="flex-1 py-4 overflow-y-auto">
         <div className="space-y-5 px-2">
-          {navGroups.map((group) => (
-            <div key={group.id}>
-              {collapsed ? (
-                <div className="h-px bg-white/[0.06] mx-2 mb-2" />
-              ) : (
-                <div className="text-[10px] uppercase tracking-widest text-gray-500 px-3 mb-1.5">
-                  {group.label}
-                </div>
-              )}
-              <ul className="space-y-0.5">
-                {group.items.map((item) => (
-                  <li key={item.key}>
-                    <NavLink
-                      to={item.href}
-                      end={item.key === 'overview' || item.key === 'projects'}
-                      onClick={(e) => handleNavClick(e, item.href)}
-                      aria-label={collapsed ? item.name : undefined}
-                      title={collapsed ? item.name : undefined}
-                      className={({ isActive }) =>
-                        `flex items-center gap-3 px-3 py-2 rounded-lg transition-[color,background-color,box-shadow] ${
-                          isActive || (item.key === 'projects' && isProjectsActive)
-                            ? 'bg-indigo-500/15 text-indigo-400 font-medium border-l-[3px] border-indigo-500 -ml-[3px] glow-primary'
-                            : 'text-gray-400 hover:bg-white/[0.06] hover:text-gray-200'
-                        }`
-                      }
-                    >
-                      <item.icon className="w-5 h-5 flex-shrink-0" />
-                      {!collapsed && <span>{item.name}</span>}
-                    </NavLink>
+          {navGroups.map((group) => {
+            const isActive = (href: string) => location.pathname === href || location.pathname.startsWith(href + '/')
+            // A folded group stays open while the current page lives inside it: the active entry is never hidden.
+            const expanded = !group.folded || openGroups[group.id] === true || group.items.some((i) => isActive(i.href))
+            const listId = `${uid}-${group.id}`
+            return (
+              <div key={group.id}>
+                {group.folded ? (
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.id)}
+                    aria-expanded={expanded}
+                    aria-controls={listId}
+                    aria-label={collapsed ? group.label : undefined}
+                    title={collapsed ? group.label : undefined}
+                    className={`mb-0.5 flex min-h-9 w-full items-center rounded-lg px-3 text-[10px] uppercase tracking-widest text-gray-500 transition-colors hover:bg-white/[0.04] hover:text-gray-300 ${
+                      collapsed ? 'justify-center' : 'justify-between'
+                    } ${focusRing}`}
+                  >
+                    {!collapsed && <span>{group.label}</span>}
+                    <ChevronDown aria-hidden="true" className={`h-4 w-4 shrink-0 transition-transform ${expanded ? '' : '-rotate-90'}`} />
+                  </button>
+                ) : collapsed ? (
+                  <div className="h-px bg-white/[0.06] mx-2 mb-2" />
+                ) : (
+                  <div className="text-[10px] uppercase tracking-widest text-gray-500 px-3 mb-1.5">
+                    {group.label}
+                  </div>
+                )}
+                {expanded && (
+                  <ul id={listId} className="space-y-0.5">
+                    {group.items.map((item) => (
+                      <li key={item.key}>
+                        <NavLink
+                          to={item.href}
+                          end={item.key === 'overview' || item.key === 'projects'}
+                          onClick={(e) => handleNavClick(e, item.href)}
+                          aria-label={collapsed ? item.name : undefined}
+                          title={collapsed ? item.name : undefined}
+                          className={({ isActive }) =>
+                            `flex items-center gap-3 px-3 py-2 rounded-lg transition-[color,background-color,box-shadow] ${
+                              isActive || (item.key === 'projects' && isProjectsActive)
+                                ? 'bg-indigo-500/15 text-indigo-400 font-medium border-l-[3px] border-indigo-500 -ml-[3px] glow-primary'
+                                : 'text-gray-400 hover:bg-white/[0.06] hover:text-gray-200'
+                            }`
+                          }
+                        >
+                          <item.icon className="w-5 h-5 flex-shrink-0" />
+                          {!collapsed && <span>{item.name}</span>}
+                        </NavLink>
 
-                    {/* Project sub-items — shown when Projects is active */}
-                    {item.key === 'projects' && isProjectsActive && !collapsed && projects.length > 0 && (
-                      <ul className="mt-1 ml-5 space-y-0.5 border-l border-white/[0.06] pl-3">
-                        {projects.map((project) => (
-                          <li key={project.id}>
-                            <NavLink
-                              to={workspacePath(wsSlug, `/projects/${project.slug}`)}
-                              className={({ isActive }) =>
-                                `block px-2 py-1.5 rounded-md text-xs transition-colors truncate ${
-                                  isActive
-                                    ? 'text-indigo-400 bg-indigo-500/10 font-medium'
-                                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.04]'
-                                }`
-                              }
-                            >
-                              {project.name}
-                            </NavLink>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+                        {/* Project sub-items — shown when Projects is active */}
+                        {item.key === 'projects' && isProjectsActive && !collapsed && projects !== null && projects.length > 0 && (
+                          <ul className="mt-1 ml-5 space-y-0.5 border-l border-white/[0.06] pl-3">
+                            {projects.map((project) => (
+                              <li key={project.id}>
+                                <NavLink
+                                  to={workspacePath(wsSlug, `/projects/${project.slug}`)}
+                                  className={({ isActive }) =>
+                                    `block px-2 py-1.5 rounded-md text-xs transition-colors truncate ${
+                                      isActive
+                                        ? 'text-indigo-400 bg-indigo-500/10 font-medium'
+                                        : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.04]'
+                                    }`
+                                  }
+                                >
+                                  {project.name}
+                                </NavLink>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )
+          })}
         </div>
       </nav>
     </>

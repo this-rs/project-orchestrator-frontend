@@ -2,12 +2,10 @@ import type { Translation } from '../../catalog.ts'
 
 export default {
   groups: {
-    focus: "焦点",
-    plan: "计划",
-    design: "设计",
-    build: "构建",
-    ship: "交付",
-    knowledge: "知识",
+    work: "工作",
+    memory: "记忆",
+    assistants: "助手",
+    code: "代码",
     system: "系统",
   },
   concepts: {
@@ -38,6 +36,19 @@ export default {
   workspaces: "工作区",
   allWorkspaces: "所有工作区",
   newWorkspace: "新建工作区",
+  today: {
+    assistants: "助手",
+    bands: {
+      waiting: { title: "等待你回复", summary: "等待你回复", empty: "没有人在等你回复" },
+      running: { title: "进行中", summary: "进行中", empty: "没有进行中的计划" },
+      stuck: { title: "待恢复", summary: "待恢复", empty: "没有待恢复的内容" },
+      thinking: { title: "待阅读", summary: "待阅读", empty: "没有待阅读的内容" },
+    },
+  },
+  attention: {
+    one: "条待处理请求",
+    many: "条待处理请求",
+  },
   aria: {
     workspace: "工作区",
     application: "应用",

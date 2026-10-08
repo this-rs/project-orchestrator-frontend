@@ -190,29 +190,29 @@ describe('attention badge', () => {
     expect(screen.queryByTestId('attention-badge')).toBeNull()
   })
 
-  it('3 requests: "3 demandes en attente", on the Today logo of the global menu, never in the header', async () => {
+  it('3 requests: "3 requests waiting for you", on the Today logo of the global menu, never in the header', async () => {
     get.mockResolvedValue(withWaiting(3))
     const g = renderAt('/today')
-    expect((await screen.findAllByLabelText('3 demandes en attente')).length).toBeGreaterThan(0)
+    expect((await screen.findAllByLabelText('3 requests waiting for you')).length).toBeGreaterThan(0)
     expect(screen.getAllByTestId('attention-badge')[0].textContent).toContain('3')
-    expect(within(screen.getAllByRole('link', { name: 'Today' })[0]).queryByLabelText('3 demandes en attente')).not.toBeNull()
+    expect(within(screen.getAllByRole('link', { name: 'Today' })[0]).queryByLabelText('3 requests waiting for you')).not.toBeNull()
     g.unmount()
     renderAt('/workspace/studio/plans')
     // the header no longer carries the badge: it moved onto the logo with the link
     await screen.findByRole('banner')
-    expect(within(screen.getByRole('banner')).queryByLabelText('3 demandes en attente')).toBeNull()
+    expect(within(screen.getByRole('banner')).queryByLabelText('3 requests waiting for you')).toBeNull()
   })
 
   it('1 request reads in the singular', async () => {
     get.mockResolvedValue(withWaiting(1))
     renderAt('/today')
-    expect((await screen.findAllByLabelText('1 demande en attente')).length).toBeGreaterThan(0)
+    expect((await screen.findAllByLabelText('1 request waiting for you')).length).toBeGreaterThan(0)
   })
 
   it('100 requests: "99+" with the full count in the aria-label', async () => {
     get.mockResolvedValue(withWaiting(100))
     renderAt('/today')
-    const badges = await screen.findAllByLabelText('100 demandes en attente')
+    const badges = await screen.findAllByLabelText('100 requests waiting for you')
     expect(badges[0].textContent).toContain('99+')
   })
 
@@ -229,7 +229,7 @@ describe('attention badge', () => {
   it('ONE shared fetch for every badge (desktop and mobile menus), then one refetch per attention_changed burst', async () => {
     get.mockResolvedValue(withWaiting(2))
     renderAt('/today')
-    await screen.findAllByLabelText('2 demandes en attente')
+    await screen.findAllByLabelText('2 requests waiting for you')
     // the desktop and the mobile logo both show it: still one request
     expect(screen.getAllByTestId('attention-badge').length).toBeGreaterThanOrEqual(2)
     expect(attentionCalls()).toBe(1)
@@ -250,7 +250,7 @@ describe('attention badge', () => {
     })
     expect(attentionCalls()).toBe(2)
     vi.useRealTimers()
-    await waitFor(() => expect(screen.getAllByLabelText('5 demandes en attente').length).toBeGreaterThan(0))
+    await waitFor(() => expect(screen.getAllByLabelText('5 requests waiting for you').length).toBeGreaterThan(0))
   })
 
   it('the badge takes no room in the flow when it arrives (corner variant is absolute)', async () => {

@@ -2,12 +2,10 @@ import type { Translation } from '../../catalog.ts'
 
 export default {
   groups: {
-    focus: "포커스",
-    plan: "계획",
-    design: "설계",
-    build: "구축",
-    ship: "배포",
-    knowledge: "지식",
+    work: "작업",
+    memory: "기억",
+    assistants: "어시스턴트",
+    code: "코드",
     system: "시스템",
   },
   concepts: {
@@ -38,6 +36,19 @@ export default {
   workspaces: "워크스페이스",
   allWorkspaces: "모든 워크스페이스",
   newWorkspace: "새 워크스페이스",
+  today: {
+    assistants: "어시스턴트",
+    bands: {
+      waiting: { title: "답변 대기", summary: "답변 대기", empty: "답변을 기다리는 항목이 없습니다" },
+      running: { title: "진행 중", summary: "진행 중", empty: "진행 중인 계획이 없습니다" },
+      stuck: { title: "재개 대기", summary: "재개 대기", empty: "재개할 항목이 없습니다" },
+      thinking: { title: "읽을 항목", summary: "읽을 항목", empty: "읽을 항목이 없습니다" },
+    },
+  },
+  attention: {
+    one: "개의 대기 중인 요청",
+    many: "개의 대기 중인 요청",
+  },
   aria: {
     workspace: "워크스페이스",
     application: "애플리케이션",

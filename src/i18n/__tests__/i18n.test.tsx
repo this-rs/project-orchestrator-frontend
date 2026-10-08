@@ -48,7 +48,7 @@ describe('translator', () => {
 
   it('falls back to English key by key', async () => {
     const bundle = await loadLocale('en')
-    expect(createTranslator('en', bundle).t('nav.groups.plan')).toBe('Plan')
+    expect(createTranslator('en', bundle).t('nav.groups.work')).toBe('Work')
   })
 })
 

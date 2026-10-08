@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { NOMENCLATURE, NAV_GROUPS, segmentLabel, entityNoun } from './nomenclature'
+import { NOMENCLATURE, NAV_GROUPS, NAV_TEXT, TODAY_WORDS, segmentLabel, entityNoun } from './nomenclature'
+import nav from '@/i18n/messages/en/nav'
 
 describe('nomenclature', () => {
   it('gives every concept a distinct route segment', () => {
@@ -20,24 +21,44 @@ describe('nomenclature', () => {
     }
   })
 
-  it('organises the sidebar by phase of the work, in seven groups', () => {
-    expect(NAV_GROUPS.map((g) => g.label)).toEqual([
-      'Focus',
-      'Plan',
-      'Design',
-      'Build',
-      'Ship',
-      'Knowledge',
-      'System',
-    ])
+  it('organises the sidebar by stage of the work: four visible groups and System, folded', () => {
+    expect(NAV_GROUPS.map((g) => g.label)).toEqual(['Work', 'Memory', 'Assistants', 'Code', 'System'])
+    expect(NAV_GROUPS.filter((g) => !g.collapsed)).toHaveLength(4)
+    expect(NAV_GROUPS.filter((g) => g.collapsed).map((g) => g.id)).toEqual(['system'])
+    expect(NAV_GROUPS.find((g) => g.id === 'system')!.items).toContain('neuralRouting')
+  })
+
+  it('puts every `software` concept in the Code group and nothing else there', () => {
+    const software = Object.entries(NOMENCLATURE)
+      .filter(([, c]) => c.profile === 'software')
+      .map(([k]) => k)
+      .sort()
+    const code = NAV_GROUPS.find((g) => g.id === 'code')!
+    expect([...code.items].sort()).toEqual(software)
+  })
+
+  it('keeps the English translation file in step with the registry (the site copies the registry)', () => {
+    for (const g of NAV_GROUPS) expect(nav.groups[g.id], `nav.groups.${g.id}`).toBe(g.label)
+    for (const g of NAV_GROUPS) {
+      for (const key of g.items) {
+        expect(nav.concepts[key as keyof typeof nav.concepts], `nav.concepts.${key}`).toBe(NOMENCLATURE[key].plural)
+      }
+    }
+    expect(nav.workspaces).toBe(NAV_TEXT.workspaces)
+    expect(nav.allWorkspaces).toBe(NAV_TEXT.allWorkspaces)
+    expect(nav.newWorkspace).toBe(NAV_TEXT.newWorkspace)
+    expect(nav.attention.one).toBe(NAV_TEXT.attentionOne)
+    expect(nav.attention.many).toBe(NAV_TEXT.attentionMany)
+    expect(nav.today.assistants).toBe(TODAY_WORDS.assistants)
+    expect(nav.today.bands).toEqual(TODAY_WORDS.bands)
   })
 
   it('lists every concept that has a page in the sidebar', () => {
     const keys = new Set(NAV_GROUPS.flatMap((g) => g.items))
-    // `insights` lives inside a project; `today` is the application root (global chrome),
-    // not an entry of a workspace's sidebar.
+    // `insights` lives inside a project; `today` and `workspaces` are the application root (global chrome),
+    // not entries of a workspace's sidebar.
     for (const key of Object.keys(NOMENCLATURE)) {
-      if (key === 'insights' || key === 'today') continue
+      if (key === 'insights' || key === 'today' || key === 'workspaces') continue
       expect(keys.has(key as keyof typeof NOMENCLATURE)).toBe(true)
     }
   })
@@ -46,9 +67,32 @@ describe('nomenclature', () => {
     expect(NAV_GROUPS.flatMap((g) => g.items)).not.toContain('today')
   })
 
+  describe('description — the one-liner of every concept (AUDIENCE.md § 2)', () => {
+    const BANNED_DESCRIPTION = /\b(agents?|milestones?|rfcs?|mcp|neo4j|graphs?|fsm|louvain|neural|knowledge graph)\b/i
+    const entries = Object.entries(NOMENCLATURE)
+
+    it('never uses a word the site bans from the first level', () => {
+      for (const [key, c] of entries) {
+        const m = c.description.match(BANNED_DESCRIPTION)
+        expect(m, `${key}.description contains « ${m?.[0]} »`).toBeNull()
+      }
+    })
+
+    it('is English, like the rest of the registry (no accented French word)', () => {
+      for (const [key, c] of entries) expect(c.description, `${key}.description`).not.toMatch(/[àâéèêëîïôûùüç]/i)
+    })
+
+    it('ends with a full stop and fits one line of subtitle', () => {
+      for (const [key, c] of entries) {
+        expect(c.description, `${key}.description`).toMatch(/\.$/)
+        expect(c.description.length, `${key}.description`).toBeLessThanOrEqual(100)
+      }
+    })
+  })
+
   describe('explain — the three sentences that introduce a screen (AUDIENCE.md § 9)', () => {
     /** Words the site bans from any explanation: technical names and the words the product renamed. */
-    const BANNED = /\b(agents?|milestones?|rfcs?|mcp|neo4j|graphs?|fsm|louvain)\b/i
+    const BANNED = /\b(agents?|milestones?|rfcs?|mcp|neo4j|graphs?|fsm|louvain|neural)\b/i
     const LINES = ['what', 'why', 'different'] as const
     const entries = Object.entries(NOMENCLATURE) as [string, (typeof NOMENCLATURE)[keyof typeof NOMENCLATURE]][]
 
@@ -60,7 +104,7 @@ describe('nomenclature', () => {
       }
     })
 
-    it('uses the product\'s words only: never agent, milestone, RFC, MCP, Neo4j, graph, FSM or Louvain', () => {
+    it('uses the product\'s words only: never agent, milestone, RFC, MCP, Neo4j, graph, FSM, Louvain or neural', () => {
       for (const [key, c] of entries) {
         for (const line of LINES) {
           const m = c.explain[line].match(BANNED)

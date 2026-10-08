@@ -2,12 +2,10 @@ import type { Translation } from '../../catalog.ts'
 
 export default {
   groups: {
-    focus: "फ़ोकस",
-    plan: "योजना",
-    design: "डिज़ाइन",
-    build: "निर्माण",
-    ship: "रिलीज़",
-    knowledge: "ज्ञान",
+    work: "काम",
+    memory: "स्मृति",
+    assistants: "सहायक",
+    code: "कोड",
     system: "सिस्टम",
   },
   concepts: {
@@ -38,6 +36,19 @@ export default {
   workspaces: "वर्कस्पेस",
   allWorkspaces: "सभी वर्कस्पेस",
   newWorkspace: "नया वर्कस्पेस",
+  today: {
+    assistants: "सहायक",
+    bands: {
+      waiting: { title: "आपके उत्तर की प्रतीक्षा में", summary: "आपके उत्तर की प्रतीक्षा में", empty: "कोई आपके उत्तर की प्रतीक्षा में नहीं है" },
+      running: { title: "प्रगति में", summary: "प्रगति में", empty: "कोई योजना प्रगति में नहीं है" },
+      stuck: { title: "फिर शुरू करने के लिए", summary: "फिर शुरू करने के लिए", empty: "फिर शुरू करने के लिए कुछ नहीं" },
+      thinking: { title: "पढ़ने के लिए", summary: "पढ़ने के लिए", empty: "पढ़ने के लिए कुछ नहीं" },
+    },
+  },
+  attention: {
+    one: "अनुरोध प्रतीक्षा में",
+    many: "अनुरोध प्रतीक्षा में",
+  },
   aria: {
     workspace: "वर्कस्पेस",
     application: "एप्लिकेशन",

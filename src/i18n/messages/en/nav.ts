@@ -1,11 +1,9 @@
 export default {
   groups: {
-    focus: 'Focus',
-    plan: 'Plan',
-    design: 'Design',
-    build: 'Build',
-    ship: 'Ship',
-    knowledge: 'Knowledge',
+    work: 'Work',
+    memory: 'Memory',
+    assistants: 'Assistants',
+    code: 'Code',
     system: 'System',
   },
   concepts: {
@@ -36,6 +34,19 @@ export default {
   workspaces: 'Workspaces',
   allWorkspaces: 'All workspaces',
   newWorkspace: 'New workspace',
+  today: {
+    assistants: 'Assistants',
+    bands: {
+      waiting: { title: 'Waiting for you', summary: 'waiting for you', empty: 'Nobody is waiting for your answer' },
+      running: { title: 'In progress', summary: 'in progress', empty: 'No plan is in progress' },
+      stuck: { title: 'To resume', summary: 'to resume', empty: 'Nothing to resume' },
+      thinking: { title: 'To read', summary: 'to read', empty: 'Nothing to read' },
+    },
+  },
+  attention: {
+    one: 'request waiting for you',
+    many: 'requests waiting for you',
+  },
   aria: {
     workspace: 'Workspace',
     application: 'Application',

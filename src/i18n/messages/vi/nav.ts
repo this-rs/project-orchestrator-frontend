@@ -2,12 +2,10 @@ import type { Translation } from '../../catalog.ts'
 
 export default {
   groups: {
-    focus: "Tập trung",
-    plan: "Lập kế hoạch",
-    design: "Thiết kế",
-    build: "Xây dựng",
-    ship: "Phát hành",
-    knowledge: "Tri thức",
+    work: "Công việc",
+    memory: "Bộ nhớ",
+    assistants: "Trợ lý",
+    code: "Mã nguồn",
     system: "Hệ thống",
   },
   concepts: {
@@ -38,6 +36,19 @@ export default {
   workspaces: "Không gian làm việc",
   allWorkspaces: "Tất cả không gian làm việc",
   newWorkspace: "Không gian làm việc mới",
+  today: {
+    assistants: "Trợ lý",
+    bands: {
+      waiting: { title: "Chờ phản hồi của bạn", summary: "chờ phản hồi của bạn", empty: "Không ai chờ phản hồi của bạn" },
+      running: { title: "Đang thực hiện", summary: "đang thực hiện", empty: "Không có kế hoạch nào đang thực hiện" },
+      stuck: { title: "Cần tiếp tục", summary: "cần tiếp tục", empty: "Không có gì cần tiếp tục" },
+      thinking: { title: "Cần đọc", summary: "cần đọc", empty: "Không có gì cần đọc" },
+    },
+  },
+  attention: {
+    one: "yêu cầu đang chờ",
+    many: "yêu cầu đang chờ",
+  },
   aria: {
     workspace: "Không gian làm việc",
     application: "Ứng dụng",
