@@ -29,9 +29,9 @@ import { shouldEnqueue, type QueueOp, type QueuedMessage } from './messageQueue'
 import { Attachments } from './Attachments'
 import { ReferenceChip } from './ReferenceChip'
 import { RefPicker, refOptionId } from './RefPicker'
-import { detectTrigger } from '@/refs/trigger'
+import { detectTrigger, isReferenceQuery } from '@/refs/trigger'
 import { useRefSearch } from '@/refs/useRefSearch'
-import { reconcileRefs, refKey, removeRefFromText } from '@/refs/refState'
+import { countRefTokens, reconcileRefs, refKey, removeRefFromText } from '@/refs/refState'
 import { MAX_REFS_PER_MESSAGE, type ChatReference } from '@/refs/types'
 import type { RefSearchItem } from '@/refs/refsApi'
 import { findRefTokens, refToken } from '@/utils/messageRefs'
@@ -169,10 +169,19 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   // Escape closes the picker for THIS trigger; a new `#` opens it again.
   const [dismissedAt, setDismissedAt] = useState<number | null>(null)
   const [refActive, setRefActive] = useState(0)
-  const trigger = refsEnabled && !composing && !disabled ? detectTrigger(value, caret) : null
+  // `closes #42` is prose, not a search: a bare number opens nothing and takes no key.
+  const found = refsEnabled && !composing && !disabled ? detectTrigger(value, caret) : null
+  const trigger = found && isReferenceQuery(found) ? found : null
   const pickerOpen = trigger !== null && trigger.start !== dismissedAt
   const refSearch = useRefSearch({ query: trigger?.query ?? '', kinds: trigger?.kinds, enabled: pickerOpen })
   const activeRef = Math.min(refActive, refSearch.items.length - 1)
+  // The option Enter/Tab would take, and the one aria-activedescendant names: the same thing, or nothing
+  // (loading, error and an empty list have none: Enter then sends the message).
+  const activeItem = pickerOpen && refSearch.status === 'ready' ? refSearch.items[activeRef] : undefined
+  // The listbox exists only with options in it.
+  const listOpen = pickerOpen && refSearch.items.length > 0
+  // The message holds more distinct references than it may carry: it says so, and nothing is added.
+  const [refsOverflow, setRefsOverflow] = useState(false)
   // The chips are the tokens of the text, dressed with what the search taught us.
   const draftRefs = refsEnabled ? reconcileRefs(value, Object.values(refLabels)) : []
   const refsFull = draftRefs.length >= MAX_REFS_PER_MESSAGE
@@ -581,6 +590,11 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
 
   const handleSend = () => {
     const text = value.trim()
+    // A restored draft may hold more tokens than a message may carry: never send a state the wire cannot say.
+    if (refsEnabled && countRefTokens(text) > MAX_REFS_PER_MESSAGE) {
+      setRefsOverflow(true)
+      return
+    }
     const list = store.get(chatAttachmentsAtom)
 
     // ── Layer 1 — can this message exist at all? ───────────────────────
@@ -680,22 +694,19 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
       switch (e.key) {
         case 'ArrowDown':
         case 'ArrowUp':
+          // No option to move through: the arrows keep moving the caret.
+          if (count === 0) return false
           e.preventDefault()
-          if (count > 0) setRefActive((activeRef + (e.key === 'ArrowDown' ? 1 : -1) + count) % count)
+          setRefActive((activeRef + (e.key === 'ArrowDown' ? 1 : -1) + count) % count)
           return true
         case 'Enter':
         case 'Tab':
-          if (activeRef >= 0 && refSearch.items[activeRef]) {
+          if (activeItem) {
             e.preventDefault()
-            pickRef(refSearch.items[activeRef])
+            pickRef(activeItem)
             return true
           }
-          // Nothing to pick yet. Enter must not send a message that ends on a half-typed `#…`:
-          // Escape closes the picker, then Enter sends. Tab keeps its meaning.
-          if (e.key === 'Enter') {
-            e.preventDefault()
-            return true
-          }
+          // No active option (loading, failed, empty): the key keeps its usual meaning, Enter sends.
           return false
         case 'Escape':
           e.preventDefault()
@@ -872,6 +883,16 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
             onHover={setRefActive}
           />
         )}
+        {refsEnabled && (
+          <p
+            role="status"
+            aria-live="polite"
+            data-testid="refs-limit-notice"
+            className={refsOverflow ? 'm-0 px-2 pt-1 text-[11px] text-amber-300' : 'sr-only'}
+          >
+            {refsOverflow ? `Maximum ${MAX_REFS_PER_MESSAGE} references per message: the last one was not added.` : ''}
+          </p>
+        )}
         {draftRefs.length > 0 && (
           <ul aria-label="References" className="m-0 flex list-none flex-wrap gap-1 px-1.5 pt-1">
             {draftRefs.map((r) => (
@@ -904,6 +925,15 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           ref={textareaRef}
           value={value}
           onChange={(e) => {
+            if (refsEnabled) {
+              // A 21st distinct token is refused (a message holds at most MAX_REFS_PER_MESSAGE): the text stays as it was, and says why.
+              const asked = countRefTokens(e.target.value)
+              if (asked > MAX_REFS_PER_MESSAGE && asked > countRefTokens(value)) {
+                setRefsOverflow(true)
+                return
+              }
+              setRefsOverflow(false)
+            }
             setValue(e.target.value)
             if (refsEnabled) {
               setCaret(e.target.selectionStart)
@@ -919,9 +949,9 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
                 role: 'combobox' as const,
                 'aria-haspopup': 'listbox' as const,
                 'aria-autocomplete': 'list' as const,
-                'aria-expanded': pickerOpen,
-                'aria-controls': pickerOpen ? refListId : undefined,
-                'aria-activedescendant': pickerOpen && activeRef >= 0 ? refOptionId(refListId, activeRef) : undefined,
+                'aria-expanded': listOpen,
+                'aria-controls': listOpen ? refListId : undefined,
+                'aria-activedescendant': activeItem ? refOptionId(refListId, activeRef) : undefined,
                 onSelect: (e: React.SyntheticEvent<HTMLTextAreaElement>) => setCaret(e.currentTarget.selectionStart),
                 onCompositionStart: () => setComposing(true),
                 onCompositionEnd: (e: React.CompositionEvent<HTMLTextAreaElement>) => {
@@ -929,6 +959,8 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
                   setCaret(e.currentTarget.selectionStart)
                 },
                 onBlur: () => trigger && setDismissedAt(trigger.start),
+                // Back in the field, the same `#` offers its results again.
+                onFocus: () => setDismissedAt(null),
               }
             : {})}
           onPaste={handlePaste}

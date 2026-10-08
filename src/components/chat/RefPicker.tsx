@@ -44,33 +44,36 @@ export function RefPicker({ listId, search, activeIndex, kindFilter, full, onPic
         {kindFilter ? `${refKindDef(kindFilter).name} only` : 'Plans, tasks, notes, decisions, RFCs'}
         {full ? ' — maximum references reached' : ''}
       </p>
-      <ul id={listId} role="listbox" aria-label="References" className="m-0 list-none p-0">
-        {items.map((item, i) => {
-          const def = refKindDef(item.kind)
-          const active = i === activeIndex
-          return (
-            <li
-              key={`${item.kind}:${item.id}`}
-              id={refOptionId(listId, i)}
-              role="option"
-              aria-selected={active}
-              aria-disabled={full || undefined}
-              data-testid="ref-option"
-              onClick={() => onPick(item)}
-              onMouseMove={() => onHover(i)}
-              className={`flex min-h-8 cursor-pointer items-center gap-2 px-2.5 py-1 text-xs text-slate-200 [@media(pointer:coarse)]:min-h-11 ${
-                active ? 'bg-indigo-500/20 ring-2 ring-inset ring-indigo-400' : ''
-              }`}
-            >
-              <def.Icon className="h-3.5 w-3.5 shrink-0 text-slate-300" aria-hidden />
-              <span className="shrink-0 text-slate-400">{def.name}</span>
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
-              {item.subtitle && <span className="hidden max-w-[40%] truncate text-slate-400 sm:inline">{item.subtitle}</span>}
-              {item.entity_status && <span className="shrink-0 text-slate-400">[{item.entity_status}]</span>}
-            </li>
-          )
-        })}
-      </ul>
+      {/* No listbox without an option: the status line below says why there is nothing. */}
+      {items.length > 0 && (
+        <ul id={listId} role="listbox" aria-label="References" className="m-0 list-none p-0">
+          {items.map((item, i) => {
+            const def = refKindDef(item.kind)
+            const active = i === activeIndex
+            return (
+              <li
+                key={`${item.kind}:${item.id}`}
+                id={refOptionId(listId, i)}
+                role="option"
+                aria-selected={active}
+                aria-disabled={full || undefined}
+                data-testid="ref-option"
+                onClick={() => onPick(item)}
+                onMouseMove={() => onHover(i)}
+                className={`flex min-h-8 cursor-pointer items-center gap-2 px-2.5 py-1 text-xs text-slate-200 [@media(pointer:coarse)]:min-h-11 ${
+                  active ? 'bg-indigo-500/20 ring-2 ring-inset ring-indigo-400' : ''
+                }`}
+              >
+                <def.Icon className="h-3.5 w-3.5 shrink-0 text-slate-300" aria-hidden />
+                <span className="shrink-0 text-slate-400">{def.name}</span>
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                {item.subtitle && <span className="hidden max-w-[40%] truncate text-slate-400 sm:inline">{item.subtitle}</span>}
+                {item.entity_status && <span className="shrink-0 text-slate-400">[{item.entity_status}]</span>}
+              </li>
+            )
+          })}
+        </ul>
+      )}
       <p role="status" aria-live="polite" data-testid="ref-picker-status" className="px-2.5 pt-1 text-[11px] text-slate-400">
         {status}
       </p>

@@ -177,16 +177,18 @@ describe('ChatInput — # references on', () => {
     expect(store.get(chatDraftInputAtom)).toBe(`${planToken} `)
   })
 
-  it('Enter never sends while the picker is open, even with nothing to pick yet', async () => {
+  it('Enter sends the message while the picker has nothing to pick (searching, then no result)', async () => {
     searchMock.mockResolvedValue([])
     mount({ features: ['refs_v1'] })
     type('half typed #zzz')
     expect(screen.getByTestId('ref-picker')).toBeTruthy()
-    key('Enter') // still searching
+    key('Enter') // still searching: no active option
+    expect(onSend).toHaveBeenCalledTimes(1)
+    type('half typed #zzz')
     await settle()
     expect(screen.getByTestId('ref-picker-status').textContent).toBe('No results')
     key('Enter') // no result
-    expect(onSend).not.toHaveBeenCalled()
+    expect(onSend).toHaveBeenCalledTimes(2)
   })
 
   it('does nothing while an IME composition is running, and picks up again when it ends', async () => {
