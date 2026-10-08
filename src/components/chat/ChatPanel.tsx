@@ -16,6 +16,7 @@ import { chatApi } from '@/services/chat'
 import { Plus, X, Menu, Settings, Minimize2, Maximize2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check, Link2 } from 'lucide-react'
 import { ChatMessages } from './ChatMessages'
 import { RefsAnnouncer } from './RefsAnnouncer'
+import type { ChatReference } from '@/refs/types'
 import { ChatCapabilitiesProvider, ChatSessionProvider } from './ChatSessionContext'
 import { ProviderStateCard } from './ProviderStateCard'
 import { ChatHeaderTitle } from './ChatHeaderTitle'
@@ -208,16 +209,18 @@ export function ChatPanel() {
 
   // `attachmentIds` are document ids the server has already issued — ChatInput
   // holds the send until every upload has resolved (see `attachmentState.ts`).
-  const handleSend = useCallback((text: string, attachmentIds?: string[]) => {
+  const handleSend = useCallback((text: string, attachmentIds?: string[], refs?: ChatReference[]) => {
     if (isNewConversation && !hasContext) return
     // `sendMessage` reports a failed session creation itself (see
     // `chatSessionOpenErrorAtom`). Anything else it could reject with is
     // logged here: a send must never end as an unhandled rejection.
+    // `refs` is passed only when there are some: a message without them reaches sendMessage exactly as before.
     const send = (...args: Parameters<typeof chat.sendMessage>) => {
-      Promise.resolve(chat.sendMessage(...args)).catch((err: unknown) => console.error('Send failed', err))
+      const call = refs && refs.length > 0 ? args : args.slice(0, 3)
+      Promise.resolve(chat.sendMessage(...(call as Parameters<typeof chat.sendMessage>))).catch((err: unknown) => console.error('Send failed', err))
     }
     if (!isNewConversation) {
-      send(text, undefined, attachmentIds)
+      send(text, undefined, attachmentIds, refs)
       return
     }
     if (selectedProject) {
@@ -227,7 +230,7 @@ export function ChatPanel() {
         cwd: selectedProject.root_path ?? '',
         workspaceSlug: allProjectsMode ? (activeWsSlug || undefined) : undefined,
         projectSlug: allProjectsMode ? undefined : selectedProject.slug,
-      }, attachmentIds)
+      }, attachmentIds, refs)
     }
   }, [isNewConversation, hasContext, selectedProject, allProjectsMode, activeWsSlug, chat.sendMessage])
 
