@@ -32,6 +32,7 @@ export function PlanKanbanCard({ plan, onStatusChange }: PlanKanbanCardProps) {
   return (
     <BoardCard
       id={plan.id}
+      entityRef={{ kind: 'plan', id: plan.id, label: plan.title }}
       dataKey="plan"
       item={plan}
       ariaLabel={plan.title}

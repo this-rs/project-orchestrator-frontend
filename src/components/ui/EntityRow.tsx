@@ -5,6 +5,7 @@ import { MetaLine } from './MetaLine'
 import { OverflowMenu, type OverflowMenuAction } from './OverflowMenu'
 import { focusRing } from './classes'
 import { TONE_CLASSES, type StatusTone } from './statusMeta'
+import { AddToChatButton, useAddToChatAction, useReferenceSource, type ReferenceSourceEntity } from '@/refs/source'
 
 /** Tones that earn a left rail: things moving or needing you. Done / idle / archived stay quiet. */
 const RAIL_TONES: StatusTone[] = ['progress', 'info', 'warning', 'danger', 'special']
@@ -71,6 +72,11 @@ export interface EntityRowProps {
   children?: ReactNode
   /** view-transition-name on the title (morph into the detail page PageHeader). */
   viewTransitionName?: string
+  /**
+   * Declares the row as a chat reference source (plan, task, note, decision, rfc): draggable into
+   * the chat, with an "Add to chat" entry in the row menu. See `refs/source/refSource.ts`.
+   */
+  entityRef?: ReferenceSourceEntity
   as?: 'li' | 'div'
   className?: string
 }
@@ -113,9 +119,13 @@ export function EntityRow({
   chevron,
   children,
   viewTransitionName,
+  entityRef,
   as: Tag = 'li',
   className = '',
 }: EntityRowProps) {
+  const entity = entityRef ? { ...entityRef, label: entityRef.label ?? (typeof title === 'string' ? title : undefined) } : null
+  const source = useReferenceSource(entity)
+  const addAction = useAddToChatAction(entity)
   const menuName = menuLabel ?? ariaLabel ?? (typeof title === 'string' ? title : undefined)
   const clamp = titleLines === 1 ? 'truncate' : 'line-clamp-2 break-words'
   const titleColor = selected ? 'text-gray-50 font-medium' : muted ? 'text-gray-400' : 'text-gray-100 font-medium'
@@ -138,14 +148,21 @@ export function EntityRow({
     title
   )
 
-  const menu = Array.isArray(actions) ? (
-    <OverflowMenu actions={actions as OverflowMenuAction[]} size="sm" label={menuName ? `Actions for ${menuName}` : 'Row actions'} />
+  const rowActions = Array.isArray(actions) ? ([...(addAction ? [addAction] : []), ...actions] as OverflowMenuAction[]) : null
+  const menu = rowActions ? (
+    <OverflowMenu actions={rowActions} size="sm" label={menuName ? `Actions for ${menuName}` : 'Row actions'} />
+  ) : addAction && entity ? (
+    <>
+      <AddToChatButton entity={entity} />
+      {actions as ReactNode}
+    </>
   ) : (
-    actions
+    actions as ReactNode
   )
 
   return (
     <Tag
+      {...source}
       className={`relative flex items-start gap-2.5 px-3 py-3 md:px-4 transition-colors ${
         selected
           ? 'bg-indigo-500/[0.08] shadow-[inset_2px_0_0_var(--color-indigo-500)]'
@@ -198,7 +215,7 @@ export function EntityRow({
         </div>
       )}
       {menu && <div className="relative z-10 shrink-0 -my-1.5 -mr-1.5 md:-mr-2">{menu}</div>}
-      {!menu && chevron && interactive && (
+      {!actions && chevron && interactive && (
         <ChevronRight className="shrink-0 mt-0.5 w-4 h-4 text-gray-600" aria-hidden="true" />
       )}
     </Tag>

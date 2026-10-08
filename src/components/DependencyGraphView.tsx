@@ -12,6 +12,7 @@ import {
 } from '@xyflow/react'
 import dagre from 'dagre'
 import { Link } from 'react-router-dom'
+import { ReferenceSource } from '@/refs/source'
 import { AlertTriangle, FileCode2, StickyNote, BookOpen, ExternalLink, CheckCircle2, Circle, Loader2, SkipForward, MessageSquare, FileSearch, Clock, Ban, XCircle, Bot, X } from 'lucide-react'
 import { PulseIndicator, StatusIcon, StatusText, TONE_CLASSES, getStatusMeta, hitArea, textLink } from '@/components/ui'
 import { iconButton } from '@/components/ui/classes'
@@ -807,9 +808,11 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
                 </h4>
                 <div className="space-y-2">
                   {decisions.map((d) => (
-                    <div
+                    <ReferenceSource
                       key={d.id}
-                      className="rounded-lg p-2.5 bg-white/[0.03] border border-white/[0.06] space-y-1.5 min-w-0"
+                      entity={{ kind: 'decision', id: d.id, label: d.description }}
+                      button
+                      className="relative rounded-lg p-2.5 bg-white/[0.03] border border-white/[0.06] space-y-1.5 min-w-0"
                     >
                       <p className="text-sm text-gray-200 leading-snug break-words">{d.description}</p>
                       {d.chosen_option && (
@@ -822,7 +825,7 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
                         <p className="text-xs text-gray-500 leading-relaxed break-words">{d.rationale}</p>
                       )}
                       <StatusText kind="decision" status={d.status} icon className="text-[11px]" />
-                    </div>
+                    </ReferenceSource>
                   ))}
                 </div>
               </div>
@@ -857,6 +860,7 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
             )}
 
             {/* Open full page link */}
+            <ReferenceSource entity={{ kind: 'task', id: task.id, label: task.title || task.description }} button className="flex items-center gap-2">
             <Link
               to={workspacePath(wsSlug, `/tasks/${task.id}`)}
               className={`${textLink} ${hitArea} inline-flex items-center gap-1 text-xs`}
@@ -864,6 +868,7 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
               <ExternalLink className="w-3 h-3" aria-hidden="true" />
               Open task
             </Link>
+            </ReferenceSource>
           </>
         ) : (
           <p className="text-sm text-gray-500">Failed to load task details</p>

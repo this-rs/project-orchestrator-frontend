@@ -16,6 +16,8 @@ import { chatApi } from '@/services/chat'
 import { Plus, X, Menu, Settings, Minimize2, Maximize2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check, Link2 } from 'lucide-react'
 import { ChatMessages } from './ChatMessages'
 import { RefsAnnouncer } from './RefsAnnouncer'
+import { RefDropOverlay, useRefDropTarget } from '@/refs/source/useRefDropTarget'
+import { chatComposerBlockedAtom } from '@/refs/source/addToChat'
 import type { ChatReference } from '@/refs/types'
 import { ChatCapabilitiesProvider, ChatSessionProvider } from './ChatSessionContext'
 import { ProviderStateCard } from './ProviderStateCard'
@@ -259,6 +261,15 @@ export function ChatPanel() {
         : null
   const composerDisabled = (isNewConversation && !hasContext) || composerBlockedReason !== null
 
+  // The whole panel takes a reference dropped from anywhere in the app; the composer inside takes it first.
+  const panelDrop = useRefDropTarget()
+  const setComposerBlocked = useSetAtom(chatComposerBlockedAtom)
+  const composerBlocked = composerDisabled ? (composerBlockedReason ?? "choose a project first") : null
+  useEffect(() => {
+    setComposerBlocked(composerBlocked)
+    return () => setComposerBlocked(null)
+  }, [composerBlocked, setComposerBlocked])
+
   /** Send again what could not open a conversation — the composer's text if it was edited since. */
   const retrySessionOpen = useCallback(() => {
     if (!sessionOpenError) return
@@ -427,7 +438,9 @@ export function ChatPanel() {
         ref={panelRef}
         className={`fixed inset-0 z-30 bg-surface-raised flex ${isDragging ? '' : 'transition-transform duration-(--duration-stage) ease-(--ease-standard)'} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
         style={keyboardStyle}
+        {...panelDrop.zoneProps}
       >
+        {panelDrop.over && <RefDropOverlay />}
         {/* Left sidebar — hidden on mobile, permanent on desktop */}
         {/* Desktop: static sidebar */}
         <div className="hidden md:flex w-72 shrink-0 border-r border-white/[0.06] flex-col">
@@ -714,7 +727,9 @@ export function ChatPanel() {
       ref={panelRef}
       className={`fixed z-30 bg-surface-raised border-l border-border-subtle flex flex-col ${isDragging ? '' : 'transition-transform duration-(--duration-stage) ease-(--ease-standard)'} ${isOpen ? 'translate-x-0' : 'translate-x-full'} top-0 right-0 bottom-0 w-full`}
       style={{ maxWidth: isMobile ? undefined : panelWidth, ...keyboardStyle }}
+      {...panelDrop.zoneProps}
     >
+      {panelDrop.over && <RefDropOverlay />}
       {/* Resize handle — hidden on mobile (panel takes full width) */}
       <div
         onMouseDown={handleMouseDown}

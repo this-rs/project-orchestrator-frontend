@@ -503,6 +503,13 @@ function RelationRow({ kind, rel, resolved, href, onRemove }: RelationRowProps) 
     <EntityRow
       title={title}
       ariaLabel={plainTitle}
+      entityRef={
+        kind.key === 'decisions'
+          ? { kind: 'decision', id: rel.entity_id, label: plainTitle }
+          : kind.key === 'notes'
+            ? { kind: 'note', id: rel.entity_id, label: plainTitle.slice(0, 80) }
+            : undefined
+      }
       expanded={expandable ? open : undefined}
       href={href}
       onClick={!href && expandable ? () => setOpen((v) => !v) : undefined}

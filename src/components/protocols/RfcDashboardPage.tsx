@@ -290,6 +290,7 @@ function RfcRow({ rfc, href, onClick, onAction }: RfcRowProps) {
     <EntityRow
       title={rfc.title}
       href={href}
+      entityRef={{ kind: 'rfc', id: rfc.id }}
       onClick={onClick}
       muted={state === 'rejected' || state === 'superseded'}
       description={rfcPreview(rfc)}

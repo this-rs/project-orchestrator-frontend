@@ -40,6 +40,7 @@ export function KanbanCard({ task, onStatusChange }: KanbanCardProps) {
   return (
     <BoardCard
       id={task.id}
+      entityRef={{ kind: 'task', id: task.id, label: title }}
       dataKey="task"
       item={task}
       ariaLabel={title}

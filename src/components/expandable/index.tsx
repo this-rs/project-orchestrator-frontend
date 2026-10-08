@@ -205,6 +205,7 @@ function TaskRowBase({
     <EntityRow
       className={nested ? nestedRow : ''}
       title={title}
+      entityRef={{ kind: 'task', id }}
       href={href}
       muted={status === 'completed'}
       leading={
@@ -355,6 +356,7 @@ export function ExpandablePlanRow({
   return (
     <EntityRow
       title={plan.title}
+      entityRef={{ kind: 'plan', id: plan.id }}
       href={workspacePath(wsSlug, `/plans/${plan.id}`)}
       description={plan.description || undefined}
       muted={plan.status === 'completed' || plan.status === 'cancelled'}
@@ -400,6 +402,7 @@ export function MilestonePlanRow({ plan, wsSlug, nested }: { plan: MilestonePlan
     <EntityRow
       className={nested ? nestedRow : ''}
       title={plan.title}
+      entityRef={{ kind: 'plan', id: plan.id }}
       href={workspacePath(wsSlug, `/plans/${plan.id}`)}
       muted={plan.status === 'completed' || plan.status === 'cancelled'}
       leading={

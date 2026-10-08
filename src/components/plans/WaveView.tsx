@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { AddToChatButton, useReferenceSource } from '@/refs/source'
 import { AlertTriangle, Layers, ArrowRight, FileCode2, Zap, ChevronDown, ExternalLink, Play, Eye } from 'lucide-react'
 import {
   Button,
@@ -185,9 +186,11 @@ function WaveTaskCard({
   }
 
   const title = task.title || task.id.slice(0, 8)
+  const source = useReferenceSource({ kind: 'task', id: task.id, label: title })
 
   return (
     <div
+      {...source}
       className={`relative overflow-hidden rounded-lg border border-white/[0.06] bg-surface-raised transition-colors duration-(--duration-instant) ${
         hasConflicts ? `ring-1 ${TONE_CLASSES.warning.ring}` : ''
       }`}
@@ -195,6 +198,7 @@ function WaveTaskCard({
       {RAIL_TONES.has(tone) && (
         <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-[3px] ${TONE_CLASSES[tone].dot} opacity-80`} />
       )}
+      <AddToChatButton entity={{ kind: 'task', id: task.id, label: title }} className="absolute bottom-1 right-1" />
 
       {/* Clickable header: a disclosure, not a styled button */}
       <button

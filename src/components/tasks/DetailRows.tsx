@@ -175,6 +175,7 @@ export function DecisionRow({ decision, wsSlug, onStatusChange, onDelete, source
   return (
     <EntityRow
       title={decisionTitle(decision.description)}
+      entityRef={{ kind: 'decision', id: decision.id }}
       href={workspacePath(wsSlug, `/decisions/${decision.id}`)}
       muted={decision.status === 'superseded'}
       trailing={<RelativeTime date={decision.decided_at} />}

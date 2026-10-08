@@ -168,6 +168,7 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
     <EntityRow
       key={t.task.id}
       title={taskTitle(t)}
+      entityRef={{ kind: 'task', id: t.task.id }}
       titleLines={1}
       href={taskHref(t)}
       leading={row.leading}
@@ -353,6 +354,7 @@ function ChainRow({
     <EntityRow
       title={plan.title}
       titleLines={1}
+      entityRef={{ kind: 'plan', id: plan.id }}
       href={workspace ? workspacePath(workspace, `/plans/${plan.id}`) : undefined}
       leading={
         <StatusDot

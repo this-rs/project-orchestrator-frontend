@@ -396,6 +396,7 @@ function TaskRow({ task, wsSlug, selected, onToggleSelect, onEdit, onStatusChang
       }
       ariaLabel={title}
       viewTransitionName={`task-title-${task.id}`}
+      entityRef={{ kind: 'task', id: task.id, label: title }}
       className="hover:bg-white/[0.03] active:bg-white/[0.05]"
       selected={selected}
       muted={task.status === 'completed'}

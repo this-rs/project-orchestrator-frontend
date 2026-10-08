@@ -568,6 +568,7 @@ function NoteMemberRow({ note, onRemove, confirm }: { note: Note; onRemove: () =
   return (
     <EntityRow
       title={note.content}
+      entityRef={{ kind: 'note', id: note.id, label: note.content.slice(0, 80) }}
       onClick={() => setOpen((v) => !v)}
       ariaLabel={`Note: ${note.content.slice(0, 60)}`}
       expanded={open}
@@ -603,6 +604,7 @@ function DecisionMemberRow({
   return (
     <EntityRow
       title={decisionTitle(decision.description)}
+      entityRef={{ kind: 'decision', id: decision.id }}
       href={href}
       trailing={<RelativeTime date={decision.decided_at} />}
       meta={[

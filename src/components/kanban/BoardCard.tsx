@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { MetaLine } from '@/components/ui'
+import { AddToChatButton, useReferenceSource, type ReferenceSourceEntity } from '@/refs/source'
 
 interface BoardCardBodyProps {
   title: ReactNode
@@ -31,6 +32,8 @@ interface BoardCardProps extends BoardCardBodyProps {
   item: unknown
   /** Accessible name of the draggable card. */
   ariaLabel: string
+  /** Declares the card as a chat reference source. Its pointer drag belongs to the board (status moves): only the button and the shortcut add it. */
+  entityRef?: ReferenceSourceEntity
 }
 
 /**
@@ -39,7 +42,8 @@ interface BoardCardProps extends BoardCardBodyProps {
  * (long-press) / keyboard; status can also be changed from the StatusMenu in
  * the meta line, which is the only way on phones (no drag there).
  */
-export function BoardCard({ id, dataKey, item, ariaLabel, ...body }: BoardCardProps) {
+export function BoardCard({ id, dataKey, item, ariaLabel, entityRef, ...body }: BoardCardProps) {
+  const source = useReferenceSource(entityRef, { drag: false })
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id,
     data: { [dataKey]: item, item },
@@ -53,12 +57,14 @@ export function BoardCard({ id, dataKey, item, ariaLabel, ...body }: BoardCardPr
       style={style}
       {...listeners}
       {...attributes}
+      {...source}
       aria-label={ariaLabel}
-      className={`rounded-lg border px-3 py-2.5 cursor-grab active:cursor-grabbing select-none transition-colors duration-(--duration-instant) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60 ${
+      className={`relative rounded-lg border px-3 py-2.5 cursor-grab active:cursor-grabbing select-none transition-colors duration-(--duration-instant) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60 ${source['data-po-ref'] ? 'pr-8 ' : ''}${
         isDragging ? 'opacity-40 border-indigo-500/60 bg-surface-raised' : 'border-white/[0.06] bg-surface-raised hover:border-white/[0.14]'
       }`}
     >
       <BoardCardBody {...body} />
+      {entityRef && <AddToChatButton entity={{ ...entityRef, label: entityRef.label ?? ariaLabel }} className="absolute right-1 top-1" />}
     </div>
   )
 }

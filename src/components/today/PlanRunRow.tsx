@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { ReferenceSource } from '@/refs/source'
 import { ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { StatusDot } from '@/components/ui/Status'
@@ -99,12 +100,14 @@ export function PlanRunRow({ thread, others = [], laneName, renderDiscussions, c
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start gap-3">
             {thread.plan ? (
+              <ReferenceSource entity={{ kind: 'plan', id: thread.plan.id, label: thread.title }} button className="flex min-w-0 flex-1 items-start gap-1">
               <Link
                 to={`${workspacePath(thread.workspace, `/plans/${thread.plan.id}`)}#graph`}
                 className={`min-w-0 flex-1 rounded ${hitArea} ${focusRing} hover:text-white`}
               >
                 {title}
               </Link>
+              </ReferenceSource>
             ) : (
               <span className="min-w-0 flex-1">{title}</span>
             )}

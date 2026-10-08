@@ -302,6 +302,7 @@ export function PipelineDashboardPage() {
                 <EntityRow
                   key={plan.id}
                   title={plan.title}
+                  entityRef={{ kind: 'plan', id: plan.id }}
                   href={workspacePath(wsSlug, `/plans/${plan.id}`)}
                   tone={getStatusMeta('plan', plan.status).tone}
                   description={plan.description}

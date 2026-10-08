@@ -191,6 +191,7 @@ export function DecisionDetailPage() {
     <PageContainer width="wide" className="space-y-6">
       <PageHeader
         title={title}
+        entityRef={{ kind: 'decision', id: decision.id }}
         parentLinks={[{ icon: Scale, label: NOMENCLATURE.decisions.singular, name: NOMENCLATURE.decisions.plural, href: decisionsHref }]}
         status={<StatusMenu kind="decision" status={decision.status} onChange={handleStatusChange} />}
         meta={[

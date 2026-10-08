@@ -1,3 +1,4 @@
+import { AddToChatButton, useReferenceSource } from '@/refs/source'
 /**
  * Neuron explorer — a concept search rendered as a radial graph: direct
  * matches on the inner ring, notes reached by spreading activation on the
@@ -161,9 +162,11 @@ interface NeuronDetailProps {
 
 function NeuronDetail({ neuron, href, selected, onToggleSelect, onClose }: NeuronDetailProps) {
   const title = noteTitle(neuron.content)
+  const source = useReferenceSource({ kind: 'note', id: neuron.id, label: title })
   return (
     <aside
       aria-label="Neuron detail"
+      {...source}
       className={`absolute z-10 inset-x-2 bottom-2 sm:inset-x-auto sm:right-2 sm:top-2 sm:bottom-auto sm:w-80 rounded-xl ${glass} shadow-2xl overflow-hidden`}
     >
       <div className="flex items-start gap-2 px-3 py-2 border-b border-white/[0.06]">
@@ -188,6 +191,7 @@ function NeuronDetail({ neuron, href, selected, onToggleSelect, onClose }: Neuro
             ]}
           />
         </div>
+        <AddToChatButton entity={{ kind: 'note', id: neuron.id, label: title }} />
         {/* Inside a glass sheet: flat, so the sheet stays the only blur. */}
         <button
           type="button"
