@@ -85,7 +85,7 @@ vi.mock('@/services/providers', async (importOriginal) => ({
 }))
 vi.mock('@/components/discussions/AttachSessionButton', () => ({ AttachSessionButton: () => null }))
 vi.mock('@/components/discussions/DiscussionTreeView', () => ({ DiscussionTreeView: () => null }))
-vi.mock('./ChatMessages', () => ({ ChatMessages: () => <div data-testid="messages" /> }))
+vi.mock('./ChatMessages', () => ({ ChatMessages: ({ isCompacting }: { isCompacting?: boolean }) => <div data-testid="messages">{isCompacting ? 'Compacting context' : null}</div> }))
 vi.mock('./ComposerDock', () => ({
   ComposerDock: ({ children }: { children: ReactNode }) => <div data-testid="dock">{children}</div>,
 }))

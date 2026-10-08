@@ -25,7 +25,6 @@ import { PolicyOnlyBanner } from './PolicyOnlyBanner'
 import { RemoteNoToolsBanner } from './RemoteNoToolsBanner'
 import { EngineBanner } from './EngineBanner'
 import { ChatInput, type PrefillPayload } from './ChatInput'
-import { CompactionBanner } from './CompactionBanner'
 import { SecretRequestTray } from './SecretRequestTray'
 import { SessionOpenError } from './SessionOpenError'
 import { ComposerDock } from './ComposerDock'
@@ -664,9 +663,9 @@ export function ChatPanel() {
                     onSelectSession={handleSelectSession}
                     selectedProject={selectedProject}
                     bottomInset={dockHeight}
+                    isCompacting={chat.isCompacting && capabilities.compaction_signal}
                   />
                   <ComposerDock onHeight={setDockHeight}>
-                    <CompactionBanner visible={chat.isCompacting && capabilities.compaction_signal} />
                     <SecretRequestTray sessionId={chat.sessionId} />
                     {composerNotices}
                     <ChatInput
@@ -898,9 +897,9 @@ export function ChatPanel() {
               onSelectSession={handleSelectSession}
               selectedProject={selectedProject}
               bottomInset={dockHeight}
+              isCompacting={chat.isCompacting && capabilities.compaction_signal}
             />
             <ComposerDock onHeight={setDockHeight}>
-              <CompactionBanner visible={chat.isCompacting && capabilities.compaction_signal} />
               <SecretRequestTray sessionId={chat.sessionId} />
               {composerNotices}
               <ChatInput
