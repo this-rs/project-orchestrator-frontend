@@ -1,13 +1,16 @@
 // ============================================================================
-// EntityGroupPanel — Compact icon-only entity group toggles
+// EntityGroupPanel — Compact entity group toggles (icon + count)
 // ============================================================================
 //
 // Each non-core group cycles through 3 visual modes:
-//   off         → dim icon, no content in graph
-//   connections → semi-lit icon with link indicator, edges + tiny nodes
-//   expanded    → fully lit icon, full nodes + edges in graph
+//   off         → grey icon, no content in graph
+//   connections → group-coloured icon at 70 %, a small dot: edges + tiny nodes
+//   expanded    → pressed segment (aria-pressed), full nodes + edges in graph
 //
-// Hover reveals a tooltip with label, count, and current mode.
+// Material: one segmented glass control (`.seg` / `.seg-item`, DESIGN.md
+// § Matière). The group hue stays on the ICON only — never a filled background.
+// Every button names its group, count and mode (aria-label + title), so nothing
+// depends on the hover tooltip, which only enhances on a fine pointer.
 // Core group is always on and cannot be toggled.
 // ============================================================================
 
@@ -22,6 +25,7 @@ import {
   Network,
   Workflow,
 } from 'lucide-react'
+import { glass, segmentItem, segmented } from '@/components/ui/classes'
 import { highlightedGroupAtom } from '@/atoms/intelligence'
 import type { EntityGroup, EntityGroupConfig, GroupMode } from '@/types/fractal-graph'
 
@@ -37,16 +41,16 @@ const GROUP_ICONS: Record<string, React.FC<{ size?: number; className?: string }
   Workflow,
 }
 
-// ── Group accent colors ─────────────────────────────────────────────────────
+// ── Group accent colors (icon size only) ────────────────────────────────────
 
-const GROUP_ACCENT: Record<EntityGroup, { active: string; conn: string; off: string; dot: string }> = {
-  core:       { active: 'text-emerald-400 bg-emerald-500/20 border-emerald-500/40', conn: 'text-emerald-400/70 bg-emerald-500/10 border-emerald-500/25', off: 'text-slate-500 bg-slate-800/40 border-slate-700/40', dot: 'bg-emerald-400' },
-  code:       { active: 'text-blue-400 bg-blue-500/20 border-blue-500/40',          conn: 'text-blue-400/70 bg-blue-500/10 border-blue-500/25',          off: 'text-slate-500 bg-slate-800/40 border-slate-700/40', dot: 'bg-blue-400' },
-  knowledge:  { active: 'text-amber-400 bg-amber-500/20 border-amber-500/40',       conn: 'text-amber-400/70 bg-amber-500/10 border-amber-500/25',       off: 'text-slate-500 bg-slate-800/40 border-slate-700/40', dot: 'bg-amber-400' },
-  git:        { active: 'text-lime-400 bg-lime-500/20 border-lime-500/40',           conn: 'text-lime-400/70 bg-lime-500/10 border-lime-500/25',           off: 'text-slate-500 bg-slate-800/40 border-slate-700/40', dot: 'bg-lime-400' },
-  sessions:   { active: 'text-indigo-400 bg-indigo-500/20 border-indigo-500/40',     conn: 'text-indigo-400/70 bg-indigo-500/10 border-indigo-500/25',     off: 'text-slate-500 bg-slate-800/40 border-slate-700/40', dot: 'bg-indigo-400' },
-  features:   { active: 'text-fuchsia-400 bg-fuchsia-500/20 border-fuchsia-500/40',  conn: 'text-fuchsia-400/70 bg-fuchsia-500/10 border-fuchsia-500/25',  off: 'text-slate-500 bg-slate-800/40 border-slate-700/40', dot: 'bg-fuchsia-400' },
-  behavioral: { active: 'text-orange-400 bg-orange-500/20 border-orange-500/40',     conn: 'text-orange-400/70 bg-orange-500/10 border-orange-500/25',     off: 'text-slate-500 bg-slate-800/40 border-slate-700/40', dot: 'bg-orange-400' },
+const GROUP_ACCENT: Record<EntityGroup, { text: string; dot: string }> = {
+  core:       { text: 'text-emerald-400', dot: 'bg-emerald-400' },
+  code:       { text: 'text-blue-400',    dot: 'bg-blue-400' },
+  knowledge:  { text: 'text-amber-400',   dot: 'bg-amber-400' },
+  git:        { text: 'text-lime-400',    dot: 'bg-lime-400' },
+  sessions:   { text: 'text-indigo-400',  dot: 'bg-indigo-400' },
+  features:   { text: 'text-fuchsia-400', dot: 'bg-fuchsia-400' },
+  behavioral: { text: 'text-orange-400',  dot: 'bg-orange-400' },
 }
 
 // ── Mode labels ─────────────────────────────────────────────────────────────
@@ -56,6 +60,11 @@ const MODE_LABELS: Record<GroupMode, string> = {
   connections: 'Connections',
   expanded: 'Expanded',
 }
+
+/** One item of the segmented control: 36px tap target on phones, 32px on desktop. */
+const segItem = `${segmentItem} shrink-0 h-9 md:h-8 px-2.5 text-xs font-medium whitespace-nowrap gap-1.5`
+
+const formatCount = (n: number) => (n > 999 ? '1k+' : String(n))
 
 // ── Component ───────────────────────────────────────────────────────────────
 
@@ -145,97 +154,82 @@ export function EntityGroupPanel({
   if (visibleGroups.length <= 1) return null
 
   const isHorizontal = direction === 'horizontal'
+  const allExpanded = visibleGroups
+    .filter((g) => g.id !== 'core')
+    .every((g) => groupModes.get(g.id) === 'expanded')
 
   return (
-    <div
-      className={`flex ${isHorizontal ? 'flex-row items-center' : 'flex-col items-start'} gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 px-2 py-1.5 ${className}`}
-    >
-      {visibleGroups.map((group) => {
-        const isCore = group.id === 'core'
-        const mode: GroupMode = isCore ? 'expanded' : (groupModes.get(group.id) ?? 'off')
-        const count = counts[group.id] ?? 0
-        const accent = GROUP_ACCENT[group.id]
-        const Icon = GROUP_ICONS[group.icon] ?? Circle
-        const isHovered = tooltipGroup === group.id
+    <div className={`flex ${isHorizontal ? 'flex-row items-center' : 'flex-col items-start'} max-w-full px-2 py-1.5 ${className}`}>
+      <div
+        role="group"
+        aria-label="Entity groups"
+        className={`${segmented} ${
+          isHorizontal
+            ? 'max-w-full overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+            : 'flex-col items-stretch'
+        }`}
+      >
+        {visibleGroups.map((group) => {
+          const isCore = group.id === 'core'
+          const mode: GroupMode = isCore ? 'expanded' : (groupModes.get(group.id) ?? 'off')
+          const count = counts[group.id] ?? 0
+          const accent = GROUP_ACCENT[group.id]
+          const Icon = GROUP_ICONS[group.icon] ?? Circle
+          const isHovered = tooltipGroup === group.id
+          const iconClass = mode === 'expanded' ? accent.text : mode === 'connections' ? `${accent.text} opacity-70` : 'text-gray-500'
+          const name = `${group.label}: ${count} entities, ${MODE_LABELS[mode]}${isCore ? '' : ' — click to cycle'}`
 
-        // Select accent classes by mode
-        const accentClasses = mode === 'expanded' ? accent.active
-          : mode === 'connections' ? accent.conn
-          : accent.off
+          return (
+            <div key={group.id} className={`relative ${isHorizontal ? '' : 'w-full'}`}>
+              <button
+                type="button"
+                onClick={() => !isCore && onCycle(group.id)}
+                onMouseEnter={() => handleMouseEnter(group.id)}
+                onMouseLeave={handleMouseLeave}
+                disabled={isCore}
+                aria-pressed={isCore ? undefined : mode === 'expanded'}
+                aria-label={name}
+                title={name}
+                className={`${segItem} ${isHorizontal ? '' : 'w-full justify-start'} ${isCore ? 'cursor-default' : ''}`}
+              >
+                <Icon size={14} className={iconClass} />
+                {count > 0 && mode !== 'off' && <span className="text-[11px] font-normal tabular-nums">{formatCount(count)}</span>}
+                {/* Connections mode: the group's dot, half-lit (expanded = the pressed segment itself) */}
+                {!isCore && mode === 'connections' && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${accent.dot} opacity-60`} aria-hidden="true" />}
+              </button>
 
-        return (
-          <div key={group.id} className="relative">
-            <button
-              onClick={() => !isCore && onCycle(group.id)}
-              onMouseEnter={() => handleMouseEnter(group.id)}
-              onMouseLeave={handleMouseLeave}
-              disabled={isCore}
-              className={`
-                relative flex items-center justify-center w-7 h-7 rounded-md
-                border transition-[transform,color,background-color,border-color] duration-(--duration-instant) select-none
-                ${isCore ? 'cursor-default' : 'cursor-pointer pointer-fine:hover:scale-110'}
-                ${accentClasses}
-              `}
-            >
-              <Icon size={14} />
-
-              {/* Mode dot indicator (bottom-right) — non-core only */}
-              {!isCore && mode !== 'off' && (
-                <span className={`
-                  absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-slate-900
-                  ${mode === 'expanded' ? accent.dot : `${accent.dot} opacity-50`}
-                `} />
-              )}
-
-              {/* Count badge (top-right) — compact */}
-              {count > 0 && mode !== 'off' && (
-                <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] flex items-center justify-center rounded-full bg-slate-800 border border-slate-600 text-[8px] font-bold text-slate-300 leading-none px-0.5">
-                  {count > 99 ? '99+' : count}
-                </span>
-              )}
-            </button>
-
-            {/* Tooltip on hover */}
-            {isHovered && (
-              <div className={`absolute z-50 pointer-events-none whitespace-nowrap
-                ${isHorizontal ? 'top-full mt-1.5 left-1/2 -translate-x-1/2' : 'left-full ml-1.5 top-1/2 -translate-y-1/2'}
-              `}>
-                <div className="px-2 py-1 rounded-md bg-slate-800 border border-slate-600 shadow-lg text-[10px]">
-                  <div className="font-semibold text-slate-200">{group.label}</div>
-                  <div className="text-slate-400">
-                    {count} entities · {MODE_LABELS[mode]}
-                    {!isCore && ' · click to cycle'}
+              {/* Tooltip on hover — an enhancement for a fine pointer; the button already says it all */}
+              {isHovered && (
+                <div
+                  className={`pointer-events-none absolute z-50 whitespace-nowrap ${
+                    isHorizontal ? 'top-full mt-1.5 left-1/2 -translate-x-1/2' : 'left-full ml-1.5 top-1/2 -translate-y-1/2'
+                  }`}
+                  aria-hidden="true"
+                >
+                  <div className={`${glass} rounded-md px-2 py-1 text-[11px] leading-4`}>
+                    <div className="font-medium text-gray-200">{group.label}</div>
+                    <div className="text-gray-400">
+                      {count} entities · {MODE_LABELS[mode]}
+                      {!isCore && ' · click to cycle'}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
-        )
-      })}
+              )}
+            </div>
+          )
+        })}
 
-      {/* Separator + All toggle */}
-      {(() => {
-        const allExpanded = visibleGroups
-          .filter((g) => g.id !== 'core')
-          .every((g) => groupModes.get(g.id) === 'expanded')
-        return (
-          <div className={`flex items-center ${isHorizontal ? 'ml-0.5 pl-1 border-l' : 'mt-0.5 pt-1 border-t'} border-slate-700/40`}>
-            <button
-              onClick={allExpanded ? onResetDefaults : onEnableAll}
-              className={`
-                h-6 px-1.5 rounded text-[9px] font-bold tracking-wide uppercase transition-colors duration-(--duration-instant)
-                ${allExpanded
-                  ? 'text-cyan-400 bg-cyan-500/15 border border-cyan-500/30 hover:bg-cyan-500/25'
-                  : 'text-slate-500 bg-slate-800/40 border border-slate-700/40 hover:text-slate-300 hover:bg-slate-700/40'
-                }
-              `}
-              title={allExpanded ? 'Reset to defaults' : 'Expand all groups'}
-            >
-              All
-            </button>
-          </div>
-        )
-      })()}
+        {/* All: expand every group / back to defaults */}
+        <button
+          type="button"
+          onClick={allExpanded ? onResetDefaults : onEnableAll}
+          aria-pressed={allExpanded}
+          className={`${segItem} ${isHorizontal ? 'ml-0.5' : 'mt-0.5 w-full justify-start'}`}
+          title={allExpanded ? 'Reset to defaults' : 'Expand all groups'}
+        >
+          All
+        </button>
+      </div>
     </div>
   )
 }

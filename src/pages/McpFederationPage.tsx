@@ -141,7 +141,7 @@ function ConnectServerDialog({ open, onClose, onSuccess }: { open: boolean; onCl
     <FormDialog open={open} onClose={onClose} onSubmit={handleSubmit} title="Connect MCP server" submitLabel="Connect" size="lg">
       <div className="space-y-3">
         <p className="text-xs text-gray-500">
-          Plug in an external MCP server: its tools become available to the agents, with error and latency tracking.
+          Plug in an external MCP server: its tools become available to the assistants, with error and latency tracking.
         </p>
         <Field label="Server ID *">
           {(id) => <Input id={id} value={serverId} onChange={(e) => setServerId(e.target.value)} placeholder="my-mcp-server" />}
@@ -426,13 +426,14 @@ export function McpFederationPage() {
   return (
     <PageShell
       title={NOMENCLATURE.mcpFederation.plural}
-      description="External MCP servers plugged into the orchestrator: their tools add to the agents' own. Tap a server for its statistics and tools. Refreshed every 10 seconds."
+      description="External MCP servers plugged into the orchestrator: their tools add to the assistants' own. Tap a server for its statistics and tools. Refreshed every 10 seconds."
+      intro="mcpFederation"
       count={loading ? undefined : servers.length}
       width="wide"
       actions={
         <>
-          <Button size="sm" variant="ghost" onClick={fetchData} aria-label="Refresh" className="w-9 px-0 md:w-auto md:px-3">
-            <RefreshCw className="w-4 h-4 md:mr-1.5" aria-hidden="true" />
+          <Button size="sm" variant="ghost" onClick={fetchData} aria-label="Refresh">
+            <RefreshCw className="w-4 h-4" aria-hidden="true" />
             <span className="hidden md:inline">Refresh</span>
           </Button>
           <Button size="sm" onClick={openConnect}>
@@ -450,7 +451,7 @@ export function McpFederationPage() {
         ) : servers.length === 0 ? (
           <EmptyState
             icon={<Server className="w-6 h-6" />}
-            title="No MCP servers connected"
+            title="No MCP servers yet"
             description="Connect an external MCP server to discover and use its tools."
             action={
               <Button size="sm" onClick={openConnect}>

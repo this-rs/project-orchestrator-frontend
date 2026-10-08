@@ -75,7 +75,7 @@ function EntityNodeComponent({ data, selected }: NodeProps<Node<GraphNodeData>>)
           {data.label}
         </span>
       </div>
-      {selected && <div className="mt-0.5 truncate font-mono text-[10px] text-gray-400">{data.codeName}</div>}
+      {selected && <div className="mt-0.5 truncate font-mono text-[11px] text-gray-400">{data.codeName}</div>}
       <Handle type="source" position={Position.Bottom} style={{ background: colors.border, width: 6, height: 6 }} />
     </div>
   )

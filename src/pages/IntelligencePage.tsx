@@ -28,10 +28,11 @@ import {
   PageHeader,
   Section,
   Skeleton,
-  StatusDot,
+  StatusIcon,
   TONE_CLASSES,
   formatCost,
   pluralize,
+  hitArea,
   surface,
   textLink,
   type StatusTone,
@@ -458,6 +459,7 @@ export function IntelligencePage() {
           </>
         }
         overflowActions={[{ label: refreshing ? 'Refreshing…' : 'Refresh', icon: RefreshCw, onClick: handleRefresh, disabled: refreshing }]}
+        intro="insights"
         description="Multi-layer knowledge graph overview: code, knowledge, neural memory, skills and protocols."
       />
 
@@ -498,7 +500,14 @@ export function IntelligencePage() {
         <Section title="Attention needed" count={attention.length}>
           <EntityList aria-label="Attention needed">
             {attention.map((a) => (
-              <EntityRow key={a.key} title={a.title} href={a.href} leading={<StatusDot tone={a.tone} />} chevron />
+              <EntityRow
+                key={a.key}
+                title={a.title}
+                href={a.href}
+                tone={a.tone}
+                leading={<StatusIcon tone={a.tone} className={TONE_CLASSES[a.tone].text} />}
+                chevron
+              />
             ))}
           </EntityList>
         </Section>
@@ -509,7 +518,7 @@ export function IntelligencePage() {
         title={selectedCommunity ? `Code — ${selectedCommunity}` : 'Code'}
         action={
           selectedCommunity ? (
-            <button type="button" onClick={() => setSelectedCommunity(null)} className={`px-1 py-2 text-xs ${textLink}`}>
+            <button type="button" onClick={() => setSelectedCommunity(null)} className={`px-1 py-2 text-xs ${textLink} ${hitArea}`}>
               Clear filter
             </button>
           ) : undefined
@@ -567,7 +576,7 @@ export function IntelligencePage() {
           {selectedCommunity && (
             <p className="mt-2 text-[11px] text-gray-400">
               Filtering Code by community: <strong className="text-gray-200">{selectedCommunity}</strong>{' '}
-              <button type="button" onClick={() => setSelectedCommunity(null)} className={`px-1 py-2 ${textLink}`}>
+              <button type="button" onClick={() => setSelectedCommunity(null)} className={`px-1 py-2 ${textLink} ${hitArea}`}>
                 Clear
               </button>
             </p>
@@ -733,6 +742,7 @@ export function IntelligencePage() {
                     <Button
                       size="sm"
                       variant="secondary"
+                      flat
                       loading={st.status === 'running'}
                       disabled={st.status === 'running'}
                       onClick={() => triggerAction(a)}

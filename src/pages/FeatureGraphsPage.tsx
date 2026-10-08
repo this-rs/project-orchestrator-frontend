@@ -20,7 +20,6 @@ import {
   pluralize,
 } from '@/components/ui'
 import { useFormDialog, useIncrementalList, useToast, useWorkspaceSlug } from '@/hooks'
-import { FeatureGraphListHelp } from '@/components/featureGraphs/FeatureGraphHelp'
 import { CreateFeatureGraphForm, AutoBuildFeatureGraphForm } from '@/components/forms'
 import type { FeatureGraph } from '@/types'
 import { workspacePath } from '@/utils/paths'
@@ -177,6 +176,7 @@ export function FeatureGraphsPage() {
     <PageShell
       title={NOMENCLATURE.featureGraphs.plural}
       description={NOMENCLATURE.featureGraphs.description}
+      intro="featureGraphs"
       count={loading ? undefined : filtered.length}
       width="wide"
       actions={createActions}
@@ -215,10 +215,6 @@ export function FeatureGraphsPage() {
         />
       }
     >
-      <div className="mb-3 md:mb-4">
-        <FeatureGraphListHelp />
-      </div>
-
       {loading ? (
         <EntityListSkeleton rows={4} />
       ) : error ? (

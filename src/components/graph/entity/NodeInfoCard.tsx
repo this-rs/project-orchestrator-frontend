@@ -1,4 +1,6 @@
 import { ArrowRight, ExternalLink, X } from 'lucide-react'
+import { Button } from '@/components/ui'
+import { glass, glassButton, glassFlat, iconButton, popIn } from '@/components/ui/classes'
 import type { NeighborhoodNode } from '@/services/neighborhood'
 import type { PathStep } from './radialLayout'
 import { EntityTypeIcon } from './EntityTypeIcon'
@@ -17,9 +19,8 @@ export interface NodeInfoCardProps {
 }
 
 /**
- * Compact card for the selected node. Floating layer → glass surface
- * (translucent + backdrop blur, opaque fallback without backdrop-filter).
- * TODO(ui-kit): swap for the design-system glass popover class at integration.
+ * Compact card for the selected node. Floating layer → the design system's glass
+ * (`ui-glass`: translucent + blur, opaque fallback without backdrop-filter).
  */
 export function NodeInfoCard({
   node,
@@ -37,14 +38,14 @@ export function NodeInfoCard({
     <div
       role="dialog"
       aria-label={`Details: ${node.label}`}
-      className="eg-card rounded-xl border border-white/10 bg-surface-popover supports-[backdrop-filter]:bg-surface-popover/70 supports-[backdrop-filter]:backdrop-blur-md shadow-xl p-3 text-xs text-gray-300"
+      className={`eg-card rounded-xl p-3 text-xs text-gray-300 ${glass} ${popIn}`}
     >
       <div className="flex items-start gap-2">
         <div className="mt-0.5 shrink-0">
           <EntityTypeIcon type={node.type} size={16} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-[10px] uppercase tracking-wide text-gray-500">
+          <div className="text-[11px] leading-4 text-gray-500">
             {typeLabel(node.type)}
             {!isCenter && (
               <>
@@ -61,9 +62,9 @@ export function NodeInfoCard({
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="shrink-0 -mr-1 -mt-1 inline-flex items-center justify-center w-8 h-8 rounded-md text-gray-500 hover:text-gray-200 hover:bg-white/[0.06]"
+          className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} shrink-0 -mr-1 -mt-1`}
         >
-          <X size={14} />
+          <X size={14} aria-hidden="true" />
         </button>
       </div>
 
@@ -76,7 +77,7 @@ export function NodeInfoCard({
                   {i > 0 && (
                     <span className="text-gray-500 truncate max-w-[8rem]">{labelOf(s.from)}</span>
                   )}
-                  <span className="inline-flex items-center gap-0.5 rounded bg-indigo-500/15 text-indigo-200 px-1.5 py-0.5">
+                  <span className="inline-flex items-center gap-0.5 rounded border border-white/[0.08] px-1.5 py-0.5 text-[11px] text-gray-300">
                     {relLabel(s.rel)}
                     <ArrowRight size={10} aria-hidden />
                   </span>
@@ -102,20 +103,16 @@ export function NodeInfoCard({
                   onOpen(node)
                 }
               }}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-indigo-500/20 text-indigo-100 hover:bg-indigo-500/30 font-medium"
+              className={`${glassButton.primary} min-h-9 px-3 py-2 text-sm`}
             >
               {openLabel}
               <ExternalLink size={12} aria-hidden />
             </a>
           ) : (
-            <button
-              type="button"
-              onClick={() => onOpen?.(node)}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-indigo-500/20 text-indigo-100 hover:bg-indigo-500/30 font-medium"
-            >
+            <Button type="button" size="sm" onClick={() => onOpen?.(node)}>
               {openLabel}
               <ExternalLink size={12} aria-hidden />
-            </button>
+            </Button>
           )}
         </div>
       )}

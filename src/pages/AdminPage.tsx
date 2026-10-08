@@ -64,6 +64,7 @@ export function AdminPage() {
     <PageContainer width="narrow" className="space-y-6">
       <PageHeader
         title={NOMENCLATURE.admin.plural}
+        intro="admin"
         description="Server maintenance: code sync, search index, embeddings, graph analyses and cleanup. Each action says what it does and what it costs; destructive ones ask for confirmation."
       />
 
@@ -224,8 +225,8 @@ function SyncWatchersSection() {
       description="A watcher follows a project's files and updates the code graph on every change."
       action={
         watchStatus?.running && activeCount > 0 ? (
-          <Button size="sm" variant="ghost" onClick={handleStopAll} className="text-red-300">
-            <Square className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
+          <Button size="sm" variant="danger" onClick={handleStopAll}>
+            <Square className="w-3.5 h-3.5" aria-hidden="true" />
             Stop all
           </Button>
         ) : undefined

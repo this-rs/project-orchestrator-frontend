@@ -18,6 +18,8 @@ import { useSetAtom, useAtomValue, useAtom } from 'jotai'
 import { Layers, Box, GitFork, ChevronRight, Maximize, Minimize, Sun } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Graph3DErrorBoundary } from '@/components/ui/Graph3DErrorBoundary'
+import { EmptyState, ViewTabs, type ViewTab } from '@/components/ui'
+import { glass, glassFlat, iconButton } from '@/components/ui/classes'
 import { EntityGroupPanel } from './EntityGroupPanel'
 import { useEntityGroups } from '@/hooks/useEntityGroups'
 import { useActivationWebSocket } from '@/hooks/useActivationWebSocket'
@@ -168,41 +170,6 @@ function GraphBreadcrumbs({ items }: { items: GraphBreadcrumb[] }) {
         </React.Fragment>
       ))}
     </nav>
-  )
-}
-
-// ── View mode button ─────────────────────────────────────────────────────────
-
-function ViewModeButton({
-  label,
-  icon,
-  active,
-  onClick,
-  disabled,
-  loading,
-}: {
-  label: string
-  icon?: React.ReactNode
-  active: boolean
-  onClick: () => void
-  disabled?: boolean
-  loading?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-pressed={active}
-      className={`min-h-8 md:min-h-7 px-2.5 py-1 text-xs rounded-md transition-colors duration-[120ms] flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60 ${
-        active
-          ? 'bg-indigo-600 text-white font-medium'
-          : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.06]'
-      } ${disabled ? 'opacity-50' : ''}`}
-    >
-      {icon}
-      {loading ? 'Computing...' : label}
-    </button>
   )
 }
 
@@ -411,6 +378,18 @@ export function UnifiedGraphSection<T>({
     }
   }, [viewMode, waves, wavesLoading, fetchWaves])
 
+  const viewTabs: ViewTab<FractalViewMode>[] = [
+    ...(views.includes('dag') ? [{ id: 'dag' as const, label: 'DAG', icon: <GitFork /> }] : []),
+    ...(views.includes('waves')
+      ? [{ id: 'waves' as const, label: wavesLoading ? 'Computing…' : 'Waves', icon: <Layers />, disabled: wavesLoading }]
+      : []),
+    ...(views.includes('3d') ? [{ id: '3d' as const, label: '3D', icon: <Box /> }] : []),
+  ]
+  const selectView = (id: FractalViewMode) => {
+    if (id === 'waves') handleWavesClick()
+    else setViewMode(id)
+  }
+
   // Dynamic title
   const displayTitle = title ?? (
     viewMode === 'waves' ? 'Execution Waves'
@@ -436,7 +415,7 @@ export function UnifiedGraphSection<T>({
       ref={containerRef}
       className={`bg-[#0a0a0f] ${isFullscreen ? 'fixed inset-0 z-[9999]' : 'relative h-[360px] sm:h-[500px]'}`}
     >
-      {/* EntityGroupPanel — horizontal bar stuck to top */}
+      {/* EntityGroupPanel — horizontal segmented control stuck to top (its own glass; the bar has none) */}
       <div className="absolute top-0 left-0 right-0 z-30 pointer-events-none">
         <div className="pointer-events-auto">
           <EntityGroupPanel
@@ -448,7 +427,6 @@ export function UnifiedGraphSection<T>({
             onResetDefaults={resetToDefaults}
             direction="horizontal"
             enableHover
-            className="rounded-none border-x-0 border-t-0 border-b border-slate-700/60"
           />
         </div>
       </div>
@@ -467,9 +445,9 @@ export function UnifiedGraphSection<T>({
 
       {/* Controls (bottom-right): brightness slider + fullscreen */}
       <div className="absolute bottom-3 right-3 z-40 flex flex-col items-center gap-1.5">
-        {/* Brightness slider (vertical) */}
-        <div className="flex flex-col items-center gap-1 bg-slate-800/90 backdrop-blur-sm rounded-lg border border-slate-700 p-1">
-          <Sun size={11} className="text-slate-500 shrink-0" />
+        {/* Brightness slider (vertical) — a floating layer over the canvas: glass */}
+        <div className={`${glass} flex flex-col items-center gap-1 rounded-lg p-1`}>
+          <Sun size={12} className="text-gray-500 shrink-0" aria-hidden="true" />
           <input
             type="range"
             min={0}
@@ -479,6 +457,7 @@ export function UnifiedGraphSection<T>({
             onChange={(e) => setGraphBrightness(parseFloat(e.target.value))}
             className="graph-brightness-slider"
             title={`Brightness: ${Math.round(graphBrightness * 100)}%`}
+            aria-label="Brightness"
             style={{
               writingMode: 'vertical-lr',
               direction: 'rtl',
@@ -491,18 +470,16 @@ export function UnifiedGraphSection<T>({
             }}
           />
         </div>
-        {/* Fullscreen */}
-        <div className="flex items-center bg-slate-800/90 backdrop-blur-sm rounded-lg border border-slate-700 p-0.5">
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            className="flex items-center justify-center w-9 h-9 md:w-8 md:h-8 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60"
-            title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-            aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-          >
-            {isFullscreen ? <Minimize size={14} aria-hidden="true" /> : <Maximize size={14} aria-hidden="true" />}
-          </button>
-        </div>
+        {/* Fullscreen — one icon button over the canvas (secondary glass, flat: the canvas composites enough) */}
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          className={`${iconButton('secondary', 'size-9 md:size-8')} ${glassFlat}`}
+          title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+          aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+        >
+          {isFullscreen ? <Minimize size={14} aria-hidden="true" /> : <Maximize size={14} aria-hidden="true" />}
+        </button>
       </div>
     </div>
   ) : null
@@ -519,35 +496,8 @@ export function UnifiedGraphSection<T>({
           <span className="text-[11px] text-gray-500 tabular-nums whitespace-nowrap">{summaryText}</span>
         </div>
 
-        {/* View mode toggle */}
-        <div role="group" aria-label="Graph view" className="flex items-center rounded-lg bg-white/[0.04] border border-white/[0.06] p-0.5">
-          {views.includes('dag') && (
-            <ViewModeButton
-              label="DAG"
-              icon={<GitFork className="w-3 h-3" />}
-              active={viewMode === 'dag'}
-              onClick={() => setViewMode('dag')}
-            />
-          )}
-          {views.includes('waves') && (
-            <ViewModeButton
-              label="Waves"
-              icon={<Layers className="w-3 h-3" />}
-              active={viewMode === 'waves'}
-              onClick={handleWavesClick}
-              disabled={wavesLoading}
-              loading={wavesLoading}
-            />
-          )}
-          {views.includes('3d') && (
-            <ViewModeButton
-              label="3D"
-              icon={<Box className="w-3 h-3" />}
-              active={viewMode === '3d'}
-              onClick={() => setViewMode('3d')}
-            />
-          )}
-        </div>
+        {/* View mode — the segmented control of the design system */}
+        <ViewTabs tabs={viewTabs} value={viewMode} onChange={selectView} label="Graph view" className="min-w-0" />
       </div>
 
       {/* Content */}
@@ -582,7 +532,7 @@ export function UnifiedGraphSection<T>({
             </div>
           ) : (
             <div className="flex items-center justify-center h-[240px] sm:h-[400px]">
-              <p className="text-gray-500 text-sm">No data to visualize</p>
+              <EmptyState size="sm" title="No graph yet" description="There is nothing to draw for this view." />
             </div>
           )}
         </Suspense>

@@ -105,23 +105,19 @@ export function SharingPage() {
     <PageContainer width="narrow" className="space-y-6">
       <PageHeader
         title={NOMENCLATURE.sharing.plural}
+        intro="sharing"
         description="Decide which notes of a project may be shared with other instances, see what would leave, and retract a share with a signed tombstone."
       />
 
       {/* Secrets vault — instance-wide, so above the per-project scope below. */}
-      <section aria-labelledby="vault-heading" className="space-y-3">
-        <div>
-          <h2 id="vault-heading" className="text-base font-semibold text-gray-100">
-            Secrets vault
-          </h2>
-          <p className="text-sm text-gray-400">
-            Passwords and keys agents can use without ever seeing them. Applies to the whole instance, not to one project.
-          </p>
-        </div>
+      <Section
+        title="Secrets vault"
+        description="Passwords and keys assistants can use without ever seeing them. Applies to the whole instance, not to one project."
+      >
         <VaultPanel />
-      </section>
+      </Section>
 
-      <h2 className="pt-2 text-base font-semibold text-gray-100">Note sharing</h2>
+      <h2 className="pt-2 text-sm font-semibold text-gray-200">Note sharing</h2>
 
       {!projectsLoaded ? (
         <SkeletonCard lines={4} />
@@ -390,14 +386,14 @@ function SuggestSection({ slug, version }: { slug: string; version: number }) {
               trailing={<span title="Shareability score">{s.shareability_score.toFixed(2)}</span>}
               meta={[s.note_type, <span key="id" className="font-mono" title={s.note_id}>{shortId(s.note_id)}</span>, s.reason]}
             >
-              {/* Allow / Deny are the row's purpose (a review queue), so they stay visible. */}
+              {/* Allow / Deny are the row's purpose (a review queue), so they stay visible — flat: one pair per row. */}
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="secondary" onClick={() => handleConsent(s.note_id, 'explicit_allow')}>
-                  <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-emerald-400" aria-hidden="true" />
+                <Button size="sm" variant="secondary" flat onClick={() => handleConsent(s.note_id, 'explicit_allow')}>
+                  <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
                   Allow
                 </Button>
-                <Button size="sm" variant="secondary" onClick={() => handleConsent(s.note_id, 'explicit_deny')}>
-                  <XCircle className="w-3.5 h-3.5 mr-1.5 text-red-400" aria-hidden="true" />
+                <Button size="sm" variant="secondary" flat onClick={() => handleConsent(s.note_id, 'explicit_deny')}>
+                  <XCircle className="w-3.5 h-3.5" aria-hidden="true" />
                   Deny
                 </Button>
               </div>

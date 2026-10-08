@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown, Info } from 'lucide-react'
+import { Button } from '@/components/ui'
 import { NEIGHBORHOOD_LAYERS } from '@/services/neighborhood'
 import { LAYER_META, typeColor, typeLabel } from './entityVisuals'
 
@@ -21,16 +22,15 @@ export function EntityGraphExplainer({
   return (
     <div className="text-xs text-gray-400">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <button
-          type="button"
-          aria-expanded={open}
-          onClick={() => setOpen((o) => !o)}
-          className="inline-flex items-center gap-1.5 h-8 px-2 -ml-2 rounded-md text-gray-300 hover:bg-white/[0.04]"
-        >
-          <Info size={13} className="text-indigo-300" />
+        <Button type="button" variant="ghost" size="sm" flat aria-expanded={open} onClick={() => setOpen((o) => !o)} className="-ml-3 font-medium">
+          <Info size={13} className="text-indigo-300" aria-hidden="true" />
           How to read this graph?
-          <ChevronDown size={13} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
-        </button>
+          <ChevronDown
+            size={13}
+            aria-hidden="true"
+            className={`transition-transform duration-(--duration-instant) ease-(--ease-standard) motion-reduce:transition-none ${open ? 'rotate-180' : ''}`}
+          />
+        </Button>
         {/* Type legend — only the types actually on screen */}
         <ul aria-label="Type legend" className="flex flex-wrap gap-x-3 gap-y-1">
           {typeCounts.map(([type, count]) => (

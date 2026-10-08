@@ -80,6 +80,7 @@ export function CodePage() {
     <PageShell
       title={NOMENCLATURE.code.plural}
       description="Search, architecture and health of your projects' code."
+      intro="code"
       width="wide"
       filters={
         projects.length > 1 ? (

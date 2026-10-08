@@ -24,6 +24,8 @@ import {
   LayoutGrid,
 } from 'lucide-react'
 import { PROJECT_COLORS } from '@/constants/intelligence'
+import { ViewTabs, type ViewTab } from '@/components/ui'
+import { glassFlat, iconButton, segmentItem, segmented } from '@/components/ui/classes'
 
 const presetIcons: Record<string, typeof Layers> = {
   Code2,
@@ -34,6 +36,14 @@ const presetIcons: Record<string, typeof Layers> = {
   Layers,
   Workflow,
 }
+
+/** The "Custom" entry of the presets strip: not a preset, it opens the detail panels. */
+const CUSTOM_TAB = 'custom'
+
+/** One item of a segmented control (`.seg-item`, DESIGN.md § Matière): 36px tap target on phones, 32px on desktop. */
+const segItem = `${segmentItem} shrink-0 h-9 md:h-8 px-3 text-xs font-medium whitespace-nowrap gap-1.5`
+/** An opaque floating panel for the controls that are not a segmented control (the slider). */
+const panel = 'rounded-xl border border-white/[0.08] bg-surface-popover'
 
 export interface ProjectMeta {
   slug: string
@@ -58,6 +68,13 @@ interface LayerControlsProps {
   onHoverProject?: (slug: string | null) => void
 }
 
+/**
+ * The controls of the intelligence graph (top-left overlay). Only the CONTROLS wear the
+ * design system: the presets are one segmented control (`ViewTabs`), every toggle is a
+ * `seg-item` with `aria-pressed`, icon buttons are `iconButton` — flat, because several of
+ * them float over the canvas at once. The colours of the layers, projects and entities are
+ * data (`constants/intelligence.ts`) and are never changed here.
+ */
 function LayerControlsComponent({
   visibleLayers,
   onToggleLayer,
@@ -82,108 +99,90 @@ function LayerControlsComponent({
 
   const hasFilters = activeProjectFilters ? activeProjectFilters.size > 0 : false
 
+  const presetTabs: ViewTab<string>[] = [
+    ...VISIBILITY_PRESETS.map((preset) => {
+      const Icon = presetIcons[preset.icon] ?? Layers
+      return { id: preset.id as string, label: preset.label, icon: <Icon /> }
+    }),
+    { id: CUSTOM_TAB, label: 'Custom', icon: <SlidersHorizontal /> },
+  ]
+  const selectPreset = (id: string) => {
+    if (id === CUSTOM_TAB) {
+      if (!customMode) onToggleCustom()
+      return
+    }
+    onApplyPreset(id as VisibilityMode)
+    if (customMode) onToggleCustom()
+  }
+
   return (
-    <div className="absolute top-3 left-3 z-40 flex flex-col gap-2">
-      {/* Presets bar — always visible */}
-      <div className="flex gap-1 rounded-lg bg-slate-900/90 backdrop-blur-sm border border-slate-700 p-1">
-        {VISIBILITY_PRESETS.map((preset) => {
-          const Icon = presetIcons[preset.icon] ?? Layers
-          const isActive = activeMode === preset.id && !customMode
-          return (
-            <button
-              key={preset.id}
-              onClick={() => { onApplyPreset(preset.id); if (customMode) onToggleCustom() }}
-              className={`flex items-center gap-1 rounded-md px-2 py-1.5 text-[10px] font-medium transition-colors ${
-                isActive
-                  ? 'bg-blue-500/20 text-blue-300 ring-1 ring-blue-500/40'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-              title={preset.description}
-            >
-              <Icon size={12} />
-              {preset.label}
-            </button>
-          )
-        })}
-        {/* Custom mode toggle */}
-        <button
-          onClick={onToggleCustom}
-          className={`flex items-center gap-1 rounded-md px-2 py-1.5 text-[10px] font-medium transition-colors ${
-            customMode
-              ? 'bg-orange-500/20 text-orange-300 ring-1 ring-orange-500/40'
-              : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-          }`}
-          title="Custom layer configuration"
-        >
-          <SlidersHorizontal size={12} />
-          Custom
-        </button>
-        {/* All Edges toggle — always visible */}
-        <div className="w-px h-5 bg-slate-700/60 mx-0.5 self-center" />
-        <button
-          onClick={() => setShowAllEdges(!showAllEdges)}
-          className={`flex items-center gap-1 rounded-md px-2 py-1.5 text-[10px] font-medium transition-colors ${
-            showAllEdges
-              ? 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40'
-              : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-          }`}
-          title={showAllEdges ? 'Show only priority edges (budget mode)' : `Show all edges (${hiddenEdgeCount} hidden)`}
-        >
-          {showAllEdges ? <Eye size={12} /> : <EyeOff size={12} />}
-          {showAllEdges ? 'All Edges' : `Edges${hiddenEdgeCount > 0 ? ` (${hiddenEdgeCount})` : ''}`}
-        </button>
+    <div className="absolute top-3 left-3 z-40 flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2">
+      {/* Presets — one segmented control (scrolls in its own strip on phones) + the edges toggle */}
+      <div className="flex max-w-full flex-wrap items-center gap-2">
+        <ViewTabs tabs={presetTabs} value={customMode ? CUSTOM_TAB : activeMode} onChange={selectPreset} label="Graph presets" className="min-w-0" />
+        <div className={segmented}>
+          <button
+            type="button"
+            onClick={() => setShowAllEdges(!showAllEdges)}
+            aria-pressed={showAllEdges}
+            className={segItem}
+            title={showAllEdges ? 'Show only priority edges (budget mode)' : `Show all edges (${hiddenEdgeCount} hidden)`}
+          >
+            {showAllEdges ? <Eye size={14} aria-hidden="true" /> : <EyeOff size={14} aria-hidden="true" />}
+            {showAllEdges ? 'All edges' : 'Edges'}
+            {!showAllEdges && hiddenEdgeCount > 0 && <span className="tabular-nums font-normal text-gray-500">{hiddenEdgeCount}</span>}
+          </button>
+        </div>
       </div>
 
-      {/* ── View buttons — workspace project views ───── */}
+      {/* ── Views — workspace project filters (multi-select) ───── */}
       {projectMetas && projectMetas.length > 1 && onToggleProjectFilter && onClearProjectFilters && (
-        <div className="flex items-center gap-1 rounded-lg bg-slate-900/90 backdrop-blur-sm border border-slate-700 p-1 self-start">
-          <LayoutGrid size={11} className="text-slate-500 shrink-0 ml-0.5" />
-          <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider px-0.5 shrink-0">Views</span>
-          <div className="w-px h-4 bg-slate-700/60 shrink-0" />
-          {/* "All" button */}
-          <button
-            onClick={onClearProjectFilters}
-            className={`flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-[color,background-color,box-shadow] whitespace-nowrap ${
-              !hasFilters
-                ? 'bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/40'
-                : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-            }`}
-            title="Show all projects"
+        <div className="flex max-w-full items-center gap-1">
+          <div
+            role="group"
+            aria-label="Project views"
+            className={`${segmented} max-w-full overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
           >
-            All
-          </button>
-          {/* Per-project buttons */}
-          {projectMetas.map((p, i) => {
-            const color = PROJECT_COLORS[i % PROJECT_COLORS.length]
-            const isActive = activeProjectFilters?.has(p.slug) ?? false
-            return (
-              <button
-                key={p.slug}
-                onClick={() => onToggleProjectFilter(p.slug)}
-                onMouseEnter={() => onHoverProject?.(p.slug)}
-                onMouseLeave={() => onHoverProject?.(null)}
-                className={`flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-[color,background-color,box-shadow] whitespace-nowrap ${
-                  isActive
-                    ? 'bg-slate-700/70 text-white ring-1 ring-slate-500/50'
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                }`}
-                title={`${p.name} (${p.node_count} nodes)${isActive ? ' — click to deselect' : ''}`}
-              >
-                <span
-                  className="w-2 h-2 rounded-full shrink-0 transition-opacity"
-                  style={{ backgroundColor: color, opacity: isActive || !hasFilters ? 1 : 0.35 }}
-                />
-                {p.name}
-              </button>
-            )
-          })}
+            <span className="inline-flex shrink-0 items-center gap-1 pl-2 pr-1 text-[11px] text-gray-500" aria-hidden="true">
+              <LayoutGrid size={12} />
+              Views
+            </span>
+            <button type="button" onClick={onClearProjectFilters} aria-pressed={!hasFilters} className={segItem} title="Show all projects">
+              All
+            </button>
+            {projectMetas.map((p, i) => {
+              const color = PROJECT_COLORS[i % PROJECT_COLORS.length]
+              const isActive = activeProjectFilters?.has(p.slug) ?? false
+              return (
+                <button
+                  key={p.slug}
+                  type="button"
+                  onClick={() => onToggleProjectFilter(p.slug)}
+                  onMouseEnter={() => onHoverProject?.(p.slug)}
+                  onMouseLeave={() => onHoverProject?.(null)}
+                  aria-pressed={isActive}
+                  className={segItem}
+                  title={`${p.name} (${p.node_count} nodes)${isActive ? ' — click to deselect' : ''}`}
+                >
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: color, opacity: isActive || !hasFilters ? 1 : 0.35 }}
+                    aria-hidden="true"
+                  />
+                  {p.name}
+                </button>
+              )
+            })}
+          </div>
           {hasFilters && (
             <button
+              type="button"
               onClick={onClearProjectFilters}
-              className="flex items-center shrink-0 rounded-md p-0.5 text-amber-400 hover:text-amber-300 transition-colors"
-              title="Clear all filters"
+              aria-label="Clear project filters"
+              title="Clear project filters"
+              className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat}`}
             >
-              <X size={10} />
+              <X size={14} aria-hidden="true" />
             </button>
           )}
         </div>
@@ -193,7 +192,7 @@ function LayerControlsComponent({
       {customMode && (
         <>
           {/* Layer toggles */}
-          <div className="flex flex-col gap-0.5 rounded-lg bg-slate-900/90 backdrop-blur-sm border border-slate-700 p-1.5">
+          <div role="group" aria-label="Layers" className={`${segmented} flex-col items-stretch`}>
             {LAYER_ORDER.map((layerId) => {
               const layer = LAYERS[layerId]
               const visible = visibleLayers.has(layerId)
@@ -201,29 +200,28 @@ function LayerControlsComponent({
               return (
                 <button
                   key={layerId}
+                  type="button"
                   onClick={() => onToggleLayer(layerId)}
-                  className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors ${
-                    visible
-                      ? 'text-slate-200 bg-slate-800/50'
-                      : 'text-slate-500 hover:text-slate-400'
-                  }`}
+                  aria-pressed={visible}
+                  className={`${segItem} justify-start gap-2`}
+                  title={layer.description}
                 >
-                  <div
-                    className="w-2.5 h-2.5 rounded-full shrink-0 transition-opacity"
-                    style={{
-                      backgroundColor: layer.color,
-                      opacity: visible ? 1 : 0.3,
-                    }}
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: layer.color, opacity: visible ? 1 : 0.3 }}
+                    aria-hidden="true"
                   />
-                  {visible ? <Eye size={12} /> : <EyeOff size={12} />}
-                  <span className="font-medium">{layer.label}</span>
+                  {visible ? <Eye size={14} aria-hidden="true" /> : <EyeOff size={14} aria-hidden="true" />}
+                  <span>{layer.label}</span>
                   {isLoading ? (
-                    <div
-                      className="w-3 h-3 border-[1.5px] border-t-transparent rounded-full animate-spin ml-auto shrink-0"
+                    <span
+                      role="status"
+                      aria-label={`Loading ${layer.label}`}
+                      className="ml-auto h-3 w-3 shrink-0 animate-spin rounded-full border-[1.5px] motion-reduce:animate-none"
                       style={{ borderColor: layer.color, borderTopColor: 'transparent' }}
                     />
                   ) : (
-                    <span className="text-[10px] text-slate-500 ml-auto">z{layer.zIndex}</span>
+                    <span className="ml-auto text-[11px] font-normal tabular-nums text-gray-500">z{layer.zIndex}</span>
                   )}
                 </button>
               )
@@ -231,78 +229,70 @@ function LayerControlsComponent({
           </div>
 
           {/* Overlay toggles */}
-          <div className="flex flex-col gap-0.5 rounded-lg bg-slate-900/90 backdrop-blur-sm border border-slate-700 p-1.5">
+          <div role="group" aria-label="Overlays" className={`${segmented} flex-col items-stretch`}>
             <button
+              type="button"
               onClick={() => setHeatmapEnabled(!heatmapEnabled)}
-              className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors ${
-                heatmapEnabled
-                  ? 'text-amber-300 bg-amber-950/40'
-                  : 'text-slate-500 hover:text-slate-400'
-              }`}
+              aria-pressed={heatmapEnabled}
+              className={`${segItem} justify-start gap-2`}
               title="Color note nodes by energy level (red=low, green=high)"
             >
-              <Flame size={12} className={heatmapEnabled ? 'text-amber-400' : ''} />
-              <span className="font-medium">Energy Heatmap</span>
+              <Flame size={14} aria-hidden="true" />
+              Energy heatmap
             </button>
             <button
+              type="button"
               onClick={() => setTouchesEnabled(!touchesEnabled)}
-              className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors ${
-                touchesEnabled
-                  ? 'text-green-300 bg-green-950/40'
-                  : 'text-slate-500 hover:text-slate-400'
-              }`}
+              aria-pressed={touchesEnabled}
+              className={`${segItem} justify-start gap-2`}
               title="Highlight file nodes by churn score (commit frequency)"
             >
-              <GitCommitHorizontal size={12} className={touchesEnabled ? 'text-green-400' : ''} />
-              <span className="font-medium">Churn Heatmap</span>
+              <GitCommitHorizontal size={14} aria-hidden="true" />
+              Churn heatmap
             </button>
             <button
+              type="button"
               onClick={() => setSearchOpen(true)}
-              className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-slate-500 hover:text-cyan-400 hover:bg-cyan-950/30 transition-colors"
+              className={`${segItem} justify-start gap-2`}
               title="Search to visualize spreading activation (⌘K)"
             >
-              <Search size={12} />
-              <span className="font-medium">Activation</span>
-              <kbd className="ml-auto text-[9px] px-1 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-slate-600">⌘K</kbd>
+              <Search size={14} aria-hidden="true" />
+              Activation
+              <kbd className="ml-auto rounded border border-white/[0.08] px-1 py-0.5 font-mono text-[11px] font-normal text-gray-500">⌘K</kbd>
             </button>
             <button
+              type="button"
               onClick={() => setCommunityHulls(!communityHulls)}
-              className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors ${
-                communityHulls
-                  ? 'text-blue-300 bg-blue-950/40'
-                  : 'text-slate-500 hover:text-slate-400'
-              }`}
+              aria-pressed={communityHulls}
+              className={`${segItem} justify-start gap-2`}
               title="Show community cluster hulls in 3D view (Louvain communities)"
             >
-              <Hexagon size={12} className={communityHulls ? 'text-blue-400' : ''} />
-              <span className="font-medium">Communities</span>
+              <Hexagon size={14} aria-hidden="true" />
+              Communities
             </button>
           </div>
 
           {/* Fabric controls — CO_CHANGED threshold slider */}
           {visibleLayers.has('fabric') && (
-            <div className="flex flex-col gap-1 rounded-lg bg-slate-900/90 backdrop-blur-sm border border-slate-700 p-2">
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <GitFork size={12} className="text-orange-300" />
-                <span className="font-medium">Co-Change</span>
-                <span className="ml-auto text-[10px] text-slate-500">
-                  min {coChangeThreshold}
-                </span>
-              </div>
+            <div className={`${panel} flex flex-col gap-1 p-2`}>
+              <label htmlFor="co-change-threshold" className="flex items-center gap-2 text-xs text-gray-300">
+                <GitFork size={14} className="text-gray-500" aria-hidden="true" />
+                <span className="font-medium">Co-change</span>
+                <span className="ml-auto text-[11px] tabular-nums text-gray-500">min {coChangeThreshold}</span>
+              </label>
               <input
+                id="co-change-threshold"
                 type="range"
                 min={1}
                 max={20}
                 step={1}
                 value={coChangeThreshold}
                 onChange={(e) => setCoChangeThreshold(Number(e.target.value))}
-                className="w-full h-1 rounded-lg appearance-none cursor-pointer accent-orange-400"
-                style={{
-                  background: `linear-gradient(to right, #FB923C ${((coChangeThreshold - 1) / 19) * 100}%, #334155 ${((coChangeThreshold - 1) / 19) * 100}%)`,
-                }}
+                className="h-9 w-full cursor-pointer accent-indigo-400"
+                aria-valuetext={`at least ${coChangeThreshold} co-changes`}
                 title={`Hide CO_CHANGED edges with fewer than ${coChangeThreshold} co-changes`}
               />
-              <div className="flex justify-between text-[9px] text-slate-600">
+              <div className="flex justify-between text-[11px] tabular-nums text-gray-500">
                 <span>1</span>
                 <span>10</span>
                 <span>20</span>

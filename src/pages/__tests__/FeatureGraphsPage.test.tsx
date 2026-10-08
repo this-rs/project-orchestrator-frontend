@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor, within, configure } from '@testing-
 import { MemoryRouter } from 'react-router-dom'
 import type { FeatureGraph } from '@/types'
 import { installMatchMedia } from './testEnv'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 const list = vi.fn()
 const remove = vi.fn()
@@ -125,11 +126,11 @@ describe('FeatureGraphsPage', () => {
     expect(await screen.findByText('No feature graphs yet')).toBeTruthy()
   })
 
-  it('explains what a feature graph is and how Auto-build works', async () => {
+  it('introduces the concept from the registry (ConceptIntro, folded by default)', async () => {
     renderPage()
     await screen.findByText('Auth flow')
-    expect(screen.getByText('What is a feature graph?')).toBeTruthy()
-    expect(screen.getByText(/follows its calls/)).toBeTruthy()
+    expect(screen.getByText('What is this?')).toBeTruthy()
+    expect(screen.getByText(NOMENCLATURE.featureGraphs.explain.what)).toBeTruthy()
   })
 
   it('explains the empty state and offers both creation paths', async () => {

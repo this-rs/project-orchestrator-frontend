@@ -121,7 +121,7 @@ describe('McpFederationPage', () => {
   it('shows the empty state with a connect action', async () => {
     api.listServers.mockResolvedValue([])
     render(<McpFederationPage />)
-    expect(await screen.findByText('No MCP servers connected')).toBeTruthy()
+    expect(await screen.findByText('No MCP servers yet')).toBeTruthy()
     expect(screen.getByRole('button', { name: /Connect server/ })).toBeTruthy()
   })
 })

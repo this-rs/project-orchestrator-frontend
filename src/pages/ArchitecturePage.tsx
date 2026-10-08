@@ -28,7 +28,8 @@ import {
   ArrowLeft,
   type LucideIcon,
 } from 'lucide-react'
-import { EmptyState, EntityListSkeleton, ErrorState, PageShell } from '@/components/ui'
+import { EmptyState, EntityListSkeleton, ErrorState, PageShell, focusRing } from '@/components/ui'
+import { glassFlat, iconButton } from '@/components/ui/classes'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacesApi } from '@/services/workspaces'
 import { workspacePath } from '@/utils/paths'
@@ -77,7 +78,7 @@ function ComponentNode({ data }: NodeProps<Node<NodeData>>) {
   return (
     <div
       className={[
-        'rounded-lg border px-3 py-2.5 transition-[opacity,border-color,box-shadow] duration-200',
+        'rounded-lg border px-3 py-2.5 transition-[opacity,border-color,box-shadow] duration-(--duration-fast)',
         selected
           ? 'border-indigo-400/70 bg-gray-900 shadow-[0_0_0_1px_rgba(129,140,248,0.35)]'
           : 'border-white/[0.08] bg-gray-900 shadow-sm',
@@ -147,7 +148,7 @@ function toFlow(
           // diagram carries, so the legend spells it out.
           strokeDasharray: e.required ? undefined : '5 4',
           opacity: selectedId && !touchesSelection ? 0.15 : 1,
-          transition: 'opacity 200ms, stroke 200ms',
+          transition: 'opacity var(--duration-fast) var(--ease-standard), stroke var(--duration-fast) var(--ease-standard)',
         },
         labelStyle: { fill: '#9ca3af', fontSize: 11 },
         labelBgStyle: { fill: '#111827' },
@@ -214,7 +215,7 @@ function DetailPanel({ node, graph, projectSlugByName, wsSlug, onClose, onSelect
               <button
                 type="button"
                 onClick={() => onSelect(otherId)}
-                className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-xs text-gray-300 hover:bg-white/[0.04] focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400"
+                className={`flex w-full min-h-9 items-center gap-1.5 rounded px-1 py-1 text-left text-xs text-gray-300 hover:bg-white/[0.04] ${focusRing}`}
               >
                 <Arrow className="h-3 w-3 shrink-0 text-gray-600" aria-hidden />
                 <span className="truncate">{nameById.get(otherId) ?? otherId}</span>
@@ -246,9 +247,9 @@ function DetailPanel({ node, graph, projectSlugByName, wsSlug, onClose, onSelect
           type="button"
           onClick={onClose}
           aria-label="Close details"
-          className="rounded p-1 text-gray-500 hover:text-gray-300 focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400"
+          className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} -mr-2 -mt-2`}
         >
-          <X className="h-3.5 w-3.5" aria-hidden />
+          <X className="h-4 w-4" aria-hidden />
         </button>
       </div>
 
@@ -400,6 +401,7 @@ export function ArchitecturePage() {
     <PageShell
       title={NOMENCLATURE.architecture.plural}
       description={NOMENCLATURE.architecture.description}
+      intro="architecture"
       width="wide"
       count={graph?.nodes.length}
     >
@@ -410,7 +412,7 @@ export function ArchitecturePage() {
       ) : !graph || graph.nodes.length === 0 ? (
         <EmptyState
           title="No architecture yet"
-          description="Add components (services, databases, queues…) to the workspace, or ask the agent to map the system."
+          description="Add components (services, databases, queues…) to the workspace, or ask an assistant to map the system."
         />
       ) : (
         <div className="space-y-4">
@@ -451,7 +453,7 @@ export function ArchitecturePage() {
           <section aria-label="Architecture outline" className="space-y-3">
             {tiers.map((t) => (
               <div key={t.tier}>
-                <h2 className="text-xs font-medium uppercase tracking-wide text-gray-500">{t.label}</h2>
+                <h2 className="text-[11px] font-medium text-gray-500">{t.label}</h2>
                 <ul className="mt-1 divide-y divide-white/[0.06] rounded-xl border border-white/[0.06]">
                   {t.nodes.map((n) => {
                     const deps = graph.edges.filter((e) => e.from === n.id)
@@ -465,7 +467,7 @@ export function ArchitecturePage() {
                           aria-pressed={isSelected}
                           className={[
                             'flex w-full flex-wrap items-baseline gap-x-3 gap-y-0.5 px-3 py-2 text-left text-sm',
-                            'focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400',
+                            focusRing,
                             isSelected ? 'bg-indigo-500/10' : 'hover:bg-white/[0.03]',
                           ].join(' ')}
                         >

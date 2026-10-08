@@ -29,6 +29,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
+import { Button } from '@/components/ui'
 import {
   NEIGHBORHOOD_LAYERS,
   type NeighborhoodDepth,
@@ -252,13 +253,9 @@ export function EntityGraph({
             <span className="flex-1 min-w-[12rem]">
               Could not load the neighborhood: {error.message}
             </span>
-            <button
-              type="button"
-              onClick={retry}
-              className="h-8 px-3 rounded-md bg-red-500/20 hover:bg-red-500/30 text-red-100 font-medium"
-            >
+            <Button type="button" size="sm" variant="secondary" flat onClick={retry}>
               Retry
-            </button>
+            </Button>
           </div>
         )}
 
@@ -270,22 +267,14 @@ export function EntityGraph({
             </p>
             <div className="flex gap-2">
               {relief > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setReliefNow(0)}
-                  className="h-8 px-3 rounded-md bg-white/[0.06] hover:bg-white/[0.1] text-xs text-gray-200"
-                >
+                <Button type="button" size="sm" variant="secondary" flat onClick={() => setReliefNow(0)}>
                   Lower the relief
-                </button>
+                </Button>
               )}
               {depth < 3 && (
-                <button
-                  type="button"
-                  onClick={() => setDepth((depth + 1) as NeighborhoodDepth)}
-                  className="h-8 px-3 rounded-md bg-white/[0.06] hover:bg-white/[0.1] text-xs text-gray-200"
-                >
+                <Button type="button" size="sm" variant="secondary" flat onClick={() => setDepth((depth + 1) as NeighborhoodDepth)}>
                   Go to depth {depth + 1}
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -298,7 +287,7 @@ export function EntityGraph({
         )}
 
         {shown?.truncated && !isEmpty && (
-          <span className="absolute top-2 left-3 rounded bg-black/40 px-1.5 py-0.5 text-[11px] text-amber-200/80">
+          <span className="absolute top-2 left-3 rounded bg-black/40 px-1.5 py-0.5 text-[11px] text-gray-300">
             {shown.nodes.length} of {shown.stats.total_before_limit} nodes shown
           </span>
         )}

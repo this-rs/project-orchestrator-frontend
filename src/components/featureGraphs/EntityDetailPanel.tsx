@@ -1,6 +1,6 @@
 import { X } from 'lucide-react'
 import { Gauge, MetaLine } from '@/components/ui'
-import { glass, popIn } from '@/components/ui/classes'
+import { focusRing, glass, glassFlat, iconButton, popIn } from '@/components/ui/classes'
 import type { StatusTone } from '@/components/ui/statusMeta'
 import { ROLE_META } from '@/utils/featureGraphModel'
 import { cleanDocstring, ROLE_PLAIN, type EntityNeighbours, type EntityView, type ImportanceLevel } from '@/utils/featureGraphReadable'
@@ -36,11 +36,11 @@ function LinkList({
                 type="button"
                 disabled={!v}
                 onClick={() => onSelect(r.entityId)}
-                className="w-full text-left rounded px-1.5 py-1 text-xs hover:bg-white/[0.06] disabled:hover:bg-transparent focus-visible:outline-2 focus-visible:outline-indigo-400"
+                className={`w-full min-h-9 text-left rounded px-1.5 py-1.5 text-xs hover:bg-white/[0.06] disabled:hover:bg-transparent ${focusRing}`}
               >
                 <span className="text-gray-200">{v?.title ?? r.entityId}</span>
                 {v && <span className="ml-1.5 font-mono text-[11px] text-gray-500">{v.codeName}</span>}
-                {r.relationType !== 'CALLS' && <span className="ml-1.5 text-[10px] text-gray-500">{r.relationType.toLowerCase()}</span>}
+                {r.relationType !== 'CALLS' && <span className="ml-1.5 text-[11px] text-gray-500">{r.relationType.toLowerCase()}</span>}
               </button>
             </li>
           )
@@ -104,7 +104,7 @@ export function EntityDetailPanel({
           type="button"
           onClick={onClose}
           aria-label="Close entity details"
-          className="shrink-0 -m-1 w-9 h-9 md:w-8 md:h-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/[0.06]"
+          className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} shrink-0 -m-1`}
         >
           <X className="w-4 h-4" aria-hidden="true" />
         </button>

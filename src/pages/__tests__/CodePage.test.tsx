@@ -102,6 +102,8 @@ describe('CodePage', () => {
   it('searches the code and opens a result file history through the URL', async () => {
     renderPage('/workspace/ws/code')
     expect(await screen.findByRole('heading', { level: 1, name: 'Code' })).toBeTruthy()
+    // The concept introduces itself from the registry (ConceptIntro, folded by default).
+    expect(screen.getByText('What is this?')).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'Explorer', selected: true })).toBeTruthy()
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search the code' }), { target: { value: 'retry' } })
     fireEvent.click(screen.getByRole('button', { name: 'Search' }))
