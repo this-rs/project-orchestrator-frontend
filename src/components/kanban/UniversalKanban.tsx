@@ -7,8 +7,8 @@ import {
   KeyboardSensor,
   useSensor,
   useSensors,
-  closestCenter,
 } from '@dnd-kit/core'
+import { boardCollision } from './boardCollision'
 import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core'
 import { useKanbanColumnData, useIsMobile, useToast } from '@/hooks'
 import type { ColumnData } from '@/hooks'
@@ -183,7 +183,7 @@ export function UniversalKanban<T extends { id: string; status: string }>({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={boardCollision}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
