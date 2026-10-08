@@ -4,7 +4,7 @@ import { OverflowMenu } from '@/components/ui/OverflowMenu'
 import { useRequestAttentionRefresh } from '@/hooks/useAttentionCount'
 import { useAtom } from 'jotai'
 import { useChatUrlSync } from '@/hooks/useChatUrlSync'
-import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom } from '@/atoms'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom } from '@/atoms'
 import { useChat, useDetachedRuns, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { useProviders } from '@/hooks/useProviders'
 import { useSessionLive } from '@/hooks/useSessionLive'
@@ -99,6 +99,7 @@ export function ChatPanel() {
   const sessionProvider = useAtomValue(chatSessionProviderAtom)
   const sessionModel = useAtomValue(chatSessionModelAtom)
   const engine = useAtomValue(chatSessionEngineAtom)
+  const capabilitiesSnapshot = useAtomValue(chatSessionCapabilitiesSnapshotAtom)
   const [sessionOpenError, setSessionOpenError] = useAtom(chatSessionOpenErrorAtom)
   const dismissSessionOpenError = useCallback(() => setSessionOpenError(null), [setSessionOpenError])
   // Session + panel mode live in the URL, so a reload reopens the chat as it was.
@@ -424,7 +425,7 @@ export function ChatPanel() {
       {!isNewConversation && sessionProviderInfo.isRemote && !capabilities.per_session_mcp && (
         <RemoteNoToolsBanner machine={sessionProviderInfo.label} />
       )}
-      <EngineBanner degraded={engine.degraded} />
+      <EngineBanner degraded={engine.degraded} declared={capabilitiesSnapshot} />
     </>
   )
 

@@ -7,8 +7,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'
-import { chatSessionCapabilitiesSnapshotAtom, chatSessionIdAtom, chatSessionProviderAtom } from '@/atoms'
-import { IMAGES_UNSUPPORTED_TEXT } from '@/constants/capabilities'
+import { chatSessionCapabilitiesSnapshotAtom, chatSessionEngineAtom, chatSessionIdAtom, chatSessionProviderAtom } from '@/atoms'
+
+const IMAGES_UNSUPPORTED_TEXT = 'This model does not accept images.'
 import { ChatInput } from './ChatInput'
 
 vi.mock('@/hooks', () => ({ useIsMobile: () => false }))
@@ -26,9 +27,10 @@ const png = new File([new Uint8Array([1])], 'shot.png', { type: 'image/png' })
 const pdf = new File([new Uint8Array([1])], 'spec.pdf', { type: 'application/pdf' })
 const untypedImage = new File([new Uint8Array([1])], 'photo.HEIC', { type: '' })
 
-function setup(options: { images?: boolean; disabled?: boolean; disabledReason?: string } = {}) {
+function setup(options: { images?: boolean; disabled?: boolean; disabledReason?: string; agentEngine?: boolean } = {}) {
   const store = createStore()
   store.set(chatSessionIdAtom, 's1')
+  if (options.agentEngine) store.set(chatSessionEngineAtom, { engine: 'agent', degraded: ['message_queue'] })
   if (options.images !== undefined) {
     store.set(chatSessionProviderAtom, { id: 'local-llama', kind: 'openai_compatible' })
     store.set(chatSessionCapabilitiesSnapshotAtom, { images: options.images })
@@ -53,6 +55,26 @@ function setup(options: { images?: boolean; disabled?: boolean; disabledReason?:
 
 beforeEach(() => {
   uploadMock.mockClear()
+})
+
+describe('images refused: whose limit it is', () => {
+  it('declared false by the model: the model is named, not the engine', () => {
+    const { fileInput } = setup({ images: false, agentEngine: true })
+    fireEvent.change(fileInput, { target: { files: [png] } })
+    const notice = screen.getByRole('alert').textContent ?? ''
+    expect(notice).toContain(IMAGES_UNSUPPORTED_TEXT)
+    expect(notice).not.toMatch(/agent engine/)
+  })
+
+  it('declared by nobody, on the agent engine: the engine is named, not the model', () => {
+    const { fileInput } = setup({ agentEngine: true })
+    fireEvent.change(fileInput, { target: { files: [png] } })
+    expect(uploadMock).not.toHaveBeenCalled()
+    const notice = screen.getByRole('alert').textContent ?? ''
+    expect(notice).toMatch(/agent engine does not pass images to the model yet/)
+    expect(notice).not.toContain(IMAGES_UNSUPPORTED_TEXT)
+    expect(notice).toContain('shot.png')
+  })
 })
 
 describe('images: false', () => {

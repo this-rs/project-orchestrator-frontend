@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useCallback, useEffect, useId } from 'react'
 import { useAtom, useAtomValue, useStore } from 'jotai'
-import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoContinueAtom, chatMessageQueuesAtom, draftKeyFor, chatProviderTargetAtom, chatSessionToolPolicyAtom, chatSessionCapabilitiesAtom, refsEnabledAtom, chatRefLabelsAtom } from '@/atoms'
+import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoContinueAtom, chatMessageQueuesAtom, draftKeyFor, chatProviderTargetAtom, chatSessionToolPolicyAtom, chatSessionCapabilitiesAtom, chatSessionImagesCauseAtom, refsEnabledAtom, chatRefLabelsAtom } from '@/atoms'
 import { chatApi } from '@/services/chat'
 import { documentsApi } from '@/services/documents'
 import { ApiError } from '@/services/api'
@@ -36,7 +36,7 @@ import { countRefTokens, reconcileRefs, refKey, removeRefFromText } from '@/refs
 import { MAX_REFS_PER_MESSAGE, type ChatReference } from '@/refs/types'
 import type { RefSearchItem } from '@/refs/refsApi'
 import { findRefTokens, refToken } from '@/utils/messageRefs'
-import { imagesRefusedText } from '@/constants/capabilities'
+import { useT } from '@/i18n'
 import { panelGlass } from '@/components/ui/panelGlass'
 import {
   addAttachment,
@@ -137,6 +137,9 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   // Whether the model in front of the composer takes images. Read at add time
   // through the store too (see `addFiles`), this value drives nothing else.
   const acceptsImages = useAtomValue(chatSessionCapabilitiesAtom).images
+  // Why not: the model's own limit, or the agent engine not carrying images yet.
+  const imagesCause = useAtomValue(chatSessionImagesCauseAtom)
+  const { t } = useT()
   /**
    * Images turned away because the model takes none — said next to the
    * attachments. Tagged with the session it happened in, so the notice does
@@ -855,7 +858,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           data-testid="images-refused"
           className={`rounded-lg border border-amber-500/30 ${panelGlass.warning} px-2.5 py-1.5 text-[11px] text-amber-200`}
         >
-          {imagesRefusedText(refusedImages)}
+          {t(imagesCause === 'harness' ? 'session.images.harness' : 'session.images.model', { names: refusedImages.join(', ') })}
         </p>
       )}
       {trustDowngraded && !sessionId && (
