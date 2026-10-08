@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAtomValue } from 'jotai'
+import { useAtomValue, useSetAtom } from 'jotai'
 import { ArrowRightLeft, ExternalLink, Pencil, Trash2, X } from 'lucide-react'
 import {
   Button,
@@ -23,8 +23,10 @@ import {
   formatAbsolute,
   formatDay,
   inlineLink,
+  leadText,
   pluralize,
   rowInteractive,
+  sectionTitle,
   surface,
   ProgressLine,
   TONE_CLASSES,
@@ -34,7 +36,7 @@ import { workspacesApi, projectsApi } from '@/services'
 import { useFormDialog, useIsMobile, useLinkDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { workspaceRefreshAtom, projectRefreshAtom, milestoneRefreshAtom, taskRefreshAtom } from '@/atoms'
-import { CreateMilestoneForm, CreateResourceForm, CreateComponentForm, EditWorkspaceForm } from '@/components/forms'
+import { CreateMilestoneForm, CreateProjectForm, CreateResourceForm, CreateComponentForm, EditWorkspaceForm } from '@/components/forms'
 import {
   IntelAttention,
   IntelFallback,
@@ -76,6 +78,52 @@ function healthTone(score: number): string {
 const OBJECTIVE = NOMENCLATURE.objectives
 const addObjective = `Add ${OBJECTIVE.singular.toLowerCase()}`
 
+/**
+ * The first visit: the workspace holds nothing yet. Three lines say what one does here
+ * (a project, a plan, an assistant) in the site's words (website/AUDIENCE.md § 1, § 2),
+ * then ONE primary action. English for now; i18n after #252.
+ */
+const FIRST_VISIT_TEXT = {
+  title: 'Start with a project',
+  lines: [
+    { term: NOMENCLATURE.projects.singular, text: 'holds one piece of work: an event, a budget, a codebase.' },
+    { term: NOMENCLATURE.plans.singular, text: 'says how it gets done, as tasks an assistant can pick up.' },
+    { term: 'Assistant', text: 'does the work, and asks you when it matters.' },
+  ],
+  create: 'Create a project',
+  createTitle: 'Create project',
+  created: 'Project created',
+  addExisting: 'Add an existing project',
+} as const
+
+/**
+ * The welcome of an empty workspace (DESIGN.md § 2 display scale, § 8 page-level empty
+ * state): a `display-3` title, three lead lines, one primary button. No illustration,
+ * nothing animated — the person asked for this screen, it is simply there.
+ */
+function WorkspaceWelcome({ onCreate, onAddExisting }: { onCreate: () => void; onAddExisting: () => void }) {
+  return (
+    <section aria-labelledby="workspace-welcome-title" className="flex flex-col items-center py-10 md:py-20 px-4 text-center">
+      <h2 id="workspace-welcome-title" className={sectionTitle}>
+        {FIRST_VISIT_TEXT.title}
+      </h2>
+      <dl className={`mt-4 mx-auto space-y-1 ${leadText}`}>
+        {FIRST_VISIT_TEXT.lines.map((line) => (
+          <div key={line.term} className="min-w-0 text-balance">
+            <dt className="inline font-medium text-gray-200">{line.term}</dt> <dd className="inline">{line.text}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className="mt-6 flex flex-col items-center gap-2">
+        <Button onClick={onCreate}>{FIRST_VISIT_TEXT.create}</Button>
+        <Button size="sm" variant="ghost" onClick={onAddExisting}>
+          {FIRST_VISIT_TEXT.addExisting}
+        </Button>
+      </div>
+    </section>
+  )
+}
+
 // ============================================================================
 // MAIN PAGE — hub: header (+ intro) → progress → health → graph → attention → lists → timeline → assets → maintenance
 // ============================================================================
@@ -84,6 +132,7 @@ export function WorkspaceDetailPage() {
   const slug = useWorkspaceSlug()
   const navigate = useNavigate()
   const editWorkspaceDialog = useFormDialog()
+  const createProjectDialog = useFormDialog()
   const milestoneFormDialog = useFormDialog()
   const resourceFormDialog = useFormDialog()
   const componentFormDialog = useFormDialog()
@@ -95,6 +144,7 @@ export function WorkspaceDetailPage() {
   const projectRefresh = useAtomValue(projectRefreshAtom)
   const milestoneRefresh = useAtomValue(milestoneRefreshAtom)
   const taskRefresh = useAtomValue(taskRefreshAtom)
+  const bumpProjectRefresh = useSetAtom(projectRefreshAtom)
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [milestones, setMilestones] = useState<MilestoneWithProgress[]>([])
@@ -161,6 +211,19 @@ export function WorkspaceDetailPage() {
       const newMilestone = await workspacesApi.createMilestone(slug, data)
       setMilestones((prev) => [...prev, { ...newMilestone, progress: undefined }])
       toast.success(`${OBJECTIVE.singular} added`)
+    },
+  })
+
+  const createProjectForm = CreateProjectForm({
+    workspaceName: workspace?.name,
+    onSubmit: async (data) => {
+      if (!slug) return
+      const created = await projectsApi.create(data)
+      await workspacesApi.addProject(slug, created.id)
+      setProjects((prev) => [...prev, created])
+      // Other listeners (ChatPanel's project select, the sidebar) re-read the list now, not on the WS event.
+      bumpProjectRefresh((c) => c + 1)
+      toast.success(FIRST_VISIT_TEXT.created)
     },
   })
 
@@ -273,46 +336,84 @@ export function WorkspaceDetailPage() {
 
   const graphFallback = <Skeleton className="w-full h-[300px] sm:h-[450px] rounded-xl!" />
 
+  const header = (
+    <PageHeader
+      title={workspace.name}
+      description={workspace.description}
+      intro="overview"
+      meta={[
+        intelReady ? (
+          <MetricTooltip key="health" term="health_score">
+            <span className={`tabular-nums ${healthTone(intelligence.healthScore)}`}>Health {intelligence.healthScore}</span>
+          </MetricTooltip>
+        ) : null,
+        pluralize(projects.length, 'project'),
+        pluralize(milestones.length, OBJECTIVE.singular.toLowerCase()),
+        workspace.updated_at ? <RelativeTime key="upd" date={workspace.updated_at} prefix="updated " /> : null,
+      ]}
+      overflowActions={[
+        {
+          label: 'Edit',
+          icon: Pencil,
+          onClick: () => editWorkspaceDialog.open({ title: 'Edit workspace' }),
+        },
+        {
+          label: 'Delete',
+          icon: Trash2,
+          variant: 'danger',
+          onClick: async () => {
+            await workspacesApi.delete(workspace.slug)
+            toast.success('Workspace deleted')
+            navigate('/workspace-selector')
+          },
+          confirm: {
+            title: 'Delete workspace?',
+            description: `This will permanently delete "${workspace.name}". Projects will not be deleted.`,
+            confirmLabel: 'Delete',
+          },
+        },
+      ]}
+    />
+  )
+
+  const dialogs = (
+    <>
+      <FormDialog {...createProjectDialog.dialogProps} onSubmit={createProjectForm.submit}>
+        {createProjectForm.fields}
+      </FormDialog>
+      <FormDialog {...editWorkspaceDialog.dialogProps} onSubmit={editWorkspaceForm.submit}>
+        {editWorkspaceForm.fields}
+      </FormDialog>
+      <FormDialog {...milestoneFormDialog.dialogProps} onSubmit={milestoneForm.submit}>
+        {milestoneForm.fields}
+      </FormDialog>
+      <FormDialog {...resourceFormDialog.dialogProps} onSubmit={resourceForm.submit}>
+        {resourceForm.fields}
+      </FormDialog>
+      <FormDialog {...componentFormDialog.dialogProps} onSubmit={componentForm.submit}>
+        {componentForm.fields}
+      </FormDialog>
+      <LinkEntityDialog {...linkDialog.dialogProps} />
+      <LinkEntityDialog {...moveDialog.dialogProps} />
+    </>
+  )
+
+  // First visit: nothing was added yet — the screen says what one does here and offers one thing to do.
+  const firstVisit = projects.length === 0 && milestones.length === 0 && resources.length === 0 && components.length === 0
+  if (firstVisit) {
+    return (
+      <PageContainer width="wide" className="space-y-6">
+        {header}
+        <WorkspaceWelcome onCreate={() => createProjectDialog.open({ title: FIRST_VISIT_TEXT.createTitle })} onAddExisting={openAddProject} />
+        {dialogs}
+      </PageContainer>
+    )
+  }
+
   return (
     <PageContainer width="wide" className="space-y-6">
       {/* ── Header ── */}
-      <PageHeader
-        title={workspace.name}
-        description={workspace.description}
-        intro="overview"
-        meta={[
-          intelReady ? (
-            <MetricTooltip key="health" term="health_score">
-              <span className={`tabular-nums ${healthTone(intelligence.healthScore)}`}>Health {intelligence.healthScore}</span>
-            </MetricTooltip>
-          ) : null,
-          pluralize(projects.length, 'project'),
-          pluralize(milestones.length, OBJECTIVE.singular.toLowerCase()),
-          workspace.updated_at ? <RelativeTime key="upd" date={workspace.updated_at} prefix="updated " /> : null,
-        ]}
-        overflowActions={[
-          {
-            label: 'Edit',
-            icon: Pencil,
-            onClick: () => editWorkspaceDialog.open({ title: 'Edit workspace' }),
-          },
-          {
-            label: 'Delete',
-            icon: Trash2,
-            variant: 'danger',
-            onClick: async () => {
-              await workspacesApi.delete(workspace.slug)
-              toast.success('Workspace deleted')
-              navigate('/workspace-selector')
-            },
-            confirm: {
-              title: 'Delete workspace?',
-              description: `This will permanently delete "${workspace.name}". Projects will not be deleted.`,
-              confirmLabel: 'Delete',
-            },
-          },
-        ]}
-      />
+      {header}
 
       {/* ── Progress (only when tasks exist) ── */}
       {overallProgress && overallProgress.total_tasks > 0 && (
@@ -608,20 +709,7 @@ export function WorkspaceDetailPage() {
       {intelReady && <IntelQuickActions data={intelligence} />}
 
       {/* Dialogs */}
-      <FormDialog {...editWorkspaceDialog.dialogProps} onSubmit={editWorkspaceForm.submit}>
-        {editWorkspaceForm.fields}
-      </FormDialog>
-      <FormDialog {...milestoneFormDialog.dialogProps} onSubmit={milestoneForm.submit}>
-        {milestoneForm.fields}
-      </FormDialog>
-      <FormDialog {...resourceFormDialog.dialogProps} onSubmit={resourceForm.submit}>
-        {resourceForm.fields}
-      </FormDialog>
-      <FormDialog {...componentFormDialog.dialogProps} onSubmit={componentForm.submit}>
-        {componentForm.fields}
-      </FormDialog>
-      <LinkEntityDialog {...linkDialog.dialogProps} />
-      <LinkEntityDialog {...moveDialog.dialogProps} />
+      {dialogs}
     </PageContainer>
   )
 }
