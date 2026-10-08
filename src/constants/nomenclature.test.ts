@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { NOMENCLATURE, NAV_GROUPS, NAV_TEXT, TODAY_WORDS, segmentLabel, entityNoun } from './nomenclature'
+import { NOMENCLATURE, NAV_GROUPS, NAV_TEXT, TODAY_WORDS, CARD_CONCEPTS, segmentLabel, entityNoun, tintStyle } from './nomenclature'
 import nav from '@/i18n/messages/en/nav'
 
 describe('nomenclature', () => {
@@ -138,5 +138,35 @@ describe('nomenclature', () => {
     expect(entityNoun('plans')).toBe('Plan')
     expect(entityNoun('rfcs')).toBe('Proposal')
     expect(entityNoun('unknown')).toBeNull()
+  })
+
+  describe('tint (the single source of the colour of a kind of thing)', () => {
+    const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+
+    it('gives every concept a 6-digit hex tint', () => {
+      for (const [key, c] of Object.entries(NOMENCLATURE)) expect(c.tint, key).toMatch(/^#[0-9a-f]{6}$/i)
+    })
+
+    it('keeps the kinds of things shown as cards visibly different from one another', () => {
+      // RGB distance >= 25: the measured floor of the first palette (proposals and decisions, one family on purpose).
+      // A hand-picked colour that lands next to another fails here, before a screen shows two types the same way.
+      for (let i = 0; i < CARD_CONCEPTS.length; i++) {
+        for (let j = i + 1; j < CARD_CONCEPTS.length; j++) {
+          const a = rgb(NOMENCLATURE[CARD_CONCEPTS[i]!].tint)
+          const b = rgb(NOMENCLATURE[CARD_CONCEPTS[j]!].tint)
+          const d = Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!)
+          expect(d, `${CARD_CONCEPTS[i]} / ${CARD_CONCEPTS[j]}`).toBeGreaterThanOrEqual(25)
+        }
+      }
+    })
+
+    it('only lists real concepts as cards, once each', () => {
+      expect(new Set(CARD_CONCEPTS).size).toBe(CARD_CONCEPTS.length)
+      for (const key of CARD_CONCEPTS) expect(NOMENCLATURE[key]).toBeDefined()
+    })
+
+    it('hands the tint to a card as the CSS variable the card recipe reads', () => {
+      expect(tintStyle('plans')).toEqual({ '--entity-tint': NOMENCLATURE.plans.tint })
+    })
   })
 })

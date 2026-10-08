@@ -101,6 +101,11 @@ export interface Concept {
   /** One line, used for tooltips-free subtitles and empty states. */
   description: string
   icon: LucideIcon
+  /**
+   * The colour of this kind of thing, read by every card, tile and tinted icon of the type (DESIGN.md « Cards »). The ONLY place a
+   * type colour is written: pages and components never spell a hex for a type. Dark-theme 300/400 shades (AA on `surface-base`).
+   */
+  tint: string
   /** Workspace-relative route segment of the list page ("plans"). */
   segment: string
   profile: Profile
@@ -114,6 +119,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Overview',
     description: 'Where the workspace stands right now.',
     icon: Home,
+    tint: '#818cf8',
     segment: 'overview',
     profile: 'all',
     explain: {
@@ -127,6 +133,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Projects',
     description: 'A body of work with its own plans, notes and decisions.',
     icon: Box,
+    tint: '#818cf8',
     segment: 'projects',
     profile: 'all',
     explain: {
@@ -140,6 +147,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Objectives',
     description: 'What the work is heading toward.',
     icon: Flag,
+    tint: '#34d399',
     segment: 'milestones',
     profile: 'all',
     explain: {
@@ -153,6 +161,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Plans',
     description: 'How an objective gets done: ordered tasks and steps.',
     icon: ClipboardList,
+    tint: '#60a5fa',
     segment: 'plans',
     profile: 'all',
     explain: {
@@ -166,6 +175,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Tasks',
     description: 'A unit of work inside a plan.',
     icon: CheckSquare,
+    tint: '#fbbf24',
     segment: 'tasks',
     profile: 'all',
     explain: {
@@ -179,6 +189,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Automation',
     description: 'Runs of your assistants across plans, and what starts them.',
     icon: Activity,
+    tint: '#fb923c',
     segment: 'pipelines',
     profile: 'all',
     explain: {
@@ -192,6 +203,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Triggers',
     description: 'Events and schedules that start an automated run.',
     icon: Zap,
+    tint: '#fde047',
     segment: 'triggers',
     profile: 'all',
     explain: {
@@ -205,6 +217,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Notes',
     description: 'What was learned: guidelines, gotchas, patterns, tips.',
     icon: FileText,
+    tint: '#2dd4bf',
     segment: 'notes',
     profile: 'all',
     explain: {
@@ -218,6 +231,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Proposals',
     description: 'A change put up for review before it is decided.',
     icon: ScrollText,
+    tint: '#a78bfa',
     segment: 'rfcs',
     profile: 'all',
     explain: {
@@ -231,6 +245,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Decisions',
     description: 'A choice that was made, with its rationale and alternatives.',
     icon: Scale,
+    tint: '#c084fc',
     segment: 'decisions',
     profile: 'all',
     explain: {
@@ -244,6 +259,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Code',
     description: 'Files, functions and how they call each other.',
     icon: Code,
+    tint: '#94a3b8',
     segment: 'code',
     profile: 'software',
     explain: {
@@ -257,6 +273,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Feature graphs',
     description: 'The code that makes up one feature.',
     icon: Network,
+    tint: '#f0abfc',
     segment: 'feature-graphs',
     profile: 'software',
     explain: {
@@ -270,6 +287,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Skills',
     description: 'Groups of related notes that an assistant switches on by itself.',
     icon: Brain,
+    tint: '#f472b6',
     segment: 'skills',
     profile: 'all',
     explain: {
@@ -283,6 +301,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Personas',
     description: 'An assistant specialised in one area of the work.',
     icon: Users,
+    tint: '#e879f9',
     segment: 'personas',
     profile: 'all',
     explain: {
@@ -296,6 +315,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Protocols',
     description: 'A repeatable procedure an assistant follows step by step.',
     icon: Workflow,
+    tint: '#fb7185',
     segment: 'protocols',
     profile: 'all',
     explain: {
@@ -309,6 +329,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Neural routing',
     description: 'How a question finds the notes and decisions that answer it.',
     icon: Route,
+    tint: '#f9a8d4',
     segment: 'neural-routing',
     profile: 'all',
     explain: {
@@ -322,6 +343,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Sharing & privacy',
     description: 'What may leave this workspace, under which policy, and the secrets assistants may use.',
     icon: Share2,
+    tint: '#a3e635',
     segment: 'sharing',
     profile: 'all',
     explain: {
@@ -335,6 +357,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'MCP federation',
     description: 'Outside tools that your assistants can call.',
     icon: Plug,
+    tint: '#38bdf8',
     segment: 'mcp-federation',
     profile: 'all',
     explain: {
@@ -348,6 +371,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Administration',
     description: 'Indexing, search and maintenance of the workspace.',
     icon: Settings,
+    tint: '#94a3b8',
     segment: 'admin',
     profile: 'all',
     explain: {
@@ -361,6 +385,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Insights',
     description: 'Health and structure metrics of one project.',
     icon: Lightbulb,
+    tint: '#818cf8',
     segment: 'intelligence',
     profile: 'all',
     explain: {
@@ -374,6 +399,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Today',
     description: 'Everything in progress, and what to start with.',
     icon: Sun,
+    tint: '#818cf8',
     segment: 'today',
     profile: 'all',
     explain: {
@@ -387,6 +413,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Trajectory',
     description: 'What is in progress toward your objectives, and the path travelled.',
     icon: GitBranch,
+    tint: '#6ee7b7',
     segment: 'trajectory',
     profile: 'all',
     explain: {
@@ -400,6 +427,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Architecture',
     description: 'The system as built: components and what depends on what.',
     icon: Blocks,
+    tint: '#94a3b8',
     segment: 'architecture',
     profile: 'software',
     explain: {
@@ -413,6 +441,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Deployments',
     description: 'Where each project runs and what was shipped there.',
     icon: Rocket,
+    tint: '#cbd5e1',
     segment: 'deployments',
     profile: 'software',
     explain: {
@@ -426,6 +455,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Documents',
     description: 'Spreadsheets, decks and files attached to your work.',
     icon: Files,
+    tint: '#22d3ee',
     segment: 'documents',
     profile: 'all',
     explain: {
@@ -439,6 +469,7 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
     plural: 'Workspaces',
     description: 'Several projects that share a context and objectives.',
     icon: Layers,
+    tint: '#a8a29e',
     segment: 'workspaces',
     profile: 'all',
     explain: {
@@ -453,6 +484,17 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
  * Application-level chrome (above the workspaces). Today is the root of the
  * application, not an entry of a workspace's sidebar: it is NOT in NAV_GROUPS.
  */
+/** Concepts shown as CARDS (a grid or a Kanban), each with its own tint: they must stay visibly different from one another. */
+export const CARD_CONCEPTS: readonly ConceptKey[] = [
+  'projects', 'objectives', 'plans', 'tasks', 'automation', 'triggers', 'notes', 'proposals', 'decisions',
+  'documents', 'skills', 'personas', 'protocols', 'sharing', 'mcpFederation', 'deployments', 'workspaces',
+]
+
+/** The tint of a concept, as the CSS variable every card recipe reads (`--entity-tint`). */
+export function tintStyle(key: ConceptKey): { '--entity-tint': string } {
+  return { '--entity-tint': NOMENCLATURE[key].tint }
+}
+
 export const NAV_TEXT = {
   /** Section of the global sidebar that lists the workspaces. */
   workspaces: 'Workspaces',

@@ -165,12 +165,12 @@ because the header already carries the `display-2` headline.
 
 ## 3. Colour roles
 
-- Surfaces: page `surface-base` (from layout) · list/section container `surface` (`rounded-xl border border-white/[0.06] bg-white/[0.02]`) · menus `bg-surface-popover`. Existing `Card` is fine for rich content blocks.
+- Surfaces: page `surface-base` (from layout) · list/section container `surface` (`rounded-xl border border-white/[0.06] bg-white/[0.02]`) · menus `bg-surface-popover`. Content is OPAQUE. `Card` and `StatCard` (glass) are legacy, retired by the cards plan (§5b); do not build on them.
 - Text: `gray-100` titles · `gray-200` row titles · `gray-300` body · `gray-400` secondary · `gray-500` meta · `gray-600/700` separators & placeholders.
 - **One accent: indigo.** Selection, focus rings, primary buttons, active tab, links-as-actions (`textLink`). Don't introduce other accent colours.
   - **The single exception** *(from the site — `website/DESIGN.md` §0 « boutons en verre (écart volontaire) », which §3 « Interdits : dégradés violets » otherwise forbids)*: the fill of the **primary glass button** and of the **active item of the segmented control** is the gradient `linear-gradient(135deg, #4f46e5, #7c3aed)` (indigo → violet, recipe `.btn-primary` / `.seg-item[aria-selected]` in `buttons.css`). It is a *material* highlight on the one control that says "this is the action", not a second accent: the violet never appears as text, icon, border, rail, badge or tone, and `special` (violet) stays reserved to statuses (§4). Anything else using `from-violet-*`, `to-cyan-*` or `bg-clip-text` is still a bug. Naming the exception here is what makes the two contracts consistent again.
 - Semantic colours only through status tones (see §4) — never as decoration.
-- Entity-type icons may keep their hue (plan = blue, RFC = purple, task = amber) at icon size only, never as filled backgrounds.
+- Entity-type icons may keep their hue (plan = blue, RFC = purple, task = amber) at icon size only, never as filled backgrounds. The hue of a type is `NOMENCLATURE[concept].tint` and is written there only (§5b); the one other place it appears is the faint wash of an `EntityCard` (≤ 11 %, fading out), never a plain fill.
 
 ## 4. Status, priority, badges
 
@@ -191,7 +191,7 @@ because the header already carries the `display-2` headline.
 
 ## 5. Lists — `EntityRow`
 
-Every entity list is `EntityList` / `ListGroup` of `EntityRow`s. No per-page cards for list items; grids of cards only for genuinely visual content (graph previews, dashboards).
+Every entity list is `EntityList` / `ListGroup` of `EntityRow`s. A list stays a list of `EntityRow`s: it is the reference for density and the default view. A card view (§5b) is an ALTERNATE view of the same list, offered with a `ViewToggle`, never the only view and never built page by page. Grids of cards otherwise only for genuinely visual content (graph previews, dashboards).
 
 ```
 [leading] Title (≤ 2 lines) ············ trailing  [Action] [⋯]
@@ -245,6 +245,31 @@ cue: the status has a tone-shaped glyph (`icon`) and a word, the rail is redunda
 - **Canvases (React Flow)**: bound the work, not just the DOM. Draw every node, lay them out once per selection in a macrotask behind a skeleton (`layoutSubgraph`: dagre for small graphs, a linear layered layout for big ones), cap only the *edges* and say so, pass `onlyRenderVisibleElements`, draw edge labels only on small graphs, and offer a retry on layout errors.
 - Bulk selection: put a `RowCheckbox` (36px target, keyboard, `label="Select …"`) in `leading` (it sits above the stretched link).
 - Rows that expand inline content pass `expanded` (→ `aria-expanded` on the title control) and keep `ariaLabel` free of verbs; `menuLabel` names the `⋯` menu when the title is not plain text.
+
+## 5b. Cards — `EntityCard` (an alternate view of a list)
+
+*Decision b29915d3 (08/10/2026): opaque cards + one tint per kind of thing. Plan « Cartes du produit alignées sur ce que montre le site ».*
+
+A card is the SAME anatomy as an `EntityRow`, shown as a card where the thing itself is the point (a project, a plan, a task, a note, a skill…). Same slots, same data, same actions: nothing a row offers disappears in the card.
+
+```
+┌─ tone rail (as in a row) ─────────────────────┐
+│ [tinted tile: type icon]  Title (≤ 2 lines)  ⋯ │
+│ ◔ Status  P8                                   │
+│ ▣ facts line (one wrapping line)               │
+│ context: TaskProgress / Gauge …                │
+│ [primary action]                       trailing│
+└────────────────────────────────────────────────┘
+```
+
+- **Material: opaque `surface`.** No glass, no blur, no shadow. A blur behind text loses contrast and is costly to composite on a phone: glass stays for floating layers (§ Matière).
+- **Tint (the exception, named like the glass button's).** The tint of a concept is `NOMENCLATURE[concept].tint`, handed to the card as the CSS variable `--entity-tint` by `tintStyle(concept)`. It may appear in exactly three places: (1) the **icon tile** (icon in the tint over a tint at 12 %); (2) a **wash**: `linear-gradient(160deg, color-mix(in srgb, var(--entity-tint) 11%, transparent), transparent 55%)`: at most 11 %, gone by 55 % of the card, never a plain fill; (3) the **hover edge** (a 1 px edge at 40 % of the tint). Never as text colour, badge fill, row border, or in place of a status tone: the status of a thing is its tone (§4), the kind of thing is its tint.
+- **Hover.** Fine pointer and no `prefers-reduced-motion`: the card rises 3 px (`translate`, `--duration-fast`, `--ease-standard`). No glow, no halo: a halo is for visual blocks (a graph preview, a dashboard), not for a list of cards.
+- **One primary action** per card, the whole card opens the thing through its title (a real button, as in `EntityRow`), `⋯` for the rest. Keyboard: Tab, Enter, Space; focus ring visible on the card.
+- **Contrast.** Text on the wash stays AA; checked in the visual pass (docs/DESIGN_QA.md) before a page ships.
+- **Grid.** 1 / 2 / 3 columns, `content-visibility` on long lists, `SkeletonCard` while loading. The `ViewToggle` remembers the choice per list.
+- **Where the tint is written.** In `NOMENCLATURE` only; `nomenclature.test.ts` checks that every concept has one and that the kinds shown as cards (`CARD_CONCEPTS`) stay visibly different (RGB distance ≥ 25). The graph palette (`ENTITY_COLORS`) is a separate palette for nodes and keeps its own values: a scanner for hand-written hex was tried and dropped, the tints are ordinary Tailwind shades that graphs and particle scenes also use.
+- **Enforced.** `designContract.test.ts` rule `glass-on-content`: the `glass` / `ui-glass` classes may not appear on content outside `ui/`. `Card` and `StatCard` live in `ui/` and are the debt to retire.
 
 ## 6. Filters — `FilterBar`
 
@@ -356,6 +381,7 @@ Anatomy: **PageHeader → key facts line → sections**.
 - Local `relativeTime()` / `timeAgo()` helpers — use `format.ts`.
 - Filters/search in `PageShell.actions`.
 - Cards in cards, borders around every meta item, more than one accent colour.
+- A card view that replaces the list instead of sitting beside it (§5b); a wash above 11 % or a plain tinted fill; the tint of a type used as text, badge or status colour.
 - `truncate` on the only line identifying an item.
 
 ## Matière et mouvement

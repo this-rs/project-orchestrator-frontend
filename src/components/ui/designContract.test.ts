@@ -35,6 +35,7 @@ export type RuleId =
   | 'uppercase-tracking-wider'
   | 'filled-pill'
   | 'button-colour-override'
+  | 'glass-on-content'
 
 interface Rule {
   id: RuleId
@@ -73,6 +74,15 @@ function buttonTags(src: string): string[] {
   return out
 }
 
+/** The source without `/* … *\/` and `// …` comments (a comment can quote class names and apostrophes: it is not a class string). */
+const withoutComments = (src: string): string => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+
+/** Quoted strings of one line (`'…'`, `"…"`) and template strings (`\`…\``, may span lines). */
+const quoted = (src: string): string[] => all(src, /'[^'\n]*'|"[^"\n]*"|`[^`]*`/g)
+
+/** A class token `glass`, `glass-medium` or `ui-glass` inside a quoted / template string. */
+const GLASS_TOKEN = /(?:^|[\s"'`])(?:ui-)?glass(?:-medium)?(?=[\s"'`])/
+
 export const RULES: Rule[] = [
   {
     id: 'btn-glow',
@@ -110,6 +120,11 @@ export const RULES: Rule[] = [
           (new RegExp(`\\bbg-(?:${COLOURS})-\\d00(?:/[\\d.\\[\\]]+)?(?![\\w-])`).test(s) || /\bbg-\w+-900\/50\b/.test(s)) &&
           !NOT_A_PILL.test(s),
       ),
+  },
+  {
+    id: 'glass-on-content',
+    why: 'Glass (`glass`, `ui-glass`) is for FLOATING layers only (menu, popover, sheet, toast, sticky bar). Content (rows, cards, sections, bubbles) stays opaque: a blur behind text loses contrast and costs a lot to composite on a phone (§ Matière, § Cards).',
+    find: (src) => quoted(withoutComments(src)).filter((s) => GLASS_TOKEN.test(s)),
   },
   {
     id: 'button-colour-override',
