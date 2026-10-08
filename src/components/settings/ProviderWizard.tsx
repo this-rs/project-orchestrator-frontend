@@ -400,15 +400,17 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
           value = null
           done.secret = secretName
         } else if (t === 'instance') {
-          await providersApi.create(d)
-          done.instance = d.id
+          const stored = await providersApi.create(d)
+          // The server names a remote instance after the LABEL, not after the id the
+          // wizard computed: every later step (grant, consent, removal) uses its answer.
+          done.instance = storedInstanceId(stored) ?? d.id
           setSavedDefault(d.default_model ?? '')
         } else if (t === 'grant') {
           const grant = await vaultApi.createGrant({
             secrets: { kind: 'names', names: [vaultName] },
-            scope: { kind: 'provider', value: d.id },
+            scope: { kind: 'provider', value: done.instance ?? d.id },
             minutes: keyState.grantMinutes,
-            note: `Provider ${d.id}`,
+            note: `Provider ${done.instance ?? d.id}`,
           })
           done.grantId = grant.id
         } else {
@@ -908,4 +910,10 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
       </footer>
     </section>
   )
+}
+
+/** The id the server gave the instance it just stored (`undefined` when it did not say). */
+function storedInstanceId(body: unknown): string | undefined {
+  const id = (body as { id?: unknown } | null)?.id
+  return typeof id === 'string' && id ? id : undefined
 }

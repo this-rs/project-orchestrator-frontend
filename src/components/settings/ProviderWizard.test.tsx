@@ -897,6 +897,21 @@ describe('ProviderWizard — Claude Code distant (SSH)', () => {
     expect(allow).toHaveBeenCalledWith('acme', 'claude-code@lab', 'ssh:me@lab.example.com:2222')
   })
 
+  it('grants the key to the id the SERVER gave the instance, not the one the wizard computed', async () => {
+    create.mockResolvedValue({ id: 'claude-code@claude-code-distant' })
+    pickRemote()
+    await fillRemote()
+    fireEvent.click(button('Suivant'))
+    pick('Clé du coffre', 'old-key')
+    fireEvent.click(button('Enregistrer et tester'))
+    await screen.findByTestId('wizard-test-result')
+    expect(createGrant).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: { kind: 'provider', value: 'claude-code@claude-code-distant' },
+      })
+    )
+  })
+
   it('sends allow_trust=true only when the human ticked it', async () => {
     pickRemote()
     await fillRemote()
