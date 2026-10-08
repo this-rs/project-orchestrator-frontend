@@ -232,7 +232,7 @@ export interface NoteDetail extends Note {
 export const MEMORY_HORIZON_TEXT: Record<NoteMemoryHorizon, { label: string; explain: string }> = {
   ephemeral: {
     label: 'Ephemeral',
-    explain: 'Short-lived: archived automatically after 48 h unless an agent uses it again.',
+    explain: 'Short-lived: archived automatically after 48 h unless an assistant uses it again.',
   },
   operational: {
     label: 'Operational',
@@ -249,7 +249,7 @@ export const pct = (v: number | undefined | null) => `${Math.round(Math.max(0, M
 /** Plain-language reading of the energy score (0–1). */
 export function energyText(energy: number | undefined): string {
   const e = energy ?? 1
-  if (e >= 0.7) return 'Alive — used recently, strongly surfaced to agents.'
+  if (e >= 0.7) return 'Alive — used recently, often given to assistants.'
   if (e >= 0.3) return 'Fading — not used for a while, surfaced less often.'
   return 'Dormant — rarely surfaced; confirm it or let it fade out.'
 }

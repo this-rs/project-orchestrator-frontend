@@ -74,6 +74,7 @@ import { useFormDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import { useViewTransition } from '@/hooks/useViewTransition'
 import { workspacePath } from '@/utils/paths'
 import type { Note, NoteAnchor, NoteImportance, NoteStatus } from '@/types'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 // ── Related notes (GET /notes/context) ──────────────────────────────────
 
@@ -404,7 +405,7 @@ export function NoteDetailPage() {
       hidden: energy === undefined,
       value: pct(energy),
       meter: { value: energy ?? 0, tone: (energy ?? 0) >= 0.7 ? 'success' : (energy ?? 0) >= 0.3 ? 'warning' : 'muted' },
-      explain: `${energyText(energy)} Energy halves every 90 days without use and rises each time an agent uses or confirms the note.`,
+      explain: `${energyText(energy)} Energy halves every 90 days without use and rises each time an assistant uses or confirms the note.`,
     },
     {
       label: 'Staleness',
@@ -413,7 +414,7 @@ export function NoteDetailPage() {
       explain: `${stalenessText(staleness)} It grows with time since the last confirmation and with changes to the linked code.`,
     },
     {
-      label: 'Used by agents',
+      label: 'Used by assistants',
       hidden: note.activation_count === undefined,
       value: (
         <>
@@ -428,8 +429,8 @@ export function NoteDetailPage() {
       ),
       explain:
         (note.reactivation_count ?? 0) > 0
-          ? `How often the note was injected into an agent's context. Re-used within a week ${pluralize(note.reactivation_count ?? 0, 'time')} — a sign it is genuinely useful.`
-          : "How often the note was injected into an agent's context while working.",
+          ? `How often an assistant was given this note while working. Re-used within a week ${pluralize(note.reactivation_count ?? 0, 'time')} — a sign it is genuinely useful.`
+          : 'How often an assistant was given this note while working.',
     },
     {
       label: 'Memory',
@@ -477,7 +478,7 @@ export function NoteDetailPage() {
     <PageContainer width="wide" className="space-y-6">
       <PageHeader
         title={noteTitle(note.content)}
-        parentLinks={[{ icon: StickyNote, label: 'Notes', name: 'Knowledge notes', href: notesHref }]}
+        parentLinks={[{ icon: StickyNote, label: NOMENCLATURE.notes.singular, name: NOMENCLATURE.notes.plural, href: notesHref }]}
         status={<StatusMenu kind="note" status={note.status} onChange={handleStatus} />}
         meta={[
           <StatusMenu
@@ -575,7 +576,7 @@ export function NoteDetailPage() {
       <Section
         title="Linked to"
         count={anchors.length}
-        description="Agents receive this note when they work on these entities."
+        description="Assistants receive this note when they work on these items."
         action={
           <Button size="sm" variant="ghost" onClick={openLink}>
             <Link2 className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
@@ -588,7 +589,7 @@ export function NoteDetailPage() {
             size="sm"
             icon={<Link2 />}
             title="Not linked to anything yet"
-            description="Link it to files, functions, tasks or decisions so the right agent gets it at the right time."
+            description="Link it to files, functions, tasks or decisions so the right assistant gets it at the right time."
           />
         ) : (
           <EntityList aria-label="Linked entities">
@@ -625,7 +626,7 @@ export function NoteDetailPage() {
       </Section>
 
       {/* ── Health, explained ───────────────────────────────────────── */}
-      <Section title="How alive is this note?" description="Signals the knowledge graph uses to decide when to surface it.">
+      <Section title="How alive is this note?" description="The signals the project memory uses to decide when to show it to an assistant.">
         <SignalList items={signals} />
       </Section>
 
@@ -636,7 +637,7 @@ export function NoteDetailPage() {
           count={related?.length}
           description={
             currentAnchor
-              ? `Other notes an agent receives when working on ${anchorName(currentAnchor)} — attached directly or propagated through imports, co-changes and calls.`
+              ? `Other notes an assistant receives when working on ${anchorName(currentAnchor)} — attached directly or reached through imports, co-changes and calls.`
               : undefined
           }
           action={

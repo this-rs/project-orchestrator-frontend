@@ -24,10 +24,13 @@ import {
   Section,
   Skeleton,
   SkeletonLine,
+  StatusIcon,
   StatusMenu,
   StatusText,
   TONE_CLASSES,
+  ToneText,
   formatAbsolute,
+  getStatusMeta,
   inlineLink,
   pluralize,
   surface,
@@ -38,6 +41,7 @@ import { useDecisionAffectsForm, useEditDecisionForm } from '@/components/forms/
 import { decisionTitle, entityHref, entityIcon } from '@/components/knowledge/noteMeta'
 import { workspacePath } from '@/utils/paths'
 import type { Decision, DecisionStatus, DecisionAffects, DecisionTimelineEntry } from '@/types'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 function DetailSkeleton() {
   return (
@@ -113,7 +117,7 @@ export function DecisionDetailPage() {
     try {
       await decisionsApi.update(decision.id, { status: newStatus })
       setDecision({ ...decision, status: newStatus })
-      toast.success(`Status changed to ${newStatus}`)
+      toast.success(`Status changed to ${getStatusMeta('decision', newStatus).label}`)
     } catch {
       toast.error('Failed to update status')
     }
@@ -187,7 +191,7 @@ export function DecisionDetailPage() {
     <PageContainer width="wide" className="space-y-6">
       <PageHeader
         title={title}
-        parentLinks={[{ icon: Scale, label: 'Decisions', name: 'Architectural decisions', href: decisionsHref }]}
+        parentLinks={[{ icon: Scale, label: NOMENCLATURE.decisions.singular, name: NOMENCLATURE.decisions.plural, href: decisionsHref }]}
         status={<StatusMenu kind="decision" status={decision.status} onChange={handleStatusChange} />}
         meta={[
           decision.chosen_option ? (
@@ -264,16 +268,8 @@ export function DecisionDetailPage() {
                 <EntityRow
                   key={`${alt}-${i}`}
                   title={alt}
-                  leading={
-                    chosen ? (
-                      <CheckCircle2 className={`w-4 h-4 ${TONE_CLASSES.success.text}`} aria-label="Chosen" />
-                    ) : (
-                      <span className="w-4 h-4 inline-flex items-center justify-center" aria-hidden="true">
-                        <span className="w-1.5 h-1.5 rounded-full bg-gray-600" />
-                      </span>
-                    )
-                  }
-                  trailing={chosen ? <span className={TONE_CLASSES.success.text}>chosen</span> : undefined}
+                  leading={<StatusIcon tone={chosen ? 'success' : 'neutral'} className={chosen ? TONE_CLASSES.success.text : 'text-gray-600'} />}
+                  trailing={chosen ? <ToneText tone="success" dot={false} label="chosen" /> : undefined}
                 />
               )
             })}
@@ -285,7 +281,7 @@ export function DecisionDetailPage() {
       <Section
         title="Affects"
         count={affects.length}
-        description="Code this decision constrains — agents working there are reminded of it."
+        description="What this decision constrains — assistants working there are reminded of it."
         action={
           <Button variant="ghost" size="sm" onClick={openAddAffects}>
             <Plus className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Add

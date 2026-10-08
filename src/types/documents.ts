@@ -34,6 +34,13 @@ export interface DocumentSummary {
   created_at?: string
   project_id?: string | null
   session_id?: string | null
+  /**
+   * `false` when no reader recognised the bytes: the file is stored and can be
+   * downloaded, but has no text and will not be found in search. Absent on
+   * nodes written before the field existed (they were all extracted).
+   */
+  extracted?: boolean
+  mime_type?: string | null
 }
 
 /**

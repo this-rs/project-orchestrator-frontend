@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
-import { AlertTriangle, Brain, Check, FileCode, Link2, Tag, Trash2, X, XCircle } from 'lucide-react'
+import { Brain, Check, FileCode, Link2, Tag, Trash2, X, XCircle } from 'lucide-react'
 import { noteTypeFilterAtom, noteStatusFilterAtom, noteRefreshAtom } from '@/atoms'
 import { notesApi } from '@/services'
 import {
@@ -21,15 +21,14 @@ import {
   RowCheckbox,
   StatusMenu,
   StatusText,
-  TONE_CLASSES,
-  focusRing,
+  ToneText,
   getStatusMeta,
   getStatusOptions,
   textLink,
   pluralize,
 } from '@/components/ui'
 import type { OverflowMenuAction } from '@/components/ui'
-import { popIn, pressFeedback } from '@/components/ui/classes'
+import { iconButton, popIn } from '@/components/ui/classes'
 import {
   useConfirmDialog,
   useFormDialog,
@@ -158,7 +157,7 @@ export function NotesPage() {
     try {
       const updated = await notesApi.update(note.id, { status })
       applyUpdate({ ...note, ...updated, status })
-      toast.success(`Status changed to ${status.replace('_', ' ')}`)
+      toast.success(`Status changed to ${getStatusMeta('note', status).label}`)
     } catch {
       toast.error('Failed to update status')
     }
@@ -299,7 +298,8 @@ export function NotesPage() {
   return (
     <PageShell
       title={NOMENCLATURE.notes.plural}
-      description="Guidelines, gotchas and patterns your agents receive while they work."
+      description={NOMENCLATURE.notes.description}
+      intro="notes"
       count={loading || showSemanticResults ? undefined : total}
       width="wide"
       actions={
@@ -324,18 +324,17 @@ export function NotesPage() {
             activeLabels={activeLabels}
             onClear={clearFilters}
             trailing={
-              <button
-                type="button"
+              // The mode is in the word, not in a colour: both states are the same neutral glass.
+              <Button
+                size="sm"
+                variant="secondary"
+                flat
                 onClick={toggleSearchMode}
                 aria-label={`Search mode: ${searchMode}. Switch to ${searchMode === 'semantic' ? 'exact' : 'semantic'}`}
-                className={`h-9 px-2.5 rounded-lg border text-xs font-medium ${pressFeedback} ${focusRing} ${
-                  searchMode === 'semantic'
-                    ? 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300'
-                    : 'border-white/[0.06] bg-white/[0.03] text-gray-400 hover:text-gray-200'
-                }`}
+                className="shrink-0 text-xs"
               >
-                {searchMode === 'semantic' ? 'Semantic' : 'Exact'}
-              </button>
+                {searchMode === 'semantic' ? 'By meaning' : 'Exact text'}
+              </Button>
             }
             filters={
               <>
@@ -389,26 +388,29 @@ export function NotesPage() {
       ) : loading ? (
         <EntityListSkeleton rows={6} />
       ) : filteredNotes.length === 0 ? (
-        <EmptyState
-          variant={isPristine ? 'notes' : undefined}
-          title={isPristine ? 'No notes yet' : 'No matching notes'}
-          description={
-            isPristine
-              ? 'Knowledge notes capture important patterns, gotchas, and guidelines.'
-              : 'No notes match the current filters.'
-          }
-          action={
-            isPristine ? (
+        isPristine ? (
+          <EmptyState
+            size="page"
+            variant="notes"
+            title="No notes yet"
+            description="A note is what was learned: a guideline, a pitfall, a pattern, a tip. Assistants read them before they start, so the project remembers what you know."
+            action={
               <Button size="sm" onClick={openCreateNote}>
                 New note
               </Button>
-            ) : (
+            }
+          />
+        ) : (
+          <EmptyState
+            title="No matching notes"
+            description="No notes match the current filters."
+            action={
               <Button size="sm" variant="secondary" onClick={() => { clearFilters(); setSearchQuery('') }}>
                 Clear
               </Button>
-            )
-          }
-        />
+            }
+          />
+        )
       ) : (
         <>
           <div className="flex items-center justify-between gap-2 px-1 pb-1.5 min-h-9">
@@ -480,12 +482,7 @@ function NoteRow({ note, href, score, selectable, selected, onToggleSelect, onSt
         staleness > 0.5 ? (
           <StatusText key="stale" status="stale" icon label={`stale ${pct(staleness)}`} />
         ) : null,
-        note.superseded_by ? (
-          <span key="sup" className={`inline-flex items-center gap-1 ${TONE_CLASSES.warning.text}`}>
-            <AlertTriangle className="w-3 h-3" aria-hidden="true" />
-            superseded
-          </span>
-        ) : null,
+        note.superseded_by ? <ToneText key="sup" tone="warning" icon label="superseded" /> : null,
       ]}
       meta={[
         <NoteTypeLabel key="type" type={note.note_type} className="text-gray-300" />,
@@ -515,7 +512,7 @@ function NoteRow({ note, href, score, selectable, selected, onToggleSelect, onSt
   )
 }
 
-// ── Knowledge graph overlay (global neuron explorer) ──────────────────────
+// ── Note graph overlay (global neuron explorer) ──────────────────────────
 
 function KnowledgeGraphOverlay({ wsSlug, onClose }: { wsSlug: string; onClose: () => void }) {
   useEffect(() => {
@@ -541,16 +538,11 @@ function KnowledgeGraphOverlay({ wsSlug, onClose }: { wsSlug: string; onClose: (
       <div className="flex items-center justify-between gap-2 px-4 h-12 border-b border-white/[0.06] shrink-0">
         <div className="min-w-0">
           <h2 id="knowledge-graph-title" className="text-sm font-semibold text-gray-100">
-            Knowledge graph
+            Note graph
           </h2>
-          <p className="text-[11px] leading-4 text-gray-500 truncate">Every note as a neuron, synapses as links</p>
+          <p className="text-[11px] leading-4 text-gray-500 truncate">Every note as a point, linked to the notes used with it</p>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close knowledge graph"
-          className={`w-9 h-9 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-100 hover:bg-white/[0.06] ${focusRing}`}
-        >
+        <button type="button" onClick={onClose} aria-label="Close note graph" className={`${iconButton('ghost', 'size-9 md:size-8')} shrink-0`}>
           <X className="w-5 h-5" aria-hidden="true" />
         </button>
       </div>

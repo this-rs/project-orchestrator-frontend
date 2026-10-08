@@ -3,16 +3,13 @@ import { Square } from 'lucide-react'
 import { chatApi } from '@/services/chat'
 import { flattenSubtree, stopSubtree } from '@/utils/discussionTree'
 import type { DiscussionNode } from '@/services/discussions'
-import { pluralize } from '@/components/ui'
+import { Button, pluralize } from '@/components/ui'
 
 interface StopSubtreeButtonProps {
   node: DiscussionNode
   /** Re-read the tree once the sessions were told to stop. */
   onStopped?: () => void
 }
-
-const BUTTON =
-  'inline-flex min-h-8 items-center gap-1 rounded px-2 text-xs text-red-300 hover:bg-red-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400'
 
 /**
  * "Stop subtree": interrupts the session and every live session below it.
@@ -42,26 +39,29 @@ export function StopSubtreeButton({ node, onStopped }: StopSubtreeButtonProps) {
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
       {live > 0 && !confirming && (
-        <button
-          type="button"
-          className={BUTTON}
+        // One session stops on the word itself (neutral); a whole subtree asks first (red glass + confirm).
+        <Button
+          size="sm"
+          variant={live > 1 ? 'danger' : 'secondary'}
+          flat
           disabled={busy}
           aria-label={`${live > 1 ? 'Stop subtree' : 'Stop'}: ${node.title || node.session_id.slice(0, 8)}`}
           onClick={() => (live > 1 ? setConfirming(true) : void run())}
+          className="gap-1 text-xs"
         >
           <Square className="h-3 w-3" aria-hidden="true" />
           {live > 1 ? 'Stop subtree' : 'Stop'}
-        </button>
+        </Button>
       )}
       {confirming && (
         <span role="group" aria-label="Confirm stopping the subtree" className="inline-flex flex-wrap items-center gap-2 text-xs text-gray-300">
           <span>Stop {pluralize(live, 'running session')}?</span>
-          <button type="button" className={BUTTON} onClick={() => void run()}>
+          <Button size="sm" variant="danger" flat onClick={() => void run()} className="text-xs">
             Stop all
-          </button>
-          <button type="button" className="min-h-8 px-2 text-xs text-gray-400 hover:text-gray-200" onClick={() => setConfirming(false)}>
+          </Button>
+          <Button size="sm" variant="ghost" flat onClick={() => setConfirming(false)} className="text-xs">
             Cancel
-          </button>
+          </Button>
         </span>
       )}
       <span role="status" className="text-xs text-gray-400">

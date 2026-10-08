@@ -1,5 +1,7 @@
 /**
- * DocumentsPage — files attached to the work: list, filter by project, upload, delete.
+ * DocumentsPage — files attached to the work: list, filter by project, upload,
+ * delete — and an honest word for every way an upload can end (the server's
+ * status codes each mean something different to the person who chose the file).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
@@ -9,7 +11,7 @@ const list = vi.fn()
 const upload = vi.fn()
 const remove = vi.fn()
 const listProjects = vi.fn()
-const toast = { success: vi.fn(), error: vi.fn() }
+const toast = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }
 
 vi.mock('@/services/documents', () => ({
   documentsApi: {
@@ -37,7 +39,9 @@ if (!window.matchMedia) {
   })) as typeof window.matchMedia
 }
 
+import { ApiError } from '@/services/api'
 import { DocumentsPage, documentKind, formatBytes } from '../DocumentsPage'
+import { uploadFailureText, uploadOutcomeNote } from '../documents/uploadOutcome'
 
 const doc = (id: string, filename: string, format: string, extra = {}) => ({
   id,
@@ -58,6 +62,13 @@ const renderPage = () =>
       <DocumentsPage />
     </MemoryRouter>,
   )
+
+/** The project filter is a ui `Select` behind the Filters button (native popover content is hidden to jsdom). */
+const pickProject = (name: string) => {
+  fireEvent.click(screen.getByRole('button', { name: /^Filters/ }))
+  fireEvent.click(screen.getByRole('combobox'))
+  fireEvent.click(screen.getByRole('option', { name, hidden: true }))
+}
 
 describe('documentKind / formatBytes', () => {
   it('names formats the way people do', () => {
@@ -82,6 +93,7 @@ describe('DocumentsPage', () => {
     listProjects.mockReset()
     toast.success.mockReset()
     toast.error.mockReset()
+    toast.warning.mockReset()
     listProjects.mockResolvedValue([{ id: 'p1', name: 'Budget 2027' }])
   })
 
@@ -117,7 +129,7 @@ describe('DocumentsPage', () => {
   it('shows an error state', async () => {
     list.mockRejectedValueOnce(new Error('down'))
     renderPage()
-    await waitFor(() => expect(screen.getByText('Failed to load documents')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('Could not load the documents')).toBeTruthy())
   })
   describe('against the real backend contract', () => {
     // The API answers 400 to any listing without a scope (project_id / session_id / entity).
@@ -142,7 +154,7 @@ describe('DocumentsPage', () => {
       await waitFor(() => expect(screen.getByText('new.pdf')).toBeTruthy())
       const names = screen.getAllByRole('listitem').map((li) => li.textContent ?? '')
       expect(names.findIndex((t) => t.includes('new.pdf'))).toBeLessThan(names.findIndex((t) => t.includes('old.xlsx')))
-      expect(screen.queryByText('Failed to load documents')).toBeNull()
+      expect(screen.queryByText('Could not load the documents')).toBeNull()
     })
 
     it('never lists without a scope', async () => {
@@ -161,10 +173,10 @@ describe('DocumentsPage', () => {
       scoped({})
       renderPage()
       await waitFor(() => expect(screen.getByText('No documents yet')).toBeTruthy())
-      const btn = screen.getAllByRole('button', { name: /upload/i })[0] as HTMLButtonElement
+      const btn = screen.getAllByRole('button', { name: /^upload$/i })[0] as HTMLButtonElement
       expect(btn.disabled).toBe(true)
-      fireEvent.change(screen.getByLabelText('Filter by project'), { target: { value: 'p2' } })
-      await waitFor(() => expect((screen.getAllByRole('button', { name: /upload/i })[0] as HTMLButtonElement).disabled).toBe(false))
+      pickProject('Voyage')
+      await waitFor(() => expect((screen.getAllByRole('button', { name: /^upload$/i })[0] as HTMLButtonElement).disabled).toBe(false))
     })
 
     it('uploads into the chosen project', async () => {
@@ -176,10 +188,72 @@ describe('DocumentsPage', () => {
       upload.mockResolvedValue(doc('9', 'a.pdf', 'pdf'))
       renderPage()
       await waitFor(() => expect(screen.getByText('No documents yet')).toBeTruthy())
-      fireEvent.change(screen.getByLabelText('Filter by project'), { target: { value: 'p2' } })
+      pickProject('Voyage')
       await waitFor(() => expect(list).toHaveBeenCalledWith(expect.objectContaining({ project_id: 'p2' })))
       fireEvent.change(screen.getByLabelText('Choose files to upload'), { target: { files: [new File(['x'], 'a.pdf')] } })
       await waitFor(() => expect(upload).toHaveBeenCalledWith(expect.anything(), { projectId: 'p2' }))
+    })
+  })
+
+  describe('what an upload says when it ends', () => {
+    const api = (status: number, error?: string) => new ApiError(status, error === undefined ? '' : JSON.stringify({ error }))
+
+    it('415: names the formats this server reads instead of a raw error', () => {
+      const text = uploadFailureText(api(415, 'no extractor for this content (sniffed: application/x-foo)'), 'notes.foo')
+      expect(text).toMatch(/^notes\.foo is in a format this server cannot read/)
+      expect(text).toMatch(/PDF, plain text and Markdown/)
+      expect(text).toMatch(/Word, Excel or PowerPoint when this server was built with them/)
+      expect(text).not.toMatch(/sniffed|extractor/)
+    })
+
+    it('501: the file is fine, the build lacks the reader — and says which one', () => {
+      const text = uploadFailureText(api(501, 'PDF support is not compiled in — rebuild with the `pdf` feature'), 'report.pdf')
+      expect(text).toMatch(/report\.pdf is fine/)
+      expect(text).toMatch(/built without PDF support/)
+      expect(text).not.toMatch(/rebuild|feature/)
+    })
+
+    it('413 keeps the limit the server states; 422 blames the file; 0 and 408 blame the network', () => {
+      expect(uploadFailureText(api(413, 'blob of 60000000 bytes exceeds the 52428800-byte limit'), 'big.pdf')).toBe(
+        'big.pdf is too large. blob of 60000000 bytes exceeds the 52428800-byte limit',
+      )
+      expect(uploadFailureText(api(422, 'input is empty'), 'empty.txt')).toBe('empty.txt could not be read: input is empty.')
+      expect(uploadFailureText(new ApiError(0, 'Network error'), 'a.pdf')).toMatch(/never reached the server/)
+      expect(uploadFailureText(new ApiError(408, 'Upload timed out'), 'a.pdf')).toMatch(/did not answer in time/)
+      expect(uploadFailureText(new Error('boom'), 'a.pdf')).toBe('Could not upload a.pdf.')
+    })
+
+    it('a stored-but-unreadable file is said so, a readable one says nothing', () => {
+      expect(uploadOutcomeNote({ filename: 'deliverables.zip', extracted: false, chunk_count: 0, warnings: ['…'] })).toMatch(
+        /deliverables\.zip is stored and can be opened, but it has no readable text/,
+      )
+      expect(uploadOutcomeNote({ filename: 'scan.pdf', extracted: true, chunk_count: 0, warnings: [] })).toMatch(/no text could be read/)
+      expect(uploadOutcomeNote({ filename: 'ok.md', extracted: true, chunk_count: 3, warnings: [] })).toBeNull()
+    })
+
+    it('shows the 415 sentence as a toast and still adds the files that went through', async () => {
+      list.mockResolvedValue({ items: [], total: 0 })
+      upload
+        .mockRejectedValueOnce(api(415, 'no extractor for this content (sniffed: application/x-foo)'))
+        .mockResolvedValueOnce(doc('3', 'ok.md', 'markdown', { extracted: true, warnings: [] }))
+      renderPage()
+      await waitFor(() => expect(screen.getByText('No documents yet')).toBeTruthy())
+      fireEvent.change(screen.getByLabelText('Choose files to upload'), {
+        target: { files: [new File(['x'], 'notes.foo'), new File(['y'], 'ok.md')] },
+      })
+      await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
+      expect(toast.error.mock.calls[0][0]).toMatch(/^notes\.foo is in a format this server cannot read\. It reads PDF/)
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Document added'))
+    })
+
+    it('warns when a file is stored without text, and the list says it is not readable', async () => {
+      list.mockResolvedValue({ items: [doc('4', 'deliverables.zip', 'binary', { project_id: 'p1', extracted: false })], total: 1 })
+      upload.mockResolvedValue(doc('5', 'photo.png', 'binary', { extracted: false, chunk_count: 0, warnings: ['no text'] }))
+      renderPage()
+      await waitFor(() => expect(screen.getByText('deliverables.zip')).toBeTruthy())
+      expect(screen.getByText('Stored, not readable')).toBeTruthy()
+      fireEvent.change(screen.getByLabelText('Choose files to upload'), { target: { files: [new File(['x'], 'photo.png')] } })
+      await waitFor(() => expect(toast.warning).toHaveBeenCalledWith(expect.stringMatching(/^photo\.png is stored and can be opened/)))
     })
   })
 })

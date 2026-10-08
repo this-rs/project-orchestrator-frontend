@@ -1,7 +1,8 @@
 import { useEffect, useId, useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
-import { focusRing, pressFeedback } from '@/components/ui/classes'
+import { focusRing } from '@/components/ui/classes'
 import { chatApi } from '@/services/chat'
 import { plansApi } from '@/services/plans'
 import { tasksApi } from '@/services/tasks'
@@ -223,22 +224,12 @@ export function AttachSessionDialog({ open, onClose, sessionId, projectId, proje
           </p>
         )}
         <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className={`min-h-9 rounded-lg px-3 text-sm text-gray-300 hover:bg-white/[0.06] ${pressFeedback} ${focusRing}`}
-          >
+          <Button size="sm" variant="ghost" onClick={onClose}>
             Annuler
-          </button>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={!targetId || sending}
-            className={`inline-flex min-h-9 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 ${pressFeedback} ${focusRing}`}
-          >
-            {sending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+          </Button>
+          <Button size="sm" onClick={submit} disabled={!targetId} loading={sending}>
             Rattacher
-          </button>
+          </Button>
         </div>
       </div>
     </Dialog>

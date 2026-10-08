@@ -9,7 +9,8 @@
  */
 
 import { useState } from 'react'
-import { focusRing, pressFeedback } from '@/components/ui/classes'
+import { Button } from '@/components/ui'
+import { glassFlat, iconButton } from '@/components/ui/classes'
 import {
   X,
   Wifi,
@@ -112,23 +113,26 @@ export function InlineConversationPanel({ sessionId, title, onClose }: InlineCon
         {/* Three separate 36 px targets with a real gap: Stop must never sit under a thumb aimed at Close. */}
         <div className="flex items-center gap-3 flex-shrink-0">
           {isLive && !confirmStop && (
-            <button
-              type="button"
+            // Red glass, and it asks first (the alertdialog below) — the one destructive gesture here.
+            <Button
+              size="sm"
+              variant="danger"
+              flat
               onClick={() => {
                 setStopNote(null)
                 setConfirmStop(true)
               }}
-              className={`inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-red-300 hover:bg-red-500/[0.1] ${pressFeedback} ${focusRing}`}
-              aria-label="Arrêter l'agent de cette session"
+              className="gap-1.5 text-xs"
+              aria-label="Arrêter l'assistant de cette session"
             >
               <Square className="w-4 h-4" aria-hidden="true" />
               Arrêter
-            </button>
+            </Button>
           )}
           <button
             type="button"
             onClick={handleViewFull}
-            className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] ${pressFeedback} ${focusRing}`}
+            className={`${iconButton('ghost', 'w-9 h-9 md:w-8 md:h-8')} ${glassFlat}`}
             aria-label="Ouvrir la conversation complète"
             title="Ouvrir la conversation complète"
           >
@@ -137,7 +141,7 @@ export function InlineConversationPanel({ sessionId, title, onClose }: InlineCon
           <button
             type="button"
             onClick={onClose}
-            className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] ${pressFeedback} ${focusRing}`}
+            className={`${iconButton('ghost', 'w-9 h-9 md:w-8 md:h-8')} ${glassFlat}`}
             aria-label="Fermer la conversation"
             title="Fermer"
           >
@@ -146,24 +150,13 @@ export function InlineConversationPanel({ sessionId, title, onClose }: InlineCon
         </div>
         {isLive && confirmStop && (
           <div role="alertdialog" aria-label="Confirmer l'arrêt" className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-red-500/30 bg-red-500/[0.06] px-3 py-2">
-            <p className="min-w-0 flex-1 basis-48 text-sm text-gray-200">Arrêter l'agent ? Le travail en cours est interrompu.</p>
-            <button
-              type="button"
-              onClick={() => setConfirmStop(false)}
-              disabled={stopping}
-              className={`inline-flex h-9 items-center rounded-lg px-3 text-sm text-gray-300 hover:bg-white/[0.06] disabled:opacity-50 ${pressFeedback} ${focusRing}`}
-            >
+            <p className="min-w-0 flex-1 basis-48 text-sm text-gray-200">Arrêter l'assistant ? Le travail en cours est interrompu.</p>
+            <Button size="sm" variant="ghost" flat onClick={() => setConfirmStop(false)} disabled={stopping}>
               Annuler
-            </button>
-            <button
-              type="button"
-              onClick={handleStop}
-              disabled={stopping}
-              className={`inline-flex h-9 items-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50 ${pressFeedback} ${focusRing}`}
-            >
-              {stopping && <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
-              Arrêter l'agent
-            </button>
+            </Button>
+            <Button size="sm" variant="danger" flat onClick={handleStop} loading={stopping}>
+              Arrêter l'assistant
+            </Button>
           </div>
         )}
         {stopNote && (

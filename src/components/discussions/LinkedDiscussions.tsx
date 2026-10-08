@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { focusRing, inlineLink, pressFeedback } from '@/components/ui/classes'
+import { focusRing, inlineLink } from '@/components/ui/classes'
 import { ReplyAction } from '@/components/today/ThreadRow'
 import { useAttentionDigest, useRequestAttentionRefresh } from '@/hooks/useAttentionCount'
 import { useToast } from '@/hooks/useToast'
@@ -72,9 +73,6 @@ function BusyNote({ reason }: { reason: BusyReason }) {
   )
 }
 
-const BTN =
-  `${pressFeedback} inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-white/[0.12] bg-white/[0.06] px-3 text-xs font-medium text-gray-100 hover:bg-white/[0.1]`
-
 function ActionButton({
   action,
   onDone,
@@ -130,17 +128,10 @@ function ActionButton({
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
       <RunTargetDialog pending={gate.pending} onCancel={gate.cancel} />
-      <button
-        type="button"
-        data-action={action.kind}
-        onClick={click}
-        disabled={disabled}
-        aria-describedby={undefined}
-        className={`${BTN} disabled:cursor-not-allowed disabled:border-dashed disabled:bg-transparent disabled:text-gray-400 ${focusRing}`}
-      >
-        {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
+      {/* One per node: flat glass. A disabled one keeps its word and says why beside it (BusyNote). */}
+      <Button size="sm" variant="secondary" flat data-action={action.kind} onClick={click} disabled={disabled} loading={pending} className="text-xs">
         {action.label}
-      </button>
+      </Button>
       {action.disabled && <BusyNote reason={action.disabled} />}
     </span>
   )
@@ -214,9 +205,9 @@ export function LinkedDiscussions({ entity, projectId, projectSlug, workspaceSlu
         title="Discussions indisponibles"
         description={error}
         action={
-          <button type="button" onClick={refresh} className={`${BTN} ${focusRing}`}>
+          <Button size="sm" variant="secondary" onClick={refresh}>
             Réessayer
-          </button>
+          </Button>
         }
       />
     )

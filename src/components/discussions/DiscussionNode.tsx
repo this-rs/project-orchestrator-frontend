@@ -33,34 +33,12 @@ import type { DiscussionNode } from '@/services/discussions'
 // Status config
 // ---------------------------------------------------------------------------
 
-const statusConfig: Record<
-  DiscussionNode['status'],
-  { icon: typeof Circle; color: string; dotClass: string; label: string }
-> = {
-  streaming: {
-    icon: Loader2,
-    color: 'text-blue-400',
-    dotClass: 'bg-blue-400 animate-pulse',
-    label: 'En cours',
-  },
-  completed: {
-    icon: CheckCircle2,
-    color: 'text-green-400',
-    dotClass: 'bg-green-400',
-    label: 'Terminée',
-  },
-  failed: {
-    icon: XCircle,
-    color: 'text-red-400',
-    dotClass: 'bg-red-400',
-    label: 'Échouée',
-  },
-  idle: {
-    icon: Circle,
-    color: 'text-gray-500',
-    dotClass: 'bg-gray-500',
-    label: 'Arrêtée',
-  },
+// Shape + colour + a word (sr-only in the row): never colour alone.
+const statusConfig: Record<DiscussionNode['status'], { icon: typeof Circle; color: string; label: string }> = {
+  streaming: { icon: Loader2, color: 'text-blue-400', label: 'En cours' },
+  completed: { icon: CheckCircle2, color: 'text-green-400', label: 'Terminée' },
+  failed: { icon: XCircle, color: 'text-red-400', label: 'Échouée' },
+  idle: { icon: Circle, color: 'text-gray-500', label: 'Arrêtée' },
 }
 
 // ---------------------------------------------------------------------------

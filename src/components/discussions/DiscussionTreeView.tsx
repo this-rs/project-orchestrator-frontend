@@ -9,7 +9,8 @@
 import { useState, type ReactNode } from 'react'
 import { GitBranch, RefreshCw, Loader2 } from 'lucide-react'
 import { useDiscussionTree } from '@/hooks/useDiscussionTree'
-import { focusRing, pressFeedback } from '@/components/ui/classes'
+import { Button } from '@/components/ui'
+import { glassFlat, iconButton } from '@/components/ui/classes'
 import { DiscussionNodeRow } from './DiscussionNode'
 import { InlineConversationPanel } from './InlineConversationPanel'
 import { SubtreeBreakdown } from './SubtreeBreakdown'
@@ -41,15 +42,10 @@ export function DiscussionTreeView({ sessionId, onNavigate }: DiscussionTreeView
     return (
       <div className="rounded-lg border border-red-500/20 bg-red-500/[0.04] px-4 py-6 text-center">
         <p className="text-sm text-red-400 mb-3">{error}</p>
-        <button
-          onClick={refresh}
-          className={`inline-flex min-h-9 items-center gap-1.5 px-3 rounded-lg text-xs font-medium
-                     bg-white/[0.06] text-gray-300 hover:bg-white/[0.1] hover:text-gray-200
-                     cursor-pointer ${pressFeedback} ${focusRing}`}
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
+        <Button size="sm" variant="secondary" onClick={refresh} className="gap-1.5">
+          <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
           Réessayer
-        </button>
+        </Button>
       </div>
     )
   }
@@ -108,12 +104,11 @@ export function DiscussionForestView({
         <button
           onClick={onRefresh}
           type="button"
-          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 hover:text-gray-200 hover:bg-white/[0.06]
-                     cursor-pointer ${pressFeedback} ${focusRing}`}
+          className={`${iconButton('ghost', 'w-9 h-9 md:w-8 md:h-8')} ${glassFlat} shrink-0`}
           aria-label="Actualiser l'arbre"
           title="Actualiser l'arbre"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin motion-reduce:animate-none' : ''}`} aria-hidden="true" />
         </button>
       </div>
 
