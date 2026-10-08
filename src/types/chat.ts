@@ -1,4 +1,5 @@
 import type { MessageAttachment } from '@/utils/messageAttachments'
+import type { ChatReference, EntityRef, RefsResolvedEvent } from '@/refs/types'
 import type { CostBasis, LegacyPermissionMode, ProviderCapabilities, ProviderId, ProviderKind, RoutedBy, ToolCategory, ToolPolicy, ToolPolicyMode } from './provider'
 import type { ProviderRoutingMode } from './routing'
 // ============================================================================
@@ -323,6 +324,12 @@ export interface CreateSessionRequest {
    * server-side by the time this request is built.
    */
   attachments?: string[]
+  /**
+   * References (`#kind:id`) of the first message. Omitted when empty, and
+   * never sent unless the server announced `refs_v1`: an older server would
+   * ignore the field and the model would get the bare token.
+   */
+  refs?: EntityRef[]
 }
 
 export interface CreateSessionResponse {
@@ -531,7 +538,8 @@ export type ChatControlFrame =
   | { type: 'replay_complete' }
   | { type: 'events_lagged'; skipped?: number }
   | { type: 'session_dormant' }
-  | { type: 'auth_ok' }
+  /** `features`: capabilities of the server (`refs_v1`…); absent on an older server. */
+  | { type: 'auth_ok'; features?: string[] }
   | { type: 'auth_error'; message?: string }
 
 /**
@@ -541,9 +549,19 @@ export type ChatControlFrame =
 export type ChatLocalEvent =
   | { type: 'viz_block'; viz_type: string; data: Record<string, unknown>; interactive?: boolean; fallback_text: string; title?: string; max_height?: number }
 
+/**
+ * Events the backend will emit (plan 57cf05c9, PR 3) but whose sample frames
+ * are not in the vendored contract yet. Kept OUT of `ChatEvent` so the
+ * contract test ("every variant has a frame") stays truthful; move it into
+ * `ChatEvent` + `CHAT_EVENT_FIELDS` when the backend contract is re-vendored.
+ * Its shape is checked against the golden fixture in `refs/__tests__`.
+ */
+export type ChatPendingContractEvent = RefsResolvedEvent
+
 /** What the live reducer (`useChat.handleEvent`) receives. */
 export type ChatStreamEvent =
   | ChatEvent
+  | ChatPendingContractEvent
   | Extract<ChatControlFrame, { type: 'partial_text' }>
   | ChatLocalEvent
 
@@ -795,6 +813,8 @@ export interface ChatMessage {
   blocks: ContentBlock[]
   /** Documents attached to a user message (rendered as chips under the text). */
   attachments?: MessageAttachment[]
+  /** References of a user message: chips in the bubble, statuses from `refs_resolved`. */
+  refs?: ChatReference[]
   timestamp: Date
   /** Total turn duration in ms (from backend result event) */
   duration_ms?: number
@@ -912,7 +932,7 @@ export type WsChatClientMessage =
   // absent field deserializes identically on both versions.
   // `queue: true`: if a response is running, the session holds the message until
   // it ends instead of interrupting it. Omitted otherwise.
-  | { type: 'user_message'; content: string; attachments?: string[]; queue?: true }
+  | { type: 'user_message'; content: string; attachments?: string[]; queue?: true; refs?: EntityRef[] }
   | ({ type: 'queue_op' } & import('@/components/chat/messageQueue').QueueOp)
   /** Ask the session for the messages it holds; answered by a `pending_queue` event. */
   | { type: 'queue_op'; op: 'snapshot' }

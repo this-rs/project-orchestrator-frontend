@@ -22,6 +22,7 @@
  * - the same edit/drop/prioritize rules as the server, applied to the list on
  *   screen so a click answers immediately. The server's next list is the truth.
  */
+import { toEntityRef, type EntityRef } from '@/refs/types'
 
 export interface QueuedMessage {
   /** Stable identity for React keys and per-row actions. */
@@ -38,6 +39,11 @@ export interface QueuedMessage {
    * even after the chip is removed.
    */
   attachmentIds?: string[]
+  /**
+   * References (`#kind:id` tokens of `text`) to send with it. Carried with the
+   * message for the same reason as `attachmentIds`: the composer has moved on by flush time.
+   */
+  refs?: EntityRef[]
   /**
    * The user asked for this one to go next. It sits at the head of the queue
    * and leaves first when the running turn ends — it does not interrupt anything.
@@ -83,11 +89,13 @@ export function enqueue(
   id: string,
   now: number,
   attachmentIds?: string[],
+  refs?: readonly EntityRef[],
 ): QueuedMessage[] {
   const trimmed = text.trim()
   if (!trimmed) return [...queue]
   const entry: QueuedMessage = { id, text: trimmed, queuedAt: now }
   if (attachmentIds && attachmentIds.length > 0) entry.attachmentIds = [...attachmentIds]
+  if (refs && refs.length > 0) entry.refs = refs.map(toEntityRef)
   return [...queue, entry]
 }
 

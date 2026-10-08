@@ -2,6 +2,8 @@
 import { memo } from 'react'
 import { Paperclip } from 'lucide-react'
 import { formatBytes } from './attachmentState'
+import { ReferenceChip } from './ReferenceChip'
+import { placeRefs } from '@/refs/placeRefs'
 import type { ChatMessage, ContentBlock } from '@/types'
 import { MarkdownText } from './MarkdownText'
 import { ThinkingBlock } from './ThinkingBlock'
@@ -175,11 +177,28 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
   // What the provider of this transcript can do (full Claude profile outside the chat panel).
   const caps = useChatCapabilities()
   if (message.role === 'user') {
+    // No refs on the message (the server never announced refs_v1, or none were sent): the text is drawn as before.
+    const placed = message.refs && message.refs.length > 0 ? placeRefs(message.blocks[0]?.content ?? '', message.refs) : null
     return (
       <div className="flex flex-col items-end mb-4">
         <div className="max-w-[85%] px-3 py-2 rounded-xl bg-indigo-600/20 text-sm text-gray-200 whitespace-pre-wrap break-words overflow-hidden">
-          {message.blocks[0]?.content}
+          {placed ? (
+            placed.segments.map((seg, i) =>
+              seg.type === 'text' ? <span key={i}>{seg.text}</span> : <ReferenceChip key={i} reference={seg.ref} />,
+            )
+          ) : (
+            message.blocks[0]?.content
+          )}
         </div>
+        {placed && placed.unplaced.length > 0 && (
+          <ul className="flex flex-wrap justify-end gap-1.5 mt-1 max-w-[85%]" aria-label="References">
+            {placed.unplaced.map((r) => (
+              <li key={`${r.kind}:${r.id}`}>
+                <ReferenceChip reference={r} />
+              </li>
+            ))}
+          </ul>
+        )}
         {message.attachments && message.attachments.length > 0 && (
           <ul
             className="flex flex-wrap justify-end gap-1.5 mt-1 max-w-[85%]"

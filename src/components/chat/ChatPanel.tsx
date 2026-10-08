@@ -15,6 +15,7 @@ import type { BackgroundTaskInfo } from '@/types'
 import { chatApi } from '@/services/chat'
 import { Plus, X, Menu, Settings, Minimize2, Maximize2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check, Link2 } from 'lucide-react'
 import { ChatMessages } from './ChatMessages'
+import { RefsAnnouncer } from './RefsAnnouncer'
 import { ChatCapabilitiesProvider, ChatSessionProvider } from './ChatSessionContext'
 import { ProviderStateCard } from './ProviderStateCard'
 import { ChatHeaderTitle } from './ChatHeaderTitle'
@@ -642,6 +643,7 @@ export function ChatPanel() {
                 )}
                 {/* The composer floats over the transcript: the messages scroll under its glass. */}
                 <div className="relative flex flex-1 min-h-0 flex-col">
+                  <RefsAnnouncer />
                   <ChatMessages
                     messages={chat.messages}
                     isStreaming={chat.isStreaming}
@@ -875,6 +877,7 @@ export function ChatPanel() {
           )}
           {/* The composer floats over the transcript: the messages scroll under its glass. */}
           <div className="relative flex flex-1 min-h-0 flex-col">
+            <RefsAnnouncer />
             <ChatMessages
               messages={chat.messages}
               isStreaming={chat.isStreaming}
