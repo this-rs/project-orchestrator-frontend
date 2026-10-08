@@ -6,6 +6,8 @@
  */
 
 import { splitAttachments } from './messageAttachments'
+import { splitRefs } from './messageRefs'
+import { applyResolved, parseResolvedRefs, refsFromBlock } from '@/refs/refState'
 import { applyResultCost } from './cost'
 import type {
   BackgroundActivityMetadata,
@@ -282,7 +284,9 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
 
     switch (type) {
       case 'user_message': {
-        const { text: content, attachments: sentAttachments } = splitAttachments(evt.content ?? '')
+        // Attachments are the outer block, refs the inner one: peel in that order.
+        const { text: withoutAttachments, attachments: sentAttachments } = splitAttachments(evt.content ?? '')
+        const { text: content, refs: sentRefs } = splitRefs(withoutAttachments)
         // "Continue" after max_turns -> discreet indicator instead of user bubble
         if (lastEventWasMaxTurns && content === 'Continue') {
           const assistantMsg = messages[messages.length - 1]
@@ -319,8 +323,22 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
           role: 'user',
           blocks: [{ id: nextBlockId(), type: 'text', content }],
           ...(sentAttachments.length > 0 ? { attachments: sentAttachments } : {}),
+          ...(sentRefs.length > 0 ? { refs: refsFromBlock(sentRefs) } : {}),
           timestamp: createdAt,
         })
+        break
+      }
+
+      // How the server read the references of the user message above (contract C5).
+      // No id on the wire: it belongs to the LAST user message of the stream.
+      case 'refs_resolved': {
+        const resolved = parseResolvedRefs(evt.refs ?? evt.data?.refs)
+        if (resolved.length === 0) break
+        for (let i = messages.length - 1; i >= 0; i--) {
+          if (messages[i].role !== 'user') continue
+          messages[i] = { ...messages[i], refs: applyResolved(messages[i].refs, resolved) }
+          break
+        }
         break
       }
 

@@ -1,7 +1,10 @@
 import { splitAttachments } from '@/utils/messageAttachments'
+import { splitRefs } from '@/utils/messageRefs'
+import { applyResolved, parseResolvedRefs, refsFromBlock, resolutionAnnouncement } from '@/refs/refState'
+import { toEntityRef, type ChatReference, type EntityRef } from '@/refs/types'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useSetAtom, useStore } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatSessionRoutingAtom, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatSessionRoutingAtom, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { applyResultCost } from '@/utils/cost'
@@ -201,6 +204,11 @@ function streamWindowHas(
   return window.some((entry) => predicate(entry.block))
 }
 
+/** The `refs` of a frame: the pairs only (never a label), or undefined when there is nothing to send or the server cannot take them. */
+function refsForWire(enabled: boolean, refs: readonly EntityRef[] | undefined): EntityRef[] | undefined {
+  return enabled && refs && refs.length > 0 ? refs.map(toEntityRef) : undefined
+}
+
 export interface SendMessageOptions {
   cwd: string
   projectSlug?: string
@@ -313,7 +321,7 @@ export function useChat() {
   // flushed in onReplayComplete, once the reconnected session is consistent.
   // Without this, the optimistic bubble showed but the message never left the
   // device — stuck typing indicator, response visible only on other devices.
-  const pendingSendRef = useRef<{ text: string; attachments?: string[] }[]>([])
+  const pendingSendRef = useRef<{ text: string; attachments?: string[]; refs?: EntityRef[] }[]>([])
   /** Invalidates an in-flight REST resync (newer resync or session switch). */
   const resyncGenRef = useRef(0)
 
@@ -542,6 +550,28 @@ export function useChat() {
       return
     }
 
+    // The server says how it read the references of the user message above
+    // (contract C5): it carries no id, so it binds to the LAST user message.
+    if (event.type === 'refs_resolved') {
+      const raw = event.replaying
+        ? ((event as { data?: { refs?: unknown } }).data?.refs ?? (event as { refs?: unknown }).refs)
+        : (event as { refs?: unknown }).refs
+      const resolved = parseResolvedRefs(raw)
+      if (resolved.length === 0) return
+      setMessages((current) => {
+        for (let i = current.length - 1; i >= 0; i--) {
+          if (current[i].role !== 'user') continue
+          const next = [...current]
+          next[i] = { ...current[i], refs: applyResolved(current[i].refs, resolved) }
+          return next
+        }
+        return current
+      })
+      // Speak only for a turn happening now, never for a replayed history.
+      if (!event.replaying) store.set(refsAnnouncementAtom, resolutionAnnouncement(applyResolved(undefined, resolved)) ?? '')
+      return
+    }
+
     // user_message events from broadcast or replay — add as user message
     if (event.type === 'user_message') {
       // During replay, content is nested in event.data.content
@@ -552,7 +582,9 @@ export function useChat() {
       if (!rawContent) return
       // The attachment block is part of the stored text; the bubble shows the
       // text alone and the chips from the references.
-      const { text: content, attachments: sentAttachments } = splitAttachments(rawContent)
+      const { text: withoutAttachments, attachments: sentAttachments } = splitAttachments(rawContent)
+      // Refs sit before the attachments block: peel the outer layer first.
+      const { text: content, refs: sentRefs } = splitRefs(withoutAttachments)
 
       setMessages((current) => {
         // The answer to a synthetic question IS this user turn (history does
@@ -581,9 +613,16 @@ export function useChat() {
           const msg = prev[i]
           if (msg.role === 'user' && msg.blocks[0]?.content === content) {
             // The optimistic bubble knows no filenames; the broadcast does.
-            if (sentAttachments.length > 0 && !msg.attachments?.length) {
+            const needsAttachments = sentAttachments.length > 0 && !msg.attachments?.length
+            // The optimistic bubble already knows the labels of its refs: keep them.
+            const needsRefs = sentRefs.length > 0 && !msg.refs?.length
+            if (needsAttachments || needsRefs) {
               const next = [...prev]
-              next[i] = { ...msg, attachments: sentAttachments }
+              next[i] = {
+                ...msg,
+                ...(needsAttachments ? { attachments: sentAttachments } : {}),
+                ...(needsRefs ? { refs: refsFromBlock(sentRefs) } : {}),
+              }
               return next
             }
             return prev
@@ -596,6 +635,7 @@ export function useChat() {
             role: 'user',
             blocks: [{ id: nextBlockId(), type: 'text' as const, content }],
             ...(sentAttachments.length > 0 ? { attachments: sentAttachments } : {}),
+            ...(sentRefs.length > 0 ? { refs: refsFromBlock(sentRefs) } : {}),
             timestamp: new Date(),
           },
         ]
@@ -1423,6 +1463,7 @@ export function useChat() {
           setIsCompacting(false)
         }
       },
+      onFeatures: (features) => store.set(chatServerFeaturesAtom, features),
       onResync: () => {
         const sid = ws.sessionId
         if (sid) resyncFromRest(sid)
@@ -1442,7 +1483,8 @@ export function useChat() {
           const pending = pendingSendRef.current
           pendingSendRef.current = []
           for (const entry of pending) {
-            if (ws.sendUserMessage(entry.text, entry.attachments)) {
+            const flushRefs = refsForWire(store.get(refsEnabledAtom), entry.refs)
+            if (flushRefs ? ws.sendUserMessage(entry.text, entry.attachments, { refs: flushRefs }) : ws.sendUserMessage(entry.text, entry.attachments)) {
               setIsStreaming(true)
             } else {
               // Still dead — requeue; the next replay-complete retries.
@@ -1452,7 +1494,7 @@ export function useChat() {
         }
       },
     })
-  }, [getWs, handleEvent, resyncFromRest, setWsStatus, setIsReplaying, setIsStreaming, setIsCompacting])
+  }, [getWs, handleEvent, resyncFromRest, setWsStatus, setIsReplaying, setIsStreaming, setIsCompacting, store])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -1835,7 +1877,10 @@ export function useChat() {
    * on session creation (the frozen API contract of plan 8b0fdd73) and as an
    * `attachments` field on the `user_message` frame for follow-ups.
    */
-  const sendMessage = useCallback(async (text: string, options?: SendMessageOptions, attachments?: string[]) => {
+  const sendMessage = useCallback(async (text: string, options?: SendMessageOptions, attachments?: string[], refs?: ChatReference[]) => {
+    // References leave only toward a server that announced `refs_v1` (contract C7);
+    // otherwise the message goes out exactly as it always did.
+    const sentRefs = refsForWire(store.get(refsEnabledAtom), refs)
     // A new attempt: whatever the previous one failed on is no longer the news.
     store.set(chatSessionOpenErrorAtom, null)
     // Known before the optimistic bubble is added, so a failed creation can
@@ -1879,6 +1924,8 @@ export function useChat() {
         id: userMessageId,
         role: 'user',
         blocks: [{ id: nextBlockId(), type: 'text', content: text }],
+        // The chips of the bubble: the labels the composer already knows.
+        ...(sentRefs ? { refs } : {}),
         timestamp: new Date(),
       })
       return updated
@@ -1921,6 +1968,7 @@ export function useChat() {
           model: options?.model ?? (explicit ? store.get(chatSessionModelAtom) : null) ?? undefined,
           ...(provider ? { provider } : {}),
           attachments: attachments && attachments.length > 0 ? attachments : undefined,
+          ...(sentRefs ? { refs: sentRefs } : {}),
         })
         // Signal that the upcoming sessionId change is from a first send,
         // so the auto-connect useEffect should NOT reset messages.
@@ -1970,12 +2018,12 @@ export function useChat() {
       // Follow-up message — send via WS
       const ws = getWs()
       setIsStreaming(true)
-      if (!ws.sendUserMessage(text, attachments)) {
+      if (!(sentRefs ? ws.sendUserMessage(text, attachments, { refs: sentRefs }) : ws.sendUserMessage(text, attachments))) {
         // Dead socket: send() already forced a reconnect. Queue the text —
         // onReplayComplete flushes it once the session is consistent again.
         // The attachments travel with it: the documents are already stored
         // server-side, so their ids stay valid across the reconnect.
-        pendingSendRef.current.push({ text, attachments })
+        pendingSendRef.current.push({ text, attachments, ...(sentRefs ? { refs: sentRefs } : {}) })
       }
     }
   }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride, setDraftsMap, moveDraft, moveQueue, store, wirePermissionMode, openingPermissionMode])
@@ -2153,7 +2201,8 @@ export function useChat() {
     let remaining = queue
     for (const entry of queue) {
       if (!entry.local) continue
-      if (!ws.sendUserMessage(entry.text, entry.attachmentIds, { queue: true })) break
+      const queuedRefs = refsForWire(store.get(refsEnabledAtom), entry.refs)
+      if (!ws.sendUserMessage(entry.text, entry.attachmentIds, { queue: true, ...(queuedRefs ? { refs: queuedRefs } : {}) })) break
       remaining = remaining.filter((m) => m.id !== entry.id)
     }
     if (remaining !== queue) {
@@ -2172,12 +2221,12 @@ export function useChat() {
    * It shows at once as a `local` row and is handed over right away when the
    * socket allows; the server's `pending_queue` list then takes over.
    */
-  const queueMessage = useCallback((text: string, attachments?: string[]) => {
+  const queueMessage = useCallback((text: string, attachments?: string[], refs?: ChatReference[]) => {
     const key = draftKeyFor(store.get(chatSessionIdAtom))
     const all = store.get(chatMessageQueuesAtom)
     const current = all[key] ?? []
     const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `local-${Date.now()}-${Math.random()}`
-    const next = enqueue(current, text, id, Date.now(), attachments)
+    const next = enqueue(current, text, id, Date.now(), attachments, refsForWire(store.get(refsEnabledAtom), refs))
     if (next.length === current.length) return // empty text
     const last: QueuedMessage = { ...next[next.length - 1], local: true }
     store.set(chatMessageQueuesAtom, withQueue(all, key, [...next.slice(0, -1), last]))

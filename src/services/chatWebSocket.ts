@@ -22,6 +22,7 @@
  */
 
 import type { ChatStreamEvent, WsChatClientMessage, WsConnectionStatus } from '@/types'
+import { toEntityRef, type EntityRef } from '@/refs/types'
 import { getAuthMode, fetchWsTicket } from './auth'
 import { forceLogout } from './authManager'
 import { wsUrl } from './env'
@@ -53,6 +54,8 @@ export type ChatWsEventCallback = (event: ChatStreamEvent & { seq?: number; repl
 export type ChatWsStatusCallback = (status: WsConnectionStatus) => void
 export type ChatWsReplayCompleteCallback = () => void
 export type ChatWsResyncCallback = () => void
+/** Capabilities the server announced in `auth_ok.features` (empty for an older server). */
+export type ChatWsFeaturesCallback = (features: readonly string[]) => void
 
 export interface ChatWsConnectOptions {
   /**
@@ -96,6 +99,7 @@ export class ChatWebSocket {
   private onStatusChange: ChatWsStatusCallback | null = null
   private onReplayComplete: ChatWsReplayCompleteCallback | null = null
   private onResync: ChatWsResyncCallback | null = null
+  private onFeatures: ChatWsFeaturesCallback | null = null
 
   /**
    * True once a socket for the CURRENT session has been authenticated: the
@@ -159,11 +163,14 @@ export class ChatWebSocket {
      * The handler is expected to reload the conversation tail from REST.
      */
     onResync?: ChatWsResyncCallback
+    /** Called on every `auth_ok`, before anything else of the socket, with the server's `features`. */
+    onFeatures?: ChatWsFeaturesCallback
   }) {
     if (callbacks.onEvent) this.onEvent = callbacks.onEvent
     if (callbacks.onStatusChange) this.onStatusChange = callbacks.onStatusChange
     if (callbacks.onReplayComplete) this.onReplayComplete = callbacks.onReplayComplete
     if (callbacks.onResync) this.onResync = callbacks.onResync
+    if (callbacks.onFeatures) this.onFeatures = callbacks.onFeatures
   }
 
   /**
@@ -279,6 +286,8 @@ export class ChatWebSocket {
                 const isReconnect = this.authedForSession
                 this.authedForSession = true
                 this.setStatus('connected')
+                // An older server sends no `features`: nothing optional is on.
+                this.onFeatures?.(Array.isArray(data.features) ? data.features.filter((f: unknown): f is string => typeof f === 'string') : [])
                 // A skip-replay connection gets NOTHING replayed on reconnect,
                 // and live events carry `seq: 0`, so `_lastEventSeq` never
                 // becomes a real sequence number: without this, whatever
@@ -488,11 +497,13 @@ export class ChatWebSocket {
    * being added in parallel), and an absent field is the one shape every
    * version of it accepts.
    */
-  sendUserMessage(content: string, attachments?: string[], options?: { queue?: boolean }) {
+  sendUserMessage(content: string, attachments?: string[], options?: { queue?: boolean; refs?: EntityRef[] }) {
     return this.send({
       type: 'user_message',
       content,
       ...(attachments && attachments.length > 0 ? { attachments } : {}),
+      // Same rule for `refs`: absent when empty, so a frame without references is byte-for-byte the old one.
+      ...(options?.refs && options.refs.length > 0 ? { refs: options.refs.map(toEntityRef) } : {}),
       // Hold it until the running response ends instead of interrupting it.
       ...(options?.queue ? { queue: true as const } : {}),
     })

@@ -260,3 +260,23 @@ export const chatAttachmentsAtom = atom<Attachment[]>([])
  * Cleared alongside `chatAttachmentsAtom` on session switch.
  */
 export const chatAttachmentDeferredSendAtom = atom<boolean>(false)
+
+/**
+ * Capabilities the server announced in `auth_ok.features` (contract C7).
+ * `null` = no authenticated socket yet (or an older server that announces
+ * nothing): every optional feature is off.
+ */
+export const chatServerFeaturesAtom = atom<readonly string[] | null>(null)
+
+/**
+ * The server understands references (`refs_v1`). While false the client emits
+ * no `refs`, offers no `#` and the chat is exactly what it was before.
+ */
+export const refsEnabledAtom = atom((get) => get(chatServerFeaturesAtom)?.includes('refs_v1') ?? false)
+
+/**
+ * One sentence for the screen-reader live region (`RefsAnnouncer`) when the
+ * references of the turn just sent were not all read in full. Set on the
+ * LIVE event only: a replayed history must not speak.
+ */
+export const refsAnnouncementAtom = atom<string>('')
