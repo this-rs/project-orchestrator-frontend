@@ -1,3 +1,4 @@
+import { useReferenceSource } from '@/refs/source'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { chatSessionRefreshAtom, providersAtom, showSpawnedSessionsAtom } from '@/atoms'
@@ -125,11 +126,15 @@ const LINK_META: Record<LinkedKind, { icon: typeof ClipboardList; color: string;
   task: { icon: ListChecks, color: 'text-amber-400/80', label: 'Task', path: 'tasks' },
 }
 
+/* po-ref: plan rfc task */
 function EntityLink({ kind, id, title, source, wsSlug }: { kind: LinkedKind; id: string; title: string; source?: string; wsSlug: string }) {
   const meta = LINK_META[kind]
+  // The chip is a native <a>: draggable already; declared so the drag carries the entity, not the URL. Keyboard: Alt+Shift+A on focus.
+  const refSource = useReferenceSource({ kind, id, label: title })
   const Icon = meta.icon
   return (
     <a
+      {...refSource}
       href={workspacePath(wsSlug, `/${meta.path}/${id}`)}
       target="_blank"
       rel="noopener noreferrer"

@@ -464,6 +464,7 @@ function NoteRow({ note, href, score, selectable, selected, onToggleSelect, onSt
     <EntityRow
       title={noteTitle(note.content)}
       href={href}
+      entityRef={{ kind: 'note', id: note.id }}
       selected={selected}
       muted={note.status === 'archived' || note.status === 'obsolete'}
       leading={selectable ? <RowCheckbox checked={selected} onToggle={onToggleSelect} label={`Select ${noteTitle(note.content)}`} /> : undefined}

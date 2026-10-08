@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { ReferenceSource } from '@/refs/source'
 import { Button } from '@/components/ui/Button'
 import { StatusIcon } from '@/components/ui/Status'
 import { RelativeTime } from '@/components/ui/MetaLine'
@@ -119,12 +120,14 @@ function Title({ thread }: { thread: AttentionThread }) {
   const text = <span className={titleClass}>{thread.title}</span>
   if (thread.plan) {
     return (
+      <ReferenceSource entity={{ kind: 'plan', id: thread.plan.id, label: thread.title }} button className="flex min-w-0 flex-1 items-start gap-1">
       <Link
         to={`${workspacePath(thread.workspace, `/plans/${thread.plan.id}`)}#graph`}
         className={`min-w-0 flex-1 rounded ${hitArea} ${focusRing} hover:text-white`}
       >
         {text}
       </Link>
+      </ReferenceSource>
     )
   }
   return <span className="min-w-0 flex-1">{text}</span>
@@ -301,14 +304,14 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
         <Fold testId="blocked-tasks" summary={<span className="text-amber-300">{ROW_TEXT.blockedToggle(blocked.length)}</span>}>
           <ul className="text-xs text-gray-300">
             {blocked.map((t) => (
-              <li key={t.id}>
+              <ReferenceSource as="li" key={t.id} entity={{ kind: 'task', id: t.id, label: t.title }} button className="flex items-center gap-1">
                 <Link
                   to={workspacePath(thread.workspace, `/tasks/${t.id}`)}
                   className={`inline-flex min-h-9 items-center underline underline-offset-2 ${focusRing}`}
                 >
                   {t.title}
                 </Link>
-              </li>
+              </ReferenceSource>
             ))}
           </ul>
           <p className="text-xs text-gray-400">{ROW_TEXT.unblockFirst}</p>

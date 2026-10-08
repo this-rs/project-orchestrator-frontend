@@ -414,6 +414,7 @@ export function TaskDetailPage() {
     <PageContainer width="wide" className="space-y-6">
       <PageHeader
         title={title}
+        entityRef={{ kind: 'task', id: task.id }}
         viewTransitionName={`task-title-${task.id}`}
         description={task.title ? task.description : undefined}
         parentLinks={parentLinks.length > 0 ? parentLinks : undefined}
@@ -672,6 +673,7 @@ function DependencyRow({ task, wsSlug, onRemove }: { task: Task; wsSlug: string;
   return (
     <EntityRow
       title={title}
+      entityRef={{ kind: 'task', id: task.id }}
       href={workspacePath(wsSlug, `/tasks/${task.id}`)}
       muted={task.status === 'completed'}
       meta={[

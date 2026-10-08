@@ -478,6 +478,7 @@ export function NoteDetailPage() {
     <PageContainer width="wide" className="space-y-6">
       <PageHeader
         title={noteTitle(note.content)}
+        entityRef={{ kind: 'note', id: note.id }}
         parentLinks={[{ icon: StickyNote, label: NOMENCLATURE.notes.singular, name: NOMENCLATURE.notes.plural, href: notesHref }]}
         status={<StatusMenu kind="note" status={note.status} onChange={handleStatus} />}
         meta={[
@@ -665,6 +666,7 @@ export function NoteDetailPage() {
                 <EntityRow
                   key={r.note.id}
                   title={noteTitle(r.note.content)}
+                  entityRef={{ kind: 'note', id: r.note.id }}
                   href={workspacePath(wsSlug, `/notes/${r.note.id}`)}
                   trailing={r.distance === 0 ? 'direct' : `${Math.round(r.score * 100)}%`}
                   meta={[

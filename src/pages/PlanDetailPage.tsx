@@ -468,6 +468,7 @@ export function PlanDetailPage() {
     <PageContainer width="wide" className="space-y-6">
       <PageHeader
         title={plan.title}
+        entityRef={{ kind: 'plan', id: plan.id }}
         parentLinks={parentLinks.length > 0 ? parentLinks : undefined}
         viewTransitionName={`plan-title-${plan.id}`}
         description={plan.description}
@@ -971,6 +972,7 @@ function PlanTaskRow({
 
   return (
     <EntityRow
+      entityRef={{ kind: 'task', id: task.id, label: title }}
       title={
         <RowStateLink to={workspacePath(wsSlug, `/tasks/${task.id}`)} state={{ planId, planTitle, projectId }}>
           {title}

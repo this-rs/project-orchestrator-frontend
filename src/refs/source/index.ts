@@ -1,5 +1,5 @@
 export * from './refSource'
 export * from './addToChat'
 export { ReferenceSourceHost, ADD_TO_CHAT_SHORTCUT } from './ReferenceSourceHost'
-export { useReferenceSource, useAddToChatAction, AddToChatButton, type ReferenceSourceEntity } from './useReferenceSource'
+export { useReferenceSource, useAddToChatAction, AddToChatButton, ReferenceSource, type ReferenceSourceEntity } from './useReferenceSource'
 export { useRefDropTarget, RefDropOverlay } from './useRefDropTarget'

@@ -197,6 +197,7 @@ export function RfcDetailPage() {
     <PageContainer width="wide" className="space-y-6">
       <PageHeader
         title={rfc.title}
+        entityRef={{ kind: 'rfc', id: rfc.id }}
         parentLinks={[
           {
             icon: NOMENCLATURE.proposals.icon,

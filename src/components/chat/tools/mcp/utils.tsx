@@ -9,6 +9,7 @@
 
 import { Link, useParams } from 'react-router-dom'
 import { workspacePath } from '@/utils/paths'
+import { useReferenceSource } from '@/refs/source'
 
 // ---------------------------------------------------------------------------
 // Entity quick-link — maps entity types to workspace-scoped frontend routes
@@ -30,16 +31,19 @@ const ENTITY_ROUTES: Record<string, (wsSlug: string | undefined, id: string) => 
   note: (ws) => wsRoute(ws, `/notes`),
 }
 
+/* po-ref: plan task (the other entity types are rejected at runtime: no attribute) */
 export function EntityLink({ entityType, id, children }: {
   entityType: string
   id: string
   children: React.ReactNode
 }) {
   const { slug: wsSlug } = useParams<{ slug: string }>()
+  const refSource = useReferenceSource({ kind: entityType, id })
   const routeFn = ENTITY_ROUTES[entityType]
   if (!routeFn || !id) return <>{children}</>
   return (
     <Link
+      {...refSource}
       to={routeFn(wsSlug, id)}
       className="hover:text-indigo-400 hover:underline decoration-indigo-400/30 underline-offset-2 transition-colors"
     >

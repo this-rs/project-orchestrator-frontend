@@ -153,3 +153,22 @@ describe('the file drop is untouched', () => {
     expect(upload).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('a drag from outside this document', () => {
+  it('is accepted on the custom type alone (no dragstart seen here: another window, another frame)', () => {
+    const { composer } = mount()
+    const dt = makeDataTransfer({ 'application/x-po-ref': JSON.stringify({ kind: 'task', id: TASK_ID }), 'text/plain': `#task:${TASK_ID}` })
+    expect(fireEvent.dragOver(composer, { dataTransfer: dt })).toBe(false)
+    fireEvent.drop(composer, { dataTransfer: dt })
+    expect(store.get(chatDraftInputAtom)).toBe(`#task:${TASK_ID} `)
+    expect(screen.getAllByTestId('reference-chip')).toHaveLength(1)
+  })
+
+  it('rejects a payload whose kind is outside the closed list, with nothing added', () => {
+    const { composer } = mount()
+    const dt = makeDataTransfer({ 'application/x-po-ref': JSON.stringify({ kind: 'persona', id: TASK_ID }) })
+    fireEvent.drop(composer, { dataTransfer: dt })
+    expect(store.get(chatDraftInputAtom)).toBe('')
+    expect(screen.getByTestId('refs-add-announcer').textContent).toContain('cannot be added')
+  })
+})

@@ -429,6 +429,7 @@ export function PlansPage() {
               <EntityRow
                 key={plan.id}
                 title={plan.title}
+                entityRef={{ kind: 'plan', id: plan.id }}
                 href={workspacePath(wsSlug, `/plans/${plan.id}`)}
                 viewTransitionName={`plan-title-${plan.id}`}
                 selected={multiSelect.isSelected(plan.id)}

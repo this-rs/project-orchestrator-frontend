@@ -1,3 +1,4 @@
+import { ReferenceSource } from '@/refs/source'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowUpRight } from 'lucide-react'
@@ -136,6 +137,7 @@ export function TrajectoryPage() {
       <EntityRow
         key={plan.id}
         title={plan.title}
+        entityRef={{ kind: 'plan', id: plan.id }}
         onClick={() => togglePlan(plan.id)}
         expanded={open}
         chevron
@@ -161,16 +163,17 @@ export function TrajectoryPage() {
               <span className={metaText}>No tasks</span>
             ) : (
               tasks.map((t) => (
-                <Link
-                  key={t.id}
-                  to={workspacePath(wsSlug, `/tasks/${t.id}`)}
-                  className={`${rowInteractive} ${hitArea} flex items-center gap-2 text-xs ${
-                    t.status === 'completed' ? 'text-gray-500' : 'text-gray-300'
-                  } hover:text-gray-100`}
-                >
-                  <StatusDot kind="task" status={t.status} />
-                  <span className="truncate">{t.title || t.description}</span>
-                </Link>
+                <ReferenceSource key={t.id} entity={{ kind: 'task', id: t.id, label: t.title || t.description }} button className="flex items-center gap-1">
+                  <Link
+                    to={workspacePath(wsSlug, `/tasks/${t.id}`)}
+                    className={`${rowInteractive} ${hitArea} flex min-w-0 flex-1 items-center gap-2 text-xs ${
+                      t.status === 'completed' ? 'text-gray-500' : 'text-gray-300'
+                    } hover:text-gray-100`}
+                  >
+                    <StatusDot kind="task" status={t.status} />
+                    <span className="truncate">{t.title || t.description}</span>
+                  </Link>
+                </ReferenceSource>
               ))
             )}
           </div>

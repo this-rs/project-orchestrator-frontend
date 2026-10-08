@@ -10,8 +10,8 @@
  *     button and the keyboard shortcut go through the same add path
  *     (`addRefToChatAtom`). Never write a dragstart handler per screen.
  *  3. A component that shows such an entity but cannot be declared goes in
- *     `coverage.exceptions.ts` WITH a justification; that list can only shrink
- *     (`coverage.ratchet.test.ts`).
+ *     `__tests__/coverage.exceptions.ts` WITH a justification; that list can only shrink
+ *     (`__tests__/coverage.ratchet.test.ts`).
  *
  * The attribute value is `kind:id`, nothing else. A label (`data-po-ref-label`)
  * is display only: the server re-resolves every reference, so no content and

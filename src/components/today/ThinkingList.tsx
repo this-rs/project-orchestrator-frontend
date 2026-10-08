@@ -73,6 +73,12 @@ function thinkingHref(item: ThinkingItem): string | null {
   return seg ? workspacePath(item.workspace, `/${seg}/${item.id}`) : null
 }
 
+/** The reference an item stands for (an alert is not an entity: none). */
+function thinkingRef(item: ThinkingItem) {
+  const kind = item.kind === 'rfc' ? 'rfc' : item.kind === 'decision' ? 'decision' : item.kind === 'note_review' ? 'note' : null
+  return kind ? { kind, id: item.id, label: item.title } : undefined
+}
+
 type Act = 'accept' | 'reject' | 'confirm' | 'invalidate' | 'acknowledge'
 
 const DONE_TOAST: Record<Act, string> = T.done
@@ -197,6 +203,7 @@ export function ThinkingList({
                     <EntityRow
                       key={item.id}
                       title={item.title}
+                      entityRef={thinkingRef(item)}
                       href={href ?? undefined}
                       trailing={<RelativeTime date={item.since} />}
                       meta={[item.status.replace(/_/g, ' '), item.workspace]}

@@ -65,7 +65,11 @@ export function useRefDropTarget({ stop = false }: { stop?: boolean } = {}) {
       const inFlight = store.get(draggingRefAtom)
       const ref = parseEntityRef(readRefFromDataTransfer(e.dataTransfer) ?? inFlight)
       store.set(draggingRefAtom, null)
-      if (!ref) return
+      // It said it was a reference and was not one: say so rather than swallow the drop.
+      if (!ref) {
+        add({ ref: null, via: 'drop' })
+        return
+      }
       const label = inFlight && inFlight.kind === ref.kind && inFlight.id.toLowerCase() === ref.id.toLowerCase() ? inFlight.label : undefined
       add({ ref, label, via: 'drop' })
     },

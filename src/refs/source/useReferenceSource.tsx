@@ -14,7 +14,7 @@
  * entry): same add path as a drop, reachable by keyboard, touch and Tauri
  * (whose main webview strips touch listeners: no long-press, a click instead).
  */
-import type { MouseEvent } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { MessageSquarePlus } from 'lucide-react'
 import { refsEnabledAtom } from '@/atoms/chat'
@@ -100,5 +100,29 @@ export function AddToChatButton({ entity, className = '' }: AddToChatButtonProps
     >
       <MessageSquarePlus className="size-4" aria-hidden="true" />
     </button>
+  )
+}
+
+interface ReferenceSourceProps {
+  entity: ReferenceSourceEntity
+  /** The element to render (default `div`). */
+  as?: 'div' | 'span' | 'li' | 'section' | 'article'
+  /** Also render the visible "Add to chat" button inside (for blocks with no menu of their own). */
+  button?: boolean
+  className?: string
+  children: ReactNode
+}
+
+/**
+ * `useReferenceSource` as a wrapper, for places where a hook cannot be called
+ * (a `.map` of plain links, a card in a loop). Renders its own element.
+ */
+export function ReferenceSource({ entity, as: Tag = 'div', button = false, className, children }: ReferenceSourceProps) {
+  const props = useReferenceSource(entity)
+  return (
+    <Tag {...props} className={className}>
+      {children}
+      {button && <AddToChatButton entity={entity} />}
+    </Tag>
   )
 }
