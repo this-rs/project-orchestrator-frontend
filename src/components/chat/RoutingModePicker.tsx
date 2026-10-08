@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type ReactNode } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import {
+  chatDraftRoutingModeAtom,
   chatForcedTargetAtom,
   chatRoutingModeAtom,
   chatRoutingSettingsAtom,
@@ -9,7 +10,6 @@ import {
   loadRoutingSettingsAtom,
   chatSelectedProviderAtom,
   chatSessionModelAtom,
-  setRoutingModeAtom,
 } from '@/atoms'
 import { routedByKey } from '@/constants/providers'
 import { useT } from '@/i18n'
@@ -48,10 +48,11 @@ export function RoutingModePicker({ sessionId, open, onOpenChange, onChangeModel
   const settings = useAtomValue(chatRoutingSettingsAtom)
   const sessionRouting = useAtomValue(chatSessionRoutingAtom)
   const setForced = useSetAtom(chatForcedTargetAtom)
-  const setMode = useSetAtom(setRoutingModeAtom)
+  const setDraftMode = useSetAtom(chatDraftRoutingModeAtom)
   const setPickedProvider = useSetAtom(chatSelectedProviderAtom)
   const setSessionModel = useSetAtom(chatSessionModelAtom)
-  const [modeError, setModeError] = useState<string | null>(null)
+  /** An existing chat cannot change mode (it was opened with one): its tabs only change what the menu shows. */
+  const [view, setView] = useState<{ session: string; mode: ProviderRoutingMode } | null>(null)
 
   useEffect(() => {
     void load({ slug })
@@ -73,34 +74,42 @@ export function RoutingModePicker({ sessionId, open, onOpenChange, onChangeModel
   // No router on this server: no modes, the plain picker.
   if (!settings) return picker()
 
-  /** Switch the mode in place. On a draft, Auto hands the choice back to PO: any earlier pick is dropped. */
-  const changeMode = async (next: ProviderRoutingMode) => {
-    setModeError(null)
-    if (next === 'full' && !hasSession) {
+  // A chat the user gave its own model (recorded by the picker, `routed_by: request`) is no longer PO's to decide.
+  const ownChoice = hasSession && sessionRouting?.routed_by === 'request'
+  const shown: ProviderRoutingMode = hasSession ? (view?.session === sessionId ? view.mode : ownChoice ? 'primary' : mode) : mode
+
+  /**
+   * A draft takes the mode for ITS conversation only (it goes out with the first
+   * message); Auto hands the choice back to PO, so an earlier pick is dropped.
+   * An existing chat keeps the mode it was opened with: its tabs change the view.
+   */
+  const changeMode = (next: ProviderRoutingMode) => {
+    if (hasSession) {
+      setView({ session: sessionId, mode: next })
+      return
+    }
+    if (next === 'full') {
       setPickedProvider(null)
       setSessionModel(null)
       setForced(false)
     }
-    const failure = await setMode({ slug, mode: next })
-    if (failure) setModeError(failure === 'forbidden' ? t('routing.settings.errors.forbidden') : t('routing.menu.saveFailed'))
+    setDraftMode(next)
   }
 
-  // A chat the user gave its own model (recorded by the picker, `routed_by: request`) is no longer PO's to decide.
-  const ownChoice = hasSession && sessionRouting?.routed_by === 'request'
-  const header = <RoutingModeTabs mode={mode} onChange={(m) => void changeMode(m)} error={modeError} />
+  const header = <RoutingModeTabs mode={shown} onChange={changeMode} />
   const autoPanel =
-    mode === 'full' && !ownChoice ? (
+    shown === 'full' ? (
       <AutoPanel
         reason={hasSession ? (sessionRouting?.route_reason ?? null) : null}
         routedBy={hasSession ? (sessionRouting?.routed_by ?? null) : null}
         decided={hasSession}
       />
     ) : undefined
-  return picker({ header, autoPanel, chipPrefix: mode === 'mixed' && !hasSession ? `${t('routing.modes.mixed.label')} · ` : '' })
+  return picker({ header, autoPanel, chipPrefix: shown === 'mixed' && !hasSession ? `${t('routing.modes.mixed.label')} · ` : '' })
 }
 
 /** The three modes as one radio group: the same words everywhere (`routing.modes.*`). */
-function RoutingModeTabs({ mode, onChange, error }: { mode: ProviderRoutingMode; onChange: (mode: ProviderRoutingMode) => void; error: string | null }) {
+function RoutingModeTabs({ mode, onChange }: { mode: ProviderRoutingMode; onChange: (mode: ProviderRoutingMode) => void }) {
   const { t } = useT()
   const id = useId()
   // Reading order: from the widest decision (Auto) to the narrowest (Strict).
@@ -133,11 +142,6 @@ function RoutingModeTabs({ mode, onChange, error }: { mode: ProviderRoutingMode;
       <p id={`${id}-hint`} className="mt-1.5 px-1 text-[10px] leading-snug text-gray-500">
         {t(`routing.modes.${mode}.description`)}
       </p>
-      {error && (
-        <p role="alert" className="mt-1 px-1 text-[10px] leading-snug text-amber-300">
-          {error}
-        </p>
-      )}
     </div>
   )
 }

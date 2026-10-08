@@ -134,7 +134,7 @@ export default {
     poChooses: 'PO가 선택합니다(라우팅: 전체)',
     poRoutes: 'PO가 라우팅(권장)',
   },
-  menu: { modeLegend: '라우팅 모드', saveFailed: '모드를 저장하지 못했습니다.' },
+  menu: { modeLegend: '라우팅 모드' },
   picker: { primary: '기본: {target} · PO가 실행자를 라우팅', forced: '강제됨: {target}', willChoose: '첫 메시지에서 PO가 선택합니다', routedBy: '라우팅 주체: {by}', aria: '라우팅: {mode}' },
   modelTargets: {
     loading: '모델 카탈로그를 읽는 중…',

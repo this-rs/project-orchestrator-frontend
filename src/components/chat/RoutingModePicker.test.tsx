@@ -10,9 +10,11 @@ import { MemoryRouter } from 'react-router-dom'
 import { Provider, createStore } from 'jotai'
 import { routingApi } from '@/services/routing'
 import {
+  chatDraftRoutingModeAtom,
   chatEffectiveProviderIdAtom,
   chatForcedTargetAtom,
   chatPermissionConfigAtom,
+  chatRoutingModeAtom,
   chatSelectedProviderAtom,
   chatSessionModelAtom,
   chatSessionIdAtom,
@@ -112,19 +114,19 @@ describe('RoutingModePicker', () => {
     expect(screen.queryByTestId('target-provider-local-llama')).toBeNull()
   })
 
-  it('switching mode saves it in place, from the menu', async () => {
-    vi.mocked(routingApi.put).mockResolvedValue(settings('primary'))
+  it('switching mode is this conversation\'s own: nothing is saved, the settings are untouched', () => {
     const store = mount('mixed')
     fireEvent.click(screen.getByTestId('target-chip'))
     fireEvent.click(screen.getByTestId('routing-mode-primary'))
-    expect(routingApi.put).toHaveBeenCalledWith(expect.objectContaining({ mode: 'primary', stage: 'auto' }))
-    expect(routingApi.put).toHaveBeenCalledWith(expect.not.objectContaining({ scope: expect.anything() }))
-    await vi.waitFor(() => expect(store.get(routingSettingsAtom('')).settings?.mode).toBe('primary'))
+    expect(routingApi.put).not.toHaveBeenCalled()
+    expect(routingApi.putProject).not.toHaveBeenCalled()
+    expect(store.get(chatDraftRoutingModeAtom)).toBe('primary')
+    expect(store.get(chatRoutingModeAtom)).toBe('primary')
+    expect(store.get(routingSettingsAtom('')).settings?.mode).toBe('mixed')
     expect(screen.getByTestId('routing-mode-primary').getAttribute('aria-checked')).toBe('true')
   })
 
   it('switching to Auto drops the target picked for this draft', () => {
-    vi.mocked(routingApi.put).mockResolvedValue(settings('full'))
     const store = mount('primary', {
       prepare: (s) => {
         s.set(chatSelectedProviderAtom, 'local-llama')
@@ -137,15 +139,23 @@ describe('RoutingModePicker', () => {
     expect(store.get(chatSelectedProviderAtom)).toBeNull()
     expect(store.get(chatSessionModelAtom)).toBeNull()
     expect(store.get(chatForcedTargetAtom)).toBe(false)
+    expect(store.get(chatDraftRoutingModeAtom)).toBe('full')
   })
 
-  it('a refused switch rolls back and says why', async () => {
-    vi.mocked(routingApi.put).mockRejectedValue(new Error('boom'))
-    const store = mount('mixed')
+  it('an existing chat keeps the mode it was opened with: its tabs only change the view', () => {
+    const store = mount('primary', {
+      sessionId: 's1',
+      prepare: (s) => s.set(chatSessionRoutingAtom, { routed_by: 'auto', route_reason: 'cheap', routing_mode: 'full' }),
+    })
+    // The record's mode wins over the settings' (primary).
+    expect(store.get(chatRoutingModeAtom)).toBe('full')
     fireEvent.click(screen.getByTestId('target-chip'))
-    fireEvent.click(screen.getByTestId('routing-mode-full'))
-    expect((await screen.findByRole('alert')).textContent).toBe('The mode could not be saved.')
-    expect(store.get(routingSettingsAtom('')).settings?.mode).toBe('mixed')
+    expect(screen.getByTestId('routing-mode-full').getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(screen.getByTestId('routing-mode-primary'))
+    expect(screen.queryByTestId('routing-auto-panel')).toBeNull()
+    expect(store.get(chatRoutingModeAtom)).toBe('full')
+    expect(routingApi.put).not.toHaveBeenCalled()
+    expect(store.get(chatDraftRoutingModeAtom)).toBeNull()
   })
 
   it('strict: picking a model forces the target', () => {

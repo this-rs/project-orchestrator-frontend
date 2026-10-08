@@ -134,7 +134,7 @@ export default {
     poChooses: 'PO обере сам (маршрутизація: повна)',
     poRoutes: 'PO маршрутизує (рекомендовано)',
   },
-  menu: { modeLegend: 'Режим маршрутизації', saveFailed: 'Не вдалося зберегти режим.' },
+  menu: { modeLegend: 'Режим маршрутизації' },
   picker: { primary: 'Основний: {target} · PO маршрутизує виконавців', forced: 'Примусово: {target}', willChoose: 'PO обере при першому повідомленні', routedBy: 'Маршрутизація: {by}', aria: 'Маршрутизація: {mode}' },
   modelTargets: {
     loading: 'Читання каталогу моделей…',

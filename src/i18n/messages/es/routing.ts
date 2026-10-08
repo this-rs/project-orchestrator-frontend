@@ -134,7 +134,7 @@ export default {
     poChooses: 'PO elegirá (enrutamiento: completo)',
     poRoutes: 'PO enruta (recomendado)',
   },
-  menu: { modeLegend: 'Modo de enrutamiento', saveFailed: 'No se pudo guardar el modo.' },
+  menu: { modeLegend: 'Modo de enrutamiento' },
   picker: { primary: 'Principal: {target} · PO enruta a los ejecutores', forced: 'Forzado: {target}', willChoose: 'PO elegirá en el primer mensaje', routedBy: 'Enrutado por: {by}', aria: 'Enrutamiento: {mode}' },
   modelTargets: {
     loading: 'Leyendo el catálogo de modelos…',

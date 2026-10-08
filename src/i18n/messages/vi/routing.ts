@@ -134,7 +134,7 @@ export default {
     poChooses: 'PO sẽ chọn (định tuyến: đầy đủ)',
     poRoutes: 'PO định tuyến (khuyến nghị)',
   },
-  menu: { modeLegend: 'Chế độ định tuyến', saveFailed: 'Không thể lưu chế độ.' },
+  menu: { modeLegend: 'Chế độ định tuyến' },
   picker: { primary: 'Chính: {target} · PO định tuyến các bên thực thi', forced: 'Đã buộc: {target}', willChoose: 'PO sẽ chọn ở tin nhắn đầu tiên', routedBy: 'Định tuyến bởi: {by}', aria: 'Định tuyến: {mode}' },
   modelTargets: {
     loading: 'Đang đọc danh mục mô hình…',

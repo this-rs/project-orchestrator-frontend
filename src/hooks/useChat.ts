@@ -8,7 +8,7 @@ import { getApiBase } from '@/services/env'
 import { toEntityRef, type ChatReference, type EntityRef } from '@/refs/types'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatSessionRoutingAtom, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftRoutingModeAtom, chatSessionRoutingAtom, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { applyResultCost } from '@/utils/cost'
@@ -1999,7 +1999,9 @@ export function useChat() {
         // — no routing routes, a failed read — is `primary`, today's behaviour.
         const slug = options?.projectSlug ?? store.get(chatRoutingSlugAtom)
         await store.set(loadRoutingSettingsAtom, { slug })
-        const mode = store.get(routingSettingsAtom(slug)).settings?.mode ?? 'primary'
+        // The conversation's own choice (the menu) wins over the settings.
+        const chosenMode = store.get(chatDraftRoutingModeAtom)
+        const mode = chosenMode ?? store.get(routingSettingsAtom(slug)).settings?.mode ?? 'primary'
         // In `mixed` (the pilot) and `full`, PO / the server resolves provider
         // AND model: nothing is sent unless the user forced a target through
         // the "Advanced" path.
@@ -2025,6 +2027,7 @@ export function useChat() {
           // A model id, or the NAME of an alias (`fast`, `deep`…) of the instance.
           model: options?.model ?? (explicit ? store.get(chatSessionModelAtom) : null) ?? undefined,
           ...(provider ? { provider } : {}),
+          ...(chosenMode ? { routing_mode: chosenMode } : {}),
           attachments: attachments && attachments.length > 0 ? attachments : undefined,
           ...(sentRefs ? { refs: sentRefs } : {}),
         })
@@ -2038,13 +2041,19 @@ export function useChat() {
         setSessionId(response.session_id)
         // The forced target belonged to the conversation just opened.
         store.set(chatForcedTargetAtom, false)
+        // So did its mode: the next conversation starts from the settings again.
+        store.set(chatDraftRoutingModeAtom, null)
+        // The conversation keeps the mode it was opened with, before its record says so.
+        if (chosenMode) store.set(chatSessionRoutingAtom, { routed_by: null, route_reason: null, routing_mode: chosenMode })
         if (mode !== 'primary') {
           // How PO routed it (`routed_by`, `route_reason`): read from the record, best effort.
           void Promise.resolve()
             .then(() => chatApi.getSession(response.session_id))
             .then((session) => {
               if (store.get(chatSessionIdAtom) !== response.session_id) return
-              store.set(chatSessionRoutingAtom, routingOf(session))
+              const record = routingOf(session)
+              // A server that does not echo the mode yet: keep the one this chat was opened with.
+              store.set(chatSessionRoutingAtom, record && chosenMode && !record.routing_mode ? { ...record, routing_mode: chosenMode } : record)
             })
             .catch(() => {})
         }

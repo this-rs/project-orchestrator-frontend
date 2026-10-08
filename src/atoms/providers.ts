@@ -232,45 +232,29 @@ export const loadRoutingSettingsAtom = atom(null, (get, set, params: { slug?: st
   return promise
 })
 
-/**
- * Change the routing MODE from the chat menu, keeping every other setting.
- * Written where the setting in force lives: the project override when the
- * project has one, the global settings otherwise. The cache is updated at once
- * (the menu must not wait on the network) and rolled back if the server
- * refuses. Resolves with `null` on success, else the error to show.
- */
-export const setRoutingModeAtom = atom(null, async (get, set, params: { slug?: string | null; mode: ProviderRoutingMode }) => {
-  const slug = params.slug ?? ''
-  const current = get(routingSettingsAtom(slug)).settings
-  if (!current) return 'unavailable'
-  if (current.mode === params.mode) return null
-  const { scope, ...body } = current
-  const next = { ...body, mode: params.mode }
-  const overriding = scope === 'project' && !!slug
-  const key = overriding ? slug : ''
-  const target = routingSettingsAtom(key)
-  const previous = get(target)
-  set(target, { state: 'ready', settings: { ...current, mode: params.mode } })
-  try {
-    const saved = await (overriding ? routingApi.putProject(slug, next) : routingApi.put(next))
-    set(target, { state: 'ready', settings: saved })
-    // A project that follows the global settings reads them through its own entry.
-    if (!overriding && slug) set(loadRoutingSettingsAtom, { slug, force: true })
-    return null
-  } catch (err) {
-    set(target, previous)
-    return err instanceof ApiError && (err.status === 401 || err.status === 403) ? 'forbidden' : 'failed'
-  }
-})
-
 /** Project the conversation being composed is about (`''` = none: the global settings apply). */
 export const chatRoutingSlugAtom = atom<string>((get) => get(chatSelectedProjectAtom)?.slug ?? '')
 
 /** Settings in force for that project, `null` until loaded / without routing routes. */
 export const chatRoutingSettingsAtom = atom<RoutingSettingsResponse | null>((get) => get(routingSettingsAtom(get(chatRoutingSlugAtom))).settings)
 
-/** Mode in force for the composer. Anything not known is `primary`: today's behaviour. */
-export const chatRoutingModeAtom = atom<ProviderRoutingMode>((get) => get(chatRoutingSettingsAtom)?.mode ?? 'primary')
+/**
+ * The mode the NEXT conversation was given in the menu, `null` = it follows the
+ * settings. It belongs to the draft only: it goes out with the first message
+ * (`routing_mode`) and is reset, so one chat never changes another.
+ */
+export const chatDraftRoutingModeAtom = atom<ProviderRoutingMode | null>(null)
+
+/**
+ * Mode of THIS conversation, anything not known being `primary` (today's
+ * behaviour): the one its record says it was opened with, else the settings'.
+ * Before the first message: the draft's own choice, else the settings'.
+ */
+export const chatRoutingModeAtom = atom<ProviderRoutingMode>((get) => {
+  const settings = get(chatRoutingSettingsAtom)?.mode ?? 'primary'
+  if (get(chatSessionIdAtom)) return get(chatSessionRoutingAtom)?.routing_mode ?? settings
+  return get(chatDraftRoutingModeAtom) ?? settings
+})
 
 /**
  * True once the user chose a provider/model for the NEXT conversation through

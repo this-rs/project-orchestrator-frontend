@@ -132,7 +132,7 @@ export default {
     poChooses: 'PO will choose (routing: full)',
     poRoutes: 'PO routes (recommended)',
   },
-  menu: { modeLegend: 'Routing mode', saveFailed: 'The mode could not be saved.' },
+  menu: { modeLegend: 'Routing mode' },
   picker: { primary: 'Primary: {target} · PO routes executors', forced: 'Forced: {target}', willChoose: 'PO will choose at the first message', routedBy: 'Routed by: {by}', aria: 'Routing: {mode}' },
   modelTargets: {
     loading: 'Reading the model catalog…',

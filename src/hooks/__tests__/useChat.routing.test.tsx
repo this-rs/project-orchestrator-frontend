@@ -10,6 +10,7 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { Provider, createStore } from 'jotai'
 import {
+  chatDraftRoutingModeAtom,
   chatForcedTargetAtom,
   chatSelectedProviderAtom,
   chatSessionModelAtom,
@@ -124,5 +125,22 @@ describe('useChat.createSession — routing mode', () => {
     await waitFor(() =>
       expect(r.store.get(chatSessionRoutingAtom)).toEqual({ routed_by: 'auto', route_reason: 'cheapest capable', routing_mode: null }),
     )
+  })
+
+  it('the mode chosen in the menu goes out with the first message, for that conversation alone', async () => {
+    const r = setup('primary')
+    act(() => r.store.set(chatDraftRoutingModeAtom, 'full'))
+    const body = await send(r)
+    expect(body.routing_mode).toBe('full')
+    // Auto: nothing is named, whatever was remembered.
+    expect(body).not.toHaveProperty('provider')
+    // The next conversation starts from the settings again; this one keeps its own.
+    await waitFor(() => expect(r.store.get(chatDraftRoutingModeAtom)).toBeNull())
+    expect(r.store.get(chatSessionRoutingAtom)?.routing_mode).toBe('full')
+  })
+
+  it('without a choice in the menu no routing_mode is sent: the settings decide', async () => {
+    const body = await send(setup('full'))
+    expect(body).not.toHaveProperty('routing_mode')
   })
 })

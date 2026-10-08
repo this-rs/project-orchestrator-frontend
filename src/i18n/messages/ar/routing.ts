@@ -134,7 +134,7 @@ export default {
     poChooses: 'سيختار PO بنفسه (التوجيه: كامل)',
     poRoutes: 'PO يوجّه (موصى به)',
   },
-  menu: { modeLegend: 'وضع التوجيه', saveFailed: 'تعذّر حفظ الوضع.' },
+  menu: { modeLegend: 'وضع التوجيه' },
   picker: { primary: 'الأساسي: {target} · PO يوجّه المنفّذين', forced: 'مفروض: {target}', willChoose: 'سيختار PO عند أول رسالة', routedBy: 'تم التوجيه بواسطة: {by}', aria: 'التوجيه: {mode}' },
   modelTargets: {
     loading: 'جارٍ قراءة فهرس النماذج…',

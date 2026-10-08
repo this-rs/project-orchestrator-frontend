@@ -134,7 +134,7 @@ export default {
     poChooses: 'PO が選びます（ルーティング: フル）',
     poRoutes: 'PO がルーティング（推奨）',
   },
-  menu: { modeLegend: 'ルーティングモード', saveFailed: 'モードを保存できませんでした。' },
+  menu: { modeLegend: 'ルーティングモード' },
   picker: { primary: 'プライマリ: {target} · PO が実行役をルーティング', forced: '強制: {target}', willChoose: '最初のメッセージで PO が選択します', routedBy: 'ルーティング元: {by}', aria: 'ルーティング: {mode}' },
   modelTargets: {
     loading: 'モデルカタログを読み込み中…',
