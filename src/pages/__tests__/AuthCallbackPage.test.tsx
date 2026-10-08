@@ -27,16 +27,12 @@ vi.mock('@/services', () => ({
   setAuthToken: vi.fn(),
 }))
 
-// The real `@/components/ui` barrel transitively imports `Select.tsx`, which
-// calls `CSS.supports(...)` at module scope — unimplemented in jsdom and
-// unrelated to what this test covers (the exchange-effect guard). Stub just
-// the one export AuthCallbackPage actually uses.
-vi.mock('@/components/ui', () => ({
-  Spinner: () => <div data-testid="spinner" />,
-}))
-
 import { authApi } from '@/services'
+import { installMatchMedia } from './testUtils'
 import { AuthCallbackPage } from '../AuthCallbackPage'
+
+// jsdom has no matchMedia; the screen's chrome reads it (HaloPointer).
+installMatchMedia()
 
 function renderCallback(code: string) {
   const store = createStore()
@@ -91,5 +87,18 @@ describe('AuthCallbackPage (regression: StrictMode must not double-exchange the 
 
     expect(screen.queryByText(/authentication failed/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/invalid_grant/i)).not.toBeInTheDocument()
+  })
+
+  it('says what the provider answered, in a readable alert, with one primary back to sign-in', async () => {
+    vi.mocked(authApi.exchangeOidcCode).mockRejectedValue(new Error('invalid_grant: code already used'))
+    const { container } = renderCallback('used-code')
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toMatch(/invalid_grant: code already used/)
+    const title = screen.getByRole('heading', { level: 1 })
+    expect(title.textContent).toBe('Authentication failed')
+    expect(title.className).toContain('display-3')
+    const primaries = container.querySelectorAll('.btn-primary')
+    expect(primaries).toHaveLength(1)
+    expect(primaries[0].textContent).toBe('Back to sign in')
   })
 })
