@@ -132,7 +132,7 @@ export default {
     poChooses: 'PO will choose (routing: full)',
     poRoutes: 'PO routes (recommended)',
   },
-  menu: { modeLegend: 'Routing mode', saveFailed: 'The mode could not be saved.' },
+  menu: { aria: 'Models for this conversation', chipDefault: 'Server default', chipMixed: 'Mixed · {count} models', summaryNone: 'Nothing picked: the server default runs.', summaryMixed: 'PO routes among the {count} picked models.', selectAll: 'Select all', clearAll: 'Clear all', noProvider: 'No provider configured', providerToggle: 'All models of {provider}', countOf: '{selected} of {total}', noModels: 'No models listed for this provider', loading: 'Loading models…', search: 'Search models…' },
   picker: { primary: 'Primary: {target} · PO routes executors', forced: 'Forced: {target}', willChoose: 'PO will choose at the first message', routedBy: 'Routed by: {by}', aria: 'Routing: {mode}' },
   reason: 'Reason: {reason}',
 } as const

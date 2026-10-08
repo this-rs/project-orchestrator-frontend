@@ -134,7 +134,7 @@ export default {
     poChooses: 'PO choisira (routage : complet)',
     poRoutes: 'PO route (recommandé)',
   },
-  menu: { modeLegend: 'Mode de routage', saveFailed: 'Le mode n\'a pas pu être enregistré.' },
+  menu: { aria: 'Modèles de cette conversation', chipDefault: 'Défaut du serveur', chipMixed: 'Mixte · {count} modèles', summaryNone: 'Rien de coché : le défaut du serveur s\'applique.', summaryMixed: 'PO route entre les {count} modèles cochés.', selectAll: 'Tout sélectionner', clearAll: 'Tout désélectionner', noProvider: 'Aucun provider configuré', providerToggle: 'Tous les modèles de {provider}', countOf: '{selected} sur {total}', noModels: 'Aucun modèle listé pour ce provider', loading: 'Chargement des modèles…', search: 'Rechercher un modèle…' },
   picker: { primary: 'Principal : {target} · PO route les exécutants', forced: 'Forcé : {target}', willChoose: 'PO choisira au premier message', routedBy: 'Routé par : {by}', aria: 'Routage : {mode}' },
   reason: 'Raison : {reason}',
 } satisfies Translation<'routing'>

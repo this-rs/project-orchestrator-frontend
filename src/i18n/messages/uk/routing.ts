@@ -134,7 +134,7 @@ export default {
     poChooses: 'PO обере сам (маршрутизація: повна)',
     poRoutes: 'PO маршрутизує (рекомендовано)',
   },
-  menu: { modeLegend: 'Режим маршрутизації', saveFailed: 'Не вдалося зберегти режим.' },
+  menu: { aria: 'Моделі цієї розмови', chipDefault: 'Типове значення сервера', chipMixed: 'Змішаний · моделей: {count}', summaryNone: 'Нічого не вибрано: діє типове значення сервера.', summaryMixed: 'PO маршрутизує між вибраними моделями ({count}).', selectAll: 'Вибрати все', clearAll: 'Зняти все', noProvider: 'Провайдерів не налаштовано', providerToggle: 'Усі моделі {provider}', countOf: '{selected} з {total}', noModels: 'Для цього провайдера немає моделей', loading: 'Завантаження моделей…', search: 'Пошук моделей…' },
   picker: { primary: 'Основний: {target} · PO маршрутизує виконавців', forced: 'Примусово: {target}', willChoose: 'PO обере при першому повідомленні', routedBy: 'Маршрутизація: {by}', aria: 'Маршрутизація: {mode}' },
   reason: 'Причина: {reason}',
 } satisfies Translation<'routing'>

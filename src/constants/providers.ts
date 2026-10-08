@@ -206,6 +206,4 @@ export function shouldShowProviderBadge(
 
 /** The "no explicit choice" target of a new conversation: the server resolves provider and model. */
 export const AUTO_TARGET_LABEL = 'Auto'
-/** The same row once "Auto" is a mode of its own: nothing is sent, the server's own default applies. */
-export const DEFAULT_TARGET_LABEL = 'Server default'
 export const AUTO_TARGET_HELP = 'The server picks the provider and the model for this project.'

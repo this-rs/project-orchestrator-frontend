@@ -10,6 +10,8 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { Provider, createStore } from 'jotai'
 import {
+  chatDraftAutoAtom,
+  chatDraftSelectionAtom,
   chatForcedTargetAtom,
   chatSelectedProviderAtom,
   chatSessionModelAtom,
@@ -83,10 +85,53 @@ const send = async (r: ReturnType<typeof setup>) => {
 describe('useChat.createSession — routing mode', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('primary: sends the picked provider and model, as before', async () => {
+  it('router present, nothing picked in the menu: the remembered pick is not sent, the settings decide', async () => {
     const body = await send(setup('primary'))
+    expect(body).not.toHaveProperty('provider')
+    expect(body.model).toBeUndefined()
+    expect(body).not.toHaveProperty('routing_mode')
+  })
+
+  it('one model ticked = strict: that provider and model go out', async () => {
+    const r = setup('full')
+    act(() => {
+      r.store.set(chatDraftAutoAtom, false)
+      r.store.set(chatDraftSelectionAtom, [{ provider: 'local-llama', model: 'qwen' }])
+    })
+    const body = await send(r)
+    expect(body.routing_mode).toBe('primary')
     expect(body.provider).toBe('local-llama')
     expect(body.model).toBe('qwen')
+    expect(body).not.toHaveProperty('routing_pool')
+  })
+
+  it('several models ticked = mixed: the pilot and the pool go out, an alias as the model it stands for', async () => {
+    const r = setup('primary')
+    act(() => {
+      r.store.set(chatDraftAutoAtom, false)
+      r.store.set(chatDraftSelectionAtom, [
+        { provider: 'local-llama', model: 'qwen' },
+        { provider: 'claude-code', model: 'claude-opus-5' },
+      ])
+    })
+    const body = await send(r)
+    expect(body.routing_mode).toBe('mixed')
+    expect(body.routing_pool).toEqual([
+      { provider: 'local-llama', model: 'qwen' },
+      { provider: 'claude-code', model: 'claude-opus-5' },
+    ])
+  })
+
+  it('Auto: routing_mode full and nothing named, whatever was ticked', async () => {
+    const r = setup('primary')
+    act(() => {
+      r.store.set(chatDraftAutoAtom, true)
+      r.store.set(chatDraftSelectionAtom, [{ provider: 'local-llama', model: 'qwen' }])
+    })
+    const body = await send(r)
+    expect(body.routing_mode).toBe('full')
+    expect(body).not.toHaveProperty('provider')
+    expect(body.model).toBeUndefined()
   })
 
   it('full: sends neither provider nor model, even with a remembered pick', async () => {
@@ -111,7 +156,7 @@ describe('useChat.createSession — routing mode', () => {
     await waitFor(() => expect(r.store.get(chatForcedTargetAtom)).toBe(false))
   })
 
-  it('an unknown mode (no routing settings loaded, no routes) behaves as primary', async () => {
+  it('no router on this server: the remembered pick is sent, as before', async () => {
     const r = setup('primary')
     r.store.set(routingSettingsAtom(''), { state: 'unsupported', settings: null })
     const body = await send(r)
@@ -124,5 +169,20 @@ describe('useChat.createSession — routing mode', () => {
     await waitFor(() =>
       expect(r.store.get(chatSessionRoutingAtom)).toEqual({ routed_by: 'auto', route_reason: 'cheapest capable', routing_mode: null }),
     )
+  })
+
+  it('the choice goes out with the first message, for that conversation alone', async () => {
+    const r = setup('primary')
+    act(() => r.store.set(chatDraftAutoAtom, true))
+    await send(r)
+    // The next conversation starts from the settings again; this one keeps its own.
+    await waitFor(() => expect(r.store.get(chatDraftAutoAtom)).toBeNull())
+    expect(r.store.get(chatDraftSelectionAtom)).toEqual([])
+    expect(r.store.get(chatSessionRoutingAtom)?.routing_mode).toBe('full')
+  })
+
+  it('without a choice in the menu no routing_mode is sent: the settings decide', async () => {
+    const body = await send(setup('full'))
+    expect(body).not.toHaveProperty('routing_mode')
   })
 })
