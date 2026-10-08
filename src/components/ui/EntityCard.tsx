@@ -170,7 +170,7 @@ export function EntityCard({
         >
           <Icon className="size-[18px]" />
         </span>
-        <div className="flex min-h-9 min-w-0 flex-1 items-center gap-2">
+        <div className={`flex min-h-9 min-w-0 flex-1 items-center gap-2 ${menu ? 'pr-7' : ''}`}>
           {leading && <div className="relative z-10 flex shrink-0 items-center">{leading}</div>}
           <div
             className={`min-w-0 flex-1 text-sm font-medium leading-5 line-clamp-2 break-words ${titleColor}`}
@@ -180,7 +180,6 @@ export function EntityCard({
             {titleSuffix && <span className="ml-1.5 inline-flex items-center align-middle">{titleSuffix}</span>}
           </div>
         </div>
-        {menu && <div className="relative z-10 -mr-1.5 -mt-0.5 shrink-0">{menu}</div>}
       </div>
 
       {description && <div className="text-xs leading-[1.125rem] text-gray-400 line-clamp-2 break-words">{description}</div>}
@@ -207,6 +206,12 @@ export function EntityCard({
             </div>
           )}
           {trailing && <div className="ml-auto shrink-0 text-xs leading-5 tabular-nums text-gray-500">{trailing}</div>}
+        </div>
+      )}
+      {/* Last in the DOM so the tab order is title, primary action, menu; drawn top right. */}
+      {menu && (
+        <div data-card-menu="" className="absolute right-2 top-3 z-10">
+          {menu}
         </div>
       )}
     </Tag>

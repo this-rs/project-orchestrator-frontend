@@ -1131,7 +1131,7 @@ export default function WorkspaceLearningTimeline({ embedded, workspaceSlug }: W
       {/* ── Timeline Track ── */}
       <Surface padding="none" className="overflow-hidden">
         <div className="px-4 py-3 border-b border-border-subtle pb-2">
-          <h3 className="font-semibold text-gray-100 flex items-center gap-2 text-sm" style={{ fontSize: \'var(--fluid-lg)\' }}>
+          <h3 className="font-semibold text-gray-100 flex items-center gap-2 text-sm" style={{ fontSize: 'var(--fluid-lg)' }}>
             <Activity size={16} className="text-cyan-400" />
             Event Timeline
             <span className="text-[10px] text-slate-600 font-normal ml-auto">
@@ -1292,7 +1292,7 @@ export default function WorkspaceLearningTimeline({ embedded, workspaceSlug }: W
       {filteredEvents.length > 0 && (
         <Surface padding="none" className="overflow-hidden">
           <div className="px-4 py-3 border-b border-border-subtle pb-2">
-            <h3 className="font-semibold text-gray-100 flex items-center gap-2 text-sm" style={{ fontSize: \'var(--fluid-lg)\' }}>
+            <h3 className="font-semibold text-gray-100 flex items-center gap-2 text-sm" style={{ fontSize: 'var(--fluid-lg)' }}>
               <TrendingUp size={16} className="text-emerald-400" />
               Activity Heatmap
               <span className="text-[10px] text-slate-600 font-normal ml-1">
