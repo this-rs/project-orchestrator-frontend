@@ -64,7 +64,7 @@ interface ProviderModelPickerProps {
   onForce?: (forced: boolean) => void
   /** Text put before the chip ("Forced: "), so an explicit choice reads as such. */
   chipPrefix?: string
-  /** Mode tabs (Auto / Mixed / Strict), shown at the top of the menu of a NEW conversation. */
+  /** Mode tabs (Auto / Mixed / Strict), shown at the top of the menu. */
   header?: ReactNode
   /**
    * Auto mode: PO chooses, so there is nothing to pick. The chip reads "Auto" and
@@ -205,8 +205,8 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
   }
 
   // ── Chip ───────────────────────────────────────────────────────────
-  const poChooses = !!autoPanel && !hasSession
-  const tabbed = !!header && !hasSession
+  const poChooses = !!autoPanel
+  const tabbed = !!header
   const chipText = poChooses
     ? AUTO_TARGET_LABEL
     : !showProviders
@@ -252,7 +252,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
         className={`${CHIP} ${modelJustChanged ? 'border-violet-400/50 ring-1 ring-violet-400/30' : 'border-white/[0.08]'}`}
       >
         {showProviders &&
-          (hasSession ? (
+          (hasSession && !poChooses ? (
             <Lock className="w-2.5 h-2.5 text-gray-500" aria-hidden="true" />
           ) : (
             <span
@@ -275,9 +275,9 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
 
       {open === 'target' && (
         <div data-testid="target-picker-popover" className={POPOVER}>
-          {tabbed && header}
+          {header}
           {poChooses && autoPanel}
-          {showProviders && hasSession && (
+          {showProviders && hasSession && !poChooses && (
             <div className="px-3 py-2 space-y-1.5 border-b border-white/[0.06]">
               <div className="flex items-baseline gap-1.5 text-xs">
                 <span className="text-gray-100">{providerLabel}</span>

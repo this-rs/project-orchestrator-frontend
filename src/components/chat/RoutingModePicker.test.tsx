@@ -163,14 +163,19 @@ describe('RoutingModePicker', () => {
     expect(screen.queryByTestId('routing-tabs')).toBeNull()
   })
 
-  it('full: with a session, the tooltip carries the last decision reason and routed_by', () => {
+  it('full: with a session, the menu says what PO chose and why - same tabs, no separate page', () => {
     mount('full', {
       sessionId: 's1',
       prepare: (s) => s.set(chatSessionRoutingAtom, { routed_by: 'auto', route_reason: 'cheapest capable model', routing_mode: 'full' }),
     })
-    const title = screen.getByTestId('routing-chip').getAttribute('title')!
-    expect(title).toContain('Reason: cheapest capable model')
-    expect(title).toContain('Routed by: PO chose')
+    expect(screen.getByTestId('target-chip').textContent).toContain('Auto')
+    fireEvent.click(screen.getByTestId('target-chip'))
+    expect(screen.getByTestId('routing-tabs')).toBeTruthy()
+    const panel = screen.getByTestId('routing-auto-panel').textContent!
+    expect(panel).toContain('Reason: cheapest capable model')
+    expect(panel).toContain('Routed by: PO chose')
+    expect(screen.queryByTestId('routing-popover')).toBeNull()
+    expect(screen.queryByTestId('routing-advanced')).toBeNull()
   })
 
   it('full: a chat given its own model shows that model, not Auto', () => {
@@ -181,7 +186,6 @@ describe('RoutingModePicker', () => {
         s.set(chatSessionRoutingAtom, { routed_by: 'request', route_reason: null, routing_mode: 'full' })
       },
     })
-    expect(screen.queryByTestId('routing-chip')).toBeNull()
     expect(screen.getByTestId('target-chip').textContent).toMatch(/qwen/i)
     expect(screen.getByTestId('target-chip').textContent).not.toContain('Auto')
   })
@@ -194,7 +198,7 @@ describe('RoutingModePicker', () => {
         s.set(chatSessionRoutingAtom, { routed_by: 'auto', route_reason: 'cheapest capable model', routing_mode: 'full' })
       },
     })
-    expect(screen.getByTestId('routing-chip').textContent).toContain('Auto')
+    expect(screen.getByTestId('target-chip').textContent).toContain('Auto')
   })
 
   it('full: the effective provider id is null before a session, and the session provider after', () => {
@@ -210,16 +214,11 @@ describe('RoutingModePicker', () => {
     expect(store.get(chatEffectiveProviderIdAtom)).toBe('claude-code')
   })
 
-  it('advanced (on a chat PO routed): opens the provider/model picker, then closing goes back to the mode chip', () => {
-    mount('full', {
-      sessionId: 's1',
-      prepare: (s) => s.set(chatSessionRoutingAtom, { routed_by: 'auto', route_reason: 'cheapest capable model', routing_mode: 'full' }),
-    })
-    fireEvent.click(screen.getByTestId('routing-chip'))
-    fireEvent.click(within(screen.getByTestId('routing-popover')).getByTestId('routing-advanced'))
-    expect(screen.getByTestId('target-picker-popover')).toBeTruthy()
+  it('a chat in Strict: the tabs and the locked provider, model switch as before', () => {
+    mount('primary', { sessionId: 's1' })
     fireEvent.click(screen.getByTestId('target-chip'))
-    expect(screen.getByTestId('routing-chip')).toBeTruthy()
+    expect(screen.getByTestId('routing-tabs')).toBeTruthy()
+    expect(screen.queryByTestId('routing-auto-panel')).toBeNull()
   })
 })
 
