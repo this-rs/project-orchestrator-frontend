@@ -22,6 +22,7 @@
  * - the same edit/drop/prioritize rules as the server, applied to the list on
  *   screen so a click answers immediately. The server's next list is the truth.
  */
+import { reconcileRefs } from '@/refs/refState'
 import { toEntityRef, type EntityRef } from '@/refs/types'
 
 export interface QueuedMessage {
@@ -113,15 +114,26 @@ export function removeFromQueue(
  * Editing to empty **removes** the message: an empty row would be a queue entry
  * that can never be sent, and the send handler would reject it anyway. Better
  * to make the edit box a second way to drop a message than to leave a dead row.
+ *
+ * The text stays the source of truth for references (`refsEnabled`, the
+ * refs_v1 flag): they are re-read from its tokens, so a token deleted by the
+ * edit takes its reference with it and a token added by it brings one.
+ * Without the flag the entry carries none, as it never did.
  */
 export function editInQueue(
   queue: readonly QueuedMessage[],
   id: string,
   text: string,
+  refsEnabled = true,
 ): QueuedMessage[] {
   const trimmed = text.trim()
   if (!trimmed) return removeFromQueue(queue, id)
-  return queue.map((m) => (m.id === id ? { ...m, text: trimmed } : m))
+  return queue.map((m) => {
+    if (m.id !== id) return m
+    const { refs: _previous, ...rest } = m
+    const refs = refsEnabled ? reconcileRefs(trimmed, m.refs ?? []).map(toEntityRef) : []
+    return { ...rest, text: trimmed, ...(refs.length > 0 ? { refs } : {}) }
+  })
 }
 
 /**
@@ -149,10 +161,10 @@ export function prioritize(
  * `send_now` removes the row: the message is on its way and will come back as a
  * bubble in the transcript.
  */
-export function applyQueueOp(queue: readonly QueuedMessage[], action: QueueOp): QueuedMessage[] {
+export function applyQueueOp(queue: readonly QueuedMessage[], action: QueueOp, refsEnabled = true): QueuedMessage[] {
   switch (action.op) {
     case 'edit':
-      return editInQueue(queue, action.id, action.content)
+      return editInQueue(queue, action.id, action.content, refsEnabled)
     case 'remove':
     case 'send_now':
       return removeFromQueue(queue, action.id)

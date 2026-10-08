@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useAtomValue } from 'jotai'
+import { chatSelectedProjectAtom, currentUserAtom } from '@/atoms'
+import { getApiBase } from '@/services/env'
 import { apiErrorMessage } from '@/services/api'
 import { readRefsInvalid, refsApi, type RefSearchItem } from './refsApi'
 import { REF_KINDS, type RefKind } from './types'
@@ -12,9 +15,19 @@ const CACHE_TTL_MS = 30_000
 const cache = new Map<string, { at: number; items: RefSearchItem[] }>()
 
 /** Tests only. */
-export const clearRefSearchCache = () => cache.clear()
+export const clearRefSearchCache = () => {
+  cache.clear()
+  cacheUser = undefined
+}
 
-const keyOf = (kinds: readonly RefKind[], q: string) => `${[...kinds].sort().join(',')}|${q.trim().toLowerCase()}`
+/** An answer belongs to a server, an account and the project in view: none of them may read another's. */
+const keyOf = (scope: string, kinds: readonly RefKind[], q: string) => `${scope}|${[...kinds].sort().join(',')}|${q.trim().toLowerCase()}`
+
+/** The account the cache was filled for: another one empties it. */
+let cacheUser: string | null | undefined
+
+export const refSearchScope = (userId: string | null | undefined, projectId: string | null | undefined): string =>
+  `${getApiBase()}|${userId ?? ''}|${projectId ?? ''}`
 
 export type RefSearchState =
   | { status: 'idle'; items: RefSearchItem[] }
@@ -33,8 +46,16 @@ export function useRefSearch(args: { query: string; kinds?: readonly RefKind[]; 
   const { query, enabled } = args
   const kinds = args.kinds ?? REF_KINDS
   const kindsKey = [...kinds].sort().join(',')
-  const key = keyOf(kinds, query)
+  const userId = useAtomValue(currentUserAtom)?.id
+  const projectId = useAtomValue(chatSelectedProjectAtom)?.id
+  const key = keyOf(refSearchScope(userId, projectId), kinds, query)
   const [state, setState] = useState<{ key: string; value: RefSearchState }>({ key: '', value: IDLE })
+
+  // The key already carries the account; this also frees what the previous account left behind.
+  useEffect(() => {
+    if (cacheUser !== undefined && cacheUser !== userId) cache.clear()
+    cacheUser = userId
+  }, [userId])
 
   useEffect(() => {
     if (!enabled) return

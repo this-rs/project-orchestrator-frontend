@@ -13,10 +13,16 @@ const two = block.cases[1]
 
 describe('historyEventsToMessages — references', () => {
   it('shows the visible text, the refs and the attachments of a message that carries both blocks', () => {
-    const [m] = historyEventsToMessages([{ type: 'user_message', content: w.encoded }])
+    const [m] = historyEventsToMessages([{ type: 'user_message', content: w.encoded }], { refsEnabled: true })
     expect(m.blocks[0].content).toBe(w.text)
     expect(m.refs).toEqual(w.refs)
     expect(m.attachments).toEqual(w.attachments)
+  })
+
+  it('without refs_v1 a stored block stays in the text: nothing is hidden, nothing decoded', () => {
+    const [m] = historyEventsToMessages([{ type: 'user_message', content: w.encoded }])
+    expect(m.blocks[0].content).toBe(w.encoded.replace(/\n\n<po-attachments>[\s\S]*$/, ''))
+    expect('refs' in m).toBe(false)
   })
 
   it('leaves no refs field on a message without a block', () => {
@@ -31,7 +37,7 @@ describe('historyEventsToMessages — references', () => {
       { type: 'assistant_text', content: 'ok' },
       { type: 'user_message', content: 'plain follow-up' },
       { type: 'assistant_text', content: 'ok 2' },
-    ])
+    ], { refsEnabled: true })
     const users = msgs.filter((m) => m.role === 'user')
     expect(users[0].refs?.map((r) => [r.kind, r.resolution])).toEqual([
       ['plan', 'ok'],
@@ -47,12 +53,12 @@ describe('historyEventsToMessages — references', () => {
     const nested = historyEventsToMessages([
       { type: 'user_message', content: two.encoded },
       { type: 'refs_resolved', data: { refs: resolved.event.refs } },
-    ])
+    ], { refsEnabled: true })
     expect(nested[0].refs?.[0].resolution).toBe('ok')
     const empty = historyEventsToMessages([
       { type: 'user_message', content: two.encoded },
       { type: 'refs_resolved', refs: [{ kind: 'persona', id: 'x', status: 'ok' }] },
-    ])
+    ], { refsEnabled: true })
     expect(empty[0].refs?.[0].resolution).toBeUndefined()
   })
 

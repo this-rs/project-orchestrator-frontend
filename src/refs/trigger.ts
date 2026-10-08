@@ -2,6 +2,7 @@
  * Where is the user, relative to a `#` reference trigger? Pure: text and caret
  * in, trigger out (or null). The composer decides what to do with it.
  */
+import { insideFence, insideInlineCode } from './codeZones'
 import { REF_KINDS, type RefKind } from './types'
 
 export interface RefTrigger {
@@ -24,9 +25,6 @@ const WITH_KIND = new RegExp(`${PREFIX}#(${REF_KINDS.join('|')}) ([^\\s#]*)$`, '
 // No ':' in a query: `#plan:…` is a finished token, not a search.
 const PLAIN = new RegExp(`${PREFIX}#([^\\s#:]*)$`)
 
-/** Odd number of ``` fences before this line: the line is inside a code block. */
-const insideFence = (before: string): boolean => (before.match(/^[ \t]*(```|~~~)/gm) ?? []).length % 2 === 1
-
 /**
  * The trigger at `caret`, or null.
  *
@@ -47,7 +45,7 @@ export function detectTrigger(text: string, caret: number): RefTrigger | null {
 
   const hashAt = m.index + m[1].length
   // An odd number of backticks before the `#` on this line: inside inline code.
-  if (((line.slice(0, hashAt).match(/`/g) ?? []).length) % 2 === 1) return null
+  if (insideInlineCode(line.slice(0, hashAt))) return null
 
   const query = withKind ? m[3] : m[2]
   if (query.length > MAX_QUERY_CHARS) return null
@@ -58,3 +56,10 @@ export function detectTrigger(text: string, caret: number): RefTrigger | null {
     ...(withKind ? { kinds: [m[2].toLowerCase() as RefKind] } : {}),
   }
 }
+
+/**
+ * Is this trigger a reference search, and not an issue number? `closes #42`
+ * is prose: a query of digits alone (without a kind prefix) opens nothing and
+ * no key is taken. The reference token is `#kind:id`.
+ */
+export const isReferenceQuery = (t: RefTrigger): boolean => t.kinds !== undefined || !/^\d+$/.test(t.query)
