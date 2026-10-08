@@ -12,7 +12,10 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    setupFiles: [],
+    setupFiles: ['./src/test/setup.ts'],
+    // Under coverage on a loaded runner the heaviest page tests exceed the 5 s default.
+    testTimeout: 15000,
+    hookTimeout: 15000,
     include: ['src/**/*.test.{ts,tsx}'],
     css: false,
     coverage: {
