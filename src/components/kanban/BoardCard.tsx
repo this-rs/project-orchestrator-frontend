@@ -54,7 +54,7 @@ export function BoardCard({ id, dataKey, item, ariaLabel, ...body }: BoardCardPr
       {...listeners}
       {...attributes}
       aria-label={ariaLabel}
-      className={`rounded-lg border px-3 py-2.5 cursor-grab active:cursor-grabbing select-none transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60 ${
+      className={`rounded-lg border px-3 py-2.5 cursor-grab active:cursor-grabbing select-none transition-colors duration-(--duration-instant) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60 ${
         isDragging ? 'opacity-40 border-indigo-500/60 bg-surface-raised' : 'border-white/[0.06] bg-surface-raised hover:border-white/[0.14]'
       }`}
     >

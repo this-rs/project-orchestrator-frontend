@@ -12,8 +12,9 @@ import {
 } from '@xyflow/react'
 import dagre from 'dagre'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, FileCode2, StickyNote, BookOpen, ExternalLink, CheckCircle2, Circle, Loader2, SkipForward, MessageSquare, FileSearch, Clock, Ban, XCircle, Bot } from 'lucide-react'
-import { PulseIndicator } from '@/components/ui'
+import { AlertTriangle, FileCode2, StickyNote, BookOpen, ExternalLink, CheckCircle2, Circle, Loader2, SkipForward, MessageSquare, FileSearch, Clock, Ban, XCircle, Bot, X } from 'lucide-react'
+import { PulseIndicator, StatusIcon, StatusText, TONE_CLASSES, getStatusMeta, hitArea, textLink } from '@/components/ui'
+import { iconButton } from '@/components/ui/classes'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { tasksApi, notesApi, getEventBus } from '@/services'
@@ -65,25 +66,20 @@ interface TaskNodeData extends Record<string, unknown> {
 }
 
 // ============================================================================
-// STATUS COLORS (matching design system)
+// STATUS COLORS — the task tones (statusMeta) as raw values for React Flow
+// (edge strokes, markers, handles, the 3px rail). Never a node background:
+// a node is an opaque surface, colour stays at icon / hairline size (DESIGN.md § 3).
 // ============================================================================
 
-const statusColors: Record<TaskStatus, { bg: string; border: string; text: string; dot: string }> = {
-  pending: { bg: '#1f2937', border: '#4b5563', text: '#d1d5db', dot: '#9ca3af' },
-  in_progress: { bg: '#1e1b4b', border: '#6366f1', text: '#a5b4fc', dot: '#818cf8' },
-  blocked: { bg: '#422006', border: '#d97706', text: '#fcd34d', dot: '#f59e0b' },
-  completed: { bg: '#052e16', border: '#22c55e', text: '#86efac', dot: '#4ade80' },
-  failed: { bg: '#450a0a', border: '#ef4444', text: '#fca5a5', dot: '#f87171' },
-}
+const NODE_SURFACE = 'var(--color-surface-raised)'
+const NODE_BORDER = 'rgba(255, 255, 255, 0.08)'
 
-const noteTypeColors: Record<string, { bg: string; text: string }> = {
-  guideline: { bg: '#1e3a5f', text: '#93c5fd' },
-  gotcha: { bg: '#5c2d0e', text: '#fdba74' },
-  pattern: { bg: '#2e1065', text: '#c4b5fd' },
-  context: { bg: '#1f2937', text: '#d1d5db' },
-  tip: { bg: '#064e3b', text: '#6ee7b7' },
-  observation: { bg: '#3b3516', text: '#fde68a' },
-  assertion: { bg: '#4c1130', text: '#f9a8d4' },
+const statusColors: Record<TaskStatus, { border: string; text: string; dot: string }> = {
+  pending: { border: '#4b5563', text: '#9ca3af', dot: '#9ca3af' },
+  in_progress: { border: '#6366f1', text: '#a5b4fc', dot: '#818cf8' },
+  blocked: { border: '#d97706', text: '#fbbf24', dot: '#fbbf24' },
+  completed: { border: '#22c55e', text: '#34d399', dot: '#34d399' },
+  failed: { border: '#ef4444', text: '#f87171', dot: '#f87171' },
 }
 
 const statusLabels: Record<TaskStatus, string> = {
@@ -233,19 +229,14 @@ function TaskTooltip({ data }: { data: TaskNodeData }) {
         className="rounded-lg p-3 shadow-xl text-xs space-y-2"
         style={{
           background: '#1a1a2e',
-          border: `1px solid ${colors.border}`,
+          border: `1px solid ${NODE_BORDER}`,
+          borderLeft: `3px solid ${colors.border}`,
         }}
       >
-        {/* Status + Priority row */}
+        {/* Status + Priority row — dot + word in the tone, no pill */}
         <div className="flex items-center gap-2">
-          <span
-            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium"
-            style={{ background: colors.bg, color: colors.text, border: `1px solid ${colors.border}` }}
-          >
-            <span
-              className="w-1.5 h-1.5 rounded-full"
-              style={{ background: colors.dot }}
-            />
+          <span className="inline-flex items-center gap-1.5 text-[10px] font-medium" style={{ color: colors.text }}>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: colors.dot }} aria-hidden="true" />
             {statusLabels[data.status]}
           </span>
           {data.priority != null && data.priority > 0 && (
@@ -275,17 +266,8 @@ function TaskTooltip({ data }: { data: TaskNodeData }) {
 
         {/* Steps progress */}
         {stepCount > 0 && (
-          <div className="space-y-1">
-            <div className="flex items-center gap-1 text-gray-400">
-              <span>{completedStepCount}/{stepCount} steps</span>
-            </div>
-            <div className="flex gap-0.5">
-              {Array.from({ length: stepCount }, (_, i) => (
-                <span key={i} className="text-[10px]">
-                  {i < completedStepCount ? '\u2705' : '\u2B1C'}
-                </span>
-              ))}
-            </div>
+          <div className="flex items-center gap-1 text-gray-400 tabular-nums">
+            <span>{completedStepCount}/{stepCount} steps</span>
           </div>
         )}
 
@@ -331,7 +313,7 @@ function TaskTooltip({ data }: { data: TaskNodeData }) {
       {/* Tooltip arrow */}
       <div
         className="absolute left-1/2 -translate-x-1/2 w-2 h-2 rotate-45"
-        style={{ background: '#1a1a2e', borderRight: `1px solid ${colors.border}`, borderBottom: `1px solid ${colors.border}`, bottom: -4 }}
+        style={{ background: '#1a1a2e', borderRight: `1px solid ${NODE_BORDER}`, borderBottom: `1px solid ${NODE_BORDER}`, bottom: -4 }}
       />
     </div>
   )
@@ -385,14 +367,16 @@ function TaskNodeComponent({ data }: NodeProps<Node<TaskNodeData>>) {
       <div
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
-        className={`cursor-pointer transition-[transform,box-shadow] duration-(--duration-instant) pointer-fine:hover:scale-[1.02] hover:shadow-lg ${isInProgress ? 'dep-node-pulse' : ''}`}
+        className="cursor-pointer transition-[transform,box-shadow] duration-(--duration-instant) pointer-fine:hover:scale-[1.02] hover:shadow-lg"
         style={{
-          background: colors.bg,
-          border: `1.5px solid ${colors.border}`,
+          // Opaque surface + 3px tone rail: the status is said by the glyph + word below, the rail is redundant with it.
+          background: NODE_SURFACE,
+          border: `1px solid ${NODE_BORDER}`,
+          borderLeft: `3px solid ${colors.border}`,
           borderRadius: 10,
           padding: '8px 10px',
           width: NODE_WIDTH,
-          boxShadow: hasConflicts ? '0 0 0 1px rgba(249,115,22,0.4)' : undefined,
+          boxShadow: hasConflicts ? '0 0 0 1px rgba(251,191,36,0.4)' : undefined,
         }}
       >
         <Handle type="target" position={Position.Top} style={{ background: colors.border, width: 8, height: 8 }} />
@@ -419,36 +403,29 @@ function TaskNodeComponent({ data }: NodeProps<Node<TaskNodeData>>) {
             </span>
           )}
 
-          {isInProgress && data.assignedTo && (
-            <span className="inline-flex items-center gap-0.5 ml-0.5">
+          {isInProgress && (
+            <span className="inline-flex items-center gap-0.5 ml-0.5 text-[9px] text-gray-500">
               <PulseIndicator variant="active" size={5} />
-              <span className="text-[9px] text-green-400 truncate max-w-[60px]">{data.assignedTo}</span>
-            </span>
-          )}
-
-          {isInProgress && !data.assignedTo && (
-            <span className="inline-flex items-center gap-0.5 ml-0.5">
-              <PulseIndicator variant="active" size={5} />
-              <span className="text-[9px] text-green-400">Working...</span>
+              <span className="truncate max-w-[60px]">{data.assignedTo ?? 'Working…'}</span>
             </span>
           )}
 
           <div className="flex items-center gap-1 ml-auto">
-            {/* Knowledge indicators inline with status row */}
+            {/* Knowledge indicators inline with status row (entity hues at icon size only) */}
             {noteCount > 0 && (
-              <span className="inline-flex items-center gap-0.5 text-[9px] text-amber-400/70" title={`${noteCount} note${noteCount > 1 ? 's' : ''}`}>
-                <StickyNote className="w-2.5 h-2.5" />
+              <span className="inline-flex items-center gap-0.5 text-[9px] text-gray-400" title={`${noteCount} note${noteCount > 1 ? 's' : ''}`}>
+                <StickyNote className="w-2.5 h-2.5 text-amber-400/70" aria-hidden="true" />
                 {noteCount}
               </span>
             )}
             {decisionCount > 0 && (
-              <span className="inline-flex items-center gap-0.5 text-[9px] text-purple-400/70" title={`${decisionCount} decision${decisionCount > 1 ? 's' : ''}`}>
-                <BookOpen className="w-2.5 h-2.5" />
+              <span className="inline-flex items-center gap-0.5 text-[9px] text-gray-400" title={`${decisionCount} decision${decisionCount > 1 ? 's' : ''}`}>
+                <BookOpen className="w-2.5 h-2.5 text-purple-400/70" aria-hidden="true" />
                 {decisionCount}
               </span>
             )}
             {sessionCount > 0 && (
-              <span className={`inline-flex items-center gap-0.5 text-[9px] ${activeSessionCount > 0 ? 'text-green-400' : 'text-cyan-400/70'}`}
+              <span className={`inline-flex items-center gap-0.5 text-[9px] ${activeSessionCount > 0 ? TONE_CLASSES.progress.text : 'text-gray-400'}`}
                 title={`${sessionCount} session${sessionCount > 1 ? 's' : ''}${childSessionCount > 0 ? ` · ${childSessionCount} sub` : ''}${activeSessionCount > 0 ? ' · active' : ''}`}
               >
                 {activeSessionCount > 0 && <PulseIndicator variant="active" size={4} />}
@@ -464,7 +441,7 @@ function TaskNodeComponent({ data }: NodeProps<Node<TaskNodeData>>) {
 
             {hasConflicts && (
               <span title={`Conflict on: ${conflictFiles.join(', ')}`}>
-                <AlertTriangle className="w-3 h-3 text-orange-400 flex-shrink-0" />
+                <AlertTriangle className={`w-3 h-3 flex-shrink-0 ${TONE_CLASSES.warning.text}`} aria-label="File conflict" />
               </span>
             )}
           </div>
@@ -485,14 +462,7 @@ function TaskNodeComponent({ data }: NodeProps<Node<TaskNodeData>>) {
             {steps.slice(0, MAX_VISIBLE_STEPS).map((step) => {
               const normalized = normalizeStepStatus(step.status)
               return (
-                <div
-                  key={step.id}
-                  className={`flex items-center gap-1.5 py-[1px] px-1 rounded text-[9px] ${
-                    normalized === 'in_progress' ? 'bg-indigo-500/10' :
-                    normalized === 'completed' ? 'bg-green-500/5' :
-                    'bg-transparent'
-                  }`}
-                >
+                <div key={step.id} className="flex items-center gap-1.5 py-[1px] px-1 rounded text-[9px]">
                   <StepIcon status={step.status} />
                   <span className={`truncate flex-1 ${
                     normalized === 'completed' ? 'text-gray-500 line-through' :
@@ -518,8 +488,8 @@ function TaskNodeComponent({ data }: NodeProps<Node<TaskNodeData>>) {
             {discussedFiles.slice(0, MAX_VISIBLE_FILES).map((f) => (
               <span
                 key={f.file_path}
-                className="inline-flex items-center gap-0.5 text-[8px] px-1 py-0.5 rounded bg-cyan-500/10 text-cyan-400/80"
-                title={`${f.file_path} (${f.mention_count}×)`}
+                className="inline-flex items-center gap-0.5 text-[8px] px-1 py-0.5 rounded bg-white/[0.06] text-gray-400"
+                title={`${f.file_path} (${f.mention_count}×, discussed in chat)`}
               >
                 <FileSearch className="w-2 h-2" />
                 {f.file_path.split('/').pop()}
@@ -539,13 +509,10 @@ function TaskNodeComponent({ data }: NodeProps<Node<TaskNodeData>>) {
             {files.slice(0, 3).map((file) => (
               <span
                 key={file}
-                className={`
-                  inline-flex items-center gap-0.5 text-[8px] px-1 py-0.5 rounded
-                  ${hasConflicts && conflictFiles.includes(file)
-                    ? 'bg-orange-500/15 text-orange-400'
-                    : 'bg-white/[0.06] text-gray-500'}
-                `}
-                title={file}
+                className={`inline-flex items-center gap-0.5 text-[8px] px-1 py-0.5 rounded bg-white/[0.06] ${
+                  hasConflicts && conflictFiles.includes(file) ? TONE_CLASSES.warning.text : 'text-gray-500'
+                }`}
+                title={hasConflicts && conflictFiles.includes(file) ? `${file} — shared with another task` : file}
               >
                 <FileCode2 className="w-2 h-2" />
                 {file.split('/').pop()}
@@ -701,26 +668,30 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
     }
   }, [])
 
-  const taskColors = task ? statusColors[task.status] || statusColors.pending : statusColors.pending
 
   return (
     <div className="fixed top-0 right-0 h-full w-96 max-w-full z-40 flex flex-col bg-[#12121a] border-l border-white/[0.06] shadow-2xl animate-slide-in-right">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
-        <span className="text-sm font-medium text-gray-300 truncate">Task Details</span>
-        <div className="flex items-center gap-1">
+      <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-white/[0.06]">
+        <span className="text-sm font-medium text-gray-300 truncate">Task details</span>
+        <div className="flex items-center gap-1 shrink-0">
           <button
+            type="button"
             onClick={() => onOpenFullPage(taskId)}
-            className="p-1.5 rounded text-gray-500 hover:text-gray-300 hover:bg-white/[0.06] transition-colors"
-            title="Open full page"
+            className={`${iconButton('ghost', 'size-9 md:size-8')} text-gray-500`}
+            title="Open task"
+            aria-label="Open task"
           >
-            <ExternalLink className="w-4 h-4" />
+            <ExternalLink className="w-4 h-4" aria-hidden="true" />
           </button>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 rounded text-gray-500 hover:text-gray-300 hover:bg-white/[0.06] transition-colors"
+            className={`${iconButton('ghost', 'size-9 md:size-8')} text-gray-500`}
+            title="Close"
+            aria-label="Close task details"
           >
-            &times;
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -737,22 +708,16 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
           <>
             {/* Title + Status */}
             <div>
-              <h3 className="text-base font-semibold text-gray-100 leading-snug mb-2">
+              <h3 className="text-base font-semibold text-gray-100 leading-snug mb-2 break-words">
                 {task.title || task.description}
               </h3>
-              <span
-                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium"
-                style={{ background: taskColors.bg, color: taskColors.text, border: `1px solid ${taskColors.border}` }}
-              >
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: taskColors.dot }} />
-                {statusLabels[task.status]}
-              </span>
+              <StatusText kind="task" status={task.status} icon className="text-xs font-medium" />
             </div>
 
             {/* Description */}
             {task.title && task.description && (
               <div>
-                <h4 className="text-xs font-medium text-gray-500 uppercase mb-1">Description</h4>
+                <h4 className="text-xs font-medium text-gray-500 mb-1">Description</h4>
                 <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{task.description}</p>
               </div>
             )}
@@ -760,35 +725,35 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
             {/* Steps */}
             {steps.length > 0 && (
               <div>
-                <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">
+                <h4 className="text-xs font-medium text-gray-500 mb-2 tabular-nums">
                   Steps ({steps.filter((s) => s.status === 'completed').length}/{steps.length})
                 </h4>
                 <div className="space-y-1">
-                  {steps.map((step) => (
-                    <button
-                      key={step.id}
-                      onClick={() => handleStepToggle(step)}
-                      className="w-full flex items-start gap-2 py-1.5 px-2 rounded bg-white/[0.03] hover:bg-white/[0.06] transition-colors text-left group"
-                    >
-                      <span className={`mt-0.5 w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center text-[10px] transition-colors ${
-                        step.status === 'completed'
-                          ? 'bg-green-600 border-green-600 text-white'
-                          : step.status === 'in_progress'
-                          ? 'border-indigo-500 text-indigo-400'
-                          : 'border-gray-600 text-transparent group-hover:border-gray-500'
-                      }`}>
-                        {step.status === 'completed' ? '\u2713' : step.status === 'in_progress' ? '\u25CF' : ''}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <span className={`text-sm ${step.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-300'}`}>
-                          {step.description}
-                        </span>
-                        {step.verification && (
-                          <p className="text-[10px] text-gray-500 mt-0.5">AC: {step.verification}</p>
-                        )}
-                      </div>
-                    </button>
-                  ))}
+                  {steps.map((step) => {
+                    const tone = getStatusMeta('step', step.status).tone
+                    const done = step.status === 'completed'
+                    return (
+                      // A row that toggles done / not done: the tone glyph says the state, colour is never alone.
+                      <button
+                        key={step.id}
+                        type="button"
+                        onClick={() => handleStepToggle(step)}
+                        aria-pressed={done}
+                        aria-label={`${done ? 'Reopen' : 'Complete'} step: ${step.description}`}
+                        className={`w-full min-h-9 flex items-start gap-2 py-1.5 px-2 rounded bg-white/[0.03] hover:bg-white/[0.06] transition-colors text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60`}
+                      >
+                        <StatusIcon tone={tone} className={`mt-0.5 ${TONE_CLASSES[tone].text}`} />
+                        <div className="flex-1 min-w-0">
+                          <span className={`text-sm break-words ${done ? 'text-gray-500 line-through' : 'text-gray-300'}`}>
+                            {step.description}
+                          </span>
+                          {step.verification && (
+                            <p className="text-[11px] leading-4 text-gray-500 mt-0.5 break-words">Verify: {step.verification}</p>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             )}
@@ -796,12 +761,11 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
             {/* Acceptance criteria */}
             {task.acceptance_criteria.length > 0 && (
               <div>
-                <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">Acceptance Criteria</h4>
-                <ul className="space-y-1">
+                <h4 className="text-xs font-medium text-gray-500 mb-2">Acceptance criteria</h4>
+                <ul className="space-y-1 pl-5 list-disc marker:text-gray-600">
                   {task.acceptance_criteria.map((ac, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
-                      <span className="text-gray-600 mt-0.5">&bull;</span>
-                      <span>{ac}</span>
+                    <li key={i} className="text-sm text-gray-300 break-words">
+                      {ac}
                     </li>
                   ))}
                 </ul>
@@ -811,23 +775,17 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
             {/* Tags */}
             {task.tags.length > 0 && (
               <div>
-                <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">Tags</h4>
-                <div className="flex flex-wrap gap-1">
-                  {task.tags.map((tag) => (
-                    <span key={tag} className="px-2 py-0.5 rounded text-xs bg-white/[0.08] text-gray-400">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
+                <h4 className="text-xs font-medium text-gray-500 mb-2">Tags</h4>
+                <p className="text-xs text-gray-400 break-words">{task.tags.map((t) => `#${t}`).join(' ')}</p>
               </div>
             )}
 
             {/* Affected files */}
             {task.affected_files.length > 0 && (
               <div>
-                <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">
-                  <FileCode2 className="w-3 h-3 inline mr-1 -mt-0.5" />
-                  Affected Files ({task.affected_files.length})
+                <h4 className="text-xs font-medium text-gray-500 mb-2 tabular-nums">
+                  <FileCode2 className="w-3 h-3 inline mr-1 -mt-0.5" aria-hidden="true" />
+                  Affected files ({task.affected_files.length})
                 </h4>
                 <div className="space-y-0.5">
                   {task.affected_files.slice(0, 10).map((f) => (
@@ -843,35 +801,27 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
             {/* Decisions */}
             {decisions.length > 0 && (
               <div>
-                <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">
-                  <BookOpen className="w-3 h-3 inline mr-1 -mt-0.5" />
+                <h4 className="text-xs font-medium text-gray-500 mb-2 tabular-nums">
+                  <BookOpen className="w-3 h-3 inline mr-1 -mt-0.5" aria-hidden="true" />
                   Decisions ({decisions.length})
                 </h4>
                 <div className="space-y-2">
                   {decisions.map((d) => (
                     <div
                       key={d.id}
-                      className="rounded-lg p-2.5 bg-white/[0.03] border border-white/[0.06] space-y-1.5"
+                      className="rounded-lg p-2.5 bg-white/[0.03] border border-white/[0.06] space-y-1.5 min-w-0"
                     >
-                      <p className="text-sm text-gray-200 leading-snug">{d.description}</p>
+                      <p className="text-sm text-gray-200 leading-snug break-words">{d.description}</p>
                       {d.chosen_option && (
-                        <div className="flex items-start gap-1.5">
-                          <span className="text-[10px] text-emerald-500 font-medium uppercase mt-0.5 flex-shrink-0">Chosen</span>
-                          <span className="text-xs text-emerald-300">{d.chosen_option}</span>
+                        <div className="flex items-start gap-1.5 min-w-0">
+                          <CheckCircle2 className={`w-3 h-3 mt-0.5 shrink-0 ${TONE_CLASSES.success.text}`} aria-label="Chosen option" />
+                          <span className="text-xs text-gray-300 break-words">{d.chosen_option}</span>
                         </div>
                       )}
                       {d.rationale && (
-                        <p className="text-xs text-gray-500 italic leading-relaxed">{d.rationale}</p>
+                        <p className="text-xs text-gray-500 leading-relaxed break-words">{d.rationale}</p>
                       )}
-                      <span
-                        className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium"
-                        style={{
-                          background: d.status === 'accepted' ? '#052e16' : d.status === 'deprecated' ? '#422006' : '#1f2937',
-                          color: d.status === 'accepted' ? '#86efac' : d.status === 'deprecated' ? '#fcd34d' : '#d1d5db',
-                        }}
-                      >
-                        {d.status}
-                      </span>
+                      <StatusText kind="decision" status={d.status} icon className="text-[11px]" />
                     </div>
                   ))}
                 </div>
@@ -881,46 +831,24 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
             {/* Notes / Knowledge */}
             {notes.length > 0 && (
               <div>
-                <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">
-                  <StickyNote className="w-3 h-3 inline mr-1 -mt-0.5" />
+                <h4 className="text-xs font-medium text-gray-500 mb-2 tabular-nums">
+                  <StickyNote className="w-3 h-3 inline mr-1 -mt-0.5" aria-hidden="true" />
                   Notes ({notes.length})
                 </h4>
                 <div className="space-y-2">
                   {notes.map((n) => (
                     <div
                       key={n.id}
-                      className="rounded-lg p-2.5 bg-white/[0.03] border border-white/[0.06] space-y-1.5"
+                      className="rounded-lg p-2.5 bg-white/[0.03] border border-white/[0.06] space-y-1.5 min-w-0"
                     >
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span
-                          className="px-1.5 py-0.5 rounded text-[10px] font-medium"
-                          style={{
-                            background: noteTypeColors[n.note_type]?.bg || '#1f2937',
-                            color: noteTypeColors[n.note_type]?.text || '#d1d5db',
-                          }}
-                        >
-                          {n.note_type}
-                        </span>
-                        {n.importance && (
-                          <span className={`text-[10px] font-medium ${
-                            n.importance === 'critical' ? 'text-red-400'
-                            : n.importance === 'high' ? 'text-orange-400'
-                            : n.importance === 'medium' ? 'text-yellow-400'
-                            : 'text-gray-500'
-                          }`}>
-                            {n.importance}
-                          </span>
-                        )}
+                      <div className="flex items-center gap-2 flex-wrap text-[11px]">
+                        {/* The note type is a label: a subtle outline chip, never a coloured fill (DESIGN.md § 4) */}
+                        <span className="rounded border border-white/[0.08] px-1.5 text-gray-400">{n.note_type}</span>
+                        {n.importance && <StatusText kind="importance" status={n.importance} icon />}
                       </div>
-                      <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap line-clamp-4">{n.content}</p>
+                      <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap line-clamp-4 break-words">{n.content}</p>
                       {n.tags && n.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {n.tags.slice(0, 4).map((tag) => (
-                            <span key={tag} className="px-1 py-0.5 rounded text-[9px] bg-white/[0.06] text-gray-500">
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
+                        <p className="text-[11px] leading-4 text-gray-500 break-words">{n.tags.slice(0, 4).map((t) => `#${t}`).join(' ')}</p>
                       )}
                     </div>
                   ))}
@@ -931,10 +859,10 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
             {/* Open full page link */}
             <Link
               to={workspacePath(wsSlug, `/tasks/${task.id}`)}
-              className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+              className={`${textLink} ${hitArea} inline-flex items-center gap-1 text-xs`}
             >
-              <ExternalLink className="w-3 h-3" />
-              Open task page
+              <ExternalLink className="w-3 h-3" aria-hidden="true" />
+              Open task
             </Link>
           </>
         ) : (

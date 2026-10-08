@@ -15,12 +15,14 @@ const getProjectMilestoneProgress = vi.fn()
 const updateMilestone = vi.fn()
 const updateProjectMilestone = vi.fn()
 const deleteMilestone = vi.fn()
+const createMilestone = vi.fn()
 const apiDelete = vi.fn()
 
 vi.mock('@/services', () => ({
   api: { delete: (...a: unknown[]) => apiDelete(...a) },
   workspacesApi: {
     listMilestones: (...a: unknown[]) => listMilestones(...a),
+    createMilestone: (...a: unknown[]) => createMilestone(...a),
     getMilestoneProgress: (...a: unknown[]) => getMilestoneProgress(...a),
     listProjects: (...a: unknown[]) => listProjects(...a),
     updateMilestone: (...a: unknown[]) => updateMilestone(...a),
@@ -129,10 +131,26 @@ describe('MilestonesPage (list)', () => {
     expect(screen.getByRole('link', { name: 'v1 launch' })).toBeTruthy()
   })
 
-  it('shows the empty state', async () => {
+  it('shows the empty state with the create action, and creates a workspace milestone from the header', async () => {
     listMilestones.mockResolvedValue({ items: [] })
     listProjects.mockResolvedValue([])
+    createMilestone.mockResolvedValue({ id: 'm9' })
     renderPage()
     expect(await screen.findByText('No milestones yet')).toBeTruthy()
+    const buttons = screen.getAllByRole('button', { name: 'New milestone' })
+    expect(buttons.length).toBe(2)
+    fireEvent.click(buttons[0])
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText(/Title/), { target: { value: 'v2 launch' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: /Create/ }))
+    await waitFor(() => expect(createMilestone).toHaveBeenCalledWith('ws', expect.objectContaining({ title: 'v2 launch' })))
+  })
+
+  it('introduces objectives from the registry, folded', async () => {
+    renderPage()
+    await screen.findByRole('link', { name: 'v1 launch' })
+    const intro = screen.getByText('What is this?').closest('details')!
+    expect(intro.getAttribute('data-concept-intro')).toBe('objectives')
+    expect(intro.hasAttribute('open')).toBe(false)
   })
 })

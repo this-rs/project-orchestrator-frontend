@@ -112,5 +112,15 @@ describe('TasksPage (list)', () => {
     expect(screen.getByRole('status', { name: 'Loading' })).toBeTruthy()
     resolve({ items: [], total: 0, limit: 25, offset: 0 })
     expect(await screen.findByText('No tasks yet')).toBeTruthy()
+    // tasks are created inside a plan: the one action leads there
+    expect(screen.getByRole('button', { name: 'Open plans' })).toBeTruthy()
+  })
+
+  it('introduces tasks from the registry, folded under the title', async () => {
+    renderPage()
+    await screen.findByRole('link', { name: 'Write login form' })
+    const intro = screen.getByText('What is this?').closest('details')!
+    expect(intro.getAttribute('data-concept-intro')).toBe('tasks')
+    expect(intro.hasAttribute('open')).toBe(false)
   })
 })

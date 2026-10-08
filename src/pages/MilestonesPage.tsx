@@ -11,16 +11,17 @@ import {
   Fact,
   ErrorState,
   FilterBar,
+  FormDialog,
   ListGroup,
   PageShell,
   Select,
   StatusMenu,
+  ToneText,
+  formatAbsolute,
   formatDay,
   getStatusMeta,
   getStatusOptions,
   groupBy,
-  hitArea,
-  textLink,
   RowCheckbox,
   ViewToggle,
   RelativeTime,
@@ -29,7 +30,8 @@ import {
   pluralize,
 } from '@/components/ui'
 import { api, workspacesApi, projectsApi } from '@/services'
-import { useViewMode, useConfirmDialog, useToast, useMultiSelect, useWorkspaceSlug, useViewTransition, useWorkspace } from '@/hooks'
+import { useViewMode, useConfirmDialog, useFormDialog, useToast, useMultiSelect, useWorkspaceSlug, useViewTransition, useWorkspace } from '@/hooks'
+import { CreateMilestoneForm } from '@/components/forms'
 import { UniversalKanban, createMilestoneKanbanConfig } from '@/components/kanban'
 import type { MilestoneWithProgress } from '@/components/kanban'
 import type { MilestoneStatus } from '@/types'
@@ -59,6 +61,7 @@ export function MilestonesPage() {
   const [viewMode, setViewMode] = useViewMode()
   const { navigate } = useViewTransition()
   const confirmDialog = useConfirmDialog()
+  const formDialog = useFormDialog()
   const toast = useToast()
   const wsSlug = useWorkspaceSlug()
   const activeWorkspace = useWorkspace()
@@ -194,6 +197,16 @@ export function MilestonesPage() {
     toast.success('Milestone deleted')
   }
 
+  // Workspace milestones are created here (project milestones from their project page).
+  const createForm = CreateMilestoneForm({
+    onSubmit: async (data) => {
+      await workspacesApi.createMilestone(wsSlug, data)
+      toast.success('Milestone created')
+      await loadMilestones()
+    },
+  })
+  const openCreate = () => formDialog.open({ title: 'New milestone' })
+
   // UniversalKanban config for milestones — wraps local data as a "fetchFn"
   const milestoneFetchFn = useCallback(
     async (params: Record<string, unknown>) => {
@@ -262,8 +275,14 @@ export function MilestonesPage() {
     <PageShell
       title={NOMENCLATURE.objectives.plural}
       description="Track milestones for this workspace"
+      intro="objectives"
       count={loading ? undefined : isKanban ? baseFiltered.length : filteredMilestones.length}
       width={isKanban ? 'full' : 'wide'}
+      actions={
+        <Button size="sm" onClick={openCreate}>
+          New milestone
+        </Button>
+      }
       filters={
         <FilterBar
           search={search}
@@ -300,7 +319,8 @@ export function MilestonesPage() {
         <ErrorState title="Failed to load" description={error} onRetry={loadMilestones} />
       ) : filteredMilestones.length === 0 ? (
         <EmptyState
-          variant={!hasFilters ? 'milestones' : undefined}
+          size={hasFilters ? 'md' : 'page'}
+          variant={!hasFilters ? 'milestones' : 'search'}
           title={hasFilters ? 'No matching milestones' : 'No milestones yet'}
           description={
             hasFilters
@@ -312,15 +332,19 @@ export function MilestonesPage() {
               <Button size="sm" variant="secondary" onClick={() => { clearFilters(); setSearch('') }}>
                 Clear
               </Button>
-            ) : undefined
+            ) : (
+              <Button size="sm" onClick={openCreate}>
+                New milestone
+              </Button>
+            )
           }
         />
       ) : (
         <>
-          <div className="flex items-center justify-end px-1 pb-1.5 min-h-9 text-[11px]">
-            <button type="button" onClick={multiSelect.toggleAll} className={`${hitArea} ${textLink}`}>
+          <div className="flex items-center justify-end pb-1.5">
+            <Button size="sm" variant="ghost" flat onClick={multiSelect.toggleAll}>
               {multiSelect.isAllSelected ? 'Deselect all' : 'Select all'}
-            </button>
+            </Button>
           </div>
           <div>
             {groups.map(({ key, items }) => (
@@ -350,6 +374,9 @@ export function MilestonesPage() {
       )}
 
       <BulkActionBar count={multiSelect.selectionCount} onDelete={handleBulkDelete} onClear={multiSelect.clear} />
+      <FormDialog {...formDialog.dialogProps} onSubmit={createForm.submit}>
+        {createForm.fields}
+      </FormDialog>
       <ConfirmDialog {...confirmDialog.dialogProps} />
     </PageShell>
   )
@@ -393,18 +420,20 @@ function MilestoneRow({ milestone, wsSlug, now, selected, onToggleSelect, onStat
           {isProject ? 'Project' : 'Workspace'}
           {milestone.workspace_name ? ` · ${milestone.workspace_name}` : ''}
         </Fact>,
+        // The due date is a fact; once overdue it is a warning (tone glyph + word, the rail says it too).
         milestone.target_date ? (
-          <span
-            key="due"
-            className={`inline-flex items-center gap-1 ${overdue ? 'text-amber-400 font-medium' : 'text-gray-300'}`}
-            title={new Date(milestone.target_date).toLocaleDateString()}
-          >
-            <CalendarClock className={`w-3 h-3 shrink-0 ${overdue ? '' : 'text-gray-500'}`} aria-hidden="true" />
-            <span>
-              {overdue ? 'overdue ' : 'due '}
-              {formatDay(milestone.target_date)}
-            </span>
-          </span>
+          overdue ? (
+            <ToneText
+              key="due"
+              tone="warning"
+              icon
+              label={<span title={formatAbsolute(milestone.target_date)}>overdue {formatDay(milestone.target_date)}</span>}
+            />
+          ) : (
+            <Fact key="due" icon={CalendarClock} title={formatAbsolute(milestone.target_date)}>
+              due {formatDay(milestone.target_date)}
+            </Fact>
+          )
         ) : null,
         tags.length > 0 ? (
           <Fact key="tags" icon={Tag}>

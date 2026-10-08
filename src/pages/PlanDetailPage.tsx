@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
 import {
-  AlertTriangle,
   Archive,
   ChevronRight,
   ChevronsDownUp,
@@ -23,10 +22,12 @@ import {
 } from 'lucide-react'
 import {
   Button,
+  ConceptIntro,
   EmptyState,
   EntityList,
   EntityRow,
   ErrorState,
+  Facts,
   FormDialog,
   LinkEntityDialog,
   ListGroup,
@@ -37,8 +38,10 @@ import {
   Section,
   StatusDot,
   StatusMenu,
+  StatusText,
   TabLayout,
-  focusRing,
+  ToneText,
+  formatAbsolute,
   getStatusMeta,
   groupBy,
   hitArea,
@@ -48,6 +51,7 @@ import {
   surface,
   ViewToggle,
 } from '@/components/ui'
+import { glassFlat, iconButton } from '@/components/ui/classes'
 import type { ParentLink } from '@/components/ui/PageHeader'
 import { plansApi, tasksApi, projectsApi, workspacesApi, decisionsApi } from '@/services'
 import { ApiError } from '@/services/api'
@@ -99,7 +103,6 @@ export function PlanDetailPage() {
   const [commits, setCommits] = useState<Commit[]>([])
   const [commitShaInput, setCommitShaInput] = useState('')
   // graph state kept for fetchData compatibility — data consumed via planGraphData hook
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_graph, setGraph] = useState<DependencyGraph | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -271,7 +274,6 @@ export function PlanDetailPage() {
 
     resolveMilestones()
     return () => controller.abort()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- planId, wsSlug and plan?.project_id are stable
   }, [planId, wsSlug, plan?.project_id])
 
   /** List rows: optimistic update + rollback. */
@@ -565,7 +567,7 @@ export function PlanDetailPage() {
                     onClick={toggleAllTasks}
                     aria-label={tasksAllExpanded ? 'Collapse all steps' : 'Expand all steps'}
                     title={tasksAllExpanded ? 'Collapse all steps' : 'Expand all steps'}
-                    className={`w-9 h-9 md:w-8 md:h-8 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-200 hover:bg-white/[0.05] ${focusRing}`}
+                    className={`${iconButton('ghost', 'size-9 md:size-8')} text-gray-500`}
                   >
                     {tasksAllExpanded ? (
                       <ChevronsDownUp className="w-4 h-4" aria-hidden="true" />
@@ -647,13 +649,15 @@ export function PlanDetailPage() {
         {/* ── Runner ── */}
         {activeTab === 'runner' && (
           <div className="space-y-6">
+            {/* What a run is — the registry's three lines, folded (DESIGN.md § 5) */}
+            <ConceptIntro concept="automation" />
+
             {isStuck && runnerSnapshot && (
-              <div role="alert" className={`${surface} flex items-start gap-3 p-4 border-amber-500/25`}>
-                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
+              <div role="alert" className={`${surface} flex items-start gap-3 p-4`}>
                 <div className="flex-1 min-w-0 space-y-2">
                   <div>
-                    <p className="text-sm font-medium text-amber-300">Run stuck</p>
-                    <p className="text-xs text-amber-400/80 mt-0.5">
+                    <ToneText tone="warning" icon label="Run stuck" className="text-sm font-medium" />
+                    <p className="text-xs text-gray-400 mt-0.5">
                       Every task is done ({runnerSnapshot.tasks_completed}/{runnerSnapshot.tasks_total}) but the run is still marked as active. The runner did not finalise properly.
                     </p>
                   </div>
@@ -819,6 +823,21 @@ export function PlanDetailPage() {
         )}
       </TabLayout>
 
+      {/* ── Details (long properties, DESIGN.md § 7) ── */}
+      <Section title="Details">
+        <Facts
+          items={[
+            { label: 'Status', value: <StatusText kind="plan" status={plan.status} /> },
+            { label: 'Priority', value: plan.priority ? String(plan.priority) : null },
+            { label: 'Project', value: linkedProject?.name ?? null },
+            { label: 'Created by', value: plan.created_by || null },
+            { label: 'Created', value: plan.created_at ? formatAbsolute(plan.created_at) : null },
+            { label: 'Tasks', value: tasks.length > 0 ? `${completedTasks} of ${tasks.length} done` : null },
+            { label: 'ID', value: <span className="font-mono text-xs text-gray-400 break-all">{plan.id}</span> },
+          ]}
+        />
+      </Section>
+
       <FormDialog {...editPlanDialog.dialogProps} onSubmit={editPlanForm.submit}>
         {editPlanForm.fields}
       </FormDialog>
@@ -962,21 +981,25 @@ function PlanTaskRow({
       className="hover:bg-white/[0.03] active:bg-white/[0.05]"
       muted={task.status === 'completed'}
       leading={
+        // 36px target, drawn at icon size (negative margin) so the row keeps its rhythm; flat: one per row.
         <button
           type="button"
           onClick={toggleExpand}
           aria-expanded={expanded}
           aria-label={expanded ? `Hide steps of ${title}` : `Show steps of ${title}`}
-          className={`-m-2 p-2 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-200 ${focusRing}`}
+          className={`${iconButton('ghost', 'size-9')} ${glassFlat} -m-2.5 text-gray-500`}
         >
-          <ChevronRight className={`w-4 h-4 transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`} aria-hidden="true" />
+          <ChevronRight className={`w-4 h-4 transition-transform duration-(--duration-fast) ${expanded ? 'rotate-90' : ''}`} aria-hidden="true" />
         </button>
       }
       trailing={<RelativeTime date={task.updated_at ?? task.created_at} />}
       description={task.title ? task.description : undefined}
-      meta={[
-        <StatusMenu key="status" kind="task" status={task.status} onChange={onStatusChange} />,
+      tone={getStatusMeta('task', task.status).tone}
+      status={[
+        <StatusMenu key="status" kind="task" icon status={task.status} onChange={onStatusChange} />,
         <PriorityText key="p" priority={task.priority} />,
+      ]}
+      meta={[
         task.assigned_to ? (
           <span key="assignee" className="truncate max-w-[10rem]" title={`Assigned to ${task.assigned_to}`}>
             @{task.assigned_to}

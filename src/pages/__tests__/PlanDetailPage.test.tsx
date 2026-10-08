@@ -124,11 +124,16 @@ describe('PlanDetailPage', () => {
     expect((await screen.findByRole('link', { name: 'Project: Alpha' })).getAttribute('href')).toBe('/workspace/ws/projects/alpha')
     expect(screen.getByRole('button', { name: /Status: Approved/ })).toBeTruthy()
     expect(screen.getByText('P8')).toBeTruthy()
-    expect(screen.getByText('theo')).toBeTruthy()
+    // the author sits in the key facts and again in the Details facts (long properties, § 7)
+    expect(screen.getAllByText('theo').length).toBe(2)
     expect(screen.getByText('3 tasks')).toBeTruthy()
     expect(screen.getByText('1/3 done')).toBeTruthy()
     expect(screen.getByRole('img', { name: '1 in progress, 1 pending, 1 completed' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Run' })).toBeTruthy()
+    const details = screen.getByRole('region', { name: 'Details' })
+    expect(within(details).getByText('Alpha')).toBeTruthy()
+    expect(within(details).getByText('1 of 3 done')).toBeTruthy()
+    expect(within(details).getByText('p1')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Auth flow' }))
     for (const label of ['Edit', 'Add task', 'Add constraint', 'Link commit', 'Unlink project', 'Open runner', 'Delete']) {
@@ -199,6 +204,10 @@ describe('PlanDetailPage', () => {
     expect(await screen.findByRole('region', { name: /Active run/ })).toBeTruthy()
     expect(screen.getByTestId('stats-row')).toBeTruthy()
     expect(screen.getByTestId('run-history')).toBeTruthy()
+    // the runner explains itself from the registry (automation), folded
+    const intro = screen.getByText('What is this?').closest('details')!
+    expect(intro.getAttribute('data-concept-intro')).toBe('automation')
+    expect(intro.hasAttribute('open')).toBe(false)
   })
 
   it('lazy-loads the discussion TREE of the plan on the Discussions tab (a session attached without parent is a root)', async () => {

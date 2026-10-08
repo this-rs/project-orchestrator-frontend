@@ -19,11 +19,11 @@ import {
   FormDialog,
   PageShell,
   RelativeTime,
-  focusRing,
   RowCheckbox,
   TaskProgress,
   ToneText,
 } from '@/components/ui'
+import { iconButton } from '@/components/ui/classes'
 import { useConfirmDialog, useFormDialog, useToast, useMultiSelect, useWorkspaceSlug, useWorkspace, useTaskProgress } from '@/hooks'
 import type { TaskCounts } from '@/services/progress'
 import { CreateProjectForm, EditProjectForm } from '@/components/forms'
@@ -158,6 +158,7 @@ export function ProjectsPage() {
     <PageShell
       title={NOMENCLATURE.projects.plural}
       description={TEXT.description}
+      intro="projects"
       count={loading || error ? undefined : projects.length}
       width="wide"
       actions={
@@ -179,9 +180,7 @@ export function ProjectsPage() {
                   aria-label={selectAllLabel}
                   aria-pressed={multiSelect.isAllSelected}
                   title={selectAllLabel}
-                  className={`w-9 h-9 inline-flex items-center justify-center rounded-md transition-colors ${
-                    multiSelect.isAllSelected ? 'text-indigo-300 bg-indigo-500/10' : 'text-gray-500 hover:text-gray-200 hover:bg-white/[0.05]'
-                  } ${focusRing}`}
+                  className={`${iconButton('ghost', 'size-9 md:size-8')} ${multiSelect.isAllSelected ? 'text-indigo-300 bg-white/[0.08]' : 'text-gray-500'}`}
                 >
                   <CheckSquare className="w-4 h-4" aria-hidden="true" />
                 </button>
@@ -197,10 +196,15 @@ export function ProjectsPage() {
         <ErrorState title="Failed to load" description={error} onRetry={loadProjects} />
       ) : projects.length === 0 ? (
         <EmptyState
+          size="page"
           variant="projects"
           title="No projects yet"
           description={TEXT.emptyDescription}
-          action={<Button onClick={openCreateDialog}>New project</Button>}
+          action={
+            <Button size="sm" onClick={openCreateDialog}>
+              New project
+            </Button>
+          }
         />
       ) : visible.length === 0 ? (
         <EmptyState

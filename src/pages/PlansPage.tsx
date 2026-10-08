@@ -23,8 +23,6 @@ import {
   TaskProgress,
   getStatusMeta,
   getStatusOptions,
-  hitArea,
-  textLink,
   RowCheckbox,
   ViewToggle,
   pluralize,
@@ -336,6 +334,7 @@ export function PlansPage() {
     <PageShell
       title={NOMENCLATURE.plans.plural}
       description="Plan and track implementation phases"
+      intro="plans"
       count={!isKanban && !loading ? total : undefined}
       width={isKanban ? 'full' : 'wide'}
       actions={
@@ -395,7 +394,8 @@ export function PlansPage() {
         <EntityListSkeleton rows={6} />
       ) : plans.length === 0 ? (
         <EmptyState
-          variant={isPristine ? 'plans' : undefined}
+          size={isPristine ? 'page' : 'md'}
+          variant={isPristine ? 'plans' : 'search'}
           title={isPristine ? 'No plans yet' : 'No matching plans'}
           description={
             isPristine ? 'Create a plan to organize your development work.' : 'Try adjusting your search or filters.'
@@ -414,13 +414,13 @@ export function PlansPage() {
         />
       ) : (
         <>
-          <div className="flex items-center justify-between gap-2 px-1 pb-1.5 min-h-9 text-[11px] text-gray-500">
+          <div className="flex items-center justify-between gap-2 pl-1 pb-1.5 min-h-9 text-[11px] text-gray-500">
             <span className="tabular-nums">
               {plans.length < total ? `${plans.length} of ${total} loaded` : `${total} plan${total === 1 ? '' : 's'}`}
             </span>
-            <button type="button" onClick={multiSelect.toggleAll} className={`${hitArea} ${textLink}`}>
+            <Button size="sm" variant="ghost" flat onClick={multiSelect.toggleAll}>
               {multiSelect.isAllSelected ? 'Deselect all' : 'Select all'}
-            </button>
+            </Button>
           </div>
           {/* No recency / status grouping here: the server orders by priority and the list is
               paginated on scroll — groups would shift as pages arrive. Status is filterable above. */}

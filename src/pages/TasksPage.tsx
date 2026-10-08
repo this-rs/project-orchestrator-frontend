@@ -25,7 +25,6 @@ import {
   hitArea,
   inlineLink,
   rowInteractive,
-  textLink,
   RowCheckbox,
   ViewToggle,
   Button,
@@ -263,6 +262,7 @@ export function TasksPage() {
     <PageShell
       title={NOMENCLATURE.tasks.plural}
       description="Manage tasks across all plans"
+      intro="tasks"
       count={!isKanban && !loading ? total : undefined}
       width={isKanban ? 'full' : 'wide'}
       filters={
@@ -314,11 +314,16 @@ export function TasksPage() {
         <EntityListSkeleton rows={6} />
       ) : tasks.length === 0 ? (
         <EmptyState
-          variant={isPristine ? 'tasks' : undefined}
+          size={isPristine ? 'page' : 'md'}
+          variant={isPristine ? 'tasks' : 'search'}
           title={isPristine ? 'No tasks yet' : 'No matching tasks'}
-          description={isPristine ? 'Tasks will appear here when you create plans.' : 'No tasks match the current filters.'}
+          description={isPristine ? 'Tasks are created inside a plan: open a plan and add its first task.' : 'No tasks match the current filters.'}
           action={
-            isPristine ? undefined : (
+            isPristine ? (
+              <Button size="sm" onClick={() => navigate(workspacePath(wsSlug, '/plans'))}>
+                Open plans
+              </Button>
+            ) : (
               <Button size="sm" variant="secondary" onClick={clearFilters}>
                 Clear
               </Button>
@@ -327,13 +332,13 @@ export function TasksPage() {
         />
       ) : (
         <>
-          <div className="flex items-center justify-between gap-2 px-1 pb-1.5 min-h-9 text-[11px] text-gray-500">
+          <div className="flex items-center justify-between gap-2 pl-1 pb-1.5 min-h-9 text-[11px] text-gray-500">
             <span className="tabular-nums">
               {tasks.length < total ? `${tasks.length} of ${total} loaded` : `${total} task${total === 1 ? '' : 's'}`}
             </span>
-            <button type="button" onClick={multiSelect.toggleAll} className={`${hitArea} ${textLink}`}>
+            <Button size="sm" variant="ghost" flat onClick={multiSelect.toggleAll}>
               {multiSelect.isAllSelected ? 'Deselect all' : 'Select all'}
-            </button>
+            </Button>
           </div>
           {/* No recency / status grouping here: the server orders by priority and the list is
               paginated on scroll — groups would shift as pages arrive. Status is filterable above. */}

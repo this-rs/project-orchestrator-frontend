@@ -126,4 +126,13 @@ describe('ProjectsPage', () => {
     expect(await screen.findByText('No projects yet')).toBeTruthy()
     expect(screen.getAllByRole('button', { name: 'New project' }).length).toBe(2)
   })
+
+  it('introduces the concept from the registry, folded under the title', async () => {
+    renderPage()
+    await screen.findByText('Backend')
+    const intro = screen.getByText('What is this?').closest('details')!
+    expect(intro.getAttribute('data-concept-intro')).toBe('projects')
+    expect(intro.hasAttribute('open')).toBe(false)
+    expect(within(intro).getByText(/A project is a body of work/)).toBeTruthy()
+  })
 })
