@@ -14,7 +14,6 @@ import { EngineBanner } from '@/components/chat/EngineBanner'
 import { PolicyOnlyBanner } from '@/components/chat/PolicyOnlyBanner'
 import { ProviderStateCard } from '@/components/chat/ProviderStateCard'
 import { SessionOpenError } from '@/components/chat/SessionOpenError'
-import { CompactionBanner } from '@/components/chat/CompactionBanner'
 import { ToastContainer } from '@/components/ui/Toast'
 import { toastMessagesAtom } from '@/atoms'
 
@@ -101,11 +100,6 @@ describe('panels over the conversation are glass', () => {
     const el = screen.getByTestId('session-open-error')
     expectGlass(el)
     expect(el.className).toContain('from-red-500/10')
-  })
-
-  it('the compaction banner, which is text floating over the transcript', () => {
-    const { container } = wrap(<CompactionBanner visible />)
-    expectGlass(container.firstElementChild as HTMLElement)
   })
 
   it('a toast floats over the conversation too', () => {

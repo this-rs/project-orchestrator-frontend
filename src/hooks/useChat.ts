@@ -242,7 +242,7 @@ export function useChat() {
   const [sessionId, setSessionId] = useAtom(chatSessionIdAtom)
   const [isStreaming, setIsStreaming] = useAtom(chatStreamingAtom)
   const interruptWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [isCompacting, setIsCompacting] = useAtom(chatCompactingAtom)
+  const [compactingSessionId, setCompactingSessionId] = useAtom(chatCompactingAtom)
   const [wsStatus, setWsStatus] = useAtom(chatWsStatusAtom)
   const [isReplaying, setIsReplaying] = useAtom(chatReplayingAtom)
   const _setPermissionOverride = useSetAtom(chatSessionPermissionOverrideAtom)
@@ -254,6 +254,12 @@ export function useChat() {
   // chatSessionPermissionOverrideAtom DIRECTLY (its own useAtom setter), so the
   // refs stay stale for new-conversation selections. See sendMessage below.
   const store = useStore()
+  // Compaction belongs to ONE session: it shows only while that session is the one on screen.
+  const isCompacting = compactingSessionId !== null && compactingSessionId === sessionId
+  const setIsCompacting = useCallback(
+    (on: boolean) => setCompactingSessionId(on ? store.get(chatSessionIdAtom) : null),
+    [setCompactingSessionId, store],
+  )
   /** Latest `syncLocalQueue`, for the WebSocket callbacks set up once. */
   const syncLocalQueueRef = useRef<() => void>(() => {})
   const setDraftsMap = useSetAtom(chatDraftsMapAtom)
@@ -530,7 +536,8 @@ export function useChat() {
     // compaction_started — PreCompact hook fired, compaction is about to begin
     // Set isCompacting flag so the UI can show a spinner/banner
     if (event.type === 'compaction_started') {
-      setIsCompacting(true)
+      // A replayed start is history: its boundary may be missing from the window, so it would stick.
+      if (!event.replaying) setIsCompacting(true)
       return
     }
 

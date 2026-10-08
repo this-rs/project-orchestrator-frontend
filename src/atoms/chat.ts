@@ -13,8 +13,12 @@ export const chatPanelWidthAtom = atom<number>(400)
 export const chatSessionIdAtom = atom<string | null>(null)
 export const chatStreamingAtom = atom<boolean>(false)
 
-/** Whether the context window is currently being compacted (PreCompact hook fired, waiting for compact_boundary) */
-export const chatCompactingAtom = atom<boolean>(false)
+/**
+ * The session whose context window is being compacted (PreCompact hook fired, waiting for
+ * compact_boundary), or null. A session id, not a boolean: a flag shared by every conversation
+ * showed one session's compaction over all the others.
+ */
+export const chatCompactingAtom = atom<string | null>(null)
 
 /** WebSocket connection status for the chat */
 export const chatWsStatusAtom = atom<WsConnectionStatus>('disconnected')

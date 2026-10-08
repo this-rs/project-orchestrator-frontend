@@ -3,6 +3,7 @@ import { useAtom } from 'jotai'
 import { chatScrollToTurnAtom } from '@/atoms'
 import type { ChatMessage, Project } from '@/types'
 import { ChatMessageBubble } from './ChatMessageBubble'
+import { CompactionFlow } from './CompactionFlow'
 import { ChatWelcome } from './ChatWelcome'
 import { Loader2 } from 'lucide-react'
 
@@ -41,6 +42,8 @@ interface ChatMessagesProps {
    * Leave undefined when the composer sits below the transcript instead of over it.
    */
   bottomInset?: number
+  /** This conversation's context is being compacted: the trace is drawn at the tail of its transcript. */
+  isCompacting?: boolean
 }
 
 export const ChatMessages = memo(function ChatMessages({
@@ -63,6 +66,7 @@ export const ChatMessages = memo(function ChatMessages({
   onSelectSession,
   selectedProject,
   bottomInset,
+  isCompacting,
 }: ChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const shouldAutoScrollRef = useRef(true)
@@ -409,6 +413,8 @@ export const ChatMessages = memo(function ChatMessages({
           — Scroll down for more —
         </div>
       )}
+
+      {isCompacting && !hasNewerMessages && <CompactionFlow />}
 
       {isStreaming && messages[messages.length - 1]?.role === 'user' && (
         <div className="mb-4 flex items-center gap-1.5">
