@@ -18,7 +18,9 @@ export function CompactBoundaryBlock({ block }: CompactBoundaryBlockProps) {
         {/* The settled core of the compaction: the dense point the particles converged on */}
         <span aria-hidden="true" className="relative flex h-2 w-2">
           <span className="absolute inset-0 rounded-full bg-indigo-400/40 blur-[3px]" />
-          <span className="relative h-2 w-2 rounded-full bg-indigo-400" />
+          <span className="relative h-2 w-2 rounded-full bg-indigo-300 shadow-[0_0_6px_1px_rgba(165,180,252,0.8)]" />
+          {/* One shockwave on arrival; nothing at all under prefers-reduced-motion. */}
+          <span className="pointer-events-none absolute inset-0 rounded-full border border-indigo-300/80 motion-safe:animate-[compaction-shockwave_900ms_ease-out_1_both] motion-reduce:hidden" />
         </span>
 
         <span className="text-xs whitespace-nowrap">Context compacted</span>

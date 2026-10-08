@@ -2,20 +2,23 @@
  * CompactionFlow — the live trace of a context compaction, drawn INSIDE the conversation that is
  * being compacted (at the tail of its transcript), never over the composer.
  *
- * A field of particles is drawn into a dense core: the context window collapsing into its summary.
- * When the `compact_boundary` event arrives this block unmounts and CompactBoundaryBlock takes its
- * place in the transcript.
+ * An accretion disc seen at a tilt: matter spirals into a dense core, heating from indigo to
+ * white-cyan as it falls. Layers, back to front: ambient glow, far half of the disc, the core
+ * (halo, photon ring, hot centre), near half of the disc. All additive ('lighter'), so overlaps
+ * bloom instead of muddying. Each particle leaves a velocity streak sampled from its own past.
  *
- * `prefers-reduced-motion`: one still frame, no loop. The loop also stops while the tab is hidden.
+ * `prefers-reduced-motion`: one still frame. The loop also stops while the tab is hidden.
+ * When `compact_boundary` arrives this unmounts and CompactBoundaryBlock takes its place.
  */
 
 import { useEffect, useRef } from 'react'
-import { corePulse, makeParticles, poseAt } from './compactionParticles'
+import { corePulse, disc, heatColor, makeParticles, poseAt, type Particle } from './compactionParticles'
 
-const HEIGHT = 72
-const PARTICLES = 64
-/** Indigo-400, the same hue as the streaming dots. */
-const RGB = '129, 140, 248'
+const HEIGHT = 96
+const PARTICLES = 150
+/** How far back (ms) the streak of a particle reaches. */
+const STREAK_MS = 90
+const STILL_AT_MS = 1500
 
 function reducedMotion(): boolean {
   try {
@@ -25,22 +28,76 @@ function reducedMotion(): boolean {
   }
 }
 
-function draw(ctx: CanvasRenderingContext2D, w: number, h: number, t: number, particles: ReturnType<typeof makeParticles>) {
-  ctx.clearRect(0, 0, w, h)
+function drawCore(ctx: CanvasRenderingContext2D, w: number, h: number, t: number) {
+  const { cx, cy, a, b } = disc(w, h)
   const pulse = corePulse(t)
-  const core = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, 26)
-  core.addColorStop(0, `rgba(${RGB}, ${0.35 + 0.3 * pulse})`)
-  core.addColorStop(1, `rgba(${RGB}, 0)`)
+  // Wide halo.
+  const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, a * 0.5)
+  halo.addColorStop(0, `rgba(125, 140, 255, ${0.16 + 0.1 * pulse})`)
+  halo.addColorStop(0.4, 'rgba(99, 102, 241, 0.06)')
+  halo.addColorStop(1, 'rgba(99, 102, 241, 0)')
+  ctx.fillStyle = halo
+  ctx.fillRect(0, 0, w, h)
+  // Photon ring: a thin ellipse turning slowly, with a bright arc that sweeps around it.
+  const ringR = 0.075
+  const sweep = (t / 1400) % (Math.PI * 2)
+  ctx.lineWidth = 1
+  ctx.strokeStyle = `rgba(165, 180, 252, ${0.18 + 0.12 * pulse})`
+  ctx.beginPath()
+  ctx.ellipse(cx, cy, a * ringR, b * ringR * 1.9, 0, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.lineWidth = 1.6
+  ctx.strokeStyle = `rgba(236, 254, 255, ${0.55 + 0.3 * pulse})`
+  ctx.beginPath()
+  ctx.ellipse(cx, cy, a * ringR, b * ringR * 1.9, 0, sweep, sweep + 0.9)
+  ctx.stroke()
+  // Hot centre.
+  const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, 11 + 3 * pulse)
+  core.addColorStop(0, `rgba(255, 255, 255, ${0.9 * pulse + 0.1})`)
+  core.addColorStop(0.35, `rgba(186, 230, 253, ${0.5 * pulse})`)
+  core.addColorStop(1, 'rgba(56, 189, 248, 0)')
   ctx.fillStyle = core
-  ctx.fillRect(w / 2 - 30, h / 2 - 30, 60, 60)
+  ctx.beginPath()
+  ctx.arc(cx, cy, 14, 0, Math.PI * 2)
+  ctx.fill()
+}
+
+function drawParticles(ctx: CanvasRenderingContext2D, particles: Particle[], w: number, h: number, t: number, near: boolean) {
+  ctx.lineCap = 'round'
   for (const p of particles) {
-    const pose = poseAt(p, t, w, h)
-    if (pose.alpha <= 0.01) continue
+    const now = poseAt(p, t, w, h)
+    if (now.alpha <= 0.02 || now.depth > 0 !== near) continue
+    const past = poseAt(p, t - STREAK_MS, w, h)
+    const rgb = heatColor(now.heat)
+    // A loop wrap would draw a streak across the whole field: skip the frame it wraps on.
+    const jump = Math.hypot(now.x - past.x, now.y - past.y)
+    if (jump < w * 0.25) {
+      const grad = ctx.createLinearGradient(past.x, past.y, now.x, now.y)
+      grad.addColorStop(0, `rgba(${rgb}, 0)`)
+      grad.addColorStop(1, `rgba(${rgb}, ${(now.alpha * 0.9).toFixed(3)})`)
+      ctx.strokeStyle = grad
+      ctx.lineWidth = Math.max(0.6, now.radius * 1.1)
+      ctx.beginPath()
+      ctx.moveTo(past.x, past.y)
+      ctx.lineTo(now.x, now.y)
+      ctx.stroke()
+    }
+    // The head: a soft dot, brighter than its streak.
+    ctx.fillStyle = `rgba(${rgb}, ${Math.min(1, now.alpha).toFixed(3)})`
     ctx.beginPath()
-    ctx.fillStyle = `rgba(${RGB}, ${(pose.alpha * 0.85).toFixed(3)})`
-    ctx.arc(pose.x, pose.y, pose.radius, 0, Math.PI * 2)
+    ctx.arc(now.x, now.y, now.radius, 0, Math.PI * 2)
     ctx.fill()
   }
+}
+
+function draw(ctx: CanvasRenderingContext2D, w: number, h: number, t: number, particles: Particle[]) {
+  ctx.globalCompositeOperation = 'source-over'
+  ctx.clearRect(0, 0, w, h)
+  ctx.globalCompositeOperation = 'lighter'
+  drawParticles(ctx, particles, w, h, t, false) // far half, behind the core
+  drawCore(ctx, w, h, t)
+  drawParticles(ctx, particles, w, h, t, true) // near half, in front
+  ctx.globalCompositeOperation = 'source-over'
 }
 
 export function CompactionFlow() {
@@ -69,7 +126,7 @@ export function CompactionFlow() {
     const frame = (now: number) => {
       if (!start) start = now
       draw(ctx, w, HEIGHT, now - start, particles)
-      if (!still && !document.hidden) raf = requestAnimationFrame(frame)
+      if (!document.hidden) raf = requestAnimationFrame(frame)
     }
     const onVisibility = () => {
       cancelAnimationFrame(raf)
@@ -77,11 +134,16 @@ export function CompactionFlow() {
     }
 
     resize()
-    // A still frame is drawn at 40 % of the loop: particles mid-flight, core visible.
-    if (still) draw(ctx, w, HEIGHT, 1000, particles)
+    if (still) draw(ctx, w, HEIGHT, STILL_AT_MS, particles)
     else raf = requestAnimationFrame(frame)
 
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => { resize(); if (still) draw(ctx, w, HEIGHT, 1000, particles) }) : null
+    const ro =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => {
+            resize()
+            if (still) draw(ctx, w, HEIGHT, STILL_AT_MS, particles)
+          })
+        : null
     ro?.observe(host)
     document.addEventListener('visibilitychange', onVisibility)
     return () => {
@@ -100,8 +162,10 @@ export function CompactionFlow() {
       className="relative my-2 select-none overflow-hidden rounded-lg"
       style={{ height: HEIGHT }}
     >
-      <canvas ref={canvasRef} aria-hidden="true" className="absolute inset-0 h-full w-full" style={{ height: HEIGHT }} />
-      <span className="absolute inset-x-0 bottom-1 text-center text-[11px] text-gray-400">Compacting context</span>
+      <canvas ref={canvasRef} aria-hidden="true" className="absolute inset-0 w-full" style={{ height: HEIGHT }} />
+      <span className="absolute inset-x-0 bottom-1 text-center text-[11px] tracking-wide text-indigo-200/70">
+        Compacting context
+      </span>
     </div>
   )
 }
