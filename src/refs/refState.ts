@@ -60,6 +60,11 @@ export function reconcileRefs(text: string, known: readonly ChatReference[] = []
   return out
 }
 
+/** How many distinct references the tokens of `text` ask for - before any cap. */
+export function countRefTokens(text: string): number {
+  return new Set(findRefTokens(text).map(refKey)).size
+}
+
 /** Text without every token of `target`, and the one space that separated it from its neighbour. */
 export function removeRefFromText(text: string, target: EntityRef): string {
   const key = refKey(target)
@@ -107,6 +112,38 @@ export function applyResolved(refs: readonly ChatReference[] | undefined, resolv
     else list.push(next)
   }
   return list
+}
+
+/**
+ * Bind a `refs_resolved` event to its message. The event carries no message
+ * id, so the binding is made on what the event DOES say: its references.
+ *
+ * It belongs to the OLDEST user message that carries references, has not been
+ * answered yet (some reference still has no `resolution`) and holds at least one
+ * reference the event lists (the event may list more: those are appended, see
+ * `applyResolved`). That is the send order (FIFO): two messages sent
+ * back to back are answered in turn, a message without references is never
+ * touched, and the answer of A can never land on a later B.
+ *
+ * Nothing matches (message not on screen, other references): the SAME array
+ * comes back and nothing is applied, rather than guessing.
+ */
+export function bindResolvedRefs<M extends { role: string; refs?: readonly ChatReference[] }>(
+  messages: readonly M[],
+  resolved: readonly ResolvedRef[],
+): { messages: readonly M[]; index: number } {
+  if (resolved.length === 0) return { messages, index: -1 }
+  const wanted = resolved.map(refKey)
+  const index = messages.findIndex((m) => {
+    if (m.role !== 'user' || !m.refs || m.refs.length === 0) return false
+    if (!m.refs.some((r) => r.resolution === undefined)) return false
+    const held = new Set(m.refs.map(refKey))
+    return wanted.some((k) => held.has(k))
+  })
+  if (index < 0) return { messages, index }
+  const next = [...messages]
+  next[index] = { ...messages[index], refs: applyResolved(messages[index].refs, resolved) }
+  return { messages: next, index }
 }
 
 /** Short, stable name of a reference without a label ("Task 3adeffc9"). */

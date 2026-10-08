@@ -7,7 +7,7 @@
 
 import { splitAttachments } from './messageAttachments'
 import { splitRefs } from './messageRefs'
-import { applyResolved, parseResolvedRefs, refsFromBlock } from '@/refs/refState'
+import { bindResolvedRefs, parseResolvedRefs, refsFromBlock } from '@/refs/refState'
 import { applyResultCost } from './cost'
 import type {
   BackgroundActivityMetadata,
@@ -260,7 +260,9 @@ export function toolsCancelledText(evt: { killed_count?: number; requested_by?: 
  * Groups events into user/assistant messages — same logic as handleEvent in replay mode.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function historyEventsToMessages(events: any[]): ChatMessage[] {
+export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boolean } = {}): ChatMessage[] {
+  // Without refs_v1 a stored `<po-refs>` block is plain text: the chat is what it was.
+  const refsEnabled = opts.refsEnabled ?? false
   const messages: ChatMessage[] = []
 
   function lastAssistant(eventTimestamp?: Date): ChatMessage {
@@ -286,7 +288,7 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
       case 'user_message': {
         // Attachments are the outer block, refs the inner one: peel in that order.
         const { text: withoutAttachments, attachments: sentAttachments } = splitAttachments(evt.content ?? '')
-        const { text: content, refs: sentRefs } = splitRefs(withoutAttachments)
+        const { text: content, refs: sentRefs } = splitRefs(withoutAttachments, refsEnabled)
         // "Continue" after max_turns -> discreet indicator instead of user bubble
         if (lastEventWasMaxTurns && content === 'Continue') {
           const assistantMsg = messages[messages.length - 1]
@@ -330,15 +332,12 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
       }
 
       // How the server read the references of the user message above (contract C5).
-      // No id on the wire: it belongs to the LAST user message of the stream.
+      // No id on the wire: bound by its references to the oldest user message still waiting for them
+      // (see `bindResolvedRefs`); one that matches nothing is dropped.
       case 'refs_resolved': {
         const resolved = parseResolvedRefs(evt.refs ?? evt.data?.refs)
-        if (resolved.length === 0) break
-        for (let i = messages.length - 1; i >= 0; i--) {
-          if (messages[i].role !== 'user') continue
-          messages[i] = { ...messages[i], refs: applyResolved(messages[i].refs, resolved) }
-          break
-        }
+        const bound = bindResolvedRefs(messages, resolved)
+        if (bound.index >= 0) messages[bound.index] = bound.messages[bound.index]
         break
       }
 
@@ -753,6 +752,24 @@ export function historyEventsToMessages(events: any[]): ChatMessage[] {
 // ---------------------------------------------------------------------------
 
 export { nextBlockId, nextMessageId, getParentToolUseId, withParent, withCreatedAt }
+
+/**
+ * Messages loaded before refs_v1 was known keep a stored `<po-refs>` block in
+ * their text. Once the flag is on, read it: the text loses the block and the
+ * message gets its references. The SAME array comes back when nothing changes.
+ */
+export function decodeStoredRefs(messages: ChatMessage[]): ChatMessage[] {
+  let changed = false
+  const next = messages.map((m) => {
+    const first = m.blocks[0]
+    if (m.role !== 'user' || m.refs?.length || first?.type !== 'text' || !first.content.includes('<po-refs>')) return m
+    const { text, refs } = splitRefs(first.content)
+    if (refs.length === 0) return m
+    changed = true
+    return { ...m, blocks: [{ ...first, content: text }, ...m.blocks.slice(1)], refs: refsFromBlock(refs) }
+  })
+  return changed ? next : messages
+}
 
 /**
  * What the provider adapter said about a tool call (`tool_use`,
