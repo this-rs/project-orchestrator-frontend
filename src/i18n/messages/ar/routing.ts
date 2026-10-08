@@ -2,9 +2,9 @@ import type { Translation } from '../../catalog.ts'
 
 export default {
   modes: {
-    primary: { label: 'الأساسي فقط', description: 'مزوّد أساسي واحد حصري، كما هو اليوم. يكتفي PO بتسجيل ما كان سيختاره.' },
-    mixed: { label: 'مختلط', description: 'يقود المزوّد الأساسي المحادثة، ويوجّه PO المنفّذين.' },
-    full: { label: 'كامل', description: 'يختار PO كل شيء ويشرح السبب.' },
+    primary: { label: 'صارم', description: 'نموذج واحد لكامل السلسلة: الذي تختاره.' },
+    mixed: { label: 'مختلط', description: 'أنت تختار القائد؛ ويوجّه PO كل منفّذ، وقد يكون عبر عدة مزوّدين.' },
+    full: { label: 'تلقائي', description: 'يختار PO المزوّد والنموذج لكامل السلسلة ويشرح السبب.' },
   },
   stages: {
     shadow: { label: 'ظلّي', description: 'لا يُطبَّق شيء؛ يُسجَّل كل قرار.' },
@@ -134,6 +134,7 @@ export default {
     poChooses: 'سيختار PO بنفسه (التوجيه: كامل)',
     poRoutes: 'PO يوجّه (موصى به)',
   },
+  menu: { modeLegend: 'وضع التوجيه', saveFailed: 'تعذّر حفظ الوضع.' },
   picker: { primary: 'الأساسي: {target} · PO يوجّه المنفّذين', forced: 'مفروض: {target}', willChoose: 'سيختار PO عند أول رسالة', routedBy: 'تم التوجيه بواسطة: {by}', aria: 'التوجيه: {mode}' },
   reason: 'السبب: {reason}',
 } satisfies Translation<'routing'>

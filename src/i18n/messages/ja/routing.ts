@@ -2,9 +2,9 @@ import type { Translation } from '../../catalog.ts'
 
 export default {
   modes: {
-    primary: { label: 'プライマリのみ', description: '排他的なプライマリプロバイダーを 1 つだけ使います（従来どおり）。PO は選んだはずの結果を記録するだけです。' },
-    mixed: { label: 'ミックス', description: 'プライマリが会話を進め、PO が実行役を振り分けます。' },
-    full: { label: 'フル', description: 'PO がすべてを選び、その理由を説明します。' },
+    primary: { label: '厳密', description: '連鎖全体で 1 つのモデル：あなたが選んだもの。' },
+    mixed: { label: '混合', description: 'パイロットはあなたが選び、各実行役は PO が複数のプロバイダーにまたがって振り分けます。' },
+    full: { label: '自動', description: 'PO が連鎖全体のプロバイダーとモデルを選び、理由も示します。' },
   },
   stages: {
     shadow: { label: 'シャドウ', description: '何も適用せず、判断をすべて記録します。' },
@@ -134,6 +134,7 @@ export default {
     poChooses: 'PO が選びます（ルーティング: フル）',
     poRoutes: 'PO がルーティング（推奨）',
   },
+  menu: { modeLegend: 'ルーティングモード', saveFailed: 'モードを保存できませんでした。' },
   picker: { primary: 'プライマリ: {target} · PO が実行役をルーティング', forced: '強制: {target}', willChoose: '最初のメッセージで PO が選択します', routedBy: 'ルーティング元: {by}', aria: 'ルーティング: {mode}' },
   reason: '理由: {reason}',
 } satisfies Translation<'routing'>

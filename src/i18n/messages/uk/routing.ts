@@ -2,9 +2,9 @@ import type { Translation } from '../../catalog.ts'
 
 export default {
   modes: {
-    primary: { label: 'Лише основний', description: 'Один ексклюзивний основний провайдер, як зараз. PO лише записує, що він обрав би.' },
-    mixed: { label: 'Змішаний', description: 'Основний провайдер веде розмову; PO розподіляє виконавців.' },
-    full: { label: 'Повний', description: 'PO обирає все й пояснює чому.' },
+    primary: { label: 'Суворий', description: 'Одна модель на весь ланцюжок — та, яку ви оберете.' },
+    mixed: { label: 'Змішаний', description: 'Ви обираєте пілота; PO маршрутизує кожного виконавця, можливо між кількома провайдерами.' },
+    full: { label: 'Авто', description: 'PO обирає провайдера й модель для всього ланцюжка та пояснює вибір.' },
   },
   stages: {
     shadow: { label: 'Тіньовий', description: 'Нічого не застосовується; кожне рішення записується.' },
@@ -134,6 +134,7 @@ export default {
     poChooses: 'PO обере сам (маршрутизація: повна)',
     poRoutes: 'PO маршрутизує (рекомендовано)',
   },
+  menu: { modeLegend: 'Режим маршрутизації', saveFailed: 'Не вдалося зберегти режим.' },
   picker: { primary: 'Основний: {target} · PO маршрутизує виконавців', forced: 'Примусово: {target}', willChoose: 'PO обере при першому повідомленні', routedBy: 'Маршрутизація: {by}', aria: 'Маршрутизація: {mode}' },
   reason: 'Причина: {reason}',
 } satisfies Translation<'routing'>

@@ -2,9 +2,9 @@ import type { Translation } from '../../catalog.ts'
 
 export default {
   modes: {
-    primary: { label: 'Nur Primär', description: 'Ein einziger exklusiver Primär-Provider, wie heute. PO hält nur fest, was es gewählt hätte.' },
-    mixed: { label: 'Gemischt', description: 'Der Primär-Provider führt das Gespräch; PO verteilt die Ausführenden.' },
-    full: { label: 'Voll', description: 'PO wählt alles und erklärt, warum.' },
+    primary: { label: 'Strikt', description: 'Ein Modell für die ganze Kette: das, das Sie wählen.' },
+    mixed: { label: 'Gemischt', description: 'Sie wählen den Piloten; PO routet jeden Ausführenden, auch über mehrere Provider hinweg.' },
+    full: { label: 'Auto', description: 'PO wählt Provider und Modell für die gesamte Kette und begründet die Wahl.' },
   },
   stages: {
     shadow: { label: 'Beobachtung', description: 'Nichts wird angewendet; jede Entscheidung wird aufgezeichnet.' },
@@ -134,6 +134,7 @@ export default {
     poChooses: 'PO wählt (Routing: vollständig)',
     poRoutes: 'PO routet (empfohlen)',
   },
+  menu: { modeLegend: 'Routing-Modus', saveFailed: 'Der Modus konnte nicht gespeichert werden.' },
   picker: { primary: 'Primär: {target} · PO routet die Ausführenden', forced: 'Erzwungen: {target}', willChoose: 'PO wählt bei der ersten Nachricht', routedBy: 'Geroutet durch: {by}', aria: 'Routing-Modus: {mode}' },
   reason: 'Grund: {reason}',
 } satisfies Translation<'routing'>

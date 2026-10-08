@@ -2,9 +2,9 @@ import type { Translation } from '../../catalog.ts'
 
 export default {
   modes: {
-    primary: { label: '기본만', description: '배타적인 기본 프로바이더 하나만 사용합니다(현재 방식). PO는 선택했을 결과를 기록만 합니다.' },
-    mixed: { label: '혼합', description: '기본 프로바이더가 대화를 이끌고, PO가 실행자를 배정합니다.' },
-    full: { label: '전체', description: 'PO가 모든 것을 선택하고 이유를 설명합니다.' },
+    primary: { label: '엄격', description: '전체 체인에 하나의 모델: 직접 고른 모델.' },
+    mixed: { label: '혼합', description: '파일럿은 직접 고르고, 각 실행자는 PO가 여러 제공자에 걸쳐 라우팅합니다.' },
+    full: { label: '자동', description: 'PO가 전체 체인의 제공자와 모델을 선택하고 이유를 설명합니다.' },
   },
   stages: {
     shadow: { label: '섀도', description: '아무것도 적용하지 않고 모든 결정을 기록합니다.' },
@@ -134,6 +134,7 @@ export default {
     poChooses: 'PO가 선택합니다(라우팅: 전체)',
     poRoutes: 'PO가 라우팅(권장)',
   },
+  menu: { modeLegend: '라우팅 모드', saveFailed: '모드를 저장하지 못했습니다.' },
   picker: { primary: '기본: {target} · PO가 실행자를 라우팅', forced: '강제됨: {target}', willChoose: '첫 메시지에서 PO가 선택합니다', routedBy: '라우팅 주체: {by}', aria: '라우팅: {mode}' },
   reason: '이유: {reason}',
 } satisfies Translation<'routing'>
