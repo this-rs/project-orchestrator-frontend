@@ -140,7 +140,8 @@ export function Select({
       case ' ':
         e.preventDefault()
         if (isOpen && activeIndex >= 0 && activeIndex < options.length) {
-          handleSelect(options[activeIndex].value)
+          const active = options[activeIndex]
+          if (active) handleSelect(active.value)
         } else if (!isOpen) {
           openMenu()
         }
