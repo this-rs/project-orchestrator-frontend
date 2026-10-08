@@ -134,4 +134,6 @@ export default {
     poChooses: 'PO sẽ chọn (định tuyến: đầy đủ)',
     poRoutes: 'PO định tuyến (khuyến nghị)',
   },
+  picker: { primary: 'Chính: {target} · PO định tuyến các bên thực thi', forced: 'Đã buộc: {target}', willChoose: 'PO sẽ chọn ở tin nhắn đầu tiên', routedBy: 'Định tuyến bởi: {by}', aria: 'Định tuyến: {mode}' },
+  reason: 'Lý do: {reason}',
 } satisfies Translation<'routing'>

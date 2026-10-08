@@ -14,10 +14,13 @@ import {
   type ProviderId,
   type ProviderInstance,
   type ProviderRef,
+  type RoutedBy,
   type ProvidersResponse,
   type ToolPolicy,
 } from '@/types/provider'
-import { chatPermissionConfigAtom, chatSessionIdAtom, chatSessionModelAtom } from './chat'
+import { routingApi } from '@/services/routing'
+import type { ProviderRoutingMode, RoutingSettingsResponse } from '@/types/routing'
+import { chatPermissionConfigAtom, chatSelectedProjectAtom, chatSessionIdAtom, chatSessionModelAtom } from './chat'
 
 /**
  * - `idle` — never asked.
@@ -166,11 +169,100 @@ function findInstance(list: ProvidersResponse | null, id: ProviderId): ProviderI
   return list?.providers.find((p) => p.id === id) ?? null
 }
 
+// ----------------------------------------------------------------------------
+// Routing mode (primary / mixed / full)
+// ----------------------------------------------------------------------------
+
 /**
- * Id of the provider the composer is talking to: the session's, or — before
- * any session exists — the picked one, then the server default, then Claude Code.
+ * - `loading` / `ready` — the usual.
+ * - `unsupported` — the backend has no routing routes (404): mode `primary`.
+ * - `error` — the fetch failed: mode `primary` too (the identity behaviour), retried on the next load.
  */
-export const chatEffectiveProviderIdAtom = atom<ProviderId>((get) => {
+export interface RoutingSettingsEntry {
+  state: 'idle' | 'loading' | 'ready' | 'unsupported' | 'error'
+  settings: RoutingSettingsResponse | null
+}
+
+const IDLE_ROUTING: RoutingSettingsEntry = { state: 'idle', settings: null }
+
+const routingSettingsFamily = new Map<string, ReturnType<typeof atom<RoutingSettingsEntry>>>()
+
+/**
+ * Effective routing settings, cached per project slug (`''` = the global ones).
+ * A family: one atom per key, created on first use and kept.
+ */
+export function routingSettingsAtom(slug: string | null | undefined) {
+  const key = slug ?? ''
+  let a = routingSettingsFamily.get(key)
+  if (!a) {
+    a = atom<RoutingSettingsEntry>(IDLE_ROUTING)
+    routingSettingsFamily.set(key, a)
+  }
+  return a
+}
+
+/** Requests in flight, per key: overlapping loads share one request. */
+const routingInFlight = new Map<string, Promise<void>>()
+
+/**
+ * Load the effective routing settings of a project (global ones without a
+ * slug) into `routingSettingsAtom(slug)`. Never throws. `force` re-reads an
+ * already loaded entry (after the settings page saved).
+ */
+export const loadRoutingSettingsAtom = atom(null, (get, set, params: { slug?: string | null; force?: boolean }) => {
+  const key = params.slug ?? ''
+  const target = routingSettingsAtom(key)
+  const entry = get(target)
+  if (!params.force && (entry.state === 'ready' || entry.state === 'unsupported')) return Promise.resolve()
+  const running = routingInFlight.get(key)
+  if (running) return running
+  set(target, { state: 'loading', settings: entry.settings })
+  const promise = (key ? routingApi.getProject(key) : routingApi.get())
+    .then((settings) => {
+      set(target, { state: 'ready', settings })
+    })
+    .catch((err: unknown) => {
+      const status = err instanceof ApiError ? err.status : null
+      set(target, { state: status === 404 || status === 405 ? 'unsupported' : 'error', settings: null })
+    })
+    .finally(() => {
+      routingInFlight.delete(key)
+    })
+  routingInFlight.set(key, promise)
+  return promise
+})
+
+/** Project the conversation being composed is about (`''` = none: the global settings apply). */
+export const chatRoutingSlugAtom = atom<string>((get) => get(chatSelectedProjectAtom)?.slug ?? '')
+
+/** Settings in force for that project, `null` until loaded / without routing routes. */
+export const chatRoutingSettingsAtom = atom<RoutingSettingsResponse | null>((get) => get(routingSettingsAtom(get(chatRoutingSlugAtom))).settings)
+
+/** Mode in force for the composer. Anything not known is `primary`: today's behaviour. */
+export const chatRoutingModeAtom = atom<ProviderRoutingMode>((get) => get(chatRoutingSettingsAtom)?.mode ?? 'primary')
+
+/**
+ * True once the user chose a provider/model for the NEXT conversation through
+ * the "Advanced" path. In `mixed` / `full` nothing is sent unless this is set;
+ * in `primary` the picker is the way and this is irrelevant.
+ */
+export const chatForcedTargetAtom = atom<boolean>(false)
+
+/** How the CURRENT session was routed, from its record. `null` = not said. */
+export interface ChatSessionRouting {
+  routed_by: RoutedBy | null
+  route_reason: string | null
+  routing_mode: ProviderRoutingMode | null
+}
+export const chatSessionRoutingAtom = atom<ChatSessionRouting | null>(null)
+
+/**
+ * Provider the composer's capabilities and menus are about: the session's, or
+ * — before any session exists — the picked one, then the server default, then
+ * Claude Code. A PROFILE to reason with, not a claim about who answers: see
+ * `chatEffectiveProviderIdAtom` for that.
+ */
+export const chatTargetProviderIdAtom = atom<ProviderId>((get) => {
   const ofSession = get(chatSessionProviderAtom)
   if (ofSession) return ofSession.id
   if (get(chatSessionIdAtom)) return CLAUDE_CODE_PROVIDER_ID
@@ -180,9 +272,21 @@ export const chatEffectiveProviderIdAtom = atom<ProviderId>((get) => {
   return list?.default?.provider ?? CLAUDE_CODE_PROVIDER_ID
 })
 
-/** The instance behind `chatEffectiveProviderIdAtom`, when the list knows it. */
+/**
+ * Id of the provider the composer is talking to — `null` when nobody is yet.
+ * In `full`, before a session exists and unless the user forced a target, PO
+ * has not chosen: the badge must not claim a provider.
+ */
+export const chatEffectiveProviderIdAtom = atom<ProviderId | null>((get) => {
+  if (!get(chatSessionProviderAtom) && !get(chatSessionIdAtom) && get(chatRoutingModeAtom) === 'full' && !get(chatForcedTargetAtom)) {
+    return null
+  }
+  return get(chatTargetProviderIdAtom)
+})
+
+/** The instance behind `chatTargetProviderIdAtom`, when the list knows it. */
 export const chatEffectiveProviderAtom = atom<ProviderInstance | null>((get) =>
-  findInstance(get(providersAtom), get(chatEffectiveProviderIdAtom)),
+  findInstance(get(providersAtom), get(chatTargetProviderIdAtom)),
 )
 
 /**
@@ -193,7 +297,7 @@ export const chatEffectiveProviderAtom = atom<ProviderInstance | null>((get) =>
  * Claude/legacy session and the minimal one for an unknown third-party instance.
  */
 export const chatSessionCapabilitiesAtom = atom<ProviderCapabilities>((get) => {
-  const id = get(chatEffectiveProviderIdAtom)
+  const id = get(chatTargetProviderIdAtom)
   const ref = get(chatSessionProviderAtom)
   const instance = get(chatEffectiveProviderAtom)
   const base = instance
@@ -232,7 +336,7 @@ export const chatPermissionInteractiveAtom = atom((get) => {
  * said — the interface then shows "Default model", never an invented id.
  */
 export const chatDefaultModelAtom = atom<string | null>((get) => {
-  const id = get(chatEffectiveProviderIdAtom)
+  const id = get(chatTargetProviderIdAtom)
   const resolved = get(providersAtom)?.default
   if (resolved && resolved.provider === id) {
     const model = resolved.model ?? resolved.alias

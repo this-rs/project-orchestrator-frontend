@@ -134,4 +134,6 @@ export default {
     poChooses: 'PO обере сам (маршрутизація: повна)',
     poRoutes: 'PO маршрутизує (рекомендовано)',
   },
+  picker: { primary: 'Основний: {target} · PO маршрутизує виконавців', forced: 'Примусово: {target}', willChoose: 'PO обере при першому повідомленні', routedBy: 'Маршрутизація: {by}', aria: 'Маршрутизація: {mode}' },
+  reason: 'Причина: {reason}',
 } satisfies Translation<'routing'>

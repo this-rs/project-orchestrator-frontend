@@ -1,4 +1,5 @@
 import type { ContentBlock } from '@/types'
+import { useT } from '@/i18n'
 import { getModelShortLabel } from '@/constants/models'
 import { RefreshCw } from 'lucide-react'
 
@@ -7,7 +8,9 @@ interface ModelChangedBlockProps {
 }
 
 export function ModelChangedBlock({ block }: ModelChangedBlockProps) {
+  const { t } = useT()
   const model = (block.metadata?.model as string) ?? 'unknown'
+  const reason = typeof block.metadata?.reason === 'string' && block.metadata.reason ? block.metadata.reason : null
 
   return (
     <div className="flex items-center gap-2 py-1 my-1 select-none">
@@ -20,6 +23,12 @@ export function ModelChangedBlock({ block }: ModelChangedBlockProps) {
       <span className="px-1.5 py-0.5 bg-violet-600/20 text-violet-400 text-[10px] rounded font-mono font-medium">
         {getModelShortLabel(model)}
       </span>
+
+      {reason && (
+        <span data-testid="model-changed-reason" className="min-w-0 truncate text-[10px] text-gray-500" title={reason}>
+          {t('routing.reason', { reason })}
+        </span>
+      )}
     </div>
   )
 }

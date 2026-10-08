@@ -21,7 +21,8 @@ import {
 import { ChevronDown, Loader2, Paperclip, Square, ArrowRight } from 'lucide-react'
 import { ActivityBar, type RunActions } from './ActivityBar'
 import type { RunningItem } from './runningActivity'
-import { ProviderModelPicker, type ProviderModelMenu } from './ProviderModelPicker'
+import { RoutingModePicker } from './RoutingModePicker'
+import type { ProviderModelMenu } from './ProviderModelPicker'
 import { deriveInputAction, describeAction } from './inputAction'
 import { MessageQueueBar } from './MessageQueueBar'
 import { shouldEnqueue, type QueueOp, type QueuedMessage } from './messageQueue'
@@ -859,7 +860,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           {/* Provider (when the server has several) and model — always visible
               (new conversation + active session). */}
           <div className="flex min-w-0 flex-1 items-center gap-1.5" ref={modelDropdownRef}>
-            <ProviderModelPicker
+            <RoutingModePicker
               sessionId={sessionId}
               open={pickerMenu}
               onOpenChange={handlePickerMenu}

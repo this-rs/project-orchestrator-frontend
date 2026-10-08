@@ -134,4 +134,6 @@ export default {
     poChooses: 'PO चुनेगा (रूटिंग: पूर्ण)',
     poRoutes: 'PO रूट करता है (अनुशंसित)',
   },
+  picker: { primary: 'प्राथमिक: {target} · PO निष्पादकों को रूट करता है', forced: 'थोपा गया: {target}', willChoose: 'PO पहले संदेश पर चुनेगा', routedBy: 'रूट करने वाला: {by}', aria: 'रूटिंग: {mode}' },
+  reason: 'कारण: {reason}',
 } satisfies Translation<'routing'>
