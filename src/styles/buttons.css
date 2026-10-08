@@ -174,3 +174,31 @@
     .seg-item[aria-selected='true'], .seg-item[aria-pressed='true'] { background-color: Highlight; color: HighlightText; }
   }
 }
+
+/* ─── Curseur : tout ce qui agit montre la main ─────────────────────────────────────────────────────────────────────────
+ * Tailwind v4 remet `cursor: default` sur les boutons (le préflight a changé) : un `<select>`, le déclencheur d'un `Select`, une option
+ * de liste, un onglet, un interrupteur ou un `<summary>` montraient donc la flèche, contrairement à un bouton ordinaire. Règle de BASE
+ * (couche `base` : toute classe utilitaire `cursor-*` sur un élément précis la surcharge, p. ex. `cursor-grab`). Les champs de saisie
+ * gardent le curseur texte : un `combobox` qui est un <input> n'est pas visé. Désactivé : `not-allowed`, comme `.btn:disabled`. */
+@layer base {
+  button:not(:disabled),
+  select:not(:disabled),
+  summary,
+  label[for],
+  [role='button']:not([aria-disabled='true']),
+  [role='option']:not([aria-disabled='true']),
+  [role='menuitem']:not([aria-disabled='true']),
+  [role='menuitemradio']:not([aria-disabled='true']),
+  [role='menuitemcheckbox']:not([aria-disabled='true']),
+  [role='tab']:not([aria-disabled='true']),
+  [role='switch']:not([aria-disabled='true']),
+  [role='combobox']:not(input):not(textarea):not([aria-disabled='true']),
+  input:is([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color']):not(:disabled) {
+    cursor: pointer;
+  }
+  button:disabled,
+  select:disabled,
+  [aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+}
