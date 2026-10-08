@@ -10,6 +10,7 @@ import { OverflowMenu } from './OverflowMenu'
 import { CollapsibleMarkdown } from './CollapsibleMarkdown'
 import { MetaLine } from './MetaLine'
 import { inlineLink } from './classes'
+import { useAddToChatAction, useReferenceSource, type ReferenceSourceEntity } from '@/refs/source'
 
 export interface ParentLink {
   icon: LucideIcon
@@ -43,6 +44,8 @@ interface PageHeaderProps {
    * inherit the explanation from their list page.
    */
   intro?: ConceptKey | ConceptExplain
+  /** Declares the page's entity as a chat reference source (the title is draggable; "Add to chat" joins the menu). */
+  entityRef?: ReferenceSourceEntity
 }
 
 /**
@@ -87,7 +90,11 @@ export function PageHeader({
   parentLinks,
   viewTransitionName,
   intro,
+  entityRef,
 }: PageHeaderProps) {
+  const entity = entityRef ? { ...entityRef, label: entityRef.label ?? title } : null
+  const source = useReferenceSource(entity)
+  const addAction = useAddToChatAction(entity)
   const facts: ReactNode[] = [
     status,
     ...(meta ?? []),
@@ -100,7 +107,8 @@ export function PageHeader({
   ]
   const inRouter = useInRouterContext()
 
-  const hasOverflow = overflowActions && overflowActions.some((a) => !a.hidden)
+  const menuActions = [...(addAction ? [addAction] : []), ...(overflowActions ?? [])]
+  const hasOverflow = menuActions.some((a) => !a.hidden)
 
   return (
     <header className="space-y-2">
@@ -129,13 +137,14 @@ export function PageHeader({
         <div className="flex-1 min-w-0 flex flex-wrap items-start gap-x-3 gap-y-2">
           <h1
             className="min-w-0 flex-[1_1_16rem] text-xl md:text-2xl font-semibold tracking-tight text-gray-100 break-words"
+            {...source}
             style={viewTransitionName ? { viewTransitionName } : undefined}
           >
             {title}
           </h1>
           {actions && <div className="flex flex-wrap items-center gap-2 sm:ml-auto">{actions}</div>}
         </div>
-        {hasOverflow && <OverflowMenu actions={overflowActions} label={`Actions for ${title}`} className="-mr-1.5" />}
+        {hasOverflow && <OverflowMenu actions={menuActions} label={`Actions for ${title}`} className="-mr-1.5" />}
       </div>
 
       <MetaLine size="sm" items={facts} />

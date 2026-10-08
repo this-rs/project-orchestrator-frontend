@@ -27,6 +27,7 @@ import { deriveInputAction, describeAction } from './inputAction'
 import { MessageQueueBar } from './MessageQueueBar'
 import { shouldEnqueue, type QueueOp, type QueuedMessage } from './messageQueue'
 import { Attachments } from './Attachments'
+import { RefDropOverlay, useRefDropTarget } from '@/refs/source/useRefDropTarget'
 import { ReferenceChip } from './ReferenceChip'
 import { RefPicker, refOptionId } from './RefPicker'
 import { detectTrigger } from '@/refs/trigger'
@@ -529,6 +530,9 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   const dragHasFiles = (dt: DataTransfer | null) =>
     !!dt && Array.from(dt.types).includes('Files')
 
+  // A reference dragged from anywhere in the app (refs_v1): same zone, other payload. Files are untouched.
+  const refDrop = useRefDropTarget({ stop: true })
+
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     if (!dragHasFiles(e.dataTransfer)) return
     dragDepthRef.current++
@@ -769,11 +773,12 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
       // The composer is the drop target rather than the whole panel: it is
       // where the attachments then appear, so the drop lands where the result
       // shows up instead of somewhere up in the transcript.
-      onDragEnter={handleDragEnter}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      onDragEnter={(e) => { handleDragEnter(e); refDrop.zoneProps.onDragEnter(e) }}
+      onDragOver={(e) => { handleDragOver(e); refDrop.zoneProps.onDragOver(e) }}
+      onDragLeave={(e) => { handleDragLeave(e); refDrop.zoneProps.onDragLeave(e) }}
+      onDrop={(e) => { handleDrop(e); refDrop.zoneProps.onDrop(e) }}
     >
+      {refDrop.over && <RefDropOverlay />}
       {isDraggingFiles && (
         <div className="absolute inset-0 z-30 flex items-center justify-center rounded-lg border-2 border-dashed border-indigo-400/60 bg-[#14161a]/90 pointer-events-none">
           <span className="flex items-center gap-1.5 text-xs text-indigo-300">

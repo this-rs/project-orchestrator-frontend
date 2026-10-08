@@ -22,7 +22,7 @@ const UUID_SOURCE = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}
 const UUID_RE = new RegExp(`^${UUID_SOURCE}$`)
 const NIL_UUID = '00000000-0000-0000-0000-000000000000'
 
-const isValidId = (id: unknown): id is string => typeof id === 'string' && UUID_RE.test(id) && id !== NIL_UUID
+export const isValidId = (id: unknown): id is string => typeof id === 'string' && UUID_RE.test(id) && id !== NIL_UUID
 
 /**
  * The visible text and the references of a stored message.
