@@ -679,7 +679,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
     const ref: ChatReference = { kind: item.kind, id: item.id, label: item.label, subtitle: item.subtitle, entity_status: item.entity_status }
     const already = draftRefs.some((r) => refKey(r) === refKey(ref))
     // At the cap nothing is added (the picker says so); a reference already in the draft is not added twice.
-    if (refsFull && !already) return
+    if (refsFull && !already) {
+      setRefsOverflow(true)
+      return
+    }
     const before = value.slice(0, trigger.start)
     const after = value.slice(trigger.end)
     const token = already ? '' : refToken(ref)
@@ -884,6 +887,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
             activeIndex={activeRef}
             kindFilter={trigger?.kinds?.[0]}
             full={refsFull}
+            isInDraft={(item) => draftRefs.some((r) => refKey(r) === refKey(item))}
             onPick={pickRef}
             onHover={setRefActive}
           />
@@ -899,7 +903,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           </p>
         )}
         {draftRefs.length > 0 && (
-          <ul aria-label="References" className="m-0 flex list-none flex-wrap gap-1 px-1.5 pt-1">
+          <ul aria-label="References" className="m-0 flex max-h-20 list-none flex-wrap gap-1 overflow-y-auto px-1.5 pt-1">
             {draftRefs.map((r) => (
               <li key={refKey(r)}>
                 <ReferenceChip
