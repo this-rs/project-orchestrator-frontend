@@ -713,6 +713,12 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
             pickRef(activeItem)
             return true
           }
+          // The previous list is still on screen while the next search runs: the key must not pick from it,
+          // and must not send the message under the user's eyes either.
+          if (refSearch.status === 'loading' && refSearch.items.length > 0) {
+            e.preventDefault()
+            return true
+          }
           // No active option (loading, failed, empty): the key keeps its usual meaning, Enter sends.
           return false
         case 'Escape':

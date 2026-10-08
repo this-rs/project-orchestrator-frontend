@@ -231,7 +231,7 @@ describe('ChatInput — # references on', () => {
     mount({ features: ['refs_v1'] })
     type('#a')
     await settle()
-    expect(screen.getByTestId('ref-picker-status').textContent).toBe('Search failed: network down')
+    expect(screen.getByTestId('ref-picker-status').textContent).toBe('The search is unavailable right now. Try again.')
   })
 
   it('a token goes as one piece: Backspace right after it removes all of it', async () => {

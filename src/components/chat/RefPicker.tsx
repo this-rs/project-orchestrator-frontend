@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { Loader2 } from 'lucide-react'
 import { refKindDef } from '@/refs/registry'
 import type { RefSearchState } from '@/refs/useRefSearch'
 import type { RefSearchItem } from '@/refs/refsApi'
@@ -33,9 +34,10 @@ export function RefPicker({ listId, search, activeIndex, kindFilter, full, isInD
   useEffect(() => {
     document.getElementById(refOptionId(listId, activeIndex))?.scrollIntoView?.({ block: 'nearest' })
   }, [listId, activeIndex])
+  const loading = search.status === 'loading' || search.status === 'idle'
   const status =
     search.status === 'error'
-      ? `Search failed: ${search.message}`
+      ? search.message
       : search.status === 'ready' && items.length === 0
         ? 'No results'
         : search.status === 'ready'
@@ -62,10 +64,16 @@ export function RefPicker({ listId, search, activeIndex, kindFilter, full, isInD
       )}
       {/* No listbox without an option: the status line below says why there is nothing. */}
       {items.length > 0 && (
-        <ul id={listId} role="listbox" aria-label="References" className="m-0 list-none p-0">
+        <ul
+          id={listId}
+          role="listbox"
+          aria-label="References"
+          aria-busy={loading || undefined}
+          className={`m-0 list-none p-0 transition-opacity ${loading ? 'opacity-60' : ''}`}
+        >
           {items.map((item, i) => {
             const def = refKindDef(item.kind)
-            const active = i === activeIndex
+            const active = !loading && i === activeIndex
             const blocked = full && !isInDraft?.(item)
             return (
               <li
@@ -91,9 +99,26 @@ export function RefPicker({ listId, search, activeIndex, kindFilter, full, isInD
           })}
         </ul>
       )}
-      <p role="status" aria-live="polite" data-testid="ref-picker-status" className="px-2.5 pt-1 text-[11px] text-slate-400">
-        {status}
-      </p>
+      <div className="flex items-center gap-2 px-2.5 pt-1 text-xs text-slate-300">
+        {loading && <Loader2 data-testid="ref-picker-spinner" className="h-3.5 w-3.5 shrink-0 animate-spin text-indigo-300" aria-hidden />}
+        <p
+          role="status"
+          aria-live="polite"
+          data-testid="ref-picker-status"
+          className={`m-0 min-w-0 flex-1 ${search.status === 'error' ? 'text-amber-200' : ''}`}
+        >
+          {status}
+        </p>
+        {search.status === 'error' && (
+          <button
+            type="button"
+            onClick={search.retry}
+            className="shrink-0 rounded-md border border-white/[0.12] px-2 py-0.5 text-xs text-slate-100 hover:bg-white/[0.08] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+          >
+            Try again
+          </button>
+        )}
+      </div>
     </div>
   )
 }
