@@ -186,6 +186,13 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   // The chips are the tokens of the text, dressed with what the search taught us.
   const draftRefs = refsEnabled ? reconcileRefs(value, Object.values(refLabels)) : []
   const refsFull = draftRefs.length >= MAX_REFS_PER_MESSAGE
+  // What choosing a result did, said to screen readers; a duplicate is also shown (the typed query vanishes, the user must know why).
+  const [pickNote, setPickNote] = useState<{ text: string; visible: boolean }>({ text: '', visible: false })
+  useEffect(() => {
+    if (!pickNote.text) return
+    const timer = setTimeout(() => setPickNote({ text: '', visible: false }), 4000)
+    return () => clearTimeout(timer)
+  }, [pickNote])
   const attachments = useAtomValue(chatAttachmentsAtom)
   const deferredSend = useAtomValue(chatAttachmentDeferredSendAtom)
   const selectedProject = useAtomValue(chatSelectedProjectAtom)
@@ -679,9 +686,17 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
     const ref: ChatReference = { kind: item.kind, id: item.id, label: item.label, subtitle: item.subtitle, entity_status: item.entity_status }
     const already = draftRefs.some((r) => refKey(r) === refKey(ref))
     // At the cap nothing is added (the picker says so); a reference already in the draft is not added twice.
-    if (refsFull && !already) return
+    if (refsFull && !already) {
+      setRefsOverflow(true)
+      return
+    }
     const before = value.slice(0, trigger.start)
     const after = value.slice(trigger.end)
+    setPickNote(
+      already
+        ? { text: `${item.label} is already in the message.`, visible: true }
+        : { text: `${item.label} added to the message.`, visible: false },
+    )
     const token = already ? '' : refToken(ref)
     const gap = token && !after.startsWith(' ') ? ' ' : ''
     setRefLabels((l) => ({ ...l, [refKey(ref)]: ref }))
@@ -708,6 +723,12 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           if (activeItem) {
             e.preventDefault()
             pickRef(activeItem)
+            return true
+          }
+          // The previous list is still on screen while the next search runs: the key must not pick from it,
+          // and must not send the message under the user's eyes either.
+          if (refSearch.status === 'loading' && refSearch.items.length > 0) {
+            e.preventDefault()
             return true
           }
           // No active option (loading, failed, empty): the key keeps its usual meaning, Enter sends.
@@ -884,6 +905,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
             activeIndex={activeRef}
             kindFilter={trigger?.kinds?.[0]}
             full={refsFull}
+            isInDraft={(item) => draftRefs.some((r) => refKey(r) === refKey(item))}
             onPick={pickRef}
             onHover={setRefActive}
           />
@@ -898,8 +920,18 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
             {refsOverflow ? `Maximum ${MAX_REFS_PER_MESSAGE} references per message: the last one was not added.` : ''}
           </p>
         )}
+        {refsEnabled && (
+          <p role="status" aria-live="polite" aria-atomic="true" data-testid="refs-pick-announcer" className="sr-only">
+            {pickNote.text}
+          </p>
+        )}
+        {pickNote.visible && (
+          <p aria-hidden="true" data-testid="refs-pick-note" className="m-0 px-2 pt-1 text-xs text-amber-200">
+            {pickNote.text}
+          </p>
+        )}
         {draftRefs.length > 0 && (
-          <ul aria-label="References" className="m-0 flex list-none flex-wrap gap-1 px-1.5 pt-1">
+          <ul aria-label="References" className="m-0 flex max-h-20 list-none flex-wrap gap-1 overflow-y-auto px-1.5 pt-1">
             {draftRefs.map((r) => (
               <li key={refKey(r)}>
                 <ReferenceChip

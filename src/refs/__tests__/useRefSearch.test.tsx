@@ -34,7 +34,9 @@ describe('useRefSearch', () => {
     searchMock.mockResolvedValue(items)
     const { result, rerender } = renderHook(({ q }) => useRefSearch({ query: q, enabled: true }), { initialProps: { q: 'r' } })
     expect(SEARCH_DEBOUNCE_MS).toBe(150)
-    await tick(100)
+    await tick(1) // the opening request is not debounced
+    searchMock.mockClear()
+    await tick(99)
     rerender({ q: 're' })
     await tick(100)
     rerender({ q: 'ref' })
@@ -64,13 +66,14 @@ describe('useRefSearch', () => {
     expect(result.current.items).toEqual([items[1]])
   })
 
-  it('never shows the previous query\'s list under a new query', async () => {
+  it('keeps the previous list, as loading, under a new query', async () => {
     searchMock.mockResolvedValue(items)
     const { result, rerender } = renderHook(({ q }) => useRefSearch({ query: q, enabled: true }), { initialProps: { q: 'a' } })
     await tick(150)
     expect(result.current.items).toHaveLength(3)
     rerender({ q: 'ab' })
-    expect(result.current).toEqual({ status: 'loading', items: [] })
+    // kept on screen (dimmed, nothing active) so the popover does not collapse; Enter cannot pick from it
+    expect(result.current).toEqual({ status: 'loading', items })
   })
 
   it('answers a repeated (kinds, query) from the cache, without a request', async () => {
@@ -103,10 +106,11 @@ describe('useRefSearch', () => {
     searchMock.mockRejectedValueOnce(new ApiError(400, JSON.stringify({ error: 'search text is too long', code: 'refs_invalid', reason: 'query_too_long' })))
     const a = renderHook(() => useRefSearch({ query: 'x', enabled: true }))
     await tick(150)
-    expect(a.result.current).toEqual({ status: 'error', items: [], message: 'search text is too long' })
+    expect(a.result.current).toMatchObject({ status: 'error', items: [], message: 'search text is too long' })
     searchMock.mockRejectedValueOnce(new Error('network down'))
     const b = renderHook(() => useRefSearch({ query: 'y', enabled: true }))
     await tick(150)
-    expect(b.result.current).toMatchObject({ status: 'error', message: 'network down' })
+    expect(b.result.current).toMatchObject({ status: 'error' })
+    expect((b.result.current as { message: string }).message).not.toContain('network down')
   })
 })
