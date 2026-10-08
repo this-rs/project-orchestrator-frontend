@@ -14,7 +14,7 @@
  * entry): same add path as a drop, reachable by keyboard, touch and Tauri
  * (whose main webview strips touch listeners: no long-press, a click instead).
  */
-import type { MouseEvent, ReactNode } from 'react'
+import type { KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { MessageSquarePlus } from 'lucide-react'
 import { refsEnabledAtom } from '@/atoms/chat'
@@ -89,10 +89,15 @@ export function AddToChatButton({ entity, className = '' }: AddToChatButtonProps
     e.stopPropagation()
     add({ ref, label: entity.label, via: 'button' })
   }
+  // Enter / Space are this button's own: a draggable ancestor (the kanban card) must not read them as "pick me up".
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') e.stopPropagation()
+  }
   return (
     <button
       type="button"
       onClick={onClick}
+      onKeyDown={onKeyDown}
       aria-label={addLabel(ref, entity.label)}
       aria-keyshortcuts={ADD_TO_CHAT_SHORTCUT}
       title={`Add to chat (${ADD_TO_CHAT_SHORTCUT})`}

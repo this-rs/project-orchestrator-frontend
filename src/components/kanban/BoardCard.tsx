@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useDraggable } from '@dnd-kit/core'
+import { GripVertical } from 'lucide-react'
 import { CSS } from '@dnd-kit/utilities'
 import { MetaLine } from '@/components/ui'
 import { AddToChatButton, useReferenceSource, type ReferenceSourceEntity } from '@/refs/source'
@@ -32,7 +33,7 @@ interface BoardCardProps extends BoardCardBodyProps {
   item: unknown
   /** Accessible name of the draggable card. */
   ariaLabel: string
-  /** Declares the card as a chat reference source. Its pointer drag belongs to the board (status moves): only the button and the shortcut add it. */
+  /** Declares the card as a chat reference source. The card body keeps the board's drag (status moves); the reference is added by the grip (native drag to the chat), the button and the shortcut. */
   entityRef?: ReferenceSourceEntity
 }
 
@@ -44,6 +45,8 @@ interface BoardCardProps extends BoardCardBodyProps {
  */
 export function BoardCard({ id, dataKey, item, ariaLabel, entityRef, ...body }: BoardCardProps) {
   const source = useReferenceSource(entityRef, { drag: false })
+  // The grip is the card's reference drag (native): the card body keeps the board's own drag.
+  const grip = useReferenceSource(entityRef)
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id,
     data: { [dataKey]: item, item },
@@ -58,12 +61,27 @@ export function BoardCard({ id, dataKey, item, ariaLabel, entityRef, ...body }: 
       {...listeners}
       {...attributes}
       {...source}
+      // Not a button: the card holds buttons (status, add to chat) and a button may not contain one.
+      role="group"
       aria-label={ariaLabel}
       className={`relative rounded-lg border px-3 py-2.5 cursor-grab active:cursor-grabbing select-none transition-colors duration-(--duration-instant) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60 ${source['data-po-ref'] ? 'pr-8 ' : ''}${
         isDragging ? 'opacity-40 border-indigo-500/60 bg-surface-raised' : 'border-white/[0.06] bg-surface-raised hover:border-white/[0.14]'
       }`}
     >
       <BoardCardBody {...body} />
+      {grip['data-po-ref'] && (
+        <span
+          {...grip}
+          data-testid="ref-grip"
+          title="Drag into the chat"
+          // Stay out of the board's drag: this press belongs to the native drag.
+          onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          className="absolute right-2 bottom-2 inline-flex size-5 cursor-grab items-center justify-center rounded text-slate-500 hover:bg-white/[0.06] hover:text-slate-300"
+        >
+          <GripVertical className="size-3.5" aria-hidden="true" />
+        </span>
+      )}
       {entityRef && <AddToChatButton entity={{ ...entityRef, label: entityRef.label ?? ariaLabel }} className="absolute right-1 top-1" />}
     </div>
   )
