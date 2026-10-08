@@ -80,8 +80,8 @@ const withoutComments = (src: string): string => src.replace(/\/\*[\s\S]*?\*\//g
 /** Quoted strings of one line (`'…'`, `"…"`) and template strings (`\`…\``, may span lines). */
 const quoted = (src: string): string[] => all(src, /'[^'\n]*'|"[^"\n]*"|`[^`]*`/g)
 
-/** A class token `glass`, `glass-medium` or `ui-glass` inside a quoted / template string. */
-const GLASS_TOKEN = /(?:^|[\s"'`])(?:ui-)?glass(?:-medium)?(?=[\s"'`])/
+/** A class token `glass`, `glass-medium`, `glass-heavy` or `ui-glass` inside a quoted / template string. */
+const GLASS_TOKEN = /(?:^|[\s"'`])(?:ui-)?glass(?:-[a-z]+)?(?=[\s"'`])/
 
 export const RULES: Rule[] = [
   {

@@ -294,6 +294,13 @@
     "date": "2026-10-08"
   },
   {
+    "path": "src/components/WorkspaceSwitcher.tsx",
+    "rule": "glass-on-content",
+    "count": 1,
+    "reason": "Legitimate: the workspace menu is a floating layer (portal, fixed, z-50), same recipe as Select and Dropdown. Stays.",
+    "date": "2026-10-08"
+  },
+  {
     "path": "src/pages/AuthCallbackPage.tsx",
     "rule": "filled-pill",
     "count": 1,
