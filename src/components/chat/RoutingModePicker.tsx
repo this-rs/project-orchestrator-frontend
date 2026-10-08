@@ -25,7 +25,7 @@ interface RoutingModePickerProps {
 }
 
 const CHIP =
-  'inline-flex min-w-0 max-w-full items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border border-white/[0.08] text-gray-300 hover:bg-white/[0.06] transition-all duration-300'
+  'inline-flex min-w-0 max-w-full items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border border-white/[0.08] text-gray-300 hover:bg-white/[0.06] transition-colors duration-300'
 
 const POPOVER =
   'absolute bottom-full left-0 right-0 sm:right-auto sm:w-72 mb-1 z-20 max-h-[min(22rem,55dvh)] overflow-y-auto overscroll-contain bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl'
