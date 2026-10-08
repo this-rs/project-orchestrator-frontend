@@ -12,11 +12,10 @@ import {
   Section,
   SkeletonLine,
   StatusText,
-  focusRing,
   pluralize,
   Meter,
 } from '@/components/ui'
-import { pressFeedback } from '@/components/ui/classes'
+import { glassButton, glassFlat } from '@/components/ui/classes'
 import { useToast } from '@/hooks'
 import { codeApi } from '@/services'
 import type { CodeCommunity, NodeImportance } from '@/types'
@@ -47,7 +46,7 @@ function MemberChip({ member, onClick }: { member: string; onClick: () => void }
       onClick={onClick}
       title={member}
       aria-label={`Importance of ${member}`}
-      className={`inline-flex items-center gap-1 h-9 px-2.5 rounded-lg border border-white/[0.08] text-[11px] font-mono text-gray-300 hover:text-gray-100 hover:border-white/[0.16] max-w-full ${pressFeedback} ${focusRing}`}
+      className={`${glassButton.secondary} ${glassFlat} min-h-9 px-2.5 text-xs font-mono font-normal text-gray-300 max-w-full`}
     >
       <Icon className="w-3 h-3 shrink-0 text-gray-500" aria-hidden="true" />
       <span className="truncate">{shortName(member)}</span>

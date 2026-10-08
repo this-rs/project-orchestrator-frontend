@@ -16,7 +16,9 @@ import { useProviders } from '@/hooks/useProviders'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Eye, EyeOff, KeyRound, Lock, LockOpen, Trash2 } from 'lucide-react'
 import { SecretRequestCard } from '@/components/chat/SecretRequestTray'
-import { Button, PageContainer, PageHeader, Section, surface } from '@/components/ui'
+import { Button, ConceptIntro, PageContainer, PageHeader, Section, surface } from '@/components/ui'
+import { glassFlat, iconButton } from '@/components/ui/classes'
+import type { ConceptExplain } from '@/constants/nomenclature'
 import {
   vaultApi,
   vaultErrorMessage,
@@ -30,9 +32,21 @@ import {
   type VaultOverview,
 } from '@/services/vault'
 
+/**
+ * Native fields, styled like `ui/Input` (16px on phones so iOS does not zoom, 36px tall). They stay
+ * native on purpose: the value field is a masked multi-line textarea (-webkit-text-security) and
+ * the grant selects are plain <select>s a screen reader and a test can drive directly.
+ */
 const input =
-  'min-w-0 rounded border border-gray-700 bg-gray-900 px-2 py-1.5 text-sm text-gray-100 placeholder:text-gray-600'
-const select = 'rounded border border-gray-700 bg-gray-900 px-2 py-1.5 text-sm text-gray-300'
+  'min-h-9 min-w-0 rounded-lg border border-border-default bg-surface-base px-3 py-2 text-base md:text-sm text-gray-100 placeholder-gray-500 input-focus-glow'
+const select = `${input} text-gray-300`
+
+/** The vault is a screen, not a concept of the registry: its three lines live here (DESIGN.md § 5). */
+const VAULT_EXPLAIN: ConceptExplain = {
+  what: 'The vault keeps the passwords and keys your assistants need, encrypted with a passphrase only you know.',
+  why: 'An assistant uses a secret for a limited scope and time without ever reading it, and you are asked only when it matters.',
+  different: 'Today a secret is pasted into a chat or a config file and stays there. Here it is typed once, never shown again, and access can be taken back.',
+}
 
 function formatUntil(iso: string): string {
   const d = new Date(iso)
@@ -73,8 +87,9 @@ export function VaultPage() {
             </Button>
             <PageHeader
               title="Vault"
-              description="Secrets agents can use without ever seeing them. Values are encrypted with your passphrase and are never displayed again."
+              description="Secrets assistants can use without ever seeing them. Values are encrypted with your passphrase and are never displayed again."
             />
+            <ConceptIntro concept={VAULT_EXPLAIN} storageKey="vault" />
           </div>
           <VaultPanel />
         </PageContainer>
@@ -221,7 +236,7 @@ export function LockPanel({ overview, onChange }: { overview: VaultOverview; onC
       <div className={`${surface} flex flex-wrap items-center gap-3 p-4`}>
         <LockOpen className="h-5 w-5 text-emerald-400" aria-hidden />
         <p className="flex-1 text-sm text-gray-300">
-          Open until <strong>{formatUntil(until)}</strong> — granted agents can use their secrets without asking you.
+          Open until <strong>{formatUntil(until)}</strong> — granted assistants can use their secrets without asking you.
         </p>
         <Button
           variant="secondary"
@@ -345,13 +360,13 @@ function SecretsPanel({
       <div className={`${surface} divide-y divide-white/[0.06]`}>
         {overview.secrets.length === 0 && <p className="p-4 text-sm text-gray-500">Aucun secret pour l&apos;instant.</p>}
         {overview.secrets.map((s) => (
-          <div key={s.name} className="flex items-center gap-3 px-4 py-2.5">
-            <KeyRound className="h-4 w-4 text-amber-400" aria-hidden />
-            <div className="min-w-0 flex-1">
-              <code className="text-sm text-gray-200">{s.name}</code>
-              {s.description && <p className="truncate text-xs text-gray-500">{s.description}</p>}
+          <div key={s.name} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
+            <KeyRound className="h-4 w-4 text-gray-500" aria-hidden />
+            <div className="min-w-0 flex-[1_1_10rem]">
+              <code className="text-sm text-gray-200 break-all">{s.name}</code>
+              {s.description && <p className="text-xs text-gray-500 break-words">{s.description}</p>}
             </div>
-            <span className="text-xs text-gray-600">
+            <span className="text-[11px] leading-4 text-gray-500 tabular-nums">
               créé {formatUntil(s.created_at)} · modifié {formatUntil(s.updated_at)}
             </span>
             {confirmDelete === s.name ? (
@@ -378,11 +393,12 @@ function SecretsPanel({
               </span>
             ) : (
               <button
-                className="rounded p-1 text-gray-500 hover:text-red-400"
+                type="button"
+                className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} -mr-2`}
                 onClick={() => setConfirmDelete(s.name)}
                 aria-label={`Supprimer le secret ${s.name}`}
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-4 w-4" aria-hidden />
               </button>
             )}
           </div>
@@ -432,15 +448,10 @@ function SecretsPanel({
               onChange={(e) => setValue(e.target.value)}
               aria-label="Valeur du secret"
             />
-            <button
-              type="button"
-              className="flex items-center gap-1 rounded text-xs text-gray-400 hover:text-gray-200"
-              onClick={() => setReveal((r) => !r)}
-              aria-pressed={reveal}
-            >
+            <Button type="button" variant="ghost" size="sm" flat className="-ml-3" onClick={() => setReveal((r) => !r)} aria-pressed={reveal}>
               {reveal ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
               {reveal ? 'Masquer' : 'Afficher'}
-            </button>
+            </Button>
             <p className="text-xs text-gray-500">
               Pour une clé SSH : collez la clé privée complète (-----BEGIN … END-----). Utilisez une clé dédiée, sans phrase
               secrète : la connexion distante est non interactive et n&apos;utilise pas d&apos;agent SSH.
@@ -546,15 +557,15 @@ function GrantsPanel({
     >
       <div className={`${surface} divide-y divide-white/[0.06]`}>
         {overview.grants.length === 0 && (
-          <p className="p-4 text-sm text-gray-500">No access granted. Agents will ask you in the chat when they need a secret.</p>
+          <p className="p-4 text-sm text-gray-500">No access granted. Assistants will ask you in the chat when they need a secret.</p>
         )}
         {overview.grants.map((g: VaultGrant) => (
-          <div key={g.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-            <div className="min-w-0 flex-1 text-gray-300">
+          <div key={g.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-sm">
+            <div className="min-w-0 flex-[1_1_12rem] text-gray-300 break-words">
               <span className="text-gray-100">{describeSecrets(g.secrets)}</span> → {describeScope(g.scope)}
-              {g.note && <p className="truncate text-xs text-gray-500">{g.note}</p>}
+              {g.note && <p className="text-xs text-gray-500 break-words">{g.note}</p>}
             </div>
-            <span className="text-xs text-gray-500">until {formatUntil(g.expires_at)}</span>
+            <span className="text-[11px] leading-4 text-gray-500 tabular-nums">until {formatUntil(g.expires_at)}</span>
             {confirmRevoke === g.id ? (
               <span className="flex items-center gap-1">
                 <Button
@@ -578,7 +589,7 @@ function GrantsPanel({
                 </Button>
               </span>
             ) : (
-              <Button variant="ghost" size="sm" onClick={() => setConfirmRevoke(g.id)}>
+              <Button variant="secondary" size="sm" flat onClick={() => setConfirmRevoke(g.id)}>
                 Revoke
               </Button>
             )}

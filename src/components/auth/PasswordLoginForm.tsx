@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
 import { authTokenAtom, currentUserAtom } from '@/atoms'
 import { authApi, setAuthToken } from '@/services'
-import { Button, Input } from '@/components/ui'
+import { Button, Input, StatusIcon, TONE_CLASSES } from '@/components/ui'
 
 /**
  * Email/password login form.
@@ -70,9 +70,10 @@ export function PasswordLoginForm() {
       />
 
       {error && (
-        <div className="rounded-lg bg-red-900/50 px-4 py-3 text-sm text-red-300">
-          {error}
-        </div>
+        <p role="alert" className={`flex items-start gap-1.5 text-sm ${TONE_CLASSES.danger.text}`}>
+          <StatusIcon tone="danger" className="mt-0.5" />
+          <span className="min-w-0 break-words">{error}</span>
+        </p>
       )}
 
       <Button type="submit" loading={loading} className="w-full">

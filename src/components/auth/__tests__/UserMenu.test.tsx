@@ -26,7 +26,7 @@ describe('UserMenu vault entry', () => {
       </Provider>,
     )
     fireEvent.click(screen.getByRole('button'))
-    fireEvent.click(screen.getByRole('button', { name: 'Vault' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Vault' }))
     expect(screen.getByText('vault route')).toBeTruthy()
   })
 })

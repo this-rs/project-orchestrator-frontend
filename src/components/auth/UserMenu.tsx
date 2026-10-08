@@ -8,6 +8,8 @@ import { clearChatDraftsAtom } from '@/atoms/chat'
 import { settingsReturnUrlAtom } from '@/atoms/setup'
 import { forceLogout } from '@/services/authManager'
 import { isTauri } from '@/services/env'
+import { glass, glassButton, glassFlat, popIn } from '@/components/ui/classes'
+import { menuItemClass } from '@/components/ui/menuPosition'
 
 interface UserMenuProps {
   /** Open dropdown upward (for sidebar bottom placement) */
@@ -104,7 +106,10 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
       <button
         ref={btnRef}
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200 min-w-0"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={showName ? undefined : `Account menu for ${user.name}`}
+        className={`${glassButton.ghost} ${glassFlat} min-h-9 justify-start gap-2 p-1 font-normal text-gray-400 min-w-0`}
       >
         {user.picture_url ? (
           <img
@@ -127,7 +132,9 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
       {open && menuPos && createPortal(
         <div
           ref={dropdownRef}
-          className="fixed z-50 w-56 rounded-lg glass-heavy py-1 shadow-xl"
+          role="menu"
+          aria-label="Account"
+          className={`fixed z-50 w-56 rounded-xl py-1 ${glass} ${popIn}`}
           style={menuPos}
         >
           <div className="border-b border-white/[0.06] px-4 py-3">
@@ -135,43 +142,41 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
             <p className="truncate text-xs text-gray-500">{user.email}</p>
           </div>
           <button
+            type="button"
+            role="menuitem"
             onClick={() => {
               setOpen(false)
               navigate('/vault')
             }}
-            className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200"
+            className={menuItemClass()}
           >
-            <KeyRound className="h-4 w-4" />
+            <KeyRound className="h-4 w-4 text-gray-500" aria-hidden="true" />
             Vault
           </button>
           <button
+            type="button"
+            role="menuitem"
             onClick={() => {
               setOpen(false)
               navigate('/providers')
             }}
-            className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200"
+            className={menuItemClass()}
           >
-            <Cpu className="h-4 w-4" />
+            <Cpu className="h-4 w-4 text-gray-500" aria-hidden="true" />
             Providers
           </button>
           {isTauri && (
-            <button
-              onClick={handleSettings}
-              className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200"
-            >
-              <Settings className="h-4 w-4" />
+            <button type="button" role="menuitem" onClick={handleSettings} className={menuItemClass()}>
+              <Settings className="h-4 w-4 text-gray-500" aria-hidden="true" />
               Settings
             </button>
           )}
-          <button
-            onClick={handleLogout}
-            className="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200"
-          >
-            <span className="flex items-center gap-2">
-              <LogoutIcon className="h-4 w-4" />
+          <button type="button" role="menuitem" onClick={handleLogout} className={`${menuItemClass()} justify-between`}>
+            <span className="flex items-center gap-2.5">
+              <LogoutIcon className="h-4 w-4 text-gray-500" aria-hidden="true" />
               Sign out
             </span>
-            <span className="text-[10px] text-gray-600">v{__APP_VERSION__}</span>
+            <span className="text-[11px] tabular-nums text-gray-500">v{__APP_VERSION__}</span>
           </button>
         </div>,
         document.body,

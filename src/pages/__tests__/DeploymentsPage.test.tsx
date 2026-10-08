@@ -97,7 +97,7 @@ describe('DeploymentsPage', () => {
     listProjects.mockResolvedValue([{ id: 'p1', name: 'Backend' }])
     matrix.mockResolvedValue([])
     renderPage()
-    await waitFor(() => expect(screen.getByText('No environment yet')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('No environments yet')).toBeTruthy())
   })
 
   it('shows an error state', async () => {
@@ -110,7 +110,7 @@ describe('DeploymentsPage', () => {
     listProjects.mockResolvedValue([{ id: 'p1', name: 'Backend' }])
     matrix.mockResolvedValue([])
     renderPage()
-    await waitFor(() => expect(screen.getByText('No environment yet')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('No environments yet')).toBeTruthy())
 
     fireEvent.click(screen.getAllByRole('button', { name: /New environment/ })[0])
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: '  production  ' } })
@@ -126,7 +126,7 @@ describe('DeploymentsPage', () => {
     listProjects.mockResolvedValue([{ id: 'p1', name: 'Backend' }])
     matrix.mockResolvedValue([])
     renderPage()
-    await waitFor(() => expect(screen.getByText('No environment yet')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('No environments yet')).toBeTruthy())
 
     fireEvent.click(screen.getAllByRole('button', { name: /New environment/ })[0])
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
@@ -140,7 +140,7 @@ describe('DeploymentsPage', () => {
     matrix.mockResolvedValue([])
     create.mockRejectedValueOnce(new Error("An environment named 'dev' already exists in this project"))
     renderPage()
-    await waitFor(() => expect(screen.getByText('No environment yet')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('No environments yet')).toBeTruthy())
 
     fireEvent.click(screen.getAllByRole('button', { name: /New environment/ })[0])
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'dev' } })
@@ -154,7 +154,7 @@ describe('DeploymentsPage', () => {
     listProjects.mockResolvedValue([{ id: 'p1', name: 'Backend' }])
     matrix.mockResolvedValue([])
     renderPage()
-    await waitFor(() => expect(screen.getByText('No environment yet')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('No environments yet')).toBeTruthy())
 
     fireEvent.click(screen.getAllByRole('button', { name: /New environment/ })[0])
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'dev' } })

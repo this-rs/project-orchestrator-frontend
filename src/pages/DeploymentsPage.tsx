@@ -14,11 +14,14 @@ import {
   PageShell,
   RelativeTime,
   Select,
+  TONE_CLASSES,
   Textarea,
+  ToneText,
   hitArea,
   inlineLink,
   rowInteractive,
   type OverflowMenuAction,
+  type StatusTone,
 } from '@/components/ui'
 import { useToast, useWorkspaceSlug } from '@/hooks'
 import { apiErrorMessage } from '@/services/api'
@@ -36,13 +39,16 @@ import type { Project } from '@/types'
 import { NOMENCLATURE } from '@/constants/nomenclature'
 import { workspacePath } from '@/utils/paths'
 
-const STATUS: Record<DeploymentStatus, { label: string; dot: string; text: string }> = {
-  succeeded: { label: 'Succeeded', dot: 'bg-emerald-400', text: 'text-emerald-400' },
-  running: { label: 'Running', dot: 'bg-indigo-400', text: 'text-indigo-400' },
-  pending: { label: 'Pending', dot: 'bg-gray-500', text: 'text-gray-400' },
-  failed: { label: 'Failed', dot: 'bg-red-400', text: 'text-red-400' },
-  rolled_back: { label: 'Rolled back', dot: 'bg-amber-400', text: 'text-amber-400' },
+/** Deployment states are outside the status registry: a tone each (§4), never a colour alone. */
+const STATUS: Record<DeploymentStatus, { label: string; tone: StatusTone }> = {
+  succeeded: { label: 'Succeeded', tone: 'success' },
+  running: { label: 'Running', tone: 'progress' },
+  pending: { label: 'Pending', tone: 'neutral' },
+  failed: { label: 'Failed', tone: 'danger' },
+  rolled_back: { label: 'Rolled back', tone: 'warning' },
 }
+/** States that draw the row's rail: moving or needing attention (done / pending stay quiet). */
+const RAIL_TONES: ReadonlySet<DeploymentStatus> = new Set(['running', 'failed', 'rolled_back'])
 
 const KIND_ORDER: Record<EnvironmentKind, number> = { dev: 0, staging: 1, production: 2, other: 3 }
 const KIND_LABEL: Record<EnvironmentKind, string> = {
@@ -88,7 +94,7 @@ function History({ statuses }: { statuses: DeploymentStatus[] }) {
   return (
     <span className="inline-flex items-center gap-0.5" role="img" aria-label={`Last ${statuses.length} deployments`}>
       {[...statuses].reverse().map((s, i) => (
-        <span key={i} title={STATUS[s].label} className={`h-1.5 w-1.5 rounded-full ${STATUS[s].dot}`} />
+        <span key={i} title={STATUS[s].label} className={`h-1.5 w-1.5 rounded-full ${TONE_CLASSES[STATUS[s].tone].dot}`} />
       ))}
     </span>
   )
@@ -372,6 +378,7 @@ export function DeploymentsPage() {
     <PageShell
       title={NOMENCLATURE.deployments.plural}
       description={NOMENCLATURE.deployments.description}
+      intro="deployments"
       width="wide"
       actions={
         projects.length > 0 ? (
@@ -388,7 +395,7 @@ export function DeploymentsPage() {
         <ErrorState description={error} onRetry={load} />
       ) : withEnvs.length === 0 ? (
         <EmptyState
-          title="No environment yet"
+          title="No environments yet"
           description="Declare where a project runs — dev, staging, production — then record what you ship there."
           action={
             projects.length > 0 ? (
@@ -447,21 +454,16 @@ export function DeploymentsPage() {
                         title={env.name}
                         description={env.description || undefined}
                         actions={actions}
-                        leading={
-                          <span
-                            className={`h-2 w-2 rounded-full ${st ? st.dot : 'bg-gray-700'}`}
-                            aria-hidden="true"
-                          />
+                        status={
+                          st && dep ? (
+                            <ToneText tone={st.tone} icon label={st.label} pulse={dep.status === 'running'} />
+                          ) : (
+                            <span className="text-gray-500">Never deployed</span>
+                          )
                         }
+                        tone={dep && RAIL_TONES.has(dep.status) ? STATUS[dep.status].tone : undefined}
                         trailing={dep ? <RelativeTime date={dep.finished_at ?? dep.started_at} /> : undefined}
                         meta={[
-                          st ? (
-                            <span key="st" className={st.text}>
-                              {st.label}
-                            </span>
-                          ) : (
-                            <span key="st">Never deployed</span>
-                          ),
                           dep?.version ? <span key="v" className="tabular-nums">{dep.version}</span> : null,
                           dep?.commit_sha ? <code key="c" className="text-[11px]">{dep.commit_sha.slice(0, 7)}</code> : null,
                           KIND_LABEL[env.kind],

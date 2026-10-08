@@ -22,13 +22,24 @@ import { useCallback } from 'react'
 import { Link, useNavigate, Navigate } from 'react-router-dom'
 import { useAtom, useAtomValue } from 'jotai'
 import { ArrowLeft } from 'lucide-react'
-import { Button, PageContainer, PageHeader, Section, surface } from '@/components/ui'
+import { Button, ConceptIntro, PageContainer, PageHeader, Section, inlineLink, surface } from '@/components/ui'
+import type { ConceptExplain } from '@/constants/nomenclature'
 import { isTauri } from '@/services/env'
 import { UpdatesSection } from '@/components/settings/UpdatesSection'
 import { PermissionSettingsPanel } from '@/components/chat/PermissionSettingsPanel'
 import { settingsReturnUrlAtom } from '@/atoms/setup'
 import { activeWorkspaceSlugAtom } from '@/atoms'
 import { workspacePath } from '@/utils/paths'
+
+/**
+ * Settings is a screen, not a concept of the registry: its three lines live here, written with
+ * the registry's rules (DESIGN.md § 5 — one sentence each, the product's words, no promise).
+ */
+const SETTINGS_EXPLAIN: ConceptExplain = {
+  what: 'Settings are the choices of the desktop app itself: how assistants may act on this machine, and how the app updates.',
+  why: 'You decide once what an assistant may run, which tools it may use and which version you are on.',
+  different: 'Today these choices are spread across config files and terminal flags. Here they are one screen, applied to every conversation.',
+}
 
 export function SettingsPage() {
   const navigate = useNavigate()
@@ -78,13 +89,14 @@ export function SettingsPage() {
             </Button>
             <PageHeader
               title="Settings"
-              description="Desktop app settings. They apply to every conversation with the agents."
+              description="Desktop app settings. They apply to every conversation with the assistants."
             />
+            <ConceptIntro concept={SETTINGS_EXPLAIN} storageKey="settings" />
           </div>
 
           <Section
             title="Chat & AI"
-            description="Permission mode, allowed and denied tools, environment variables and the Claude Code CLI used by the agents."
+            description="Permission mode, allowed and denied tools, environment variables and the Claude Code CLI used by the assistants."
           >
             <div className={`${surface} overflow-hidden [&>div]:border-none`}>
               <PermissionSettingsPanel />
@@ -99,7 +111,7 @@ export function SettingsPage() {
 
           <p className="text-xs text-gray-500">
             Providers (instances, project consent, roles and model policy) have their own page:{' '}
-            <Link to="/providers" className="text-indigo-400 hover:text-indigo-300">
+            <Link to="/providers" className={inlineLink}>
               Providers → /providers
             </Link>
           </p>

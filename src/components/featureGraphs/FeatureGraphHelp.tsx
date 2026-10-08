@@ -1,39 +1,22 @@
-import { HelpCircle } from 'lucide-react'
-import { NOMENCLATURE } from '@/constants/nomenclature'
+import { focusRing } from '@/components/ui/classes'
 import { ROLE_ORDER, ROLE_META, ENTITY_TYPE_META, RELATION_META } from '@/utils/featureGraphModel'
 
-const fg = NOMENCLATURE.featureGraphs
-
-/** Collapsible plain-language explainer; closed by default so it never pushes content down. */
+/**
+ * Closed-by-default plain-language disclosure (DESIGN.md § 5 « Explaining a concept »): the same
+ * shape as `ConceptIntro` — a plain-text `<summary>`, no icon, no badge — for text that is NOT a
+ * concept of the registry (a legend, how to read one screen). The concept itself ("what is a
+ * feature graph") is `<PageShell intro="featureGraphs">`.
+ */
 function HelpDisclosure({ summary, children }: { summary: string; children: React.ReactNode }) {
   return (
-    <details className="group rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-sm text-gray-400">
-      <summary className="flex cursor-pointer list-none items-center gap-2 text-gray-300 marker:hidden focus-visible:outline-2 focus-visible:outline-indigo-400">
-        <HelpCircle className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
-        <span>{summary}</span>
-        <span className="ml-auto text-xs text-gray-500 group-open:hidden">Show</span>
-        <span className="ml-auto hidden text-xs text-gray-500 group-open:inline">Hide</span>
+    <details className="group/help text-sm">
+      <summary
+        className={`inline-flex min-h-9 cursor-pointer list-none items-center rounded text-gray-400 underline-offset-4 hover:text-gray-200 hover:underline group-open/help:text-gray-200 [&::-webkit-details-marker]:hidden ${focusRing}`}
+      >
+        {summary}
       </summary>
-      <div className="mt-2 space-y-2 pb-1 text-[13px] leading-relaxed">{children}</div>
+      <div className="mt-1 max-w-[var(--measure-md)] space-y-2 pb-1 text-[13px] leading-relaxed text-gray-400">{children}</div>
     </details>
-  )
-}
-
-/** Intro on the list page: what a feature graph is and how to get one. */
-export function FeatureGraphListHelp() {
-  return (
-    <HelpDisclosure summary={`What is a ${fg.singular.toLowerCase()}?`}>
-      <p>
-        A {fg.singular.toLowerCase()} is the set of code entities (files, functions, structs, traits) that together
-        implement <strong className="font-medium text-gray-300">one feature</strong>. It lets you see, and reason about, a
-        feature without hunting through the whole codebase.
-      </p>
-      <p>
-        <strong className="font-medium text-gray-300">Auto-build</strong> starts from an entry function and follows its
-        calls (callers and callees) down to a chosen depth, then adds the related types and traits.{' '}
-        <strong className="font-medium text-gray-300">New graph</strong> creates an empty one you fill in by hand.
-      </p>
-    </HelpDisclosure>
   )
 }
 

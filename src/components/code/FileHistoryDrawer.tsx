@@ -11,11 +11,10 @@ import {
   RelativeTime,
   Section,
   TONE_CLASSES,
-  focusRing,
   groupByRecency,
   pluralize,
 } from '@/components/ui'
-import { popIn } from '@/components/ui/classes'
+import { glassFlat, iconButton, popIn } from '@/components/ui/classes'
 import { commitsApi } from '@/services'
 import { CoChangeGraph } from './CoChangeGraph'
 import type { FileHistoryEntry, CoChanger } from '@/types'
@@ -117,7 +116,7 @@ export function FileHistoryDrawer({
             type="button"
             onClick={onClose}
             aria-label="Close file history"
-            className={`w-9 h-9 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-100 hover:bg-white/[0.06] shrink-0 ${focusRing}`}
+            className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} shrink-0`}
           >
             <X className="w-4 h-4" aria-hidden="true" />
           </button>
