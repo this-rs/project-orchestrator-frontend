@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { refKindDef } from '@/refs/registry'
 import type { RefSearchState } from '@/refs/useRefSearch'
 import type { RefSearchItem } from '@/refs/refsApi'
@@ -25,6 +26,11 @@ interface RefPickerProps {
  */
 export function RefPicker({ listId, search, activeIndex, kindFilter, full, onPick, onHover }: RefPickerProps) {
   const { items } = search
+  // The textarea keeps the focus, so the browser never scrolls to the option the arrows reached:
+  // bring it into the visible area ourselves (7 rows fit; the 8th was blind).
+  useEffect(() => {
+    document.getElementById(refOptionId(listId, activeIndex))?.scrollIntoView?.({ block: 'nearest' })
+  }, [listId, activeIndex])
   const status =
     search.status === 'error'
       ? `Search failed: ${search.message}`
