@@ -132,4 +132,6 @@ export default {
     poChooses: 'PO will choose (routing: full)',
     poRoutes: 'PO routes (recommended)',
   },
+  picker: { primary: 'Primary: {target} · PO routes executors', forced: 'Forced: {target}', willChoose: 'PO will choose at the first message', routedBy: 'Routed by: {by}', aria: 'Routing: {mode}' },
+  reason: 'Reason: {reason}',
 } as const

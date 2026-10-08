@@ -2,7 +2,7 @@ import { atom } from 'jotai'
 import { hasSandbox, isClaudeCodeProvider, isRemoteClaudeCode, type ProviderKind } from '@/types/provider'
 import {
   chatEffectiveProviderAtom,
-  chatEffectiveProviderIdAtom,
+  chatTargetProviderIdAtom,
   chatSessionCapabilitiesAtom,
   chatSessionProviderAtom,
   providersLoadStateAtom,
@@ -40,7 +40,7 @@ export const chatProviderTargetAtom = atom<ChatProviderTarget>((get) => {
   const kind = get(chatSessionProviderAtom)?.kind ?? get(chatEffectiveProviderAtom)?.kind ?? null
   // A backend without provider routes has one provider, whatever a stale
   // "last picked provider" in local storage says.
-  const isClaudeCode = loadState === 'unsupported' || isClaudeCodeProvider(get(chatEffectiveProviderIdAtom), kind)
+  const isClaudeCode = loadState === 'unsupported' || isClaudeCodeProvider(get(chatTargetProviderIdAtom), kind)
   const caps = get(chatSessionCapabilitiesAtom)
   const instance = get(chatEffectiveProviderAtom)
   return {

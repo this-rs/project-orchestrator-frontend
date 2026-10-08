@@ -134,4 +134,6 @@ export default {
     poChooses: 'PO elegirá (enrutamiento: completo)',
     poRoutes: 'PO enruta (recomendado)',
   },
+  picker: { primary: 'Principal: {target} · PO enruta a los ejecutores', forced: 'Forzado: {target}', willChoose: 'PO elegirá en el primer mensaje', routedBy: 'Enrutado por: {by}', aria: 'Enrutamiento: {mode}' },
+  reason: 'Motivo: {reason}',
 } satisfies Translation<'routing'>

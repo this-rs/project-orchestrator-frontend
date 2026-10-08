@@ -7,7 +7,7 @@ import { useModelCatalog } from '@/components/settings/useModelCatalog'
 import {
   chatDefaultModelAtom,
   chatEffectiveProviderAtom,
-  chatEffectiveProviderIdAtom,
+  chatTargetProviderIdAtom,
   chatSelectedProviderAtom,
   chatSessionCapabilitiesAtom,
   chatSessionModelAtom,
@@ -43,7 +43,7 @@ import {
 import { ModelFamilyPicker, type ModelSelectOptions } from './ModelFamilyPicker'
 
 /** The one menu of the composer's target control, or none. Owned by the composer, which also has a mode menu to close. */
-export type ProviderModelMenu = 'target' | null
+export type ProviderModelMenu = 'target' | 'routing' | null
 
 interface ProviderModelPickerProps {
   /** Current session (null/undefined = a conversation not created yet). */
@@ -54,6 +54,13 @@ interface ProviderModelPickerProps {
   onChangeModel?: (model: string) => void
   /** Start a new conversation — the way out of a session locked on its provider. */
   onNewConversation?: () => void
+  /**
+   * Called when the user makes (`true`) or clears (`false`) an explicit choice for a NEW conversation.
+   * `RoutingModePicker` uses it to know the target was forced from the Advanced path.
+   */
+  onForce?: (forced: boolean) => void
+  /** Text put before the chip ("Forced: "), so an explicit choice reads as such. */
+  chipPrefix?: string
 }
 
 const CHIP =
@@ -80,11 +87,11 @@ const rowTone = (active: boolean) =>
  * - Backend without provider routes: no provider at all, and the Claude model
  *   picker exactly as it was.
  */
-export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeModel, onNewConversation }: ProviderModelPickerProps) {
+export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeModel, onNewConversation, onForce, chipPrefix = '' }: ProviderModelPickerProps) {
   const list = useAtomValue(providersAtom)
   const loadState = useAtomValue(providersLoadStateAtom)
   const [pickedProvider, setPickedProvider] = useAtom(chatSelectedProviderAtom)
-  const effectiveId = useAtomValue(chatEffectiveProviderIdAtom)
+  const effectiveId = useAtomValue(chatTargetProviderIdAtom)
   const instance = useAtomValue(chatEffectiveProviderAtom)
   const sessionProvider = useAtomValue(chatSessionProviderAtom)
   const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
@@ -165,8 +172,10 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
       // nothing is sent and the server keeps resolving it.
       setPickedProvider(target.id === resolvedDefault?.provider ? null : target.id)
       setSessionModel(modelId)
+      onForce?.(true)
     } else {
       setSessionModel(modelId)
+      if (!hasSession) onForce?.(true)
     }
     if (shut) close()
     flash()
@@ -175,6 +184,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
   const selectAuto = () => {
     setPickedProvider(null)
     setSessionModel(null)
+    onForce?.(false)
     close()
     flash()
   }
@@ -185,7 +195,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
     : autoActive
       ? AUTO_TARGET_LABEL
       : `${providerLabel} › ${modelLabel}`
-  const chipTitle = autoActive && resolvedText ? `${AUTO_TARGET_LABEL}: ${resolvedText}` : chipText
+  const chipTitle = `${chipPrefix}${autoActive && resolvedText ? `${AUTO_TARGET_LABEL}: ${resolvedText}` : chipText}`
 
   const choices = (p: ProviderInstance | null, active: string, withDefault: boolean, defaultActive = false) => (
     <ModelChoices
@@ -231,6 +241,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
           ))}
         {modelDot && <span className={`w-1.5 h-1.5 rounded-full ${modelDot}`} />}
         <span className="min-w-0 max-w-[14rem] truncate" title={chipTitle}>
+          {chipPrefix}
           {chipText}
         </span>
         {autoActive && resolvedText && (
