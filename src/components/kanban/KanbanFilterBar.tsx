@@ -4,8 +4,7 @@ import type { KanbanFilters } from '@/hooks/useKanbanFilters'
 import type { Plan, Project } from '@/types'
 import { plansApi, workspacesApi } from '@/services'
 import { useWorkspaceSlug } from '@/hooks'
-import { FilterBar, Select, Switch } from '@/components/ui'
-import { focusRing } from '@/components/ui/classes'
+import { Button, FilterBar, Select, Switch } from '@/components/ui'
 import { FilterField, PriorityRangeFields } from './ListControls'
 
 interface KanbanFilterBarProps {
@@ -105,16 +104,19 @@ export function KanbanFilterBar({
           {excludedProjects.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 sm:col-span-2 lg:col-span-3">
               {excludedProjects.map((p) => (
-                <button
+                // One flat glass button per excluded project (repeated control → no blur).
+                <Button
                   key={p.id}
-                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  flat
                   onClick={() => onToggleExcludeProject(p.id)}
                   aria-label={`Stop excluding ${p.name}`}
-                  className={`inline-flex items-center gap-1 min-h-9 px-2 rounded-md border border-white/[0.08] text-xs text-gray-400 line-through decoration-gray-600 hover:text-gray-200 ${focusRing}`}
+                  className="text-xs font-normal text-gray-400"
                 >
-                  {p.name}
-                  <X className="w-3 h-3 no-underline" aria-hidden="true" />
-                </button>
+                  <span className="line-through decoration-gray-600">{p.name}</span>
+                  <X className="w-3 h-3" aria-hidden="true" />
+                </Button>
               ))}
             </div>
           )}

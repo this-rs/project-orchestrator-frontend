@@ -18,13 +18,14 @@ import {
   RelativeTime,
   Section,
   StatusText,
+  ToneText,
   WatcherToggle,
-  focusRing,
   formatAbsolute,
   formatDay,
   pluralize,
   ProgressLine,
 } from '@/components/ui'
+import { glassFlat, iconButton } from '@/components/ui/classes'
 import { ExpandableMilestoneRow } from '@/components/expandable'
 import {
   useIntelligenceData,
@@ -211,9 +212,7 @@ export function ProjectDetailPage() {
           !codebase ? null : project.last_synced ? (
             <RelativeTime key="sync" date={project.last_synced} prefix="synced " />
           ) : (
-            <span key="sync" className="text-amber-400/80">
-              Never synced
-            </span>
+            <ToneText key="sync" tone="warning" label="Never synced" />
           ),
           pluralize(milestones.length, 'milestone'),
           releases.length > 0 ? pluralize(releases.length, 'release') : null,
@@ -360,16 +359,18 @@ export function ProjectDetailPage() {
             {
               label: 'Root path',
               value: project.root_path ? (
-                <button
-                  type="button"
-                  onClick={() => project.root_path && copyPath(project.root_path)}
-                  title="Copy path"
-                  className={`font-mono text-xs text-gray-300 break-all text-right sm:text-left hover:text-white inline-flex items-start gap-1.5 rounded ${focusRing}`}
-                >
-                  <span>{project.root_path}</span>
-                  <Clipboard className="w-3 h-3 mt-0.5 shrink-0 text-gray-500" aria-hidden="true" />
-                  <span className="sr-only">Copy path</span>
-                </button>
+                <span className="inline-flex items-center gap-1 min-w-0 max-w-full">
+                  <span className="font-mono text-xs text-gray-300 break-all min-w-0">{project.root_path}</span>
+                  <button
+                    type="button"
+                    onClick={() => project.root_path && copyPath(project.root_path)}
+                    title="Copy path"
+                    aria-label="Copy path"
+                    className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} -my-2 text-gray-500`}
+                  >
+                    <Clipboard className="w-3.5 h-3.5" aria-hidden="true" />
+                  </button>
+                </span>
               ) : null,
             },
             { label: 'Created', value: project.created_at ? formatAbsolute(project.created_at) : null },

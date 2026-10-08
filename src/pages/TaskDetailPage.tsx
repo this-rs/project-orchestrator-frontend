@@ -527,11 +527,10 @@ export function TaskDetailPage() {
       {/* ── Acceptance criteria ── */}
       {acceptanceCriteria.length > 0 && (
         <Section title="Acceptance criteria" count={acceptanceCriteria.length}>
-          <ul className="space-y-1.5 px-1">
+          <ul className="space-y-1.5 pl-5 list-disc marker:text-gray-500">
             {acceptanceCriteria.map((criterion, index) => (
-              <li key={index} className="flex items-start gap-2 text-sm text-gray-300">
-                <span className="mt-2 w-1 h-1 rounded-full bg-gray-500 shrink-0" aria-hidden="true" />
-                <span className="break-words min-w-0">{criterion}</span>
+              <li key={index} className="text-sm text-gray-300 break-words min-w-0">
+                {criterion}
               </li>
             ))}
           </ul>

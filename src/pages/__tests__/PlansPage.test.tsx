@@ -131,4 +131,12 @@ describe('PlansPage (list)', () => {
     expect(await screen.findByText('No plans yet')).toBeTruthy()
     expect(screen.getAllByRole('button', { name: 'New plan' }).length).toBe(2)
   })
+
+  it('introduces plans from the registry, folded under the title', async () => {
+    renderPage()
+    await screen.findByRole('link', { name: 'Auth flow' })
+    const intro = screen.getByText('What is this?').closest('details')!
+    expect(intro.getAttribute('data-concept-intro')).toBe('plans')
+    expect(intro.hasAttribute('open')).toBe(false)
+  })
 })

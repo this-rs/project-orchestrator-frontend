@@ -51,7 +51,7 @@ export function UniversalKanbanColumn<T extends { id: string }>({
   return (
     <section
       aria-label={`${title} (${displayCount})`}
-      className={`flex flex-col flex-1 rounded-xl border bg-white/[0.02] transition-colors duration-[120ms] ${
+      className={`flex flex-col flex-1 rounded-xl border bg-white/[0.02] transition-colors duration-(--duration-instant) ${
         fullWidth ? 'min-w-0' : 'min-w-[220px]'
       } ${isOver ? 'border-indigo-500/40 bg-indigo-500/[0.04]' : 'border-white/[0.06]'}`}
     >
