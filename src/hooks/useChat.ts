@@ -43,6 +43,12 @@ import type { BackgroundActivityMetadata, BackgroundOutputEntry } from '@/types'
 const PAGE_SIZE = 50
 
 /**
+ * How long a Stop the socket accepted may go without ending the turn before it
+ * is sent again over REST. A healthy backend answers in well under this.
+ */
+const INTERRUPT_ACK_TIMEOUT_MS = 4000
+
+/**
  * Upper bound for the tail widening in `fetchRenderableTail`. 16 pages is
  * enough to clear a long burst of non-renderable events, and small enough not
  * to drag a whole multi-thousand-event conversation over the wire on open.
@@ -235,6 +241,7 @@ function routingOf(session: { routed_by?: ChatSession['routed_by']; route_reason
 export function useChat() {
   const [sessionId, setSessionId] = useAtom(chatSessionIdAtom)
   const [isStreaming, setIsStreaming] = useAtom(chatStreamingAtom)
+  const interruptWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isCompacting, setIsCompacting] = useAtom(chatCompactingAtom)
   const [wsStatus, setWsStatus] = useAtom(chatWsStatusAtom)
   const [isReplaying, setIsReplaying] = useAtom(chatReplayingAtom)
@@ -2158,21 +2165,10 @@ export function useChat() {
     return true
   }, [sessionId, getWs, store, setIsStreaming])
 
-  const interrupt = useCallback(async () => {
-    if (!sessionId) return
-    const ws = getWs()
-
-    // `send()` returns false on a dead socket — and schedules a reconnect.
-    // That return used to be dropped here, which is how Stop became a
-    // no-op: the frame went nowhere, nothing reached the backend, and the
-    // composer had already latched "Stopping…" with no way back. Unlike a
-    // user message (queued in `pendingSendRef` and replayed), an interrupt
-    // is worthless late — so it falls back to REST rather than waiting for
-    // the socket to come back.
-    if (ws.sendInterrupt()) return
-
+  // Stop over REST: its own HTTP handler, so it does not wait on the WS loop.
+  const interruptOverRest = useCallback(async (id: string) => {
     try {
-      const outcome = await chatApi.interruptSession(sessionId)
+      const outcome = await chatApi.interruptSession(id)
       if (!outcome?.delivered) {
         // Nothing was streaming server-side. Clear the local streaming flag
         // so the button leaves its "Stopping…" state: no `result` event is
@@ -2185,7 +2181,39 @@ export function useChat() {
       console.error('Chat: interrupt failed over both WebSocket and REST', err)
       setIsStreaming(false)
     }
-  }, [sessionId, getWs, setIsStreaming])
+  }, [setIsStreaming])
+
+  const interrupt = useCallback(async () => {
+    if (!sessionId) return
+    const ws = getWs()
+
+    // `send()` returns false on a dead socket — and schedules a reconnect.
+    // That return used to be dropped here, which is how Stop became a
+    // no-op: the frame went nowhere, nothing reached the backend, and the
+    // composer had already latched "Stopping…" with no way back. Unlike a
+    // user message (queued in `pendingSendRef` and replayed), an interrupt
+    // is worthless late — so it falls back to REST rather than waiting for
+    // the socket to come back.
+    if (!ws.sendInterrupt()) {
+      await interruptOverRest(sessionId)
+      return
+    }
+
+    // The socket accepted the frame; that does not mean the backend read it.
+    // Its WS loop handles one frame at a time, and while it is busy inside
+    // another handler the frame just sits in the socket: no `result` comes,
+    // and Stop would stay latched on "Stopping…" for good. So if the turn is
+    // still streaming after a grace period, ask over REST as well.
+    if (interruptWatchdogRef.current) clearTimeout(interruptWatchdogRef.current)
+    interruptWatchdogRef.current = setTimeout(() => {
+      interruptWatchdogRef.current = null
+      if (store.get(chatStreamingAtom)) void interruptOverRest(sessionId)
+    }, INTERRUPT_ACK_TIMEOUT_MS)
+  }, [sessionId, getWs, store, interruptOverRest])
+
+  useEffect(() => () => {
+    if (interruptWatchdogRef.current) clearTimeout(interruptWatchdogRef.current)
+  }, [])
 
   /**
    * Hand over to the server every queued message still waiting on this side
