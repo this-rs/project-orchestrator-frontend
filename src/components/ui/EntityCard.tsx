@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import { MetaLine } from './MetaLine'
@@ -139,7 +139,7 @@ export function EntityCard({
       data-concept={concept}
       data-tone={tone}
       data-selected={selected ? '' : undefined}
-      style={tintStyle(concept)}
+      style={tintStyle(concept) as CSSProperties}
       className={`group/card relative flex flex-col gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 [background-image:linear-gradient(160deg,color-mix(in_srgb,var(--entity-tint)_11%,transparent),transparent_55%)] transition-[translate] duration-(--duration-fast) ease-(--ease-standard) pointer-fine:motion-safe:hover:-translate-y-[3px] ${
         selected ? 'ring-1 ring-indigo-500/50' : ''
       } ${className}`}

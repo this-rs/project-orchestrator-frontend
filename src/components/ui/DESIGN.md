@@ -165,7 +165,7 @@ because the header already carries the `display-2` headline.
 
 ## 3. Colour roles
 
-- Surfaces: page `surface-base` (from layout) · list/section container `surface` (`rounded-xl border border-white/[0.06] bg-white/[0.02]`) · menus `bg-surface-popover`. Content is OPAQUE. `Card` and `StatCard` (glass) are legacy, retired by the cards plan (§5b); do not build on them.
+- Surfaces: page `surface-base` (from layout) · list/section container `surface` (`rounded-xl border border-white/[0.06] bg-white/[0.02]`) · menus `bg-surface-popover`. Content is OPAQUE. The base container is `<Surface padding="none|sm|md" interactive>`; an entity as a card is `EntityCard` in an `EntityGrid` (§5b).
 - Text: `gray-100` titles · `gray-200` row titles · `gray-300` body · `gray-400` secondary · `gray-500` meta · `gray-600/700` separators & placeholders.
 - **One accent: indigo.** Selection, focus rings, primary buttons, active tab, links-as-actions (`textLink`). Don't introduce other accent colours.
   - **The single exception** *(from the site — `website/DESIGN.md` §0 « boutons en verre (écart volontaire) », which §3 « Interdits : dégradés violets » otherwise forbids)*: the fill of the **primary glass button** and of the **active item of the segmented control** is the gradient `linear-gradient(135deg, #4f46e5, #7c3aed)` (indigo → violet, recipe `.btn-primary` / `.seg-item[aria-selected]` in `buttons.css`). It is a *material* highlight on the one control that says "this is the action", not a second accent: the violet never appears as text, icon, border, rail, badge or tone, and `special` (violet) stays reserved to statuses (§4). Anything else using `from-violet-*`, `to-cyan-*` or `bg-clip-text` is still a bug. Naming the exception here is what makes the two contracts consistent again.
@@ -270,7 +270,7 @@ A card is the SAME anatomy as an `EntityRow`, shown as a card where the thing it
 - **Contrast.** Text on the wash stays AA; checked in the visual pass (docs/DESIGN_QA.md) before a page ships.
 - **Grid.** 1 / 2 / 3 columns, `content-visibility` on long lists, `SkeletonCard` while loading. The `ViewToggle` remembers the choice per list.
 - **Where the tint is written.** In `NOMENCLATURE` only; `nomenclature.test.ts` checks that every concept has one and that the kinds shown as cards (`CARD_CONCEPTS`) stay visibly different (RGB distance ≥ 25). The graph palette (`ENTITY_COLORS`) is a separate palette for nodes and keeps its own values: a scanner for hand-written hex was tried and dropped, the tints are ordinary Tailwind shades that graphs and particle scenes also use.
-- **Enforced.** `designContract.test.ts` rule `glass-on-content`: the `glass` / `ui-glass` classes may not appear on content outside `ui/`. `Card` and `StatCard` live in `ui/` and are the debt to retire.
+- **Enforced.** `designContract.test.ts` rule `glass-on-content`: the `glass` / `ui-glass` classes may not appear on content outside `ui/`. `Card`, `StatCard` and `CompactStatCard` are gone (retired with the first cards PR): no glass content primitive remains in `ui/`.
 
 ## 6. Filters — `FilterBar`
 
@@ -413,8 +413,7 @@ content behind it (the class guarantees ≥ 78% opacity and a hairline border);
 - **Still forbidden on content.** Cards, rows, sections, mockups, the chat
   bubbles, `EntityRow`, `Section`, `Surface`: opaque, as above. The site's §1
   (« Verre : uniquement sur une couche flottante ») and this table agree; the
-  app's own `Card` / `StatCard` (`glass … card-hover`, `glass … border-t-2`) are
-  the debt, not the rule — they migrate to `surface`.
+  app's former `Card` / `StatCard` are gone: `Surface` replaced them.
 - **A budget of blurs: at most ~10 visible at once.** A `backdrop-filter` is
   composited per element while scrolling. A dense row of controls (every `⋯` of
   a list, the actions of a toolbar, buttons inside `EntityRow.primaryAction`) is
@@ -459,7 +458,7 @@ content behind it (the class guarantees ≥ 78% opacity and a hairline border);
 `SpotlightCard` (`website/DESIGN.md` §2 « Halo discret ») is brought up as
 `ui/motion/SpotlightCard`, with a fence: one surface per screen that invites a
 click (a page-level empty state, a step of the setup assistant) — never a row,
-a card in a list or a `StatCard`, where hover only enhances colour (§10). See
+a card in a list, where hover only enhances colour (§10). See
 « Kit » under Mouvement.
 
 ### Mouvement — one curve, five durations, three families
@@ -557,7 +556,7 @@ that *do* apply here are already above: animate `transform` / `opacity` only, on
 thing moves at a time, nothing is animated twice, data never animates.
 
 Hovers that **transform** (a lift, a scale) exist only for a fine pointer:
-`@media (hover: hover) and (pointer: fine)` in CSS (`.card-hover`), the
+`@media (hover: hover) and (pointer: fine)` in CSS (`EntityCard`: `pointer-fine:motion-safe:`), the
 `pointer-fine:hover:` variant in a class (heatmap cells, graph nodes). A finger
 has no hover: the state would stick after the tap. Colour on hover needs no fence.
 
