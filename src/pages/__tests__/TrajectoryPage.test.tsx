@@ -6,7 +6,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
-const { listPlans } = vi.hoisted(() => ({ listPlans: vi.fn() }))
+const { listPlans, listProjects, listMilestones } = vi.hoisted(() => ({ listPlans: vi.fn(), listProjects: vi.fn(), listMilestones: vi.fn() }))
+
+const oneProject = async () => [{ id: 'pr1', name: 'Website', slug: 'website', root_path: '', created_at: '' }]
+const oneObjective = async () => ({
+  items: [{ id: 'm1', workspace_id: 'w', title: 'Public beta', status: 'open', tags: [], created_at: '' }],
+})
 
 const twoPlans = async () => ({
   items: [
@@ -24,10 +29,8 @@ vi.mock('@/services', () => ({
 }))
 vi.mock('@/services/workspaces', () => ({
   workspacesApi: {
-    listProjects: async () => [{ id: 'pr1', name: 'Website', slug: 'website', root_path: '', created_at: '' }],
-    listMilestones: async () => ({
-      items: [{ id: 'm1', workspace_id: 'w', title: 'Public beta', status: 'open', tags: [], created_at: '' }],
-    }),
+    listProjects: (...a: unknown[]) => listProjects(...a),
+    listMilestones: (...a: unknown[]) => listMilestones(...a),
     getMilestoneProgress: async () => ({ total: 10, completed: 5, in_progress: 2, pending: 3, percentage: 50 }),
   },
 }))
@@ -50,11 +53,51 @@ if (!window.matchMedia) {
 }
 
 import { TrajectoryPage } from '../TrajectoryPage'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 
 describe('TrajectoryPage', () => {
   beforeEach(() => {
     listPlans.mockReset()
     listPlans.mockImplementation(twoPlans)
+    listProjects.mockReset()
+    listProjects.mockImplementation(oneProject)
+    listMilestones.mockReset()
+    listMilestones.mockImplementation(oneObjective)
+  })
+
+  it('explains itself through the registry intro, folded under the title (DESIGN.md § 5)', async () => {
+    render(
+      <MemoryRouter>
+        <TrajectoryPage />
+      </MemoryRouter>,
+    )
+    await waitFor(() => expect(screen.getByText('Public beta')).toBeTruthy())
+    const intro = document.querySelector('details[data-concept-intro="trajectory"]') as HTMLDetailsElement
+    expect(intro).toBeTruthy()
+    expect(intro.open).toBe(false)
+    expect(intro.textContent).toContain(NOMENCLATURE.trajectory.explain.what)
+    // one h1, no display title on a list page
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(document.querySelector('.display-2, .display-3')).toBeNull()
+    // the "Work" group header is a quiet group header, never an uppercase label
+    expect(document.body.innerHTML).not.toMatch(/uppercase|tracking-wide/)
+  })
+
+  it('with nothing to trace: the page-level empty state (display-3) with ONE action that opens the plans', async () => {
+    listPlans.mockImplementation(async () => ({ items: [], total: 0 }))
+    listProjects.mockImplementation(async () => [])
+    listMilestones.mockImplementation(async () => ({ items: [] }))
+    render(
+      <MemoryRouter>
+        <TrajectoryPage />
+      </MemoryRouter>,
+    )
+    const title = await screen.findByRole('heading', { level: 2, name: 'Nothing to trace yet' })
+    expect(title.className).toContain('display-3')
+    const actions = screen.getAllByRole('button').filter((b) => b.className.includes('btn-primary'))
+    expect(actions).toHaveLength(1)
+    expect(actions[0].textContent).toBe(`Open ${NOMENCLATURE.plans.plural.toLowerCase()}`)
+    expect(document.querySelector('[class*="glow"]')).toBeNull()
   })
 
   it('shows objectives, the active plan open, and finished plans under Path travelled', async () => {

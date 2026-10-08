@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/Button'
 import { StatusIcon } from '@/components/ui/Status'
 import { RelativeTime } from '@/components/ui/MetaLine'
 import { ChevronRight } from 'lucide-react'
-import { focusRing, hitArea, inlineLink, metaTextReadable as metaText, pressFeedback } from '@/components/ui/classes'
+import { focusRing, hitArea, inlineLink, metaTextReadable as metaText, segmentItem, segmented } from '@/components/ui/classes'
 import { formatDurationMs } from '@/components/ui/format'
 import { CostDisplay } from '@/components/ui/CostDisplay'
 import { costReport, formatUsd2 } from '@/utils/cost'
@@ -23,9 +23,10 @@ import { Ring } from './charts'
 import { ageText } from './startHere'
 import { ContinueSheet } from './ContinueSheet'
 import { STUCK_LABEL } from './bands'
+import { TEXT } from './text'
 
 /**
- * One row per thread to take back up (section "À reprendre" of Today). Rows, not cards: they
+ * One row per thread to take back up (section "To resume" of Today). Rows, not cards: they
  * sit in a `ThreadRowList` (`divide-y`), no surface, no border, no shadow —
  * elevation carries no hierarchy here (today-ux). The body is the thread's
  * `MiniThreadGraph`.
@@ -33,15 +34,15 @@ import { STUCK_LABEL } from './bands'
  * Variants:
  * - `stuck`    : the cause in clear, the resume preview EXACTLY as the backend
  *                sent it (`resume`, no computation here), the blocked tasks by
- *                name with a link to unblock them, and "Reprendre". When the
+ *                name with a link to unblock them, and "Resume". When the
  *                runner is busy the button is DISABLED with the reason and a
  *                link — the constraint is said before the click, never by a 409.
- * - `orphan`   : what was asked, since when the CLI stopped, and "Reprendre la
- *                session" which opens a message field. NEVER an "Autoriser"
+ * - `orphan`   : what was asked, since when the CLI stopped, and "Resume the
+ *                conversation" which opens a message field. NEVER an "Allow"
  *                button: the server cannot answer a dead CLI (spike 0.1), the
  *                only way back is a `user_message` (resume_session).
- * - `unattached`: a session with NO link, same row, labelled "sans fil", same
- *                reply actions (dead => Reprendre la session; live => Repondre).
+ * - `unattached`: a session with NO link, same row, labelled "free conversation", same
+ *                reply actions (dead => Resume the conversation; live => Reply).
  *
  * The component is presentational: `onResume` (POST /plans/{id}/run — the
  * server attaches the new sessions to the NEW run) and `onSendMessage`
@@ -49,53 +50,23 @@ import { STUCK_LABEL } from './bands'
  */
 
 // ---------------------------------------------------------------------------
-// Wording (one place; the spike 0.1 texts are verbatim)
+// Wording: a slice of the one registry (`./text`), kept under its historical name
 // ---------------------------------------------------------------------------
 
-export const ROW_TEXT = {
-  resume: 'Reprendre',
-  resumeSession: 'Reprendre la conversation',
-  reply: 'Répondre…',
-  noThread: 'Conversation libre',
-  runnerBusy: 'Indisponible : un autre plan tourne déjà,',
-  noPlan: 'Aucun plan à reprendre.',
-  noPreview: "L'aperçu de la reprise n'est pas disponible.",
-  unblockFirst: 'Débloque-les avant de reprendre : une tâche bloquée est sautée.',
-  blockedToggle: (n: number) => (n === 1 ? '1 tâche bloquée sera sautée' : `${n} tâches bloquées seront sautées`),
-  showRequest: 'Voir la demande',
-  resumeStarted: 'Reprise lancée.',
-  followRun: 'Suivre le plan',
-  resumeFailed: 'La reprise a échoué.',
-  /** Help of an orphan PERMISSION (only valid for a request without decision). */
-  helpPermission:
-    "La conversation s'est interrompue avant ta réponse. Reprendre relance l'assistant, qui redemandera l'autorisation si besoin. Rien n'a été exécuté.",
-  /** Help of an orphan QUESTION. */
-  helpQuestion:
-    "La conversation s'est interrompue avant ta réponse. Choisis une option : elle sera envoyée comme message à la reprise.",
-  helpLive: 'L’assistant attend ta réponse : elle sera envoyée comme message.',
-  livePermissionElsewhere: 'Cette autorisation se donne dans « À toi ».',
-  /** What the sheet opens with when no option was chosen. */
-  defaultMessage: 'Continue.',
-} as const
+export const ROW_TEXT = TEXT.row
 
 /** Message sent on resume once the user picked an option of an orphan question (spike 0.1). */
 export function questionAnswerMessage(question: string, option: string): string {
-  return `Ma réponse à ta question précédente (« ${question} ») : ${option}. Ne la repose pas, continue.`
+  return ROW_TEXT.questionAnswer(question, option)
 }
 
 /**
- * The resume preview, worded from the backend's fields as they are — "Reprendre relance
- * 2 tâches ; 4 déjà faites". Counts are shown, not recomputed. The blocked tasks the resume
+ * The resume preview, worded from the backend's fields as they are — "Resume reruns
+ * 2 tasks; 4 already done". Counts are shown, not recomputed. The blocked tasks the resume
  * skips are named right under it (`blocked-tasks`), so they are not repeated here.
  */
 export function resumePreviewText(p: ResumePreview): string {
-  const done = p.done_count
-  const rerun =
-    p.rerun_count > 0
-      ? `Reprendre relance ${p.rerun_count} ${p.rerun_count === 1 ? 'tâche' : 'tâches'}`
-      : 'Reprendre ne relance aucune tâche'
-  const kept = done > 0 ? ` ; ${done} déjà ${done === 1 ? 'faite' : 'faites'}` : ''
-  return `${rerun}${kept}`
+  return `${ROW_TEXT.rerun(p.rerun_count)}${ROW_TEXT.kept(p.done_count)}`
 }
 
 /** Where a session is attached, in words (provenance of each link; never computed membership). */
@@ -105,22 +76,23 @@ export function linkProvenance(link: SessionLink, thread?: AttentionThread): str
     case 'spawned_by_json': {
       // Neutral: the contract gives `via` + ids only. Whether a run is the current
       // one is the backend's to say, never inferred here (requirement 07909b4a).
-      const who = link.via === 'runner_run' ? 'rattachée à l’exécution' : 'créée par l’exécution'
-      return link.run_id ? `${who} ${shortId(link.run_id)}` : who
+      const id = link.run_id ? shortId(link.run_id) : null
+      return link.via === 'runner_run' ? ROW_TEXT.attachedToExecution(id) : ROW_TEXT.createdByExecution(id)
     }
     case 'task_association':
-      return link.task_id ? `rattachée à la tâche ${shortId(link.task_id)}` : 'rattachée à une tâche'
+      return ROW_TEXT.attachedToTask(link.task_id ? shortId(link.task_id) : null)
     case 'plan_association':
-      return thread?.plan ? `rattachée au plan ${thread.plan.title}` : 'rattachée à un plan'
+      return ROW_TEXT.attachedToPlan(thread?.plan ? thread.plan.title : null)
   }
 }
 
 const shortId = (id: string) => id.slice(0, 8)
 
 /**
- * Buttons of the rows (bands 2 and 3) are quiet `<Button variant="secondary">`. The ONE
- * filled button of the page is the answer to a live agent (band 1): eight stuck threads
- * must not stack eight identical primaries.
+ * Buttons of the rows (bands 2 and 3) are quiet `<Button variant="secondary" flat>`: glass without
+ * blur, because a button that repeats per row must not add a backdrop filter per row (DESIGN.md
+ * § 9). The ONE filled button of the page is the answer to a live assistant (band 1): eight stuck
+ * threads must not stack eight identical primaries.
  */
 
 // ---------------------------------------------------------------------------
@@ -237,7 +209,7 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
   // else the resume preview's (no front-side computation; works when `resume` is absent).
   const blocked = thread.blocked_tasks.length > 0 ? thread.blocked_tasks : (thread.resume?.skipped_blocked ?? [])
   const reason = thread.stuck_reason
-  const cause = reason ? STUCK_LABEL[reason] : 'À reprendre'
+  const cause = reason ? STUCK_LABEL[reason] : TEXT.bands.stuck.title
   const states = countPlanStates(thread.waves)
 
   // Why the button cannot be used — said before the click.
@@ -245,7 +217,7 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
   if (busy) {
     disabledReason = (
       <>
-        {ROW_TEXT.runnerBusy}{' '}
+        {ROW_TEXT.unavailableBusy}{' '}
         <Link
           to={workspacePath(busy.workspace, `/plans/${busy.plan_id}`)}
           className={`${inlineLink} underline`}
@@ -289,20 +261,22 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
         <Button
           variant="secondary"
           size="sm"
+          flat
           onClick={click}
           disabled={disabled}
           aria-describedby={noteId}
           // Not a dimmed button: a visibly unavailable one (dashed, grey), at full opacity so its reason stays readable.
-          className="disabled:border-dashed disabled:border-white/[0.12]! disabled:bg-transparent! disabled:text-gray-400! disabled:opacity-100!"
+          // The glass draws its hairline in `::after`; the dashed border needs a real 1px border.
+          className="disabled:border disabled:border-dashed disabled:border-white/[0.12]! disabled:bg-transparent! disabled:bg-none! disabled:shadow-none! disabled:text-gray-400! disabled:opacity-100!"
         >
-          {pending ? 'Reprise…' : ROW_TEXT.resume}
+          {pending ? ROW_TEXT.resuming : ROW_TEXT.resume}
         </Button>
       }
       meta={
         <>
           <span className={reason === 'task_blocked' ? 'text-amber-300' : 'text-red-300'}>{cause}</span>
           <span>{laneName ?? thread.workspace}</span>
-          <span>depuis {ageText(thread.age_secs)}</span>
+          <span>{ROW_TEXT.since(ageText(thread.age_secs))}</span>
           {thread.run && (
             <span data-testid="run-cost" className="tabular-nums">
               {/* The basis comes with the figure; without one (an older backend) it is a reported cost, zero included. */}
@@ -376,7 +350,7 @@ function RequestText({ req }: { req: WaitingRequest }) {
       summary={
         <span>
           {ROW_TEXT.showRequest}
-          {req.kind === 'permission' ? ` : autorisation${req.tool_name ? ` (${req.tool_name})` : ''}` : ' : question'}
+          {ROW_TEXT.requestKind(req.kind, req.tool_name)}
         </span>
       }
     >
@@ -387,7 +361,11 @@ function RequestText({ req }: { req: WaitingRequest }) {
   )
 }
 
-/** Options of a QUESTION: choosing one pre-fills the message; a permission has none. */
+/**
+ * Options of a QUESTION: choosing one pre-fills the message; a permission has none. They are the
+ * segmented control of the contract (`seg` / `seg-item`): the chosen option is the tinted glass of
+ * `aria-pressed="true"`, the strip wraps on a narrow column.
+ */
 function OptionPicker({
   options,
   selected,
@@ -399,7 +377,7 @@ function OptionPicker({
 }) {
   if (options.length === 0) return null
   return (
-    <div role="group" aria-label="Options de la question" className="mt-2 flex flex-wrap gap-2">
+    <div role="group" aria-label={ROW_TEXT.optionsLabel} className={`${segmented} mt-2 max-w-full flex-wrap`}>
       {options.map((o) => {
         const on = o.label === selected
         return (
@@ -409,9 +387,7 @@ function OptionPicker({
             aria-pressed={on}
             aria-label={o.label}
             onClick={() => onSelect(on ? null : o.label)}
-            className={`${pressFeedback} min-h-9 rounded-lg border px-3 py-1.5 text-left text-xs ${focusRing} ${
-              on ? 'border-indigo-400/60 bg-indigo-500/15 text-gray-100' : 'border-white/[0.1] text-gray-300 hover:bg-white/[0.06]'
-            }`}
+            className={`${segmentItem} min-h-9 flex-col items-start! px-3 py-1.5 text-left text-xs`}
           >
             <span className="block">{o.label}</span>
             {o.description && <span className="block font-normal text-gray-400">{o.description}</span>}
@@ -460,7 +436,7 @@ export function ReplyAction({
         <p className="mt-1 text-xs text-gray-400">{ROW_TEXT.livePermissionElsewhere}</p>
       ) : (
         <div className={isQuestion && req.options.length > 0 ? 'mt-2' : ''}>
-          <Button variant={emphasis === 'primary' ? 'primary' : 'secondary'} size="sm" onClick={() => setOpen(true)}>
+          <Button variant={emphasis === 'primary' ? 'primary' : 'secondary'} size="sm" flat onClick={() => setOpen(true)}>
             {dead ? ROW_TEXT.resumeSession : ROW_TEXT.reply}
           </Button>
         </div>
@@ -468,11 +444,11 @@ export function ReplyAction({
       <ContinueSheet
         open={open}
         onClose={() => setOpen(false)}
-        title={dead ? ROW_TEXT.resumeSession : 'Répondre'}
+        title={dead ? ROW_TEXT.resumeSession : ROW_TEXT.replyTitle}
         help={help}
         initialText={initialText}
-        submitLabel={dead ? ROW_TEXT.resumeSession : 'Envoyer'}
-        fieldLabel={dead ? 'Message de reprise' : 'Réponse'}
+        submitLabel={dead ? ROW_TEXT.resumeSession : ROW_TEXT.send}
+        fieldLabel={dead ? ROW_TEXT.resumeField : ROW_TEXT.replyField}
         onSend={(text) => onSendMessage(sessionId, text)}
       />
     </div>
@@ -484,7 +460,7 @@ export interface OrphanThreadRowProps extends CommonProps {
   orphan: OrphanRequest
   /** A `user_message` to the dead session (=> resume_session). NEVER permission_response / input_response. */
   onSendMessage: (sessionId: string, text: string) => Promise<void>
-  /** "Rattacher à…", shown only when the session has no link ("sans fil"). */
+  /** "Attach to…", shown only when the session has no link (a free conversation). */
   attachSlot?: ReactNode
 }
 
@@ -500,12 +476,12 @@ export function OrphanThreadRow({ thread, orphan, onSendMessage, attachSlot, lan
       action={orphan.kind === 'permission' || orphan.options.length === 0 ? <ReplyAction req={orphan} sessionId={orphan.session_id} dead onSendMessage={onSendMessage} /> : undefined}
       meta={
         <>
-          <span className="text-amber-300">Demande restée sans réponse</span>
+          <span className="text-amber-300">{STUCK_LABEL.orphan_request}</span>
           <span>{laneName ?? thread.workspace}</span>
           {orphan.cli_stopped_at ? (
-            <RelativeTime date={orphan.cli_stopped_at} prefix="conversation arrêtée depuis " />
+            <RelativeTime date={orphan.cli_stopped_at} prefix={ROW_TEXT.conversationStoppedSince} />
           ) : (
-            <span>conversation arrêtée</span>
+            <span>{ROW_TEXT.conversationStopped}</span>
           )}
         </>
       }
@@ -526,11 +502,11 @@ export function OrphanThreadRow({ thread, orphan, onSendMessage, attachSlot, lan
 export interface UnattachedThreadRowProps extends CommonProps {
   session: UnattachedSession
   onSendMessage: (sessionId: string, text: string) => Promise<void>
-  /** "Rattacher à…": a session without a thread is exactly what it is for. */
+  /** "Attach to…": a session without a thread is exactly what it is for. */
   attachSlot?: ReactNode
 }
 
-/** A session with no link: same row shape, labelled "sans fil", same reply actions. */
+/** A session with no link: same row shape, labelled "free conversation", same reply actions. */
 export function UnattachedThreadRow({ session, onSendMessage, attachSlot, laneName, className = '' }: UnattachedThreadRowProps) {
   const dead = session.state === 'dead'
   return (
@@ -546,9 +522,7 @@ export function UnattachedThreadRow({ session, onSendMessage, attachSlot, laneNa
             {ROW_TEXT.noThread}
           </span>
           <span>{laneName ?? session.workspace_slug}</span>
-          <span className="tabular-nums">
-            {dead ? 'arrêtée' : 'en cours'} depuis {formatDurationMs(session.age_secs * 1000)}
-          </span>
+          <span className="tabular-nums">{ROW_TEXT.sessionSince(dead, formatDurationMs(session.age_secs * 1000))}</span>
         </>
       }
     >

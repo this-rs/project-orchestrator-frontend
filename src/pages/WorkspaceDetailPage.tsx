@@ -27,7 +27,9 @@ import {
   rowInteractive,
   surface,
   ProgressLine,
+  TONE_CLASSES,
 } from '@/components/ui'
+import { NOMENCLATURE } from '@/constants/nomenclature'
 import { workspacesApi, projectsApi } from '@/services'
 import { useFormDialog, useIsMobile, useLinkDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
@@ -63,14 +65,19 @@ interface WorkspaceOverviewResponse {
 
 type MilestoneWithProgress = WorkspaceMilestone & { progress?: MilestoneProgress }
 
+/** The health score reads through a status tone (DESIGN.md § 3: semantic colour only through tones). */
 function healthTone(score: number): string {
-  if (score >= 80) return 'text-emerald-400'
-  if (score >= 40) return 'text-amber-400'
-  return 'text-red-400'
+  if (score >= 80) return TONE_CLASSES.success.text
+  if (score >= 40) return TONE_CLASSES.warning.text
+  return TONE_CLASSES.danger.text
 }
 
+/** The product's words (DESIGN.md § 0): an Objective is still a `milestone` on the wire. */
+const OBJECTIVE = NOMENCLATURE.objectives
+const addObjective = `Add ${OBJECTIVE.singular.toLowerCase()}`
+
 // ============================================================================
-// MAIN PAGE — hub: header → progress → attention → lists → health → graph/timeline → assets → maintenance
+// MAIN PAGE — hub: header (+ intro) → progress → health → graph → attention → lists → timeline → assets → maintenance
 // ============================================================================
 
 export function WorkspaceDetailPage() {
@@ -153,7 +160,7 @@ export function WorkspaceDetailPage() {
       if (!slug) return
       const newMilestone = await workspacesApi.createMilestone(slug, data)
       setMilestones((prev) => [...prev, { ...newMilestone, progress: undefined }])
-      toast.success('Milestone added')
+      toast.success(`${OBJECTIVE.singular} added`)
     },
   })
 
@@ -264,7 +271,7 @@ export function WorkspaceDetailPage() {
     toast.success('Component deleted')
   }
 
-  const graphFallback = <Skeleton className="w-full h-[300px] sm:h-[450px] !rounded-xl" />
+  const graphFallback = <Skeleton className="w-full h-[300px] sm:h-[450px] rounded-xl!" />
 
   return (
     <PageContainer width="wide" className="space-y-6">
@@ -272,6 +279,7 @@ export function WorkspaceDetailPage() {
       <PageHeader
         title={workspace.name}
         description={workspace.description}
+        intro="overview"
         meta={[
           intelReady ? (
             <MetricTooltip key="health" term="health_score">
@@ -279,7 +287,7 @@ export function WorkspaceDetailPage() {
             </MetricTooltip>
           ) : null,
           pluralize(projects.length, 'project'),
-          pluralize(milestones.length, 'milestone'),
+          pluralize(milestones.length, OBJECTIVE.singular.toLowerCase()),
           workspace.updated_at ? <RelativeTime key="upd" date={workspace.updated_at} prefix="updated " /> : null,
         ]}
         overflowActions={[
@@ -328,7 +336,7 @@ export function WorkspaceDetailPage() {
       {/* ── Graph (visual, collapsed on phones — heavy WebGL) ── */}
       {slug && (
         <Section title="Graph" collapsible defaultOpen={!isMobile}>
-          <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+          <div className={`${surface} overflow-hidden`}>
             <Suspense fallback={graphFallback}>
               <WorkspaceGraphPage workspaceSlug={slug} embedded />
             </Suspense>
@@ -341,7 +349,7 @@ export function WorkspaceDetailPage() {
 
       {/* ── Projects ── */}
       <Section
-        title="Projects"
+        title={NOMENCLATURE.projects.plural}
         count={projects.length}
         action={
           <Button size="sm" variant="ghost" onClick={openAddProject}>
@@ -415,12 +423,12 @@ export function WorkspaceDetailPage() {
         )}
       </Section>
 
-      {/* ── Milestones ── */}
+      {/* ── Objectives (milestones on the wire) ── */}
       <Section
-        title="Milestones"
+        title={OBJECTIVE.plural}
         count={milestones.length}
         action={
-          <Button size="sm" variant="ghost" onClick={() => milestoneFormDialog.open({ title: 'Add milestone' })}>
+          <Button size="sm" variant="ghost" onClick={() => milestoneFormDialog.open({ title: addObjective })}>
             Add
           </Button>
         }
@@ -428,15 +436,16 @@ export function WorkspaceDetailPage() {
         {milestones.length === 0 ? (
           <EmptyState
             size="sm"
-            title="No milestones yet"
+            title={`No ${OBJECTIVE.plural.toLowerCase()} yet`}
+            description={OBJECTIVE.description}
             action={
-              <Button size="sm" variant="secondary" onClick={() => milestoneFormDialog.open({ title: 'Add milestone' })}>
+              <Button size="sm" variant="secondary" onClick={() => milestoneFormDialog.open({ title: addObjective })}>
                 Add
               </Button>
             }
           />
         ) : (
-          <EntityList aria-label="Milestones">
+          <EntityList aria-label={OBJECTIVE.plural}>
             {milestones.map((milestone) => {
               const p = milestone.progress
               return (

@@ -3,6 +3,7 @@ import { TONE_CLASSES, type StatusTone } from '@/components/ui/statusMeta'
 import { focusRing } from '@/components/ui/classes'
 import type { WavePointStatus, WaveSummaryDto } from '@/types/attention'
 import { workspacePath } from '@/utils/paths'
+import { TEXT } from './text'
 
 /**
  * A thread's plan in one glance: the waves side by side on ONE line (wrapping only when
@@ -11,8 +12,8 @@ import { workspacePath } from '@/utils/paths'
  * No task text — the reader sees where the thread is and where it is stopped.
  *
  * - Light inline SVG / HTML (a canvas per thread would not survive 40 threads on a phone).
- * - State = shape AND colour (readable in greyscale): ● faite, ◉ en cours, ○ à venir,
- *   ◆ attend ta réponse, ✕ échouée, ■ bloquée (see `MiniGraphLegend`).
+ * - State = shape AND colour (readable in greyscale): ● done, ◉ in progress, ○ to come,
+ *   ◆ waiting for your answer, ✕ failed, ■ blocked (see `MiniGraphLegend`).
  * - Only the running mark pulses (`.pulse-ring`, already disabled under
  *   prefers-reduced-motion); it is a different element once the state changes.
  * - Above COMPRESS_THRESHOLD tasks, each wave collapses to a count per state.
@@ -25,19 +26,19 @@ export const COMPRESS_THRESHOLD = 24
 
 interface StateMeta {
   tone: StatusTone
-  /** Singular and plural of the phrase used in labels and in the legend ("5 faites"). */
+  /** Singular and plural of the phrase used in labels and in the legend ("5 done"). */
   one: string
   many: string
 }
 
-/** Reading order, also the order of counts in labels. Tones: existing status tones. */
+/** Reading order, also the order of counts in labels. Tones: existing status tones; words: the one registry. */
 export const STATE_META: Record<WavePointStatus, StateMeta> = {
-  done: { tone: 'success', one: 'faite', many: 'faites' },
-  running: { tone: 'progress', one: 'en cours', many: 'en cours' },
-  waiting: { tone: 'info', one: 'attend ta réponse', many: 'attendent ta réponse' },
-  pending: { tone: 'neutral', one: 'à venir', many: 'à venir' },
-  blocked: { tone: 'warning', one: 'bloquée', many: 'bloquées' },
-  failed: { tone: 'danger', one: 'échouée', many: 'échouées' },
+  done: { tone: 'success', ...TEXT.states.done },
+  running: { tone: 'progress', ...TEXT.states.running },
+  waiting: { tone: 'info', ...TEXT.states.waiting },
+  pending: { tone: 'neutral', ...TEXT.states.pending },
+  blocked: { tone: 'warning', ...TEXT.states.blocked },
+  failed: { tone: 'danger', ...TEXT.states.failed },
 }
 const ORDER = Object.keys(STATE_META) as WavePointStatus[]
 
@@ -53,15 +54,15 @@ function describe(counts: Counts): string {
   const parts = ORDER.filter((s) => counts[s] > 0).map(
     (s) => `${counts[s]} ${counts[s] === 1 ? STATE_META[s].one : STATE_META[s].many}`,
   )
-  return parts.length ? parts.join(', ') : 'vide'
+  return parts.length ? parts.join(', ') : TEXT.graph.empty
 }
 
-/** Full text label, e.g. "Graphe du plan, 3 vagues : vague 1 sur 3 : 5 faites ; vague 2 sur 3 : 1 en cours, 2 à venir". */
+/** Full text label, e.g. "Plan graph, 3 waves: wave 1 of 3: 5 done; wave 2 of 3: 1 in progress, 2 to come". */
 export function miniThreadGraphLabel(waves: WaveSummaryDto[]): string {
-  if (waves.length === 0) return 'Graphe du plan : aucune vague'
+  if (waves.length === 0) return TEXT.graph.noWave
   const total = waves.length
-  const body = waves.map((w, i) => `vague ${i + 1} sur ${total} : ${describe(countStates(w))}`).join(' ; ')
-  return `Graphe du plan, ${total} ${total === 1 ? 'vague' : 'vagues'} : ${body}`
+  const body = waves.map((w, i) => TEXT.graph.wave(i + 1, total, describe(countStates(w)))).join('; ')
+  return TEXT.graph.label(total, body)
 }
 
 /** One mark. 12px box, `currentColor` carries the tone, the shape carries the state. */
@@ -145,7 +146,7 @@ export function MiniThreadGraph({ waves, planId, workspace, className = '' }: Mi
   const pulseTask = waves.flatMap((w) => w.points).find((p) => p.status === 'running')?.task_id ?? null
 
   if (waves.length === 0) {
-    return <span className={`text-xs leading-4 text-gray-400 ${className}`}>Pas de graphe de plan</span>
+    return <span className={`text-xs leading-4 text-gray-400 ${className}`}>{TEXT.graph.none}</span>
   }
 
   const columns = (
@@ -183,10 +184,10 @@ export function MiniGraphLegend({ className = '' }: { className?: string }) {
   return (
     <details data-testid="graph-legend" className={`text-xs text-gray-400 ${className}`}>
       <summary className={`inline-flex min-h-9 cursor-pointer items-center rounded hover:text-gray-200 ${focusRing}`}>
-        Que veulent dire les points ?
+        {TEXT.graph.legendSummary}
       </summary>
       <div className="pb-2">
-        <p>Chaque groupe de points est une vague de tâches ; un point est une tâche.</p>
+        <p>{TEXT.graph.legendBody}</p>
         <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
           {ORDER.map((st) => (
             <li key={st} className="inline-flex items-center gap-1.5">

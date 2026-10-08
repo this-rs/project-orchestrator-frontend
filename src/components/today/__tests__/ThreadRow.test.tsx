@@ -40,12 +40,12 @@ describe('ThreadRow — stuck (À reprendre)', () => {
     renderRow(<ThreadRow variant="stuck" thread={thread} runner={blocked.runner} onResume={noResume} />)
     expect(screen.getByText(STUCK_LABEL.task_blocked)).toBeTruthy()
     // one meta line: the cause, then since when
-    expect(screen.getByText('depuis 4 h')).toBeTruthy()
+    expect(screen.getByText('for 4 h')).toBeTruthy()
     const box = screen.getByTestId('blocked-tasks')
     const link = within(box).getByRole('link', { name: 'Configurer le webhook de paiement' })
     expect(link.getAttribute('href')).toBe(`/workspace/${thread.workspace}/tasks/${thread.resume!.skipped_blocked[0].id}`)
     expect(box.textContent).toContain(ROW_TEXT.unblockFirst)
-    expect(screen.getByTestId('resume-preview').textContent).toBe('Reprendre relance 1 tâche ; 2 déjà faites')
+    expect(screen.getByTestId('resume-preview').textContent).toBe('Resume reruns 1 task; 2 already done')
   })
 
   it('shows the preview from the backend numbers without computing anything', () => {
@@ -54,7 +54,7 @@ describe('ThreadRow — stuck (À reprendre)', () => {
       resume: { done_count: 4, skipped_blocked: [{ id: 'a', title: 'A' }], rerun_count: 2 },
     }
     renderRow(<ThreadRow variant="stuck" thread={t} runner={blocked.runner} onResume={noResume} />)
-    expect(screen.getByTestId('resume-preview').textContent).toBe('Reprendre relance 2 tâches ; 4 déjà faites')
+    expect(screen.getByTestId('resume-preview').textContent).toBe('Resume reruns 2 tasks; 4 already done')
   })
 
   // The button now sits at the right of the title, so it precedes the list in the DOM. What is
@@ -66,7 +66,7 @@ describe('ThreadRow — stuck (À reprendre)', () => {
     // The summary of a <details> is what stays shown while it is folded: it carries the count.
     const summary = box.querySelector(':scope > summary')!
     expect(summary.textContent).toBe(ROW_TEXT.blockedToggle(thread.blocked_tasks.length))
-    expect(summary.textContent).toBe('1 tâche bloquée sera sautée')
+    expect(summary.textContent).toBe('1 blocked task will be skipped')
     // Names and links are there before any click on Reprendre (inside the fold).
     for (const t of thread.blocked_tasks) {
       expect(within(box).getByRole('link', { name: t.title }).getAttribute('href')).toBe(
@@ -88,16 +88,16 @@ describe('ThreadRow — stuck (À reprendre)', () => {
     }
     renderRow(<ThreadRow variant="stuck" thread={two} runner={blocked.runner} onResume={noResume} />)
     const box = screen.getByTestId('blocked-tasks')
-    expect(box.querySelector(':scope > summary')!.textContent).toBe('2 tâches bloquées seront sautées')
+    expect(box.querySelector(':scope > summary')!.textContent).toBe('2 blocked tasks will be skipped')
     expect(within(box).getAllByRole('link').map((l) => l.textContent)).toEqual(['Tâche A', 'Tâche B'])
   })
 
   it('shows where the plan stands as ONE state bar, linked to the plan graph', () => {
     renderRow(<ThreadRow variant="stuck" thread={thread} runner={blocked.runner} onResume={noResume} />)
-    const bar = screen.getByRole('progressbar', { name: 'Avancement' })
+    const bar = screen.getByRole('progressbar', { name: 'Progress' })
     expect(bar.getAttribute('aria-valuenow')).toBe('2')
     expect(bar.getAttribute('aria-valuemax')).toBe('5')
-    expect(screen.getByTestId('state-words').textContent).toBe('1 bloquée')
+    expect(screen.getByTestId('state-words').textContent).toBe('1 blocked')
     expect(bar.closest('a')!.getAttribute('href')).toBe(`/workspace/${thread.workspace}/plans/${thread.plan!.id}#graph`)
   })
 
@@ -137,8 +137,8 @@ describe('ThreadRow — stuck (À reprendre)', () => {
       const button = screen.getByRole('button', { name: ROW_TEXT.resume }) as HTMLButtonElement
       expect(button.disabled).toBe(true)
       const reason = screen.getByTestId('resume-disabled-reason')
-      expect(reason.textContent).toBe(`${ROW_TEXT.runnerBusy} ${busy.runner.busy_with!.plan_title}`)
-      expect(ROW_TEXT.runnerBusy).not.toMatch(/runner/i)
+      expect(reason.textContent).toBe(`${ROW_TEXT.unavailableBusy} ${busy.runner.busy_with!.plan_title}`)
+      expect(ROW_TEXT.unavailableBusy).not.toMatch(/runner/i)
       expect(within(reason).getByRole('link').getAttribute('href')).toBe(
         `/workspace/${busy.runner.busy_with!.workspace}/plans/${busy.runner.busy_with!.plan_id}`,
       )
@@ -176,8 +176,8 @@ describe('ThreadRow — stuck (À reprendre)', () => {
 
   it('says each stuck cause in clear', () => {
     const cases = ['failed', 'budget_exceeded', 'session_error'] as const
-    expect(STUCK_LABEL.failed).toBe('Arrêté sur une erreur')
-    expect(STUCK_LABEL.session_error).toBe('Erreur de conversation')
+    expect(STUCK_LABEL.failed).toBe('Stopped on an error')
+    expect(STUCK_LABEL.session_error).toBe('Conversation error')
     for (const reason of cases) {
       const text = STUCK_LABEL[reason]
       const { unmount } = renderRow(
@@ -190,7 +190,7 @@ describe('ThreadRow — stuck (À reprendre)', () => {
       )
       expect(screen.getByText(text)).toBeTruthy()
       expect(screen.queryByTestId('blocked-tasks')).toBeNull()
-      expect(screen.getByTestId('resume-preview').textContent).toBe('Reprendre relance 3 tâches')
+      expect(screen.getByTestId('resume-preview').textContent).toBe('Resume reruns 3 tasks')
       unmount()
     }
   })
@@ -205,12 +205,12 @@ describe('resumePreviewText (wording of the backend fields, singular and plural)
   const t = (id: string) => ({ id, title: id })
   it.each([
     // blocked tasks are no longer counted in this sentence: the fold under it names them
-    [{ done_count: 4, skipped_blocked: [t('a')], rerun_count: 2 }, 'Reprendre relance 2 tâches ; 4 déjà faites'],
-    [{ done_count: 1, skipped_blocked: [t('a'), t('b')], rerun_count: 1 }, 'Reprendre relance 1 tâche ; 1 déjà faite'],
-    [{ done_count: 0, skipped_blocked: [t('a')], rerun_count: 0 }, 'Reprendre ne relance aucune tâche'],
-    [{ done_count: 1, skipped_blocked: [], rerun_count: 2 }, 'Reprendre relance 2 tâches ; 1 déjà faite'],
-    [{ done_count: 5, skipped_blocked: [], rerun_count: 0 }, 'Reprendre ne relance aucune tâche ; 5 déjà faites'],
-    [{ done_count: 0, skipped_blocked: [], rerun_count: 4 }, 'Reprendre relance 4 tâches'],
+    [{ done_count: 4, skipped_blocked: [t('a')], rerun_count: 2 }, 'Resume reruns 2 tasks; 4 already done'],
+    [{ done_count: 1, skipped_blocked: [t('a'), t('b')], rerun_count: 1 }, 'Resume reruns 1 task; 1 already done'],
+    [{ done_count: 0, skipped_blocked: [t('a')], rerun_count: 0 }, 'Resume reruns no task'],
+    [{ done_count: 1, skipped_blocked: [], rerun_count: 2 }, 'Resume reruns 2 tasks; 1 already done'],
+    [{ done_count: 5, skipped_blocked: [], rerun_count: 0 }, 'Resume reruns no task; 5 already done'],
+    [{ done_count: 0, skipped_blocked: [], rerun_count: 4 }, 'Resume reruns 4 tasks'],
   ])('%j', (preview, text) => {
     expect(resumePreviewText(preview)).toBe(text)
   })
@@ -228,13 +228,13 @@ describe('ThreadRow — orphan (À reprendre)', () => {
   it('says what happened, since when the conversation stopped, keeps what was asked in full behind a fold, and the spike help text in the sheet', () => {
     send()
     expect(screen.getByText(STUCK_LABEL.orphan_request)).toBeTruthy()
-    expect(screen.getByText(/^conversation arrêtée depuis /)).toBeTruthy()
+    expect(screen.getByText(/^conversation stopped \d/)).toBeTruthy()
     // The request, whole, inside a folded <details> whose summary names its kind and tool.
     const request = screen.getByTestId('request-text')
     expect(request.textContent).toBe(orphan.text)
     const fold = request.closest('details')!
     expect(fold.open).toBe(false)
-    expect(fold.querySelector(':scope > summary')!.textContent).toBe(`${ROW_TEXT.showRequest} : autorisation (Bash)`)
+    expect(fold.querySelector(':scope > summary')!.textContent).toBe(`${ROW_TEXT.showRequest}: permission (Bash)`)
     // The help is no longer printed in the row: it is the help of the sheet, once opened.
     expect(screen.queryByText(ROW_TEXT.helpPermission)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resumeSession }))
@@ -252,7 +252,7 @@ describe('ThreadRow — orphan (À reprendre)', () => {
     renderRow(
       <ThreadRow variant="orphan" thread={thread} orphan={{ ...orphan, cli_stopped_at: null }} onSendMessage={noSend} />,
     )
-    expect(screen.getByText('conversation arrêtée')).toBeTruthy()
+    expect(screen.getByText('conversation stopped')).toBeTruthy()
   })
 
   it('NEVER offers an Allow / Autoriser button — row, permission or question, sheet open or closed', () => {
@@ -280,7 +280,7 @@ describe('ThreadRow — orphan (À reprendre)', () => {
 
   it('a permission never pre-fills an answer (no option picker either)', () => {
     send()
-    expect(screen.queryByRole('group', { name: 'Options de la question' })).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Options of the question' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resumeSession }))
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('Continue.')
   })
@@ -312,7 +312,7 @@ describe('ThreadRow — orphan (À reprendre)', () => {
 
     it('without a chosen option the field opens with the plain "Continue."', () => {
       open()
-      expect(screen.getByText(`${ROW_TEXT.showRequest} : question`)).toBeTruthy()
+      expect(screen.getByText(`${ROW_TEXT.showRequest}: question`)).toBeTruthy()
       // the help moved from the row into the sheet
       expect(screen.queryByText(ROW_TEXT.helpQuestion)).toBeNull()
       fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resumeSession }))
@@ -322,7 +322,7 @@ describe('ThreadRow — orphan (À reprendre)', () => {
 
     it('with options, the options ARE the action: the resume button sits under the picker, once', () => {
       open()
-      const picker = screen.getByRole('group', { name: 'Options de la question' })
+      const picker = screen.getByRole('group', { name: 'Options of the question' })
       const buttons = screen.getAllByRole('button', { name: ROW_TEXT.resumeSession })
       expect(buttons).toHaveLength(1)
       expect(picker.compareDocumentPosition(buttons[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -330,7 +330,7 @@ describe('ThreadRow — orphan (À reprendre)', () => {
 
     it('a question without options keeps ONE resume button (at the right of the title, no picker)', () => {
       renderRow(<ThreadRow variant="orphan" thread={thread} orphan={{ ...question, options: [] }} onSendMessage={noSend} />)
-      expect(screen.queryByRole('group', { name: 'Options de la question' })).toBeNull()
+      expect(screen.queryByRole('group', { name: 'Options of the question' })).toBeNull()
       expect(screen.getAllByRole('button', { name: ROW_TEXT.resumeSession })).toHaveLength(1)
     })
 
@@ -342,7 +342,7 @@ describe('ThreadRow — orphan (À reprendre)', () => {
       expect(blue.getAttribute('aria-pressed')).toBe('true')
       fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resumeSession }))
       const expected = questionAnswerMessage('Quelle couleur ?', 'Bleu')
-      expect(expected).toBe('Ma réponse à ta question précédente (« Quelle couleur ? ») : Bleu. Ne la repose pas, continue.')
+      expect(expected).toBe('My answer to your earlier question (« Quelle couleur ? »): Bleu. Do not ask it again, continue.')
       expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(expected)
       fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: ROW_TEXT.resumeSession }))
       await waitFor(() => expect(onSendMessage).toHaveBeenCalledWith(orphan.session_id, expected))
@@ -365,7 +365,7 @@ describe('ThreadRow — orphan (À reprendre)', () => {
 
   it('"Reprendre la conversation" of an orphan row is secondary (the page keeps one primary)', () => {
     send()
-    expect(ROW_TEXT.resumeSession).toBe('Reprendre la conversation')
+    expect(ROW_TEXT.resumeSession).toBe('Resume the conversation')
     expect(screen.getByRole('button', { name: ROW_TEXT.resumeSession }).className).not.toContain('btn-primary')
   })
 
@@ -382,7 +382,7 @@ describe('ThreadRow — orphan (À reprendre)', () => {
 
   it('states where the session is attached (provenance), never computing membership', () => {
     send()
-    expect(screen.getByTestId('provenance').textContent).toBe(`rattachée à l’exécution ${thread.run!.id.slice(0, 8)}`)
+    expect(screen.getByTestId('provenance').textContent).toBe(`attached to execution ${thread.run!.id.slice(0, 8)}`)
   })
 
   it('gives the resume button a ≥ 36px target', () => {
@@ -410,14 +410,14 @@ describe('linkProvenance', () => {
   it('never infers "précédent": every run link reads the same, via + id only', () => {
     const texts = links.filter((l) => l.via === 'runner_run').map((l) => linkProvenance(l, thread))
     expect(texts.length).toBeGreaterThan(1)
-    for (const x of texts) expect(x).toMatch(/^rattachée à l’exécution [0-9a-f]{8}$/)
+    for (const x of texts) expect(x).toMatch(/^attached to execution [0-9a-f]{8}$/)
   })
 
   it('words each mechanism', () => {
     const link = { run_id: null, task_id: 'abcdef123456', plan_id: null }
-    expect(linkProvenance({ via: 'task_association', ...link }, thread)).toBe('rattachée à la tâche abcdef12')
-    expect(linkProvenance({ via: 'plan_association', ...link }, thread)).toBe(`rattachée au plan ${thread.plan!.title}`)
-    expect(linkProvenance({ via: 'spawned_by_json', ...link, run_id: 'r1234567890' }, undefined)).toBe('créée par l’exécution r1234567')
+    expect(linkProvenance({ via: 'task_association', ...link }, thread)).toBe('attached to task abcdef12')
+    expect(linkProvenance({ via: 'plan_association', ...link }, thread)).toBe(`attached to plan ${thread.plan!.title}`)
+    expect(linkProvenance({ via: 'spawned_by_json', ...link, run_id: 'r1234567890' }, undefined)).toBe('created by execution r1234567')
   })
 })
 
@@ -435,10 +435,10 @@ describe('ThreadRow — unattached session (no thread)', () => {
     expect(container.querySelector(`li[data-variant="unattached"][data-session="${question.id}"]`)).toBeTruthy()
     const label = screen.getByTestId('no-thread-label')
     expect(label.textContent).toBe(ROW_TEXT.noThread)
-    expect(ROW_TEXT.noThread).toBe('Conversation libre')
+    expect(ROW_TEXT.noThread).toBe('Free conversation')
     const lane = screen.getByText('Lane X')
     expect(label.compareDocumentPosition(lane) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByText(/^en cours depuis /)).toBeTruthy()
+    expect(screen.getByText(/^in progress for /)).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Rattacher' })).toBeTruthy()
     expect(screen.getByText(question.title)).toBeTruthy()
     expect(screen.getByTestId('request-text').textContent).toBe(question.pending[0].text)
@@ -451,7 +451,7 @@ describe('ThreadRow — unattached session (no thread)', () => {
     fireEvent.click(screen.getByRole('button', { name: opt.label }))
     fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.reply }))
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(opt.label)
-    fireEvent.click(screen.getByRole('button', { name: 'Envoyer' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     await waitFor(() => expect(onSendMessage).toHaveBeenCalledWith(question.id, opt.label))
   })
 
@@ -478,7 +478,7 @@ describe('ThreadRow — unattached session (no thread)', () => {
   it('a session without pending request still renders its row', () => {
     renderRow(<ThreadRow variant="unattached" session={dead} onSendMessage={noSend} />)
     expect(screen.getByTestId('no-thread-label')).toBeTruthy()
-    expect(screen.getByText(/^arrêtée depuis /)).toBeTruthy()
+    expect(screen.getByText(/^stopped for /)).toBeTruthy()
     expect(screen.queryByRole('button')).toBeNull()
   })
 })

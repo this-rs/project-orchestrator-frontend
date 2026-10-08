@@ -4,11 +4,12 @@ import { focusRing } from '@/components/ui/classes'
 import type { WavePointStatus, WaveSummaryDto } from '@/types/attention'
 import { workspacePath } from '@/utils/paths'
 import { STATE_META } from './MiniThreadGraph'
+import { TEXT } from './text'
 
 /**
  * Where a plan stands, readable without a legend: ONE bar cut by state, "21/49" at its right,
- * and the states that matter spelled out underneath ("9 en cours · 1 attend ta réponse ·
- * 1 bloquée"). It replaces the per-wave dots on Today: a row of counts per wave asked the
+ * and the states that matter spelled out underneath ("9 in progress · 1 is waiting for your
+ * answer · 1 blocked"). It replaces the per-wave dots on Today: a row of counts per wave asked the
  * reader to know what a wave is and what each shape means.
  *
  * - Counted from the thread's wave summary, never estimated; no width tween (live data).
@@ -18,7 +19,7 @@ import { STATE_META } from './MiniThreadGraph'
 
 /** Left to right in the bar: what is finished, what moves, what waits on the user, what is stopped. */
 const BAR_ORDER: WavePointStatus[] = ['done', 'running', 'waiting', 'blocked', 'failed']
-/** In words under the bar: what needs the reader first. "faites" is already the "21/49". */
+/** In words under the bar: what needs the reader first. "done" is already the "21/49". */
 const WORDS_ORDER: WavePointStatus[] = ['waiting', 'failed', 'blocked', 'running']
 
 export type StateCounts = Record<WavePointStatus, number>
@@ -41,11 +42,11 @@ export function stateSegments(c: StateCounts) {
 
 const phrase = (s: WavePointStatus, n: number) => `${n} ${n === 1 ? STATE_META[s].one : STATE_META[s].many}`
 
-/** "21 faites sur 49, 9 en cours, 1 attend ta réponse, 1 bloquée". */
+/** "21 of 49 done, 9 in progress, 1 is waiting for your answer, 1 blocked". */
 export function planStateLabel(c: StateCounts & { total: number }): string {
-  if (c.total === 0) return 'Aucune tâche'
+  if (c.total === 0) return TEXT.plan.noTasks
   const rest = WORDS_ORDER.filter((s) => c[s] > 0).map((s) => phrase(s, c[s]))
-  return [`${phrase('done', c.done)} sur ${c.total}`, ...rest].join(', ')
+  return [TEXT.plan.doneOf(c.done, c.total), ...rest].join(', ')
 }
 
 export interface PlanStateBarProps {
@@ -66,7 +67,7 @@ export function PlanStateBar({ waves, planId, workspace, className = '' }: PlanS
       <span className="flex items-center gap-3">
         <span
           role="progressbar"
-          aria-label="Avancement"
+          aria-label={TEXT.plan.progress}
           aria-valuemin={0}
           aria-valuemax={c.total}
           aria-valuenow={c.done}
@@ -104,7 +105,7 @@ export function PlanStateBar({ waves, planId, workspace, className = '' }: PlanS
     return (
       <Link
         to={`${workspacePath(workspace, `/plans/${planId}`)}#graph`}
-        title="Ouvrir le graphe du plan"
+        title={TEXT.plan.openGraph}
         className={`-mx-1 block min-w-0 rounded-lg px-1 py-1.5 hover:bg-white/[0.04] ${focusRing} ${className}`}
       >
         {body}

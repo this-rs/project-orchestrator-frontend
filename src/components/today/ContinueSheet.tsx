@@ -3,10 +3,11 @@ import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/Button'
 import { focusRing, glass } from '@/components/ui/classes'
 import { useVisualViewportHeight } from '@/hooks/useVisualViewportHeight'
+import { TEXT } from './text'
 
 /**
- * The message field of an orphan request ("Reprendre la session") or of a
- * live session without thread ("Repondre").
+ * The message field of an orphan request ("Resume the conversation") or of a
+ * live session without thread ("Reply").
  *
  * - Floating layer => glass is allowed (DESIGN.md, "Matiere"): a bottom sheet
  *   on a phone, a centred panel from `md`. One layer, never glass on glass.
@@ -22,7 +23,7 @@ import { useVisualViewportHeight } from '@/hooks/useVisualViewportHeight'
 export interface ContinueSheetProps {
   open: boolean
   onClose: () => void
-  /** Short title naming what is resumed ("Reprendre la session"). */
+  /** Short title naming what is resumed ("Resume the conversation"). */
   title: string
   /** Help under the title (what resuming does). */
   help?: string
@@ -40,11 +41,11 @@ const FOCUSABLE = 'button:not([disabled]), textarea:not([disabled]), a[href], [t
 
 function errorText(e: unknown): string {
   if (e instanceof Error && e.message) return e.message
-  return "L'envoi a échoué."
+  return TEXT.sheet.sendFailed
 }
 
 /** Mounted only while open, so its state (text, error) is fresh on each opening. */
-function SheetBody({ onClose, title, help, initialText = '', submitLabel, onSend, fieldLabel = 'Message' }: Omit<ContinueSheetProps, 'open'>) {
+function SheetBody({ onClose, title, help, initialText = '', submitLabel, onSend, fieldLabel = TEXT.sheet.field }: Omit<ContinueSheetProps, 'open'>) {
   const [text, setText] = useState(initialText)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -135,7 +136,7 @@ function SheetBody({ onClose, title, help, initialText = '', submitLabel, onSend
         )}
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={onClose} disabled={sending}>
-            Annuler
+            {TEXT.sheet.cancel}
           </Button>
           <Button size="sm" onClick={send} disabled={!canSend} loading={sending}>
             {submitLabel}

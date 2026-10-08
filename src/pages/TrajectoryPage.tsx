@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ArrowUpRight } from 'lucide-react'
 import { plansApi, tasksApi } from '@/services'
 import { workspacesApi } from '@/services/workspaces'
 import {
+  Button,
   EmptyState,
   EntityList,
   EntityListSkeleton,
@@ -19,7 +20,9 @@ import {
   formatDay,
   hitArea,
   inlineLink,
+  metaText,
   rowInteractive,
+  surface,
 } from '@/components/ui'
 import { useTaskProgress, useWorkspaceSlug } from '@/hooks'
 import type { MilestoneProgress, Plan, Project, TaskWithPlan, WorkspaceMilestone } from '@/types'
@@ -49,9 +52,13 @@ async function listAllPlans(workspaceSlug: string): Promise<Plan[]> {
  * Trajectory — objectives on top, then projects → plans → tasks, each level
  * with the same progress line. Active work is open; what is finished stays
  * one click away under « Path travelled », so the road behind is never lost.
+ * The screen explains itself through `ConceptIntro` (`PageShell intro`), read
+ * from the registry; when there is nothing to trace yet, the page-level empty
+ * state (`display-3`) leads to the Plans page, where the work starts.
  */
 export function TrajectoryPage() {
   const wsSlug = useWorkspaceSlug()
+  const navigate = useNavigate()
   const [projects, setProjects] = useState<Project[]>([])
   const [plans, setPlans] = useState<Plan[]>([])
   const [objectives, setObjectives] = useState<(WorkspaceMilestone & { progress?: MilestoneProgress })[]>([])
@@ -149,9 +156,9 @@ export function TrajectoryPage() {
         {open && (
           <div className="border-l border-white/[0.06] pl-3 space-y-1">
             {tasks === undefined ? (
-              <span className="text-[11px] text-gray-600">Loading…</span>
+              <span className={metaText}>Loading…</span>
             ) : tasks.length === 0 ? (
-              <span className="text-[11px] text-gray-600">No tasks</span>
+              <span className={metaText}>No tasks</span>
             ) : (
               tasks.map((t) => (
                 <Link
@@ -178,7 +185,7 @@ export function TrajectoryPage() {
     const done = all.filter((p) => DONE_PLAN.includes(p.status))
     const open = openProjects.has(project.id)
     return (
-      <div key={project.id} className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+      <div key={project.id} className={`${surface} overflow-hidden`}>
         <ul role="list" className="divide-y divide-white/[0.05]">
           <EntityRow
             title={project.name}
@@ -203,7 +210,7 @@ export function TrajectoryPage() {
           {open && done.length > 0 && (
             <li className="px-3 md:px-4 py-2">
               <details>
-                <summary className="cursor-pointer text-[11px] text-gray-500 hover:text-gray-300 select-none">
+                <summary className={`cursor-pointer select-none hover:text-gray-300 ${metaText}`}>
                   Path travelled · {done.length}
                 </summary>
                 <ul role="list" className="mt-1 divide-y divide-white/[0.05]">
@@ -233,7 +240,7 @@ export function TrajectoryPage() {
         o.progress && o.progress.total > 0 ? (
           <div className="flex items-center gap-3">
             <ProgressLine value={o.progress.percentage} label={`${Math.round(o.progress.percentage)}% complete`} className="max-w-[10rem]" />
-            <span className="text-[11px] text-gray-500 tabular-nums">
+            <span className={`${metaText} tabular-nums`}>
               {o.progress.completed}/{o.progress.total} done
             </span>
           </div>
@@ -243,13 +250,24 @@ export function TrajectoryPage() {
   )
 
   return (
-    <PageShell title={NOMENCLATURE.trajectory.plural} description={NOMENCLATURE.trajectory.description} width="wide">
+    <PageShell title={NOMENCLATURE.trajectory.plural} description={NOMENCLATURE.trajectory.description} intro="trajectory" width="wide">
       {loading ? (
         <EntityListSkeleton rows={6} />
       ) : error ? (
         <ErrorState description={error} onRetry={load} />
       ) : projects.length === 0 && objectives.length === 0 ? (
-        <EmptyState title="Nothing to trace yet" description="Create a project and a plan — the trajectory builds itself from them." />
+        // The screen itself is empty and its title is not a display title: the page-level empty state, ONE action (DESIGN.md § 8).
+        <EmptyState
+          size="page"
+          variant="plans"
+          title="Nothing to trace yet"
+          description="Create a project and a plan — the trajectory builds itself from them."
+          action={
+            <Button size="sm" onClick={() => navigate(workspacePath(wsSlug, `/${NOMENCLATURE.plans.segment}`))}>
+              Open {NOMENCLATURE.plans.plural.toLowerCase()}
+            </Button>
+          }
+        />
       ) : (
         <div className="space-y-8">
           {objectives.length > 0 && (
@@ -265,11 +283,11 @@ export function TrajectoryPage() {
             </section>
           )}
           <section aria-label="Work in progress" className="space-y-3">
-            <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Work</h2>
+            <h2 className="px-1 text-[11px] font-medium text-gray-500">Work</h2>
             {projects.map(renderProject)}
             {orphanPlans.length > 0 && (
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
-                <EntityList aria-label="Plans without a project" variant="flush">
+              <div className={`${surface} overflow-hidden`}>
+                <EntityList aria-label={`${NOMENCLATURE.plans.plural} without a project`} variant="flush">
                   {orphanPlans.map(renderPlan)}
                 </EntityList>
               </div>

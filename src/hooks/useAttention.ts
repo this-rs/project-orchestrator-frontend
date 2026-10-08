@@ -7,6 +7,7 @@ import type { AttentionResponse, AttentionThread, OrphanRequest, ThinkingItem, W
 import type { CrudEvent } from '@/types'
 import { useEventBus } from './useEventBus'
 import { useToast } from './useToast'
+import { TEXT } from '@/components/today/text'
 
 /** Coalesces a burst of `attention_changed` into one refetch. */
 export const ATTENTION_DEBOUNCE_MS = 500
@@ -18,8 +19,8 @@ export function describeRequest(req: WaitingRequest): string {
   return req.tool_name ? `${req.tool_name} ${short}`.trim() : short
 }
 
-export const ORPHAN_NOTICE =
-  "L'assistant n'est plus là : sa conversation s'est arrêtée. Tu peux le relancer avec « Reprendre la conversation »."
+/** Shown on the request card when a 410 reveals a dead conversation: Today's own wording (one registry). */
+export const ORPHAN_NOTICE = TEXT.card.orphanNotice
 
 /** The relay of `attention_changed` on `/ws/events` (tolerates the CRUD-envelope variants). */
 export function isAttentionChanged(e: CrudEvent): boolean {

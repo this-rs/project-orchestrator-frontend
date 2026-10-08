@@ -19,7 +19,7 @@ import { LiveAgents } from '@/components/today/live/LiveAgents'
 export const LANE_PARAM = 'workspace'
 const ALL_LANES = ''
 /** Name of the region holding the user's own day (day plan and tasks). */
-export const DAY_REGION = 'Ma journée et mes tâches'
+export const DAY_REGION = TODAY_TEXT.dayRegion
 
 /**
  * Lane filter, reflected in the URL so it can be shared and Back restores it.
@@ -90,7 +90,7 @@ function useLiveSource(lane: string | null): TodaySource {
 }
 
 // ---------------------------------------------------------------------------
-// Slots: the discussion tree of a plan's thread, "Rattacher à…" of a thread-less session
+// Slots: the discussion tree of a plan's thread, "Attach to…" of a thread-less session
 // ---------------------------------------------------------------------------
 
 /** The thread's plan is the entity of the tree; without a plan there is nothing to show (no button). */
@@ -115,9 +115,9 @@ function renderAttach({ sessionId, workspace }: { sessionId: string; workspace: 
 
 /**
  * Today: the day's view across every workspace. ONE page: a header that says the day in one
- * sentence (with the workspace filter and four counters), what depends on the user (À traiter,
- * À reprendre, their tasks), and what advances alone (the plans that run, the assistants,
- * À lire). A plan is shown once: the ones the queue already shows are left out of "Plans à lancer".
+ * sentence (with the workspace filter and four counters), what depends on the user (Waiting for you,
+ * To resume, their tasks), and what advances alone (the plans that run, the assistants,
+ * To read). A plan is shown once: the ones the queue already shows are left out of "Plans to launch".
  * The workspace is a filter (kept in the URL), not the axis of the page.
  */
 export function TodayPage() {

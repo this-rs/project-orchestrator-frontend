@@ -42,24 +42,24 @@ describe('nowWorking', () => {
   it('a task waiting on the user is "toi"', () => {
     const n = nowWorking(withPoints([['done', 'waiting']]))
     expect(n.who).toBe('you')
-    expect(n.text).toBe('1 tâche attend ta réponse')
-    expect(nowWorking(withPoints([['waiting', 'waiting']])).text).toBe('2 tâches attendent ta réponse')
+    expect(n.text).toBe('1 task is waiting for your answer')
+    expect(nowWorking(withPoints([['waiting', 'waiting']])).text).toBe('2 tasks are waiting for your answer')
   })
   it('a live session or a running task is an active agent', () => {
     const live = { ...withPoints([['running']]), sessions: [{ ...thread.sessions[0], state: 'live' as const }] }
     expect(nowWorking(live).who).toBe('agent')
-    expect(nowWorking(live).text).toBe('1 assistant y travaille')
+    expect(nowWorking(live).text).toBe('1 assistant is working on it')
     const two = { ...live, sessions: [live.sessions[0], { ...live.sessions[0], id: 'other' }] }
-    expect(nowWorking(two).text).toBe('2 assistants y travaillent')
+    expect(nowWorking(two).text).toBe('2 assistants are working on it')
     const tasksOnly = nowWorking({ ...withPoints([['running', 'running']]), sessions: [] })
     expect(tasksOnly.who).toBe('agent')
-    expect(tasksOnly.text).toBe('2 tâches en cours')
-    expect(nowWorking({ ...withPoints([['running']]), sessions: [] }).text).toBe('1 tâche en cours')
+    expect(tasksOnly.text).toBe('2 tasks in progress')
+    expect(nowWorking({ ...withPoints([['running']]), sessions: [] }).text).toBe('1 task in progress')
   })
   it('nobody when the run is stopped and nothing runs', () => {
     const stopped = { ...withPoints([['done', 'pending']]), sessions: [], run: { ...thread.run!, status: 'failed' as const } }
     expect(nowWorking(stopped).who).toBe('nobody')
-    expect(nowWorking(stopped).text).toBe('Personne pour le moment')
+    expect(nowWorking(stopped).text).toBe('Nobody for now')
   })
 })
 
@@ -72,11 +72,11 @@ describe('PlanRunRow', () => {
     )
     expect(screen.getByTestId('lane-label').textContent).toBe('Acme')
     expect(screen.getByTestId('progress-text').textContent).toBe('2/4')
-    const bar = screen.getByRole('progressbar', { name: 'Avancement' })
+    const bar = screen.getByRole('progressbar', { name: 'Progress' })
     expect(bar.getAttribute('aria-valuenow')).toBe('2')
     expect(bar.getAttribute('aria-valuemax')).toBe('4')
     expect((screen.getByTestId('progress-fill') as HTMLElement).style.width).toBe('50%')
-    expect(bar.getAttribute('aria-valuetext')).toBe('2 faites sur 4, 1 en cours')
+    expect(bar.getAttribute('aria-valuetext')).toBe('2 of 4 done, 1 in progress')
     const now = screen.getByTestId('now-working')
     expect(now.getAttribute('data-who')).toBe('agent')
     expect(now.textContent).toBe(nowWorking(t).text)
@@ -85,7 +85,7 @@ describe('PlanRunRow', () => {
     expect(screen.getByTestId('run-duration').textContent).toBeTruthy()
     expect(screen.getByTestId('run-cost').textContent).toMatch(/^\$\d+\.\d{2}$/)
     // The plan's state is the bar and its words; the bar opens the plan graph. The wave dots are gone.
-    expect(screen.getByTestId('state-words').textContent).toBe('1 en cours')
+    expect(screen.getByTestId('state-words').textContent).toBe('1 in progress')
     expect(bar.closest('a')!.getAttribute('href')).toBe(`/workspace/${t.workspace}/plans/${t.plan!.id}#graph`)
     expect(screen.queryByRole('img', { name: /Graphe du plan/ })).toBeNull()
   })
@@ -97,10 +97,10 @@ describe('PlanRunRow', () => {
 
   it('pulses only while the run runs', () => {
     const { unmount } = renderRow(<PlanRunRow thread={thread} />)
-    expect(screen.getByRole('img', { name: 'En cours' }).innerHTML).toContain('animate-ping')
+    expect(screen.getByRole('img', { name: 'In progress' }).innerHTML).toContain('animate-ping')
     unmount()
     renderRow(<PlanRunRow thread={{ ...thread, run: { ...thread.run!, status: 'failed' } }} />)
-    expect(screen.getByRole('img', { name: 'Arrêté' }).innerHTML).not.toContain('animate-ping')
+    expect(screen.getByRole('img', { name: 'Stopped' }).innerHTML).not.toContain('animate-ping')
   })
 
   it('updates cost and duration IN PLACE: same nodes, new text, no transition', () => {
@@ -130,22 +130,22 @@ describe('PlanRunRow', () => {
     const o1 = { ...thread, id: 'o1', title: 'Autre fil un' }
     const o2 = { ...thread, id: 'o2', title: 'Autre fil deux' }
     renderRow(<PlanRunRow thread={thread} others={[o1, o2]} renderDiscussions={(t) => <p>arbre de {t.id}</p>} />)
-    const btn = screen.getByRole('button', { name: '+ 2 autres exécutions de ce plan' })
+    const btn = screen.getByRole('button', { name: '+ 2 other executions of this plan' })
     expect(btn.getAttribute('aria-expanded')).toBe('false')
     expect(screen.queryByText('Autre fil un')).toBeNull()
     fireEvent.click(btn)
     expect(btn.getAttribute('aria-expanded')).toBe('true')
-    const items = within(screen.getByRole('list', { name: 'Autres exécutions de ce plan' })).getAllByTestId('other-thread')
+    const items = within(screen.getByRole('list', { name: 'Other executions of this plan' })).getAllByTestId('other-thread')
     expect(items.map((i) => i.getAttribute('data-thread'))).toEqual(['o1', 'o2'])
     expect(items[0].textContent).toContain('Autre fil un')
-    expect(items[0].textContent).toContain('En cours')
+    expect(items[0].textContent).toContain('In progress')
     fireEvent.click(within(items[1]).getByRole('button', { name: DISCUSSIONS_TEXT.show }))
     expect(screen.getByText('arbre de o2')).toBeTruthy()
   })
 
   it('agrees the mention in the singular', () => {
     renderRow(<PlanRunRow thread={thread} others={[{ ...thread, id: 'o1', title: 'Autre fil un' }]} />)
-    expect(screen.getByRole('button', { name: '+ 1 autre exécution de ce plan' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '+ 1 other execution of this plan' })).toBeTruthy()
   })
 
   it('has NO Discussions button without a slot', () => {
@@ -168,7 +168,7 @@ describe('PlanRunRow', () => {
     expect(btn.textContent).toBe(DISCUSSIONS_TEXT.hide) // the open state is written, not only implied
     expect(screen.getByText(`arbre de ${thread.id}`)).toBeTruthy()
     expect(btn.className).toContain('min-h-9')
-    expect(DISCUSSIONS_TEXT).toEqual({ show: 'Conversations', hide: 'Masquer les conversations' })
+    expect(DISCUSSIONS_TEXT).toEqual({ show: 'Conversations', hide: 'Hide the conversations' })
     // a quiet (ghost) button: never a filled primary
     expect(btn.className).not.toContain('btn-primary')
   })

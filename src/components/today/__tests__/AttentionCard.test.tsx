@@ -9,9 +9,9 @@ import { AttentionCard, linkLabel, provenanceLabels, type AttentionCardProps } f
 import type { WaitingRequest } from '@/types/attention'
 
 /** The link to the conversation (not exported by the component). */
-const OPEN = 'Ouvrir la conversation'
+const OPEN = 'Open the conversation'
 /** The label shown when the conversation belongs to no plan (what `provenanceLabels` says for no link). */
-const FREE_PROVENANCE = 'Conversation libre : rattachée à aucun plan'
+const FREE_PROVENANCE = 'Free conversation: attached to no plan'
 
 const COMMAND = 'cd /srv/app && ' + 'find . -name "*.log" -mtime +30 -print0 | xargs -0 rm -f # '.repeat(6) + 'END'
 
@@ -65,7 +65,7 @@ function setup(over: Partial<AttentionCardProps> = {}) {
 describe('AttentionCard — permission', () => {
   it('is a named region for screen readers', () => {
     setup()
-    expect(screen.getByRole('region', { name: 'Autorisation demandée par Agent billing' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Permission asked by Agent billing' })).toBeTruthy()
   })
 
   it('shows the whole command, never truncated, in a wrapping monospace block', () => {
@@ -83,13 +83,13 @@ describe('AttentionCard — permission', () => {
     setup()
     const card = screen.getByTestId('attention-card')
     const t = card.textContent ?? ''
-    expect(t.indexOf('Autorisation')).toBe(0)
-    expect(t.indexOf('Autorisation')).toBeLessThan(t.indexOf('Refonte du billing'))
+    expect(t.indexOf('Permission')).toBe(0)
+    expect(t.indexOf('Permission')).toBeLessThan(t.indexOf('Refonte du billing'))
     expect(t.indexOf('Refonte du billing')).toBeLessThan(t.indexOf('Acme'))
-    expect(t.indexOf('Acme')).toBeLessThan(t.indexOf('depuis'))
-    expect(t.indexOf('depuis')).toBeLessThan(t.indexOf(COMMAND.slice(0, 20)))
+    expect(t.indexOf('Acme')).toBeLessThan(t.indexOf('for '))
+    expect(t.indexOf('for ')).toBeLessThan(t.indexOf(COMMAND.slice(0, 20)))
     const header = card.firstElementChild as HTMLElement
-    for (const word of ['Autorisation', 'Refonte du billing', 'Acme', 'depuis'])
+    for (const word of ['Permission', 'Refonte du billing', 'Acme', 'for '])
       expect(header.textContent).toContain(word)
   })
 
@@ -98,50 +98,50 @@ describe('AttentionCard — permission', () => {
     expect((screen.getByTestId('attention-card').firstElementChild as HTMLElement).textContent).toMatch(/^Question/)
   })
 
-  it('live: the indicator is announced ("vivant", sr-only) but is not visible text', () => {
+  it('live: the indicator is announced ("live", sr-only) but is not visible text', () => {
     setup()
-    const live = screen.getByText('vivant')
+    const live = screen.getByText('live')
     expect(live.className).toBe('sr-only')
-    expect(screen.queryByText('arrêté')).toBeNull()
-    expect(screen.queryByText('état inconnu')).toBeNull()
+    expect(screen.queryByText('stopped')).toBeNull()
+    expect(screen.queryByText('state unknown')).toBeNull()
   })
 
-  it('not live: "arrêté" (dead) / "état inconnu" (unknown) is VISIBLE text, and never "vivant"', () => {
+  it('not live: "stopped" (dead) / "state unknown" (unknown) is VISIBLE text, and never "live"', () => {
     setup({ session: { title: 'Agent billing', state: 'dead' } })
-    const stopped = screen.getByText('arrêté')
+    const stopped = screen.getByText('stopped')
     expect(stopped.closest('.sr-only')).toBeNull()
     expect(screen.queryByText('vivant')).toBeNull()
     cleanup()
     setup({ session: null })
-    expect(screen.getByText('état inconnu').closest('.sr-only')).toBeNull()
+    expect(screen.getByText('state unknown').closest('.sr-only')).toBeNull()
     expect(screen.queryByText('vivant')).toBeNull()
-    expect(screen.queryByText('arrêté')).toBeNull()
+    expect(screen.queryByText('stopped')).toBeNull()
   })
 
   it('introduces the command with the tool the assistant wants to run', () => {
     setup()
     const intro = screen.getByTestId('attention-text').previousElementSibling as HTMLElement
-    expect(intro.textContent).toBe('L’assistant veut lancer Bash :')
+    expect(intro.textContent).toBe('The assistant wants to launch Bash:')
   })
 
   it('offers exactly one primary and one secondary, plus a link, and no dialog', () => {
     setup()
-    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Autoriser', 'Refuser'])
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Allow', 'Deny'])
     const link = screen.getByRole('link', { name: OPEN })
     expect(link.getAttribute('href')).toBe('/workspace/acme/chat/11111111-aaaa-bbbb-cccc-000000000001')
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('sends Autoriser at once, with no confirmation', async () => {
+  it('sends Allow at once, with no confirmation', async () => {
     const { onPermission } = setup()
-    fireEvent.click(screen.getByRole('button', { name: 'Autoriser' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
     expect(onPermission).toHaveBeenCalledWith(permission, true)
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('sends Refuser as a deny', async () => {
+  it('sends Deny as a deny', async () => {
     const { onPermission } = setup()
-    fireEvent.click(screen.getByRole('button', { name: 'Refuser' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Deny' }))
     expect(onPermission).toHaveBeenCalledWith(permission, false)
   })
 
@@ -149,39 +149,39 @@ describe('AttentionCard — permission', () => {
     let release!: (v: boolean) => void
     const onPermission = vi.fn(() => new Promise<boolean>((r) => (release = r)))
     setup({ onPermission })
-    const allow = screen.getByRole('button', { name: 'Autoriser' })
+    const allow = screen.getByRole('button', { name: 'Allow' })
     fireEvent.click(allow)
     fireEvent.click(allow)
-    fireEvent.click(screen.getByRole('button', { name: 'Refuser' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Deny' }))
     expect(onPermission).toHaveBeenCalledTimes(1)
-    expect((screen.getByRole('button', { name: 'Refuser' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Deny' }) as HTMLButtonElement).disabled).toBe(true)
     release(true)
-    await screen.findByText('Réponse envoyée.')
-    fireEvent.click(screen.getByRole('button', { name: 'Autoriser' }))
+    await screen.findByText('Answer sent.')
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
     expect(onPermission).toHaveBeenCalledTimes(1)
   })
 
   it('treats a 409 as already decided, not as an error', async () => {
     const onPermission = vi.fn().mockRejectedValue(new ApiError(409, 'conflict'))
     setup({ onPermission })
-    fireEvent.click(screen.getByRole('button', { name: 'Autoriser' }))
-    expect(await screen.findByText(/Déjà tranché/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    expect(await screen.findByText(/Already decided/)).toBeTruthy()
     expect(screen.queryByRole('alert')).toBeNull()
-    expect((screen.getByRole('button', { name: 'Autoriser' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Allow' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('treats the "already_decided" result like a 409', async () => {
     setup({ onPermission: vi.fn().mockResolvedValue('already_decided') })
-    fireEvent.click(screen.getByRole('button', { name: 'Refuser' }))
-    expect(await screen.findByText(/Déjà tranché/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Deny' }))
+    expect(await screen.findByText(/Already decided/)).toBeTruthy()
   })
 
   it('on failure shows an alert and re-enables the buttons', async () => {
     const onPermission = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true)
     setup({ onPermission })
-    fireEvent.click(screen.getByRole('button', { name: 'Autoriser' }))
-    expect((await screen.findByRole('alert')).textContent).toMatch(/non envoyée/)
-    const allow = screen.getByRole('button', { name: 'Autoriser' }) as HTMLButtonElement
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    expect((await screen.findByRole('alert')).textContent).toMatch(/not sent/)
+    const allow = screen.getByRole('button', { name: 'Allow' }) as HTMLButtonElement
     expect(allow.disabled).toBe(false)
     fireEvent.click(allow)
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
@@ -190,24 +190,24 @@ describe('AttentionCard — permission', () => {
 
   it('on a thrown network error shows an alert and allows a retry', async () => {
     setup({ onPermission: vi.fn().mockRejectedValue(new Error('boom')) })
-    fireEvent.click(screen.getByRole('button', { name: 'Autoriser' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
     expect(await screen.findByRole('alert')).toBeTruthy()
-    expect((screen.getByRole('button', { name: 'Autoriser' }) as HTMLButtonElement).disabled).toBe(false)
+    expect((screen.getByRole('button', { name: 'Allow' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it('410 -> orphan: notice, no more Autoriser/Refuser, conversation link kept', async () => {
+  it('410 -> orphan: notice, no more Allow/Deny, conversation link kept', async () => {
     setup({ onPermission: vi.fn().mockRejectedValue(new ApiError(410, 'gone')) })
-    fireEvent.click(screen.getByRole('button', { name: 'Autoriser' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
     expect((await screen.findByRole('status')).textContent).toBe(ORPHAN_NOTICE)
-    expect(screen.queryByRole('button', { name: 'Autoriser' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Refuser' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Allow' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Deny' })).toBeNull()
     expect(screen.getByRole('link', { name: OPEN })).toBeTruthy()
   })
 
-  it('a DEAD session never offers Autoriser/Refuser and says to resume the conversation', () => {
+  it('a DEAD session never offers Allow/Deny and says to resume the conversation', () => {
     setup({ session: { title: 'Agent billing', state: 'dead' } })
-    expect(screen.queryByRole('button', { name: 'Autoriser' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Refuser' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Allow' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Deny' })).toBeNull()
     expect(screen.getByRole('status').textContent).toContain(ROW_TEXT.resumeSession)
     expect(screen.getByRole('link', { name: OPEN })).toBeTruthy()
   })
@@ -221,23 +221,23 @@ describe('AttentionCard — permission', () => {
 
   it('a DEAD session asking a question has no free answer field, no one-click answer, and a way back', () => {
     const { onReply } = setup({ request: question, session: { title: 'Agent billing', state: 'dead' } })
-    expect(screen.queryByLabelText('Autre réponse')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Autre réponse…' })).toBeNull() // not even folded
-    expect(screen.queryByRole('button', { name: 'Envoyer' })).toBeNull()
+    expect(screen.queryByLabelText('Another answer')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Another answer…' })).toBeNull() // not even folded
+    expect(screen.queryByRole('button', { name: 'Send' })).toBeNull()
     // Options only pre-select (aria-pressed); nothing is sent by choosing one.
     fireEvent.click(screen.getByRole('button', { name: /PostgreSQL/ }))
     expect(onReply).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: ROW_TEXT.resumeSession })).toBeTruthy()
   })
 
-  it('a DEAD permission card has "Reprendre la conversation": opens the sheet, sends a user_message via onReply, never onPermission', async () => {
+  it('a DEAD permission card has "Resume the conversation": opens the sheet, sends a user_message via onReply, never onPermission', async () => {
     const { onReply, onPermission } = setup({ session: { title: 'Agent billing', state: 'dead' } })
     // The help is no longer printed under the button: it is said once the sheet is open.
     expect(screen.queryByText(ROW_TEXT.helpPermission)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resumeSession }))
     const sheet = await screen.findByTestId('continue-sheet')
     expect(within(sheet).getByText(ROW_TEXT.helpPermission)).toBeTruthy()
-    const field = within(sheet).getByLabelText('Message de reprise') as HTMLTextAreaElement
+    const field = within(sheet).getByLabelText('Resume message') as HTMLTextAreaElement
     expect(field.value).toBe('Continue.') // permission: short editable message (spike 0.1)
     fireEvent.click(within(sheet).getByRole('button', { name: ROW_TEXT.resumeSession }))
     await waitFor(() => expect(onReply).toHaveBeenCalledWith(permission, 'Continue.'))
@@ -253,7 +253,7 @@ describe('AttentionCard — permission', () => {
     const { onReply } = setup({ request: question, session: { title: 'Agent billing', state: 'dead' } })
     fireEvent.click(screen.getByRole('button', { name: /SQLite/ }))
     fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resumeSession }))
-    const field = (await screen.findByLabelText('Message de reprise')) as HTMLTextAreaElement
+    const field = (await screen.findByLabelText('Resume message')) as HTMLTextAreaElement
     expect(field.value).toBe(questionAnswerMessage(question.text, 'SQLite'))
     fireEvent.click(within(screen.getByTestId('continue-sheet')).getByRole('button', { name: ROW_TEXT.resumeSession }))
     await waitFor(() => expect(onReply).toHaveBeenCalledWith(question, questionAnswerMessage(question.text, 'SQLite')))
@@ -264,7 +264,7 @@ describe('AttentionCard — permission', () => {
     fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resumeSession }))
     const sheet = await screen.findByTestId('continue-sheet')
     fireEvent.click(within(sheet).getByRole('button', { name: ROW_TEXT.resumeSession }))
-    expect((await within(sheet).findByRole('alert')).textContent).toMatch(/non envoyée/)
+    expect((await within(sheet).findByRole('alert')).textContent).toMatch(/not sent/)
     expect(screen.getByTestId('continue-sheet')).toBeTruthy()
   })
 
@@ -275,38 +275,38 @@ describe('AttentionCard — permission', () => {
       onPermission, onReply: vi.fn(),
     }
     const { rerender } = render(<MemoryRouter><AttentionCard {...props} /></MemoryRouter>)
-    fireEvent.click(screen.getByRole('button', { name: 'Autoriser' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
     expect(await screen.findByRole('alert')).toBeTruthy()
     rerender(<MemoryRouter><AttentionCard {...props} notice="L'agent n'est plus là." /></MemoryRouter>)
-    expect(screen.getByRole('alert').textContent).toMatch(/Réponse non envoyée/)
+    expect(screen.getByRole('alert').textContent).toMatch(/Answer not sent/)
   })
 
-  it('410 shows ONE coherent message: the orphan notice, not "Réponse non envoyée" too', async () => {
+  it('410 shows ONE coherent message: the orphan notice, not "Answer not sent" too', async () => {
     const onPermission = vi.fn().mockResolvedValue('orphaned') // the hook turned the 410 into a notice
     const props: AttentionCardProps = {
       request: permission, lane: 'Acme', threadTitle: null, session: { title: 'A', state: 'live' },
       onPermission, onReply: vi.fn(),
     }
     const { rerender } = render(<MemoryRouter><AttentionCard {...props} /></MemoryRouter>)
-    fireEvent.click(screen.getByRole('button', { name: 'Autoriser' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
     await waitFor(() => expect(onPermission).toHaveBeenCalled())
     rerender(<MemoryRouter><AttentionCard {...props} notice="L'agent n'est plus là : reprendre la session." /></MemoryRouter>)
     expect(screen.getAllByRole('status').length).toBe(1)
     expect(screen.queryByRole('alert')).toBeNull()
-    expect(screen.queryByText(/Réponse non envoyée/)).toBeNull()
+    expect(screen.queryByText(/Answer not sent/)).toBeNull()
   })
 
   it('410 -> orphan also from the hook notice prop', () => {
     setup({ notice: "L'agent n'est plus là : son CLI s'est arrêté." })
     expect(screen.getByRole('status').textContent).toMatch(/CLI/)
-    expect(screen.queryByRole('button', { name: 'Autoriser' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Allow' })).toBeNull()
   })
 
   it('keyboard: every action is a native focusable control in reading order, Enter/Space = click, focus ring classes present', () => {
     const { onPermission } = setup()
     const card = screen.getByTestId('attention-card')
     const tabbable = Array.from(card.querySelectorAll<HTMLElement>('button, a[href], textarea, [tabindex]'))
-    expect(tabbable.map((e) => e.textContent)).toEqual(['Autoriser', 'Refuser', OPEN])
+    expect(tabbable.map((e) => e.textContent)).toEqual(['Allow', 'Deny', OPEN])
     expect(tabbable.every((e) => e.getAttribute('tabindex') !== '-1')).toBe(true)
     expect(tabbable[0].tagName).toBe('BUTTON')
     expect((tabbable[0] as HTMLButtonElement).type).not.toBe('')
@@ -333,16 +333,16 @@ describe('AttentionCard — permission', () => {
 describe('AttentionCard — question', () => {
   it('is a named region for a question and shows the question whole', () => {
     setup({ request: question })
-    expect(screen.getByRole('region', { name: 'Question posée par Agent billing' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Question asked by Agent billing' })).toBeTruthy()
     expect(screen.getByTestId('attention-text').textContent).toBe('Quelle base de données utiliser ?')
   })
 
   it('renders one button per option, with its description', () => {
     setup({ request: question })
-    const list = screen.getByRole('list', { name: 'Réponses proposées' })
+    const list = screen.getByRole('list', { name: 'Suggested answers' })
     const buttons = within(list).getAllByRole('button')
     expect(buttons.map((b) => b.textContent)).toEqual(['PostgreSQLRobuste, déjà en prod', 'SQLite'])
-    expect(screen.queryByRole('button', { name: 'Autoriser' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Allow' })).toBeNull()
   })
 
   it('sends the option label as the answer message', async () => {
@@ -360,33 +360,33 @@ describe('AttentionCard — question', () => {
     fireEvent.click(screen.getByRole('button', { name: /SQLite/ }))
     expect(onReply).toHaveBeenCalledTimes(1)
     release(true)
-    await screen.findByText('Réponse envoyée.')
+    await screen.findByText('Answer sent.')
   })
 
-  it('with options, the free answer is folded behind a ghost "Autre réponse…" button', () => {
+  it('with options, the free answer is folded behind a ghost "Another answer…" button', () => {
     const { onReply } = setup({ request: question })
     expect(screen.queryByRole('textbox')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Envoyer' })).toBeNull()
-    const more = screen.getByRole('button', { name: 'Autre réponse…' })
+    expect(screen.queryByRole('button', { name: 'Send' })).toBeNull()
+    const more = screen.getByRole('button', { name: 'Another answer…' })
     expect(more.className).toMatch(/min-h-9/)
     expect(more.className).not.toContain('btn-primary') // never competes with the options
     expect(screen.getByRole('link', { name: OPEN })).toBeTruthy()
     fireEvent.click(more)
     expect(onReply).not.toHaveBeenCalled() // opening the field sends nothing
-    expect(screen.getByRole('textbox', { name: 'Autre réponse' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Autre réponse…' })).toBeNull()
+    expect(screen.getByRole('textbox', { name: 'Another answer' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Another answer…' })).toBeNull()
     // With options on the card, Envoyer stays secondary: no primary at all.
-    expect(screen.getByRole('button', { name: 'Envoyer' }).className).not.toContain('btn-primary')
+    expect(screen.getByRole('button', { name: 'Send' }).className).not.toContain('btn-primary')
     expect(screen.getByRole('link', { name: OPEN })).toBeTruthy()
   })
 
-  it('without options, the answer field is shown at once and Envoyer is THE primary', () => {
+  it('without options, the answer field is shown at once and Send is THE primary', () => {
     const { onReply } = setup({ request: { ...question, options: [] } })
-    expect(screen.queryByRole('button', { name: 'Autre réponse…' })).toBeNull()
-    const box = screen.getByRole('textbox', { name: 'Autre réponse' }) as HTMLTextAreaElement
-    expect(box.placeholder).toBe('Ta réponse…')
+    expect(screen.queryByRole('button', { name: 'Another answer…' })).toBeNull()
+    const box = screen.getByRole('textbox', { name: 'Another answer' }) as HTMLTextAreaElement
+    expect(box.placeholder).toBe('Your answer…')
     const buttons = screen.getAllByRole('button')
-    expect(buttons.map((b) => b.textContent)).toEqual(['Envoyer'])
+    expect(buttons.map((b) => b.textContent)).toEqual(['Send'])
     expect(buttons[0].className).toContain('btn-primary')
     expect((buttons[0] as HTMLButtonElement).disabled).toBe(true)
     fireEvent.change(box, { target: { value: ' Postgres ' } })
@@ -394,12 +394,12 @@ describe('AttentionCard — question', () => {
     expect(onReply).toHaveBeenCalledWith({ ...question, options: [] }, 'Postgres')
   })
 
-  it('sends a free answer; Envoyer is disabled while empty; Ctrl+Enter sends', async () => {
+  it('sends a free answer; Send is disabled while empty; Ctrl+Enter sends', async () => {
     const { onReply } = setup({ request: question })
-    fireEvent.click(screen.getByRole('button', { name: 'Autre réponse…' }))
-    const send = screen.getByRole('button', { name: 'Envoyer' }) as HTMLButtonElement
+    fireEvent.click(screen.getByRole('button', { name: 'Another answer…' }))
+    const send = screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement
     expect(send.disabled).toBe(true)
-    const box = screen.getByRole('textbox', { name: 'Autre réponse' })
+    const box = screen.getByRole('textbox', { name: 'Another answer' })
     fireEvent.change(box, { target: { value: '  MariaDB  ' } })
     expect(send.disabled).toBe(false)
     fireEvent.keyDown(box, { key: 'Enter', ctrlKey: true })
@@ -410,29 +410,29 @@ describe('AttentionCard — question', () => {
     let release!: (v: boolean) => void
     const onReply = vi.fn(() => new Promise<boolean>((r) => (release = r)))
     setup({ request: question, onReply })
-    fireEvent.click(screen.getByRole('button', { name: 'Autre réponse…' }))
-    const box = screen.getByRole('textbox', { name: 'Autre réponse' })
+    fireEvent.click(screen.getByRole('button', { name: 'Another answer…' }))
+    const box = screen.getByRole('textbox', { name: 'Another answer' })
     fireEvent.change(box, { target: { value: 'MariaDB' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Envoyer' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     fireEvent.keyDown(box, { key: 'Enter', ctrlKey: true })
     fireEvent.click(screen.getByRole('button', { name: /SQLite/ }))
     expect(onReply).toHaveBeenCalledTimes(1)
     release(true)
-    await screen.findByText('Réponse envoyée.')
+    await screen.findByText('Answer sent.')
   })
 
   it('every action of a question is at least 36px tall, folded or open', () => {
     setup({ request: question })
     const all = () => [...screen.getAllByRole('button'), screen.getByRole('link', { name: OPEN })]
     for (const el of all()) expect(el.className).toMatch(/min-h-9/)
-    fireEvent.click(screen.getByRole('button', { name: 'Autre réponse…' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Another answer…' }))
     for (const el of all()) expect(el.className).toMatch(/min-h-9/)
   })
 
   it('uses the parent draft when provided (survives a refetch)', () => {
     const onDraftChange = vi.fn()
     setup({ request: question, draft: 'brouillon', onDraftChange })
-    const box = screen.getByRole('textbox', { name: 'Autre réponse' }) as HTMLTextAreaElement
+    const box = screen.getByRole('textbox', { name: 'Another answer' }) as HTMLTextAreaElement
     expect(box.value).toBe('brouillon')
     fireEvent.change(box, { target: { value: 'x' } })
     expect(onDraftChange).toHaveBeenCalledWith('x')
@@ -448,7 +448,7 @@ describe('AttentionCard — question', () => {
   it('a 409 on a question is "already decided"', async () => {
     setup({ request: question, onReply: vi.fn().mockRejectedValue(new ApiError(409, 'x')) })
     fireEvent.click(screen.getByRole('button', { name: /SQLite/ }))
-    expect(await screen.findByText(/Déjà tranché/)).toBeTruthy()
+    expect(await screen.findByText(/Already decided/)).toBeTruthy()
   })
 })
 
@@ -457,7 +457,7 @@ describe('AttentionCard — provenance of the attachment (as given by the backen
     setup()
     const where = screen.getByTestId('attention-card').firstElementChild as HTMLElement
     expect(where.textContent).toContain('Acme')
-    expect(where.textContent).toContain('vivant')
+    expect(where.textContent).toContain('live')
     expect(where.textContent).not.toContain('·')
   })
 
@@ -465,7 +465,7 @@ describe('AttentionCard — provenance of the attachment (as given by the backen
     setup()
     const p = screen.getByTestId('attention-provenance')
     expect(p.className).toBe('sr-only')
-    expect(p.textContent).toBe('rattaché à l’exécution abcdef12')
+    expect(p.textContent).toBe('attached to execution abcdef12')
   })
 
   it('with no link the provenance is VISIBLE: 12px in a readable grey, not 11px dark grey', () => {
@@ -479,7 +479,7 @@ describe('AttentionCard — provenance of the attachment (as given by the backen
     expect(cls).not.toContain('text-gray-500')
   })
 
-  it('says "Conversation libre : rattachée à aucun plan" when the conversation has no link (empty list too)', () => {
+  it('says "Free conversation: attached to no plan" when the conversation has no link (empty list too)', () => {
     setup({ links: null, threadTitle: null })
     expect(screen.getByTestId('attention-provenance').textContent).toBe(FREE_PROVENANCE)
     cleanup()
@@ -507,16 +507,16 @@ describe('AttentionCard — provenance of the attachment (as given by the backen
       names: { tasks: { 'task-0001-xxxx': 'Migrer le schéma' } },
     })
     expect(screen.getByTestId('attention-provenance').textContent).toBe(
-      'rattaché à l’exécution abcdef12 · rattaché à la tâche Migrer le schéma',
+      'attached to execution abcdef12 · attached to task Migrer le schéma',
     )
   })
 
   it('labels every mechanism', () => {
     const l = (via: Parameters<typeof linkLabel>[0]['via'], f: object = {}) =>
       linkLabel({ via, run_id: null, task_id: null, plan_id: null, ...f })
-    expect(l('spawned_by_json', { run_id: 'r1234567890' })).toBe('lancé par l’exécution r1234567')
-    expect(l('spawned_by_json', { plan_id: 'p1234567890' })).toBe('lancé par le plan p1234567')
-    expect(l('plan_association', { plan_id: 'p1234567890' })).toBe('rattaché au plan p1234567')
+    expect(l('spawned_by_json', { run_id: 'r1234567890' })).toBe('started by execution r1234567')
+    expect(l('spawned_by_json', { plan_id: 'p1234567890' })).toBe('started by plan p1234567')
+    expect(l('plan_association', { plan_id: 'p1234567890' })).toBe('attached to plan p1234567')
     expect(provenanceLabels([])).toEqual([FREE_PROVENANCE])
     expect(provenanceLabels(null)).toEqual([FREE_PROVENANCE])
   })

@@ -21,11 +21,11 @@ const nothing = (base: AttentionResponse): AttentionResponse => ({
 })
 
 describe('ageText', () => {
-  it('words a duration in plain French', () => {
-    expect(ageText(10)).toBe("moins d'une minute")
+  it('words a duration in plain English', () => {
+    expect(ageText(10)).toBe('under a minute')
     expect(ageText(12 * 60)).toBe('12 min')
     expect(ageText(7 * 3600 + 120)).toBe('7 h')
-    expect(ageText(3 * 86400 + 5)).toBe('3 j')
+    expect(ageText(3 * 86400 + 5)).toBe('3 d')
   })
 })
 
@@ -39,7 +39,7 @@ describe('recommendStart (a) a LIVE agent waits on the user', () => {
     expect(r.kind).toBe('waiting')
     if (r.kind !== 'waiting') return
     expect(r.entry.request.request_id).toBe(oldest.request.request_id)
-    expect(r.why).toContain('un assistant attend ta réponse depuis')
+    expect(r.why).toContain('an assistant has been waiting for your answer for')
   })
 
   it('wins over a stuck thread, even an older one', () => {
@@ -52,7 +52,7 @@ describe('recommendStart (a) a LIVE agent waits on the user', () => {
     const bands = buildBands(data)
     const e = { ...bands.waiting[0], request: { ...bands.waiting[0].request, age_secs: 7 * 3600 + 30 } }
     const r = recommendStart({ ...bands, waiting: [e] })
-    expect(r.kind === 'waiting' && r.why).toBe('un assistant attend ta réponse depuis 7 h')
+    expect(r.kind === 'waiting' && r.why).toBe('an assistant has been waiting for your answer for 7 h')
   })
 
   it('ties on age go to the smallest request id, whatever the payload order', () => {
@@ -87,7 +87,7 @@ describe('recommendStart (b) the oldest stuck or resumable item', () => {
     expect(r.kind).toBe('stuck')
     if (r.kind !== 'stuck') return
     expect(r.entry.kind === 'stuck' && r.entry.thread.id).toBe('older')
-    expect(r.why).toBe(`ce plan est à l'arrêt depuis 1 j : ${STUCK_LABEL.task_blocked.toLowerCase()}`)
+    expect(r.why).toBe(`this plan has been stopped for 1 d: ${STUCK_LABEL.task_blocked.toLowerCase()}`)
   })
 
   it('ties on age go to the smallest id, whatever the payload order', () => {
@@ -103,7 +103,7 @@ describe('recommendStart (b) the oldest stuck or resumable item', () => {
     const o = fixture('orphan')
     const r = recommendStart(buildBands({ ...nothing(o), orphans: o.orphans, threads: o.threads }))
     expect(r.kind).toBe('stuck')
-    expect(r.kind === 'stuck' && r.why).toMatch(/restée sans réponse|à l'arrêt/)
+    expect(r.kind === 'stuck' && r.why).toMatch(/left unanswered|has been stopped/)
     expect(r.why).not.toMatch(/session|\bCLI\b/i)
   })
 
@@ -137,7 +137,7 @@ describe('recommendStart (b) only recommends actions that are possible', () => {
     const r = recommendStart(bands, [], busy)
     expect(r.kind).toBe('blocked')
     expect(r.why).toContain('Autre plan')
-    expect(r.why).toContain('un autre plan tourne déjà')
+    expect(r.why).toContain('another plan is already in progress')
     expect(r.why).not.toMatch(/runner/i)
   })
 
@@ -152,28 +152,28 @@ describe('recommendStart (c) nothing blocks, some threads advance alone', () => 
   const running = four.threads.filter((t) => t.band === 'running')
   const calm = buildBands({ ...nothing(four), threads: running })
 
-  it('says "Rien ne te bloque : N plans avancent seuls"', () => {
+  it('says "Nothing is blocking you: N plans are moving on their own"', () => {
     const r = recommendStart(calm)
     expect(r.kind).toBe('calm')
     if (r.kind !== 'calm') return
     expect(r.running).toBe(calm.counts.running)
     expect(r.title).toBe(
-      `Rien ne te bloque : ${calm.counts.running} ${calm.counts.running === 1 ? 'plan avance seul' : 'plans avancent seuls'}`,
+      `Nothing is blocking you: ${calm.counts.running} ${calm.counts.running === 1 ? 'plan is moving on its own' : 'plans are moving on their own'}`,
     )
   })
 
   it('agrees in the singular', () => {
     const one = buildBands({ ...nothing(four), threads: [running[0]] })
     const r = recommendStart(one)
-    expect(r.kind === 'calm' && r.title).toBe('Rien ne te bloque : 1 plan avance seul')
+    expect(r.kind === 'calm' && r.title).toBe('Nothing is blocking you: 1 plan is moving on its own')
   })
 
-  it('does NOT claim calm or empty when the "En cours" source failed', () => {
+  it('does NOT claim calm or empty when the "In progress" source failed', () => {
     expect(recommendStart(calm, ['running']).kind).toBe('incomplete')
     expect(recommendStart(buildBands(nothing(four)), ['running']).kind).toBe('incomplete')
   })
 
-  it('does NOT claim calm when the source of "À traiter" or "À reprendre" failed', () => {
+  it('does NOT claim calm when the source of "Waiting for you" or "To resume" failed', () => {
     for (const band of ['waiting', 'stuck'] as const) {
       const r = recommendStart(calm, [band])
       expect(r.kind).toBe('incomplete')
@@ -215,30 +215,30 @@ describe('headline: the day in a few words, the reason under it, and where it po
   const of = (bands: ReturnType<typeof buildBands>, ...rest: [Parameters<typeof recommendStart>[1]?, Parameters<typeof recommendStart>[2]?]) =>
     headline(recommendStart(bands, ...rest), bands)
 
-  it('ONE live request: singular, since when, points at "À traiter"', () => {
+  it('ONE live request: singular, since when, points at "Waiting for you"', () => {
     const base = buildBands(four)
     const e = { ...base.waiting[0], request: { ...base.waiting[0].request, age_secs: 7 * 3600 } }
     const bands = { ...base, waiting: [e] }
-    expect(of(bands)).toEqual({ title: 'Un assistant attend ta réponse', why: 'Il attend depuis 7 h.', band: 'waiting' })
+    expect(of(bands)).toEqual({ title: 'An assistant is waiting for your answer', why: 'It has been waiting for 7 h.', band: 'waiting' })
   })
 
-  it('SEVERAL live requests: the count, the age of the oldest, points at "À traiter"', () => {
+  it('SEVERAL live requests: the count, the age of the oldest, points at "Waiting for you"', () => {
     const base = buildBands(four)
     const a = { ...base.waiting[0], request: { ...base.waiting[0].request, request_id: 'req_a', age_secs: 12 * 60 } }
     const b = { ...base.waiting[0], request: { ...base.waiting[0].request, request_id: 'req_b', age_secs: 3 * 86400 } }
     const bands = { ...base, waiting: [a, b] }
     expect(of(bands)).toEqual({
-      title: '2 assistants attendent ta réponse',
-      why: 'Le plus ancien attend depuis 3 j.',
+      title: '2 assistants are waiting for your answer',
+      why: 'The oldest has been waiting for 3 d.',
       band: 'waiting',
     })
   })
 
-  it('stuck: counts what is to resume, gives the capitalised reason of the recommended one, points at "À reprendre"', () => {
+  it('stuck: counts what is to resume, gives the capitalised reason of the recommended one, points at "To resume"', () => {
     const one = buildBands({ ...nothing(blockedData), threads: [{ ...stuckThread, age_secs: 90000 }] })
     expect(of(one)).toEqual({
-      title: 'Un travail est à reprendre',
-      why: `Ce plan est à l'arrêt depuis 1 j : ${STUCK_LABEL.task_blocked.toLowerCase()}.`,
+      title: 'Something is waiting to be resumed',
+      why: `This plan has been stopped for 1 d: ${STUCK_LABEL.task_blocked.toLowerCase()}.`,
       band: 'stuck',
     })
     const two = buildBands({
@@ -249,18 +249,18 @@ describe('headline: the day in a few words, the reason under it, and where it po
       ],
     })
     const h = of(two)
-    expect(h.title).toBe('2 travaux sont à reprendre')
-    expect(h.why).toMatch(/^Ce plan est à l'arrêt depuis 1 j : .+\.$/)
+    expect(h.title).toBe('2 things are waiting to be resumed')
+    expect(h.why).toMatch(/^This plan has been stopped for 1 d: .+\.$/)
     expect(h.band).toBe('stuck')
   })
 
-  it('calm: the title of the recommendation, points at "En cours"', () => {
+  it('calm: the title of the recommendation, points at "In progress"', () => {
     const bands = buildBands({ ...nothing(four), threads: four.threads.filter((t) => t.band === 'running') })
     const start = recommendStart(bands)
     expect(start.kind).toBe('calm')
     const h = headline(start, bands)
     expect(h.title).toBe(start.kind === 'calm' && start.title)
-    expect(h.why).toBe("Aucun assistant n'attend ta réponse et rien n'est à reprendre.")
+    expect(h.why).toBe('No assistant is waiting for your answer and nothing is to resume.')
     expect(h.band).toBe('running')
   })
 

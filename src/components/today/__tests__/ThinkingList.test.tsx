@@ -57,16 +57,16 @@ afterEach(() => vi.restoreAllMocks())
 describe('ThinkingList', () => {
   it('groups by nature with a quiet count', () => {
     setup()
-    for (const g of ['RFC', 'Décisions', 'Notes à relire', 'Alertes']) expect(screen.getByRole('region', { name: new RegExp(g) })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /À suivre/ }).textContent).toContain('4')
+    for (const g of ['Proposals', 'Decisions', 'Notes to re-read', 'Alerts']) expect(screen.getByRole('region', { name: new RegExp(g) })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /To read/ }).textContent).toContain('4')
   })
 
   it('shows an empty state when nothing is left to decide', () => {
     setup([])
-    expect(screen.getByText('Rien à suivre')).toBeTruthy()
+    expect(screen.getByText('Nothing to read')).toBeTruthy()
   })
 
-  it('title opens the item (RFC, decision, note); an alert has no page', () => {
+  it('title opens the item (proposal, decision, note); an alert has no page', () => {
     setup()
     expect(screen.getByRole('link', { name: 'Adopt Rust' }).getAttribute('href')).toBe('/workspace/acme/rfcs/r1')
     expect(screen.getByRole('link', { name: 'Use Neo4j' }).getAttribute('href')).toBe('/workspace/acme/decisions/d1')
@@ -74,37 +74,37 @@ describe('ThinkingList', () => {
     expect(screen.queryByRole('link', { name: 'Disk almost full' })).toBeNull()
   })
 
-  it('RFC accept acts in place, optimistically, with a toast and no confirmation', async () => {
+  it('proposal accept acts in place, optimistically, with a toast and no confirmation', async () => {
     const onChanged = vi.fn()
     setup(ITEMS, onChanged)
-    fireEvent.click(screen.getByRole('button', { name: 'Accepter Adopt Rust' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Accept Adopt Rust' }))
     expect(screen.queryByText('Adopt Rust')).toBeNull() // gone before the server answers
     expect(screen.queryByRole('dialog')).toBeNull()
-    await waitFor(() => expect(m.success).toHaveBeenCalledWith(expect.stringMatching(/^Accepté : /)))
+    await waitFor(() => expect(m.success).toHaveBeenCalledWith(expect.stringMatching(/^Accepted: /)))
     expect(m.decide).toHaveBeenCalledWith('rfc', 'r1', 'accept')
     expect(onChanged).toHaveBeenCalled()
   })
 
-  it('rejecting an RFC asks for confirmation first, and cancel does nothing', async () => {
+  it('rejecting a proposal asks for confirmation first, and cancel does nothing', async () => {
     setup()
-    fireEvent.click(screen.getByRole('button', { name: 'Rejeter Adopt Rust' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reject Adopt Rust' }))
     expect(m.decide).not.toHaveBeenCalled()
-    const dlg = await screen.findByText('Rejeter cette RFC ?')
+    const dlg = await screen.findByText('Reject this proposal?')
     expect(dlg).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Annuler' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(m.decide).not.toHaveBeenCalled()
     expect(screen.getByText('Adopt Rust')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Rejeter Adopt Rust' }))
-    const confirm = await screen.findByText('Rejeter cette RFC ?')
-    fireEvent.click(within(confirm.closest('[role="dialog"]') ?? document.body).getByRole('button', { name: 'Rejeter' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reject Adopt Rust' }))
+    const confirm = await screen.findByText('Reject this proposal?')
+    fireEvent.click(within(confirm.closest('[role="dialog"]') ?? document.body).getByRole('button', { name: 'Reject' }))
     await waitFor(() => expect(m.decide).toHaveBeenCalledWith('rfc', 'r1', 'reject'))
   })
 
   it.each([
-    ['Accepter Use Neo4j', () => expect(m.decide).toHaveBeenCalledWith('decision', 'd1', 'accept')],
-    ['Confirmer Stale gotcha', () => expect(m.confirm).toHaveBeenCalledWith('n1')],
-    ['Invalider Stale gotcha', () => expect(m.invalidate).toHaveBeenCalledWith('n1', expect.any(String))],
-    ['Acquitter Disk almost full', () => expect(m.post).toHaveBeenCalledWith('/alerts/a1/acknowledge', { acknowledged_by: 'today' })],
+    ['Accept Use Neo4j', () => expect(m.decide).toHaveBeenCalledWith('decision', 'd1', 'accept')],
+    ['Confirm Stale gotcha', () => expect(m.confirm).toHaveBeenCalledWith('n1')],
+    ['Invalidate Stale gotcha', () => expect(m.invalidate).toHaveBeenCalledWith('n1', expect.any(String))],
+    ['Acknowledge Disk almost full', () => expect(m.post).toHaveBeenCalledWith('/alerts/a1/acknowledge', { acknowledged_by: 'today' })],
   ])('%s acts in place without confirmation', async (name, check) => {
     setup()
     fireEvent.click(screen.getByRole('button', { name }))
@@ -116,23 +116,23 @@ describe('ThinkingList', () => {
   it('a failed action brings the row back and says so', async () => {
     m.confirm.mockRejectedValue(new Error('boom'))
     setup()
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmer Stale gotcha' }))
-    await waitFor(() => expect(m.error).toHaveBeenCalledWith('Non enregistré : boom'))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Stale gotcha' }))
+    await waitFor(() => expect(m.error).toHaveBeenCalledWith('Not saved: boom'))
     expect(screen.getByText('Stale gotcha')).toBeTruthy()
     expect(m.success).not.toHaveBeenCalled()
   })
 
   it('collapses and remembers it in localStorage', () => {
     const { unmount } = setup()
-    const toggle = screen.getByRole('button', { name: /À suivre/ })
+    const toggle = screen.getByRole('button', { name: /To read/ })
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
     fireEvent.click(toggle)
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     expect(window.localStorage.getItem(KEY)).toBe('1')
-    expect(screen.queryByRole('region', { name: /RFC/ })).toBeNull()
+    expect(screen.queryByRole('region', { name: /Proposals/ })).toBeNull()
     unmount()
     setup()
-    expect(screen.getByRole('button', { name: /À suivre/ }).getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByRole('button', { name: /To read/ }).getAttribute('aria-expanded')).toBe('false')
   })
 
   it('still works when localStorage throws', () => {
@@ -143,7 +143,7 @@ describe('ThinkingList', () => {
       throw new Error('denied')
     })
     setup()
-    const toggle = screen.getByRole('button', { name: /À suivre/ })
+    const toggle = screen.getByRole('button', { name: /To read/ })
     expect(toggle.getAttribute('aria-expanded')).toBe('false') // unreadable storage: folded
     fireEvent.click(toggle)
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
@@ -152,7 +152,7 @@ describe('ThinkingList', () => {
   it('is FOLDED by default (nothing stored), with a discreet count, and opening is remembered', () => {
     window.localStorage.clear()
     const { unmount } = setup()
-    const toggle = screen.getByRole('button', { name: /À suivre/ })
+    const toggle = screen.getByRole('button', { name: /To read/ })
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     expect(toggle.textContent).toContain('4')
     expect(document.getElementById('today-thinking-body')!.hidden).toBe(true)
@@ -160,7 +160,7 @@ describe('ThinkingList', () => {
     expect(window.localStorage.getItem(KEY)).toBe('0')
     unmount()
     setup()
-    expect(screen.getByRole('button', { name: /À suivre/ }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('button', { name: /To read/ }).getAttribute('aria-expanded')).toBe('true')
   })
 
   it('can be driven by the page (controlled fold state)', () => {
@@ -170,7 +170,7 @@ describe('ThinkingList', () => {
         <ThinkingList items={ITEMS} collapsed onCollapsedChange={onCollapsedChange} />
       </MemoryRouter>,
     )
-    fireEvent.click(screen.getByRole('button', { name: /À suivre/ }))
+    fireEvent.click(screen.getByRole('button', { name: /To read/ }))
     expect(onCollapsedChange).toHaveBeenCalledWith(false)
   })
 })

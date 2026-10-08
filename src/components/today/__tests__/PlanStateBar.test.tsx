@@ -32,22 +32,22 @@ describe('countPlanStates', () => {
 
 describe('planStateLabel', () => {
   it('says done over total, then what needs the reader first: waiting, failed, blocked, running', () => {
-    expect(planStateLabel(countPlanStates(MIXED))).toBe('4 faites sur 11, 1 attend ta réponse, 1 échouée, 2 bloquées, 1 en cours')
+    expect(planStateLabel(countPlanStates(MIXED))).toBe('4 of 11 done, 1 is waiting for your answer, 1 failed, 2 blocked, 1 in progress')
   })
 
   it('agrees in the singular and the plural', () => {
     expect(planStateLabel(countPlanStates(waves([['done', 'waiting', 'waiting', 'failed', 'failed']])))).toBe(
-      '1 faite sur 5, 2 attendent ta réponse, 2 échouées',
+      '1 of 5 done, 2 are waiting for your answer, 2 failed',
     )
   })
 
   it('names only non-zero states, and never the tasks still to come', () => {
-    expect(planStateLabel(countPlanStates(waves([['done', 'done', 'pending']])))).toBe('2 faites sur 3')
-    expect(planStateLabel(countPlanStates(waves([['pending', 'running']])))).toBe('0 faites sur 2, 1 en cours')
+    expect(planStateLabel(countPlanStates(waves([['done', 'done', 'pending']])))).toBe('2 of 3 done')
+    expect(planStateLabel(countPlanStates(waves([['pending', 'running']])))).toBe('0 of 2 done, 1 in progress')
   })
 
   it('says when there is no task', () => {
-    expect(planStateLabel(countPlanStates([]))).toBe('Aucune tâche')
+    expect(planStateLabel(countPlanStates([]))).toBe('No tasks')
   })
 })
 
@@ -56,7 +56,7 @@ describe('PlanStateBar', () => {
     renderBar(<PlanStateBar waves={MIXED} />)
     const bars = screen.getAllByRole('progressbar')
     expect(bars).toHaveLength(1)
-    const bar = screen.getByRole('progressbar', { name: 'Avancement' })
+    const bar = screen.getByRole('progressbar', { name: 'Progress' })
     expect(bar.getAttribute('aria-valuemin')).toBe('0')
     expect(bar.getAttribute('aria-valuenow')).toBe('4')
     expect(bar.getAttribute('aria-valuemax')).toBe('11')
@@ -89,10 +89,10 @@ describe('PlanStateBar', () => {
     renderBar(<PlanStateBar waves={MIXED} />)
     const words = [...screen.getByTestId('state-words').querySelectorAll<HTMLElement>('[data-state]')]
     expect(words.map((w) => [w.dataset.state, w.textContent])).toEqual([
-      ['waiting', '1 attend ta réponse'],
-      ['failed', '1 échouée'],
-      ['blocked', '2 bloquées'],
-      ['running', '1 en cours'],
+      ['waiting', '1 is waiting for your answer'],
+      ['failed', '1 failed'],
+      ['blocked', '2 blocked'],
+      ['running', '1 in progress'],
     ])
   })
 
@@ -100,8 +100,8 @@ describe('PlanStateBar', () => {
     renderBar(<PlanStateBar waves={waves([['done', 'done', 'pending', 'blocked', 'blocked']])} />)
     const box = screen.getByTestId('state-words')
     expect([...box.querySelectorAll<HTMLElement>('[data-state]')].map((w) => w.dataset.state)).toEqual(['blocked'])
-    expect(box.textContent).toBe('2 bloquées')
-    expect(box.textContent).not.toMatch(/faite|à venir|en cours|échouée|attend/)
+    expect(box.textContent).toBe('2 blocked')
+    expect(box.textContent).not.toMatch(/done|to come|in progress|failed|waiting/)
   })
 
   it('has no words at all when every task is done or still to come', () => {

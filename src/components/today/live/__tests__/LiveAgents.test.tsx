@@ -95,7 +95,7 @@ describe('LiveAgents', () => {
     expect(rows[0].textContent).not.toContain('$0.50')
     expect(rows[0].textContent).not.toContain('claude-opus')
     // The summary counts who waits and who works: no total, no idle.
-    expect(screen.getByText('1 attend ta réponse · 1 travaille')).toBeTruthy()
+    expect(screen.getByText('1 waiting for your answer · 1 working')).toBeTruthy()
   })
 
   it('folds the idle agents behind a button that reveals them', async () => {
@@ -149,10 +149,10 @@ describe('LiveAgents', () => {
     renderLive()
     expect(await screen.findByText(LIVE_TEXT.empty, { selector: 'p.text-sm' })).toBeTruthy()
     expect(screen.queryAllByTestId('live-agent')).toHaveLength(0)
-    expect(screen.queryByRole('button', { name: /inactif/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /idle/ })).toBeNull()
   })
 
-  it('opens the session in the chat panel on "Ouvrir"', async () => {
+  it('opens the session in the chat panel on "Open"', async () => {
     list.mockResolvedValue(response([agent({ session_id: 'sess-42', title: 'Open me' })]))
     const { store } = renderLive()
     fireEvent.click(await screen.findByRole('button', { name: `${LIVE_TEXT.open} Open me` }))
@@ -180,7 +180,7 @@ describe('LiveAgents', () => {
       await vi.advanceTimersByTimeAsync(LIVE_AGENTS_POLL_MS + 10)
     })
     expect(screen.getByText('Still here')).toBeTruthy()
-    expect(screen.getByRole('status').textContent).toContain('périmée')
+    expect(screen.getByRole('status').textContent).toContain('out of date')
   })
 
   it('re-reads on the timer and on attention_changed', async () => {
