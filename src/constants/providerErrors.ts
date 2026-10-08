@@ -8,6 +8,7 @@
 // (link, command to copy, retry) is rendered by `ProviderStateCard`.
 
 import type { ProviderErrorCode, ProviderErrorInfo } from '@/types/provider'
+import { HARNESS_FEATURES } from './engine'
 
 export const PROVIDER_SETTINGS_PATH = '/providers'
 export const VAULT_PATH = '/vault'
@@ -132,6 +133,27 @@ export function isSandboxRefusal(
     error.code === 'unsupported' &&
     (error.capability === 'sandbox' || /\bsandbox\b/i.test(error.message ?? ''))
   )
+}
+
+/**
+ * The engine feature behind a failure, when the failure is Project
+ * Orchestrator's gap and not the model's: an `unsupported` naming a feature the
+ * agent engine has not ported yet, or a message refused during a turn on an
+ * engine that does not queue (`message_queue` in `degraded_features`).
+ * `null` = nothing to add: the explanation stands as it is.
+ *
+ * Its sentence is `session.errors.harnessGap` (i18n). A capability of the model
+ * (`images`, `tools`, `context_window`) is never reported here.
+ */
+export function harnessGapOf(
+  error: Pick<ProviderErrorInfo, 'code' | 'capability'>,
+  degraded: readonly string[] = [],
+): string | null {
+  if (error.code === 'unsupported' && error.capability && HARNESS_FEATURES.includes(error.capability)) {
+    return error.capability
+  }
+  if (error.code === 'turn_in_progress' && degraded.includes('message_queue')) return 'message_queue'
+  return null
 }
 
 /** `12 s`, `2 min` — how long a rate limit asks to wait. */

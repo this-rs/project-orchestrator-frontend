@@ -14,9 +14,12 @@ import {
   providerErrorExplanation,
   providerInstancePath,
   isSandboxRefusal,
+  harnessGapOf,
 } from '@/constants/providerErrors'
-import { useSetAtom } from 'jotai'
-import { chatSessionPermissionOverrideAtom } from '@/atoms'
+import { humanizeFeature } from '@/constants/engine'
+import { useT } from '@/i18n'
+import { useAtomValue, useSetAtom } from 'jotai'
+import { chatSessionEngineAtom, chatSessionPermissionOverrideAtom } from '@/atoms'
 import { TRUST_FALLBACK_MODE } from '@/constants/toolPolicy'
 import type { ProviderErrorInfo } from '@/types/provider'
 
@@ -148,7 +151,14 @@ export function ProviderStateCard({
   const setModeOverride = useSetAtom(chatSessionPermissionOverrideAtom)
   const sandboxRefusal = isSandboxRefusal(error)
   const [modeSwitched, setModeSwitched] = useState(false)
-  const explanation = providerErrorExplanation(error, projectSlug)
+  const { t } = useT()
+  const degraded = useAtomValue(chatSessionEngineAtom).degraded
+  // Project Orchestrator's own gap (engine not ported yet): said as ours, never as the model's.
+  const harnessGap = harnessGapOf(error, degraded)
+  const harnessNote = harnessGap ? t('session.errors.harnessGap', { feature: humanizeFeature(harnessGap) }) : null
+  // An `unsupported` on an engine feature would otherwise blame the provider: the note replaces it.
+  const explanation =
+    harnessNote && error.code === 'unsupported' ? harnessNote : providerErrorExplanation(error, projectSlug)
   // The French explanation of a sandbox refusal says it all: no raw English sentence under it.
   const serverSentence = error.message && error.message !== explanation && !isSandboxRefusal(error) ? error.message : null
   const canRetry =
@@ -243,6 +253,11 @@ export function ProviderStateCard({
           {sandboxRefusal ? 'Mode « Rock’n roll » refusé' : PROVIDER_ERROR_TITLES[error.code]}
         </p>
         <p className="mt-0.5 break-words text-red-200/90">{explanation}</p>
+        {harnessNote && error.code !== 'unsupported' && (
+          <p data-testid="harness-gap-note" className="mt-0.5 break-words text-red-200/90">
+            {harnessNote}
+          </p>
+        )}
         {/* The server's own sentence (already redacted), when it adds something. */}
         {serverSentence && <p className="mt-0.5 break-words text-red-200/70">{serverSentence}</p>}
         {error.code === 'auth_required' && error.login_hint && <LoginCommand command={error.login_hint} />}

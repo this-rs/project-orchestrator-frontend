@@ -10,11 +10,9 @@ export const POLICY_ONLY_DETAIL =
   'This provider cannot pause a tool call to ask you. The tool policy decides alone.'
 export const POLICY_ONLY_REQUEST_TEXT = 'Not asked: this provider applies the tool policy without prompting.'
 
-export const IMAGES_UNSUPPORTED_TEXT = 'This model does not accept images.'
-export function imagesRefusedText(filenames: readonly string[]): string {
-  const names = filenames.join(', ')
-  return `${IMAGES_UNSUPPORTED_TEXT} Not attached: ${names}.`
-}
+// Images refused at the composer: `session.images.model` / `session.images.harness`
+// (i18n), chosen by `chatSessionImagesCauseAtom`: a model that takes no image is
+// not the same story as an engine that does not pass images yet.
 
 export const TOOL_CANCEL_UNSUPPORTED_TEXT =
   'This provider cannot stop a single tool. Use Stop in the composer to interrupt the whole turn.'

@@ -7,15 +7,17 @@
 import type common from './messages/en/common.ts'
 import type nav from './messages/en/nav.ts'
 import type routing from './messages/en/routing.ts'
+import type session from './messages/en/session.ts'
 
 interface EnglishMessages {
   common: typeof common
   nav: typeof nav
   routing: typeof routing
+  session: typeof session
 }
 
 export type Ns = keyof EnglishMessages
-export const NAMESPACES = ['common', 'nav', 'routing'] as const satisfies readonly Ns[]
+export const NAMESPACES = ['common', 'nav', 'routing', 'session'] as const satisfies readonly Ns[]
 
 /** Every other language is a (possibly partial) overlay of the same shape. */
 export type Translation<N extends Ns> = DeepPartial<EnglishMessages[N]>

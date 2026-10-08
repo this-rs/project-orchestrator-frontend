@@ -350,6 +350,24 @@ export const chatSessionCapabilitiesAtom = atom<ProviderCapabilities>((get) => {
 })
 
 /**
+ * Why the current conversation takes no image: `model` when the model or its
+ * provider declares `images: false` (or nothing else is known), `harness` when
+ * nobody declared it and the agent engine is the one that does not carry
+ * images yet. `null` = images are accepted.
+ */
+export const chatSessionImagesCauseAtom = atom<'model' | 'harness' | null>((get) => {
+  if (get(chatSessionCapabilitiesAtom).images) return null
+  const instance = get(chatEffectiveProviderAtom)
+  const model = get(chatSessionModelAtom) ?? instance?.default_model
+  const declaredFalse =
+    get(chatSessionCapabilitiesSnapshotAtom)?.images === false ||
+    instance?.capabilities?.images === false ||
+    instance?.models.find((m) => m.id === model)?.capabilities?.images === false
+  if (declaredFalse) return 'model'
+  return get(chatSessionEngineAtom).engine === 'agent' ? 'harness' : 'model'
+})
+
+/**
  * True when a tool call can stop and wait for the human: the provider can ask
  * AND the mode is not `trust`.
  */

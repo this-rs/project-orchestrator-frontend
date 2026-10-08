@@ -33,6 +33,7 @@ import {
   readSystemInitRuntime,
   lastSystemInitRuntime,
   systemInitProviderMetadata,
+  systemInitToolMetadata,
   toolHintMetadata,
   isQuestionToolUse,
   questionMetadata,
@@ -1264,6 +1265,7 @@ export function useChat() {
                 tools_count: siTools?.length ?? 0,
                 mcp_servers_count: siMcpServers?.length ?? 0,
                 permission_mode: siPermMode,
+                ...systemInitToolMetadata(siData),
                 ...systemInitProviderMetadata(siData),
               },
             })

@@ -17,7 +17,9 @@ import { CLAUDE_CODE_CAPABILITIES, type ProviderCapabilities } from '@/types/pro
 const cancelTools = vi.fn()
 vi.mock('@/services', () => ({ chatApi: { cancelTools: (...a: unknown[]) => cancelTools(...a) } }))
 
-import { chatSessionIdAtom } from '@/atoms'
+import { chatSessionEngineAtom, chatSessionIdAtom } from '@/atoms'
+import { harnessGapOf } from '@/constants/providerErrors'
+import { ProviderStateCard } from './ProviderStateCard'
 import { POLICY_ONLY_REQUEST_TEXT, TOOL_CANCEL_UNSUPPORTED_TEXT } from '@/constants/capabilities'
 import { ChatCapabilitiesProvider, ChatSessionProvider } from './ChatSessionContext'
 import { ChatMessageBubble, groupBlocksByAgent } from './ChatMessageBubble'
@@ -259,5 +261,35 @@ describe('cost of a turn in the bubble', () => {
   it('an estimate carries its badge', () => {
     show({ cost_usd: 0.04, cost_basis: 'priced' })
     expect(screen.getByTestId('cost-display').textContent).toContain('est.')
+  })
+})
+
+describe('engine gaps vs model limits in a failure card', () => {
+  it('an `unsupported` on an engine feature is said to be Project Orchestrator’s gap, not the provider’s', () => {
+    render(<ProviderStateCard error={{ code: 'unsupported', message: '', capability: 'message_queue' }} />)
+    const card = screen.getByRole('alert')
+    expect(card.textContent).toMatch(/agent engine does not do this yet \(message queue\)/)
+    expect(card.textContent).toMatch(/not a limit of the model/)
+    expect(card.textContent).not.toMatch(/This provider does not support/)
+  })
+
+  it('a message refused during a turn on an engine without a queue says so', () => {
+    const store = createStore()
+    store.set(chatSessionEngineAtom, { engine: 'agent', degraded: ['message_queue'] })
+    render(
+      <Provider store={store}>
+        <ProviderStateCard error={{ code: 'turn_in_progress', message: '' }} />
+      </Provider>,
+    )
+    expect(screen.getByTestId('harness-gap-note').textContent).toMatch(/not a limit of the model/)
+  })
+
+  it('a model capability is never reported as an engine gap', () => {
+    expect(harnessGapOf({ code: 'unsupported', capability: 'images' })).toBeNull()
+    expect(harnessGapOf({ code: 'unsupported', capability: 'tools' })).toBeNull()
+    expect(harnessGapOf({ code: 'turn_in_progress' }, [])).toBeNull()
+    render(<ProviderStateCard error={{ code: 'unsupported', message: '', capability: 'images' }} />)
+    expect(screen.getByRole('alert').textContent).toMatch(/This provider does not support "images"/)
+    expect(screen.queryByTestId('harness-gap-note')).toBeNull()
   })
 })

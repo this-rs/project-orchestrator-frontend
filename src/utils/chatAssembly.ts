@@ -610,6 +610,7 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
               tools_count: initTools?.length ?? 0,
               mcp_servers_count: initMcpServers?.length ?? 0,
               permission_mode: initPermMode,
+              ...systemInitToolMetadata(evt),
               ...systemInitProviderMetadata(evt),
             },
           })
@@ -887,6 +888,20 @@ export function lastSystemInitRuntime(rawEvents: ReadonlyArray<unknown>): System
     return readSystemInitRuntime(nested ? { ...evt, ...nested } : evt)
   }
   return null
+}
+
+/**
+ * Tools the session REALLY offers (`tools`) and the allow patterns of its
+ * policy (`tool_allow`), stored on the `system_init` block so the inventory
+ * renders the same live and from history. Absent when the event says nothing.
+ */
+export function systemInitToolMetadata(evt: unknown): { tools?: string[]; tool_allow?: string[] } {
+  const e = (typeof evt === 'object' && evt !== null ? evt : {}) as Record<string, unknown>
+  const out: { tools?: string[]; tool_allow?: string[] } = {}
+  if (Array.isArray(e.tools)) out.tools = e.tools.filter((t): t is string => typeof t === 'string')
+  const allow = readSystemInitRuntime(e).toolPolicy?.allow ?? []
+  if (allow.length > 0) out.tool_allow = [...allow]
+  return out
 }
 
 /** Provider fields stored on a `system_init` block (absent for a legacy session). */
