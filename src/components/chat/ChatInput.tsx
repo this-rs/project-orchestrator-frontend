@@ -186,6 +186,13 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   // The chips are the tokens of the text, dressed with what the search taught us.
   const draftRefs = refsEnabled ? reconcileRefs(value, Object.values(refLabels)) : []
   const refsFull = draftRefs.length >= MAX_REFS_PER_MESSAGE
+  // What choosing a result did, said to screen readers; a duplicate is also shown (the typed query vanishes, the user must know why).
+  const [pickNote, setPickNote] = useState<{ text: string; visible: boolean }>({ text: '', visible: false })
+  useEffect(() => {
+    if (!pickNote.text) return
+    const timer = setTimeout(() => setPickNote({ text: '', visible: false }), 4000)
+    return () => clearTimeout(timer)
+  }, [pickNote])
   const attachments = useAtomValue(chatAttachmentsAtom)
   const deferredSend = useAtomValue(chatAttachmentDeferredSendAtom)
   const selectedProject = useAtomValue(chatSelectedProjectAtom)
@@ -685,6 +692,11 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
     }
     const before = value.slice(0, trigger.start)
     const after = value.slice(trigger.end)
+    setPickNote(
+      already
+        ? { text: `${item.label} is already in the message.`, visible: true }
+        : { text: `${item.label} added to the message.`, visible: false },
+    )
     const token = already ? '' : refToken(ref)
     const gap = token && !after.startsWith(' ') ? ' ' : ''
     setRefLabels((l) => ({ ...l, [refKey(ref)]: ref }))
@@ -906,6 +918,16 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
             className={refsOverflow ? 'm-0 px-2 pt-1 text-[11px] text-amber-300' : 'sr-only'}
           >
             {refsOverflow ? `Maximum ${MAX_REFS_PER_MESSAGE} references per message: the last one was not added.` : ''}
+          </p>
+        )}
+        {refsEnabled && (
+          <p role="status" aria-live="polite" aria-atomic="true" data-testid="refs-pick-announcer" className="sr-only">
+            {pickNote.text}
+          </p>
+        )}
+        {pickNote.visible && (
+          <p aria-hidden="true" data-testid="refs-pick-note" className="m-0 px-2 pt-1 text-xs text-amber-200">
+            {pickNote.text}
           </p>
         )}
         {draftRefs.length > 0 && (

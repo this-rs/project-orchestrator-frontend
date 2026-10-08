@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
 import { refKindDef } from '@/refs/registry'
+import { refStatusLabel } from '@/refs/statusLabel'
 import type { RefSearchState } from '@/refs/useRefSearch'
 import type { RefSearchItem } from '@/refs/refsApi'
 import { MAX_REFS_PER_MESSAGE, type RefKind } from '@/refs/types'
@@ -93,7 +94,7 @@ export function RefPicker({ listId, search, activeIndex, kindFilter, full, isInD
                 <span className="shrink-0 text-slate-400">{def.name}</span>
                 <span className="min-w-0 flex-1 truncate">{item.label}</span>
                 {item.subtitle && <span className="hidden max-w-[40%] truncate text-slate-400 sm:inline">{item.subtitle}</span>}
-                {item.entity_status && <span className="shrink-0 text-slate-400">[{item.entity_status}]</span>}
+                {item.entity_status && <span className="shrink-0 rounded bg-white/[0.06] px-1.5 text-[11px] text-slate-300">{refStatusLabel(item.entity_status)}</span>}
               </li>
             )
           })}
