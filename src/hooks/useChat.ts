@@ -1,6 +1,7 @@
 import { splitAttachments } from '@/utils/messageAttachments'
 import { splitRefs } from '@/utils/messageRefs'
 import { applyResolved, bindResolvedRefs, parseResolvedRefs, refsFromBlock, resolutionAnnouncement } from '@/refs/refState'
+import { useRefKindsSync } from '@/refs/useActiveKinds'
 import { cachedRefsCapability, ensureRefsCapability, refsCapabilityScope } from '@/refs/refsCapability'
 import { clearRefSearchCache } from '@/refs/useRefSearch'
 import { getApiBase } from '@/services/env'
@@ -1522,6 +1523,7 @@ export function useChat() {
   const authenticated = useAtomValue(isAuthenticatedAtom)
   const refsScope = refsCapabilityScope(getApiBase(), currentUserId)
   const refsScopeRef = useRef(refsScope)
+  useRefKindsSync(refsScope)
   useEffect(() => {
     if (refsScopeRef.current !== refsScope) {
       refsScopeRef.current = refsScope

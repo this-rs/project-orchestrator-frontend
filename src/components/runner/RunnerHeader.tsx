@@ -56,6 +56,7 @@ export function RunnerHeader({
   return (
     <PageHeader
       title={planTitle}
+      entityRef={{ kind: 'plan', id: planId, label: planTitle }}
       parentLinks={[{ icon: Rocket, label: NOMENCLATURE.automation.plural, name: NOMENCLATURE.automation.plural, href: wpFn(wsSlug, `/${NOMENCLATURE.automation.segment}`) }]}
       status={<ToneText tone={meta.tone} label={meta.label} pulse={meta.live && isRunning} />}
       intro="automation"

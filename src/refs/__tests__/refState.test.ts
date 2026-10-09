@@ -109,7 +109,7 @@ describe('refs_resolved (golden event)', () => {
   })
 
   it('drops an entry of an unknown kind or status instead of guessing', () => {
-    expect(parseResolvedRefs([{ kind: 'persona', id: plan.id, status: 'ok' }, { kind: 'plan', id: plan.id, status: 'wat' }, null, 3])).toEqual([])
+    expect(parseResolvedRefs([{ kind: 'step', id: plan.id, status: 'ok' }, { kind: 'plan', id: plan.id, status: 'wat' }, null, 3])).toEqual([])
     expect(parseResolvedRefs('nope')).toEqual([])
   })
 

@@ -26,6 +26,7 @@ import { chatApi } from '@/services/chat'
 import { useWorkspaceSlug } from '@/hooks'
 import { useStickToBottom } from '@/hooks/useStickToBottom'
 import { workspacePath } from '@/utils/paths'
+import { AddToChatButton, useReferenceSource } from '@/refs/source'
 
 // Read-only: there is no user interaction to answer in this view.
 const noopRespond = () => {}
@@ -79,6 +80,7 @@ export function InlineConversationPanel({ sessionId, title, onClose }: InlineCon
   const [confirmStop, setConfirmStop] = useState(false)
   const [stopNote, setStopNote] = useState<string | null>(null)
 
+  const source = useReferenceSource({ kind: 'conversation', id: sessionId, label: title })
   const handleViewFull = () => {
     navigate(workspacePath(wsSlug, `/chat/${sessionId}`))
   }
@@ -106,7 +108,7 @@ export function InlineConversationPanel({ sessionId, title, onClose }: InlineCon
     <div className="flex flex-col h-full bg-surface-base">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 border-b border-border-subtle bg-white/[0.02]">
-        <div className="min-w-0 flex-1 basis-40">
+        <div className="min-w-0 flex-1 basis-40" {...source}>
           <h3 className="text-sm font-medium text-gray-200 break-words">{title}</h3>
           <StatusIndicator status={status} />
         </div>
@@ -129,6 +131,7 @@ export function InlineConversationPanel({ sessionId, title, onClose }: InlineCon
               Arrêter
             </Button>
           )}
+          <AddToChatButton entity={{ kind: 'conversation', id: sessionId, label: title }} />
           <button
             type="button"
             onClick={handleViewFull}

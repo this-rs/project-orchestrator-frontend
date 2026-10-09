@@ -1,4 +1,5 @@
 import { api, buildQuery } from './api'
+import { rememberSlugs } from '@/refs/slugRegistry'
 import type {
   Project,
   Plan,
@@ -25,9 +26,9 @@ interface ListParams {
 export const projectsApi = {
   // Projects
   list: (params: ListParams = {}) =>
-    api.get<PaginatedResponse<Project>>(`/projects${buildQuery(params)}`),
+    api.get<PaginatedResponse<Project>>(`/projects${buildQuery(params)}`).then((r) => (rememberSlugs('project', r?.items), r)),
 
-  get: (slug: string, signal?: AbortSignal) => api.get<Project>(`/projects/${slug}`, signal),
+  get: (slug: string, signal?: AbortSignal) => api.get<Project>(`/projects/${slug}`, signal).then((p) => (rememberSlugs('project', [p]), p)),
 
   create: (data: CreateProjectRequest) =>
     api.post<Project>('/projects', data),

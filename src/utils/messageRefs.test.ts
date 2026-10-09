@@ -49,10 +49,10 @@ describe('splitRefs — golden block vectors', () => {
     expect(splitRefs(early).refs).toEqual([])
   })
 
-  it('refuses a block holding a reserved kind, a bad id, the nil id, or extra text after the array', () => {
+  it('refuses a block holding an unknown kind, a bad id, the nil id, or extra text after the array', () => {
     const wrap = (j: string) => `t\n\n<po-refs>${j}</po-refs>`
     for (const j of [
-      '[{"kind":"persona","id":"57cf05c9-25b6-495d-ab07-de4b11d64736"}]',
+      '[{"kind":"step","id":"57cf05c9-25b6-495d-ab07-de4b11d64736"}]',
       '[{"kind":"plan","id":"nope"}]',
       '[{"kind":"plan","id":"00000000-0000-0000-0000-000000000000"}]',
       '{"kind":"plan"}',

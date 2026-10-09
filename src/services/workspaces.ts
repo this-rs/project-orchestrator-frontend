@@ -1,4 +1,5 @@
 import { api, buildQuery } from './api'
+import { rememberSlugs } from '@/refs/slugRegistry'
 import type {
   Workspace,
   WorkspaceMilestone,
@@ -25,9 +26,9 @@ interface ListParams {
 export const workspacesApi = {
   // Workspaces
   list: (params: ListParams = {}, signal?: AbortSignal) =>
-    api.get<PaginatedResponse<Workspace>>(`/workspaces${buildQuery(params)}`, signal),
+    api.get<PaginatedResponse<Workspace>>(`/workspaces${buildQuery(params)}`, signal).then((r) => (rememberSlugs('workspace', r?.items), r)),
 
-  get: (slug: string) => api.get<Workspace>(`/workspaces/${slug}`),
+  get: (slug: string) => api.get<Workspace>(`/workspaces/${slug}`).then((w) => (rememberSlugs('workspace', [w]), w)),
 
   create: (data: CreateWorkspaceRequest) =>
     api.post<Workspace>('/workspaces', data),
@@ -42,7 +43,7 @@ export const workspacesApi = {
 
   // Projects in workspace (backend returns full Project objects as raw array)
   listProjects: (slug: string, signal?: AbortSignal) =>
-    api.get<Project[]>(`/workspaces/${slug}/projects`, signal),
+    api.get<Project[]>(`/workspaces/${slug}/projects`, signal).then((r) => (rememberSlugs('project', r), r)),
 
   addProject: (slug: string, projectId: string) =>
     api.post(`/workspaces/${slug}/projects`, { project_id: projectId }),

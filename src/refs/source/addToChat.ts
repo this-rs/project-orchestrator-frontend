@@ -53,6 +53,7 @@ export const addRefToChatAtom = atom(null, (get, set, input: AddRefInput): AddRe
 
   const entity = parseEntityRef(input.ref)
   if (!entity) return say({ status: 'invalid', message: 'This item cannot be added to the chat.' }, 'warning')
+  if (/\s/.test(entity.id)) return say({ status: 'invalid', message: 'This item cannot be written as a reference (its name holds a space).' }, 'warning')
   const ref: ChatReference = { ...entity, label: input.label?.trim() || undefined, subtitle: input.subtitle }
   const name = ref.label ?? fallbackName(ref)
 

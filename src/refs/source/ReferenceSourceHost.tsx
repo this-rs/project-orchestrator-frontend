@@ -2,14 +2,9 @@ import { useEffect } from 'react'
 import { useAtomValue, useStore } from 'jotai'
 import { refsEnabledAtom } from '@/atoms/chat'
 import { addRefToChatAtom, draggingRefAtom, refsAddAnnouncementAtom } from './addToChat'
-import {
-  REF_ATTR,
-  REF_DRAG_ATTR,
-  REF_LABEL_ATTR,
-  REF_SELECTOR,
-  parseRefAttr,
-  writeRefToDataTransfer,
-} from './refSource'
+import { setSlugResolver } from '../entityRoutes'
+import { lookupSlug } from '../slugRegistry'
+import { REF_SELECTOR, resolveSource, writeRefToDataTransfer } from './refSource'
 
 /** Keyboard equivalent of a drag: focus an element that represents an entity, press this. */
 export const ADD_TO_CHAT_SHORTCUT = 'Alt+Shift+A'
@@ -40,27 +35,30 @@ export function ReferenceSourceHost() {
   const store = useStore()
   const announcement = useAtomValue(refsAddAnnouncementAtom)
 
+  // A link names a project or a workspace by its slug; the registry (fed by the API layer) says which id that is.
+  useEffect(() => {
+    setSlugResolver((kind, slug) => lookupSlug(kind, slug))
+    return () => setSlugResolver(() => null)
+  }, [])
+
   useEffect(() => {
     if (!enabled) return
     const onDragStart = (e: DragEvent) => {
       // A text selection being dragged has a Text node as target: not an entity, left alone.
       if (!(e.target instanceof Element) || !e.dataTransfer) return
-      const carrier = e.target.closest(REF_SELECTOR)
-      if (!carrier || carrier.getAttribute(REF_DRAG_ATTR) === 'off') return
-      const ref = parseRefAttr(carrier.getAttribute(REF_ATTR))
-      if (!ref) return
-      writeRefToDataTransfer(e.dataTransfer, ref)
-      store.set(draggingRefAtom, { ...ref, label: carrier.getAttribute(REF_LABEL_ATTR) ?? undefined })
+      const source = resolveSource(e.target)
+      if (!source || !source.draggable) return
+      writeRefToDataTransfer(e.dataTransfer, source.ref)
+      store.set(draggingRefAtom, { ...source.ref, label: source.label })
     }
     const onDragEnd = () => store.set(draggingRefAtom, null)
     const onKeyDown = (e: KeyboardEvent) => {
       if (!(e.altKey && e.shiftKey && e.code === 'KeyA') || e.ctrlKey || e.metaKey) return
       if (!(e.target instanceof Element) || isEditable(e.target)) return
-      const carrier = e.target.closest(REF_SELECTOR)
-      const ref = carrier ? parseRefAttr(carrier.getAttribute(REF_ATTR)) : null
-      if (!carrier || !ref) return
+      const source = resolveSource(e.target)
+      if (!source) return
       e.preventDefault()
-      store.set(addRefToChatAtom, { ref, label: carrier.getAttribute(REF_LABEL_ATTR) ?? undefined, via: 'keyboard' })
+      store.set(addRefToChatAtom, { ref: source.ref, label: source.label, via: 'keyboard' })
     }
 
     // Long press: the one-finger equivalent of the drag (touch has none that coexists with scrolling).
@@ -75,13 +73,12 @@ export function ReferenceSourceHost() {
     const onPointerDown = (e: PointerEvent) => {
       if (press) return cancelPress() // a second finger: pinch / zoom, not a press
       if (e.pointerType !== 'touch' || !(e.target instanceof Element)) return
-      const carrier = e.target.closest(REF_SELECTOR)
-      if (!carrier || carrier.getAttribute(REF_DRAG_ATTR) === 'off') return
+      const source = resolveSource(e.target)
+      if (!source || !source.draggable) return
       const own = e.target.closest(OWN_GESTURE)
-      if (own && carrier.contains(own)) return
-      const ref = parseRefAttr(carrier.getAttribute(REF_ATTR))
-      if (!ref) return
-      const label = carrier.getAttribute(REF_LABEL_ATTR) ?? undefined
+      // The control's own gesture wins, except inside the element that carries the reference.
+      if (own && (source.via === 'annotation' ? e.target.closest(REF_SELECTOR)?.contains(own) : e.target.closest('a[href]')?.contains(own))) return
+      const { ref, label } = source
       press = {
         id: e.pointerId,
         x: e.clientX,
