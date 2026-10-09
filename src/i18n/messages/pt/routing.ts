@@ -35,7 +35,6 @@ export default {
     remote: 'Remoto, não permitido aqui',
   },
   badge: { poChooses: 'Auto', why: 'Por quê?' },
-  advanced: { force: 'Forçar um provedor' },
   settings: {
     title: 'Roteamento',
     confirmAuto: 'O PO passará a aplicar as próprias escolhas sem perguntar. Continuar?',
@@ -134,8 +133,8 @@ export default {
     poChooses: 'O PO escolherá (roteamento: completo)',
     poRoutes: 'O PO roteia (recomendado)',
   },
-  menu: { modeLegend: 'Modo de roteamento', saveFailed: 'Não foi possível salvar o modo.' },
-  picker: { primary: 'Principal: {target} · O PO roteia os executores', forced: 'Forçado: {target}', willChoose: 'O PO escolherá na primeira mensagem', routedBy: 'Roteado por: {by}', aria: 'Roteamento: {mode}' },
+  menu: { aria: 'Modelos desta conversa', chipDefault: 'Padrão do servidor', modeStrict: 'Estrito: 1 modelo', modeMixed: 'Misto: {count} modelos', summaryNone: 'Nada marcado: vale o padrão do servidor.', summaryMixed: 'O PO roteia entre os {count} modelos marcados.', selectAll: 'Selecionar tudo', clearAll: 'Desmarcar tudo', noProvider: 'Nenhum provedor configurado', providerToggle: 'Todos os modelos de {provider}', countOf: '{selected} de {total}', noModels: 'Nenhum modelo listado para este provedor', loading: 'Carregando modelos…', search: 'Buscar modelos…', refreshModelsAria: 'Atualizar a lista de modelos', refreshModels: 'Atualizar modelos', refreshing: 'Atualizando…' },
+  picker: { routedBy: 'Roteado por: {by}' },
   modelTargets: {
     loading: 'Lendo o catálogo de modelos…',
     offline: 'Lista offline.',

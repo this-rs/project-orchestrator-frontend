@@ -33,7 +33,6 @@ export default {
     remote: 'Remote, not allowed here',
   },
   badge: { poChooses: 'Auto', why: 'Why?' },
-  advanced: { force: 'Force a provider' },
   settings: {
     title: 'Routing',
     confirmAuto: 'PO will now apply its own choices without asking. Continue?',
@@ -132,8 +131,8 @@ export default {
     poChooses: 'PO will choose (routing: full)',
     poRoutes: 'PO routes (recommended)',
   },
-  menu: { modeLegend: 'Routing mode', saveFailed: 'The mode could not be saved.' },
-  picker: { primary: 'Primary: {target} · PO routes executors', forced: 'Forced: {target}', willChoose: 'PO will choose at the first message', routedBy: 'Routed by: {by}', aria: 'Routing: {mode}' },
+  menu: { aria: 'Models for this conversation', chipDefault: 'Server default', modeStrict: 'Strict: 1 model', modeMixed: 'Mixed: {count} models', summaryNone: 'Nothing picked: the server default runs.', summaryMixed: 'PO routes among the {count} picked models.', selectAll: 'Select all', clearAll: 'Clear all', noProvider: 'No provider configured', providerToggle: 'All models of {provider}', countOf: '{selected} of {total}', noModels: 'No models listed for this provider', loading: 'Loading models…', search: 'Search models…', refreshModelsAria: 'Refresh the model list', refreshModels: 'Refresh models', refreshing: 'Updating…' },
+  picker: { routedBy: 'Routed by: {by}' },
   modelTargets: {
     loading: 'Reading the model catalog…',
     offline: 'Offline list.',

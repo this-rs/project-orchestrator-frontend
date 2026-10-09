@@ -35,7 +35,6 @@ export default {
     remote: 'Віддалений, тут не дозволений',
   },
   badge: { poChooses: 'Auto', why: 'Чому?' },
-  advanced: { force: 'Примусово обрати провайдера' },
   settings: {
     title: 'Маршрутизація',
     confirmAuto: 'Відтепер PO застосовуватиме власний вибір без запитань. Продовжити?',
@@ -134,8 +133,8 @@ export default {
     poChooses: 'PO обере сам (маршрутизація: повна)',
     poRoutes: 'PO маршрутизує (рекомендовано)',
   },
-  menu: { modeLegend: 'Режим маршрутизації', saveFailed: 'Не вдалося зберегти режим.' },
-  picker: { primary: 'Основний: {target} · PO маршрутизує виконавців', forced: 'Примусово: {target}', willChoose: 'PO обере при першому повідомленні', routedBy: 'Маршрутизація: {by}', aria: 'Маршрутизація: {mode}' },
+  menu: { aria: 'Моделі цієї розмови', chipDefault: 'Типове значення сервера', modeStrict: 'Суворий: 1 модель', modeMixed: 'Змішаний: моделей: {count}', summaryNone: 'Нічого не вибрано: діє типове значення сервера.', summaryMixed: 'PO маршрутизує між вибраними моделями ({count}).', selectAll: 'Вибрати все', clearAll: 'Зняти все', noProvider: 'Провайдерів не налаштовано', providerToggle: 'Усі моделі {provider}', countOf: '{selected} з {total}', noModels: 'Для цього провайдера немає моделей', loading: 'Завантаження моделей…', search: 'Пошук моделей…', refreshModelsAria: 'Оновити список моделей', refreshModels: 'Оновити моделі', refreshing: 'Оновлення…' },
+  picker: { routedBy: 'Маршрутизація: {by}' },
   modelTargets: {
     loading: 'Читання каталогу моделей…',
     offline: 'Список офлайн.',
